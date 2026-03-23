@@ -1659,7 +1659,7 @@ These risks apply across all departments.
 | Risk | Mitigation |
 |---|---|
 | Claude Max subscription ToS (automated usage) | Always maintain OpenRouter as fallback. Monitor Anthropic policy updates. Never architect the system to depend on Max being available. |
-| Cross-language (TypeScript + Python) deployment complexity | Separate Dockerfiles per language. Clear API contract via Inngest. Documented local dev setup for both runtimes. |
+| Cross-language deployment complexity (when dual-language is enabled) | V1 is TypeScript-only — this risk activates when Python workers are added (see Section 28). Mitigation at that point: separate Dockerfiles per language, clear API contract via Inngest HTTP, documented local dev setup for both runtimes. |
 | Solo developer unavailability | Alert fatigue is real. Tune escalation thresholds so non-critical tasks wait in queue rather than spam Slack. |
 | LLM provider outage | LLM Gateway fallback chain: Claude (Max) → Claude (OpenRouter) → GPT-4o → GPT-4o-mini. |
 | Cost runaway | Per-department daily budget caps enforced in Inngest concurrency limits; Slack alert at 80% of monthly ceiling. |
