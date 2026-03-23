@@ -151,8 +151,8 @@ An "archetype" is a declarative config object that describes everything a depart
 | `risk_model` | Approval gate configuration | File-count + critical-path score | Spend threshold + audience size |
 | `concurrency` | Max parallel tasks | 3 per project | 2 per ad account |
 | `escalation_rules` | When to involve human | DB migrations, auth changes | Budget > $500/day, new audience |
-| **`runtime`** | **Agent runtime to use** | **`opencode`** | **`langgraph`** |
-| **`runtime_config`** | **Runtime-specific config** | **`{type: "fly-machine", vm_size: "performance-2x"}`** | **`{type: "in-process", module: "marketing_workflow"}`** |
+| **`runtime`** | **Agent runtime to use** | **`opencode`** | **`inngest`** |
+| **`runtime_config`** | **Runtime-specific config** | **`{type: "fly-machine", vm_size: "performance-2x"}`** | **`{type: "inngest-function", function_id: "marketing/optimize-campaign"}`** |
 
 #### runtime_config Examples
 
@@ -171,18 +171,17 @@ The `runtime_config` field carries the runtime-specific parameters the orchestra
   }
 }
 
-// Paid Marketing Department — In-process Python worker
+// Paid Marketing Department — Inngest workflow function
 {
-  "runtime": "langgraph",
+  "runtime": "inngest",
   "runtime_config": {
-    "type": "in-process",
-    "workflow": "campaign_optimization",
-    "checkpoint_backend": "supabase"
+    "type": "inngest-function",
+    "function_id": "marketing/optimize-campaign"
   }
 }
 ```
 
-Engineering tasks run in ephemeral Fly.io VMs — full filesystem isolation, git access, test execution. Marketing tasks run in-process as Python workers — appropriate for API-heavy workflows that don't need VM overhead.
+Engineering tasks run in ephemeral Fly.io VMs — full filesystem isolation, git access, test execution. Marketing tasks run as Inngest workflow functions — appropriate for API-heavy workflows that don't need VM overhead.
 
 ### 3.2 Archetype Composition
 
@@ -395,7 +394,7 @@ When a department completes work that should trigger another department, it emit
 }
 ```
 
-The `runtime_hint` field tells the receiving department's orchestrator which agent runtime to use. When `"opencode"`, the engineering department spins up a Fly.io machine. When `"langgraph"`, the marketing department runs an in-process workflow. This avoids hard-coupling the event source to the implementation details of the target department. The source just says what it needs done and hints at how; the target decides whether to honor the hint or override it based on its own archetype config.
+The `runtime_hint` field tells the receiving department's orchestrator which agent runtime to use. When `"opencode"`, the engineering department spins up a Fly.io machine. When `"inngest"`, the marketing department triggers an Inngest workflow function. This avoids hard-coupling the event source to the implementation details of the target department. The source just says what it needs done and hints at how; the target decides whether to honor the hint or override it based on its own archetype config.
 
 ### 5.3 Phase 2+ Advisory
 
@@ -433,13 +432,38 @@ The paid marketing department validates that the archetype pattern generalizes b
 
 **Trigger sources**: Meta Marketing API webhooks (spend alerts, performance thresholds), scheduled cron jobs (daily performance reviews), and GoHighLevel webhooks (campaign events and pipeline stage changes).
 
-**Agent runtime**: Each campaign optimization task runs as an Inngest workflow. The step sequence is:
+**Agent runtime**: Each campaign optimization task runs as an Inngest workflow function. The step sequence maps to Inngest's `step.run()` primitives, which checkpoint automatically:
 
-```
-data_collection → analysis → decision → execution → reporting
+```typescript
+export const optimizeCampaign = inngest.createFunction(
+  { id: "marketing/optimize-campaign" },
+  { event: "marketing/campaign.alert" },
+  async ({ event, step }) => {
+    const metrics = await step.run("collect-data", () =>
+      fetchCampaignMetrics(event.data.campaignId)
+    );
+    const decision = await step.run("analyze", () =>
+      analyzeWithLLM(metrics)
+    );
+    if (decision.requiresApproval) {
+      await step.run("request-approval", () =>
+        sendSlackApproval(decision)
+      );
+      await step.waitForEvent("marketing/approval.received", {
+        timeout: "24h",
+      });
+    }
+    await step.run("execute-changes", () =>
+      applyAdChanges(decision)
+    );
+    await step.run("report", () =>
+      sendPerformanceReport(decision)
+    );
+  }
+);
 ```
 
-Every step checkpoints its output before proceeding. If a worker crashes mid-workflow, Inngest resumes from the last completed step — no work is lost and no API call is repeated.
+Every step checkpoints its output before proceeding. If a worker crashes mid-workflow, Inngest resumes from the last completed step — no work is lost and no API call is repeated. The `step.waitForEvent()` primitive handles human-in-the-loop approval gates natively.
 
 **Execution environment**: Inngest function invoked by the platform's event queue. Multiple functions run concurrently, one per ad account. No VM isolation is needed because the work is read-API-call-heavy and write-side mutations go through the Meta/Google Ads APIs, not the local filesystem.
 
@@ -564,15 +588,17 @@ The 2-layer approach is the right V1 target. It covers the core use cases, runs 
 
 ### 7.6 Concurrent Task Conflicts
 
-When two engineering tasks run in parallel, they may modify overlapping files. Without conflict detection, both tasks complete successfully in their isolated VMs, both create PRs, and the second merge fails with a conflict — or worse, silently overwrites the first task's changes.
+> **MVP Scope**: Concurrent task conflicts are resolved at PR review time via Git's standard merge conflict detection. MVP enforces per-project concurrency limits (2–3 concurrent tasks) via Inngest to prevent resource exhaustion. File-level locking and serialized merge queues are not needed because Fly.io machine isolation is the architectural foundation.
 
-The platform handles this at two points:
+Each engineering task runs on an **isolated Fly.io machine** with its own git clone, filesystem, and branch. Two tasks can never conflict at the filesystem level — they don't share one.
 
-**At task start**: The orchestrator checks which files a new task intends to modify (based on triage output) and blocks dispatch if a running task holds any of the same files. The new task waits in the queue until the conflicting task completes. This is a file-level lock, not a project-level lock — two tasks modifying different files in the same project can run in parallel.
+**How concurrent PRs work**: When two tasks modify overlapping files, both tasks complete independently and both create separate PRs against `main`. GitHub detects merge conflicts at PR review time, which is exactly what Git is designed for. The review agent handles rebasing and conflict resolution as part of its normal workflow — this is standard engineering practice, not an exceptional case requiring platform-level infrastructure.
 
-**At merge time**: A serialized PR merge queue processes approvals in order, rebasing each PR against the current `main` before merging. This handles the case where two tasks modify different files but one task's changes affect the other's context (e.g., a shared type definition).
+**What concurrency controls remain**: Per-project concurrency limits (2–3 concurrent tasks) are enforced via Inngest's built-in concurrency controls. This prevents resource exhaustion — too many simultaneous Fly.io machines — without any need for file-level tracking.
 
-This pattern generalizes across departments. Finance has account-level locks: two agents shouldn't post journal entries to the same account simultaneously. Sales has contact-level locks: two agents shouldn't email the same prospect from different workflows. The locking mechanism is the same; only the lock key changes (file path vs. account ID vs. contact ID).
+**Cross-department generalization**: For future non-engineering departments (marketing, finance), API-level conflicts (e.g., two agents modifying the same ad account simultaneously) are handled by Inngest's per-function concurrency limits on a per-account basis, not custom locking infrastructure.
+
+The original design specified file-level conflict detection and a serialized PR merge queue. That design was removed because it adds infrastructure to solve a problem that Git already solves naturally. Fly.io machine isolation is the right architectural foundation — conflict resolution at PR time is the right workflow boundary.
 
 ---
 
@@ -1043,9 +1069,13 @@ A few things worth noting in this sequence:
 
 ## 12. Knowledge Base Architecture
 
+> **MVP Scope**: The pgvector embedding pipeline (Layer 1 indexing) is deferred for MVP. Triage agents use OpenCode's built-in codebase search (file search, LSP, grep, AST tools) for code context, and direct SQL queries on the `tasks` table for institutional memory. The task history tables (Layer 2) are built for MVP. The full vector pipeline is documented below as the future enhancement path.
+
 The knowledge base infrastructure is shared across all departments. Layer 1 is vector embeddings stored in pgvector (a Supabase extension) for semantic search. Layer 2 is task history — also in Supabase — for institutional memory. Both live in the same database, so there's no additional service to spin up or maintain. Layers 3 and 4 (structural AST index and living documentation) are architecturally planned but deferred until the 2-layer approach proves insufficient.
 
 ### Layer 1 — Vector Embeddings (pgvector)
+
+> **Deferred for MVP.** The indexing pipeline below will be built when triage quality degrades in ways that OpenCode's native search can't address. See Section 28 for migration path.
 
 Content flows from its source through chunking and embedding into pgvector.
 
@@ -1089,6 +1119,8 @@ The triage agent queries this history with: "find past tasks with similar requir
 > **Layer 4 — Living Documentation** (Deferred): Architecture decision records (ADRs), API specs, and style guides. Can be folded into Layer 1 (as text chunks for vector search) when needed. Add when architectural compliance issues emerge in review.
 
 ### Pipeline Diagram
+
+> **Note**: This diagram reflects the future-state pipeline. MVP uses direct SQL queries on the `tasks` table and OpenCode's native codebase search tools.
 
 ```mermaid
 graph LR
@@ -1285,7 +1317,6 @@ The data model has three logical clusters:
 graph LR
     subgraph Compute Layer
         FLY["Fly.io Machines\n(Engineering)"]:::service
-        PYWORKER["Python Workers\n(Marketing/other)"]:::service
         GATEWAY["Event Gateway\n(Fastify/TS)"]:::service
     end
 
@@ -1308,15 +1339,12 @@ graph LR
     end
 
     FLY -->|"1. Read/write task state"| SUPABASE
-    PYWORKER -->|"2. Read/write task state"| SUPABASE
-    GATEWAY ==>|"3. Send task events"| INNGEST
-    FLY -->|"4. Persist volume cache"| S3
-    GATEWAY -->|"5. Log event traces"| INNGEST_DASH
-    FLY -->|"6. Send execution traces"| INNGEST_DASH
-    PYWORKER -->|"7. Send workflow traces"| INNGEST_DASH
-    FLYSECRTS -->|"8. Inject credentials"| FLY
-    FLYSECRTS -->|"9. Inject API keys"| GATEWAY
-    FLYSECRTS -->|"10. Inject tokens"| PYWORKER
+    GATEWAY ==>|"2. Send task events"| INNGEST
+    FLY -->|"3. Persist volume cache"| S3
+    GATEWAY -->|"4. Log event traces"| INNGEST_DASH
+    FLY -->|"5. Send execution traces"| INNGEST_DASH
+    FLYSECRTS -->|"6. Inject credentials"| FLY
+    FLYSECRTS -->|"7. Inject API keys"| GATEWAY
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
@@ -1325,22 +1353,18 @@ graph LR
 **Flow Walkthrough**
 
 1. **Read/write task state** — Fly.io Machines (engineering execution workers) read task context from Supabase at boot and write execution results, fix iteration counts, and status updates throughout the task lifecycle.
-2. **Read/write task state** — Python Workers (marketing and future in-process workers) read archetype config and task context from Supabase and write Inngest checkpoint state and task outcomes.
-3. **Send task events** — The Event Gateway sends all normalized webhook events to Inngest as workflow triggers, using Inngest's durable event queue as the handoff layer.
-4. **Persist volume cache** — Fly.io Machines write the pnpm store and Docker layer cache to Fly.io Volumes (Object Storage) so subsequent warm boots don't re-download gigabytes of dependencies.
-5. **Log event traces** — The Event Gateway sends structured trace data to the Inngest Dashboard for each webhook received and event sent, enabling end-to-end tracing from ingest to delivery.
-6. **Send execution traces** — Fly.io Machines send OpenCode session traces to the Inngest Dashboard, capturing every LLM call, tool invocation, and state transition during engineering task execution.
-7. **Send workflow traces** — Python Workers send Inngest workflow execution logs to the Inngest Dashboard, capturing each step's inputs, outputs, and checkpoint state for marketing and other workflows.
-8. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
-9. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Inngest API key into the Event Gateway's environment at deploy time.
-10. **Inject tokens** — Fly.io Secrets inject Meta Ads tokens, Google Ads tokens, and GoHighLevel API keys into Python Worker environment variables, scoped to only the credentials each worker type needs.
+2. **Send task events** — The Event Gateway sends all normalized webhook events to Inngest as workflow triggers, using Inngest's durable event queue as the handoff layer.
+3. **Persist volume cache** — Fly.io Machines write the pnpm store and Docker layer cache to Fly.io Volumes (Object Storage) so subsequent warm boots don't re-download gigabytes of dependencies.
+4. **Log event traces** — The Event Gateway sends structured trace data to the Inngest Dashboard for each webhook received and event sent, enabling end-to-end tracing from ingest to delivery.
+5. **Send execution traces** — Fly.io Machines send OpenCode session traces to the Inngest Dashboard, capturing every LLM call, tool invocation, and state transition during engineering task execution.
+6. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
+7. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Inngest API key into the Event Gateway's environment at deploy time.
 
 ### Runtime Selection
 
 | Runtime Type | Use When | Departments | Cost Profile |
 |---|---|---|---|
 | **Fly.io Machine** | Full OS isolation, long-running processes, filesystem access | Engineering | ~$0.50-$2.00/task |
-| **In-Process Python Worker** | API-heavy work, no filesystem needed, fast turnaround | Marketing (optimization), Finance, Sales | ~$0.01-$0.05/task |
 | **Event Gateway Worker** | Simple API calls, notifications, webhooks | Cross-platform routing | Negligible |
 
 The tiered approach keeps costs in check. Running 20 engineering tickets/day on Fly.io machines costs ~$10-$40/day. Running 50 marketing optimization tasks in-process costs less than $3/day. The architecture supports both without structural changes. The archetype's `runtime_config` determines which tier gets provisioned at execution time.
@@ -1379,11 +1403,13 @@ The table below covers every component in the stack. The "Alternative" column sh
 
 ### Key Changes from the Original Architecture Document
 
-Four decisions changed significantly from the first draft of this document. Each change reduces operational complexity without sacrificing capability.
+Six decisions changed significantly from the first draft of this document. Each change reduces operational complexity without sacrificing capability.
 
 **OpenCode for the engineering agent runtime**: The original document referenced a general-purpose assistant framework. OpenCode is the coding-specific agent runtime already running in the nexus-stack. It handles file editing, git operations, test execution, and LSP diagnostics out of the box. There's no reason to build those integrations from scratch.
 
-**Custom TypeScript orchestrator instead of a dedicated workflow engine**: A dedicated workflow engine (Temporal-style) adds significant operational complexity for a solo developer — a separate server, worker registration, workflow versioning, and a new mental model for every contributor. The generalized `orchestrate.mjs` pattern gives 80% of the value at 10% of the ops cost. A dedicated workflow engine remains a valid migration path if the platform grows to a team and the orchestrator becomes a bottleneck.
+**Inngest for job queuing and workflow orchestration**: A self-hosted job queue requires Redis infrastructure, operational monitoring, and custom concurrency logic. Inngest replaces the job queue, the state machine, and concurrency control in one managed service. No Redis to operate, built-in dashboard, durable step execution with retries. For V1 volumes, the free tier is sufficient. See Section 28 for the migration path back to self-hosted infrastructure if needed.
+
+**Inngest (TypeScript) for all non-engineering workflows**: A Python-based workflow framework added a second language, second deployment pipeline, and cross-language communication complexity. Marketing V1 is campaign optimization via Meta Ads API and Google Ads API — both have TypeScript SDKs. Inngest step functions orchestrate the workflow without needing Python. The entire platform is TypeScript-only for V1. See Section 28 for the migration path to Python-based workflows when needed.
 
 **pgvector in Supabase instead of a dedicated vector database**: Supabase eliminates a separate vector database service. pgvector handles tens of millions of vectors efficiently. A dedicated vector database (such as Qdrant) remains a future migration path if pgvector query performance becomes a bottleneck at scale.
 
@@ -1534,7 +1560,7 @@ Marketing tasks run in-process (no Fly.io machine), so costs are almost entirely
 | Engineering only (with Claude Max) | 20 tasks/day | ~$300-$1,200 |
 | Engineering + Marketing | 20 eng + 30 mkt/day | ~$750-$3,700 |
 
-These projections don't include fixed infrastructure costs (~$84-109/month).
+These projections don't include fixed infrastructure costs (~$40-80/month).
 
 ### Honest Framing
 
@@ -1740,6 +1766,8 @@ flowchart LR
 
 ## 22. LLM Gateway Design
 
+> **MVP Scope**: MVP implements a minimal `callLLM({ model, messages, taskType })` wrapper function that all agents use. Today it calls OpenRouter directly. This provides a single insertion point for adding Claude Max routing, fallback orchestration, and cost tracking later — without modifying any agent code. The full gateway design below documents the future enhancement path.
+
 All agent code calls the LLM Gateway. No agent ever calls a provider directly. The gateway owns model selection, provider routing, fallback logic, and cost tracking. This means swapping models or providers is a config change, not a code change. Agents don't know or care whether they're talking to Claude, GPT-4o, or an open-source model. They send a request to the gateway and get a response back.
 
 The gateway is not a custom-built router. OpenRouter (openrouter.ai) serves as the primary interface, handling routing across 100+ models through a single API endpoint. The platform's "gateway" is a thin wrapper that adds cost tracking, fallback orchestration, and the optional Claude Max optimization layer on top of OpenRouter.
@@ -1848,6 +1876,8 @@ flowchart LR
 
 ## 23. Agent Versioning
 
+> **MVP Scope**: MVP implements minimal versioning: the `agent_versions` table with `prompt_hash`, `model_id`, and `tool_config_hash`, and every `EXECUTION` record links to its `agent_version_id`. This preserves the forensic trail (which version ran which task) from day one. Performance profiles, A/B testing, and the formal rollback mechanism described below are future enhancements.
+
 Every agent that runs in this platform is versioned. This isn't optional — it's what makes the system debuggable and improvable over time.
 
 ### Version Schema
@@ -1882,19 +1912,27 @@ Route N% of tasks to the new version while keeping the proven version as default
 
 ## 24. API Rate Limiting
 
+> **MVP Scope**: The full centralized token bucket with backpressure and cross-worker coordination is deferred. MVP uses thin API service wrappers (`jiraClient`, `githubClient`) with built-in retry-on-429 logic. All external API calls go through these wrappers, providing a single insertion point for the full rate limiter later. See Section 28 for the migration path and cost analysis.
+
 ### The Problem
 
 Multiple concurrent tasks hitting Jira, GitHub, and Meta Ads from the same account can exceed per-account rate limits. Without platform-level management, individual tasks get throttled, retries pile up, and you get cascading delays or outright failures during busy periods.
 
 ### Solution: Centralized Token Bucket
 
+> **Deferred for MVP.** The token bucket design below will be built when concurrent task volume causes cascading 429 failures. MVP uses retry-on-429 in the thin API service wrappers.
+
 A centralized rate limiter runs as middleware in the Event Gateway (TypeScript). It uses an in-process token bucket backed by Supabase for cross-worker coordination. Each external API gets a configured limit, and the bucket is shared across all concurrent workers. No single worker can starve the others, and no API account gets hammered.
 
 ### Backpressure
 
+> **Deferred for MVP.** Backpressure and dispatch delay logic will be added alongside the full token bucket.
+
 When a rate limit bucket drops below 20% capacity, the orchestrator delays task dispatch rather than failing. Tasks queue in Inngest with a calculated delay based on the refill rate. They retry transparently from the caller's perspective. This prevents the thundering herd problem when multiple tasks start simultaneously after a quiet period.
 
 ### Per-API Configuration
+
+> **Future reference**: These limits will be used when the full token bucket is implemented.
 
 | External API | Platform Rate Limit | Recommended Budget | Bucket Refill |
 |---|---|---|---|
@@ -1907,6 +1945,8 @@ When a rate limit bucket drops below 20% capacity, the orchestrator delays task 
 The "Recommended Budget" column is conservative by design. It leaves headroom for manual API calls from developers and other tooling that shares the same credentials.
 
 ### Monitoring
+
+> **Deferred for MVP.** Rate limit monitoring will be added alongside the full token bucket. MVP relies on Inngest execution logs to spot rate-limit-related failures.
 
 Rate limit utilization per API per department is tracked in Supabase. A Slack alert fires at 80% utilization so you can investigate before hitting the ceiling. Inngest execution logs include rate limit wait times, making it easy to spot which tasks are spending time in the backpressure queue versus actually doing work.
 
@@ -2103,33 +2143,17 @@ Dashboards: [Inngest Dashboard](https://app.inngest.com) | [Supabase Table Edito
 
 ## 28. Deferred Capabilities & Future Scale Path
 
-> **Deliberate deferral for V1 speed**: The technologies listed below are architecturally sound and will be needed at scale. They are intentionally deferred from V1 to keep the initial implementation focused and deployable within weeks, not months. Each one adds operational complexity that isn't justified until the platform proves itself on simpler infrastructure. This section documents what we're not building now, why, and when to reconsider.
+> This section records the technologies and capabilities deliberately deferred for V1 in favor of speed-to-market. Each item includes what was deferred, why, when to reconsider it, and the migration path.
 
-The table below maps six deferred technologies to their V1 alternatives, what capability is sacrificed, and the migration path when the time comes.
-
-| Deferred Technology | What We Use Instead | What We Gave Up | When to Reconsider | Migration Path |
+| Deferred Capability | What We Use Instead (V1) | What We Gave Up | When to Reconsider | Migration Path |
 |---|---|---|---|---|
-| **BullMQ + Redis** (job queue) | Inngest (managed) | Fine-grained queue introspection, custom retry policies, local dev without external service | Queue depth > 1,000 jobs; need sub-second latency; cost of Inngest exceeds self-hosted Redis | Migrate Inngest workflows to BullMQ workers; keep Supabase as state store; add Redis container to docker-compose |
-| **LangGraph** (orchestration) | Custom TypeScript orchestrator | Unified agent framework, built-in memory management, graph-based workflow visualization | Orchestrator becomes a bottleneck; need to run 100+ concurrent agents; want framework-native observability | Rewrite orchestrator as LangGraph StateGraph; agents become LangGraph nodes; Inngest becomes the queue layer only |
-| **LangSmith** (agent observability) | Inngest Dashboard + Supabase Logs | Unified trace visualization, automatic prompt versioning, A/B testing framework | Need to compare agent behavior across 10+ prompt versions; traces become hard to correlate across services | Add LangSmith SDK to agent code; route all LLM calls through LangSmith; keep Inngest for workflow traces |
-| **Grafana** (infrastructure monitoring) | Supabase Logs + Inngest Dashboard | Unified metrics dashboard, custom alerting rules, long-term metric retention | Need to correlate infrastructure metrics with agent performance; want custom SLO dashboards | Add Prometheus exporter to Fly.io apps; ship metrics to Grafana Cloud; keep Supabase logs for audit trail |
-| **Custom Orchestrator** (if scaling to team) | Generalized TypeScript orchestrator | Workflow versioning, multi-tenant isolation at orchestration layer, team-friendly UI | Team grows beyond 1 developer; need to onboard new departments without code review; want self-service archetype deployment | Migrate to Temporal or Conductor; keep Supabase as state store; add UI for archetype management |
-| **Dual-Language Runtime** (Python + TypeScript) | Inngest (Python) + OpenCode (TypeScript) | Unified agent framework, single deployment pipeline, shared observability | Need to run agents in languages other than Python/TypeScript; want to unify agent code across departments | Standardize on one language (likely Python for ML/data work, TypeScript for orchestration); migrate non-conforming agents |
+| **BullMQ + Redis** (self-hosted job queue) | Inngest (managed) | Full control over queue infrastructure; no vendor dependency on critical path | When Inngest costs exceed $100/mo, or if Inngest has reliability issues | Replace `inngest.createFunction()` with BullMQ producers/consumers. Business logic inside each step is unchanged. Add Upstash Redis or self-hosted Redis. ~1-2 weeks of work. |
+| **LangGraph (Python)** (workflow orchestration) | Inngest step functions (TypeScript) | Python ML ecosystem; LangGraph's graph-based branching, multi-agent coordination, and sophisticated human-in-the-loop primitives | When marketing workflows need complex multi-step agent reasoning, multimodal creative generation, or ML model integration that TypeScript can't handle | Add Python workers alongside TypeScript. Marketing archetype's `runtime` field changes from `inngest` to `langgraph`. Inngest can trigger Python workers via HTTP. ~2-3 weeks. |
+| **LangSmith** ($39/mo agent observability) | Inngest dashboard + Supabase logging | Deep agent trace visualization — see exact prompt/response chains, token usage per step, latency breakdown across LLM calls | When debugging agent behavior becomes difficult from logs alone — typically when agents chain 5+ LLM calls with complex tool use | Sign up for LangSmith, add `@langchain/core` tracing middleware. Wrap LLM calls with LangSmith trace context. ~1 week. |
+| **Grafana** (self-hosted infra monitoring) | Fly.io + Supabase + Inngest + OpenRouter dashboards | Unified metrics view across all services; custom alerts; historical trend analysis across infrastructure | When you need cross-service correlation (e.g., "Fly.io machine CPU spike caused Supabase connection timeout") or custom SLO tracking | Deploy Grafana on Fly.io, connect data sources (Supabase metrics, Fly.io metrics API). ~2-3 days. |
+| **Custom Orchestrator** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need file-level locking across projects, or custom merge queue ordering | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
+| **Dual-language runtime** (TypeScript + Python) | TypeScript-only | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks | When a department's work requires ML model inference, data science workflows, or Python-only API clients | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself. |
 
-### Rationale for Each Deferral
-
-**BullMQ + Redis**: Inngest is a managed service that handles queue durability, retries, and concurrency without operational overhead. Redis requires monitoring, persistence configuration, and failover planning. For V1 (< 100 tasks/day), Inngest's cost is negligible and its reliability is higher. Migrate to BullMQ when queue throughput becomes the bottleneck, not before.
-
-**LangGraph**: The custom TypeScript orchestrator is a direct evolution of the nexus-stack's `orchestrate.mjs` pattern — proven code, not theoretical. LangGraph adds a framework layer that's valuable at scale (100+ agents, complex state graphs) but adds cognitive overhead for a solo developer. The orchestrator is 500 lines of TypeScript; LangGraph would require learning a new abstraction. Defer until the orchestrator becomes unmaintainable.
-
-**LangSmith**: Inngest Dashboard provides workflow-level traces; Supabase Logs provide query-level traces. For V1, this is sufficient. LangSmith becomes valuable when you're running 10+ agent versions in parallel and need to compare their behavior. At that scale, the unified trace visualization saves hours per week. Defer until you have the data to justify it.
-
-**Grafana**: Supabase Logs and Inngest Dashboard are sufficient for a solo developer. Grafana becomes valuable when you need to correlate infrastructure metrics (CPU, memory, connection pool) with agent performance (latency, error rate). For V1, alerts on queue depth and cost are enough. Defer until you're optimizing for SLOs.
-
-**Custom Orchestrator**: The generalized TypeScript orchestrator works for a solo developer and a small team. It becomes a bottleneck when you need multi-tenant isolation at the orchestration layer, team-friendly UIs for archetype management, or workflow versioning. Temporal or Conductor are the right choice at that scale. Defer until the team grows.
-
-**Dual-Language Runtime**: Running both Python (Inngest workers) and TypeScript (OpenCode, gateway) adds deployment complexity. A unified language would simplify CI/CD and observability. However, Python is the right choice for data/ML work (marketing optimization), and TypeScript is the right choice for orchestration. The split is intentional. Unify only if a single language becomes clearly dominant.
-
-> **Ship faster by deferring**: Every technology on this list is a valid future investment. None of them are mistakes. They're deferred because V1 is about proving the archetype pattern works, not about building the most scalable system possible. Once the platform is proven, these deferrals become clear upgrade paths, not technical debt. The architecture supports all of them without major rewrites.
+> **The guiding principle**: Every deferred item has a clear "when to reconsider" trigger and a concrete migration path. Nothing is permanently lost — just postponed until the evidence says it's needed. Shipping a working V1 with fewer moving parts is worth more than a theoretically perfect architecture that takes months to build.
 
 ---
