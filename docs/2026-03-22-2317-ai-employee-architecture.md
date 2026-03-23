@@ -420,7 +420,7 @@ The engineering department is the primary implementation and the pattern-setter 
 - **Layer 2 — Task history (Supabase)**: Every completed task stores its inputs, outputs, file paths touched, and validation results. This is institutional memory — the agent can query "how was similar work done before?" to avoid re-solving solved problems.
 - **Deferred — Layer 3 (Tree-sitter AST graph)** and **Layer 4 (living documentation)**: These improve triage precision but add operational complexity. They'll be added only when triage quality degrades in ways that Layer 1 and Layer 2 can't address.
 
-**Unique challenge — concurrent file conflicts**: Two tasks running in parallel may modify overlapping files. The platform handles this with file-level conflict detection at task start (the orchestrator checks which files a new task intends to modify and blocks if a running task holds any of the same files) and a serialized PR merge queue that processes approvals in order, rebasing as needed.
+**Unique challenge — concurrent PR conflicts**: Two tasks running in parallel may modify overlapping files. Because each task runs on an isolated Fly.io machine with its own git clone, there is no filesystem-level conflict — both tasks complete independently and create separate PRs. Merge conflicts are detected by GitHub at PR review time and resolved by the review agent via rebase. Per-project concurrency limits (2-3 concurrent tasks) via Inngest prevent resource exhaustion without requiring custom conflict detection.
 
 ---
 
@@ -588,7 +588,7 @@ The 2-layer approach is the right V1 target. It covers the core use cases, runs 
 
 ### 7.6 Concurrent Task Conflicts
 
-> **MVP Scope**: Concurrent task conflicts are resolved at PR review time via Git's standard merge conflict detection. MVP enforces per-project concurrency limits (2–3 concurrent tasks) via Inngest to prevent resource exhaustion. File-level locking and serialized merge queues are not needed because Fly.io machine isolation is the architectural foundation.
+> **MVP Scope**: Concurrent task conflicts are resolved at PR review time via Git's standard merge conflict detection. MVP enforces per-project concurrency limits (2–3 concurrent tasks) via Inngest to prevent resource exhaustion. Custom conflict-resolution infrastructure is not needed because Fly.io machine isolation is the architectural foundation.
 
 Each engineering task runs on an **isolated Fly.io machine** with its own git clone, filesystem, and branch. Two tasks can never conflict at the filesystem level — they don't share one.
 
@@ -598,7 +598,7 @@ Each engineering task runs on an **isolated Fly.io machine** with its own git cl
 
 **Cross-department generalization**: For future non-engineering departments (marketing, finance), API-level conflicts (e.g., two agents modifying the same ad account simultaneously) are handled by Inngest's per-function concurrency limits on a per-account basis, not custom locking infrastructure.
 
-The original design specified file-level conflict detection and a serialized PR merge queue. That design was removed because it adds infrastructure to solve a problem that Git already solves naturally. Fly.io machine isolation is the right architectural foundation — conflict resolution at PR time is the right workflow boundary.
+The original design specified custom conflict detection at the orchestrator level and sequential PR ordering. That infrastructure was removed because it adds complexity to solve a problem that Git already handles naturally at PR review time. Fly.io machine isolation is the right architectural foundation — conflict resolution at PR time is the right workflow boundary.
 
 ---
 
@@ -953,8 +953,8 @@ graph LR
 8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
 9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
 10. **Update task state** — The Review Worker reports its outcome (changes requested, auto-merged, or human review routed) to the Task State Machine.
-11. **Check concurrency budget** — The Task State Machine sends `Ready` tasks to the Concurrency Scheduler, which checks per-project concurrency limits and file-level conflict locks before allowing dispatch.
-12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens and no conflicting tasks hold the target files.
+11. **Check concurrency budget** — The Task State Machine sends `Ready` tasks to the Concurrency Scheduler, which checks per-project concurrency limits before allowing dispatch.
+12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens within the project's configured limit.
 13. **Persist state** — The Task State Machine writes every state transition to Supabase, which serves as the durable source of truth for task recovery after a crash.
 
 ### Scaling Strategy
@@ -1594,7 +1594,7 @@ These risks are specific to the engineering department's code execution model.
 | Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
 | Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
 | Fly.io machine hangs | 90-minute hard timeout + 10-minute stale machine detection (no heartbeat). |
-| Merge conflicts between concurrent PRs | File-level conflict detection at dispatch; serialized merge queue with rebase-on-merge. |
+| Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
 
 ---
 
@@ -2151,7 +2151,10 @@ Dashboards: [Inngest Dashboard](https://app.inngest.com) | [Supabase Table Edito
 | **LangGraph (Python)** (workflow orchestration) | Inngest step functions (TypeScript) | Python ML ecosystem; LangGraph's graph-based branching, multi-agent coordination, and sophisticated human-in-the-loop primitives | When marketing workflows need complex multi-step agent reasoning, multimodal creative generation, or ML model integration that TypeScript can't handle | Add Python workers alongside TypeScript. Marketing archetype's `runtime` field changes from `inngest` to `langgraph`. Inngest can trigger Python workers via HTTP. ~2-3 weeks. |
 | **LangSmith** ($39/mo agent observability) | Inngest dashboard + Supabase logging | Deep agent trace visualization — see exact prompt/response chains, token usage per step, latency breakdown across LLM calls | When debugging agent behavior becomes difficult from logs alone — typically when agents chain 5+ LLM calls with complex tool use | Sign up for LangSmith, add `@langchain/core` tracing middleware. Wrap LLM calls with LangSmith trace context. ~1 week. |
 | **Grafana** (self-hosted infra monitoring) | Fly.io + Supabase + Inngest + OpenRouter dashboards | Unified metrics view across all services; custom alerts; historical trend analysis across infrastructure | When you need cross-service correlation (e.g., "Fly.io machine CPU spike caused Supabase connection timeout") or custom SLO tracking | Deploy Grafana on Fly.io, connect data sources (Supabase metrics, Fly.io metrics API). ~2-3 days. |
-| **Custom Orchestrator** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need file-level locking across projects, or custom merge queue ordering | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
+| **Custom Orchestrator** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need custom priority algorithms or advanced scheduling logic. | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
+| **pgvector Embedding Pipeline** (vector search for triage context) | OpenCode's native codebase search (file search, LSP, grep, AST tools) for code context. Direct SQL queries on `tasks` table for institutional memory. No vector similarity. | Semantic similarity search for triage context. Agents search by keyword/structure rather than semantic meaning. Lower recall for ambiguous tickets. | When triage agents frequently identify the wrong files or miss relevant past tasks. Track via the `feedback` table — if triage overrides exceed 30% for "wrong context" reasons, add the pipeline. | Add `knowledge_embeddings` table to Supabase, build webhook-triggered indexing (on merge to `main`), add embedding generation via OpenRouter (`text-embedding-3-small`), update triage query interface. ~2-3 days of agent work. No existing code changes — purely additive. |
+| **Full API Rate Limiting** (token bucket + backpressure) | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking. | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards. | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely. | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work. |
+| **Jira Reconciliation Cron Job** (hourly webhook safety net) | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring. | Automatic detection and recovery of missed webhooks within 1 hour. | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store. | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play. |
 | **Dual-language runtime** (TypeScript + Python) | TypeScript-only | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks | When a department's work requires ML model inference, data science workflows, or Python-only API clients | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself. |
 
 > **The guiding principle**: Every deferred item has a clear "when to reconsider" trigger and a concrete migration path. Nothing is permanently lost — just postponed until the evidence says it's needed. Shipping a working V1 with fewer moving parts is worth more than a theoretically perfect architecture that takes months to build.
