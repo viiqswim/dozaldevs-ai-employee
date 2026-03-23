@@ -1381,14 +1381,14 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Platform Layer** | Fastify (TypeScript) | Fast, lightweight, OpenAPI plugin, type safety | Express |
 | **Eng Agent Runtime** | OpenCode (`opencode serve` + `@opencode-ai/sdk`) | Purpose-built for AI coding workflows. Proven in nexus-stack. Handles file editing, git, tests, LSP. | — |
 | **Non-Eng Agent Runtime** | Inngest | Durable execution with step-level checkpointing, event-driven state, human-in-the-loop pauses | Trigger.dev |
-| **Orchestration (Eng)** | Custom TypeScript (generalized `orchestrate.mjs`) | Already proven. Wave-based execution, session management, SSE monitoring. | — |
+| **Orchestration (Eng)** | Inngest step functions (evolved from `orchestrate.mjs` pattern) | Durable workflow execution with step-level checkpointing, concurrency control, and crash recovery. Not a separate service — the orchestrator IS these Inngest functions. | — |
 | **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
 | **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
 | **LLM Access** | OpenRouter | Unified API for 100+ models, eliminates custom routing, provider-cost pricing | Direct provider APIs |
 | **LLM Optimization** | Claude Max 20x subscription | Reduces LLM costs to ~$0 for Claude models when under rate limits | — |
 | **Execution Compute (Eng)** | Fly.io Machines API | Proven in nexus-stack, pay-per-second, full isolation, volume persistence | Modal |
-| **Execution Compute (Non-Eng)** | In-process Python workers | No isolation needed for API-only tasks; lowest cost | — |
+| **Execution Compute (Non-Eng)** | Inngest in-process (TypeScript) | No isolation needed for API-only tasks; lowest cost. Runs as Inngest function steps. | — |
 | **Code Gen LLM** | Claude Opus/Sonnet (via OpenRouter) | Best code quality, long context window | GPT-4.1 |
 | **General Task LLM** | Claude Sonnet (via OpenRouter) | Speed + quality balance for non-coding tasks | GPT-4o-mini |
 | **Notifications** | Slack API | Already in use, rich formatting, approval workflows | — |
@@ -1447,7 +1447,7 @@ The foundation everything else runs on. No agents yet — just the infrastructur
 
 The first agent. Triage is the right starting point because it's read-only — the agent can't break anything.
 
-- Knowledge base indexing pipeline: pgvector embeddings for one pilot project
+- Task history queries via SQL for institutional memory. Codebase context via OpenCode's native search tools (file search, LSP, grep, AST). pgvector embeddings deferred — see Section 28.
 - Triage agent in OpenCode with Jira MCP tools (read ticket, post comment)
 - Shadow mode: agent triages but a human reviews all AI outputs before anything is posted
 - Feedback table populated with first corrections
@@ -1481,7 +1481,6 @@ Closes the loop. The review agent is what makes autonomous operation possible �
 Validates that the platform generalizes beyond the pilot project.
 
 - Per-project concurrency scheduler (configurable limit per project)
-- File-level conflict detection at dispatch
 - Onboard 2-3 additional projects with their own knowledge bases
 - Full autonomous operation with monitoring
 
@@ -1494,7 +1493,7 @@ The second department. This validates that the archetype pattern generalizes bey
 - Inngest workflow functions for campaign optimization
 - Meta Ads API and Google Ads API integration
 - Campaign optimization triage, execution, and review agents
-- In-process Python execution (no Fly.io needed for marketing tasks)
+- Inngest TypeScript workflow functions (no Fly.io needed for marketing tasks — runs as Inngest step functions)
 - Shadow mode, then supervised, then autonomous progression
 
 **Gate**: Inngest campaign optimization running on real ad accounts in supervised mode. Agent recommendations match human judgment at least 70% of the time.
