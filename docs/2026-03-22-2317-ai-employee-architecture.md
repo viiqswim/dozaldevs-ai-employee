@@ -673,7 +673,7 @@ A few things worth noting in this diagram:
 
 **Supabase is shared across all three agents.** The triage agent reads and writes pgvector embeddings and task history. The execution agent reads task context written by triage. The review agent reads acceptance criteria and task metadata. One database, three consumers.
 
-**The execution agent is the only one that touches Fly.io.** Triage and review run as lightweight OpenCode sessions on the orchestrator host. Only execution needs a full isolated VM — because it needs to clone the repo, run tests, and execute arbitrary code.
+**The execution agent is the only one that touches Fly.io.** Triage and review run as stateless LLM inference calls via OpenRouter. They don't write code and don't need OpenCode's file editing, git, or LSP capabilities. Only execution needs a full isolated VM — because it needs to clone the repo, run tests, and execute arbitrary code.
 
 ---
 
@@ -683,15 +683,17 @@ The engineering department's work splits across three agents: triage, execution,
 
 ### 9.1 Triage Agent
 
+> **MVP Scope**: The triage agent is deferred for MVP. In MVP, the execution agent reads the raw Jira ticket directly from the `triage_result` column (populated by the Event Gateway with the raw webhook payload). The full triage agent described below will be built when ticket volume or ambiguity justifies it. See Section 28 for the deferral rationale.
+
 The triage agent runs when a Jira ticket enters the queue. Its job is to decide whether a ticket is ready to execute — and if not, to ask the right questions before any code is written.
 
 ```mermaid
 flowchart TD
     WEBHOOK(["Jira Webhook Received"]):::event
     PARSE["Parse Ticket Payload"]:::service
-    ENRICH["Load Project Context\n(pgvector query)"]:::service
-    SUPABASE[("Supabase\n(pgvector + history)")]:::storage
-    ANALYZE["Analyze Requirements\n(OpenCode session)"]:::service
+    ENRICH["Load Project Context\n(SQL + native search)"]:::service
+    SUPABASE[("Supabase\n(task history)")]:::storage
+     ANALYZE["Analyze Requirements\n(LLM call via OpenRouter)"]:::service
     CLEAR{"Requirements\nClear?"}:::decision
     QUESTIONS["Post Questions to Jira"]:::service
     READY["Mark Ticket Ready"]:::service
@@ -699,7 +701,7 @@ flowchart TD
 
     WEBHOOK ==>|"1. Receive Jira webhook"| PARSE
     PARSE -->|"2. Structured payload"| ENRICH
-    ENRICH -->|"3. Query pgvector"| SUPABASE
+    ENRICH -->|"3. Query task history"| SUPABASE
     SUPABASE -->|"4. Return relevant context"| ANALYZE
     ANALYZE -->|"5. Evaluate requirements"| CLEAR
     CLEAR -->|"6b. No"| QUESTIONS
@@ -715,11 +717,11 @@ flowchart TD
 
 **Flow Walkthrough**
 
-1. **Receive Jira webhook** — The Event Gateway delivers a normalized Jira webhook event (new ticket or comment) to the Triage Agent's OpenCode session to begin processing.
+1. **Receive Jira webhook** — The Event Gateway delivers a normalized Jira webhook event (new ticket or comment) to the Triage Agent's LLM call via OpenRouter to begin processing.
 2. **Structured payload** — The Triage Agent parses the ticket title, description, and acceptance criteria into a structured requirements object for analysis.
-3. **Query pgvector** — The Triage Agent queries Supabase's pgvector extension to retrieve code chunks and task history semantically similar to this ticket's requirements.
-4. **Return relevant context** — Supabase returns the top-ranked embedding matches and historical task records, giving the agent codebase context without reading the entire repo.
-5. **Evaluate requirements** — The OpenCode session analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
+3. **Query task history** — The Triage Agent queries the Supabase `tasks` table (SQL `WHERE` on project, labels, keywords) for similar past tickets. Uses OpenCode's native codebase search (file search, LSP, grep, AST tools) for code context — no vector similarity in V1.
+4. **Return relevant context** — Supabase returns matching historical task records. OpenCode's search tools provide code context without reading the entire repo.
+5. **Evaluate requirements** — The LLM call via OpenRouter analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
 6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
 6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
 6. **Send execution event** — The Triage Agent signals the Orchestrator that the task is `Ready`, and the Orchestrator sends an execution event to Inngest.
@@ -728,14 +730,14 @@ flowchart TD
 **Triage Agent Responsibilities**:
 
 1. **Requirement extraction** — Parse ticket title, description, and acceptance criteria into a structured requirements object
-2. **Codebase mapping** — Query pgvector embeddings to identify which files, modules, and functions are likely affected
+2. **Codebase mapping** — Use OpenCode's native search tools (file search, LSP, grep, AST) to identify which files, modules, and functions are likely affected
 3. **Historical context** — Search task history for similar past tickets and their resolutions
 4. **Ambiguity detection** — Flag vague, contradictory, or missing requirements; compare against past rework patterns
 5. **Scope estimation** — Classify as small (<1h), medium (1-4h), or large (4+h). Large tickets flag for human decomposition
-6. **Conflict detection** — Check if in-progress tickets overlap with the same files; alert orchestrator
+6. **Task history awareness** — Check if similar tasks are currently in-progress and flag potential overlap for the execution agent
 7. **Question generation** — Generate specific, actionable questions and post as Jira comments tagged to the reporter
 
-The triage agent runs as an OpenCode session with MCP tools for Jira API access (read ticket, post comment) and Supabase queries. It doesn't write any code — its only output is a structured task context object written to Supabase and a status update on the Jira ticket.
+The triage agent runs as a stateless LLM inference call via OpenRouter with Jira API access (read ticket, post comment) and Supabase queries. It doesn't write any code — its only output is a structured task context object written to Supabase and a status update on the Jira ticket.
 
 ---
 
@@ -810,7 +812,6 @@ flowchart TD
 **Execution Environment**:
 
 - Isolated PostgreSQL + Supabase local instance (Docker-in-Docker)
-- Redis instance for caching
 - Mock external services via MSW configured from project test fixtures
 - Playwright browsers for E2E testing
 - Direct API testing via `supertest`
@@ -827,7 +828,7 @@ flowchart TD
     LOAD["Load PR Diff + Metadata\n(GitHub API MCP)"]:::service
     JIRA_CHECK["Fetch Linked Jira Ticket"]:::service
     COMPARE{"Acceptance\nCriteria Met?"}:::decision
-    CODE_REVIEW["AI Code Review\n(OpenCode session)"]:::service
+    CODE_REVIEW["AI Code Review\n(LLM call via OpenRouter)"]:::service
     QUALITY{"Code Quality\nOK?"}:::decision
     CI["Run CI Pipeline\n(GitHub Actions)"]:::service
     CI_PASS{"CI\nGreen?"}:::decision
@@ -863,12 +864,12 @@ flowchart TD
 
 **Flow Walkthrough**
 
-1. **PR created event** — GitHub fires a webhook when the Execution Agent creates a pull request; the Event Gateway delivers it to the Review Agent's OpenCode session.
+1. **PR created event** — GitHub fires a webhook when the Execution Agent creates a pull request; the Event Gateway delivers it to the Review Agent's LLM call via OpenRouter.
 2. **Diff and metadata loaded** — The Review Agent uses the GitHub PR API MCP tool to fetch the full PR diff, commit list, and CI check status.
 3. **Jira ticket fetched** — The Review Agent uses the Jira API MCP tool to fetch the original ticket, extracting the acceptance criteria for comparison against the PR changes.
 4a. **No** — One or more acceptance criteria are not addressed in the PR diff; the Review Agent posts a change request on the PR via GitHub API.
 4b. **Yes** — All acceptance criteria map to changes in the PR diff; the Review Agent proceeds to AI code review.
-4. **Review complete** — The OpenCode session performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
+4. **Review complete** — The direct LLM call via OpenRouter performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
 6a. **No** — Code quality issues are found; the Review Agent posts a detailed change request on the PR listing each issue.
 6b. **Yes** — Code quality is acceptable; the Review Agent waits for the CI pipeline to complete.
 5. **CI triggered** — The Review Agent polls GitHub Actions for the CI run status associated with the PR's head commit.
@@ -888,7 +889,7 @@ flowchart TD
 4. **Risk scoring** — 0-100 score based on: files changed, lines modified, critical paths touched (auth, payments, DB migrations), new dependencies added
 5. **Merge queue management** — When multiple PRs target the same branch, respect merge order and rebase subsequent PRs
 
-The review agent runs as an OpenCode session with GitHub PR API and Jira API MCP tools. Human approval requests are sent via Slack with rich formatting: ticket link, PR link, risk score, and test results. Approved PRs merge immediately; rejected PRs close with the reason logged to the task history in Supabase.
+The review agent runs as a direct LLM call via OpenRouter with GitHub PR API and Jira API MCP tools. Human approval requests are sent via Slack with rich formatting: ticket link, PR link, risk score, and test results. Approved PRs merge immediately; rejected PRs close with the reason logged to the task history in Supabase.
 
 ---
 
