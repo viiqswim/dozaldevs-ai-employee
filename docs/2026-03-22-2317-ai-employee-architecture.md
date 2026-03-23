@@ -2031,8 +2031,8 @@ These runbooks are for a solo developer operating the platform. Each is designed
 
 **Initial setup** (one-time, ~2 hours):
 
-1. Create Fly.io account and apps: `ai-employee-gateway` (Fastify/TS), `ai-employee-workers` (Python), `nexus-workers` (OpenCode execution)
-2. Create Supabase project, enable pgvector extension, run schema migrations
+1. Create Fly.io account and apps: `ai-employee-gateway` (Event Gateway — Fastify/TS), `nexus-workers` (OpenCode execution machines)
+2. Create Supabase project, run schema migrations. (Enable pgvector extension when knowledge base indexing is needed — deferred for MVP.)
 3. Create Inngest project, copy signing key and event key to Fly.io Secrets
 4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY`
 5. Configure Jira webhook pointing to the Event Gateway URL for each project
@@ -2042,7 +2042,6 @@ These runbooks are for a solo developer operating the platform. Each is designed
 **Ongoing deployments** (< 5 minutes):
 
 - `fly deploy --app ai-employee-gateway` for gateway changes
-- `fly deploy --app ai-employee-workers` for Python worker changes
 - OpenCode execution images: `fly deploy --app nexus-workers` after `docker build`
 
 Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://supabase.com/dashboard) | [Inngest Dashboard](https://app.inngest.com)
