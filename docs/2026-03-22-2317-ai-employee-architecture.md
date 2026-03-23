@@ -200,7 +200,7 @@ graph LR
 
     subgraph Platform Wiring
         REG["Archetype Registry"]:::service
-        ORCH["Orchestrator\n(TypeScript)"]:::service
+        ORCH["Inngest Lifecycle\nFunctions"]:::service
     end
 
     subgraph Worker Pool
@@ -230,9 +230,9 @@ graph LR
 4. **Define risk model** — The Risk Model config field feeds into the Archetype Config, specifying the factors, weights, and auto-approve thresholds for this department's output.
 5. **Set runtime config** — The Runtime Config field feeds into the Archetype Config, specifying whether to use OpenCode (Fly.io machine) or Inngest (workflow) and the runtime-specific parameters.
 6. **Register archetype** — The completed Archetype Config object is registered into the Archetype Registry, the in-memory dispatch table loaded at startup.
-7. **Load archetype map** — The Orchestrator reads all registered archetypes from the Archetype Registry to know which trigger sources to subscribe to and which worker pool to route tasks toward.
-8. **Spin up OpenCode session** — The Orchestrator dispatches engineering department tasks to the OpenCode Worker pool, launching an OpenCode session for coding work.
-9. **Trigger Inngest workflow** — The Orchestrator dispatches marketing department tasks to the Inngest Worker pool, triggering an Inngest workflow for campaign optimization.
+7. **Load archetype map** — The orchestrator reads all registered archetypes from the Archetype Registry to know which trigger sources to subscribe to and which worker pool to route tasks toward.
+8. **Spin up OpenCode session** — The orchestrator dispatches engineering department tasks to the OpenCode Worker pool, launching an OpenCode session for coding work.
+9. **Trigger Inngest workflow** — The orchestrator dispatches marketing department tasks to the Inngest Worker pool, triggering an Inngest workflow for campaign optimization.
 
 The Archetype Registry is a simple in-memory map at startup. The orchestrator loads all registered archetypes, subscribes to their trigger sources, and routes incoming tasks to the correct worker pool based on the `runtime` field. No dynamic dispatch logic — the archetype config is the dispatch table.
 
@@ -277,7 +277,7 @@ stateDiagram-v2
 **Flow Walkthrough**
 
 1. **Event from trigger source** — An external system (Jira, GitHub, Meta Ads, GoHighLevel) fires a webhook that the Event Gateway normalizes and enqueues, creating the task in `Received` state.
-2. **Orchestrator dispatches** — The TypeScript Orchestrator receives the Inngest event and launches a triage session, moving the task to `Triaging`.
+2. **Orchestrator dispatches** — The Inngest lifecycle function receives the Inngest event and launches a triage session, moving the task to `Triaging`.
 3. **Clarification needed** — The triage agent detects ambiguous, missing, or contradictory requirements and moves the task to `AwaitingInput` while posting questions to the source system.
 4. **Task is unambiguous** — The triage agent determines requirements are fully clear and moves the task to `Ready` with a structured context object written to Supabase.
 5. **Input received** — A new webhook arrives (e.g., Jira comment) containing the reporter's answers, returning the task to `Triaging` for re-evaluation.
@@ -619,13 +619,13 @@ graph LR
         INGEST["Event Gateway\n(Fastify)"]:::service
         INNGEST["Inngest\n(Workflows + Queue)"]:::service
         SUPABASE[("Supabase\n(PostgreSQL + pgvector)")]:::storage
-        ORCH["Orchestrator\n(TypeScript)"]:::service
+        ORCH["Inngest Lifecycle\nFunctions"]:::service
     end
 
     subgraph OpenCode Agent Pool
-        TRIAGE["Triage Agent\n(OpenCode session)"]:::service
+        TRIAGE["Triage Agent\n(LLM call)"]:::service
         EXEC["Execution Agent\n(Fly.io machine)"]:::service
-        REVIEW["Review Agent\n(OpenCode session)"]:::service
+        REVIEW["Review Agent\n(LLM call)"]:::service
     end
 
     JIRA -.->|"1. Jira webhook"| INGEST
@@ -653,17 +653,17 @@ graph LR
 1. **Jira webhook** — Jira Cloud sends a webhook to the Event Gateway when a ticket is created, commented on, or its status changes, initiating the triage flow.
 2. **GitHub webhook** — GitHub sends a webhook to the Event Gateway on PR creation, review submission, or CI status update, initiating the review flow.
 3. **Send task event** — The Event Gateway normalizes the incoming webhook into the universal task schema and sends it to Inngest as a workflow trigger.
-4. **Trigger orchestrator** — Inngest triggers the TypeScript Orchestrator, which reads task state from Supabase and decides which agent phase to run.
-5. **Launch triage session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira MCP tools.
-6. **Launch execution session** — The Orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
-7. **Launch review session** — The Orchestrator starts an OpenCode session for the Review Agent when a PR webhook arrives, injecting the PR diff and GitHub MCP tools.
-8. **Query KB and write context** — The Triage Agent queries pgvector embeddings and task history in Supabase to build a structured context object, then writes the result back to Supabase.
+4. **Trigger orchestrator** — Inngest triggers the Inngest lifecycle function, which reads task state from Supabase and decides which agent phase to run.
+5. **Launch triage session** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
+6. **Launch execution session** — The orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
+7. **Launch review session** — The Inngest lifecycle function invokes the Review Agent as a stateless LLM call via OpenRouter, injecting the PR diff and GitHub API access.
+8. **Query KB and write context** — The Triage Agent queries task history in Supabase (SQL) to build a structured context object, then writes the result back to Supabase.
 9. **Post clarifying questions** — The Triage Agent uses the Jira API MCP tool to post specific, actionable questions as comments tagged to the ticket reporter.
 10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
 11. **Create pull request** — After all validation stages pass, the Execution Agent uses the GitHub CLI to create a pull request from the task branch.
 12. **Merge pull request** — The Review Agent uses the GitHub PR API MCP tool to approve and merge the PR when all checks pass and risk is below threshold.
 13. **Update ticket status** — The Review Agent uses the Jira API MCP tool to update the ticket status to Done and post a summary comment with the PR link.
-14. **Send escalation or status** — The Orchestrator sends async Slack notifications for human escalation requests, approval prompts, and task completion summaries (dashed = async).
+14. **Send escalation or status** — The orchestrator sends async Slack notifications for human escalation requests, approval prompts, and task completion summaries (dashed = async).
 
 A few things worth noting in this diagram:
 
@@ -671,7 +671,7 @@ A few things worth noting in this diagram:
 
 **Slack is async-only.** The orchestrator sends Slack notifications for escalations, approvals, and status updates, but Slack never triggers a task directly. All task entry points go through the Event Gateway.
 
-**Supabase is shared across all three agents.** The triage agent reads and writes pgvector embeddings and task history. The execution agent reads task context written by triage. The review agent reads acceptance criteria and task metadata. One database, three consumers.
+**Supabase is shared across all three agents.** The triage agent reads and writes task history and context. The execution agent reads task context written by triage. The review agent reads acceptance criteria and task metadata. One database, three consumers.
 
 **The execution agent is the only one that touches Fly.io.** Triage and review run as stateless LLM inference calls via OpenRouter. They don't write code and don't need OpenCode's file editing, git, or LSP capabilities. Only execution needs a full isolated VM — because it needs to clone the repo, run tests, and execute arbitrary code.
 
@@ -895,7 +895,7 @@ The review agent runs as a direct LLM call via OpenRouter with GitHub PR API and
 
 ## 10. Engineering Department — Orchestration and Scaling
 
-The diagram below shows how events flow from external webhooks through Inngest into the TypeScript orchestrator, and how the orchestrator dispatches work to the three worker types. The orchestrator is the only component that reads task state and makes scheduling decisions.
+The diagram below shows how events flow from external webhooks through Inngest into the lifecycle functions, and how the orchestrator dispatches work to the three worker types. The orchestrator is the only component that reads task state and makes scheduling decisions.
 
 ```mermaid
 graph LR
@@ -911,16 +911,16 @@ graph LR
         Q_REVIEW[("Review Queue")]:::storage
     end
 
-    subgraph TypeScript Orchestrator
+    subgraph Inngest Lifecycle Functions
         SM["Task State Machine"]:::service
         SCHED["Concurrency Scheduler"]:::service
         SUPABASE[("Supabase\n(State Store)")]:::storage
     end
 
     subgraph Worker Pool
-        T1["Triage Worker\n(OpenCode)"]:::service
+        T1["Triage Worker\n(LLM call)"]:::service
         E1["Exec Worker\n(OpenCode + Fly.io)"]:::service
-        R1["Review Worker\n(OpenCode)"]:::service
+        R1["Review Worker\n(LLM call)"]:::service
     end
 
     WH1 -->|"1. Jira webhook events"| ROUTER
@@ -948,9 +948,9 @@ graph LR
 2. **GitHub webhook events** — GitHub sends webhook events (PR created, CI status, review submitted) to the Event Router for processing.
 3. **Route to triage queue** — The Event Router identifies new-ticket and comment events and places them onto the Triage Queue in Inngest with the normalized task payload.
 4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in Inngest for the Review Worker to process.
-5. **Dispatch triage job** — Inngest's Triage Queue delivers the job to an available Triage Worker (an OpenCode session for codebase analysis and question generation).
+5. **Dispatch triage job** — Inngest's Triage Queue delivers the job to an available Triage Worker (a stateless LLM call via OpenRouter for codebase analysis and question generation).
 6. **Dispatch execution job** — Inngest's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
-7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (an OpenCode session for PR validation and risk scoring).
+7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (a stateless LLM call via OpenRouter for PR validation and risk scoring).
 8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
 9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
 10. **Update task state** — The Review Worker reports its outcome (changes requested, auto-merged, or human review routed) to the Task State Machine.
@@ -970,13 +970,13 @@ graph LR
 
 **Multi-project isolation**: Each project gets its own Inngest queue namespace, Supabase knowledge base partition, and concurrency budget. A high-volume project cannot starve others.
 
-**The orchestrator is a generalized TypeScript service** — not a third-party workflow engine. It reads task state from Supabase, applies concurrency rules via Inngest, and dispatches OpenCode sessions. It's a direct evolution of the nexus-stack `orchestrate.mjs` pattern, extracted into a multi-project service that any department archetype can use.
+**The orchestrator is the collection of Inngest step functions** that manage the full task lifecycle — from webhook receipt through triage, execution, and review to final delivery. It is not a separate service. The orchestrator IS the Inngest functions. Each department has a lifecycle function (e.g., `engineering/task-lifecycle`) that coordinates phases through Inngest steps: `step.run()` for synchronous work, `step.waitForEvent()` for human approvals and agent completions, and Inngest's concurrency controls for per-project limits. This is a direct evolution of the nexus-stack `orchestrate.mjs` pattern, reimplemented as durable Inngest workflows rather than a standalone process.
 
 ---
 
 ## 11. Engineering Department — Full Lifecycle Sequence
 
-The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between Inngest, the TypeScript orchestrator, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
+The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between Inngest, the lifecycle functions, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
 
 ```mermaid
 sequenceDiagram
@@ -984,7 +984,7 @@ sequenceDiagram
     participant Jira
     participant Gateway as Event Gateway
     participant Inngest as Inngest Queue
-    participant Orchestrator as TypeScript Orchestrator
+    participant Orchestrator as Inngest Lifecycle Functions
     participant Supabase
     participant TriageAgent as Triage Agent
     participant ExecAgent as Execution Agent
@@ -998,7 +998,7 @@ sequenceDiagram
     Gateway->>Inngest: 3. Send triage event
     Gateway->>Supabase: 4. Record task (status: Received)
     Inngest->>Orchestrator: 5. Trigger triage job
-    Orchestrator->>TriageAgent: 6. Launch OpenCode session
+    Orchestrator->>TriageAgent: 6. Invoke triage agent (LLM call)
     TriageAgent->>Supabase: 7. Query pgvector embeddings
     TriageAgent->>Jira: 8. Post clarifying questions
     Customer->>Jira: 9. Answer questions
@@ -1015,7 +1015,7 @@ sequenceDiagram
     FlyMachine->>Supabase: 20. Update task (status: Submitting)
     GitHub->>Gateway: 21. PR webhook
     Gateway->>Inngest: 22. Send review event
-    Orchestrator->>ReviewAgent: 23. Launch OpenCode session
+    Orchestrator->>ReviewAgent: 23. Invoke review agent (LLM call)
     ReviewAgent->>Jira: 24. Validate acceptance criteria
     ReviewAgent->>GitHub: 25. Check CI status
     ReviewAgent->>Supabase: 26. Record risk score
@@ -1030,16 +1030,16 @@ sequenceDiagram
 2. **Webhook fires** — Jira sends a webhook to the Event Gateway when the ticket is created, carrying the full ticket payload.
 3. **Send triage event** — The Event Gateway normalizes the webhook into the universal task schema and sends a triage event to Inngest.
 4. **Record task (status: Received)** — The Event Gateway writes the new task record to Supabase with status `Received`, establishing the durable source of truth before any agent work starts.
-5. **Trigger triage job** — Inngest triggers the TypeScript Orchestrator with the triage job, which picks it up and decides which agent session to launch.
-6. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira + Supabase MCP tool access.
+5. **Trigger triage job** — Inngest triggers the Inngest lifecycle function with the triage job, which picks it up and decides which agent to invoke.
+6. **Invoke triage agent** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
 7. **Query pgvector embeddings** — The Triage Agent queries Supabase's pgvector extension to retrieve semantically similar code chunks and past task records relevant to this ticket.
 8. **Post clarifying questions** — The Triage Agent determines requirements are ambiguous and posts specific, actionable questions as a Jira comment tagged to the ticket reporter.
 9. **Answer questions** — The customer responds to the Triage Agent's comment in Jira, providing the missing information needed to proceed.
 10. **Comment webhook** — Jira fires a comment-added webhook to the Event Gateway when the customer's answer is posted.
 11. **Re-send triage event** — The Event Gateway sends a new triage event to Inngest so the Triage Agent can re-evaluate with the updated context.
-12. **Re-evaluate clarity** — The Orchestrator launches a new OpenCode session for the Triage Agent to re-analyze the ticket with the customer's answers included.
+12. **Re-evaluate clarity** — The Inngest lifecycle function invokes the Triage Agent again with the customer's answers included for re-analysis.
 13. **Update task (status: Ready)** — The Triage Agent determines requirements are now clear, writes the structured task context to Supabase, and updates the task status to `Ready`.
-14. **Send execution event** — The Orchestrator sends an execution event to Inngest, passing through the Concurrency Scheduler before dispatch.
+14. **Send execution event** — The orchestrator sends an execution event to Inngest, passing through the Concurrency Scheduler before dispatch.
 15. **Trigger execution** — Inngest triggers the Execution Agent, which begins the Fly.io provisioning process.
 16. **Provision via dispatch.sh** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image.
 17. **Boot entrypoint.sh (~80s warm)** — The Fly.io machine runs the ten-step boot sequence: auth tokens, repo clone, branch checkout, dependency install, Docker daemon, local Supabase, credentials, schema, OpenCode config.
@@ -1048,7 +1048,7 @@ sequenceDiagram
 20. **Update task (status: Submitting)** — The Fly.io machine writes the PR URL to Supabase and updates the task status to `Submitting`.
 21. **PR webhook** — GitHub fires a pull-request-created webhook to the Event Gateway when the new PR is opened.
 22. **Send review event** — The Event Gateway sends a review event to Inngest with the PR metadata.
-23. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Review Agent, injecting the PR diff, Jira ticket, and GitHub MCP tool access.
+23. **Invoke review agent** — The Inngest lifecycle function invokes the Review Agent as a stateless LLM call via OpenRouter, injecting the PR diff, Jira ticket, and GitHub API access.
 24. **Validate acceptance criteria** — The Review Agent uses the Jira API MCP tool to fetch the original acceptance criteria and map each one to changes in the PR diff.
 25. **Check CI status** — The Review Agent polls GitHub Actions via the GitHub API MCP tool to confirm all CI checks are passing on the PR's head commit.
 26. **Record risk score** — The Review Agent computes a 0-100 risk score based on files changed, critical paths, and new dependencies, and writes it to Supabase.
@@ -2001,7 +2001,7 @@ The platform relies entirely on managed services with built-in redundancy. The D
 |---|---|---|---|
 | Supabase outage | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
 | Inngest outage | Event Gateway cannot send events | Exponential backoff on webhook receipt; events re-send when Inngest recovers | Auto |
-| Fly.io machine crash | No heartbeat for 10 minutes | Orchestrator marks task as failed; re-dispatches to a new machine | Auto |
+| Fly.io machine crash | No heartbeat for 10 minutes | The orchestrator marks task as failed; re-dispatches to a new machine | Auto |
 | LLM provider outage | OpenRouter returns 5xx or timeout | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini | Auto |
 | Webhook delivery failure | Jira/GitHub built-in retry exhausted | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays | Auto |
 
