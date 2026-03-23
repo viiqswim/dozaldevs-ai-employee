@@ -131,6 +131,50 @@ The diagram reflects four deliberate choices:
 
 **Engineering (OpenCode)** uses the OpenCode CLI as its agent runtime, dispatching work to ephemeral Fly.io machines for full filesystem isolation. **Paid Marketing (Inngest)** runs event-driven workflow orchestration via Inngest — appropriate for API-heavy tasks that don't need VM isolation. **Observability** combines the Inngest Dashboard for workflow execution traces with Supabase Logs for infrastructure and query monitoring.
 
+### MVP Architecture
+
+The diagram below shows what gets built first — the MVP architecture for the Engineering department. The full architecture diagram above shows the complete platform vision including future departments and capabilities.
+
+```mermaid
+flowchart LR
+    subgraph External
+        JIRA(["Jira Cloud"]):::external
+        GH(["GitHub"]):::external
+        SLACK(["Slack"]):::external
+    end
+
+    subgraph Platform
+        GW["Event Gateway\n(thin webhook receiver)"]:::service
+        ING["Inngest\n(workflows + queue)"]:::service
+        SUP[("Supabase\n(PostgreSQL)")]:::storage
+    end
+
+    subgraph Agents
+        EXEC["Execution Agent\n(Fly.io + OpenCode)"]:::service
+        REV["Review Agent\n(LLM call)"]:::service
+    end
+
+    LLM["OpenRouter\n(LLM Gateway)"]:::external
+
+    JIRA -.->|"webhook"| GW
+    GH -.->|"webhook"| GW
+    GW ==>|"event"| ING
+    ING ==>|"dispatch"| EXEC
+    ING ==>|"trigger"| REV
+    EXEC -->|"state"| SUP
+    REV -->|"state"| SUP
+    EXEC -->|"PR"| GH
+    REV -.->|"notify"| SLACK
+    EXEC -->|"inference"| LLM
+    REV -->|"inference"| LLM
+
+    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
+    classDef external fill:#F5A623,stroke:#C4841A,color:#fff
+```
+
+**What's not in the MVP**: The triage agent (deferred — execution agent reads raw ticket from `triage_result`), the marketing department, pgvector knowledge base, and the full rate limiting infrastructure. Each of these is documented in the roadmap (Section 16) and deferred capabilities (Section 28). Dashed lines = async; solid lines = synchronous; bold lines = critical path.
+
 ---
 
 ## 3. Employee Archetype Framework
@@ -603,6 +647,8 @@ The original design specified custom conflict detection at the orchestrator leve
 ---
 
 ## 8. Engineering Department — System Context
+
+> **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Received` status to Supabase `tasks` table, and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest: (a) webhook signature verification requires your signing secrets — Inngest transforms run in Inngest's cloud, (b) task receipt tracking to Supabase before queuing provides idempotency and missed-webhook recovery, and (c) webhook URLs are vendor-independent — switching from Inngest doesn't require reconfiguring external services.
 
 The diagram below shows how the engineering department's components connect. External systems push events in; the shared platform queues and routes them; the OpenCode agent pool does the work; Fly.io and Supabase are the two primary infrastructure dependencies.
 
@@ -1305,6 +1351,42 @@ The data model has three logical clusters:
 **Department & Archetype cluster**: A `DEPARTMENT` defines one or more `ARCHETYPE` records (e.g., the engineering department defines an engineering archetype). Each archetype declares its own `KNOWLEDGE_BASE`, `RISK_MODEL`, and `AGENT_VERSION` — so every department has independent knowledge and risk configuration.
 
 **Task execution cluster**: An `ARCHETYPE` processes many `TASK` records over time. Each task triggers exactly one `EXECUTION`, which records what actually happened (which Fly.io machine, how many fix iterations, which agent version ran). Executions produce `VALIDATION_RUN` records (one per test stage) and exactly one `DELIVERABLE` (a PR, a campaign draft, a journal entry). Deliverables receive `REVIEW` records from both AI and human reviewers.
+
+#### triage_result Interface
+
+The `triage_result` column on the `TASK` table is the interface contract between the Event Gateway and the execution agent. In MVP, the Event Gateway populates it with the raw Jira webhook payload. When the Triage Agent is built (see Section 28), it overwrites this column with enriched analysis. The execution agent **always reads from `triage_result`** — it never queries Jira directly for ticket data.
+
+```sql
+-- triage_result column on the tasks table
+-- MVP: Populated by Event Gateway with raw Jira webhook data
+-- Future: Populated by Triage Agent with enriched analysis
+ALTER TABLE tasks ADD COLUMN triage_result JSONB;
+```
+
+**Schema contract:**
+
+```json
+{
+  "// MVP fields (always present — populated by Event Gateway from webhook)": "",
+  "ticket_id": "string — external Jira ticket ID (e.g., PROJ-123)",
+  "title": "string — ticket title",
+  "description": "string — ticket body/description",
+  "labels": ["string"],
+  "priority": "string — Jira priority level (Highest/High/Medium/Low/Lowest)",
+  "raw_ticket": "object — full Jira webhook payload (preserved for debugging)",
+
+  "// Future fields (populated by Triage Agent when built)": "",
+  "scope_estimate": "small | medium | large | decompose",
+  "complexity_notes": "string — agent's analysis of complexity",
+  "suggested_approach": "string — recommended implementation strategy",
+  "relevant_files": ["string — files likely affected"],
+  "relevant_past_tasks": ["uuid — similar past tasks from SQL query"],
+  "is_clear": "boolean — whether ticket is unambiguous",
+  "clarifying_questions": ["string — questions to post on Jira if not clear"]
+}
+```
+
+Adding the Triage Agent later is zero-cost: it writes to `triage_result`, the execution agent reads from it, and no other code changes.
 
 **Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
 
