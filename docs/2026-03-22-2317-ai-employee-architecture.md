@@ -29,6 +29,7 @@
 - [25. Security Model](#25-security-model)
 - [26. Disaster Recovery](#26-disaster-recovery)
 - [27. Operational Runbooks](#27-operational-runbooks)
+- [28. Deferred Capabilities & Future Scale Path](#28-deferred-capabilities--future-scale-path)
 
 ---
 
@@ -68,14 +69,14 @@ graph LR
 
     subgraph Shared Platform
         GATEWAY["Event Gateway\n(Fastify/TS)"]:::service
-        QUEUE[("BullMQ + Redis\n(Upstash)")]:::storage
+        INNGEST["Inngest\n(Workflows + Queue)"]:::service
         SUPABASE[("Supabase\n(PostgreSQL + pgvector)")]:::storage
-        OBS["Observability\n(LangSmith + Grafana)"]:::service
+        OBS["Observability\n(Inngest + Supabase)"]:::service
     end
 
     subgraph Department Runtimes
         ENG["Engineering\n(OpenCode)"]:::service
-        MKT["Paid Marketing\n(LangGraph)"]:::service
+        MKT["Paid Marketing\n(Inngest)"]:::service
         FIN["Finance\n(future)"]:::future
         SALES["Sales\n(future)"]:::future
     end
@@ -84,17 +85,17 @@ graph LR
     GH -.->|"2. GitHub webhook"| GATEWAY
     META -.->|"3. Meta Ads webhook"| GATEWAY
     GHL -.->|"4. GoHighLevel webhook"| GATEWAY
-    GATEWAY ==>|"5. Enqueue normalized job"| QUEUE
-    QUEUE ==>|"6. Dispatch engineering task"| ENG
-    QUEUE ==>|"7. Dispatch marketing task"| MKT
-    QUEUE -.->|"8. Future: finance task"| FIN
-    QUEUE -.->|"9. Future: sales task"| SALES
+    GATEWAY ==>|"5. Send task event"| INNGEST
+    INNGEST ==>|"6. Trigger engineering workflow"| ENG
+    INNGEST ==>|"7. Trigger marketing workflow"| MKT
+    INNGEST -.->|"8. Future: finance workflow"| FIN
+    INNGEST -.->|"9. Future: sales workflow"| SALES
     ENG -->|"10. Write task state"| SUPABASE
     MKT -->|"11. Write task state"| SUPABASE
     ENG -.->|"12. Send notification"| SLACK
     MKT -.->|"13. Send notification"| SLACK
-    ENG -->|"14. Send agent traces"| OBS
-    MKT -->|"15. Send agent traces"| OBS
+    ENG -->|"14. Send execution traces"| OBS
+    MKT -->|"15. Send workflow traces"| OBS
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
@@ -108,27 +109,27 @@ graph LR
 2. **GitHub webhook** — GitHub fires a webhook to the Event Gateway on PR creation or CI status events, feeding the platform repository-level signals.
 3. **Meta Ads webhook** — Meta Ads sends a webhook to the Event Gateway on spend alerts or performance threshold breaches, triggering marketing department tasks.
 4. **GoHighLevel webhook** — GoHighLevel sends a webhook to the Event Gateway on campaign events or pipeline stage changes, triggering sales and marketing tasks.
-5. **Enqueue normalized job** — The Event Gateway normalizes all incoming webhooks into the universal task schema and enqueues them into BullMQ backed by Upstash Redis as the critical shared path.
-6. **Dispatch engineering task** — BullMQ dispatches an engineering task job to the OpenCode-based Engineering department runtime for coding work.
-7. **Dispatch marketing task** — BullMQ dispatches a marketing task job to the LangGraph-based Paid Marketing department runtime for campaign optimization.
-8. **Future: finance task** — BullMQ will dispatch finance tasks to the Finance department runtime once that archetype is built (dashed = not yet active).
-9. **Future: sales task** — BullMQ will dispatch sales tasks to the Sales department runtime once that archetype is built (dashed = not yet active).
+5. **Send task event** — The Event Gateway normalizes all incoming webhooks into the universal task schema and sends them to Inngest as the critical shared path.
+6. **Trigger engineering workflow** — Inngest triggers an engineering workflow to the OpenCode-based Engineering department runtime for coding work.
+7. **Trigger marketing workflow** — Inngest triggers a marketing workflow to the Inngest-based Paid Marketing department runtime for campaign optimization.
+8. **Future: finance workflow** — Inngest will trigger finance workflows to the Finance department runtime once that archetype is built (dashed = not yet active).
+9. **Future: sales workflow** — Inngest will trigger sales workflows to the Sales department runtime once that archetype is built (dashed = not yet active).
 10. **Write task state** — The Engineering runtime writes task status, execution metadata, and agent outputs to Supabase (PostgreSQL + pgvector).
 11. **Write task state** — The Paid Marketing runtime writes campaign optimization results and task status to Supabase.
 12. **Send notification** — The Engineering runtime sends async Slack notifications for escalations, approvals, and completion events (dashed = async, non-blocking).
 13. **Send notification** — The Paid Marketing runtime sends async Slack notifications for campaign approval requests and optimization results.
-14. **Send agent traces** — The Engineering runtime sends OpenCode agent execution traces to the Observability stack (LangSmith + Grafana) for debugging and monitoring.
-15. **Send agent traces** — The Paid Marketing runtime sends LangGraph workflow traces to the Observability stack for performance monitoring.
+14. **Send execution traces** — The Engineering runtime sends OpenCode agent execution traces to the Observability stack (Inngest + Supabase) for debugging and monitoring.
+15. **Send workflow traces** — The Paid Marketing runtime sends Inngest workflow execution logs to the Observability stack for performance monitoring.
 
 The diagram reflects four deliberate choices:
 
-**Event Gateway** (Fastify/TypeScript) receives webhooks from all external systems, normalizes them into a universal task schema, and enqueues jobs to BullMQ. It's the only entry point — no department talks directly to an external system at ingest time.
+**Event Gateway** (Fastify/TypeScript) receives webhooks from all external systems, normalizes them into a universal task schema, and sends events to Inngest. It's the only entry point — no department talks directly to an external system at ingest time.
 
-**BullMQ + Upstash Redis** provides a durable job queue with per-department namespaces and configurable concurrency controls. Upstash is serverless Redis, which removes one more self-hosted service from the operational burden.
+**Inngest** provides durable workflow execution with per-department function namespaces, configurable concurrency controls, and built-in retry logic. As a managed serverless service it removes all queue infrastructure from the operational burden.
 
 **Supabase (PostgreSQL + pgvector)** serves as the single database for both application state and vector search. It's already in the nexus-stack, so there's no new infrastructure to operate.
 
-**Engineering (OpenCode)** uses the OpenCode CLI as its agent runtime, dispatching work to ephemeral Fly.io machines for full filesystem isolation. **Paid Marketing (LangGraph)** runs Python-based workflow orchestration in-process — appropriate for API-heavy tasks that don't need VM isolation. **Observability** combines LangSmith for agent trace visibility with Grafana for infrastructure metrics.
+**Engineering (OpenCode)** uses the OpenCode CLI as its agent runtime, dispatching work to ephemeral Fly.io machines for full filesystem isolation. **Paid Marketing (Inngest)** runs event-driven workflow orchestration via Inngest — appropriate for API-heavy tasks that don't need VM isolation. **Observability** combines the Inngest Dashboard for workflow execution traces with Supabase Logs for infrastructure and query monitoring.
 
 ---
 
@@ -205,7 +206,7 @@ graph LR
 
     subgraph Worker Pool
         OC["OpenCode Workers\n(Engineering)"]:::service
-        LG["LangGraph Workers\n(Marketing)"]:::service
+        IG["Inngest Workers\n(Marketing)"]:::service
     end
 
     TRIGGERS -->|"1. Declare trigger sources"| CONFIG
@@ -216,7 +217,7 @@ graph LR
     CONFIG -->|"6. Register archetype"| REG
     REG -->|"7. Load archetype map"| ORCH
     ORCH -->|"8. Spin up OpenCode session"| OC
-    ORCH -->|"9. Start LangGraph workflow"| LG
+    ORCH -->|"9. Trigger Inngest workflow"| IG
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
@@ -228,11 +229,11 @@ graph LR
 2. **Register tool set** — The Tool Registry config field feeds into the Archetype Config, listing every tool the agent can call during triage, execution, and review phases.
 3. **Link knowledge base** — The Knowledge Base config field feeds into the Archetype Config, pointing to the pgvector embeddings and task history partition for this department.
 4. **Define risk model** — The Risk Model config field feeds into the Archetype Config, specifying the factors, weights, and auto-approve thresholds for this department's output.
-5. **Set runtime config** — The Runtime Config field feeds into the Archetype Config, specifying whether to use OpenCode (Fly.io machine) or LangGraph (in-process) and the runtime-specific parameters.
+5. **Set runtime config** — The Runtime Config field feeds into the Archetype Config, specifying whether to use OpenCode (Fly.io machine) or Inngest (workflow) and the runtime-specific parameters.
 6. **Register archetype** — The completed Archetype Config object is registered into the Archetype Registry, the in-memory dispatch table loaded at startup.
 7. **Load archetype map** — The Orchestrator reads all registered archetypes from the Archetype Registry to know which trigger sources to subscribe to and which worker pool to route tasks toward.
 8. **Spin up OpenCode session** — The Orchestrator dispatches engineering department tasks to the OpenCode Worker pool, launching an OpenCode session for coding work.
-9. **Start LangGraph workflow** — The Orchestrator dispatches marketing department tasks to the LangGraph Worker pool, starting an in-process Python workflow for campaign optimization.
+9. **Trigger Inngest workflow** — The Orchestrator dispatches marketing department tasks to the Inngest Worker pool, triggering an Inngest workflow for campaign optimization.
 
 The Archetype Registry is a simple in-memory map at startup. The orchestrator loads all registered archetypes, subscribes to their trigger sources, and routes incoming tasks to the correct worker pool based on the `runtime` field. No dynamic dispatch logic — the archetype config is the dispatch table.
 
@@ -244,7 +245,7 @@ By separating the *what* (archetype config) from the *how* (orchestration engine
 
 This also makes cross-department workflows tractable. When an engineering task requires a marketing review (say, a landing page change that affects ad spend), the orchestrator can hand off between archetypes using the same task schema. Neither department's agent needs to know about the other's internals.
 
-The hybrid runtime model extends this flexibility further. Engineering tasks demand a coding-specific agent with deep filesystem access, git tooling, and test execution — OpenCode is built for exactly this. Marketing tasks are API-heavy workflows that benefit from LangGraph's durable execution and graph-based state management. The archetype's `runtime` field makes this choice explicit and swappable: as better runtimes emerge, updating a department's agent technology requires changing one config field, not rewiring the entire pipeline.
+The hybrid runtime model extends this flexibility further. Engineering tasks demand a coding-specific agent with deep filesystem access, git tooling, and test execution — OpenCode is built for exactly this. Marketing tasks are API-heavy workflows that benefit from Inngest's durable execution and event-driven state management. The archetype's `runtime` field makes this choice explicit and swappable: as better runtimes emerge, updating a department's agent technology requires changing one config field, not rewiring the entire pipeline.
 
 ---
 
@@ -277,7 +278,7 @@ stateDiagram-v2
 **Flow Walkthrough**
 
 1. **Event from trigger source** — An external system (Jira, GitHub, Meta Ads, GoHighLevel) fires a webhook that the Event Gateway normalizes and enqueues, creating the task in `Received` state.
-2. **Orchestrator dispatches** — The TypeScript Orchestrator picks up the BullMQ job and launches a triage session, moving the task to `Triaging`.
+2. **Orchestrator dispatches** — The TypeScript Orchestrator receives the Inngest event and launches a triage session, moving the task to `Triaging`.
 3. **Clarification needed** — The triage agent detects ambiguous, missing, or contradictory requirements and moves the task to `AwaitingInput` while posting questions to the source system.
 4. **Task is unambiguous** — The triage agent determines requirements are fully clear and moves the task to `Ready` with a structured context object written to Supabase.
 5. **Input received** — A new webhook arrives (e.g., Jira comment) containing the reporter's answers, returning the task to `Triaging` for re-evaluation.
@@ -293,7 +294,7 @@ stateDiagram-v2
 15. **Approval gate cleared** — The task passes the risk gate (auto-approved or human-approved via Slack) and moves to `Delivering` for final publication.
 16. **Result delivered** — The deliverable is published to its final destination (PR merged, campaign published, journal entry posted) and the task reaches `Done`.
 
-> **Note on Provisioning**: The `Provisioning` state applies only when the archetype's `runtime` is `opencode` (Fly.io machine spin-up). For `langgraph` or `in-process` runtimes, the transition goes directly from `Ready → Executing` — there is no machine to provision.
+> **Note on Provisioning**: The `Provisioning` state applies only when the archetype's `runtime` is `opencode` (Fly.io machine spin-up). For `inngest` or `in-process` runtimes, the transition goes directly from `Ready → Executing` — there is no machine to provision.
 
 > **Note on fix loop**: When `Validating → Executing` (validation fails), the execution agent re-enters at the **failing validation stage**, not from the beginning of code generation. A TypeScript error re-enters at the TypeScript check; a lint error at the lint check. This prevents oscillation where fixing one stage inadvertently breaks a previously passing stage.
 
@@ -301,12 +302,12 @@ stateDiagram-v2
 
 The table below shows how each state maps to concrete actions per department. Engineering and Paid Marketing are fully specified. Finance and Sales are abbreviated — they follow the same pattern once their archetypes are built.
 
-| State | Engineering (OpenCode) | Paid Marketing (LangGraph) | Finance (future) | Sales (future) |
+| State | Engineering (OpenCode) | Paid Marketing (Inngest) | Finance (future) | Sales (future) |
 |---|---|---|---|---|
 | Received | Jira ticket created | Ad performance alert | Invoice received | Lead form submitted |
 | Triaging | Analyze requirements vs. codebase context | Analyze metrics vs. campaign goals | Classify expense, check budget | Qualify lead, check CRM history |
 | AwaitingInput | Questions posted to Jira, awaiting reporter | Clarification on creative brief | Missing receipt or PO number | Missing company info |
-| Executing | Write code on Fly.io machine, run tests | LangGraph workflow: call Meta/Google Ads APIs | Categorize, reconcile, draft entry | Research prospect, draft outreach |
+| Executing | Write code on Fly.io machine, run tests | Inngest workflow: call Meta/Google Ads APIs | Categorize, reconcile, draft entry | Research prospect, draft outreach |
 | Validating | TypeScript → Lint → Unit → Integration → E2E | Brand compliance + budget limits check | Double-entry balance + policy check | Messaging tone + CRM completeness |
 | Reviewing | AI code review + risk score → Slack approval | Human creative approval via Slack | Manager approval over threshold | Manager approval for enterprise |
 | Delivering | PR merged via GitHub → Slack notification | Campaign draft published to Meta/Google | Journal entry posted, Slack alert | Email sequence sent via GoHighLevel |
@@ -426,21 +427,21 @@ The engineering department is the primary implementation and the pattern-setter 
 
 ### 6.2 Paid Marketing Department (Active — Second Department)
 
-The paid marketing department validates that the archetype pattern generalizes beyond code. It uses **LangGraph** (Python) as its agent runtime — a graph-based workflow orchestrator with durable execution via PostgreSQL checkpointing in Supabase. Tasks run as in-process Python workers rather than isolated VMs, since ad optimization requires only API calls and doesn't need filesystem access or git tooling. This makes the marketing department significantly cheaper and faster to spin up than engineering: no machine provisioning, no Docker boot, no repo clone.
+The paid marketing department validates that the archetype pattern generalizes beyond code. It uses **Inngest** as its workflow runtime — an event-driven workflow orchestrator with durable execution and built-in retry logic. Tasks run as Inngest functions rather than isolated VMs, since ad optimization requires only API calls and doesn't need filesystem access or git tooling. This makes the marketing department significantly cheaper and faster to spin up than engineering: no machine provisioning, no Docker boot, no repo clone.
 
 **V1 scope**: Campaign performance monitoring and optimization against Meta Ads API and Google Ads API. Creative generation (image and video assets) is a V2 feature — it requires multimodal models, creative approval workflows, and brand compliance tooling that don't belong in the first iteration.
 
 **Trigger sources**: Meta Marketing API webhooks (spend alerts, performance thresholds), scheduled cron jobs (daily performance reviews), and GoHighLevel webhooks (campaign events and pipeline stage changes).
 
-**Agent runtime**: Each campaign optimization task runs as a LangGraph graph. The node sequence is:
+**Agent runtime**: Each campaign optimization task runs as an Inngest workflow. The step sequence is:
 
 ```
 data_collection → analysis → decision → execution → reporting
 ```
 
-Every node checkpoints its output to Supabase before proceeding. If a worker crashes mid-workflow, LangGraph resumes from the last checkpoint — no work is lost and no API call is repeated.
+Every step checkpoints its output before proceeding. If a worker crashes mid-workflow, Inngest resumes from the last completed step — no work is lost and no API call is repeated.
 
-**Execution environment**: In-process Python worker managed by the department's BullMQ consumer. Multiple workers run concurrently, one per ad account. No VM isolation is needed because the work is read-API-call-heavy and write-side mutations go through the Meta/Google Ads APIs, not the local filesystem.
+**Execution environment**: Inngest function invoked by the platform's event queue. Multiple functions run concurrently, one per ad account. No VM isolation is needed because the work is read-API-call-heavy and write-side mutations go through the Meta/Google Ads APIs, not the local filesystem.
 
 **Triage tools**: Campaign performance queries (CTR, CPC, ROAS, frequency), budget utilization check, and historical campaign comparison against the same period in prior weeks.
 
@@ -462,19 +463,19 @@ Any task with a composite risk score above threshold routes to a human via Slack
 
 ### 6.3 Organic Content / Content Marketing Department (Planned)
 
-The organic content department monitors content calendars and generates blog posts, social media content, and SEO-optimized articles from briefs and keyword targets. It triggers from content calendar events and SEO alert tools (Ahrefs or SEMrush rank changes) and uses LangGraph with a writing-focused tool set: long-form generation, social formatting, SEO metadata, and image prompt generation. Delivery targets include CMS drafts (WordPress, Webflow), social scheduling tools, and email platforms. No detailed spec is written until Engineering and Paid Marketing reach autonomous operation.
+The organic content department monitors content calendars and generates blog posts, social media content, and SEO-optimized articles from briefs and keyword targets. It triggers from content calendar events and SEO alert tools (Ahrefs or SEMrush rank changes) and uses Inngest workflows with a writing-focused tool set: long-form generation, social formatting, SEO metadata, and image prompt generation. Delivery targets include CMS drafts (WordPress, Webflow), social scheduling tools, and email platforms. No detailed spec is written until Engineering and Paid Marketing reach autonomous operation.
 
 ---
 
 ### 6.4 Finance Department (Planned)
 
-The finance department processes incoming invoices, categorizes expenses, reconciles accounts, and flags anomalies for review. Triggers come from QuickBooks Online webhooks and bank feed imports via Plaid, and the department uses LangGraph workflows for multi-step reconciliation with human approval gates for all journal entries above a configurable threshold. The knowledge base includes the chart of accounts, vendor master list, expense policies, and historical categorization patterns. Detailed specification is deferred until the first two departments are independently stable.
+The finance department processes incoming invoices, categorizes expenses, reconciles accounts, and flags anomalies for review. Triggers come from QuickBooks Online webhooks and bank feed imports via Plaid, and the department uses Inngest workflows for multi-step reconciliation with human approval gates for all journal entries above a configurable threshold. The knowledge base includes the chart of accounts, vendor master list, expense policies, and historical categorization patterns. Detailed specification is deferred until the first two departments are independently stable.
 
 ---
 
 ### 6.5 Sales Department (Planned)
 
-The sales department qualifies inbound leads, enriches CRM records, drafts personalized outreach sequences, and follows up on stale opportunities. It triggers from GoHighLevel webhooks (form submissions, pipeline stage changes) and CRM scheduled tasks, with LangGraph handling the workflow and GoHighLevel API handling execution. Manager approval is required for any opportunity above $25,000 or any enterprise prospect. Full specification is deferred to a later phase.
+The sales department qualifies inbound leads, enriches CRM records, drafts personalized outreach sequences, and follows up on stale opportunities. It triggers from GoHighLevel webhooks (form submissions, pipeline stage changes) and CRM scheduled tasks, with Inngest handling the workflow and GoHighLevel API handling execution. Manager approval is required for any opportunity above $25,000 or any enterprise prospect. Full specification is deferred to a later phase.
 
 ---
 
@@ -488,21 +489,21 @@ This section documents the key design decisions made during architecture review,
 
 The original concept described an AI agent "constantly monitoring" Jira for new tickets. Polling Jira's REST API is fragile at scale — you'll hit rate limits across multiple projects, burn compute on empty polls, and introduce latency between ticket creation and triage. Jira supports webhooks natively. A webhook listener that pushes events into a durable queue is dramatically more efficient, reliable, and scalable. The agent should react to events, not poll for them.
 
-**Recommendation:** Jira Webhooks → Event Gateway → BullMQ → Triage Agent. This pattern generalizes: every department uses webhooks or scheduled triggers through the same Event Gateway.
+**Recommendation:** Jira Webhooks → Event Gateway → Inngest → Triage Agent. This pattern generalizes: every department uses webhooks or scheduled triggers through the same Event Gateway.
 
 ---
 
-### 7.2 Hybrid Agent Runtime: OpenCode + LangGraph
+### 7.2 Hybrid Agent Runtime: OpenCode + Inngest
 
 **The question**: Should we use one agent runtime for all departments, or choose the best tool per use case?
 
-**The answer**: Hybrid. OpenCode for engineering, LangGraph for everything else.
+**The answer**: Hybrid. OpenCode for engineering, Inngest for everything else.
 
 **Why OpenCode for engineering**: OpenCode (`opencode serve` + `@opencode-ai/sdk`) is purpose-built for AI coding workflows. It has deep integration with file editing, git operations, test execution, LSP diagnostics, and MCP tools. The nexus-stack already uses it in production. For a task that requires cloning a repo, modifying TypeScript files, running tests, and creating PRs — OpenCode is the right tool. There's no point building custom file editing and git integrations when a production-grade implementation already exists.
 
-**Why LangGraph for non-engineering**: LangGraph provides durable execution via PostgreSQL checkpointing, graph-based state management, and human-in-the-loop interrupts. For tasks that are primarily API calls (Meta Ads, GoHighLevel, QuickBooks), OpenCode's coding tools are irrelevant overhead. LangGraph's structured workflow model maps cleanly to multi-step business processes: collect data, analyze, decide, execute, report. Each node checkpoints before proceeding, so a crashed worker resumes from the last successful step.
+**Why Inngest for non-engineering**: Inngest provides durable execution with built-in retry logic, step-level checkpointing, and human-in-the-loop pauses. For tasks that are primarily API calls (Meta Ads, GoHighLevel, QuickBooks), OpenCode's coding tools are irrelevant overhead. Inngest's event-driven workflow model maps cleanly to multi-step business processes: collect data, analyze, decide, execute, report. Each step checkpoints before proceeding, so a crashed worker resumes from the last successful step.
 
-**Why not one runtime for all**: Using OpenCode for marketing tasks would mean loading a coding-specific runtime, initializing git tooling, and spinning up file editing infrastructure for tasks that only need API calls. Using LangGraph for engineering tasks would mean building custom file editing and git integrations from scratch — work that OpenCode already does well. Each tool is genuinely better in its domain. Forcing one runtime everywhere trades simplicity for the wrong kind of simplicity.
+**Why not one runtime for all**: Using OpenCode for marketing tasks would mean loading a coding-specific runtime, initializing git tooling, and spinning up file editing infrastructure for tasks that only need API calls. Using Inngest for engineering tasks would mean building custom file editing and git integrations from scratch — work that OpenCode already does well. Each tool is genuinely better in its domain. Forcing one runtime everywhere trades simplicity for the wrong kind of simplicity.
 
 **The boundary**: The archetype's `runtime` field makes the choice declarative. Switching runtimes requires changing one config value. As better runtimes emerge, updating a department's agent technology doesn't require rewiring the pipeline.
 
@@ -590,7 +591,7 @@ graph LR
 
     subgraph Shared Platform
         INGEST["Event Gateway\n(Fastify)"]:::service
-        QUEUE[("BullMQ\n(Upstash Redis)")]:::storage
+        INNGEST["Inngest\n(Workflows + Queue)"]:::service
         SUPABASE[("Supabase\n(PostgreSQL + pgvector)")]:::storage
         ORCH["Orchestrator\n(TypeScript)"]:::service
     end
@@ -603,8 +604,8 @@ graph LR
 
     JIRA -.->|"1. Jira webhook"| INGEST
     GH -.->|"2. GitHub webhook"| INGEST
-    INGEST ==>|"3. Enqueue job"| QUEUE
-    QUEUE ==>|"4. Dispatch to orchestrator"| ORCH
+    INGEST ==>|"3. Send task event"| INNGEST
+    INNGEST ==>|"4. Trigger orchestrator"| ORCH
     ORCH -->|"5. Launch triage session"| TRIAGE
     ORCH -->|"6. Launch execution session"| EXEC
     ORCH -->|"7. Launch review session"| REVIEW
@@ -625,8 +626,8 @@ graph LR
 
 1. **Jira webhook** — Jira Cloud sends a webhook to the Event Gateway when a ticket is created, commented on, or its status changes, initiating the triage flow.
 2. **GitHub webhook** — GitHub sends a webhook to the Event Gateway on PR creation, review submission, or CI status update, initiating the review flow.
-3. **Enqueue job** — The Event Gateway normalizes the incoming webhook into the universal task schema and enqueues it into BullMQ backed by Upstash Redis.
-4. **Dispatch to orchestrator** — BullMQ dispatches the job to the TypeScript Orchestrator, which reads task state from Supabase and decides which agent phase to run.
+3. **Send task event** — The Event Gateway normalizes the incoming webhook into the universal task schema and sends it to Inngest as a workflow trigger.
+4. **Trigger orchestrator** — Inngest triggers the TypeScript Orchestrator, which reads task state from Supabase and decides which agent phase to run.
 5. **Launch triage session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira MCP tools.
 6. **Launch execution session** — The Orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
 7. **Launch review session** — The Orchestrator starts an OpenCode session for the Review Agent when a PR webhook arrives, injecting the PR diff and GitHub MCP tools.
@@ -652,7 +653,7 @@ A few things worth noting in this diagram:
 
 ## 9. Engineering Department — Phase Details
 
-The engineering department's work splits across three agents: triage, execution, and review. Each agent has a distinct responsibility boundary. They don't call each other directly — they communicate through the task state stored in Supabase and the events emitted to BullMQ.
+The engineering department's work splits across three agents: triage, execution, and review. Each agent has a distinct responsibility boundary. They don't call each other directly — they communicate through the task state stored in Supabase and the events emitted to Inngest.
 
 ### 9.1 Triage Agent
 
@@ -695,8 +696,8 @@ flowchart TD
 5. **Evaluate requirements** — The OpenCode session analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
 6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
 6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
-7. **Enqueue execution job** — The Triage Agent signals the Orchestrator that the task is `Ready`, and the Orchestrator enqueues an execution job in BullMQ.
-8. **Await new webhook** — The questions are posted as a Jira comment; the task moves to `AwaitingInput` and the triage loop waits for a new comment webhook to re-trigger (dashed = async loop-back).
+6. **Send execution event** — The Triage Agent signals the Orchestrator that the task is `Ready`, and the Orchestrator sends an execution event to Inngest.
+7. **Await new webhook** — The questions are posted as a Jira comment; the task moves to `AwaitingInput` and the triage loop waits for a new comment webhook to re-trigger (dashed = async loop-back).
 
 **Triage Agent Responsibilities**:
 
@@ -757,7 +758,7 @@ flowchart TD
 
 **Flow Walkthrough**
 
-1. **Ticket ready event** — BullMQ delivers the execution job to the Execution Agent after the Triage Agent marks the task `Ready` in Supabase.
+1. **Ticket ready event** — Inngest triggers the execution workflow to the Execution Agent after the Triage Agent marks the task `Ready` in Supabase.
 2. **Machine provisioned** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing all project tooling.
 3. **Boot complete** — The Fly.io machine runs `entrypoint.sh`: writes auth tokens, shallow-clones the repo, installs dependencies from the volume-cached pnpm store, starts Docker daemon and local Supabase (~80s warm).
 4. **Plan generated** — `orchestrate.mjs` wave 1 runs an OpenCode session to generate a structured implementation plan, identifying which files to change and in what order.
@@ -772,7 +773,7 @@ flowchart TD
 9b. **Integration Pass** — Integration tests pass; the pipeline advances to E2E Tests.
 10a. **E2E Fail** — End-to-end tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
 10b. **E2E Pass** — All tests pass; the Execution Agent uses the GitHub CLI to submit a Pull Request from the task branch.
-11. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed (not at code generation), preventing oscillation between stages.
+6. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed (not at code generation), preventing oscillation between stages.
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (8GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
@@ -841,17 +842,17 @@ flowchart TD
 3. **Jira ticket fetched** — The Review Agent uses the Jira API MCP tool to fetch the original ticket, extracting the acceptance criteria for comparison against the PR changes.
 4a. **No** — One or more acceptance criteria are not addressed in the PR diff; the Review Agent posts a change request on the PR via GitHub API.
 4b. **Yes** — All acceptance criteria map to changes in the PR diff; the Review Agent proceeds to AI code review.
-5. **Review complete** — The OpenCode session performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
+4. **Review complete** — The OpenCode session performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
 6a. **No** — Code quality issues are found; the Review Agent posts a detailed change request on the PR listing each issue.
 6b. **Yes** — Code quality is acceptable; the Review Agent waits for the CI pipeline to complete.
-7. **CI triggered** — The Review Agent polls GitHub Actions for the CI run status associated with the PR's head commit.
+5. **CI triggered** — The Review Agent polls GitHub Actions for the CI run status associated with the PR's head commit.
 8a. **No** — CI is red (one or more checks failed); the Review Agent posts a change request on the PR with the failing check names.
 8b. **Yes** — All CI checks pass; the Review Agent proceeds to compute the risk score.
-9. **Score computed** — The Review Agent calculates a 0-100 risk score based on files changed, lines modified, critical paths touched (auth, DB migrations, payments), and new dependencies added.
+6. **Score computed** — The Review Agent calculates a 0-100 risk score based on files changed, lines modified, critical paths touched (auth, DB migrations, payments), and new dependencies added.
 10a. **Yes** — Risk score is below the configured threshold; the Review Agent auto-merges the PR via the GitHub API.
 10b. **No** — Risk score exceeds threshold; the Review Agent posts a Slack message to the human approver with the PR summary, risk breakdown, and approve/reject buttons.
-11. **PR merged** — The auto-merge completes and the Review Agent fires a Slack notification to the team with the ticket link, PR link, and deployment status.
-12. **Human approved** — A human approves the Slack prompt and the Review Agent merges the PR, then fires a Slack notification to the team (dashed = async, triggered by human interaction).
+7. **PR merged** — The auto-merge completes and the Review Agent fires a Slack notification to the team with the ticket link, PR link, and deployment status.
+8. **Human approved** — A human approves the Slack prompt and the Review Agent merges the PR, then fires a Slack notification to the team (dashed = async, triggered by human interaction).
 
 **Review Agent Responsibilities**:
 
@@ -867,7 +868,7 @@ The review agent runs as an OpenCode session with GitHub PR API and Jira API MCP
 
 ## 10. Engineering Department — Orchestration and Scaling
 
-The diagram below shows how events flow from external webhooks through BullMQ queues into the TypeScript orchestrator, and how the orchestrator dispatches work to the three worker types. The orchestrator is the only component that reads task state and makes scheduling decisions.
+The diagram below shows how events flow from external webhooks through Inngest into the TypeScript orchestrator, and how the orchestrator dispatches work to the three worker types. The orchestrator is the only component that reads task state and makes scheduling decisions.
 
 ```mermaid
 graph LR
@@ -877,7 +878,7 @@ graph LR
         ROUTER["Event Router\n(Fastify)"]:::service
     end
 
-    subgraph BullMQ Queues
+    subgraph Inngest Queues
         Q_TRIAGE[("Triage Queue")]:::storage
         Q_EXEC[("Execution Queue")]:::storage
         Q_REVIEW[("Review Queue")]:::storage
@@ -918,11 +919,11 @@ graph LR
 
 1. **Jira webhook events** — Jira Cloud sends webhook events (ticket created, comment added, status changed) to the Event Router, which is the Fastify-based Event Gateway.
 2. **GitHub webhook events** — GitHub sends webhook events (PR created, CI status, review submitted) to the Event Router for processing.
-3. **Route to triage queue** — The Event Router identifies new-ticket and comment events and places them onto the Triage Queue in BullMQ with the normalized task payload.
-4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in BullMQ for the Review Worker to process.
-5. **Dispatch triage job** — BullMQ's Triage Queue delivers the job to an available Triage Worker (an OpenCode session for codebase analysis and question generation).
-6. **Dispatch execution job** — BullMQ's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
-7. **Dispatch review job** — BullMQ's Review Queue delivers the job to an available Review Worker (an OpenCode session for PR validation and risk scoring).
+3. **Route to triage queue** — The Event Router identifies new-ticket and comment events and places them onto the Triage Queue in Inngest with the normalized task payload.
+4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in Inngest for the Review Worker to process.
+5. **Dispatch triage job** — Inngest's Triage Queue delivers the job to an available Triage Worker (an OpenCode session for codebase analysis and question generation).
+6. **Dispatch execution job** — Inngest's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
+7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (an OpenCode session for PR validation and risk scoring).
 8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
 9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
 10. **Update task state** — The Review Worker reports its outcome (changes requested, auto-merged, or human review routed) to the Task State Machine.
@@ -932,7 +933,7 @@ graph LR
 
 ### Scaling Strategy
 
-**Concurrency model**: Each Jira project gets a configurable concurrency limit (default: 3 concurrent executions). The scheduler enforces this via BullMQ per-queue rate limiting backed by Upstash Redis. This prevents resource exhaustion and reduces merge conflicts between parallel tasks working in the same codebase.
+**Concurrency model**: Each Jira project gets a configurable concurrency limit (default: 3 concurrent executions). The scheduler enforces this via Inngest per-queue concurrency controls. This prevents resource exhaustion and reduces merge conflicts between parallel tasks working in the same codebase.
 
 **Worker scaling** (solo developer starting point):
 
@@ -940,22 +941,22 @@ graph LR
 - Execution workers: 1-2 (heavyweight, Fly.io machines). Scale conservatively — each machine costs roughly $0.50-$2.00 per task.
 - Review workers: 1 (medium-weight). Scale when the PR queue backs up.
 
-**Multi-project isolation**: Each project gets its own BullMQ queue namespace, Supabase knowledge base partition, and concurrency budget. A high-volume project cannot starve others.
+**Multi-project isolation**: Each project gets its own Inngest queue namespace, Supabase knowledge base partition, and concurrency budget. A high-volume project cannot starve others.
 
-**The orchestrator is a generalized TypeScript service** — not a third-party workflow engine. It reads task state from Supabase, applies concurrency rules via BullMQ, and dispatches OpenCode sessions. It's a direct evolution of the nexus-stack `orchestrate.mjs` pattern, extracted into a multi-project service that any department archetype can use.
+**The orchestrator is a generalized TypeScript service** — not a third-party workflow engine. It reads task state from Supabase, applies concurrency rules via Inngest, and dispatches OpenCode sessions. It's a direct evolution of the nexus-stack `orchestrate.mjs` pattern, extracted into a multi-project service that any department archetype can use.
 
 ---
 
 ## 11. Engineering Department — Full Lifecycle Sequence
 
-The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between BullMQ, the TypeScript orchestrator, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
+The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between Inngest, the TypeScript orchestrator, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
 
 ```mermaid
 sequenceDiagram
     actor Customer
     participant Jira
     participant Gateway as Event Gateway
-    participant BullMQ as BullMQ Queue
+    participant Inngest as Inngest Queue
     participant Orchestrator as TypeScript Orchestrator
     participant Supabase
     participant TriageAgent as Triage Agent
@@ -967,26 +968,26 @@ sequenceDiagram
 
     Customer->>Jira: 1. Create ticket
     Jira->>Gateway: 2. Webhook fires
-    Gateway->>BullMQ: 3. Enqueue triage job
+    Gateway->>Inngest: 3. Send triage event
     Gateway->>Supabase: 4. Record task (status: Received)
-    BullMQ->>Orchestrator: 5. Dispatch triage job
+    Inngest->>Orchestrator: 5. Trigger triage job
     Orchestrator->>TriageAgent: 6. Launch OpenCode session
     TriageAgent->>Supabase: 7. Query pgvector embeddings
     TriageAgent->>Jira: 8. Post clarifying questions
     Customer->>Jira: 9. Answer questions
     Jira->>Gateway: 10. Comment webhook
-    Gateway->>BullMQ: 11. Re-enqueue triage
+    Gateway->>Inngest: 11. Re-send triage event
     Orchestrator->>TriageAgent: 12. Re-evaluate clarity
     TriageAgent->>Supabase: 13. Update task (status: Ready)
-    Orchestrator->>BullMQ: 14. Enqueue execution job
-    BullMQ->>ExecAgent: 15. Dispatch execution
+    Orchestrator->>Inngest: 14. Send execution event
+    Inngest->>ExecAgent: 15. Trigger execution
     ExecAgent->>FlyMachine: 16. Provision via dispatch.sh
     FlyMachine->>FlyMachine: 17. Boot entrypoint.sh (~80s warm)
     FlyMachine->>FlyMachine: 18. OpenCode session: implement + test
     FlyMachine->>GitHub: 19. Create pull request
     FlyMachine->>Supabase: 20. Update task (status: Submitting)
     GitHub->>Gateway: 21. PR webhook
-    Gateway->>BullMQ: 22. Enqueue review job
+    Gateway->>Inngest: 22. Send review event
     Orchestrator->>ReviewAgent: 23. Launch OpenCode session
     ReviewAgent->>Jira: 24. Validate acceptance criteria
     ReviewAgent->>GitHub: 25. Check CI status
@@ -1000,26 +1001,26 @@ sequenceDiagram
 
 1. **Create ticket** — The customer creates a Jira ticket with title, description, and acceptance criteria describing the work to be done.
 2. **Webhook fires** — Jira sends a webhook to the Event Gateway when the ticket is created, carrying the full ticket payload.
-3. **Enqueue triage job** — The Event Gateway normalizes the webhook into the universal task schema and places a triage job onto the BullMQ Triage Queue.
+3. **Send triage event** — The Event Gateway normalizes the webhook into the universal task schema and sends a triage event to Inngest.
 4. **Record task (status: Received)** — The Event Gateway writes the new task record to Supabase with status `Received`, establishing the durable source of truth before any agent work starts.
-5. **Dispatch triage job** — BullMQ delivers the triage job to the TypeScript Orchestrator, which picks it up and decides which agent session to launch.
+5. **Trigger triage job** — Inngest triggers the TypeScript Orchestrator with the triage job, which picks it up and decides which agent session to launch.
 6. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira + Supabase MCP tool access.
 7. **Query pgvector embeddings** — The Triage Agent queries Supabase's pgvector extension to retrieve semantically similar code chunks and past task records relevant to this ticket.
 8. **Post clarifying questions** — The Triage Agent determines requirements are ambiguous and posts specific, actionable questions as a Jira comment tagged to the ticket reporter.
 9. **Answer questions** — The customer responds to the Triage Agent's comment in Jira, providing the missing information needed to proceed.
 10. **Comment webhook** — Jira fires a comment-added webhook to the Event Gateway when the customer's answer is posted.
-11. **Re-enqueue triage** — The Event Gateway places a new triage job onto BullMQ so the Triage Agent can re-evaluate with the updated context.
+11. **Re-send triage event** — The Event Gateway sends a new triage event to Inngest so the Triage Agent can re-evaluate with the updated context.
 12. **Re-evaluate clarity** — The Orchestrator launches a new OpenCode session for the Triage Agent to re-analyze the ticket with the customer's answers included.
 13. **Update task (status: Ready)** — The Triage Agent determines requirements are now clear, writes the structured task context to Supabase, and updates the task status to `Ready`.
-14. **Enqueue execution job** — The Orchestrator places an execution job onto the BullMQ Execution Queue, passing through the Concurrency Scheduler before dispatch.
-15. **Dispatch execution** — BullMQ delivers the execution job to the Execution Agent, which begins the Fly.io provisioning process.
+14. **Send execution event** — The Orchestrator sends an execution event to Inngest, passing through the Concurrency Scheduler before dispatch.
+15. **Trigger execution** — Inngest triggers the Execution Agent, which begins the Fly.io provisioning process.
 16. **Provision via dispatch.sh** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image.
 17. **Boot entrypoint.sh (~80s warm)** — The Fly.io machine runs the ten-step boot sequence: auth tokens, repo clone, branch checkout, dependency install, Docker daemon, local Supabase, credentials, schema, OpenCode config.
 18. **OpenCode session: implement + test** — The Fly.io machine runs the full implementation pipeline: generate plan, write code, TypeScript check, lint, unit tests, integration tests, E2E tests, with fix loops at each stage.
 19. **Create pull request** — After all validation stages pass, the Fly.io machine uses the GitHub CLI to create a pull request from the task branch.
 20. **Update task (status: Submitting)** — The Fly.io machine writes the PR URL to Supabase and updates the task status to `Submitting`.
 21. **PR webhook** — GitHub fires a pull-request-created webhook to the Event Gateway when the new PR is opened.
-22. **Enqueue review job** — The Event Gateway places a review job onto the BullMQ Review Queue with the PR metadata.
+22. **Send review event** — The Event Gateway sends a review event to Inngest with the PR metadata.
 23. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Review Agent, injecting the PR diff, Jira ticket, and GitHub MCP tool access.
 24. **Validate acceptance criteria** — The Review Agent uses the Jira API MCP tool to fetch the original acceptance criteria and map each one to changes in the PR diff.
 25. **Check CI status** — The Review Agent polls GitHub Actions via the GitHub API MCP tool to confirm all CI checks are passing on the PR's head commit.
@@ -1030,7 +1031,7 @@ sequenceDiagram
 
 A few things worth noting in this sequence:
 
-**BullMQ is the handoff point between every phase.** The Event Gateway never calls the orchestrator directly — it enqueues a job and returns. The orchestrator picks up jobs from BullMQ, which means the gateway is never blocked waiting for agent work to complete. Each phase transition (triage complete, execution complete, review complete) goes back through BullMQ rather than chaining function calls.
+**Inngest is the handoff point between every phase.** The Event Gateway never calls the orchestrator directly — it sends an event and returns. The orchestrator receives triggers from Inngest, which means the gateway is never blocked waiting for agent work to complete. Each phase transition (triage complete, execution complete, review complete) goes back through Inngest rather than chaining function calls.
 
 **Supabase is the source of truth throughout.** Every status change is written to Supabase before the next step proceeds. If the orchestrator crashes between phases, it can reconstruct task state from Supabase on restart and re-dispatch from the last known status.
 
@@ -1170,7 +1171,6 @@ erDiagram
     DELIVERABLE ||--o{ REVIEW : receives
     TASK ||--o{ CROSS_DEPT_TRIGGER : emits
     TASK ||--o{ FEEDBACK : generates
-    EXECUTION ||--o{ LLM_USAGE : records
     ARCHETYPE ||--o{ AGENT_VERSION : tracks
 
     DEPARTMENT {
@@ -1241,18 +1241,6 @@ erDiagram
         timestamptz created_at
         boolean is_active
     }
-    LLM_USAGE {
-        uuid id PK
-        uuid execution_id FK
-        uuid agent_version_id FK
-        string model
-        string provider
-        int tokens_in
-        int tokens_out
-        float cost_usd
-        int latency_ms
-        timestamptz created_at
-    }
     KNOWLEDGE_BASE {
         uuid id PK
         uuid archetype_id FK
@@ -1285,7 +1273,7 @@ The data model has three logical clusters:
 
 **Task execution cluster**: An `ARCHETYPE` processes many `TASK` records over time. Each task triggers exactly one `EXECUTION`, which records what actually happened (which Fly.io machine, how many fix iterations, which agent version ran). Executions produce `VALIDATION_RUN` records (one per test stage) and exactly one `DELIVERABLE` (a PR, a campaign draft, a journal entry). Deliverables receive `REVIEW` records from both AI and human reviewers.
 
-**Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision) and `LLM_USAGE` records (token counts, cost, latency per LLM call). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
+**Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
 
 `tenant_id` appears on every entity that will need multi-tenant isolation when the platform goes SaaS. V1 has only one tenant, so application logic doesn't enforce it yet. The schema supports it from day one. Supabase Row-Level Security policies can be added at any time to enforce per-tenant isolation without touching the schema or application code.
 
@@ -1303,13 +1291,13 @@ graph LR
 
     subgraph Data Layer
         SUPABASE[("Supabase\n(PostgreSQL + pgvector)")]:::storage
-        UPSTASH[("Upstash Redis\n(BullMQ)")]:::storage
+        INNGEST["Inngest\n(Workflows + Queue)"]:::service
         S3[("Object Storage\n(Fly.io Volumes)")]:::storage
     end
 
     subgraph Observability
-        LANGSMITH["LangSmith\n(Agent Tracing)"]:::service
-        GRAFANA["Grafana\n(Infra Metrics)"]:::service
+        INNGEST_DASH["Inngest Dashboard\n(Execution Traces)"]:::service
+        SUPABASE_LOGS["Supabase Logs\n(Queries + Activity)"]:::service
         LOGS["Structured Logging"]:::service
     end
 
@@ -1321,11 +1309,11 @@ graph LR
 
     FLY -->|"1. Read/write task state"| SUPABASE
     PYWORKER -->|"2. Read/write task state"| SUPABASE
-    GATEWAY -->|"3. Enqueue BullMQ jobs"| UPSTASH
+    GATEWAY ==>|"3. Send task events"| INNGEST
     FLY -->|"4. Persist volume cache"| S3
-    GATEWAY -->|"5. Log event traces"| LANGSMITH
-    FLY -->|"6. Send agent traces"| LANGSMITH
-    PYWORKER -->|"7. Send workflow traces"| LANGSMITH
+    GATEWAY -->|"5. Log event traces"| INNGEST_DASH
+    FLY -->|"6. Send execution traces"| INNGEST_DASH
+    PYWORKER -->|"7. Send workflow traces"| INNGEST_DASH
     FLYSECRTS -->|"8. Inject credentials"| FLY
     FLYSECRTS -->|"9. Inject API keys"| GATEWAY
     FLYSECRTS -->|"10. Inject tokens"| PYWORKER
@@ -1337,14 +1325,14 @@ graph LR
 **Flow Walkthrough**
 
 1. **Read/write task state** — Fly.io Machines (engineering execution workers) read task context from Supabase at boot and write execution results, fix iteration counts, and status updates throughout the task lifecycle.
-2. **Read/write task state** — Python Workers (marketing and future in-process workers) read archetype config and task context from Supabase and write LangGraph checkpoint state and task outcomes.
-3. **Enqueue BullMQ jobs** — The Event Gateway writes all normalized webhook events to Upstash Redis as BullMQ jobs, using Upstash's serverless Redis as the durable queue backend.
+2. **Read/write task state** — Python Workers (marketing and future in-process workers) read archetype config and task context from Supabase and write Inngest checkpoint state and task outcomes.
+3. **Send task events** — The Event Gateway sends all normalized webhook events to Inngest as workflow triggers, using Inngest's durable event queue as the handoff layer.
 4. **Persist volume cache** — Fly.io Machines write the pnpm store and Docker layer cache to Fly.io Volumes (Object Storage) so subsequent warm boots don't re-download gigabytes of dependencies.
-5. **Log event traces** — The Event Gateway sends structured trace data to LangSmith for each webhook received and job enqueued, enabling end-to-end tracing from ingest to delivery.
-6. **Send agent traces** — Fly.io Machines send OpenCode session traces to LangSmith, capturing every LLM call, tool invocation, and state transition during engineering task execution.
-7. **Send workflow traces** — Python Workers send LangGraph workflow traces to LangSmith, capturing each node's inputs, outputs, and checkpoint state for marketing and other in-process workflows.
+5. **Log event traces** — The Event Gateway sends structured trace data to the Inngest Dashboard for each webhook received and event sent, enabling end-to-end tracing from ingest to delivery.
+6. **Send execution traces** — Fly.io Machines send OpenCode session traces to the Inngest Dashboard, capturing every LLM call, tool invocation, and state transition during engineering task execution.
+7. **Send workflow traces** — Python Workers send Inngest workflow execution logs to the Inngest Dashboard, capturing each step's inputs, outputs, and checkpoint state for marketing and other workflows.
 8. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
-9. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Upstash Redis URL into the Event Gateway's environment at deploy time.
+9. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Inngest API key into the Event Gateway's environment at deploy time.
 10. **Inject tokens** — Fly.io Secrets inject Meta Ads tokens, Google Ads tokens, and GoHighLevel API keys into Python Worker environment variables, scoped to only the credentials each worker type needs.
 
 ### Runtime Selection
@@ -1367,10 +1355,10 @@ The table below covers every component in the stack. The "Alternative" column sh
 |---|---|---|---|
 | **Platform Layer** | Fastify (TypeScript) | Fast, lightweight, OpenAPI plugin, type safety | Express |
 | **Eng Agent Runtime** | OpenCode (`opencode serve` + `@opencode-ai/sdk`) | Purpose-built for AI coding workflows. Proven in nexus-stack. Handles file editing, git, tests, LSP. | — |
-| **Non-Eng Agent Runtime** | LangGraph (Python) | Durable execution via PostgreSQL checkpointing, graph-based state, human-in-the-loop interrupts | CrewAI |
+| **Non-Eng Agent Runtime** | Inngest | Durable execution with step-level checkpointing, event-driven state, human-in-the-loop pauses | Trigger.dev |
 | **Orchestration (Eng)** | Custom TypeScript (generalized `orchestrate.mjs`) | Already proven. Wave-based execution, session management, SSE monitoring. | — |
-| **Orchestration (Non-Eng)** | LangGraph workflows | Built-in checkpointing; crash-safe; human interrupts | Inngest, Trigger.dev |
-| **Job Queue** | BullMQ + Upstash Redis | Battle-tested, official Python client (1.7M+ downloads/mo), per-queue concurrency | SQS |
+| **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
+| **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
 | **LLM Access** | OpenRouter | Unified API for 100+ models, eliminates custom routing, provider-cost pricing | Direct provider APIs |
 | **LLM Optimization** | Claude Max 20x subscription | Reduces LLM costs to ~$0 for Claude models when under rate limits | — |
@@ -1386,8 +1374,8 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **CRM Integration** | GoHighLevel API | Already in stack for sales + marketing | HubSpot |
 | **Ad Platform** | Meta Marketing API | Primary paid channel | Google Ads API |
 | **Accounting** | QuickBooks Online API | Standard for SMB finance automation | Xero |
-| **Agent Observability** | LangSmith | Native LangGraph integration, agent trace visualization | — |
-| **Infra Observability** | Grafana + structured logging | Open source, flexible, free to self-host | Datadog |
+| **Agent Observability** | Inngest Dashboard | Built-in workflow execution traces, step-level inspection, replay | — |
+| **Infra Observability** | Supabase Logs + structured logging | Built-in query and activity logs, no extra service to operate | Datadog |
 
 ### Key Changes from the Original Architecture Document
 
@@ -1409,24 +1397,24 @@ This roadmap assumes one developer. Milestones are sequential — do not begin a
 
 | Milestone | Focus | Weeks | Gate |
 |---|---|---|---|
-| M1 | Platform Foundation | 1-3 | BullMQ queues processing events end-to-end |
+| M1 | Platform Foundation | 1-3 | Inngest processing events end-to-end |
 | M2 | Engineering Triage Agent | 4-6 | Agent posting accurate questions on real Jira tickets |
 | M3 | Engineering Execution Agent | 7-10 | Agent creating compilable PRs for simple tickets |
 | M4 | Engineering Review Agent | 11-13 | Auto-merge working for low-risk PRs |
 | M5 | Engineering Multi-Project | 14-15 | 2-3 projects onboarded with per-project isolation |
-| M6 | Paid Marketing Department | 16-20 | LangGraph campaign optimization running on real ad accounts |
+| M6 | Paid Marketing Department | 16-20 | Inngest campaign optimization running on real ad accounts |
 
 ### M1 — Platform Foundation (Weeks 1-3)
 
 The foundation everything else runs on. No agents yet — just the infrastructure that agents will use.
 
 - Event Gateway (Fastify/TypeScript) with Jira and GitHub webhook handlers
-- BullMQ + Upstash Redis for job queuing with per-department namespaces
-- Supabase schema: `tasks`, `archetypes`, `executions`, `feedback`, `llm_usage` tables
+- Inngest project configured with per-department function namespaces
+- Supabase schema: `tasks`, `archetypes`, `executions`, `feedback` tables
 - Archetype Registry with the engineering archetype config
-- Basic Grafana dashboard for queue health and job throughput
+- Inngest Dashboard configured to monitor queue health and function throughput
 
-**Gate**: A Jira webhook fires, the Event Gateway normalizes it, BullMQ enqueues the job, and the job appears in the Grafana dashboard. No agent work yet — just the plumbing.
+**Gate**: A Jira webhook fires, the Event Gateway normalizes it, Inngest receives the event, and the workflow run appears in the Inngest Dashboard. No agent work yet — just the plumbing.
 
 ### M2 — Engineering Triage Agent (Weeks 4-6)
 
@@ -1476,13 +1464,13 @@ Validates that the platform generalizes beyond the pilot project.
 
 The second department. This validates that the archetype pattern generalizes beyond engineering.
 
-- LangGraph Python workers with BullMQ consumer
+- Inngest workflow functions for campaign optimization
 - Meta Ads API and Google Ads API integration
 - Campaign optimization triage, execution, and review agents
 - In-process Python execution (no Fly.io needed for marketing tasks)
 - Shadow mode, then supervised, then autonomous progression
 
-**Gate**: LangGraph campaign optimization running on real ad accounts in supervised mode. Agent recommendations match human judgment at least 70% of the time.
+**Gate**: Inngest campaign optimization running on real ad accounts in supervised mode. Agent recommendations match human judgment at least 70% of the time.
 
 ### Future Milestones (No Timeline)
 
@@ -1509,10 +1497,9 @@ These costs are constant regardless of task volume.
 | Service | Plan | Cost/Month |
 |---|---|---|
 | Supabase | Pro | ~$25 |
-| Upstash Redis | Pay-as-you-go | ~$5-15 |
-| LangSmith | Plus | ~$39 |
+| Inngest | Pay-as-you-go | ~$0-25 |
 | Fly.io (persistent services) | 2-3 always-on apps | ~$15-30 |
-| **Total fixed** | | **~$84-109/month** |
+| **Total fixed** | | **~$40-80/month** |
 
 ### Variable Costs — Engineering Tasks
 
@@ -1535,7 +1522,7 @@ Marketing tasks run in-process (no Fly.io machine), so costs are almost entirely
 
 | Component | Cost Range |
 |---|---|
-| LangGraph workflow LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.20 |
+| Marketing workflow LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.20 |
 | In-process compute | ~$0.01-$0.03 |
 | **Total per marketing task** | **~$0.06-$0.23** |
 
@@ -1564,10 +1551,10 @@ These risks apply across all departments.
 | Risk | Mitigation |
 |---|---|
 | Claude Max subscription ToS (automated usage) | Always maintain OpenRouter as fallback. Monitor Anthropic policy updates. Never architect the system to depend on Max being available. |
-| Cross-language (TypeScript + Python) deployment complexity | Separate Dockerfiles per language. Clear API contract via BullMQ. Documented local dev setup for both runtimes. |
+| Cross-language (TypeScript + Python) deployment complexity | Separate Dockerfiles per language. Clear API contract via Inngest. Documented local dev setup for both runtimes. |
 | Solo developer unavailability | Alert fatigue is real. Tune escalation thresholds so non-critical tasks wait in queue rather than spam Slack. |
 | LLM provider outage | LLM Gateway fallback chain: Claude (Max) → Claude (OpenRouter) → GPT-4o → GPT-4o-mini. |
-| Cost runaway | Per-department daily budget caps enforced in BullMQ; Slack alert at 80% of monthly ceiling. |
+| Cost runaway | Per-department daily budget caps enforced in Inngest concurrency limits; Slack alert at 80% of monthly ceiling. |
 | Knowledge base staleness | Per-project reindex on every merge to `main`; nightly full reindex for external content; drift detection via embedding distance score. |
 | Unauthorized autonomous actions | Risk-model-driven gates per department; full audit trail in Supabase `audit_log` table. |
 
@@ -1579,7 +1566,7 @@ These risks are specific to the engineering department's code execution model.
 |---|---|
 | AI generates buggy code that passes tests | 3-iteration fix budget per stage + human review gate for high-risk changes. |
 | Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
-| Webhook delivery failures | BullMQ retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
+| Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
 | Fly.io machine hangs | 90-minute hard timeout + 10-minute stale machine detection (no heartbeat). |
 | Merge conflicts between concurrent PRs | File-level conflict detection at dispatch; serialized merge queue with rebase-on-merge. |
 
@@ -1589,7 +1576,7 @@ These risks are specific to the engineering department's code execution model.
 
 Use this checklist when adding a new department to the platform. Steps are sequential — each one depends on the previous. Don't skip shadow mode.
 
-1. **Define the archetype** — Identify trigger sources, tools, knowledge base content, risk model, delivery targets, and `runtime` type (`opencode` / `langgraph` / `in-process`). Write the archetype config object and register it in the Archetype Registry.
+1. **Define the archetype** — Identify trigger sources, tools, knowledge base content, risk model, delivery targets, and `runtime` type (`opencode` / `inngest` / `in-process`). Write the archetype config object and register it in the Archetype Registry.
 
 2. **Register webhook endpoints** — Extend the Event Gateway with handlers for the department's trigger sources. Normalize incoming events to the universal task schema. Test with real webhook payloads before proceeding.
 
@@ -1597,11 +1584,11 @@ Use this checklist when adding a new department to the platform. Steps are seque
 
 4. **Build the knowledge base** — Index domain content into pgvector with department-scoped namespacing. Set up the indexing pipeline (trigger on source changes) and refresh schedule (nightly for external content). Verify query results are relevant before wiring to agents.
 
-5. **Implement the triage agent** — OpenCode session or LangGraph workflow with department-specific tools. Tools for reading source data and generating clarifying questions. Test against a sample of real historical tasks before going live.
+5. **Implement the triage agent** — OpenCode session or Inngest workflow with department-specific tools. Tools for reading source data and generating clarifying questions. Test against a sample of real historical tasks before going live.
 
-6. **Implement the execution agent** — OpenCode + Fly.io machine (engineering) or LangGraph in-process (marketing and other departments). Execution tools, fix loop, escalation path. Test against simple, well-scoped tasks first.
+6. **Implement the execution agent** — OpenCode + Fly.io machine (engineering) or Inngest workflow (marketing and other departments). Execution tools, fix loop, escalation path. Test against simple, well-scoped tasks first.
 
-7. **Implement the review agent** — OpenCode session or LangGraph workflow with validation tools and risk scoring. Define what "acceptable output" means for this department before writing the review logic.
+7. **Implement the review agent** — OpenCode session or Inngest workflow with validation tools and risk scoring. Define what "acceptable output" means for this department before writing the review logic.
 
 8. **Configure the risk model** — Define factors, weights, and thresholds. Start conservative (low auto-approve threshold, high escalation rate). Loosen as confidence grows. Document the initial weights so you have a baseline to compare against.
 
@@ -1609,7 +1596,7 @@ Use this checklist when adding a new department to the platform. Steps are seque
 
 10. **Supervised mode** — Enable external actions but require human approval for every delivery. Gradually increase the auto-approval threshold as the feedback table shows consistent accuracy. Don't rush this step.
 
-11. **Autonomous mode** — Full autonomous operation with human escalation only for high-risk tasks. Monitor via Grafana (queue health, escalation rate) and LangSmith (agent traces, error patterns). Run the weekly prompt refinement ritual from Section 21.
+11. **Autonomous mode** — Full autonomous operation with human escalation only for high-risk tasks. Monitor via Inngest Dashboard (queue health, execution traces) and Supabase Logs (error patterns). Run the weekly prompt refinement ritual from Section 21.
 
 ---
 
@@ -1792,19 +1779,7 @@ The gateway checks Max availability on each request. If the Max token is expired
 
 ### Cost Tracking
 
-Every LLM request is logged to the Supabase `llm_usage` table before the response is returned to the caller. This is synchronous to ensure no requests are missed.
-
-| Column | Type | Description |
-|---|---|---|
-| `task_id` | uuid | Links to the task that triggered this request |
-| `department` | text | `engineering`, `marketing`, etc. |
-| `agent_version_id` | uuid | Which agent version made the call |
-| `model` | text | Exact model used (e.g., `claude-3-5-sonnet-20241022`) |
-| `provider` | text | `anthropic-max`, `openrouter`, etc. |
-| `tokens_in` | int | Input token count |
-| `tokens_out` | int | Output token count |
-| `latency_ms` | int | Time from request to first token |
-| `cost_usd` | numeric | Calculated cost at time of request |
+LLM cost data is tracked via the [OpenRouter Dashboard](https://openrouter.ai/activity), which provides per-model usage, token counts, and cost breakdowns in real time. For Claude Max calls (direct Anthropic), usage is monitored via the Anthropic console. No additional database table is needed — OpenRouter handles the tracking for all API calls.
 
 This data feeds the cost estimation dashboards described in Section 17.
 
@@ -1913,11 +1888,11 @@ Multiple concurrent tasks hitting Jira, GitHub, and Meta Ads from the same accou
 
 ### Solution: Centralized Token Bucket
 
-A centralized rate limiter runs as middleware in the Event Gateway (TypeScript). It uses Upstash Redis as the distributed token bucket backend. Each external API gets a configured limit, and the bucket is shared across all concurrent workers. No single worker can starve the others, and no API account gets hammered.
+A centralized rate limiter runs as middleware in the Event Gateway (TypeScript). It uses an in-process token bucket backed by Supabase for cross-worker coordination. Each external API gets a configured limit, and the bucket is shared across all concurrent workers. No single worker can starve the others, and no API account gets hammered.
 
 ### Backpressure
 
-When a rate limit bucket drops below 20% capacity, the orchestrator delays task dispatch rather than failing. Tasks queue in BullMQ with a calculated delay based on the refill rate. They retry transparently from the caller's perspective. This prevents the thundering herd problem when multiple tasks start simultaneously after a quiet period.
+When a rate limit bucket drops below 20% capacity, the orchestrator delays task dispatch rather than failing. Tasks queue in Inngest with a calculated delay based on the refill rate. They retry transparently from the caller's perspective. This prevents the thundering herd problem when multiple tasks start simultaneously after a quiet period.
 
 ### Per-API Configuration
 
@@ -1933,7 +1908,7 @@ The "Recommended Budget" column is conservative by design. It leaves headroom fo
 
 ### Monitoring
 
-Rate limit utilization per API per department is tracked in Supabase. A Slack alert fires at 80% utilization so you can investigate before hitting the ceiling. LangSmith traces include rate limit wait times, making it easy to spot which tasks are spending time in the backpressure queue versus actually doing work.
+Rate limit utilization per API per department is tracked in Supabase. A Slack alert fires at 80% utilization so you can investigate before hitting the ceiling. Inngest execution logs include rate limit wait times, making it easy to spot which tasks are spending time in the backpressure queue versus actually doing work.
 
 ---
 
@@ -1984,8 +1959,8 @@ The platform relies entirely on managed services with built-in redundancy. The D
 
 | Failure | Detection | Recovery | Auto/Manual |
 |---|---|---|---|
-| Supabase outage | BullMQ job fails with DB connection error | BullMQ retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
-| Upstash Redis outage | Event Gateway cannot enqueue jobs | Exponential backoff on webhook receipt; jobs re-enqueue when Redis recovers | Auto |
+| Supabase outage | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
+| Inngest outage | Event Gateway cannot send events | Exponential backoff on webhook receipt; events re-send when Inngest recovers | Auto |
 | Fly.io machine crash | No heartbeat for 10 minutes | Orchestrator marks task as failed; re-dispatches to a new machine | Auto |
 | LLM provider outage | OpenRouter returns 5xx or timeout | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini | Auto |
 | Webhook delivery failure | Jira/GitHub built-in retry exhausted | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays | Auto |
@@ -2018,7 +1993,7 @@ These runbooks are for a solo developer operating the platform. Each is designed
 
 1. Create Fly.io account and apps: `ai-employee-gateway` (Fastify/TS), `ai-employee-workers` (Python), `nexus-workers` (OpenCode execution)
 2. Create Supabase project, enable pgvector extension, run schema migrations
-3. Create Upstash Redis instance, copy connection URL to Fly.io Secrets
+3. Create Inngest project, copy signing key and event key to Fly.io Secrets
 4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY`
 5. Configure Jira webhook pointing to the Event Gateway URL for each project
 6. Configure GitHub webhook pointing to the Event Gateway URL for each repo
@@ -2030,7 +2005,7 @@ These runbooks are for a solo developer operating the platform. Each is designed
 - `fly deploy --app ai-employee-workers` for Python worker changes
 - OpenCode execution images: `fly deploy --app nexus-workers` after `docker build`
 
-Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://supabase.com/dashboard) | [Upstash Console](https://console.upstash.com)
+Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://supabase.com/dashboard) | [Inngest Dashboard](https://app.inngest.com)
 
 ---
 
@@ -2038,8 +2013,8 @@ Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://sup
 
 **Daily (< 5 minutes)**:
 
-- Check BullMQ queue depth in [Upstash dashboard](https://console.upstash.com) — any queue with > 20 jobs warrants investigation
-- Review [LangSmith traces](https://smith.langchain.com) for failed runs — check error patterns
+- Check Inngest queue depth in [Inngest Dashboard](https://app.inngest.com) — any queue with > 20 jobs warrants investigation
+- Review [Inngest execution logs](https://app.inngest.com) for failed runs — check error patterns
 - Check [OpenRouter dashboard](https://openrouter.ai) for cost spike vs. yesterday baseline
 - Check Fly.io app health: `fly status --app ai-employee-gateway`
 
@@ -2050,7 +2025,7 @@ Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://sup
 - Review escalation reasons in Slack: are the same types of issues recurring?
 - Update agent versions if prompt improvements are ready
 
-Dashboards: [LangSmith](https://smith.langchain.com) | [OpenRouter](https://openrouter.ai/activity) | [Fly.io Metrics](https://fly.io/apps)
+Dashboards: [Inngest Dashboard](https://app.inngest.com) | [OpenRouter](https://openrouter.ai/activity) | [Fly.io Metrics](https://fly.io/apps)
 
 ---
 
@@ -2061,12 +2036,12 @@ Common failure modes and immediate actions:
 | Symptom | First Check | Fix |
 |---|---|---|
 | Task stuck in "Executing" for > 90 min | `fly logs --app nexus-workers` | Machine likely hung — `fly machine stop <id>` + redispatch |
-| Triage agent posting wrong questions | LangSmith traces for the task | Check which prompt version ran, compare to expected behavior |
-| LLM API errors | [OpenRouter status page](https://status.openrouter.ai) | Likely transient — BullMQ will retry. Check fallback chain is active |
+| Triage agent posting wrong questions | Inngest execution logs for the task | Check which prompt version ran, compare to expected behavior |
+| LLM API errors | [OpenRouter status page](https://status.openrouter.ai) | Likely transient — Inngest will retry. Check fallback chain is active |
 | Jira webhook not firing | Jira Admin > Webhooks > Last delivery | Check webhook URL, re-test delivery |
 | Supabase connection errors | [Supabase dashboard](https://supabase.com/dashboard) > Database > Metrics | Check connection pool exhaustion; may need to increase pool size |
 
-Dashboards: [Fly.io Logs](https://fly.io/apps) | [LangSmith](https://smith.langchain.com) | [OpenRouter Status](https://status.openrouter.ai)
+Dashboards: [Fly.io Logs](https://fly.io/apps) | [Inngest Dashboard](https://app.inngest.com) | [OpenRouter Status](https://status.openrouter.ai)
 
 ---
 
@@ -2089,13 +2064,13 @@ Dashboards: [Fly.io Logs](https://fly.io/apps) | [LangSmith](https://smith.langc
 **Monthly**:
 
 - Reindex knowledge base for all active projects (manual trigger or verify cron ran)
-- Review cost trends in Supabase `llm_usage` table:
+- Review cost trends in [OpenRouter Dashboard](https://openrouter.ai/activity) and Supabase `executions` table:
 
   ```sql
-  SELECT model, SUM(cost_usd), COUNT(*)
-  FROM llm_usage
+  SELECT runtime_type, COUNT(*), AVG(fix_iterations)
+  FROM executions
   WHERE created_at > NOW() - INTERVAL '30 days'
-  GROUP BY model;
+  GROUP BY runtime_type;
   ```
 
 - Update Fly.io base images if OpenCode CLI version changed
@@ -2117,11 +2092,44 @@ When a task produces unexpected results, trace it end-to-end:
 1. **Find the task**: `SELECT id, status, created_at FROM tasks WHERE external_id = '<jira-ticket-id>'`
 2. **Find the execution**: `SELECT * FROM executions WHERE task_id = '<task-id>'`
 3. **Find the agent version**: `SELECT * FROM agent_versions WHERE id = '<agent_version_id>'` — check `prompt_hash` vs. current prompt
-4. **View LLM traces**: Open [LangSmith](https://smith.langchain.com), search by `task_id` in metadata
+4. **View execution traces**: Open [Inngest Dashboard](https://app.inngest.com), search by `task_id` in function metadata
 5. **Check Fly.io logs** (engineering only): `fly logs --app nexus-workers --instance <machine-id>`
 6. **Check feedback**: `SELECT * FROM feedback WHERE task_id = '<task-id>'` — any corrections made?
 7. **Cross-reference**: Does the feedback correction + agent version combo explain the behavior?
 
-Dashboards: [LangSmith](https://smith.langchain.com) | [Supabase Table Editor](https://supabase.com/dashboard) | [Fly.io Logs](https://fly.io/apps)
+Dashboards: [Inngest Dashboard](https://app.inngest.com) | [Supabase Table Editor](https://supabase.com/dashboard) | [Fly.io Logs](https://fly.io/apps)
+
+---
+
+## 28. Deferred Capabilities & Future Scale Path
+
+> **Deliberate deferral for V1 speed**: The technologies listed below are architecturally sound and will be needed at scale. They are intentionally deferred from V1 to keep the initial implementation focused and deployable within weeks, not months. Each one adds operational complexity that isn't justified until the platform proves itself on simpler infrastructure. This section documents what we're not building now, why, and when to reconsider.
+
+The table below maps six deferred technologies to their V1 alternatives, what capability is sacrificed, and the migration path when the time comes.
+
+| Deferred Technology | What We Use Instead | What We Gave Up | When to Reconsider | Migration Path |
+|---|---|---|---|---|
+| **BullMQ + Redis** (job queue) | Inngest (managed) | Fine-grained queue introspection, custom retry policies, local dev without external service | Queue depth > 1,000 jobs; need sub-second latency; cost of Inngest exceeds self-hosted Redis | Migrate Inngest workflows to BullMQ workers; keep Supabase as state store; add Redis container to docker-compose |
+| **LangGraph** (orchestration) | Custom TypeScript orchestrator | Unified agent framework, built-in memory management, graph-based workflow visualization | Orchestrator becomes a bottleneck; need to run 100+ concurrent agents; want framework-native observability | Rewrite orchestrator as LangGraph StateGraph; agents become LangGraph nodes; Inngest becomes the queue layer only |
+| **LangSmith** (agent observability) | Inngest Dashboard + Supabase Logs | Unified trace visualization, automatic prompt versioning, A/B testing framework | Need to compare agent behavior across 10+ prompt versions; traces become hard to correlate across services | Add LangSmith SDK to agent code; route all LLM calls through LangSmith; keep Inngest for workflow traces |
+| **Grafana** (infrastructure monitoring) | Supabase Logs + Inngest Dashboard | Unified metrics dashboard, custom alerting rules, long-term metric retention | Need to correlate infrastructure metrics with agent performance; want custom SLO dashboards | Add Prometheus exporter to Fly.io apps; ship metrics to Grafana Cloud; keep Supabase logs for audit trail |
+| **Custom Orchestrator** (if scaling to team) | Generalized TypeScript orchestrator | Workflow versioning, multi-tenant isolation at orchestration layer, team-friendly UI | Team grows beyond 1 developer; need to onboard new departments without code review; want self-service archetype deployment | Migrate to Temporal or Conductor; keep Supabase as state store; add UI for archetype management |
+| **Dual-Language Runtime** (Python + TypeScript) | Inngest (Python) + OpenCode (TypeScript) | Unified agent framework, single deployment pipeline, shared observability | Need to run agents in languages other than Python/TypeScript; want to unify agent code across departments | Standardize on one language (likely Python for ML/data work, TypeScript for orchestration); migrate non-conforming agents |
+
+### Rationale for Each Deferral
+
+**BullMQ + Redis**: Inngest is a managed service that handles queue durability, retries, and concurrency without operational overhead. Redis requires monitoring, persistence configuration, and failover planning. For V1 (< 100 tasks/day), Inngest's cost is negligible and its reliability is higher. Migrate to BullMQ when queue throughput becomes the bottleneck, not before.
+
+**LangGraph**: The custom TypeScript orchestrator is a direct evolution of the nexus-stack's `orchestrate.mjs` pattern — proven code, not theoretical. LangGraph adds a framework layer that's valuable at scale (100+ agents, complex state graphs) but adds cognitive overhead for a solo developer. The orchestrator is 500 lines of TypeScript; LangGraph would require learning a new abstraction. Defer until the orchestrator becomes unmaintainable.
+
+**LangSmith**: Inngest Dashboard provides workflow-level traces; Supabase Logs provide query-level traces. For V1, this is sufficient. LangSmith becomes valuable when you're running 10+ agent versions in parallel and need to compare their behavior. At that scale, the unified trace visualization saves hours per week. Defer until you have the data to justify it.
+
+**Grafana**: Supabase Logs and Inngest Dashboard are sufficient for a solo developer. Grafana becomes valuable when you need to correlate infrastructure metrics (CPU, memory, connection pool) with agent performance (latency, error rate). For V1, alerts on queue depth and cost are enough. Defer until you're optimizing for SLOs.
+
+**Custom Orchestrator**: The generalized TypeScript orchestrator works for a solo developer and a small team. It becomes a bottleneck when you need multi-tenant isolation at the orchestration layer, team-friendly UIs for archetype management, or workflow versioning. Temporal or Conductor are the right choice at that scale. Defer until the team grows.
+
+**Dual-Language Runtime**: Running both Python (Inngest workers) and TypeScript (OpenCode, gateway) adds deployment complexity. A unified language would simplify CI/CD and observability. However, Python is the right choice for data/ML work (marketing optimization), and TypeScript is the right choice for orchestration. The split is intentional. Unify only if a single language becomes clearly dominant.
+
+> **Ship faster by deferring**: Every technology on this list is a valid future investment. None of them are mistakes. They're deferred because V1 is about proving the archetype pattern works, not about building the most scalable system possible. Once the platform is proven, these deferrals become clear upgrade paths, not technical debt. The architecture supports all of them without major rewrites.
 
 ---
