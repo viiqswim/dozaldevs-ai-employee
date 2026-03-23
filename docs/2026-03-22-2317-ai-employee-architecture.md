@@ -80,27 +80,45 @@ graph LR
         SALES["Sales\n(future)"]:::future
     end
 
-    JIRA -.-> GATEWAY
-    GH -.-> GATEWAY
-    META -.-> GATEWAY
-    GHL -.-> GATEWAY
-    GATEWAY ==> QUEUE
-    QUEUE ==> ENG
-    QUEUE ==> MKT
-    QUEUE -.-> FIN
-    QUEUE -.-> SALES
-    ENG --> SUPABASE
-    MKT --> SUPABASE
-    ENG -.-> SLACK
-    MKT -.-> SLACK
-    ENG --> OBS
-    MKT --> OBS
+    JIRA -.->|"1. Jira webhook"| GATEWAY
+    GH -.->|"2. GitHub webhook"| GATEWAY
+    META -.->|"3. Meta Ads webhook"| GATEWAY
+    GHL -.->|"4. GoHighLevel webhook"| GATEWAY
+    GATEWAY ==>|"5. Enqueue normalized job"| QUEUE
+    QUEUE ==>|"6. Dispatch engineering task"| ENG
+    QUEUE ==>|"7. Dispatch marketing task"| MKT
+    QUEUE -.->|"8. Future: finance task"| FIN
+    QUEUE -.->|"9. Future: sales task"| SALES
+    ENG -->|"10. Write task state"| SUPABASE
+    MKT -->|"11. Write task state"| SUPABASE
+    ENG -.->|"12. Send notification"| SLACK
+    MKT -.->|"13. Send notification"| SLACK
+    ENG -->|"14. Send agent traces"| OBS
+    MKT -->|"15. Send agent traces"| OBS
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
     classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
 ```
+
+**Flow Walkthrough**
+
+1. **Jira webhook** — Jira sends a webhook event to the Event Gateway when a ticket is created or updated, providing the raw trigger payload for normalization.
+2. **GitHub webhook** — GitHub fires a webhook to the Event Gateway on PR creation or CI status events, feeding the platform repository-level signals.
+3. **Meta Ads webhook** — Meta Ads sends a webhook to the Event Gateway on spend alerts or performance threshold breaches, triggering marketing department tasks.
+4. **GoHighLevel webhook** — GoHighLevel sends a webhook to the Event Gateway on campaign events or pipeline stage changes, triggering sales and marketing tasks.
+5. **Enqueue normalized job** — The Event Gateway normalizes all incoming webhooks into the universal task schema and enqueues them into BullMQ backed by Upstash Redis as the critical shared path.
+6. **Dispatch engineering task** — BullMQ dispatches an engineering task job to the OpenCode-based Engineering department runtime for coding work.
+7. **Dispatch marketing task** — BullMQ dispatches a marketing task job to the LangGraph-based Paid Marketing department runtime for campaign optimization.
+8. **Future: finance task** — BullMQ will dispatch finance tasks to the Finance department runtime once that archetype is built (dashed = not yet active).
+9. **Future: sales task** — BullMQ will dispatch sales tasks to the Sales department runtime once that archetype is built (dashed = not yet active).
+10. **Write task state** — The Engineering runtime writes task status, execution metadata, and agent outputs to Supabase (PostgreSQL + pgvector).
+11. **Write task state** — The Paid Marketing runtime writes campaign optimization results and task status to Supabase.
+12. **Send notification** — The Engineering runtime sends async Slack notifications for escalations, approvals, and completion events (dashed = async, non-blocking).
+13. **Send notification** — The Paid Marketing runtime sends async Slack notifications for campaign approval requests and optimization results.
+14. **Send agent traces** — The Engineering runtime sends OpenCode agent execution traces to the Observability stack (LangSmith + Grafana) for debugging and monitoring.
+15. **Send agent traces** — The Paid Marketing runtime sends LangGraph workflow traces to the Observability stack for performance monitoring.
 
 The diagram reflects four deliberate choices:
 
@@ -190,19 +208,31 @@ graph LR
         LG["LangGraph Workers\n(Marketing)"]:::service
     end
 
-    CONFIG --> REG
-    TRIGGERS --> CONFIG
-    TOOLS --> CONFIG
-    KB --> CONFIG
-    RISK --> CONFIG
-    RUNTIME --> CONFIG
-    REG --> ORCH
-    ORCH --> OC
-    ORCH --> LG
+    TRIGGERS -->|"1. Declare trigger sources"| CONFIG
+    TOOLS -->|"2. Register tool set"| CONFIG
+    KB -->|"3. Link knowledge base"| CONFIG
+    RISK -->|"4. Define risk model"| CONFIG
+    RUNTIME -->|"5. Set runtime config"| CONFIG
+    CONFIG -->|"6. Register archetype"| REG
+    REG -->|"7. Load archetype map"| ORCH
+    ORCH -->|"8. Spin up OpenCode session"| OC
+    ORCH -->|"9. Start LangGraph workflow"| LG
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Declare trigger sources** — The Trigger Sources config field feeds into the Archetype Config, declaring which webhook endpoints (Jira, GitHub, Meta Ads, etc.) this department monitors.
+2. **Register tool set** — The Tool Registry config field feeds into the Archetype Config, listing every tool the agent can call during triage, execution, and review phases.
+3. **Link knowledge base** — The Knowledge Base config field feeds into the Archetype Config, pointing to the pgvector embeddings and task history partition for this department.
+4. **Define risk model** — The Risk Model config field feeds into the Archetype Config, specifying the factors, weights, and auto-approve thresholds for this department's output.
+5. **Set runtime config** — The Runtime Config field feeds into the Archetype Config, specifying whether to use OpenCode (Fly.io machine) or LangGraph (in-process) and the runtime-specific parameters.
+6. **Register archetype** — The completed Archetype Config object is registered into the Archetype Registry, the in-memory dispatch table loaded at startup.
+7. **Load archetype map** — The Orchestrator reads all registered archetypes from the Archetype Registry to know which trigger sources to subscribe to and which worker pool to route tasks toward.
+8. **Spin up OpenCode session** — The Orchestrator dispatches engineering department tasks to the OpenCode Worker pool, launching an OpenCode session for coding work.
+9. **Start LangGraph workflow** — The Orchestrator dispatches marketing department tasks to the LangGraph Worker pool, starting an in-process Python workflow for campaign optimization.
 
 The Archetype Registry is a simple in-memory map at startup. The orchestrator loads all registered archetypes, subscribes to their trigger sources, and routes incoming tasks to the correct worker pool based on the `runtime` field. No dynamic dispatch logic — the archetype config is the dispatch table.
 
@@ -224,25 +254,44 @@ Every department shares this state machine. The states are identical across all 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Received: Event from trigger source
-    Received --> Triaging: Orchestrator dispatches
-    Triaging --> AwaitingInput: Clarification needed
-    Triaging --> Ready: Task is unambiguous
-    AwaitingInput --> Triaging: Input received
-    AwaitingInput --> Stale: No response 72h
-    Ready --> Provisioning: Execution slot available
-    Provisioning --> Executing: Runtime environment ready
-    Executing --> Validating: Work output produced
-    Validating --> Executing: Validation fails, fix needed
-    Validating --> Submitting: All checks pass
-    Submitting --> Reviewing: Submitted for review
-    Reviewing --> Approved: Review passed
-    Reviewing --> Executing: Changes requested
-    Approved --> Delivering: Approval gate cleared
-    Delivering --> Done: Result delivered
+    [*] --> Received: 1. Event from trigger source
+    Received --> Triaging: 2. Orchestrator dispatches
+    Triaging --> AwaitingInput: 3. Clarification needed
+    Triaging --> Ready: 4. Task is unambiguous
+    AwaitingInput --> Triaging: 5. Input received
+    AwaitingInput --> Stale: 6. No response 72h
+    Ready --> Provisioning: 7. Execution slot available
+    Provisioning --> Executing: 8. Runtime environment ready
+    Executing --> Validating: 9. Work output produced
+    Validating --> Executing: 10. Validation fails, fix needed
+    Validating --> Submitting: 11. All checks pass
+    Submitting --> Reviewing: 12. Submitted for review
+    Reviewing --> Approved: 13. Review passed
+    Reviewing --> Executing: 14. Changes requested
+    Approved --> Delivering: 15. Approval gate cleared
+    Delivering --> Done: 16. Result delivered
     Stale --> [*]
     Done --> [*]
 ```
+
+**Flow Walkthrough**
+
+1. **Event from trigger source** — An external system (Jira, GitHub, Meta Ads, GoHighLevel) fires a webhook that the Event Gateway normalizes and enqueues, creating the task in `Received` state.
+2. **Orchestrator dispatches** — The TypeScript Orchestrator picks up the BullMQ job and launches a triage session, moving the task to `Triaging`.
+3. **Clarification needed** — The triage agent detects ambiguous, missing, or contradictory requirements and moves the task to `AwaitingInput` while posting questions to the source system.
+4. **Task is unambiguous** — The triage agent determines requirements are fully clear and moves the task to `Ready` with a structured context object written to Supabase.
+5. **Input received** — A new webhook arrives (e.g., Jira comment) containing the reporter's answers, returning the task to `Triaging` for re-evaluation.
+6. **No response 72h** — The reporter did not answer within 72 hours; the task moves to `Stale` and exits the lifecycle without execution.
+7. **Execution slot available** — The Concurrency Scheduler confirms a slot is open within the project's concurrency budget and moves the task to `Provisioning`.
+8. **Runtime environment ready** — For OpenCode tasks, the Fly.io machine has booted and is ready; the task moves to `Executing` where the agent writes code.
+9. **Work output produced** — The execution agent completes its work (code written, API calls made) and moves the task to `Validating` where checks run.
+10. **Validation fails, fix needed** — A validation stage (TypeScript, lint, unit, integration, or E2E) fails; the execution agent re-enters `Executing` at the specific failing stage.
+11. **All checks pass** — Every validation stage passes; the task moves to `Submitting` where the deliverable (PR, campaign draft) is published externally.
+12. **Submitted for review** — The deliverable is submitted (PR created, draft published) and the task moves to `Reviewing` where the review agent evaluates it.
+13. **Review passed** — The review agent confirms acceptance criteria are met, code quality is acceptable, CI is green, and risk is below threshold; the task moves to `Approved`.
+14. **Changes requested** — The review agent finds issues (failed acceptance criteria, code quality, or CI failure) and posts change requests, returning the task to `Executing`.
+15. **Approval gate cleared** — The task passes the risk gate (auto-approved or human-approved via Slack) and moves to `Delivering` for final publication.
+16. **Result delivered** — The deliverable is published to its final destination (PR merged, campaign published, journal entry posted) and the task reaches `Done`.
 
 > **Note on Provisioning**: The `Provisioning` state applies only when the archetype's `runtime` is `opencode` (Fly.io machine spin-up). For `langgraph` or `in-process` runtimes, the transition goes directly from `Ready → Executing` — there is no machine to provision.
 
@@ -297,18 +346,29 @@ flowchart LR
         PUB(["Published"]):::future
     end
 
-    LEAD ==> DEAL
-    DEAL ==> WON
-    WON --> PROVISION
-    WON -.-> INVOICE
-    PROVISION ==> DEPLOY
-    INVOICE -.-> SENT
-    DEPLOY -.-> CASE
-    CASE -.-> PUB
+    LEAD ==>|"1. Lead qualified"| DEAL
+    DEAL ==>|"2. Deal closed"| WON
+    WON -->|"3. Trigger client provisioning"| PROVISION
+    WON -.->|"4. Trigger invoice generation"| INVOICE
+    PROVISION ==>|"5. Environment ready"| DEPLOY
+    INVOICE -.->|"6. Invoice sent"| SENT
+    DEPLOY -.->|"7. Trigger case study draft"| CASE
+    CASE -.->|"8. Case study published"| PUB
 
     classDef active fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
 ```
+
+**Flow Walkthrough**
+
+1. **Lead qualified** — A lead passes Sales qualification criteria and the Sales agent moves the deal to the Close Deal stage via GoHighLevel.
+2. **Deal closed** — The Sales agent marks the deal as won in GoHighLevel, emitting a `cross_department_trigger` event with the client's requirements payload.
+3. **Trigger client provisioning** — The Engineering department receives the cross-department trigger and the Provision Client Env task begins, spinning up a Fly.io machine to set up the client environment.
+4. **Trigger invoice generation** — The Finance department receives a cross-department trigger from the won deal and the Generate Invoice task begins (dashed = future, Finance archetype not yet built).
+5. **Environment ready** — The Engineering execution agent completes provisioning, emits an Environment Ready event, and the client environment is live.
+6. **Invoice sent** — The Finance agent completes the invoice and marks it sent (dashed = future, not yet active).
+7. **Trigger case study draft** — The Marketing department receives a cross-department trigger once the environment is ready and begins drafting a case study (dashed = future).
+8. **Case study published** — The Marketing agent publishes the completed case study to the CMS (dashed = future, Marketing archetype not yet built).
 
 Solid arrows (`==>`) are active paths. Dashed arrows (`-.->`) are future connections that exist in the schema but aren't wired yet.
 
@@ -541,25 +601,42 @@ graph LR
         REVIEW["Review Agent\n(OpenCode session)"]:::service
     end
 
-    JIRA -.-> INGEST
-    GH -.-> INGEST
-    INGEST ==> QUEUE
-    QUEUE ==> ORCH
-    ORCH --> TRIAGE
-    ORCH --> EXEC
-    ORCH --> REVIEW
-    TRIAGE --> SUPABASE
-    TRIAGE --> JIRA
-    EXEC --> FLY
-    EXEC --> GH
-    REVIEW --> GH
-    REVIEW --> JIRA
-    ORCH -.-> SLACK
+    JIRA -.->|"1. Jira webhook"| INGEST
+    GH -.->|"2. GitHub webhook"| INGEST
+    INGEST ==>|"3. Enqueue job"| QUEUE
+    QUEUE ==>|"4. Dispatch to orchestrator"| ORCH
+    ORCH -->|"5. Launch triage session"| TRIAGE
+    ORCH -->|"6. Launch execution session"| EXEC
+    ORCH -->|"7. Launch review session"| REVIEW
+    TRIAGE -->|"8. Query KB and write context"| SUPABASE
+    TRIAGE -->|"9. Post clarifying questions"| JIRA
+    EXEC -->|"10. Provision machine"| FLY
+    EXEC -->|"11. Create pull request"| GH
+    REVIEW -->|"12. Merge pull request"| GH
+    REVIEW -->|"13. Update ticket status"| JIRA
+    ORCH -.->|"14. Send escalation or status"| SLACK
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Jira webhook** — Jira Cloud sends a webhook to the Event Gateway when a ticket is created, commented on, or its status changes, initiating the triage flow.
+2. **GitHub webhook** — GitHub sends a webhook to the Event Gateway on PR creation, review submission, or CI status update, initiating the review flow.
+3. **Enqueue job** — The Event Gateway normalizes the incoming webhook into the universal task schema and enqueues it into BullMQ backed by Upstash Redis.
+4. **Dispatch to orchestrator** — BullMQ dispatches the job to the TypeScript Orchestrator, which reads task state from Supabase and decides which agent phase to run.
+5. **Launch triage session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira MCP tools.
+6. **Launch execution session** — The Orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
+7. **Launch review session** — The Orchestrator starts an OpenCode session for the Review Agent when a PR webhook arrives, injecting the PR diff and GitHub MCP tools.
+8. **Query KB and write context** — The Triage Agent queries pgvector embeddings and task history in Supabase to build a structured context object, then writes the result back to Supabase.
+9. **Post clarifying questions** — The Triage Agent uses the Jira API MCP tool to post specific, actionable questions as comments tagged to the ticket reporter.
+10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
+11. **Create pull request** — After all validation stages pass, the Execution Agent uses the GitHub CLI to create a pull request from the task branch.
+12. **Merge pull request** — The Review Agent uses the GitHub PR API MCP tool to approve and merge the PR when all checks pass and risk is below threshold.
+13. **Update ticket status** — The Review Agent uses the Jira API MCP tool to update the ticket status to Done and post a summary comment with the PR link.
+14. **Send escalation or status** — The Orchestrator sends async Slack notifications for human escalation requests, approval prompts, and task completion summaries (dashed = async).
 
 A few things worth noting in this diagram:
 
@@ -593,21 +670,33 @@ flowchart TD
     READY["Mark Ticket Ready"]:::service
     QUEUE_EXEC(["Enqueue for Execution"]):::event
 
-    WEBHOOK ==> PARSE
-    PARSE --> ENRICH
-    ENRICH --> SUPABASE
-    SUPABASE --> ANALYZE
-    ANALYZE --> CLEAR
-    CLEAR -- No --> QUESTIONS
-    QUESTIONS -.-> WEBHOOK
-    CLEAR -- Yes --> READY
-    READY ==> QUEUE_EXEC
+    WEBHOOK ==>|"1. Receive Jira webhook"| PARSE
+    PARSE -->|"2. Structured payload"| ENRICH
+    ENRICH -->|"3. Query pgvector"| SUPABASE
+    SUPABASE -->|"4. Return relevant context"| ANALYZE
+    ANALYZE -->|"5. Evaluate requirements"| CLEAR
+    CLEAR -->|"6b. No"| QUESTIONS
+    QUESTIONS -.->|"8. Await new webhook"| WEBHOOK
+    CLEAR -->|"6a. Yes"| READY
+    READY ==>|"7. Enqueue execution job"| QUEUE_EXEC
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
     classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
 ```
+
+**Flow Walkthrough**
+
+1. **Receive Jira webhook** — The Event Gateway delivers a normalized Jira webhook event (new ticket or comment) to the Triage Agent's OpenCode session to begin processing.
+2. **Structured payload** — The Triage Agent parses the ticket title, description, and acceptance criteria into a structured requirements object for analysis.
+3. **Query pgvector** — The Triage Agent queries Supabase's pgvector extension to retrieve code chunks and task history semantically similar to this ticket's requirements.
+4. **Return relevant context** — Supabase returns the top-ranked embedding matches and historical task records, giving the agent codebase context without reading the entire repo.
+5. **Evaluate requirements** — The OpenCode session analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
+6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
+6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
+7. **Enqueue execution job** — The Triage Agent signals the Orchestrator that the task is `Ready`, and the Orchestrator enqueues an execution job in BullMQ.
+8. **Await new webhook** — The questions are posted as a Jira comment; the task moves to `AwaitingInput` and the triage loop waits for a new comment webhook to re-trigger (dashed = async loop-back).
 
 **Triage Agent Responsibilities**:
 
@@ -643,28 +732,47 @@ flowchart TD
     PR(["Submit Pull Request"]):::event
     FAIL["Escalate to Human\n(Slack)"]:::error
 
-    PICKUP ==> PROVISION
-    PROVISION --> BOOT
-    BOOT --> PLAN
-    PLAN ==> CODE
-    CODE --> TYPECHECK
-    TYPECHECK -- Fail --> FIX
-    TYPECHECK -- Pass --> LINT
-    LINT -- Fail --> FIX
-    LINT -- Pass --> UNIT
-    UNIT -- Fail --> FIX
-    UNIT -- Pass --> INTEG
-    INTEG -- Fail --> FIX
-    INTEG -- Pass --> E2E
-    E2E -- Fail --> FIX
-    FIX --> TYPECHECK
-    E2E -- Pass --> PR
+    PICKUP ==>|"1. Ticket ready event"| PROVISION
+    PROVISION -->|"2. Machine provisioned"| BOOT
+    BOOT -->|"3. Boot complete"| PLAN
+    PLAN ==>|"4. Plan generated"| CODE
+    CODE -->|"5. Code written"| TYPECHECK
+    TYPECHECK -->|"6a. TS Fail"| FIX
+    TYPECHECK -->|"6b. TS Pass"| LINT
+    LINT -->|"7a. Lint Fail"| FIX
+    LINT -->|"7b. Lint Pass"| UNIT
+    UNIT -->|"8a. Unit Fail"| FIX
+    UNIT -->|"8b. Unit Pass"| INTEG
+    INTEG -->|"9a. Integration Fail"| FIX
+    INTEG -->|"9b. Integration Pass"| E2E
+    E2E -->|"10a. E2E Fail"| FIX
+    FIX -->|"11. Re-enter at failing stage"| TYPECHECK
+    E2E -->|"10b. E2E Pass"| PR
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
     classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
     classDef error fill:#E74C3C,stroke:#A93226,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Ticket ready event** — BullMQ delivers the execution job to the Execution Agent after the Triage Agent marks the task `Ready` in Supabase.
+2. **Machine provisioned** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing all project tooling.
+3. **Boot complete** — The Fly.io machine runs `entrypoint.sh`: writes auth tokens, shallow-clones the repo, installs dependencies from the volume-cached pnpm store, starts Docker daemon and local Supabase (~80s warm).
+4. **Plan generated** — `orchestrate.mjs` wave 1 runs an OpenCode session to generate a structured implementation plan, identifying which files to change and in what order.
+5. **Code written** — The OpenCode session writes all code changes across the identified files, then moves to the first validation gate.
+6a. **TS Fail** — The TypeScript compiler reports errors; the Execution Agent sends the failing output to the Diagnose + Fix step.
+6b. **TS Pass** — TypeScript compiles cleanly; the pipeline advances to the Lint check.
+7a. **Lint Fail** — The linter reports violations; the Execution Agent sends the failing output to the Diagnose + Fix step.
+7b. **Lint Pass** — Lint passes cleanly; the pipeline advances to Unit Tests.
+8a. **Unit Fail** — Unit tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+8b. **Unit Pass** — Unit tests pass; the pipeline advances to Integration Tests.
+9a. **Integration Fail** — Integration tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+9b. **Integration Pass** — Integration tests pass; the pipeline advances to E2E Tests.
+10a. **E2E Fail** — End-to-end tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+10b. **E2E Pass** — All tests pass; the Execution Agent uses the GitHub CLI to submit a Pull Request from the task branch.
+11. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed (not at code generation), preventing oscillation between stages.
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (8GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
@@ -703,28 +811,47 @@ flowchart TD
     NOTIFY(["Notify Team via Slack"]):::event
     REJECT["Request Changes on PR"]:::error
 
-    PRWATCH ==> LOAD
-    LOAD --> JIRA_CHECK
-    JIRA_CHECK --> COMPARE
-    COMPARE -- No --> REJECT
-    COMPARE -- Yes --> CODE_REVIEW
-    CODE_REVIEW --> QUALITY
-    QUALITY -- No --> REJECT
-    QUALITY -- Yes --> CI
-    CI --> CI_PASS
-    CI_PASS -- No --> REJECT
-    CI_PASS -- Yes --> RISK
-    RISK --> AUTO
-    AUTO -- Yes --> MERGE
-    AUTO -- No --> HUMAN
-    MERGE ==> NOTIFY
-    HUMAN -.-> NOTIFY
+    PRWATCH ==>|"1. PR created event"| LOAD
+    LOAD -->|"2. Diff and metadata loaded"| JIRA_CHECK
+    JIRA_CHECK -->|"3. Jira ticket fetched"| COMPARE
+    COMPARE -->|"4a. No"| REJECT
+    COMPARE -->|"4b. Yes"| CODE_REVIEW
+    CODE_REVIEW -->|"5. Review complete"| QUALITY
+    QUALITY -->|"6a. No"| REJECT
+    QUALITY -->|"6b. Yes"| CI
+    CI -->|"7. CI triggered"| CI_PASS
+    CI_PASS -->|"8a. No"| REJECT
+    CI_PASS -->|"8b. Yes"| RISK
+    RISK -->|"9. Score computed"| AUTO
+    AUTO -->|"10a. Yes"| MERGE
+    AUTO -->|"10b. No"| HUMAN
+    MERGE ==>|"11. PR merged"| NOTIFY
+    HUMAN -.->|"12. Human approved"| NOTIFY
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
     classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
     classDef error fill:#E74C3C,stroke:#A93226,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **PR created event** — GitHub fires a webhook when the Execution Agent creates a pull request; the Event Gateway delivers it to the Review Agent's OpenCode session.
+2. **Diff and metadata loaded** — The Review Agent uses the GitHub PR API MCP tool to fetch the full PR diff, commit list, and CI check status.
+3. **Jira ticket fetched** — The Review Agent uses the Jira API MCP tool to fetch the original ticket, extracting the acceptance criteria for comparison against the PR changes.
+4a. **No** — One or more acceptance criteria are not addressed in the PR diff; the Review Agent posts a change request on the PR via GitHub API.
+4b. **Yes** — All acceptance criteria map to changes in the PR diff; the Review Agent proceeds to AI code review.
+5. **Review complete** — The OpenCode session performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
+6a. **No** — Code quality issues are found; the Review Agent posts a detailed change request on the PR listing each issue.
+6b. **Yes** — Code quality is acceptable; the Review Agent waits for the CI pipeline to complete.
+7. **CI triggered** — The Review Agent polls GitHub Actions for the CI run status associated with the PR's head commit.
+8a. **No** — CI is red (one or more checks failed); the Review Agent posts a change request on the PR with the failing check names.
+8b. **Yes** — All CI checks pass; the Review Agent proceeds to compute the risk score.
+9. **Score computed** — The Review Agent calculates a 0-100 risk score based on files changed, lines modified, critical paths touched (auth, DB migrations, payments), and new dependencies added.
+10a. **Yes** — Risk score is below the configured threshold; the Review Agent auto-merges the PR via the GitHub API.
+10b. **No** — Risk score exceeds threshold; the Review Agent posts a Slack message to the human approver with the PR summary, risk breakdown, and approve/reject buttons.
+11. **PR merged** — The auto-merge completes and the Review Agent fires a Slack notification to the team with the ticket link, PR link, and deployment status.
+12. **Human approved** — A human approves the Slack prompt and the Review Agent merges the PR, then fires a Slack notification to the team (dashed = async, triggered by human interaction).
 
 **Review Agent Responsibilities**:
 
@@ -768,24 +895,40 @@ graph LR
         R1["Review Worker\n(OpenCode)"]:::service
     end
 
-    WH1 --> ROUTER
-    WH2 --> ROUTER
-    ROUTER --> Q_TRIAGE
-    ROUTER --> Q_REVIEW
-    Q_TRIAGE --> T1
-    Q_EXEC --> E1
-    Q_REVIEW --> R1
-    T1 --> SM
-    E1 --> SM
-    R1 --> SM
-    SM --> SCHED
-    SCHED --> Q_EXEC
-    SM --> SUPABASE
+    WH1 -->|"1. Jira webhook events"| ROUTER
+    WH2 -->|"2. GitHub webhook events"| ROUTER
+    ROUTER -->|"3. Route to triage queue"| Q_TRIAGE
+    ROUTER -->|"4. Route to review queue"| Q_REVIEW
+    Q_TRIAGE -->|"5. Dispatch triage job"| T1
+    Q_EXEC -->|"6. Dispatch execution job"| E1
+    Q_REVIEW -->|"7. Dispatch review job"| R1
+    T1 -->|"8. Update task state"| SM
+    E1 -->|"9. Update task state"| SM
+    R1 -->|"10. Update task state"| SM
+    SM -->|"11. Check concurrency budget"| SCHED
+    SCHED -->|"12. Enqueue when slot available"| Q_EXEC
+    SM -->|"13. Persist state"| SUPABASE
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Jira webhook events** — Jira Cloud sends webhook events (ticket created, comment added, status changed) to the Event Router, which is the Fastify-based Event Gateway.
+2. **GitHub webhook events** — GitHub sends webhook events (PR created, CI status, review submitted) to the Event Router for processing.
+3. **Route to triage queue** — The Event Router identifies new-ticket and comment events and places them onto the Triage Queue in BullMQ with the normalized task payload.
+4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in BullMQ for the Review Worker to process.
+5. **Dispatch triage job** — BullMQ's Triage Queue delivers the job to an available Triage Worker (an OpenCode session for codebase analysis and question generation).
+6. **Dispatch execution job** — BullMQ's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
+7. **Dispatch review job** — BullMQ's Review Queue delivers the job to an available Review Worker (an OpenCode session for PR validation and risk scoring).
+8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
+9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
+10. **Update task state** — The Review Worker reports its outcome (changes requested, auto-merged, or human review routed) to the Task State Machine.
+11. **Check concurrency budget** — The Task State Machine sends `Ready` tasks to the Concurrency Scheduler, which checks per-project concurrency limits and file-level conflict locks before allowing dispatch.
+12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens and no conflicting tasks hold the target files.
+13. **Persist state** — The Task State Machine writes every state transition to Supabase, which serves as the durable source of truth for task recovery after a crash.
 
 ### Scaling Strategy
 
@@ -822,36 +965,68 @@ sequenceDiagram
     participant ReviewAgent as Review Agent
     participant Slack
 
-    Customer->>Jira: Create ticket
-    Jira->>Gateway: Webhook fires
-    Gateway->>BullMQ: Enqueue triage job
-    Gateway->>Supabase: Record task (status: Received)
-    BullMQ->>Orchestrator: Dispatch triage job
-    Orchestrator->>TriageAgent: Launch OpenCode session
-    TriageAgent->>Supabase: Query pgvector embeddings
-    TriageAgent->>Jira: Post clarifying questions
-    Customer->>Jira: Answer questions
-    Jira->>Gateway: Comment webhook
-    Gateway->>BullMQ: Re-enqueue triage
-    Orchestrator->>TriageAgent: Re-evaluate clarity
-    TriageAgent->>Supabase: Update task (status: Ready)
-    Orchestrator->>BullMQ: Enqueue execution job
-    BullMQ->>ExecAgent: Dispatch execution
-    ExecAgent->>FlyMachine: Provision via dispatch.sh
-    FlyMachine->>FlyMachine: Boot entrypoint.sh (~80s warm)
-    FlyMachine->>FlyMachine: OpenCode session: implement + test
-    FlyMachine->>GitHub: Create pull request
-    FlyMachine->>Supabase: Update task (status: Submitting)
-    GitHub->>Gateway: PR webhook
-    Gateway->>BullMQ: Enqueue review job
-    Orchestrator->>ReviewAgent: Launch OpenCode session
-    ReviewAgent->>Jira: Validate acceptance criteria
-    ReviewAgent->>GitHub: Check CI status
-    ReviewAgent->>Supabase: Record risk score
-    ReviewAgent->>GitHub: Approve + merge PR
-    ReviewAgent->>Supabase: Update task (status: Done)
-    ReviewAgent->>Slack: Notify team
+    Customer->>Jira: 1. Create ticket
+    Jira->>Gateway: 2. Webhook fires
+    Gateway->>BullMQ: 3. Enqueue triage job
+    Gateway->>Supabase: 4. Record task (status: Received)
+    BullMQ->>Orchestrator: 5. Dispatch triage job
+    Orchestrator->>TriageAgent: 6. Launch OpenCode session
+    TriageAgent->>Supabase: 7. Query pgvector embeddings
+    TriageAgent->>Jira: 8. Post clarifying questions
+    Customer->>Jira: 9. Answer questions
+    Jira->>Gateway: 10. Comment webhook
+    Gateway->>BullMQ: 11. Re-enqueue triage
+    Orchestrator->>TriageAgent: 12. Re-evaluate clarity
+    TriageAgent->>Supabase: 13. Update task (status: Ready)
+    Orchestrator->>BullMQ: 14. Enqueue execution job
+    BullMQ->>ExecAgent: 15. Dispatch execution
+    ExecAgent->>FlyMachine: 16. Provision via dispatch.sh
+    FlyMachine->>FlyMachine: 17. Boot entrypoint.sh (~80s warm)
+    FlyMachine->>FlyMachine: 18. OpenCode session: implement + test
+    FlyMachine->>GitHub: 19. Create pull request
+    FlyMachine->>Supabase: 20. Update task (status: Submitting)
+    GitHub->>Gateway: 21. PR webhook
+    Gateway->>BullMQ: 22. Enqueue review job
+    Orchestrator->>ReviewAgent: 23. Launch OpenCode session
+    ReviewAgent->>Jira: 24. Validate acceptance criteria
+    ReviewAgent->>GitHub: 25. Check CI status
+    ReviewAgent->>Supabase: 26. Record risk score
+    ReviewAgent->>GitHub: 27. Approve + merge PR
+    ReviewAgent->>Supabase: 28. Update task (status: Done)
+    ReviewAgent->>Slack: 29. Notify team
 ```
+
+**Flow Walkthrough**
+
+1. **Create ticket** — The customer creates a Jira ticket with title, description, and acceptance criteria describing the work to be done.
+2. **Webhook fires** — Jira sends a webhook to the Event Gateway when the ticket is created, carrying the full ticket payload.
+3. **Enqueue triage job** — The Event Gateway normalizes the webhook into the universal task schema and places a triage job onto the BullMQ Triage Queue.
+4. **Record task (status: Received)** — The Event Gateway writes the new task record to Supabase with status `Received`, establishing the durable source of truth before any agent work starts.
+5. **Dispatch triage job** — BullMQ delivers the triage job to the TypeScript Orchestrator, which picks it up and decides which agent session to launch.
+6. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Triage Agent, injecting the task context and Jira + Supabase MCP tool access.
+7. **Query pgvector embeddings** — The Triage Agent queries Supabase's pgvector extension to retrieve semantically similar code chunks and past task records relevant to this ticket.
+8. **Post clarifying questions** — The Triage Agent determines requirements are ambiguous and posts specific, actionable questions as a Jira comment tagged to the ticket reporter.
+9. **Answer questions** — The customer responds to the Triage Agent's comment in Jira, providing the missing information needed to proceed.
+10. **Comment webhook** — Jira fires a comment-added webhook to the Event Gateway when the customer's answer is posted.
+11. **Re-enqueue triage** — The Event Gateway places a new triage job onto BullMQ so the Triage Agent can re-evaluate with the updated context.
+12. **Re-evaluate clarity** — The Orchestrator launches a new OpenCode session for the Triage Agent to re-analyze the ticket with the customer's answers included.
+13. **Update task (status: Ready)** — The Triage Agent determines requirements are now clear, writes the structured task context to Supabase, and updates the task status to `Ready`.
+14. **Enqueue execution job** — The Orchestrator places an execution job onto the BullMQ Execution Queue, passing through the Concurrency Scheduler before dispatch.
+15. **Dispatch execution** — BullMQ delivers the execution job to the Execution Agent, which begins the Fly.io provisioning process.
+16. **Provision via dispatch.sh** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image.
+17. **Boot entrypoint.sh (~80s warm)** — The Fly.io machine runs the ten-step boot sequence: auth tokens, repo clone, branch checkout, dependency install, Docker daemon, local Supabase, credentials, schema, OpenCode config.
+18. **OpenCode session: implement + test** — The Fly.io machine runs the full implementation pipeline: generate plan, write code, TypeScript check, lint, unit tests, integration tests, E2E tests, with fix loops at each stage.
+19. **Create pull request** — After all validation stages pass, the Fly.io machine uses the GitHub CLI to create a pull request from the task branch.
+20. **Update task (status: Submitting)** — The Fly.io machine writes the PR URL to Supabase and updates the task status to `Submitting`.
+21. **PR webhook** — GitHub fires a pull-request-created webhook to the Event Gateway when the new PR is opened.
+22. **Enqueue review job** — The Event Gateway places a review job onto the BullMQ Review Queue with the PR metadata.
+23. **Launch OpenCode session** — The Orchestrator starts an OpenCode session for the Review Agent, injecting the PR diff, Jira ticket, and GitHub MCP tool access.
+24. **Validate acceptance criteria** — The Review Agent uses the Jira API MCP tool to fetch the original acceptance criteria and map each one to changes in the PR diff.
+25. **Check CI status** — The Review Agent polls GitHub Actions via the GitHub API MCP tool to confirm all CI checks are passing on the PR's head commit.
+26. **Record risk score** — The Review Agent computes a 0-100 risk score based on files changed, critical paths, and new dependencies, and writes it to Supabase.
+27. **Approve + merge PR** — The Review Agent uses the GitHub API MCP tool to approve and merge the PR (auto-merge path; human approval Slack flow is the alternative).
+28. **Update task (status: Done)** — The Review Agent writes the final task status `Done` to Supabase along with the deliverable reference (merged PR URL).
+29. **Notify team** — The Review Agent sends a Slack message to the configured channel with the ticket link, PR link, and merge confirmation.
 
 A few things worth noting in this sequence:
 
@@ -938,20 +1113,32 @@ graph LR
         RESULT(["Ranked Context"]):::service
     end
 
-    CODE --> CHUNK
-    CAM --> CHUNK
-    CHUNK --> EMBED
-    EMBED --> VEC
-    TASK --> HIST
-    AGENT --> RANK
-    RANK --> VEC
-    RANK --> HIST
-    RANK --> RESULT
+    CODE -->|"1. Code and docs"| CHUNK
+    CAM -->|"2. Campaign data"| CHUNK
+    CHUNK -->|"3. Chunked content"| EMBED
+    EMBED -->|"4. Embeddings stored"| VEC
+    TASK -->|"5. Task history indexed"| HIST
+    AGENT -->|"6. Query submitted"| RANK
+    RANK -->|"7. Vector similarity search"| VEC
+    RANK -->|"8. Historical task lookup"| HIST
+    RANK -->|"9. Return ranked context"| RESULT
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Code and docs** — GitHub code chunks (~500 tokens each), docstrings, and README sections from the engineering repository are sent to the Content Chunker for preprocessing.
+2. **Campaign data** — Meta Ads and Google Ads campaign performance records, playbook entries, and brand guideline sections from the marketing department are sent to the Content Chunker.
+3. **Chunked content** — The Content Chunker splits raw content into fixed-size overlapping chunks and passes them to the Embedding Generator via OpenRouter for vectorization.
+4. **Embeddings stored** — The Embedding Generator calls OpenRouter (`text-embedding-3-small` or equivalent) and writes the resulting vectors to the pgvector `knowledge_embeddings` table in Supabase with department and project metadata.
+5. **Task history indexed** — Completed task records (inputs, outputs, affected files, validation results) are written directly to Supabase's task history tables, bypassing chunking since they're already structured.
+6. **Query submitted** — An agent (triage, execution, or review) submits a natural-language query to the Context Ranker with a task description to find relevant context.
+7. **Vector similarity search** — The Context Ranker translates the query into an embedding and performs a pgvector cosine similarity search against the `knowledge_embeddings` table to find the most relevant content chunks.
+8. **Historical task lookup** — The Context Ranker also runs a SQL query against the task history tables in Supabase to find past tasks with similar requirements, files touched, or resolution patterns.
+9. **Return ranked context** — The Context Ranker merges vector search results with task history results, ranks them by relevance, and returns the top-N entries as the agent's context window input.
 
 ### Per-Department Content
 
@@ -1090,6 +1277,16 @@ erDiagram
     }
 ```
 
+**Entity Relationships Explained**
+
+The data model has three logical clusters:
+
+**Department & Archetype cluster**: A `DEPARTMENT` defines one or more `ARCHETYPE` records (e.g., the engineering department defines an engineering archetype). Each archetype declares its own `KNOWLEDGE_BASE`, `RISK_MODEL`, and `AGENT_VERSION` — so every department has independent knowledge and risk configuration.
+
+**Task execution cluster**: An `ARCHETYPE` processes many `TASK` records over time. Each task triggers exactly one `EXECUTION`, which records what actually happened (which Fly.io machine, how many fix iterations, which agent version ran). Executions produce `VALIDATION_RUN` records (one per test stage) and exactly one `DELIVERABLE` (a PR, a campaign draft, a journal entry). Deliverables receive `REVIEW` records from both AI and human reviewers.
+
+**Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision) and `LLM_USAGE` records (token counts, cost, latency per LLM call). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
+
 `tenant_id` appears on every entity that will need multi-tenant isolation when the platform goes SaaS. V1 has only one tenant, so application logic doesn't enforce it yet. The schema supports it from day one. Supabase Row-Level Security policies can be added at any time to enforce per-tenant isolation without touching the schema or application code.
 
 ---
@@ -1122,20 +1319,33 @@ graph LR
         AUDIT[("Audit Log\n(Supabase)")]:::storage
     end
 
-    FLY --> SUPABASE
-    PYWORKER --> SUPABASE
-    GATEWAY --> UPSTASH
-    FLY --> S3
-    GATEWAY --> LANGSMITH
-    FLY --> LANGSMITH
-    PYWORKER --> LANGSMITH
-    FLYSECRTS --> FLY
-    FLYSECRTS --> GATEWAY
-    FLYSECRTS --> PYWORKER
+    FLY -->|"1. Read/write task state"| SUPABASE
+    PYWORKER -->|"2. Read/write task state"| SUPABASE
+    GATEWAY -->|"3. Enqueue BullMQ jobs"| UPSTASH
+    FLY -->|"4. Persist volume cache"| S3
+    GATEWAY -->|"5. Log event traces"| LANGSMITH
+    FLY -->|"6. Send agent traces"| LANGSMITH
+    PYWORKER -->|"7. Send workflow traces"| LANGSMITH
+    FLYSECRTS -->|"8. Inject credentials"| FLY
+    FLYSECRTS -->|"9. Inject API keys"| GATEWAY
+    FLYSECRTS -->|"10. Inject tokens"| PYWORKER
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Read/write task state** — Fly.io Machines (engineering execution workers) read task context from Supabase at boot and write execution results, fix iteration counts, and status updates throughout the task lifecycle.
+2. **Read/write task state** — Python Workers (marketing and future in-process workers) read archetype config and task context from Supabase and write LangGraph checkpoint state and task outcomes.
+3. **Enqueue BullMQ jobs** — The Event Gateway writes all normalized webhook events to Upstash Redis as BullMQ jobs, using Upstash's serverless Redis as the durable queue backend.
+4. **Persist volume cache** — Fly.io Machines write the pnpm store and Docker layer cache to Fly.io Volumes (Object Storage) so subsequent warm boots don't re-download gigabytes of dependencies.
+5. **Log event traces** — The Event Gateway sends structured trace data to LangSmith for each webhook received and job enqueued, enabling end-to-end tracing from ingest to delivery.
+6. **Send agent traces** — Fly.io Machines send OpenCode session traces to LangSmith, capturing every LLM call, tool invocation, and state transition during engineering task execution.
+7. **Send workflow traces** — Python Workers send LangGraph workflow traces to LangSmith, capturing each node's inputs, outputs, and checkpoint state for marketing and other in-process workflows.
+8. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
+9. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Upstash Redis URL into the Event Gateway's environment at deploy time.
+10. **Inject tokens** — Fly.io Secrets inject Meta Ads tokens, Google Ads tokens, and GoHighLevel API keys into Python Worker environment variables, scoped to only the credentials each worker type needs.
 
 ### Runtime Selection
 
@@ -1517,16 +1727,25 @@ flowchart LR
     RT["Risk Weight Tuning\n(archetype risk model)"]:::service
     IA(["Improved Agent\nBehavior"]):::event
 
-    HO ==> FC
-    FC --> WA
-    WA --> PR
-    WA --> RT
-    PR ==> IA
-    RT ==> IA
+    HO ==>|"1. Override captured"| FC
+    FC -->|"2. Corrections aggregated"| WA
+    WA -->|"3. Prompt pattern identified"| PR
+    WA -->|"4. Risk drift detected"| RT
+    PR ==>|"5. Prompt updated"| IA
+    RT ==>|"6. Risk weights tuned"| IA
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **Override captured** — A human overrides an AI decision (e.g., rejects an auto-merge, requests changes on a triage decision, or adjusts a risk score) and the system captures the full correction context into the Supabase `feedback` table.
+2. **Corrections aggregated** — The Weekly Aggregation process queries all `feedback` records from the past 7 days and groups them by `feedback_type` (triage override, merge override, risk score adjustment, PR rejection) to identify patterns.
+3. **Prompt pattern identified** — The Weekly Aggregation identifies recurring triage or execution errors (e.g., consistently misclassifying migration tickets as low-risk) and routes the pattern to Prompt Refinement.
+4. **Risk drift detected** — The Weekly Aggregation identifies risk model miscalibration (e.g., tasks that were auto-merged but later caused regressions, or tasks escalated unnecessarily) and routes the pattern to Risk Weight Tuning.
+5. **Prompt updated** — The Prompt Refinement step drafts targeted prompt changes for the affected agent, creates a new `AGENT_VERSION` record in Supabase with a changelog note, and marks it active for subsequent tasks.
+6. **Risk weights tuned** — The Risk Weight Tuning step updates the affected factor weights in the archetype's `risk_model` configuration in Supabase, taking effect on all tasks processed after the update.
 
 > **This is a V1 feature.** The feedback table schema and correction capture hooks must be implemented alongside the first triage agent, not added in a later milestone. The data model is simple; the cost is low; the value compounds over time. Deferring feedback infrastructure means operating blind for months.
 
@@ -1623,20 +1842,32 @@ flowchart LR
 
     MAX["Claude Max\nSubscription\n(optional)"]:::storage
 
-    TRIAGE --> GW
-    EXEC --> GW
-    REVIEW --> GW
-    GW --> MAX
-    GW --> OR
-    MAX -.->|fallback| OR
-    OR --> CLAUDE
-    OR --> GPT
-    OR --> OPEN
+    TRIAGE -->|"1. LLM request"| GW
+    EXEC -->|"2. LLM request"| GW
+    REVIEW -->|"3. LLM request"| GW
+    GW -->|"4. Route via Max subscription"| MAX
+    GW -->|"5. Route via OpenRouter API"| OR
+    MAX -.->|"6. Fallback if rate-limited"| OR
+    OR -->|"7. Forward to Claude"| CLAUDE
+    OR -->|"8. Forward to GPT"| GPT
+    OR -->|"9. Forward to open-source"| OPEN
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
+
+**Flow Walkthrough**
+
+1. **LLM request** — The Triage Agent sends all LLM inference requests to the LLM Gateway rather than calling any provider directly, keeping model selection and routing centralized.
+2. **LLM request** — The Execution Agent sends all LLM inference requests (code generation, plan creation, fix diagnosis) to the LLM Gateway for routing and cost tracking.
+3. **LLM request** — The Review Agent sends all LLM inference requests (code review, acceptance criteria validation, risk scoring) to the LLM Gateway for routing.
+4. **Route via Max subscription** — The LLM Gateway checks Claude Max availability and routes Claude requests through the `@ex-machina/opencode-anthropic-auth` OAuth token when available, reducing per-token costs to near zero.
+5. **Route via OpenRouter API** — The LLM Gateway routes requests through OpenRouter's unified API when Claude Max is unavailable or for non-Claude models, paying per-token at provider-rate pricing.
+6. **Fallback if rate-limited** — When Claude Max hits its rate limit or returns an error, the gateway falls through to OpenRouter's Claude endpoint automatically (dashed = contingency path, not the primary flow).
+7. **Forward to Claude** — OpenRouter proxies the request to Anthropic's Claude API (Opus for engineering execution, Sonnet for triage and review) and returns the response.
+8. **Forward to GPT** — OpenRouter proxies the request to OpenAI's GPT-4o API when Claude is unavailable or for high-volume low-cost tasks.
+9. **Forward to open-source** — OpenRouter proxies the request to open-source models (Llama, Mistral, etc.) when all premium models are unavailable or for bulk operations where cost matters most.
 
 ---
 
