@@ -175,6 +175,22 @@ flowchart LR
 
 **What's not in the MVP**: The triage agent (deferred — execution agent reads raw ticket from `triage_result`), the marketing department, pgvector knowledge base, and the full rate limiting infrastructure. Each of these is documented in the roadmap (Section 16) and deferred capabilities (Section 28). Dashed lines = async; solid lines = synchronous; bold lines = critical path.
 
+### MVP Scope Summary
+
+The table below is the quick-reference for what is built in the MVP versus what is designed but deferred. Each deferred capability has a `> **MVP Scope**:` callout in its section and a migration path in Section 28 (Deferred Capabilities).
+
+| Component | MVP (Building Now) | Post-MVP (Designed, Deferred) |
+|---|---|---|
+| Triage Agent | Raw Jira payload → `triage_result` column (no agent yet) | Full triage agent: ticket analysis, clarifying questions, pgvector similarity |
+| Execution Agent | Fly.io + OpenCode, single-project, full validation pipeline | Multi-project concurrency scheduling, knowledge base integration |
+| Review Agent | Fly.io + OpenCode, risk scoring, auto-merge, Slack escalation | A/B testing review prompts, learning from correction feedback |
+| Knowledge Base | SQL task history + OpenCode native codebase search | pgvector embedding pipeline for semantic ticket similarity |
+| Rate Limiting | Retry-on-429 wrappers in `callLLM()` | Centralized token bucket with backpressure and per-model quotas |
+| LLM Gateway | `callLLM()` wrapper → OpenRouter (Claude Sonnet default) | Claude Max routing, full fallback chain, per-call cost circuit breaker |
+| Agent Versioning | `agent_versions` table + forensic prompt trail | Performance profiles, A/B prompt experiments, auto-promotion |
+| Observability | Inngest Dashboard + Supabase query logs | Grafana dashboards, LangSmith tracing, custom alerting |
+| Departments | Engineering only | Paid Marketing, Finance, Sales (archetype-driven) |
+
 ---
 
 ## 3. Employee Archetype Framework
@@ -314,6 +330,16 @@ stateDiagram-v2
     Reviewing --> Executing: 14. Changes requested
     Approved --> Delivering: 15. Approval gate cleared
     Delivering --> Done: 16. Result delivered
+    Received --> Cancelled: Task cancelled
+    Triaging --> Cancelled: Task cancelled
+    AwaitingInput --> Cancelled: Task cancelled
+    Ready --> Cancelled: Task cancelled
+    Provisioning --> Cancelled: Task cancelled
+    Executing --> Cancelled: Task cancelled
+    Validating --> Cancelled: Task cancelled
+    Submitting --> Cancelled: Task cancelled
+    Reviewing --> Cancelled: Task cancelled
+    Cancelled --> [*]
     Stale --> [*]
     Done --> [*]
 ```
@@ -354,6 +380,16 @@ The table below shows how each state maps to concrete actions per department. En
 | Validating | TypeScript → Lint → Unit → Integration → E2E | Brand compliance + budget limits check | Double-entry balance + policy check | Messaging tone + CRM completeness |
 | Reviewing | AI code review + risk score → Slack approval | Human creative approval via Slack | Manager approval over threshold | Manager approval for enterprise |
 | Delivering | PR merged via GitHub → Slack notification | Campaign draft published to Meta/Google | Journal entry posted, Slack alert | Email sequence sent via GoHighLevel |
+
+### 4.2 Mid-Flight Task Updates
+
+**MVP approach**: Mid-flight updates to Jira tickets during execution are intentionally ignored. The current execution phase runs to completion and produces a PR.
+
+- **Ticket updated mid-execution**: The review phase reads the latest Jira ticket state. If the update changes acceptance criteria, the review agent flags the discrepancy in its PR comment before auto-merging or escalating.
+- **Ticket cancelled mid-execution**: When a cancellation is detected (a Jira `issue_deleted` or status-change-to-Cancelled webhook arrives), the Event Gateway writes `Cancelled` to the task's Supabase record. The running Fly.io machine is **not aborted** — it finishes its current work. The review phase checks task status before proceeding; if `Cancelled`, the PR is closed without merging and the ticket is updated accordingly.
+- **Entering the Cancelled state**: Any phase (triage, execution, review) checks `tasks.status` before beginning. Finding `Cancelled` terminates the lifecycle function gracefully.
+
+**Post-MVP enhancement**: Periodic cancellation polling from within the Fly.io machine (checking `tasks.status` every 5 minutes) enables early abort for long-running tasks.
 
 ---
 
@@ -589,7 +625,7 @@ The nexus-stack fly-worker provides measured boot time data that directly inform
 
 **Cost**: ~$0.05/GB-hour for `performance-2x` (2 shared CPU, 8GB RAM). A typical engineering task runs 20-60 minutes, putting per-task cost at roughly $0.50-$2.00 including machine time and storage.
 
-**Teardown**: Machines auto-destroy on exit via `--auto-destroy`. Hard timeout is 90 minutes — any task still running at that point is killed and re-dispatched. The orchestrator also detects stale machines: if a machine hasn't sent a heartbeat in 10 minutes, it's presumed dead and the task is re-queued. This handles the case where a machine crashes without triggering the normal exit path.
+**Teardown**: Machines auto-destroy on exit via `--auto-destroy`. Hard timeout is 90 minutes — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
 
 ---
 
@@ -1003,6 +1039,19 @@ graph LR
 11. **Check concurrency budget** — The Task State Machine sends `Ready` tasks to the Concurrency Scheduler, which checks per-project concurrency limits before allowing dispatch.
 12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens within the project's configured limit.
 13. **Persist state** — The Task State Machine writes every state transition to Supabase, which serves as the durable source of truth for task recovery after a crash.
+
+### Machine Health Monitoring (3-Layer Approach)
+
+The platform uses three complementary layers to detect machine failures, ranging from normal completion through crash detection to edge-case recovery:
+
+**Layer 1 — Completion Event + Timeout (primary)**
+The Fly.io machine sends an Inngest event (`engineering/execution.complete`) when it finishes work. The Inngest lifecycle function waits via `step.waitForEvent("engineering/execution.complete", { timeout: "90m" })`. If the event arrives, the task advances to the next phase. If the 90-minute timeout fires without an event, the machine is presumed dead: the task is marked `Failed` and re-dispatched (up to the configured retry limit).
+
+**Layer 2 — Progress Heartbeats to Supabase (visibility)**
+The Fly.io machine writes periodic status updates to the `executions` table (current phase, last activity timestamp, progress percentage). This provides visibility into machine health without requiring Inngest event overhead. The platform dashboard and alerting queries read this column for in-flight task status.
+
+**Layer 3 — Watchdog Cron (edge-case recovery)**
+An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks in `Executing` state with no progress update in the last 10 minutes. Stale tasks are flagged and their Inngest lifecycle functions are signalled to re-dispatch. This catches the edge case where both the completion event AND the 90-minute timeout somehow fail (e.g., Inngest internal state loss during an outage).
 
 ### Scaling Strategy
 
@@ -1454,6 +1503,29 @@ The tiered approach keeps costs in check. Running 20 engineering tickets/day on 
 
 ---
 
+### Multi-Project Docker Image Strategy
+
+The platform uses a **single shared base image** for all Fly.io execution machines, regardless of which project or repository is being worked on. Per-project variation is handled at boot time via environment variables, not by maintaining separate Docker images.
+
+**Base image contents** (shared across all projects):
+- Runtime: Node.js, pnpm
+- Git tooling: `git`, GitHub CLI (`gh`)
+- Docker-in-Docker (fuse-overlayfs backend)
+- OpenCode CLI + SDK
+- Platform scripts: `entrypoint.sh`, `orchestrate.mjs`
+
+**Per-project configuration** (environment variables injected at dispatch):
+- `REPO_URL` — The project's GitHub repository URL
+- `REPO_BRANCH` — The base branch to clone from (default: `main`)
+- `PLAN_NAME` — The `.sisyphus/plans/*.md` plan to execute (if plan-mode)
+- Project-specific secrets (GitHub token, Jira credentials) injected via Fly.io secrets
+
+**Boot-time clone**: The machine's entrypoint script clones the target repository at startup (shallow clone, depth=2) using the `REPO_URL` variable. A per-project volume cache (`worker_pool_*` volumes) stores the pnpm dependency store and Docker image layers across runs, dramatically reducing boot time for repeat executions.
+
+This mirrors the approach proven in the nexus-stack (`tools/fly-worker/entrypoint.sh`), where the Docker image is project-agnostic and the repository is cloned at runtime.
+
+**When to consider per-project images**: If projects have fundamentally different tooling requirements (e.g., Python vs. TypeScript monorepos with incompatible runtimes), separate base images become appropriate. For the MVP engineering projects — all TypeScript — the single base image is the correct choice.
+
 ## 15. Technology Stack
 
 The table below covers every component in the stack. The "Alternative" column shows what was considered and why it wasn't chosen — or what to migrate to if the recommended choice stops working.
@@ -1662,7 +1734,7 @@ These risks apply across all departments.
 | Cross-language deployment complexity (when dual-language is enabled) | V1 is TypeScript-only — this risk activates when Python workers are added (see Section 28). Mitigation at that point: separate Dockerfiles per language, clear API contract via Inngest HTTP, documented local dev setup for both runtimes. |
 | Solo developer unavailability | Alert fatigue is real. Tune escalation thresholds so non-critical tasks wait in queue rather than spam Slack. |
 | LLM provider outage | LLM Gateway fallback chain: Claude (Max) → Claude (OpenRouter) → GPT-4o → GPT-4o-mini. |
-| Cost runaway | Per-department daily budget caps enforced in Inngest concurrency limits; Slack alert at 80% of monthly ceiling. |
+| Cost runaway | Primary: cost circuit breaker in Section 22 (daily spend cap + Slack alert). Secondary: per-department concurrency limits cap parallelism but not per-call cost. |
 | Knowledge base staleness | Per-project reindex on every merge to `main`; nightly full reindex for external content; drift detection via embedding distance score. |
 | Unauthorized autonomous actions | Risk-model-driven gates per department; full audit trail in Supabase `audit_log` table. |
 
@@ -1675,7 +1747,7 @@ These risks are specific to the engineering department's code execution model.
 | AI generates buggy code that passes tests | 3-iteration fix budget per stage + human review gate for high-risk changes. |
 | Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
 | Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
-| Fly.io machine hangs | 90-minute hard timeout + 10-minute stale machine detection (no heartbeat). |
+| Fly.io machine hangs | 90-minute hard timeout + 3-layer monitoring system (Section 10). |
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
 
 ---
@@ -1954,6 +2026,18 @@ flowchart LR
 8. **Forward to GPT** — OpenRouter proxies the request to OpenAI's GPT-4o API when Claude is unavailable or for high-volume low-cost tasks.
 9. **Forward to open-source** — OpenRouter proxies the request to open-source models (Llama, Mistral, etc.) when all premium models are unavailable or for bulk operations where cost matters most.
 
+### Cost Circuit Breaker
+
+The `callLLM()` wrapper tracks cumulative daily LLM spend per department. When daily cost exceeds a configurable threshold (default: `$50/day` for the engineering department), the circuit breaker activates:
+
+1. New LLM calls for that department are paused
+2. A Slack alert is posted to the operations channel with: current spend, threshold, department, and a resume link
+3. In-flight Inngest lifecycle functions check the cost gate before dispatching new tasks; tasks that would exceed the threshold are held in `AwaitingInput` state
+
+The threshold is stored in the archetype configuration and adjustable without code deployment. This is especially important when Claude Max becomes unavailable: without Max's fixed subscription cost, per-request LLM costs spike 3–5×, potentially driving monthly engineering costs from ~$1,200 to ~$3,330 at steady state (see Section 17).
+
+**Complementary to Section 18 concurrency limits**: Inngest concurrency limits cap parallelism (preventing resource exhaustion). The cost circuit breaker caps actual dollar spend. Both operate independently; the circuit breaker is the primary cost-control mechanism.
+
 ---
 
 ## 23. Agent Versioning
@@ -2083,7 +2167,7 @@ The platform relies entirely on managed services with built-in redundancy. The D
 |---|---|---|---|
 | Supabase outage | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
 | Inngest outage | Event Gateway cannot send events | Exponential backoff on webhook receipt; events re-send when Inngest recovers | Auto |
-| Fly.io machine crash | No heartbeat for 10 minutes | The orchestrator marks task as failed; re-dispatches to a new machine | Auto |
+| Fly.io machine crash | 3-layer monitoring system (Section 10) | The orchestrator marks task as failed; re-dispatches to a new machine | Auto |
 | LLM provider outage | OpenRouter returns 5xx or timeout | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini | Auto |
 | Webhook delivery failure | Jira/GitHub built-in retry exhausted | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays | Auto |
 
