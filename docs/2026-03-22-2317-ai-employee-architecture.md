@@ -372,7 +372,7 @@ stateDiagram-v2
 
 > **Note on Provisioning**: The `Provisioning` state applies only when the archetype's `runtime` is `opencode` (Fly.io machine spin-up). For `inngest` or `in-process` runtimes, the transition goes directly from `Ready → Executing` — there is no machine to provision.
 
-> **Note on fix loop**: When `Validating → Executing` (validation fails), the execution agent re-enters at the **failing validation stage**, not from the beginning of code generation. A TypeScript error re-enters at the TypeScript check; a lint error at the lint check. This prevents oscillation where fixing one stage inadvertently breaks a previously passing stage.
+> **Note on fix loop**: When `Validating → Executing` (validation fails), the execution agent re-enters at the **failing validation stage** and re-runs all subsequent stages from that point forward. A lint fix re-enters at lint and then continues through unit → integration → E2E. A TypeScript fix re-starts from TypeScript through all stages. This catches cascading failures where fixing one stage inadvertently breaks a later stage. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages before escalating to human.
 
 ### 4.1 Department-Specific Interpretations
 
@@ -872,7 +872,7 @@ flowchart TD
     INTEG -->|"9a. Integration Fail"| FIX
     INTEG -->|"9b. Integration Pass"| E2E
     E2E -->|"10a. E2E Fail"| FIX
-    FIX -->|"11. Re-enter at failing stage"| TYPECHECK
+    FIX -->|"11. Re-enter at failing stage, run all subsequent"| TYPECHECK
     E2E -->|"10b. E2E Pass"| PR
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
@@ -902,9 +902,9 @@ flowchart TD
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (8GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
-**Fix loop**: When a stage fails, the agent diagnoses the specific error and re-enters the pipeline at the failing stage, not from code generation. A TypeScript error goes to `FIX → TYPECHECK`. A lint failure goes to `FIX → LINT`. This stage-targeted fix approach prevents oscillation where fixing one stage breaks a previously passing stage. Maximum 3 fix iterations per stage before escalating to human.
+**Fix loop**: When a stage fails, the agent diagnoses the specific error, applies a fix, and re-runs the pipeline from the failing stage forward through all remaining stages. A TypeScript fix re-runs TypeScript → lint → unit → integration → E2E. A lint fix re-runs lint → unit → integration → E2E. This stage-forward approach catches cascading failures where fixing one stage breaks a later one. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages.
 
-**Escalation**: After 3 failed fix iterations on any stage, the agent escalates to Slack with the failing stage name, the full error output, the diff attempted, and a request for human guidance. The task moves to `AwaitingInput` state and waits.
+**Escalation**: After 3 failed fix iterations on any stage, the agent escalates to Slack with the failing stage name, the full error output, the diff attempted, and a request for human guidance. The task moves to `AwaitingInput` state and waits. The platform also enforces a global cap of **10 fix iterations** across all stages. If total fix iterations reach 10 before any individual stage hits 3, the task escalates immediately. This prevents the agent from cycling through many stages without converging.
 
 **Execution Environment**:
 
