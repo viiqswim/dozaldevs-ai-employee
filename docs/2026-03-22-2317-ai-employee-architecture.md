@@ -250,6 +250,8 @@ Engineering tasks run in ephemeral Fly.io VMs — full filesystem isolation, git
 
 ### 3.2 Archetype Composition
 
+> **MVP Scope**: For MVP, the engineering archetype is a hardcoded configuration object (`engineeringArchetype`), not a dynamic registry. The Archetype Registry pattern described below is the target architecture — it activates when the Paid Marketing department is onboarded (M6). At that point, the common pattern will be extracted from two concrete implementations rather than designed speculatively. Adding the second department is the trigger, not a deadline.
+
 The diagram below shows how an archetype config wires together into the platform and routes work to the correct runtime.
 
 ```mermaid
@@ -299,7 +301,7 @@ graph LR
 8. **Spin up OpenCode session** — The orchestrator dispatches engineering department tasks to the OpenCode Worker pool, launching an OpenCode session for coding work.
 9. **Trigger Inngest workflow** — The orchestrator dispatches marketing department tasks to the Inngest Worker pool, triggering an Inngest workflow for campaign optimization.
 
-The Archetype Registry is a simple in-memory map at startup. The orchestrator loads all registered archetypes, subscribes to their trigger sources, and routes incoming tasks to the correct worker pool based on the `runtime` field. No dynamic dispatch logic — the archetype config is the dispatch table.
+The Archetype Registry is a simple in-memory map at startup. In MVP, this is a single exported config object (`engineeringArchetype`). The registry pattern activates when the second department validates that the schema generalizes. The orchestrator loads all registered archetypes, subscribes to their trigger sources, and routes incoming tasks to the correct worker pool based on the `runtime` field. No dynamic dispatch logic — the archetype config is the dispatch table.
 
 ### 3.3 Why Archetypes Matter
 
@@ -1848,7 +1850,7 @@ These risks are specific to the engineering department's code execution model.
 
 Use this checklist when adding a new department to the platform. Steps are sequential — each one depends on the previous. Don't skip shadow mode.
 
-1. **Define the archetype** — Identify trigger sources, tools, knowledge base content, risk model, delivery targets, and `runtime` type (`opencode` / `inngest` / `in-process`). Write the archetype config object and register it in the Archetype Registry.
+1. **Define the archetype** — Identify trigger sources, tools, knowledge base content, risk model, delivery targets, and `runtime` type (`opencode` / `inngest` / `in-process`). Write the archetype config object. (MVP: hardcoded as `engineeringArchetype`. Post-MVP: register in the Archetype Registry once the pattern is validated by two departments.)
 
 2. **Register webhook endpoints** — Extend the Event Gateway with handlers for the department's trigger sources. Normalize incoming events to the universal task schema. Test with real webhook payloads before proceeding.
 
