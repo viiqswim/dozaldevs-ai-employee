@@ -392,7 +392,7 @@ The table below shows how each state maps to concrete actions per department. En
 
 **MVP approach**: Mid-flight updates to Jira tickets during execution are intentionally ignored. The current execution phase runs to completion and produces a PR.
 
-- **Ticket updated mid-execution**: The review phase reads the latest Jira ticket state. If the update changes acceptance criteria, the review agent flags the discrepancy in its PR comment before auto-merging or escalating.
+- **Ticket updated mid-execution**: The review phase reads the latest Jira ticket state. If the update changes acceptance criteria, the review agent flags the discrepancy in its PR comment before auto-merging or escalating. *(Post-MVP: in MVP, this discrepancy is noted in the PR description for the developer's review.)*
 - **Ticket cancelled mid-execution**: When a cancellation is detected (a Jira `issue_deleted` or status-change-to-Cancelled webhook arrives), the Event Gateway writes `Cancelled` to the task's Supabase record. The running Fly.io machine is **not aborted** — it finishes its current work. The review phase checks task status before proceeding; if `Cancelled`, the PR is closed without merging and the ticket is updated accordingly.
 - **Entering the Cancelled state**: Any phase (triage, execution, review) checks `tasks.status` before beginning. Finding `Cancelled` terminates the lifecycle function gracefully.
 
@@ -1082,7 +1082,7 @@ graph LR
 12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens within the project's configured limit.
 13. **Persist state** — The Task State Machine writes every state transition to Supabase, which serves as the durable source of truth for task recovery after a crash.
 
-### Machine Health Monitoring (3-Layer Approach)
+### 10.1 Machine Health Monitoring (3-Layer Approach)
 
 The platform uses three complementary layers to detect machine failures, ranging from normal completion through crash detection to edge-case recovery:
 
@@ -1095,7 +1095,7 @@ The Fly.io machine writes periodic status updates to the `executions` table (cur
 **Layer 3 — Watchdog Cron (edge-case recovery)**
 An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks in `Executing` state with no progress update in the last 10 minutes. Stale tasks are flagged and their Inngest lifecycle functions are signalled to re-dispatch. This catches the edge case where both the completion event AND the 90-minute timeout somehow fail (e.g., Inngest internal state loss during an outage).
 
-### Scaling Strategy
+### 10.2 Scaling Strategy
 
 **Concurrency model**: Each Jira project gets a configurable concurrency limit (default: 3 concurrent executions). The scheduler enforces this via Inngest per-queue concurrency controls. This prevents resource exhaustion and reduces merge conflicts between parallel tasks working in the same codebase.
 
@@ -1604,7 +1604,7 @@ These limits apply to all Inngest lifecycle functions in the platform. Architect
 
 ---
 
-### Multi-Project Docker Image Strategy
+### 14.1 Multi-Project Docker Image Strategy
 
 The platform uses a **single shared base image** for all Fly.io execution machines, regardless of which project or repository is being worked on. Per-project variation is handled at boot time via environment variables, not by maintaining separate Docker images.
 
@@ -2138,7 +2138,7 @@ flowchart LR
 8. **Forward to GPT** — OpenRouter proxies the request to OpenAI's GPT-4o API when Claude is unavailable or for high-volume low-cost tasks.
 9. **Forward to open-source** — OpenRouter proxies the request to open-source models (Llama, Mistral, etc.) when all premium models are unavailable or for bulk operations where cost matters most.
 
-### Cost Circuit Breaker
+### 22.1 Cost Circuit Breaker
 
 The `callLLM()` wrapper tracks cumulative daily LLM spend per department. When daily cost exceeds a configurable threshold (default: `$50/day` for the engineering department), the circuit breaker activates:
 
