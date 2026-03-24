@@ -613,7 +613,7 @@ The original concept described an AI agent "constantly monitoring" Jira for new 
 
 **The answer**: Hybrid. OpenCode for engineering, Inngest for everything else.
 
-**Why OpenCode for engineering**: OpenCode (`opencode serve` + `@opencode-ai/sdk`) is purpose-built for AI coding workflows. It has deep integration with file editing, git operations, test execution, LSP diagnostics, and MCP tools. The nexus-stack already uses it in production. For a task that requires cloning a repo, modifying TypeScript files, running tests, and creating PRs — OpenCode is the right tool. There's no point building custom file editing and git integrations when a production-grade implementation already exists.
+**Why OpenCode for engineering**: OpenCode (`opencode serve` + `@opencode-ai/sdk`) is purpose-built for AI coding workflows. It has deep integration with file editing, git operations, test execution, LSP diagnostics, and CLI tools and REST APIs. The nexus-stack already uses it in production. For a task that requires cloning a repo, modifying TypeScript files, running tests, and creating PRs — OpenCode is the right tool. There's no point building custom file editing and git integrations when a production-grade implementation already exists.
 
 **Why Inngest for non-engineering**: Inngest provides durable execution with built-in retry logic, step-level checkpointing, and human-in-the-loop pauses. For tasks that are primarily API calls (Meta Ads, GoHighLevel, QuickBooks), OpenCode's coding tools are irrelevant overhead. Inngest's event-driven workflow model maps cleanly to multi-step business processes: collect data, analyze, decide, execute, report. Each step checkpoints before proceeding, so a crashed worker resumes from the last successful step.
 
@@ -758,11 +758,11 @@ graph LR
 6. **Launch execution session** — The orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
 7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access.
 8. **Query KB and write context** — The Triage Agent queries task history in Supabase (SQL) to build a structured context object, then writes the result back to Supabase.
-9. **Post clarifying questions** — The Triage Agent uses the Jira API MCP tool to post specific, actionable questions as comments tagged to the ticket reporter.
+9. **Post clarifying questions** — The Triage Agent uses the Jira REST API to post specific, actionable questions as comments tagged to the ticket reporter.
 10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
 11. **Create pull request** — After all validation stages pass, the Execution Agent uses the GitHub CLI to create a pull request from the task branch.
-12. **Merge pull request** — The Review Agent uses the GitHub PR API MCP tool to approve and merge the PR when all checks pass and risk is below threshold.
-13. **Update ticket status** — The Review Agent uses the Jira API MCP tool to update the ticket status to Done and post a summary comment with the PR link.
+12. **Merge pull request** — The Review Agent uses the GitHub REST API to approve and merge the PR when all checks pass and risk is below threshold.
+13. **Update ticket status** — The Review Agent uses the Jira REST API to update the ticket status to Done and post a summary comment with the PR link.
 14. **Send escalation or status** — The orchestrator sends async Slack notifications for human escalation requests, approval prompts, and task completion summaries (dashed = async).
 
 A few things worth noting in this diagram:
@@ -1073,7 +1073,7 @@ graph LR
 4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in Inngest for the Review Worker to process.
 5. **Dispatch triage job** — Inngest's Triage Queue delivers the job to an available Triage Worker (a stateless LLM call via OpenRouter for codebase analysis and question generation).
 6. **Dispatch execution job** — Inngest's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
-7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (a stateless LLM call via OpenRouter for PR validation and risk scoring).
+7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (an OpenCode session on a Fly.io machine for PR validation and risk scoring).
 8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
 9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
 10. **Update task state** — The Review Worker reports its outcome (changes requested, auto-merged, or human review routed) to the Task State Machine.
@@ -1186,11 +1186,11 @@ sequenceDiagram
 20. **Update task (status: Submitting)** — The Fly.io machine writes the PR URL to Supabase and updates the task status to `Submitting`.
 21. **PR webhook** — GitHub fires a pull-request-created webhook to the Event Gateway when the new PR is opened.
 22. **Send review event** — The Event Gateway sends a review event to Inngest with the PR metadata.
-23. **Invoke review agent** — The Inngest lifecycle function invokes the Review Agent as a stateless LLM call via OpenRouter, injecting the PR diff, Jira ticket, and GitHub API access.
-24. **Validate acceptance criteria** — The Review Agent uses the Jira API MCP tool to fetch the original acceptance criteria and map each one to changes in the PR diff.
-25. **Check CI status** — The Review Agent polls GitHub Actions via the GitHub API MCP tool to confirm all CI checks are passing on the PR's head commit.
+23. **Invoke review agent** — The Inngest lifecycle function invokes the Review Agent as an OpenCode session on a Fly.io machine, injecting the PR diff, Jira ticket, and GitHub API access.
+24. **Validate acceptance criteria** — The Review Agent uses the Jira REST API to fetch the original acceptance criteria and map each one to changes in the PR diff.
+25. **Check CI status** — The Review Agent polls GitHub Actions via the GitHub REST API to confirm all CI checks are passing on the PR's head commit.
 26. **Record risk score** — The Review Agent computes a 0-100 risk score based on files changed, critical paths, and new dependencies, and writes it to Supabase.
-27. **Approve + merge PR** — The Review Agent uses the GitHub API MCP tool to approve and merge the PR (auto-merge path; human approval Slack flow is the alternative).
+27. **Approve + merge PR** — The Review Agent uses the GitHub REST API to approve and merge the PR (auto-merge path; human approval Slack flow is the alternative).
 28. **Update task (status: Done)** — The Review Agent writes the final task status `Done` to Supabase along with the deliverable reference (merged PR URL).
 29. **Notify team** — The Review Agent sends a Slack message to the configured channel with the ticket link, PR link, and merge confirmation.
 
@@ -1645,7 +1645,7 @@ The foundation everything else runs on. No agents yet — just the infrastructur
 The first agent. Triage is the right starting point because it's read-only — the agent can't break anything.
 
 - Task history queries via SQL for institutional memory. Codebase context via OpenCode's native search tools (file search, LSP, grep, AST). pgvector embeddings deferred — see Section 28.
-- Triage agent in OpenCode with Jira MCP tools (read ticket, post comment)
+- Triage agent in OpenCode with Jira REST API access (read ticket, post comment)
 - Shadow mode: agent triages but a human reviews all AI outputs before anything is posted
 - Feedback table populated with first corrections
 
@@ -1666,7 +1666,7 @@ The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop,
 
 Closes the loop. The review agent is what makes autonomous operation possible — without it, every PR needs a human.
 
-- Review agent with GitHub PR API MCP tools
+- Review agent with GitHub REST API and CLI access
 - Risk scoring model (files changed, critical paths, new dependencies)
 - Auto-merge for low-risk PRs; Slack approval request for high-risk
 - Merge queue with rebase-on-merge for concurrent PRs
@@ -1753,9 +1753,9 @@ Marketing tasks run in-process (no Fly.io machine), so costs are almost entirely
 
 | Scenario | Volume | Monthly Variable Cost |
 |---|---|---|
-| Engineering only (without Claude Max) | 20 tasks/day | ~$690-$3,330 |
-| Engineering only (with Claude Max) | 20 tasks/day | ~$300-$1,200 |
-| Engineering + Marketing | 20 eng + 30 mkt/day | ~$750-$3,700 |
+| Engineering only (without Claude Max) | 20 tasks/day | ~$990-$4,530 |
+| Engineering only (with Claude Max) | 20 tasks/day | ~$600-$2,400 |
+| Engineering + Marketing | 20 eng + 30 mkt/day | ~$1,044-$4,737 |
 
 These projections don't include fixed infrastructure costs (~$40-80/month).
 
