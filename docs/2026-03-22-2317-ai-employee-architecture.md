@@ -1845,6 +1845,10 @@ These risks are specific to the engineering department's code execution model.
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
 | AI-generated PR contains bugs (MVP) | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer. |
 | (Post-MVP) Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
+| Event Gateway downtime | Fly.io health checks on `GET /health` endpoint detect and restart crashed gateway instances automatically. If Fly.io has a regional outage, webhooks queue on the provider side (Jira/GitHub retry for up to 24h). |
+| Fly.io machine crash after branch creation but before PR | Re-dispatch is idempotent: `entrypoint.sh` checks if the task branch already exists and reuses it rather than creating a new one. `git push --force-with-lease` prevents stale overwrites. The 3-layer monitoring system (Section 10) detects stale machines and re-dispatches. |
+| Supabase connection pool exhaustion | Expected peak connections: 3 execution machines + 1 gateway + Inngest functions ≈ 10–15 concurrent connections. Supabase Pro provides 60 direct connections — headroom is adequate at MVP. Enable Supavisor (Supabase's connection pooler) if concurrent Fly.io machines regularly exceed 10. |
+| Credential expires during long-running execution | GitHub tokens have 90-day expiry — unlikely to expire during a 90-minute max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle. |
 
 ---
 
@@ -2300,6 +2304,8 @@ These runbooks are for a solo developer operating the platform. Each is designed
 5. Configure Jira webhook pointing to the Event Gateway URL for each project
 6. Configure GitHub webhook pointing to the Event Gateway URL for each repo
 7. Build and deploy: `fly deploy --app ai-employee-gateway`
+
+The Event Gateway exposes a `GET /health` endpoint that returns `200 OK` when ready to accept webhooks. Configure Fly.io health checks to poll this endpoint every 10 seconds with a 5-second timeout — Fly.io will restart the gateway automatically if it stops responding.
 
 **Ongoing deployments** (< 5 minutes):
 
