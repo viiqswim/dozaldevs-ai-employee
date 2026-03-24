@@ -1590,6 +1590,18 @@ graph LR
 
 The tiered approach keeps costs in check. Running 20 engineering tickets/day on Fly.io machines costs ~$10-$40/day. Running 50 marketing optimization tasks in-process costs less than $3/day. The architecture supports both without structural changes. The archetype's `runtime_config` determines which tier gets provisioned at execution time.
 
+#### Inngest Execution Limits
+
+These limits apply to all Inngest lifecycle functions in the platform. Architect around them from the start.
+
+| Limit | Value | Platform Impact |
+|---|---|---|
+| Max step payload | 4 MB | Pass PR URLs and task IDs through steps, not full payloads (PR diffs, file contents) |
+| Max function state | 32 MB | Total state across all steps + event data; monitor for large triage contexts |
+| Max steps per function | 1,000 | Task lifecycle uses ~10–15 steps — no concern. Avoid unbounded loops. |
+| Max event payload | 256 KB (free) / 3 MB (pro) | Jira webhook payloads are 5–50 KB; GitHub PR webhooks are 10–100 KB — no concern at MVP |
+| Max sleep / wait duration | 7 days (free) / 1 year (pro) | Human approval waits (7d) require free tier minimum; use `step.waitForEvent()` correctly |
+
 ---
 
 ### Multi-Project Docker Image Strategy
@@ -2041,7 +2053,7 @@ Key benefits for this platform:
 
 Claude Max 20x provides high-volume Claude access at a flat monthly rate. When available, the gateway routes Claude requests through the Max subscription to avoid per-token costs. This is an optimization layer, not a dependency.
 
-The `@ex-machina/opencode-anthropic-auth` plugin in the nexus-stack already implements the OAuth token pattern for this. The same mechanism applies here.
+The nexus-stack's `sync-token.sh` script manages the Claude Max OAuth token lifecycle: it reads tokens from OpenCode's local auth store (`~/.local/share/opencode/auth.json`), checks expiry, refreshes via `opencode auth login` when expired, and pushes updated tokens to Fly.io Secrets. The `entrypoint.sh` boot script writes these tokens into the Fly.io machine's auth store at startup. The same mechanism applies for any OAuth-based integration added to the platform.
 
 **Important caveat:** Automated API usage under a Max subscription may require verification against Anthropic's terms of service. Always maintain OpenRouter as the fallback. Never architect the system to depend on Max being available.
 
@@ -2119,7 +2131,7 @@ flowchart LR
 1. **LLM request** — The Triage Agent sends all LLM inference requests to the LLM Gateway rather than calling any provider directly, keeping model selection and routing centralized.
 2. **LLM request** — The Execution Agent sends all LLM inference requests (code generation, plan creation, fix diagnosis) to the LLM Gateway for routing and cost tracking.
 3. **LLM request** — The Review Agent sends all LLM inference requests (code review, acceptance criteria validation, risk scoring) to the LLM Gateway for routing.
-4. **Route via Max subscription** — The LLM Gateway checks Claude Max availability and routes Claude requests through the `@ex-machina/opencode-anthropic-auth` OAuth token when available, reducing per-token costs to near zero.
+4. **Route via Max subscription** — The LLM Gateway checks Claude Max availability and routes Claude requests through the `sync-token.sh` OAuth token management when available, reducing per-token costs to near zero.
 5. **Route via OpenRouter API** — The LLM Gateway routes requests through OpenRouter's unified API when Claude Max is unavailable or for non-Claude models, paying per-token at provider-rate pricing.
 6. **Fallback if rate-limited** — When Claude Max hits its rate limit or returns an error, the gateway falls through to OpenRouter's Claude endpoint automatically (dashed = contingency path, not the primary flow).
 7. **Forward to Claude** — OpenRouter proxies the request to Anthropic's Claude API (Opus for engineering execution, Sonnet for triage and review) and returns the response.
