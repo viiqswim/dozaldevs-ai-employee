@@ -695,7 +695,7 @@ The original design specified custom conflict detection at the orchestrator leve
 ## 8. Engineering Department — System Context
 
 > **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Received` status to Supabase `tasks` table, and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest:
-> 
+>
 > 1. **Task receipt tracking** (primary reason): Writing `Received` status to Supabase before enqueueing creates an idempotency record. If Inngest loses the event or the worker crashes, you know the event arrived and can reconcile. Without the Gateway, the first record of a webhook would be Inngest's internal state — which is ephemeral.
 > 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
 > 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
@@ -917,6 +917,7 @@ flowchart TD
 - Direct API testing via `supertest`
 
 **Nexus-Stack Foundation**: The engineering execution agent builds directly on the proven fly-worker pattern from the nexus-stack repository (`/Users/victordozal/repos/victordozal/nexus-stack-root/nexus-stack/`):
+
 - `tools/fly-worker/dispatch.sh` — Machine dispatch, volume pooling, dispatch registry
 - `tools/fly-worker/orchestrate.mjs` — SDK-based wave execution, SSE session monitoring, completion detection
 - `tools/fly-worker/entrypoint.sh` — 13-step boot lifecycle (clone, install, services, OpenCode serve, task execution)
@@ -1002,11 +1003,13 @@ ai/<jira-ticket-id>-<kebab-summary>
 ```
 
 **Examples**:
+
 - `ai/PROJ-123-fix-login-bug`
 - `ai/ENG-456-add-payment-retry-logic`
 - `ai/CORE-789-migrate-user-table-schema`
 
 **Lifecycle**:
+
 1. **Created at dispatch** — The execution agent's entrypoint script creates the branch from `main`, using the task's `external_id` (Jira ticket ID) and a kebab-cased version of the ticket title.
 2. **Committed to during execution** — All agent commits go to this branch.
 3. **PR created against `main`** — The execution agent creates the PR from this branch to `main` at the end of execution.
@@ -1551,6 +1554,7 @@ The tiered approach keeps costs in check. Running 20 engineering tickets/day on 
 The platform uses a **single shared base image** for all Fly.io execution machines, regardless of which project or repository is being worked on. Per-project variation is handled at boot time via environment variables, not by maintaining separate Docker images.
 
 **Base image contents** (shared across all projects):
+
 - Runtime: Node.js, pnpm
 - Git tooling: `git`, GitHub CLI (`gh`)
 - Docker-in-Docker (fuse-overlayfs backend)
@@ -1558,6 +1562,7 @@ The platform uses a **single shared base image** for all Fly.io execution machin
 - Platform scripts: `entrypoint.sh`, `orchestrate.mjs`
 
 **Per-project configuration** (environment variables injected at dispatch):
+
 - `REPO_URL` — The project's GitHub repository URL
 - `REPO_BRANCH` — The base branch to clone from (default: `main`)
 - `PLAN_NAME` — The `.sisyphus/plans/*.md` plan to execute (if plan-mode)
