@@ -2078,7 +2078,7 @@ The `callLLM()` wrapper tracks cumulative daily LLM spend per department. When d
 2. A Slack alert is posted to the operations channel with: current spend, threshold, department, and a resume link
 3. In-flight Inngest lifecycle functions check the cost gate before dispatching new tasks; tasks that would exceed the threshold are held in `AwaitingInput` state
 
-The threshold is stored in the archetype configuration and adjustable without code deployment. This is especially important when Claude Max becomes unavailable: without Max's fixed subscription cost, per-request LLM costs spike 3–5×, potentially driving monthly engineering costs from ~$1,200 to ~$3,330 at steady state (see Section 17).
+The threshold is stored in the archetype configuration and adjustable without code deployment. This is especially important when Claude Max becomes unavailable: without Max's fixed subscription cost, per-request LLM costs spike 3–5×, potentially driving monthly engineering costs from ~$2,400 to ~$4,530 at steady state (see Section 17).
 
 **Complementary to Section 18 concurrency limits**: Inngest concurrency limits cap parallelism (preventing resource exhaustion). The cost circuit breaker caps actual dollar spend. Both operate independently; the circuit breaker is the primary cost-control mechanism.
 
