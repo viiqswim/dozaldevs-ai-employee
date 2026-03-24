@@ -695,7 +695,8 @@ The original design specified custom conflict detection at the orchestrator leve
 >
 > 1. **Task receipt tracking** (primary reason): Writing `Received` status to Supabase before enqueueing creates an idempotency record. If Inngest loses the event or the worker crashes, you know the event arrived and can reconcile. Without the Gateway, the first record of a webhook would be Inngest's internal state — which is ephemeral.
 > 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
-> 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
+ > 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
+> 4. **Inngest failure recovery** (SPOF mitigation): The Event Gateway writes the full normalized webhook payload to `tasks.raw_event` (JSONB) before sending to Inngest. If Inngest loses the event or has an outage, the full payload is recoverable from Supabase. A CLI script (`dispatch-task.ts`) can re-read tasks in `Received` state and re-send events to Inngest for manual recovery — no data is lost.
 
 **Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
 
@@ -1376,6 +1377,7 @@ erDiagram
         int scope_estimate
         json affected_resources
         uuid tenant_id
+        json raw_event "Full normalized webhook payload, stored before Inngest send for SPOF recovery"
     }
     EXECUTION {
         uuid id PK
@@ -2260,7 +2262,7 @@ The platform relies entirely on managed services with built-in redundancy. The D
 | Failure | Detection | Recovery | Auto/Manual |
 |---|---|---|---|
 | Supabase outage | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
-| Inngest outage | Event Gateway cannot send events | Exponential backoff on webhook receipt; events re-send when Inngest recovers | Auto |
+| Inngest outage | Event Gateway cannot send events | Events are stored in `tasks.raw_event` before Inngest send. On recovery: Inngest retries with exponential backoff automatically. For extended outages: run `dispatch-task.ts` CLI to re-send events from Supabase for tasks stuck in `Received` state. | Auto |
 | Fly.io machine crash | 3-layer monitoring system (Section 10) | The orchestrator marks task as failed; re-dispatches to a new machine | Auto |
 | LLM provider outage | OpenRouter returns 5xx or timeout | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini | Auto |
 | Webhook delivery failure | Jira/GitHub built-in retry exhausted | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays | Auto |
@@ -2339,6 +2341,7 @@ Common failure modes and immediate actions:
 | LLM API errors | [OpenRouter status page](https://status.openrouter.ai) | Likely transient — Inngest will retry. Check fallback chain is active |
 | Jira webhook not firing | Jira Admin > Webhooks > Last delivery | Check webhook URL, re-test delivery |
 | Supabase connection errors | [Supabase dashboard](https://supabase.com/dashboard) > Database > Metrics | Check connection pool exhaustion; may need to increase pool size |
+| Tasks stuck in `Received` state (> 30 min, Inngest outage) | Check [Inngest status page](https://app.inngest.com) and Inngest Dashboard for errors | Run: `npx dispatch-task.ts --status received --since 1h` — re-sends events from Supabase `tasks.raw_event`. Inngest deduplicates by event ID. |
 
 Dashboards: [Fly.io Logs](https://fly.io/apps) | [Inngest Dashboard](https://app.inngest.com) | [OpenRouter Status](https://status.openrouter.ai)
 
