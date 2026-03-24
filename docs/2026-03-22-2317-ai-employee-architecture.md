@@ -150,7 +150,6 @@ flowchart LR
     subgraph External
         JIRA(["Jira Cloud"]):::external
         GH(["GitHub"]):::external
-        SLACK(["Slack"]):::external
     end
 
     subgraph Platform
@@ -874,6 +873,7 @@ flowchart TD
     INTEG -->|"9b. Integration Pass"| E2E
     E2E -->|"10a. E2E Fail"| FIX
     FIX -->|"11. Re-enter at failing stage, run all subsequent"| TYPECHECK
+    FIX -->|"12. Escalate (iterations exhausted)"| FAIL
     E2E -->|"10b. E2E Pass"| PR
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
@@ -899,7 +899,8 @@ flowchart TD
 9b. **Integration Pass** — Integration tests pass; the pipeline advances to E2E Tests.
 10a. **E2E Fail** — End-to-end tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
 10b. **E2E Pass** — All tests pass; the Execution Agent uses the GitHub CLI to submit a Pull Request from the task branch.
-6. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed (not at code generation), preventing oscillation between stages.
+11. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed, running all subsequent stages from that point forward.
+12. **Escalate (iterations exhausted)** — When the per-stage iteration limit (3) or global cap (10 total) is reached, the agent posts the failing stage, full error output, and attempted diff to Slack and moves the task to `AwaitingInput`.
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (8GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
