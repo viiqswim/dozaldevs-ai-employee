@@ -6,16 +6,25 @@
 - [2. Platform Architecture](#2-platform-architecture)
 - [3. Employee Archetype Framework](#3-employee-archetype-framework)
 - [4. Universal Task Lifecycle](#4-universal-task-lifecycle)
+  - [4.1 Department-Specific Interpretations](#41-department-specific-interpretations)
+  - [4.2 Mid-Flight Task Updates](#42-mid-flight-task-updates)
 - [5. Cross-Department Workflow Orchestration](#5-cross-department-workflow-orchestration)
 - [6. Department Archetypes — Detailed Specifications](#6-department-archetypes--detailed-specifications)
 - [7. Architecture Review & Design Decisions (Engineering)](#7-architecture-review--design-decisions-engineering)
 - [8. Engineering Department — System Context](#8-engineering-department--system-context)
 - [9. Engineering Department — Phase Details](#9-engineering-department--phase-details)
+  - [9.1 Triage Agent](#91-triage-agent)
+  - [9.2 Execution Agent](#92-execution-agent)
+  - [9.3 Review Agent](#93-review-agent)
+  - [9.4 Branch Naming Convention](#94-branch-naming-convention)
 - [10. Engineering Department — Orchestration and Scaling](#10-engineering-department--orchestration-and-scaling)
+  - [10.1 Machine Health Monitoring (3-Layer Approach)](#101-machine-health-monitoring-3-layer-approach)
+  - [10.2 Scaling Strategy](#102-scaling-strategy)
 - [11. Engineering Department — Full Lifecycle Sequence](#11-engineering-department--full-lifecycle-sequence)
 - [12. Knowledge Base Architecture](#12-knowledge-base-architecture)
 - [13. Platform Data Model](#13-platform-data-model)
 - [14. Platform Shared Infrastructure](#14-platform-shared-infrastructure)
+  - [14.1 Multi-Project Docker Image Strategy](#141-multi-project-docker-image-strategy)
 - [15. Technology Stack](#15-technology-stack)
 - [16. Implementation Roadmap](#16-implementation-roadmap)
 - [17. Cost Estimation](#17-cost-estimation)
@@ -24,6 +33,7 @@
 - [20. Success Metrics](#20-success-metrics)
 - [21. Feedback Loops](#21-feedback-loops)
 - [22. LLM Gateway Design](#22-llm-gateway-design)
+  - [22.1 Cost Circuit Breaker](#221-cost-circuit-breaker)
 - [23. Agent Versioning](#23-agent-versioning)
 - [24. API Rate Limiting](#24-api-rate-limiting)
 - [25. Security Model](#25-security-model)
@@ -149,10 +159,10 @@ flowchart LR
         SUP[("Supabase\n(PostgreSQL)")]:::storage
     end
 
-    subgraph Agents
-        EXEC["Execution Agent\n(Fly.io + OpenCode)"]:::service
-        REV["Review Agent\n(LLM call)"]:::service
-    end
+     subgraph Agents
+         EXEC["Execution Agent\n(Fly.io + OpenCode)"]:::service
+         REV["Review Agent\n(Fly.io + OpenCode)"]:::service
+     end
 
     LLM["OpenRouter\n(LLM Gateway)"]:::external
 
@@ -746,7 +756,7 @@ graph LR
 4. **Trigger orchestrator** — Inngest triggers the Inngest lifecycle function, which reads task state from Supabase and decides which agent phase to run.
 5. **Launch triage session** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
 6. **Launch execution session** — The orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
-7. **Launch review session** — The Inngest lifecycle function invokes the Review Agent as a stateless LLM call via OpenRouter, injecting the PR diff and GitHub API access.
+7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access.
 8. **Query KB and write context** — The Triage Agent queries task history in Supabase (SQL) to build a structured context object, then writes the result back to Supabase.
 9. **Post clarifying questions** — The Triage Agent uses the Jira API MCP tool to post specific, actionable questions as comments tagged to the ticket reporter.
 10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
