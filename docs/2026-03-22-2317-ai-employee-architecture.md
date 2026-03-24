@@ -161,7 +161,6 @@ flowchart LR
 
      subgraph Agents
          EXEC["Execution Agent\n(Fly.io + OpenCode)"]:::service
-         REV["Review Agent\n(Fly.io + OpenCode)"]:::service
      end
 
     LLM["OpenRouter\n(LLM Gateway)"]:::external
@@ -170,20 +169,16 @@ flowchart LR
     GH -.->|"webhook"| GW
     GW ==>|"event"| ING
     ING ==>|"dispatch"| EXEC
-    ING ==>|"trigger"| REV
     EXEC -->|"state"| SUP
-    REV -->|"state"| SUP
     EXEC -->|"PR"| GH
-    REV -.->|"notify"| SLACK
     EXEC -->|"inference"| LLM
-    REV -->|"inference"| LLM
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
 
-**What's not in the MVP**: The triage agent (deferred — execution agent reads raw ticket from `triage_result`), the marketing department, pgvector knowledge base, and the full rate limiting infrastructure. Each of these is documented in the roadmap (Section 16) and deferred capabilities (Section 28). Dashed lines = async; solid lines = synchronous; bold lines = critical path.
+**What's not in the MVP**: The triage agent (deferred — execution agent reads raw ticket from `triage_result`), the review agent (deferred — PRs are reviewed manually by the developer), the marketing department, pgvector knowledge base, and the full rate limiting infrastructure. In MVP, PRs created by the execution agent are reviewed manually by the developer. The review agent is post-MVP. Each of these is documented in the roadmap (Section 16) and deferred capabilities (Section 28). Dashed lines = async; solid lines = synchronous; bold lines = critical path.
 
 ### MVP Scope Summary
 
@@ -193,7 +188,7 @@ The table below is the quick-reference for what is built in the MVP versus what 
 |---|---|---|
 | Triage Agent | Raw Jira payload → `triage_result` column (no agent yet) | Full triage agent: ticket analysis, clarifying questions, pgvector similarity |
 | Execution Agent | Fly.io + OpenCode, single-project, full validation pipeline | Multi-project concurrency scheduling, knowledge base integration |
-| Review Agent | Fly.io + OpenCode, risk scoring, auto-merge, Slack escalation | A/B testing review prompts, learning from correction feedback |
+| Review Agent | Deferred — human reviews PRs manually | Full review agent: risk scoring, auto-merge, Slack escalation (M4, post-MVP) |
 | Knowledge Base | SQL task history + OpenCode native codebase search | pgvector embedding pipeline for semantic ticket similarity |
 | Rate Limiting | Retry-on-429 wrappers in `callLLM()` | Centralized token bucket with backpressure and per-model quotas |
 | LLM Gateway | `callLLM()` wrapper → OpenRouter (Claude Sonnet default) | Claude Max routing, full fallback chain, per-call cost circuit breaker |
@@ -756,7 +751,7 @@ graph LR
 4. **Trigger orchestrator** — Inngest triggers the Inngest lifecycle function, which reads task state from Supabase and decides which agent phase to run.
 5. **Launch triage session** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
 6. **Launch execution session** — The orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
-7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access.
+7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access. *(Post-MVP: in MVP, the developer reviews PRs manually after the execution agent creates them.)*
 8. **Query KB and write context** — The Triage Agent queries task history in Supabase (SQL) to build a structured context object, then writes the result back to Supabase.
 9. **Post clarifying questions** — The Triage Agent uses the Jira REST API to post specific, actionable questions as comments tagged to the ticket reporter.
 10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
@@ -928,7 +923,7 @@ The AI Employee Platform generalizes this pattern: Inngest lifecycle functions r
 
 ### 9.3 Review Agent
 
-> **MVP Scope**: The review agent is built in MVP alongside the execution agent. It runs as an OpenCode session on a Fly.io machine (same base image as the execution agent) and has full codebase access, enabling merge conflict resolution via rebase and local test verification.
+> **MVP Scope**: The review agent is deferred for MVP. In MVP, the execution agent creates PRs which are reviewed manually by the developer. The full review agent described below will be built when execution agent output quality is proven and manual review becomes a bottleneck. See Section 28 for the deferral rationale.
 
 The review agent evaluates PRs submitted by the execution agent for correctness, code quality, and risk. It runs as an OpenCode session on an ephemeral Fly.io machine — the same infrastructure as the execution agent — giving it filesystem access to clone the repository, run tests locally, perform git operations, and call external APIs via the GitHub CLI and Jira CLI.
 
@@ -1046,7 +1041,7 @@ graph LR
     subgraph Worker Pool
         T1["Triage Worker\n(LLM call)"]:::service
         E1["Exec Worker\n(OpenCode + Fly.io)"]:::service
-        R1["Review Worker\n(LLM call)"]:::service
+        R1["Review Worker\n(OpenCode + Fly.io)\n[post-MVP]"]:::service
     end
 
     WH1 -->|"1. Jira webhook events"| ROUTER
@@ -1116,6 +1111,8 @@ An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks
 ## 11. Engineering Department — Full Lifecycle Sequence
 
 The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between Inngest, the lifecycle functions, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
+
+> **MVP Scope**: This sequence diagram shows the **full architecture flow** including the review agent (deferred for MVP). In MVP, the lifecycle ends at step 20 (PR created, task status updated to `Submitting`). The developer reviews PRs manually. Steps 21–29 (PR webhook, review agent, auto-merge, Jira update, Slack notification) are post-MVP. See the MVP Architecture diagram in Section 2 for the simplified MVP flow.
 
 > **Note**: This sequence diagram shows the **full architecture flow** including the triage agent (deferred for MVP) and pgvector queries (deferred for MVP). In MVP, steps 5–13 (triage agent loop) are replaced by the Inngest lifecycle function reading `triage_result` directly from Supabase and dispatching execution. See Section 9.1 for the MVP triage scope and the MVP Architecture diagram in Section 2 for the simplified flow.
 
@@ -1624,12 +1621,14 @@ Six decisions changed significantly from the first draft of this document. Each 
 
 This roadmap assumes one developer. Milestones are sequential — do not begin a milestone until the previous one is fully validated in production (shadow mode, then supervised, then autonomous). Timeline estimates are approximate; quality gates matter more than dates.
 
+**MVP = M1 + M3.** The initial launch targets platform foundation and the execution agent only. The triage agent (M2) and review agent (M4) are post-MVP. PRs are reviewed manually by the developer in MVP. M4 is explicitly post-MVP and will be built once execution agent output quality is proven and manual review becomes a bottleneck.
+
 | Milestone | Focus | Weeks | Gate |
 |---|---|---|---|
-| M1 | Platform Foundation | 1-3 | Inngest processing events end-to-end |
-| M2 | Engineering Triage Agent | 4-6 | Agent posting accurate questions on real Jira tickets |
-| M3 | Engineering Execution Agent | 7-10 | Agent creating compilable PRs for simple tickets |
-| M4 | Engineering Review Agent | 11-13 | Auto-merge working for low-risk PRs |
+| M1 *(MVP)* | Platform Foundation | 1-3 | Inngest processing events end-to-end |
+| M2 *(post-MVP)* | Engineering Triage Agent | 4-6 | Agent posting accurate questions on real Jira tickets |
+| M3 *(MVP)* | Engineering Execution Agent | 7-10 | Agent creating compilable PRs for simple tickets |
+| M4 *(post-MVP)* | Engineering Review Agent | 11-13 | Auto-merge working for low-risk PRs |
 | M5 | Engineering Multi-Project | 14-15 | 2-3 projects onboarded with per-project isolation |
 | M6 | Paid Marketing Department | 16-20 | Inngest campaign optimization running on real ad accounts |
 
@@ -1656,9 +1655,9 @@ The first agent. Triage is the right starting point because it's read-only — t
 
 **Gate**: Agent posts accurate, specific clarifying questions on real Jira tickets. Human reviewer agrees the questions are relevant at least 75% of the time.
 
-### M3 — Engineering Execution Agent (Weeks 7-10)
+### M3 — Engineering Execution Agent (Weeks 7-10) *(MVP milestone)*
 
-The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop, and the OpenCode session management all come together.
+The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop, and the OpenCode session management all come together. M3 completes the MVP: with M1 + M3 live, the platform receives Jira tickets, implements them, and creates PRs — the developer reviews PRs manually. The review agent (M4) is built after M3's quality is proven in production.
 
 - Generalize the nexus-stack fly-worker for multiple projects (not just nexus-stack)
 - Execution agent with stage-targeted fix loop (TypeScript, lint, unit, integration, E2E)
@@ -1667,9 +1666,9 @@ The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop,
 
 **Gate**: Agent creates compilable PRs for simple, well-scoped tickets. Human reviewer can approve without requesting changes at least 60% of the time.
 
-### M4 — Engineering Review Agent (Weeks 11-13)
+### M4 — Engineering Review Agent (Weeks 11-13) *(post-MVP)*
 
-Closes the loop. The review agent is what makes autonomous operation possible — without it, every PR needs a human.
+Closes the loop. The review agent is what makes autonomous operation possible — without it, every PR needs a human. This milestone is explicitly post-MVP: it begins only after M3 is stable in production and manual PR review has become the primary bottleneck.
 
 - Review agent with GitHub REST API and CLI access
 - Risk scoring model (files changed, critical paths, new dependencies)
@@ -1738,9 +1737,10 @@ Each engineering task incurs LLM costs and Fly.io machine time. The range reflec
 | Triage LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.15 | Depends on ticket complexity |
 | Execution LLM (Claude Opus via OpenRouter) | ~$0.50-$3.00 | Depends on code complexity |
 | Fly.io machine (`performance-2x`, execution) | ~$0.50-$2.00 | ~30-90 min per task |
-| Review Agent (Fly.io + Claude Sonnet via OpenRouter) | ~$0.60-$2.40 | Includes compute and LLM for merge conflict resolution |
-| **Total per engineering task** | **~$1.65-$7.55** | Without Claude Max |
-| **With Claude Max 20x** | **~$1.00-$4.00** | LLM costs ~$0; Fly.io compute unchanged |
+| **Total per engineering task** | **~$1.05-$5.15** | Without Claude Max |
+| **With Claude Max 20x** | **~$0.50-$2.40** | LLM costs ~$0; Fly.io compute unchanged |
+
+> **Post-MVP addition**: When the review agent is added (M4), expect an additional ~$0.60-$2.40 per task for review compute and LLM (Fly.io machine + Claude Sonnet via OpenRouter, including merge conflict resolution).
 
 Claude Max 20x reduces LLM costs to near zero for Claude models when under rate limits. The Fly.io machine cost is unchanged — that's compute, not inference.
 
@@ -1797,7 +1797,8 @@ These risks are specific to the engineering department's code execution model.
 | Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
 | Fly.io machine hangs | 90-minute hard timeout + 3-layer monitoring system (Section 10). |
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
-| Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
+| AI-generated PR contains bugs (MVP) | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer. |
+| (Post-MVP) Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
 
 ---
 
