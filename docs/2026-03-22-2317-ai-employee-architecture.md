@@ -1332,6 +1332,7 @@ graph LR
 ```mermaid
 erDiagram
     DEPARTMENT ||--o{ ARCHETYPE : defines
+    DEPARTMENT ||--o{ PROJECT : manages
     ARCHETYPE ||--o{ TASK : processes
     ARCHETYPE ||--|| KNOWLEDGE_BASE : has
     ARCHETYPE ||--|| RISK_MODEL : uses
@@ -1343,6 +1344,7 @@ erDiagram
     TASK ||--o{ CROSS_DEPT_TRIGGER : emits
     TASK ||--o{ FEEDBACK : generates
     ARCHETYPE ||--o{ AGENT_VERSION : tracks
+    PROJECT ||--o{ TASK : generates
 
     DEPARTMENT {
         uuid id PK
@@ -1377,7 +1379,7 @@ erDiagram
         uuid id PK
         uuid task_id FK
         string runtime_type
-        string runtime_id
+        string runtime_id "Fly.io machine ID for opencode tasks; Inngest run ID for inngest tasks"
         int fix_iterations
         string status
         uuid agent_version_id FK
@@ -1433,6 +1435,46 @@ erDiagram
         string runtime_hint
         json payload
         string status
+    }
+    PROJECT {
+        uuid id PK
+        uuid department_id FK
+        string name
+        string repo_url
+        string default_branch
+        int concurrency_limit
+        json tooling_config
+        uuid tenant_id
+    }
+    VALIDATION_RUN {
+        uuid id PK
+        uuid execution_id FK
+        string stage
+        string status
+        int iteration
+        text error_output
+        int duration_ms
+        timestamptz created_at
+    }
+    REVIEW {
+        uuid id PK
+        uuid deliverable_id FK
+        string reviewer_type
+        uuid agent_version_id FK
+        int risk_score
+        string verdict
+        text comments
+        timestamptz created_at
+    }
+    CLARIFICATION {
+        uuid id PK
+        uuid task_id FK
+        text question
+        text answer
+        string source_system
+        string external_ref
+        timestamptz asked_at
+        timestamptz answered_at
     }
 ```
 
