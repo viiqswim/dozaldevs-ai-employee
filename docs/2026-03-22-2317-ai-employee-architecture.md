@@ -684,7 +684,15 @@ The original design specified custom conflict detection at the orchestrator leve
 
 ## 8. Engineering Department — System Context
 
-> **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Received` status to Supabase `tasks` table, and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest: (a) webhook signature verification requires your signing secrets — Inngest transforms run in Inngest's cloud, (b) task receipt tracking to Supabase before queuing provides idempotency and missed-webhook recovery, and (c) webhook URLs are vendor-independent — switching from Inngest doesn't require reconfiguring external services.
+> **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Received` status to Supabase `tasks` table, and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest:
+> 
+> 1. **Task receipt tracking** (primary reason): Writing `Received` status to Supabase before enqueueing creates an idempotency record. If Inngest loses the event or the worker crashes, you know the event arrived and can reconcile. Without the Gateway, the first record of a webhook would be Inngest's internal state — which is ephemeral.
+> 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
+> 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
+
+**Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
+
+**Slack Interactions Endpoint**: The Event Gateway hosts a `/slack/interactions` endpoint that receives Slack interactive message payloads (approve/reject button clicks from Slack approval messages). It extracts the action (`approved` or `rejected`) and task metadata, then sends an Inngest event (`engineering/approval.received`) which resumes the review lifecycle function's `step.waitForEvent("engineering/approval.received", { timeout: "7d" })`. This closes the human approval loop: Slack button → Gateway → Inngest event → lifecycle function resumes.
 
 The diagram below shows how the engineering department's components connect. External systems push events in; the shared platform queues and routes them; the OpenCode agent pool does the work; Fly.io and Supabase are the two primary infrastructure dependencies.
 
@@ -707,7 +715,7 @@ graph LR
     subgraph OpenCode Agent Pool
         TRIAGE["Triage Agent\n(LLM call)"]:::service
         EXEC["Execution Agent\n(Fly.io machine)"]:::service
-        REVIEW["Review Agent\n(LLM call)"]:::service
+        REVIEW["Review Agent\n(Fly.io machine)"]:::service
     end
 
     JIRA -.->|"1. Jira webhook"| INGEST
@@ -755,7 +763,7 @@ A few things worth noting in this diagram:
 
 **Supabase is shared across all three agents.** The triage agent reads and writes task history and context. The execution agent reads task context written by triage. The review agent reads acceptance criteria and task metadata. One database, three consumers.
 
-**The execution agent is the only one that touches Fly.io.** Triage and review run as stateless LLM inference calls via OpenRouter. They don't write code and don't need OpenCode's file editing, git, or LSP capabilities. Only execution needs a full isolated VM — because it needs to clone the repo, run tests, and execute arbitrary code.
+**The execution and review agents run on Fly.io; triage runs as a stateless LLM call.** The review agent runs as an OpenCode session on a Fly.io machine (same infrastructure as the execution agent), giving it filesystem access for merge conflict resolution via rebase. A unique engineering capability enabled by this design is merge conflict resolution: if the PR branch has diverged from `main`, the review agent can rebase directly rather than requiring a round trip back to the execution agent. The triage agent runs as a stateless LLM inference call via OpenRouter since it only needs to read tickets and post clarifying questions — it doesn't write code and doesn't need OpenCode's file editing, git, or LSP capabilities.
 
 ---
 
@@ -898,80 +906,103 @@ flowchart TD
 - Playwright browsers for E2E testing
 - Direct API testing via `supertest`
 
+**Nexus-Stack Foundation**: The engineering execution agent builds directly on the proven fly-worker pattern from the nexus-stack repository (`/Users/victordozal/repos/victordozal/nexus-stack-root/nexus-stack/`):
+- `tools/fly-worker/dispatch.sh` — Machine dispatch, volume pooling, dispatch registry
+- `tools/fly-worker/orchestrate.mjs` — SDK-based wave execution, SSE session monitoring, completion detection
+- `tools/fly-worker/entrypoint.sh` — 13-step boot lifecycle (clone, install, services, OpenCode serve, task execution)
+
+The AI Employee Platform generalizes this pattern: Inngest lifecycle functions replace the local `dispatch.sh` command, but the on-machine execution flow (`entrypoint.sh` → OpenCode serve → SDK orchestrator → session → completion event) remains the same.
+
 ---
 
 ### 9.3 Review Agent
 
-The review agent runs after the execution agent submits a PR. It validates the work against the original acceptance criteria, runs a code quality check, waits for CI, computes a risk score, and either auto-merges or routes to a human.
+> **MVP Scope**: The review agent is built in MVP alongside the execution agent. It runs as an OpenCode session on a Fly.io machine (same base image as the execution agent) and has full codebase access, enabling merge conflict resolution via rebase and local test verification.
+
+The review agent evaluates PRs submitted by the execution agent for correctness, code quality, and risk. It runs as an OpenCode session on an ephemeral Fly.io machine — the same infrastructure as the execution agent — giving it filesystem access to clone the repository, run tests locally, perform git operations, and call external APIs via the GitHub CLI and Jira CLI.
 
 ```mermaid
 flowchart TD
-    PRWATCH(["PR Created Event"]):::event
-    LOAD["Load PR Diff + Metadata\n(GitHub API MCP)"]:::service
-    JIRA_CHECK["Fetch Linked Jira Ticket"]:::service
-    COMPARE{"Acceptance\nCriteria Met?"}:::decision
-    CODE_REVIEW["AI Code Review\n(LLM call via OpenRouter)"]:::service
-    QUALITY{"Code Quality\nOK?"}:::decision
-    CI["Run CI Pipeline\n(GitHub Actions)"]:::service
-    CI_PASS{"CI\nGreen?"}:::decision
+    TRIGGER(["PR Created Event\n(GitHub webhook)"]):::event
+    INNGEST["Inngest Lifecycle Function\nreceives event"]:::service
+    PROVISION["Provision Fly.io Machine\n(same base image as execution)"]:::service
+    BOOT["Machine boots,\nclones repo, checks out PR branch"]:::service
+    REVIEW["OpenCode Session\nReview-focused mode"]:::service
+    CI_WAIT["Wait for CI\nstep.waitForEvent\n(check_suite.completed, 30m)"]:::service
+    CONFLICT{"Merge\nConflict?"}:::decision
+    REBASE["Rebase PR branch\nonto main (git rebase)"]:::service
     RISK["Compute Risk Score\n(0-100)"]:::service
-    AUTO{"Risk Below\nThreshold?"}:::decision
-    MERGE["Auto-Merge PR"]:::service
-    HUMAN["Request Human Review\n(Slack)"]:::service
-    NOTIFY(["Notify Team via Slack"]):::event
-    REJECT["Request Changes on PR"]:::error
+    GATE{"Risk\n≤ threshold?"}:::decision
+    AUTOMERGE["Auto-merge\ngh pr merge --squash"]:::service
+    ESCALATE["Post Slack approval\nstep.waitForEvent\n(approval.received, 7d)"]:::service
+    JIRA_UPDATE["Update Jira status\nPost completion comment"]:::service
+    DONE(["Task → Done"]):::event
 
-    PRWATCH ==>|"1. PR created event"| LOAD
-    LOAD -->|"2. Diff and metadata loaded"| JIRA_CHECK
-    JIRA_CHECK -->|"3. Jira ticket fetched"| COMPARE
-    COMPARE -->|"4a. No"| REJECT
-    COMPARE -->|"4b. Yes"| CODE_REVIEW
-    CODE_REVIEW -->|"5. Review complete"| QUALITY
-    QUALITY -->|"6a. No"| REJECT
-    QUALITY -->|"6b. Yes"| CI
-    CI -->|"7. CI triggered"| CI_PASS
-    CI_PASS -->|"8a. No"| REJECT
-    CI_PASS -->|"8b. Yes"| RISK
-    RISK -->|"9. Score computed"| AUTO
-    AUTO -->|"10a. Yes"| MERGE
-    AUTO -->|"10b. No"| HUMAN
-    MERGE ==>|"11. PR merged"| NOTIFY
-    HUMAN -.->|"12. Human approved"| NOTIFY
+    TRIGGER --> INNGEST
+    INNGEST ==> PROVISION
+    PROVISION ==> BOOT
+    BOOT ==> REVIEW
+    REVIEW --> CI_WAIT
+    CI_WAIT --> CONFLICT
+    CONFLICT -->|"Yes"| REBASE
+    REBASE --> RISK
+    CONFLICT -->|"No"| RISK
+    RISK --> GATE
+    GATE -->|"Low risk"| AUTOMERGE
+    GATE -->|"High risk"| ESCALATE
+    AUTOMERGE --> JIRA_UPDATE
+    ESCALATE -->|"Approved"| AUTOMERGE
+    ESCALATE -->|"Rejected"| JIRA_UPDATE
+    JIRA_UPDATE --> DONE
 
+    classDef event fill:#F5A623,stroke:#C4841A,color:#fff
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
     classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
-    classDef error fill:#E74C3C,stroke:#A93226,color:#fff
 ```
 
-**Flow Walkthrough**
+**Review Agent Responsibilities**
 
-1. **PR created event** — GitHub fires a webhook when the Execution Agent creates a pull request; the Event Gateway delivers it to the Review Agent's LLM call via OpenRouter.
-2. **Diff and metadata loaded** — The Review Agent uses the GitHub PR API MCP tool to fetch the full PR diff, commit list, and CI check status.
-3. **Jira ticket fetched** — The Review Agent uses the Jira API MCP tool to fetch the original ticket, extracting the acceptance criteria for comparison against the PR changes.
-4a. **No** — One or more acceptance criteria are not addressed in the PR diff; the Review Agent posts a change request on the PR via GitHub API.
-4b. **Yes** — All acceptance criteria map to changes in the PR diff; the Review Agent proceeds to AI code review.
-4. **Review complete** — The direct LLM call via OpenRouter performs a code quality review checking for unused imports, missing error handling, hardcoded values, missing types, and security anti-patterns.
-6a. **No** — Code quality issues are found; the Review Agent posts a detailed change request on the PR listing each issue.
-6b. **Yes** — Code quality is acceptable; the Review Agent waits for the CI pipeline to complete.
-5. **CI triggered** — The Review Agent polls GitHub Actions for the CI run status associated with the PR's head commit.
-8a. **No** — CI is red (one or more checks failed); the Review Agent posts a change request on the PR with the failing check names.
-8b. **Yes** — All CI checks pass; the Review Agent proceeds to compute the risk score.
-6. **Score computed** — The Review Agent calculates a 0-100 risk score based on files changed, lines modified, critical paths touched (auth, DB migrations, payments), and new dependencies added.
-10a. **Yes** — Risk score is below the configured threshold; the Review Agent auto-merges the PR via the GitHub API.
-10b. **No** — Risk score exceeds threshold; the Review Agent posts a Slack message to the human approver with the PR summary, risk breakdown, and approve/reject buttons.
-7. **PR merged** — The auto-merge completes and the Review Agent fires a Slack notification to the team with the ticket link, PR link, and deployment status.
-8. **Human approved** — A human approves the Slack prompt and the Review Agent merges the PR, then fires a Slack notification to the team (dashed = async, triggered by human interaction).
+1. **Acceptance criteria validation** — Cross-references PR diff against the original Jira ticket requirements (via Jira CLI or REST API) and verifies each acceptance criterion is addressed.
+2. **Code quality review** — Examines the PR diff for common issues: unused imports, missing error handling, security anti-patterns, and style violations. Uses full codebase context (not just the diff) to understand impact.
+3. **CI wait** — Waits for GitHub Actions CI to complete via `step.waitForEvent("github/check_suite.completed", { timeout: "30m" })`. Does not trigger CI — it waits for the automatic run triggered by PR creation.
+4. **Merge conflict resolution** — If the PR branch has diverged from `main`, the review agent rebases directly (has filesystem access: `git fetch origin main && git rebase origin/main`). Updates the PR branch and continues.
+5. **Local test verification** — For high-risk changes, can run the test suite locally on the machine to independently verify CI results.
+6. **Risk scoring** — Computes a 0–100 risk score based on: number of files changed, whether critical paths are affected (auth, billing, data migration), presence of new dependencies, and test coverage delta. See Section 7.4 for the full risk model.
+7. **Delivery decision** — Low-risk PRs (`risk_score < threshold`) are auto-merged via `gh pr merge --squash`. High-risk PRs post an approval request to the Slack operations channel via `step.waitForEvent("engineering/approval.received", { timeout: "7d" })`.
+8. **Jira completion** — Updates the linked Jira ticket status to "Done" and posts a completion comment with PR link, risk score, and brief summary.
 
-**Review Agent Responsibilities**:
+**Why Fly.io (not a stateless LLM call)**
 
-1. **Acceptance criteria validation** — Map each criterion from the Jira ticket to code changes in the PR
-2. **Code review** — Check for unused imports, missing error handling, hardcoded values, missing types, test coverage gaps, security anti-patterns
-3. **Architectural compliance** — Verify folder structure, naming, API patterns, state management conventions
-4. **Risk scoring** — 0-100 score based on: files changed, lines modified, critical paths touched (auth, payments, DB migrations), new dependencies added
-5. **Merge queue management** — When multiple PRs target the same branch, respect merge order and rebase subsequent PRs
+The review agent was originally designed as a stateless LLM call for cost efficiency (~$0.10–$0.40/review). The decision to run it on a Fly.io machine (~$0.60–$2.40/review including compute) enables three capabilities that the stateless model cannot provide:
 
-The review agent runs as a direct LLM call via OpenRouter with GitHub PR API and Jira API MCP tools. Human approval requests are sent via Slack with rich formatting: ticket link, PR link, risk score, and test results. Approved PRs merge immediately; rejected PRs close with the reason logged to the task history in Supabase.
+- **Merge conflict resolution**: Rebasing requires filesystem access — a stateless call has no git context.
+- **Local test execution**: Running the full test suite locally provides independent verification of CI results and catches environment-specific failures.
+- **Full codebase context**: Code review with access to the entire codebase (not just the PR diff) produces substantially higher-quality analysis, especially for refactors that span many files.
+
+The cost increase (~$0.50–$2.00 additional per task) is justified by the quality improvement and the elimination of the "review agent requests rebase → re-dispatch to execution agent" round trip.
+
+---
+
+### 9.4 Branch Naming Convention
+
+All branches created by the AI Employee Platform follow the format:
+
+```
+ai/<jira-ticket-id>-<kebab-summary>
+```
+
+**Examples**:
+- `ai/PROJ-123-fix-login-bug`
+- `ai/ENG-456-add-payment-retry-logic`
+- `ai/CORE-789-migrate-user-table-schema`
+
+**Lifecycle**:
+1. **Created at dispatch** — The execution agent's entrypoint script creates the branch from `main`, using the task's `external_id` (Jira ticket ID) and a kebab-cased version of the ticket title.
+2. **Committed to during execution** — All agent commits go to this branch.
+3. **PR created against `main`** — The execution agent creates the PR from this branch to `main` at the end of execution.
+4. **Deleted after merge** — The branch is deleted automatically after the PR is merged (configured via GitHub repository settings or the merge command).
+
+This adapts the nexus-stack pattern (`worker/<plan-name>` for plan-mode, `worker/<kebab-task>-<timestamp>` for prompt-mode) with Jira ticket IDs for full traceability between branch, PR, and source ticket.
 
 ---
 
@@ -1073,6 +1104,8 @@ An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks
 
 The sequence below traces a single ticket from customer creation through to Slack notification. Every participant is a real system component. The diagram shows the handoffs between Inngest, the lifecycle functions, OpenCode agents, Fly.io machines, and Supabase at each stage of the lifecycle.
 
+> **Note**: This sequence diagram shows the **full architecture flow** including the triage agent (deferred for MVP) and pgvector queries (deferred for MVP). In MVP, steps 5–13 (triage agent loop) are replaced by the Inngest lifecycle function reading `triage_result` directly from Supabase and dispatching execution. See Section 9.1 for the MVP triage scope and the MVP Architecture diagram in Section 2 for the simplified flow.
+
 ```mermaid
 sequenceDiagram
     actor Customer
@@ -1094,7 +1127,7 @@ sequenceDiagram
     Gateway->>Supabase: 4. Record task (status: Received)
     Inngest->>Orchestrator: 5. Trigger triage job
     Orchestrator->>TriageAgent: 6. Invoke triage agent (LLM call)
-    TriageAgent->>Supabase: 7. Query pgvector embeddings
+     TriageAgent->>Supabase: 7. Query pgvector embeddings (post-MVP)
     TriageAgent->>Jira: 8. Post clarifying questions
     Customer->>Jira: 9. Answer questions
     Jira->>Gateway: 10. Comment webhook
@@ -1110,7 +1143,7 @@ sequenceDiagram
     FlyMachine->>Supabase: 20. Update task (status: Submitting)
     GitHub->>Gateway: 21. PR webhook
     Gateway->>Inngest: 22. Send review event
-    Orchestrator->>ReviewAgent: 23. Invoke review agent (LLM call)
+     Orchestrator->>ReviewAgent: 23. Invoke review agent (Fly.io machine)
     ReviewAgent->>Jira: 24. Validate acceptance criteria
     ReviewAgent->>GitHub: 25. Check CI status
     ReviewAgent->>Supabase: 26. Record risk score
@@ -1689,10 +1722,10 @@ Each engineering task incurs LLM costs and Fly.io machine time. The range reflec
 |---|---|---|
 | Triage LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.15 | Depends on ticket complexity |
 | Execution LLM (Claude Opus via OpenRouter) | ~$0.50-$3.00 | Depends on code complexity |
-| Fly.io machine (`performance-2x`) | ~$0.50-$2.00 | ~30-90 min per task |
-| Review LLM (Claude Sonnet via OpenRouter) | ~$0.10-$0.40 | Depends on PR size |
-| **Total per engineering task** | **~$1.15-$5.55** | Without Claude Max |
-| **With Claude Max 20x** | **~$0.50-$2.00** | LLM costs ~$0; compute unchanged |
+| Fly.io machine (`performance-2x`, execution) | ~$0.50-$2.00 | ~30-90 min per task |
+| Review Agent (Fly.io + Claude Sonnet via OpenRouter) | ~$0.60-$2.40 | Includes compute and LLM for merge conflict resolution |
+| **Total per engineering task** | **~$1.65-$7.55** | Without Claude Max |
+| **With Claude Max 20x** | **~$1.00-$4.00** | LLM costs ~$0; Fly.io compute unchanged |
 
 Claude Max 20x reduces LLM costs to near zero for Claude models when under rate limits. The Fly.io machine cost is unchanged — that's compute, not inference.
 
@@ -1749,6 +1782,7 @@ These risks are specific to the engineering department's code execution model.
 | Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
 | Fly.io machine hangs | 90-minute hard timeout + 3-layer monitoring system (Section 10). |
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
+| Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
 
 ---
 
