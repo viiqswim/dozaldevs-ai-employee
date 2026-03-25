@@ -1743,7 +1743,7 @@ WHERE id = $task_id AND status = $expected_status
 RETURNING id;
 ```
 
-If no row is returned, another writer changed the status concurrently — the caller must handle this as a conflict (log and skip, or escalate). This applies to all status transitions: `Received → Executing`, `Executing → Submitting`, `Submitting → Done`, and cancellation paths.
+If no row is returned, another writer changed the status concurrently — the caller must handle this as a conflict (log and skip, or escalate). This applies to all status transitions: `Ready → Executing`, `Executing → Submitting`, `Submitting → Done`, and cancellation paths.
 
 **Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
 
