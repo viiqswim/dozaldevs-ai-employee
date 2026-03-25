@@ -585,7 +585,7 @@ The nexus-stack fly-worker provides measured boot time data that directly inform
 
 **Cost**: ~$0.05/GB-hour for `performance-2x` (2 shared CPU, 8GB RAM). A typical engineering task runs 20-60 minutes, putting per-task cost at roughly $0.50-$2.00 including machine time and storage.
 
-**Teardown**: Machines auto-destroy on exit via `--auto-destroy`. Hard timeout is 90 minutes — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
+**Teardown**: Machines auto-destroy on exit via `--auto-destroy`. Hard timeout is 4 hours (configurable per archetype) — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
 
 ---
 
@@ -2060,14 +2060,14 @@ These risks are specific to the engineering department's code execution model.
 | AI generates buggy code that passes tests | 3-iteration fix budget per stage + human review gate for high-risk changes. |
 | Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
 | Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
-| Fly.io machine hangs | 90-minute hard timeout + 3-layer monitoring system (Section 10). |
+| Fly.io machine hangs | 4-hour hard timeout + 3-layer monitoring system (Section 10). |
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
 | AI-generated PR contains bugs (MVP) | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer. |
 | (Post-MVP) Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
 | Event Gateway downtime | Fly.io health checks on `GET /health` endpoint detect and restart crashed gateway instances automatically. If Fly.io has a regional outage, webhooks queue on the provider side (Jira/GitHub retry for up to 24h). |
 | Fly.io machine crash after branch creation but before PR | Re-dispatch is idempotent: `entrypoint.sh` checks if the task branch already exists and reuses it rather than creating a new one. `git push --force-with-lease` prevents stale overwrites. The 3-layer monitoring system (Section 10) detects stale machines and re-dispatches. |
 | Supabase connection pool exhaustion | Expected peak connections: 3 execution machines + 1 gateway + Inngest functions ≈ 10–15 concurrent connections. Supabase Pro provides 60 direct connections — headroom is adequate at MVP. Enable Supavisor (Supabase's connection pooler) if concurrent Fly.io machines regularly exceed 10. |
-| Credential expires during long-running execution | GitHub tokens have 90-day expiry — unlikely to expire during a 90-minute max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle. |
+| Credential expires during long-running execution | GitHub tokens have 90-day expiry — unlikely to expire during a 4-hour max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle. |
 | Completion event lost (machine → Inngest) | Supabase-first completion write: machine writes final status + PR URL to Supabase BEFORE sending Inngest event. Watchdog cron reconciles tasks stuck in `Submitting` state within 10 minutes. See §8 and §10. |
 | Timeout race (waitForEvent vs machine clock) | `step.waitForEvent` timeout set to machine hard timeout + 10 minutes buffer (4h10m). Prevents premature lifecycle function timeout when machine clock starts before `waitForEvent` begins. See §10. |
 | Infinite re-dispatch loop | `dispatch_attempts` counter on `tasks` table (see §13). Hard cap at 3 re-dispatches. Slack escalation after exhaustion. Task moves to `AwaitingInput`. |
@@ -2604,7 +2604,7 @@ Common failure modes and immediate actions:
 
 | Symptom | First Check | Fix |
 |---|---|---|
-| Task stuck in "Executing" for > 90 min | `fly logs --app nexus-workers` | Machine likely hung — `fly machine stop <id>` + redispatch |
+| Task stuck in "Executing" for > 4 hours | `fly logs --app nexus-workers` | Machine likely hung — `fly machine stop <id>` + redispatch |
 | Triage agent posting wrong questions | Inngest execution logs for the task | Check which prompt version ran, compare to expected behavior |
 | LLM API errors | [OpenRouter status page](https://status.openrouter.ai) | Likely transient — Inngest will retry. Check fallback chain is active |
 | Jira webhook not firing | Jira Admin > Webhooks > Last delivery | Check webhook URL, re-test delivery |
