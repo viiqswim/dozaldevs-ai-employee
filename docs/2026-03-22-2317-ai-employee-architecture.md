@@ -899,6 +899,8 @@ flowchart TD
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (4GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
+> **Volume fork timing**: Volume forking is not instantaneous for previously-mounted volumes — expect 14–32 seconds fork time (vs ~1s for fresh volumes). Factor this into the 80-second warm boot target.
+
 **Fix loop**: When a stage fails, the agent diagnoses the specific error, applies a fix, and re-runs the pipeline from the failing stage forward through all remaining stages. A TypeScript fix re-runs TypeScript → lint → unit → integration → E2E. A lint fix re-runs lint → unit → integration → E2E. This stage-forward approach catches cascading failures where fixing one stage breaks a later one. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages.
 
 **Escalation**: After 3 failed fix iterations on any stage, the agent escalates to Slack with the failing stage name, the full error output, the diff attempted, and a request for human guidance. The task moves to `AwaitingInput` state and waits. The platform also enforces a global cap of **10 fix iterations** across all stages. If total fix iterations reach 10 before any individual stage hits 3, the task escalates immediately. This prevents the agent from cycling through many stages without converging.
@@ -1722,6 +1724,8 @@ ALTER TABLE tasks ADD COLUMN triage_result JSONB;
 }
 ```
 
+> **Validation**: Define a Zod schema for `triage_result` that the execution agent uses to parse triage output. This prevents malformed JSON from crashing execution. The schema should match the structure defined above.
+
 Adding the Triage Agent later is zero-cost: it writes to `triage_result`, the execution agent reads from it, and no other code changes.
 
 #### Optimistic Locking Pattern
@@ -1884,6 +1888,8 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
 | **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
+
+> **Optimization opportunity**: Inngest Connect establishes a persistent outbound connection from the Event Gateway to Inngest, reducing inter-step latency from ~120ms to <5ms. Since the Event Gateway runs on Fly.io (always-on), this is directly applicable. Consider enabling after MVP is stable.
 
 > **Supabase Connection Gotcha**: Prisma migrations (`prisma migrate dev/deploy`) hang when using Supabase's transaction pooler (port 6543/Supavisor). Always use the **direct connection** (port 5432) for migrations. Use the pooled connection (port 6543) for application runtime queries. See §27.5 for the correct connection strings.
 
