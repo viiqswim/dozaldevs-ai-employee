@@ -1104,7 +1104,7 @@ The pseudo-code below shows the actual Inngest function structure for the M1+M3 
 export const engineeringTaskLifecycle = inngest.createFunction(
   {
     id: "engineering/task-lifecycle",
-    concurrency: { limit: 3, key: "event.data.projectId" },
+    concurrency: [{ limit: 3, key: "event.data.projectId", scope: "fn" }],
   },
   { event: "engineering/task.received" },
   async ({ event, step }) => {
@@ -1880,6 +1880,9 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
 | **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
+
+> **Supabase Connection Gotcha**: Prisma migrations (`prisma migrate dev/deploy`) hang when using Supabase's transaction pooler (port 6543/Supavisor). Always use the **direct connection** (port 5432) for migrations. Use the pooled connection (port 6543) for application runtime queries. See §27.5 for the correct connection strings.
+
 | **Database Migrations** | Prisma (`prisma migrate`) | Already proven in nexus-stack. Type-safe schema management, version-controlled migration files, TypeScript client generation. | `supabase migration` CLI (lighter but no type generation) |
 | **LLM Access** | OpenRouter | Unified API for 100+ models, eliminates custom routing, provider-cost pricing | Direct provider APIs |
 | **LLM Optimization** | Claude Max 20x subscription | Reduces LLM costs to ~$0 for Claude models when under rate limits | — |
@@ -2096,7 +2099,7 @@ These risks are specific to the engineering department's code execution model.
 |---|---|
 | AI generates buggy code that passes tests | 3-iteration fix budget per stage + human review gate for high-risk changes. |
 | Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
-| Webhook delivery failures | Inngest retries with exponential backoff + hourly Jira reconciliation poll as safety net. |
+| Webhook delivery failures | Inngest retries with exponential backoff. Hourly Jira reconciliation poll deferred for MVP (see §28); missed webhooks detected manually during daily monitoring (see §27). |
 | Fly.io machine hangs | 4-hour hard timeout + 3-layer monitoring system (Section 10). |
 | Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
 | AI-generated PR contains bugs (MVP) | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer. |
@@ -2590,6 +2593,9 @@ These runbooks are for a solo developer operating the platform. Each is designed
 
 1. Create Fly.io account and apps: `ai-employee-gateway` (Event Gateway — Fastify/TS), `nexus-workers` (OpenCode execution machines)
 2. Create Supabase project, run schema migrations. (Enable pgvector extension when knowledge base indexing is needed — deferred for MVP.)
+
+> **Important**: Use the **direct** Supabase connection (port 5432) for all Prisma migration commands. The transaction pooler (port 6543) causes migrations to hang indefinitely.
+
 2.5. Run schema migrations: `npx prisma migrate deploy` — applies all pending migrations to Supabase. For initial setup, this creates all tables. For subsequent deployments, run before `fly deploy` if schema changed.
 3. Create Inngest project, copy signing key and event key to Fly.io Secrets
 4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY`
@@ -2794,6 +2800,7 @@ Or test `orchestrate.mjs` directly against a local OpenCode server (`opencode se
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
+DATABASE_URL_DIRECT=postgresql://postgres:postgres@localhost:54322/postgres  # For migrations (use this with prisma migrate, not the pooled URL)
 SUPABASE_URL=http://localhost:54321
 SUPABASE_SECRET_KEY=<from supabase start output>
 INNGEST_SIGNING_KEY=local
