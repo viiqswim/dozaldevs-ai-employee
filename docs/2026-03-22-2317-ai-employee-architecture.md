@@ -1492,6 +1492,12 @@ graph LR
 
 ## 13. Platform Data Model
 
+> **MVP Active Tables**: The following 7 tables are actively used in MVP (M1 + M3). All other tables are created at schema setup for forward compatibility but are not populated until their corresponding milestone.
+>
+> **Actively used in MVP**: `tasks`, `executions`, `deliverables`, `validation_runs`, `projects`, `feedback`, `task_status_log`
+>
+> **Created but unused until post-MVP**: `departments`, `archetypes`, `knowledge_bases`, `risk_models`, `cross_dept_triggers`, `agent_versions`, `clarifications`, `reviews`
+
 ```mermaid
 erDiagram
     DEPARTMENT ||--o{ ARCHETYPE : defines
@@ -1657,6 +1663,8 @@ erDiagram
     }
 ```
 
+> **Schema constraint**: The `TASK_STATUS_LOG.actor` column uses a CHECK constraint in the actual SQL migration: `CHECK (actor IN ('gateway', 'lifecycle_fn', 'watchdog', 'manual'))`. The erDiagram above shows the allowed values in the field comment; the CHECK constraint enforces them at the database level.
+
 **Entity Relationships Explained**
 
 The data model has three logical clusters:
@@ -1721,6 +1729,8 @@ If no row is returned, another writer changed the status concurrently — the ca
 **Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
 
 `tenant_id` appears on every entity that will need multi-tenant isolation when the platform goes SaaS. V1 has only one tenant, so application logic doesn't enforce it yet. The schema supports it from day one. Supabase Row-Level Security policies can be added at any time to enforce per-tenant isolation without touching the schema or application code.
+
+For MVP, `tenant_id` uses a default constant UUID (`00000000-0000-0000-0000-000000000001`) across all tables. The column is NOT NULL with this default, so insert statements don't need to specify it. When multi-tenancy is added, the default is removed and application logic populates `tenant_id` per request.
 
 ---
 
@@ -1834,7 +1844,7 @@ The platform uses a **single shared base image** for all Fly.io execution machin
 - Runtime: Node.js, pnpm
 - Git tooling: `git`, GitHub CLI (`gh`)
 - Docker-in-Docker (fuse-overlayfs backend)
-- OpenCode CLI + SDK
+- OpenCode CLI + SDK — **pin to a specific version** in the Dockerfile (e.g., `opencode@1.3.2`). Upgrade deliberately and test after each version change.
 - Platform scripts: `entrypoint.sh`, `orchestrate.mjs`
 
 **Per-project configuration** (environment variables injected at dispatch):
@@ -2815,6 +2825,7 @@ OPENROUTER_API_KEY=<your-openrouter-key>
 | **Full API Rate Limiting** (token bucket + backpressure) | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking. | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards. | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely. | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work. |
 | **Jira Reconciliation Cron Job** (hourly webhook safety net) | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring. | Automatic detection and recovery of missed webhooks within 1 hour. | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store. | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play. |
 | **Dual-language runtime** (TypeScript + Python) | TypeScript-only | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks | When a department's work requires ML model inference, data science workflows, or Python-only API clients | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself. |
+| **Pre-warmed Machine Pool** (standby machines) | Create machines on-demand via Fly.io Machines API with exponential backoff on 429 rate limits | Faster task start time (machine `start` is ~5-10s vs `create` at ~15-30s); avoidance of 1 req/sec creation rate limit at burst | When machine creation rate limit causes visible queuing delays, or when concurrent task volume regularly exceeds 5 simultaneous dispatches | Maintain a pool of 3-5 stopped `performance-2x` machines with forked seed volumes attached. On task arrival, `start` a pooled machine instead of `create` a new one. Add pool size monitoring and auto-replenishment. ~1 day of work. |
 
 > **Implementation Note — Nexus-Stack Completion Mechanism**: The AI Employee Platform's completion mechanism differs fundamentally from the nexus-stack pattern. The nexus-stack uses local SSE/polling: `orchestrate.mjs` monitors OpenCode session completion directly on the same machine via the `@opencode-ai/sdk` event stream. The AI Employee Platform uses remote Inngest events: the Fly.io machine sends `engineering/task.completed` to Inngest Cloud when done. This difference is intentional — Inngest provides durability and crash recovery that local monitoring cannot. The tradeoff is the reverse-path SPOF (mitigated by Supabase-first completion write + watchdog cron, see §8 and §10).
 
