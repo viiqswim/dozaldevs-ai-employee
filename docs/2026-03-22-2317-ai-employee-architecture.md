@@ -496,7 +496,7 @@ The engineering department is the primary implementation and the pattern-setter 
 
 **Agent runtime**: OpenCode CLI running via `opencode serve` on port 4096. The `@opencode-ai/sdk` TypeScript client (`createOpencodeClient()`) controls sessions programmatically — opening sessions, injecting task context, and monitoring progress. Wave-based orchestration runs via a generalized version of `orchestrate.mjs`, which today handles the nexus-stack monorepo and will be adapted to support any project repository registered in the platform.
 
-**Execution environment**: Each task gets an ephemeral Fly.io `performance-2x` machine (8 GB RAM). The pre-built Docker image includes OpenCode CLI, GitHub CLI, pnpm, Docker-in-Docker (for Supabase local), and all project tooling. A volume-cached pnpm store and Docker layer cache keep warm-start time well under the target of 80 seconds, down from a ~157-second baseline in the original nexus-stack implementation. The boot lifecycle follows `entrypoint.sh`'s ten-step sequence: write auth tokens, clone repo, checkout or create branch, install dependencies, start Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task.
+**Execution environment**: Each task gets an ephemeral Fly.io `performance-2x` machine (4 GB RAM). The pre-built Docker image includes OpenCode CLI, GitHub CLI, pnpm, Docker-in-Docker (for Supabase local), and all project tooling. A volume-cached pnpm store and Docker layer cache keep warm-start time well under the target of 80 seconds, down from a ~157-second baseline in the original nexus-stack implementation. The boot lifecycle follows `entrypoint.sh`'s ten-step sequence: write auth tokens, clone repo, checkout or create branch, install dependencies, start Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task.
 
 **Knowledge base (2 layers)**:
 
@@ -578,7 +578,9 @@ The nexus-stack fly-worker provides measured boot time data that directly inform
 
 **Volume strategy**: Fly.io volumes are 1:1 with machines — they cannot be shared across machines. The platform uses **volume forking**: a seed volume per project is maintained with pre-installed dependencies (pnpm store, Docker layer cache). At dispatch time, the seed volume is forked — Fly.io creates a new volume as a copy with lazy hydration, attaches it to the new ephemeral machine, and the machine boots with the cached data already in place. The forked volume is destroyed with the machine when the task completes. This is critical for warm boot performance: without it, every boot re-downloads gigabytes of dependencies.
 
-**Cost**: ~$0.05/GB-hour for `performance-2x` (2 shared CPU, 8GB RAM). A typical engineering task runs 20-60 minutes, putting per-task cost at roughly $0.50-$2.00 including machine time and storage.
+**Cost**: ~$0.09/hour for `performance-2x` (2 shared CPU, 4GB RAM). A typical engineering task runs 20-60 minutes, putting per-task cost at roughly $0.05-$0.10 including machine time and storage.
+
+> Cost based on Fly.io `performance-2x` pricing as of March 2026. Verify current pricing at [fly.io/docs/about/pricing](https://fly.io/docs/about/pricing/).
 
 **Teardown**: Machines are destroyed explicitly via three mechanisms. The primary mechanism is self-destruct: the final step of `entrypoint.sh` calls the Fly.io Machines API (`DELETE /v1/apps/{app}/machines/{id}`) to destroy the machine after task completion (success or failure). As a backup, the Inngest lifecycle function's finalize step also calls `flyApi.destroyMachine(machine.id)` after receiving the completion event. The watchdog cron (Section 10) is the last-resort safety net: it destroys any machine that has been running for more than 4 hours. Hard timeout is 4 hours (configurable per archetype) — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
 
@@ -893,7 +895,7 @@ flowchart TD
 11. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed, running all subsequent stages from that point forward.
 12. **Escalate (iterations exhausted)** — When the per-stage iteration limit (3) or global cap (10 total) is reached, the agent posts the failing stage, full error output, and attempted diff to Slack and moves the task to `AwaitingInput`.
 
-**Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (8GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
+**Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (4GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
 **Fix loop**: When a stage fails, the agent diagnoses the specific error, applies a fix, and re-runs the pipeline from the failing stage forward through all remaining stages. A TypeScript fix re-runs TypeScript → lint → unit → integration → E2E. A lint fix re-runs lint → unit → integration → E2E. This stage-forward approach catches cascading failures where fixing one stage breaks a later one. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages.
 
@@ -998,7 +1000,7 @@ The review agent was originally designed as a stateless LLM call for cost effici
 - **Local test execution**: Running the full test suite locally provides independent verification of CI results and catches environment-specific failures.
 - **Full codebase context**: Code review with access to the entire codebase (not just the PR diff) produces substantially higher-quality analysis, especially for refactors that span many files.
 
-The cost increase (~$0.50–$2.00 additional per task) is justified by the quality improvement and the elimination of the "review agent requests rebase → re-dispatch to execution agent" round trip.
+The cost increase (~$0.05–$0.15 additional per task) is justified by the quality improvement and the elimination of the "review agent requests rebase → re-dispatch to execution agent" round trip.
 
 ---
 
@@ -1250,7 +1252,7 @@ An Inngest cron function runs every 10 minutes and queries Supabase for tasks in
 **Worker scaling** (solo developer starting point):
 
 - Triage workers: 1-2 (lightweight, API calls + LLM inference). Scale when triage queue depth exceeds 10 jobs.
-- Execution workers: 1-2 (heavyweight, Fly.io machines). Scale conservatively — each machine costs roughly $0.50-$2.00 per task.
+- Execution workers: 1-2 (heavyweight, Fly.io machines). Scale conservatively — each machine costs roughly $0.05-$0.15 per task.
 - Review workers: 1 (medium-weight). Scale when the PR queue backs up.
 
 **Multi-project isolation**: Each project gets its own Inngest queue namespace, Supabase knowledge base partition, and concurrency budget. A high-volume project cannot starve others.
@@ -1796,7 +1798,7 @@ Using a consistent schema enables cross-component debugging: `grep taskId=<uuid>
 
 | Runtime Type | Use When | Departments | Cost Profile |
 |---|---|---|---|
-| **Fly.io Machine** | Full OS isolation, long-running processes, filesystem access | Engineering | ~$0.50-$2.00/task |
+| **Fly.io Machine** | Full OS isolation, long-running processes, filesystem access | Engineering | ~$0.05-$0.15/task |
 | **Event Gateway Worker** | Simple API calls, notifications, webhooks | Cross-platform routing | Negligible |
 
 The tiered approach keeps costs in check. Running 20 engineering tickets/day on Fly.io machines costs ~$10-$40/day. Running 50 marketing optimization tasks in-process costs less than $3/day. The architecture supports both without structural changes. The archetype's `runtime_config` determines which tier gets provisioned at execution time.
@@ -2018,12 +2020,12 @@ Each engineering task incurs LLM costs and Fly.io machine time. The range reflec
 |---|---|---|
 | Triage LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.15 | Depends on ticket complexity |
 | Execution LLM (Claude Opus via OpenRouter) | ~$0.50-$3.00 | Depends on code complexity |
-| Fly.io machine (`performance-2x`, execution) | ~$0.50-$2.00 | ~30-90 min per task |
-| **Total per engineering task** | **~$1.05-$5.15** | Without Claude Max |
+| Fly.io machine (`performance-2x`, execution) | ~$0.05-$0.15 | ~30-90 min per task |
+| **Total per engineering task** | **~$0.60-$3.30** | Without Claude Max |
 
-> **MVP note**: Triage is deferred in MVP. MVP per-task cost is ~$1.00–$5.00 (execution + compute only). The triage line item applies when the triage agent is added in M2.
+> **MVP note**: Triage is deferred in MVP. MVP per-task cost is ~$0.55–$3.15 (execution + compute only). The triage line item applies when the triage agent is added in M2.
 
-| **With Claude Max 20x** | **~$0.50-$2.40** | LLM costs ~$0; Fly.io compute unchanged |
+| **With Claude Max 20x** | **~$0.05-$0.15** | LLM costs ~$0; Fly.io compute unchanged |
 
 > **Post-MVP addition**: When the review agent is added (M4), expect an additional ~$0.60-$2.40 per task for review compute and LLM (Fly.io machine + Claude Sonnet via OpenRouter, including merge conflict resolution).
 
