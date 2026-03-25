@@ -663,6 +663,8 @@ The original design specified custom conflict detection at the orchestrator leve
 2. The machine retries the Inngest event send 3 times with backoff before exiting
 3. The watchdog cron (Layer 3 in §10) detects tasks stuck in `Submitting` state with no corresponding lifecycle function completion, and emits the completion event on the machine's behalf
 
+> **Machine → Supabase reliability**: The Supabase-first completion write is the critical path for SPOF mitigation. If the Supabase write fails (network partition, Supabase outage), the machine should retry with exponential backoff (3 attempts: 1s, 2s, 4s) before falling back to writing status to stdout (captured in Fly.io logs for manual recovery). This retry logic lives in `orchestrate.mjs`.
+
 This ensures that a successful PR creation is never silently lost: the `Submitting` state in Supabase is durable proof that the machine completed, regardless of whether the Inngest event was delivered.
 
 **Slack Interactions Endpoint**: The Event Gateway hosts a `/slack/interactions` endpoint that receives Slack interactive message payloads (approve/reject button clicks from Slack approval messages). It extracts the action (`approved` or `rejected`) and task metadata, then sends an Inngest event (`engineering/approval.received`) which resumes the review lifecycle function's `step.waitForEvent("engineering/approval.received", { timeout: "7d" })`. This closes the human approval loop: Slack button → Gateway → Inngest event → lifecycle function resumes.
@@ -1244,6 +1246,8 @@ The Fly.io machine sends an Inngest event (`engineering/task.completed`) when it
 
 **Layer 3 — Watchdog Cron (edge-case recovery)**
 An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog writes `status = 'Failed'` to Supabase and emits `engineering/task.failed` as a signal — but the lifecycle function does **not** listen for `task.failed` directly. Instead, the lifecycle function's `step.waitForEvent` 4h10m timeout fires (since no `task.completed` event arrives), and the finalize step then reads `dispatch_attempts` from Supabase and invokes the re-dispatch flow. This keeps the lifecycle function's event model simple: one `waitForEvent` for one event type. This also catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits `engineering/task.completed` on the machine's behalf (not `task.failed`) so the lifecycle function can finalize normally. The watchdog also calls `flyApi.destroyMachine()` on any machine that has been running for more than 4 hours, regardless of task status — this is the last-resort safety net for machines that failed both the self-destruct mechanism and the lifecycle-function-driven cleanup.
+
+> **Detection latency**: With a 10-minute cron interval and 10-minute stale threshold, worst-case detection delay is ~20 minutes (machine dies immediately after a watchdog check). This is acceptable for MVP. To reduce to ~10 minutes, either halve the cron interval (5 min) or reduce the stale threshold (5 min) — but shorter thresholds risk false positives on slow-booting machines.
 
 ### 10.2 Scaling Strategy
 
@@ -1882,6 +1886,8 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
 
 > **Supabase Connection Gotcha**: Prisma migrations (`prisma migrate dev/deploy`) hang when using Supabase's transaction pooler (port 6543/Supavisor). Always use the **direct connection** (port 5432) for migrations. Use the pooled connection (port 6543) for application runtime queries. See §27.5 for the correct connection strings.
+
+> **PrismaClient Singleton**: Use a single shared PrismaClient instance across the application (global singleton pattern). Multiple PrismaClient instances each create their own connection pool, which can exhaust Supabase's connection limit. See the Prisma documentation on connection management.
 
 | **Database Migrations** | Prisma (`prisma migrate`) | Already proven in nexus-stack. Type-safe schema management, version-controlled migration files, TypeScript client generation. | `supabase migration` CLI (lighter but no type generation) |
 | **LLM Access** | OpenRouter | Unified API for 100+ models, eliminates custom routing, provider-cost pricing | Direct provider APIs |
