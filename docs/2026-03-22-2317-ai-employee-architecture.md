@@ -888,6 +888,14 @@ flowchart TD
 
 The AI Employee Platform generalizes this pattern: Inngest lifecycle functions replace the local `dispatch.sh` command, but the on-machine execution flow (`entrypoint.sh` → OpenCode serve → SDK orchestrator → session → completion event) remains the same.
 
+**Task Context Injection**: The Inngest lifecycle function passes task context to the Fly.io machine via environment variables at machine creation time. The `fly machine run` call injects:
+- `TASK_ID` — UUID of the task record in Supabase
+- `REPO_URL` — The project's GitHub repository URL (from the PROJECT record)
+- `REPO_BRANCH` — The base branch to clone from (default: `main`)
+- Credentials (injected from Fly.io Secrets): `GITHUB_TOKEN`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `OPENROUTER_API_KEY`
+
+At boot, `entrypoint.sh` reads `TASK_ID` from the environment and queries Supabase for the full task record: `SELECT * FROM tasks WHERE id = $TASK_ID`. This includes the `triage_result` JSONB column (the ticket's context object), which is passed to the OpenCode session as its initial prompt. The machine never needs to contact the Inngest server — all task context comes from Supabase. This is the same pattern used in the nexus-stack `dispatch.sh`, where `REPO_URL`, `REPO_BRANCH`, and `PLAN_NAME` are injected at dispatch time.
+
 ---
 
 ### 9.3 Review Agent
@@ -1039,7 +1047,7 @@ graph LR
 3. **Route to triage queue** — The Event Router identifies new-ticket and comment events and places them onto the Triage Queue in Inngest with the normalized task payload.
 4. **Route to review queue** — The Event Router identifies PR events and places them onto the Review Queue in Inngest for the Review Worker to process.
 5. **Dispatch triage job** — Inngest's Triage Queue delivers the job to an available Triage Worker (a stateless LLM call via OpenRouter for codebase analysis and question generation).
-6. **Dispatch execution job** — Inngest's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available.
+6. **Dispatch execution job** — Inngest's Execution Queue delivers the job to an available Execution Worker (an OpenCode + Fly.io session) when a slot is available. The Inngest lifecycle function calls the Fly.io Machines API with `TASK_ID`, `REPO_URL`, and `REPO_BRANCH` as environment variables (see Section 9.2 for the full injection spec).
 7. **Dispatch review job** — Inngest's Review Queue delivers the job to an available Review Worker (an OpenCode session on a Fly.io machine for PR validation and risk scoring).
 8. **Update task state** — The Triage Worker reports its outcome (task context written, questions posted, or `Ready` status) to the Task State Machine.
 9. **Update task state** — The Execution Worker reports its outcome (PR created, escalation needed, or fix iteration count) to the Task State Machine.
@@ -1047,6 +1055,63 @@ graph LR
 11. **Check concurrency budget** — The Task State Machine sends `Ready` tasks to the Concurrency Scheduler, which checks per-project concurrency limits before allowing dispatch.
 12. **Enqueue when slot available** — The Concurrency Scheduler places the task onto the Execution Queue once a concurrency slot opens within the project's configured limit.
 13. **Persist state** — The Task State Machine writes every state transition to Supabase, which serves as the durable source of truth for task recovery after a crash.
+
+### MVP Lifecycle Function
+
+The pseudo-code below shows the actual Inngest function structure for the M1+M3 MVP lifecycle. Each phase (triage M2, review M4) adds `step.run()` blocks within this same function as its milestone is built — no structural changes needed.
+
+```typescript
+export const engineeringTaskLifecycle = inngest.createFunction(
+  {
+    id: "engineering/task-lifecycle",
+    concurrency: { limit: 3, key: "event.data.projectId" },
+  },
+  { event: "engineering/task.received" },
+  async ({ event, step }) => {
+    // Step 1: Update task status to Executing
+    await step.run("update-status-executing", async () => {
+      await supabase.from("tasks")
+        .update({ status: "Executing" })
+        .eq("id", event.data.taskId);
+    });
+
+    // Step 2: Dispatch Fly.io machine with task context via env vars
+    const machine = await step.run("dispatch-fly-machine", async () => {
+      return await flyApi.createMachine({
+        config: {
+          env: {
+            TASK_ID: event.data.taskId,
+            REPO_URL: event.data.repoUrl,
+            REPO_BRANCH: event.data.repoBranch,
+          },
+          image: "registry.fly.io/ai-employee-workers:latest",
+        },
+      });
+    });
+
+    // Step 3: Wait for completion event (90-min timeout)
+    const result = await step.waitForEvent("wait-for-completion", {
+      event: "engineering/task.completed",
+      timeout: "90m",
+      if: `async.data.taskId == "${event.data.taskId}"`,
+    });
+
+    // Step 4: Finalize — handle timeout or success
+    await step.run("finalize", async () => {
+      if (!result) {
+        await supabase.from("tasks")
+          .update({ status: "Failed", failure_reason: "Machine timeout" })
+          .eq("id", event.data.taskId);
+        await slackClient.postMessage(`Task ${event.data.taskId} timed out after 90m`);
+      } else {
+        await supabase.from("tasks")
+          .update({ status: result.data.status })
+          .eq("id", event.data.taskId);
+      }
+    });
+  }
+);
+```
 
 ### 10.1 Machine Health Monitoring (3-Layer Approach)
 
@@ -1074,6 +1139,8 @@ An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks
 **Multi-project isolation**: Each project gets its own Inngest queue namespace, Supabase knowledge base partition, and concurrency budget. A high-volume project cannot starve others.
 
 **The orchestrator is the collection of Inngest step functions** that manage the full task lifecycle — from webhook receipt through triage, execution, and review to final delivery. It is not a separate service. The orchestrator IS the Inngest functions. Each department has a lifecycle function (e.g., `engineering/task-lifecycle`) that coordinates phases through Inngest steps: `step.run()` for synchronous work, `step.waitForEvent()` for human approvals and agent completions, and Inngest's concurrency controls for per-project limits. This is a direct evolution of the nexus-stack `orchestrate.mjs` pattern, reimplemented as durable Inngest workflows rather than a standalone process.
+
+> **Known Limitation — `step.waitForEvent()` Race Condition (relevant for M4)**: Inngest's `step.waitForEvent()` only listens for events sent *after* it starts executing. Events sent before the listener registers are silently missed (Inngest GitHub issue #1433). This affects the review agent's Slack approval flow (M4): if a human clicks "Approve" in Slack before the lifecycle function reaches `step.waitForEvent("engineering/approval.received")`, the approval event is lost and the function times out waiting. **Mitigation**: The `/slack/interactions` endpoint writes the approval action to Supabase first (a `manual_action` column on the task or deliverable record). Before calling `step.waitForEvent()`, the lifecycle function checks Supabase for an existing action. If found, skip the wait and proceed immediately. This applies to all `step.waitForEvent()` calls with human interactions: CI wait, escalation approval, and clarification receipt. This mitigation must be implemented when building the review agent in M4 — it does not affect MVP.
 
 ---
 
