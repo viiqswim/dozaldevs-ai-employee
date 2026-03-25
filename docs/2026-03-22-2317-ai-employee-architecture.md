@@ -327,21 +327,19 @@ stateDiagram-v2
     Triaging --> Ready: 4. Task is unambiguous
     AwaitingInput --> Triaging: 5. Input received
     AwaitingInput --> Stale: 6. No response 72h
-    Ready --> Provisioning: 7. Execution slot available
-    Provisioning --> Executing: 8. Runtime environment ready
-    Executing --> Validating: 9. Work output produced
-    Validating --> Executing: 10. Validation fails, fix needed
-    Validating --> Submitting: 11. All checks pass
-    Submitting --> Reviewing: 12. Submitted for review
-    Reviewing --> Approved: 13. Review passed
-    Reviewing --> Executing: 14. Changes requested
-    Approved --> Delivering: 15. Approval gate cleared
-    Delivering --> Done: 16. Result delivered
+    Ready --> Executing: 7. Execution slot available + runtime ready
+    Executing --> Validating: 8. Work output produced
+    Validating --> Executing: 9. Validation fails, fix needed
+    Validating --> Submitting: 10. All checks pass
+    Submitting --> Reviewing: 11. Submitted for review
+    Reviewing --> Approved: 12. Review passed
+    Reviewing --> Executing: 13. Changes requested
+    Approved --> Delivering: 14. Approval gate cleared
+    Delivering --> Done: 15. Result delivered
     Received --> Cancelled: Task cancelled
     Triaging --> Cancelled: Task cancelled
     AwaitingInput --> Cancelled: Task cancelled
     Ready --> Cancelled: Task cancelled
-    Provisioning --> Cancelled: Task cancelled
     Executing --> Cancelled: Task cancelled
     Validating --> Cancelled: Task cancelled
     Submitting --> Cancelled: Task cancelled
@@ -359,18 +357,15 @@ stateDiagram-v2
 4. **Task is unambiguous** — The triage agent determines requirements are fully clear and moves the task to `Ready` with a structured context object written to Supabase.
 5. **Input received** — A new webhook arrives (e.g., Jira comment) containing the reporter's answers, returning the task to `Triaging` for re-evaluation.
 6. **No response 72h** — The reporter did not answer within 72 hours; the task moves to `Stale` and exits the lifecycle without execution.
-7. **Execution slot available** — The Concurrency Scheduler confirms a slot is open within the project's concurrency budget and moves the task to `Provisioning`.
-8. **Runtime environment ready** — For OpenCode tasks, the Fly.io machine has booted and is ready; the task moves to `Executing` where the agent writes code.
-9. **Work output produced** — The execution agent completes its work (code written, API calls made) and moves the task to `Validating` where checks run.
-10. **Validation fails, fix needed** — A validation stage (TypeScript, lint, unit, integration, or E2E) fails; the execution agent re-enters `Executing` at the specific failing stage.
-11. **All checks pass** — Every validation stage passes; the task moves to `Submitting` where the deliverable (PR, campaign draft) is published externally.
-12. **Submitted for review** — The deliverable is submitted (PR created, draft published) and the task moves to `Reviewing` where the review agent evaluates it.
-13. **Review passed** — The review agent confirms acceptance criteria are met, code quality is acceptable, CI is green, and risk is below threshold; the task moves to `Approved`.
-14. **Changes requested** — The review agent finds issues (failed acceptance criteria, code quality, or CI failure) and posts change requests, returning the task to `Executing`.
-15. **Approval gate cleared** — The task passes the risk gate (auto-approved or human-approved via Slack) and moves to `Delivering` for final publication.
-16. **Result delivered** — The deliverable is published to its final destination (PR merged, campaign published, journal entry posted) and the task reaches `Done`.
-
-> **Note on Provisioning**: The `Provisioning` state applies only when the archetype's `runtime` is `opencode` (Fly.io machine spin-up). For `inngest` or `in-process` runtimes, the transition goes directly from `Ready → Executing` — there is no machine to provision.
+7. **Execution slot available + runtime ready** — The Concurrency Scheduler confirms a slot is open and the execution environment is provisioned. Task moves to `Executing` where the agent writes code.
+8. **Work output produced** — The execution agent completes its work (code written, API calls made) and moves the task to `Validating` where checks run.
+9. **Validation fails, fix needed** — A validation stage (TypeScript, lint, unit, integration, or E2E) fails; the execution agent re-enters `Executing` at the specific failing stage.
+10. **All checks pass** — Every validation stage passes; the task moves to `Submitting` where the deliverable (PR, campaign draft) is published externally.
+11. **Submitted for review** — The deliverable is submitted (PR created, draft published) and the task moves to `Reviewing` where the review agent evaluates it.
+12. **Review passed** — The review agent confirms acceptance criteria are met, code quality is acceptable, CI is green, and risk is below threshold; the task moves to `Approved`.
+13. **Changes requested** — The review agent finds issues (failed acceptance criteria, code quality, or CI failure) and posts change requests, returning the task to `Executing`.
+14. **Approval gate cleared** — The task passes the risk gate (auto-approved or human-approved via Slack) and moves to `Delivering` for final publication.
+15. **Result delivered** — The deliverable is published to its final destination (PR merged, campaign published, journal entry posted) and the task reaches `Done`.
 
 > **Note on fix loop**: When `Validating → Executing` (validation fails), the execution agent re-enters at the **failing validation stage** and re-runs all subsequent stages from that point forward. A lint fix re-enters at lint and then continues through unit → integration → E2E. A TypeScript fix re-starts from TypeScript through all stages. This catches cascading failures where fixing one stage inadvertently breaks a later stage. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages before escalating to human.
 
