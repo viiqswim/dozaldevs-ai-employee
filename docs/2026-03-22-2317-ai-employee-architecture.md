@@ -898,6 +898,14 @@ flowchart TD
 
 **Escalation**: After 3 failed fix iterations on any stage, the agent escalates to Slack with the failing stage name, the full error output, the diff attempted, and a request for human guidance. The task moves to `AwaitingInput` state and waits. The platform also enforces a global cap of **10 fix iterations** across all stages. If total fix iterations reach 10 before any individual stage hits 3, the task escalates immediately. This prevents the agent from cycling through many stages without converging.
 
+**PR Deduplication on Re-dispatch**: When a machine is re-dispatched after timeout (see §10), the previous machine may have already created a PR before failing to send the completion event. The execution agent MUST check for an existing PR before creating a new one:
+
+1. Before `gh pr create`, run: `gh pr list --head <task-branch> --json number --jq '.[0].number'`
+2. If a PR exists: push new commits to the existing branch and update the PR body if needed — do NOT create a duplicate PR
+3. If no PR exists: create a new PR as normal
+
+This pattern is already implemented in the nexus-stack `entrypoint.sh` (verified). It prevents duplicate PRs from appearing in GitHub when a task requires multiple machine dispatches to complete.
+
 **Execution Environment**:
 
 - Isolated PostgreSQL + Supabase local instance (Docker-in-Docker)
@@ -1086,6 +1094,8 @@ graph LR
 The pseudo-code below shows the actual Inngest function structure for the M1+M3 MVP lifecycle. Each phase (triage M2, review M4) adds `step.run()` blocks within this same function as its milestone is built — no structural changes needed.
 
 ```typescript
+// Pattern C Hybrid: Single waitForEvent + Supabase heartbeats + watchdog reconciliation
+// Total timeout budget: 6 hours across all re-dispatch attempts (max 3)
 export const engineeringTaskLifecycle = inngest.createFunction(
   {
     id: "engineering/task-lifecycle",
@@ -1093,11 +1103,17 @@ export const engineeringTaskLifecycle = inngest.createFunction(
   },
   { event: "engineering/task.received" },
   async ({ event, step }) => {
-    // Step 1: Update task status to Executing
+    const taskId = event.data.taskId;
+
+    // Step 1: Update task status to Executing (optimistic locking — see §13)
     await step.run("update-status-executing", async () => {
-      await supabase.from("tasks")
+      const { data } = await supabase.from("tasks")
         .update({ status: "Executing" })
-        .eq("id", event.data.taskId);
+        .eq("id", taskId)
+        .eq("status", "Ready")  // Optimistic lock: only update if still Ready
+        .select("id")
+        .single();
+      if (!data) throw new Error(`Task ${taskId} status changed by concurrent writer`);
     });
 
     // Step 2: Dispatch Fly.io machine with task context via env vars
@@ -1105,7 +1121,7 @@ export const engineeringTaskLifecycle = inngest.createFunction(
       return await flyApi.createMachine({
         config: {
           env: {
-            TASK_ID: event.data.taskId,
+            TASK_ID: taskId,
             REPO_URL: event.data.repoUrl,
             REPO_BRANCH: event.data.repoBranch,
           },
@@ -1114,25 +1130,89 @@ export const engineeringTaskLifecycle = inngest.createFunction(
       });
     });
 
-    // Step 3: Wait for completion event (90-min timeout)
+    // Step 3: Wait for completion event — 4h10m timeout (4h machine + 10m buffer for clock offset)
+    // Pattern C Hybrid: Machine sends heartbeats to Supabase every 60s (Layer 2 monitoring).
+    // Machine writes final status + PR URL to Supabase BEFORE sending this event (SPOF mitigation).
+    // Watchdog cron (Layer 3) detects dead machines and emits engineering/task.failed on their behalf.
     const result = await step.waitForEvent("wait-for-completion", {
       event: "engineering/task.completed",
-      timeout: "90m",
-      if: `async.data.taskId == "${event.data.taskId}"`,
+      timeout: "4h10m",  // 4h machine timeout + 10m buffer to prevent timeout race condition
+      if: `async.data.taskId == "${taskId}"`,
     });
 
-    // Step 4: Finalize — handle timeout or success
+    // Step 4: Handle completion, timeout, or failure
     await step.run("finalize", async () => {
       if (!result) {
-        await supabase.from("tasks")
-          .update({ status: "Failed", failure_reason: "Machine timeout" })
-          .eq("id", event.data.taskId);
-        await slackClient.postMessage(`Task ${event.data.taskId} timed out after 90m`);
+        // Timeout: check Supabase for partial progress before giving up
+        const { data: task } = await supabase.from("tasks")
+          .select("dispatch_attempts, status")
+          .eq("id", taskId)
+          .single();
+
+        const attempts = task?.dispatch_attempts ?? 0;
+
+        if (attempts < 3) {
+          // Partial progress may exist — auto re-dispatch
+          await supabase.from("tasks")
+            .update({ dispatch_attempts: attempts + 1, status: "Ready" })
+            .eq("id", taskId);
+          // Emit re-dispatch event — handled by a separate Inngest function
+          await inngest.send({
+            name: "engineering/task.redispatch",
+            data: { taskId, attempt: attempts + 1, reason: "timeout" },
+          });
+        } else {
+          // Max attempts exhausted — escalate to Slack
+          await supabase.from("tasks")
+            .update({ status: "AwaitingInput", failure_reason: `Exhausted ${attempts} re-dispatch attempts` })
+            .eq("id", taskId);
+          await slackClient.postMessage(
+            // [TODO: define Slack message format during implementation]
+            `Task ${taskId} failed after ${attempts} attempts. Manual intervention required.`
+          );
+        }
       } else {
-        await supabase.from("tasks")
-          .update({ status: result.data.status })
-          .eq("id", event.data.taskId);
+        // Success: read final status from Supabase (machine wrote it before sending event)
+        const { data: task } = await supabase.from("tasks")
+          .select("status")
+          .eq("id", taskId)
+          .single();
+        // Status already written by machine — just confirm
+        if (task?.status !== "Done") {
+          await supabase.from("tasks")
+            .update({ status: result.data.status ?? "Done" })
+            .eq("id", taskId);
+        }
       }
+    });
+  }
+);
+
+// Re-dispatch handler: spawns a new machine to continue from the existing branch
+export const engineeringTaskRedispatch = inngest.createFunction(
+  { id: "engineering/task-redispatch" },
+  { event: "engineering/task.redispatch" },
+  async ({ event, step }) => {
+    const { taskId, attempt } = event.data;
+    // Total 6-hour budget check: if cumulative time exceeds 6h, escalate instead
+    // [TODO: implement elapsed time check using task.created_at during implementation]
+    await step.run("redispatch-machine", async () => {
+      return await flyApi.createMachine({
+        config: {
+          env: {
+            TASK_ID: taskId,
+            REPO_URL: event.data.repoUrl,
+            REPO_BRANCH: event.data.repoBranch,
+            // Machine fetches existing branch — continues from last commit
+          },
+          image: "registry.fly.io/ai-employee-workers:latest",
+        },
+      });
+    });
+    // Trigger a new lifecycle function instance for this attempt
+    await step.sendEvent("restart-lifecycle", {
+      name: "engineering/task.received",
+      data: { taskId, attempt, repoUrl: event.data.repoUrl, repoBranch: event.data.repoBranch },
     });
   }
 );
@@ -1143,13 +1223,13 @@ export const engineeringTaskLifecycle = inngest.createFunction(
 The platform uses three complementary layers to detect machine failures, ranging from normal completion through crash detection to edge-case recovery:
 
 **Layer 1 — Completion Event + Timeout (primary)**
-The Fly.io machine sends an Inngest event (`engineering/execution.complete`) when it finishes work. The Inngest lifecycle function waits via `step.waitForEvent("engineering/execution.complete", { timeout: "90m" })`. If the event arrives, the task advances to the next phase. If the 90-minute timeout fires without an event, the machine is presumed dead: the task is marked `Failed` and re-dispatched (up to the configured retry limit).
+The Fly.io machine sends an Inngest event (`engineering/task.completed`) when it finishes work — but only AFTER writing its final status and PR URL to Supabase (Supabase-first completion write, see §8). The Inngest lifecycle function waits via `step.waitForEvent("engineering/task.completed", { timeout: "4h10m" })` — 4 hours for the machine plus a 10-minute buffer to prevent the timeout race condition (see §18). If the event arrives, the task advances. If the 4h10m timeout fires, the lifecycle function checks `dispatch_attempts` in Supabase: if < 3, it auto-re-dispatches a new machine to continue from the existing branch; if ≥ 3, it escalates to Slack.
 
 **Layer 2 — Progress Heartbeats to Supabase (visibility)**
 The Fly.io machine writes periodic status updates to the `executions` table (current phase, last activity timestamp, progress percentage). This provides visibility into machine health without requiring Inngest event overhead. The platform dashboard and alerting queries read this column for in-flight task status.
 
 **Layer 3 — Watchdog Cron (edge-case recovery)**
-An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks in `Executing` state with no progress update in the last 10 minutes. Stale tasks are flagged and their Inngest lifecycle functions are signalled to re-dispatch. This catches the edge case where both the completion event AND the 90-minute timeout somehow fail (e.g., Inngest internal state loss during an outage).
+An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog emits `engineering/task.failed` with `reason: 'machine_dead'` — the lifecycle function's `step.waitForEvent` picks this up and triggers the re-dispatch flow. This catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits the completion event on the machine's behalf.
 
 ### 10.2 Scaling Strategy
 
@@ -1165,7 +1245,7 @@ An Inngest cron function runs every 1–5 minutes and queries Supabase for tasks
 
 **The orchestrator is the collection of Inngest step functions** that manage the full task lifecycle — from webhook receipt through triage, execution, and review to final delivery. It is not a separate service. The orchestrator IS the Inngest functions. Each department has a lifecycle function (e.g., `engineering/task-lifecycle`) that coordinates phases through Inngest steps: `step.run()` for synchronous work, `step.waitForEvent()` for human approvals and agent completions, and Inngest's concurrency controls for per-project limits. This is a direct evolution of the nexus-stack `orchestrate.mjs` pattern, reimplemented as durable Inngest workflows rather than a standalone process.
 
-> **Known Limitation — `step.waitForEvent()` Race Condition (relevant for M4)**: Inngest's `step.waitForEvent()` only listens for events sent *after* it starts executing. Events sent before the listener registers are silently missed (Inngest GitHub issue #1433). This affects the review agent's Slack approval flow (M4): if a human clicks "Approve" in Slack before the lifecycle function reaches `step.waitForEvent("engineering/approval.received")`, the approval event is lost and the function times out waiting. **Mitigation**: The `/slack/interactions` endpoint writes the approval action to Supabase first (a `manual_action` column on the task or deliverable record). Before calling `step.waitForEvent()`, the lifecycle function checks Supabase for an existing action. If found, skip the wait and proceed immediately. This applies to all `step.waitForEvent()` calls with human interactions: CI wait, escalation approval, and clarification receipt. This mitigation must be implemented when building the review agent in M4 — it does not affect MVP.
+> **Previously Known Issue (Now Fixed) — `step.waitForEvent()` Race Condition (relevant for M4)**: Inngest issue #1433 was **fixed in Inngest v1.17.2 (released March 2, 2026)**. The race condition where events sent before `step.waitForEvent()` starts listening were silently missed is resolved. The Supabase-first-check mitigation below is retained as defense-in-depth but is no longer required to work around a bug. This affects the review agent's Slack approval flow (M4): if a human clicks "Approve" in Slack before the lifecycle function reaches `step.waitForEvent("engineering/approval.received")`, the approval event is lost and the function times out waiting. **Mitigation**: The `/slack/interactions` endpoint writes the approval action to Supabase first (a `manual_action` column on the task or deliverable record). Before calling `step.waitForEvent()`, the lifecycle function checks Supabase for an existing action. If found, skip the wait and proceed immediately. This applies to all `step.waitForEvent()` calls with human interactions: CI wait, escalation approval, and clarification receipt. This mitigation must be implemented when building the review agent in M4 — it does not affect MVP.
 
 ---
 
