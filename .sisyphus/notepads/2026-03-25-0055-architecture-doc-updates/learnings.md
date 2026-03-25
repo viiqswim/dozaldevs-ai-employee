@@ -36,3 +36,21 @@
 ### Evidence files
 - `.sisyphus/evidence/task-3-inngest-limits.txt`
 - `.sisyphus/evidence/task-3-logging-schema.txt`
+
+## Task 4: Pattern C Hybrid pseudo-code rewrite (2026-03-25)
+
+**What changed in §10:**
+- MVP Lifecycle Function pseudo-code replaced with Pattern C Hybrid (two functions: `engineeringTaskLifecycle` + `engineeringTaskRedispatch`)
+- Key design: single `step.waitForEvent` with `"4h10m"` timeout, `dispatch_attempts` check for auto-re-dispatch up to 3 times, 6-hour total budget noted
+- Layer 1: updated event name from `engineering/execution.complete` → `engineering/task.completed`, timeout 90m → 4h10m, re-dispatch logic documented
+- Layer 3: watchdog now checks Fly.io Machines API for dead machines, emits `engineering/task.failed` with `reason: 'machine_dead'`
+- #1433: Marked as fixed in Inngest v1.17.2 (March 2, 2026); Supabase-first-check retained as defense-in-depth
+
+**Grep verification counts (all pass):**
+- Pattern C / Hybrid / heartbeat / watchdog: 6
+- 4h / 4-hour / 240min: 8
+- 6h / 6-hour total: 3
+- redispatch / re-dispatch / task.redispatch: 20
+- fixed v1.17 / 1433 resolved: 1
+
+**Evidence saved:** `.sisyphus/evidence/task-4-pattern-c-verification.txt`, `.sisyphus/evidence/task-4-redispatch-flow.txt`
