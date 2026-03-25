@@ -1122,6 +1122,16 @@ export const engineeringTaskLifecycle = inngest.createFunction(
       if (!data) throw new Error(`Task ${taskId} status changed by concurrent writer`);
     });
 
+    // Step 1.5: Check for cancellation before provisioning (§4.2 guarantee)
+    const isCancelled = await step.run("check-cancellation", async () => {
+      const { data } = await supabase.from("tasks")
+        .select("status")
+        .eq("id", taskId)
+        .single();
+      return data?.status === "Cancelled";
+    });
+    if (isCancelled) return; // Task cancelled — skip machine dispatch
+
     // Step 2: Dispatch Fly.io machine with task context via env vars
     const machine = await step.run("dispatch-fly-machine", async () => {
       return await flyApi.createMachine({
@@ -1213,23 +1223,6 @@ export const engineeringTaskRedispatch = inngest.createFunction(
     const { taskId, attempt } = event.data;
     // Total 6-hour budget check: if cumulative time exceeds 6h, escalate instead
     // [TODO: implement elapsed time check using task.created_at during implementation]
-    await step.run("redispatch-machine", async () => {
-      return await flyApi.createMachine({
-        config: {
-          env: {
-            TASK_ID: taskId,
-            REPO_URL: event.data.repoUrl,
-            REPO_BRANCH: event.data.repoBranch,
-            // Machine fetches existing branch — continues from last commit
-          },
-          image: "registry.fly.io/ai-employee-workers:latest",
-        },
-      });
-    });
-
-    // Note: Fly.io rate-limits machine creation to 1 req/sec (3/sec burst).
-    // flyApi.createMachine() above uses exponential backoff (3 retries: 1s, 2s, 4s)
-    // on 429 responses. At MVP scale (2-3 concurrent tasks), this is rarely hit.
 
     // Trigger a new lifecycle function instance for this attempt
     await step.sendEvent("restart-lifecycle", {
