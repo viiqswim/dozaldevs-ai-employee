@@ -1135,7 +1135,8 @@ export const engineeringTaskLifecycle = inngest.createFunction(
     // Step 3: Wait for completion event — 4h10m timeout (4h machine + 10m buffer for clock offset)
     // Pattern C Hybrid: Machine sends heartbeats to Supabase every 60s (Layer 2 monitoring).
     // Machine writes final status + PR URL to Supabase BEFORE sending this event (SPOF mitigation).
-    // Watchdog cron (Layer 3) detects dead machines and emits engineering/task.failed on their behalf.
+    // Watchdog cron (Layer 3) detects dead machines and marks the task Failed in Supabase.
+    // The 4h10m timeout below then fires and invokes the re-dispatch flow (not a separate event listener).
     const result = await step.waitForEvent("wait-for-completion", {
       event: "engineering/task.completed",
       timeout: "4h10m",  // 4h machine timeout + 10m buffer to prevent timeout race condition
@@ -1231,7 +1232,7 @@ The Fly.io machine sends an Inngest event (`engineering/task.completed`) when it
 The Fly.io machine writes periodic status updates to the `executions` table (current phase, last activity timestamp, progress percentage). This provides visibility into machine health without requiring Inngest event overhead. The platform dashboard and alerting queries read this column for in-flight task status.
 
 **Layer 3 — Watchdog Cron (edge-case recovery)**
-An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog emits `engineering/task.failed` with `reason: 'machine_dead'` — the lifecycle function's `step.waitForEvent` picks this up and triggers the re-dispatch flow. This catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits the completion event on the machine's behalf.
+An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog writes `status = 'Failed'` to Supabase and emits `engineering/task.failed` as a signal — but the lifecycle function does **not** listen for `task.failed` directly. Instead, the lifecycle function's `step.waitForEvent` 4h10m timeout fires (since no `task.completed` event arrives), and the finalize step then reads `dispatch_attempts` from Supabase and invokes the re-dispatch flow. This keeps the lifecycle function's event model simple: one `waitForEvent` for one event type. This also catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits `engineering/task.completed` on the machine's behalf (not `task.failed`) so the lifecycle function can finalize normally.
 
 ### 10.2 Scaling Strategy
 
