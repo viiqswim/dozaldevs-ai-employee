@@ -639,13 +639,15 @@ The original design specified custom conflict detection at the orchestrator leve
 
 ## 8. Engineering Department — System Context
 
-> **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Received` status to Supabase `tasks` table, and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest:
+> **MVP Scope**: The Event Gateway is a thin webhook receiver (~200 lines of Fastify code), not a full application. It does exactly 4 things: (1) verify webhook signatures (Jira HMAC, GitHub X-Hub-Signature-256), (2) normalize payloads to the universal task schema, (3) write `Ready` status to Supabase `tasks` table (MVP bypasses triage; when triage is added in M2, this reverts to `Received`), and (4) send the event to Inngest. It does NOT do routing, business logic, orchestration, or retry management — Inngest handles all of that. Three reasons it's kept rather than pointing webhooks directly at Inngest:
 >
 > 1. **Task receipt tracking** (primary reason): Writing `Received` status to Supabase before enqueueing creates an idempotency record. If Inngest loses the event or the worker crashes, you know the event arrived and can reconcile. Without the Gateway, the first record of a webhook would be Inngest's internal state — which is ephemeral.
 > 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
  > 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
 > 4. **Inngest failure recovery** (SPOF mitigation): The Event Gateway writes the full normalized webhook payload to `tasks.raw_event` (JSONB) before sending to Inngest. If Inngest loses the event or has an outage, the full payload is recoverable from Supabase. A CLI script (`dispatch-task.ts`) can re-read tasks in `Received` state and re-send events to Inngest for manual recovery — no data is lost.
 > 5. **Dual-purpose Inngest function hosting**: The Event Gateway Fastify application serves dual duty: it is simultaneously (1) the webhook receiver for all external integrations (Jira, GitHub, Slack) and (2) the Inngest function host — all engineering lifecycle functions execute as steps within this Fastify app's process. Inngest Cloud orchestrates their execution via HTTP requests to the app's `/api/inngest` endpoint. This is the standard Inngest hosting model: you provide the compute (Fly.io), Inngest provides the durable orchestration layer.
+
+> **MVP Note**: The Event Gateway sets status to `Ready` directly, bypassing triage. When the triage agent is added (M2), the Gateway will set `Received` and triage will transition to `Ready`.
 
 **Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
 
@@ -740,7 +742,7 @@ The Event Gateway determines its action by matching the `webhookEvent` field in 
 
 | Jira Event | MVP Action | Post-MVP Action |
 |---|---|---|
-| `jira:issue_created` | Create task record in Supabase (`Received` status), send `engineering/task.received` event to Inngest | Same + trigger triage agent enrichment of `triage_result` |
+| `jira:issue_created` | Create task record in Supabase (`Ready` status), send `engineering/task.received` event to Inngest | Same + trigger triage agent enrichment of `triage_result` |
 | `jira:issue_updated` | Ignore (per Section 4.2 — updates during execution are not processed) | Update `triage_result` if task is pre-execution state |
 | `jira:issue_deleted` / status changed to Cancelled | Set task status to `Cancelled` in Supabase, send cancellation event to Inngest to halt in-flight lifecycle | Same |
 | `jira:comment_created` | Ignore | Resume `AwaitingInput` tasks — send `engineering/clarification.received` event to Inngest |
@@ -1285,7 +1287,7 @@ sequenceDiagram
     Customer->>Jira: 1. Create ticket
     Jira->>Gateway: 2. Webhook fires
     Gateway->>Inngest: 3. Send triage event
-    Gateway->>Supabase: 4. Record task (status: Received)
+     Gateway->>Supabase: 4. Record task (status: Ready)
     Inngest->>LifecycleFn: 5. Trigger triage job
     LifecycleFn->>TriageAgent: 6. Invoke triage agent (LLM call)
      TriageAgent->>Supabase: 7. Query pgvector embeddings (post-MVP)
@@ -1318,7 +1320,7 @@ sequenceDiagram
 1. **Create ticket** — The customer creates a Jira ticket with title, description, and acceptance criteria describing the work to be done.
 2. **Webhook fires** — Jira sends a webhook to the Event Gateway when the ticket is created, carrying the full ticket payload.
 3. **Send triage event** — The Event Gateway normalizes the webhook into the universal task schema and sends a triage event to Inngest.
-4. **Record task (status: Received)** — The Event Gateway writes the new task record to Supabase with status `Received`, establishing the durable source of truth before any agent work starts.
+4. **Record task (status: Ready)** — The Event Gateway writes the new task record to Supabase with status `Ready`, establishing the durable source of truth before any agent work starts.
 5. **Trigger triage job** — Inngest triggers the Inngest lifecycle function with the triage job, which picks it up and decides which agent to invoke.
 6. **Invoke triage agent** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
 7. **Query pgvector embeddings** — The Triage Agent queries Supabase's pgvector extension to retrieve semantically similar code chunks and past task records relevant to this ticket.
@@ -2794,7 +2796,7 @@ OPENROUTER_API_KEY=<your-openrouter-key>
 6. Verify event appears in Inngest Dev dashboard (http://localhost:8288)
 7. Verify task record created in local Supabase (http://localhost:54323)
 8. Trigger mock machine execution (step 5 above)
-9. Verify task status transitions in Supabase: `Received → Executing → Submitting → Done`
+9. Verify task status transitions in Supabase: `Ready → Executing → Submitting → Done`
 
 ---
 
