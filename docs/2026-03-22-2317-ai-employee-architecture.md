@@ -1421,6 +1421,10 @@ erDiagram
         int fix_iterations
         string status
         uuid agent_version_id FK
+        int prompt_tokens
+        int completion_tokens
+        string primary_model_id
+        numeric estimated_cost_usd
     }
     DELIVERABLE {
         uuid id PK
@@ -2075,6 +2079,37 @@ All agent code calls the LLM Gateway. No agent ever calls a provider directly. T
 
 The gateway is not a custom-built router. OpenRouter (openrouter.ai) serves as the primary interface, handling routing across 100+ models through a single API endpoint. The platform's "gateway" is a thin wrapper that adds cost tracking, fallback orchestration, and the optional Claude Max optimization layer on top of OpenRouter.
 
+### Interface Contract
+
+All agent code calls `callLLM()`. No agent ever imports or calls an LLM provider directly.
+
+```typescript
+interface CallLLMOptions {
+  model: string;            // OpenRouter model ID (e.g., "anthropic/claude-sonnet-4")
+  messages: Message[];      // Standard chat messages array
+  taskType: string;         // "triage" | "execution" | "review" — drives model selection defaults
+  taskId?: string;          // For cost tracking — associates LLM usage with a task's EXECUTION record
+  temperature?: number;     // Default: 0 for code generation, 0.3 for analysis
+  maxTokens?: number;       // Default: model-dependent
+  timeoutMs?: number;       // Default: 120_000 (2 minutes)
+}
+
+interface CallLLMResult {
+  content: string;          // The model's response text
+  model: string;            // Actual model used (may differ if fallback triggered)
+  promptTokens: number;     // From response.usage.prompt_tokens
+  completionTokens: number; // From response.usage.completion_tokens
+  estimatedCostUsd: number; // Calculated from token counts × current model pricing
+  latencyMs: number;        // Wall-clock time for the LLM call
+}
+```
+
+**Error handling**: On 429 (rate limit), retry with exponential backoff (3 attempts). On 5xx, fall through to the next model in the fallback chain (Section 22 Fallback Chain). On timeout after `timeoutMs`, throw `LLMTimeoutError`.
+
+**Cost accumulation**: Each call's `promptTokens` and `completionTokens` are accumulated in memory during an execution. On execution completion, the totals are written to the `EXECUTION` table's `prompt_tokens`, `completion_tokens`, and `estimated_cost_usd` columns (see Section 13 data model). Claude Max calls record a cost of $0 in `estimated_cost_usd` since they are covered by the flat subscription.
+
+**Circuit breaker check**: Before each call, the wrapper checks cumulative daily spend for the department via `SELECT SUM(estimated_cost_usd) FROM executions WHERE department_id = $dept AND created_at > NOW() - INTERVAL '1 day'`. If over the configured threshold, it throws `CostCircuitBreakerError` (triggering the Section 22.1 circuit breaker).
+
 ### Primary Interface: OpenRouter
 
 OpenRouter is a unified API that proxies to Anthropic Claude, OpenAI GPT-4o, Google Gemini, Meta Llama, and hundreds of other models. It's compatible with the OpenAI API format, so integration is minimal. Pricing is pay-per-token at rates equal to or below direct provider pricing. See openrouter.ai/pricing for current rates.
@@ -2110,7 +2145,7 @@ The gateway checks Max availability on each request. If the Max token is expired
 
 ### Cost Tracking
 
-LLM cost data is tracked via the [OpenRouter Dashboard](https://openrouter.ai/activity), which provides per-model usage, token counts, and cost breakdowns in real time. For Claude Max calls (direct Anthropic), usage is monitored via the Anthropic console. No additional database table is needed — OpenRouter handles the tracking for all API calls.
+LLM cost data is tracked at two levels: **per-execution** via the `prompt_tokens`, `completion_tokens`, `primary_model_id`, and `estimated_cost_usd` columns on the `EXECUTION` table (populated by the `callLLM()` wrapper on execution completion), and **in aggregate** via the [OpenRouter Dashboard](https://openrouter.ai/activity). The per-execution columns enable the cost circuit breaker (Section 22.1) — which queries `SELECT SUM(estimated_cost_usd) FROM executions WHERE department_id = $dept AND created_at > NOW() - INTERVAL '1 day'` — per-task cost analysis, and feedback loop optimization. The OpenRouter Dashboard provides model-level cost breakdowns for monthly budgeting. For Claude Max calls (direct Anthropic), usage is monitored via the Anthropic console; Claude Max calls should be included in the `estimated_cost_usd` column with a cost of $0 when Max is active (since they are covered by the flat subscription).
 
 This data feeds the cost estimation dashboards described in Section 17.
 
