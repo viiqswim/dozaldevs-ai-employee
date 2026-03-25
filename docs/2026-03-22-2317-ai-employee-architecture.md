@@ -322,7 +322,7 @@ Every department shares this state machine. The states are identical across all 
 ```mermaid
 stateDiagram-v2
     [*] --> Received: 1. Event from trigger source
-    Received --> Triaging: 2. Orchestrator dispatches
+    Received --> Triaging: 2. Inngest Lifecycle Functions dispatches
     Triaging --> AwaitingInput: 3. Clarification needed
     Triaging --> Ready: 4. Task is unambiguous
     AwaitingInput --> Triaging: 5. Input received
@@ -354,7 +354,7 @@ stateDiagram-v2
 **Flow Walkthrough**
 
 1. **Event from trigger source** — An external system (Jira, GitHub, Meta Ads, GoHighLevel) fires a webhook that the Event Gateway normalizes and enqueues, creating the task in `Received` state.
-2. **Orchestrator dispatches** — The Inngest lifecycle function receives the Inngest event and launches a triage session, moving the task to `Triaging`.
+2. **Inngest Lifecycle Functions dispatches** — The Inngest lifecycle function receives the Inngest event and launches a triage session, moving the task to `Triaging`.
 3. **Clarification needed** — The triage agent detects ambiguous, missing, or contradictory requirements and moves the task to `AwaitingInput` while posting questions to the source system.
 4. **Task is unambiguous** — The triage agent determines requirements are fully clear and moves the task to `Ready` with a structured context object written to Supabase.
 5. **Input received** — A new webhook arrives (e.g., Jira comment) containing the reporter's answers, returning the task to `Triaging` for re-evaluation.
@@ -815,7 +815,7 @@ flowchart TD
 5. **Evaluate requirements** — The LLM call via OpenRouter analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
 6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
 6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
-6. **Send execution event** — The Triage Agent signals the Orchestrator that the task is `Ready`, and the Orchestrator sends an execution event to Inngest.
+6. **Send execution event** — The Triage Agent signals the Inngest Lifecycle Functions that the task is `Ready`, and the Inngest Lifecycle Functions sends an execution event to Inngest.
 7. **Await new webhook** — The questions are posted as a Jira comment; the task moves to `AwaitingInput` and the triage loop waits for a new comment webhook to re-trigger (dashed = async loop-back).
 
 **Triage Agent Responsibilities**:
@@ -1285,7 +1285,7 @@ sequenceDiagram
     participant Jira
     participant Gateway as Event Gateway
     participant Inngest as Inngest Queue
-    participant Orchestrator as Inngest Lifecycle Functions
+    participant LifecycleFn as Inngest Lifecycle Functions
     participant Supabase
     participant TriageAgent as Triage Agent
     participant ExecAgent as Execution Agent
@@ -1298,16 +1298,16 @@ sequenceDiagram
     Jira->>Gateway: 2. Webhook fires
     Gateway->>Inngest: 3. Send triage event
     Gateway->>Supabase: 4. Record task (status: Received)
-    Inngest->>Orchestrator: 5. Trigger triage job
-    Orchestrator->>TriageAgent: 6. Invoke triage agent (LLM call)
+    Inngest->>LifecycleFn: 5. Trigger triage job
+    LifecycleFn->>TriageAgent: 6. Invoke triage agent (LLM call)
      TriageAgent->>Supabase: 7. Query pgvector embeddings (post-MVP)
     TriageAgent->>Jira: 8. Post clarifying questions
     Customer->>Jira: 9. Answer questions
     Jira->>Gateway: 10. Comment webhook
     Gateway->>Inngest: 11. Re-send triage event
-    Orchestrator->>TriageAgent: 12. Re-evaluate clarity
+    LifecycleFn->>TriageAgent: 12. Re-evaluate clarity
     TriageAgent->>Supabase: 13. Update task (status: Ready)
-    Orchestrator->>Inngest: 14. Send execution event
+    LifecycleFn->>Inngest: 14. Send execution event
     Inngest->>ExecAgent: 15. Trigger execution
     ExecAgent->>FlyMachine: 16. Provision via dispatch.sh
     FlyMachine->>FlyMachine: 17. Boot entrypoint.sh (~80s warm)
@@ -1316,7 +1316,7 @@ sequenceDiagram
     FlyMachine->>Supabase: 20. Update task (status: Submitting)
     GitHub->>Gateway: 21. PR webhook
     Gateway->>Inngest: 22. Send review event
-     Orchestrator->>ReviewAgent: 23. Invoke review agent (Fly.io machine)
+     LifecycleFn->>ReviewAgent: 23. Invoke review agent (Fly.io machine)
     ReviewAgent->>Jira: 24. Validate acceptance criteria
     ReviewAgent->>GitHub: 25. Check CI status
     ReviewAgent->>Supabase: 26. Record risk score
@@ -2820,7 +2820,7 @@ OPENROUTER_API_KEY=<your-openrouter-key>
 | **LangGraph (Python)** (workflow orchestration) | Inngest step functions (TypeScript) | Python ML ecosystem; LangGraph's graph-based branching, multi-agent coordination, and sophisticated human-in-the-loop primitives | When marketing workflows need complex multi-step agent reasoning, multimodal creative generation, or ML model integration that TypeScript can't handle | Add Python workers alongside TypeScript. Marketing archetype's `runtime` field changes from `inngest` to `langgraph`. Inngest can trigger Python workers via HTTP. ~2-3 weeks. |
 | **LangSmith** ($39/mo agent observability) | Inngest dashboard + Supabase logging | Deep agent trace visualization — see exact prompt/response chains, token usage per step, latency breakdown across LLM calls | When debugging agent behavior becomes difficult from logs alone — typically when agents chain 5+ LLM calls with complex tool use | Sign up for LangSmith, add `@langchain/core` tracing middleware. Wrap LLM calls with LangSmith trace context. ~1 week. |
 | **Grafana** (self-hosted infra monitoring) | Fly.io + Supabase + Inngest + OpenRouter dashboards | Unified metrics view across all services; custom alerts; historical trend analysis across infrastructure | When you need cross-service correlation (e.g., "Fly.io machine CPU spike caused Supabase connection timeout") or custom SLO tracking | Deploy Grafana on Fly.io, connect data sources (Supabase metrics, Fly.io metrics API). ~2-3 days. |
-| **Custom Orchestrator** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need custom priority algorithms or advanced scheduling logic. | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
+| **Custom Orchestration Service** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need custom priority algorithms or advanced scheduling logic. | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
 | **pgvector Embedding Pipeline** (vector search for triage context) | OpenCode's native codebase search (file search, LSP, grep, AST tools) for code context. Direct SQL queries on `tasks` table for institutional memory. No vector similarity. | Semantic similarity search for triage context. Agents search by keyword/structure rather than semantic meaning. Lower recall for ambiguous tickets. | When triage agents frequently identify the wrong files or miss relevant past tasks. Track via the `feedback` table — if triage overrides exceed 30% for "wrong context" reasons, add the pipeline. | Add `knowledge_embeddings` table to Supabase, build webhook-triggered indexing (on merge to `main`), add embedding generation via OpenRouter (`text-embedding-3-small`), update triage query interface. ~2-3 days of agent work. No existing code changes — purely additive. |
 | **Full API Rate Limiting** (token bucket + backpressure) | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking. | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards. | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely. | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work. |
 | **Jira Reconciliation Cron Job** (hourly webhook safety net) | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring. | Automatic detection and recovery of missed webhooks within 1 hour. | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store. | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play. |
