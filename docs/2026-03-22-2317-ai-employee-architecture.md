@@ -165,7 +165,6 @@ flowchart LR
     LLM["OpenRouter\n(LLM Gateway)"]:::external
 
     JIRA -.->|"webhook"| GW
-    GH -.->|"webhook"| GW
     GW ==>|"event"| ING
     ING ==>|"dispatch"| EXEC
     EXEC -->|"state"| SUP
@@ -176,6 +175,8 @@ flowchart LR
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
+
+> **GitHub webhooks are enabled in M4 when the review agent reacts to PR events. In MVP, GitHub is an output target only (the execution agent creates PRs).**
 
 **What's not in the MVP**: The triage agent (deferred — execution agent reads raw ticket from `triage_result`), the review agent (deferred — PRs are reviewed manually by the developer), the marketing department, pgvector knowledge base, and the full rate limiting infrastructure. In MVP, PRs created by the execution agent are reviewed manually by the developer. The review agent is post-MVP. Each of these is documented in the roadmap (Section 16) and deferred capabilities (Section 28). Dashed lines = async; solid lines = synchronous; bold lines = critical path.
 
@@ -518,56 +519,7 @@ The paid marketing department validates that the archetype pattern generalizes b
 
 **Trigger sources**: Meta Marketing API webhooks (spend alerts, performance thresholds), scheduled cron jobs (daily performance reviews), and GoHighLevel webhooks (campaign events and pipeline stage changes).
 
-**Agent runtime**: Each campaign optimization task runs as an Inngest workflow function. The step sequence maps to Inngest's `step.run()` primitives, which checkpoint automatically:
-
-```typescript
-export const optimizeCampaign = inngest.createFunction(
-  { id: "marketing/optimize-campaign" },
-  { event: "marketing/campaign.alert" },
-  async ({ event, step }) => {
-    const metrics = await step.run("collect-data", () =>
-      fetchCampaignMetrics(event.data.campaignId)
-    );
-    const decision = await step.run("analyze", () =>
-      analyzeWithLLM(metrics)
-    );
-    if (decision.requiresApproval) {
-      await step.run("request-approval", () =>
-        sendSlackApproval(decision)
-      );
-      await step.waitForEvent("marketing/approval.received", {
-        timeout: "24h",
-      });
-    }
-    await step.run("execute-changes", () =>
-      applyAdChanges(decision)
-    );
-    await step.run("report", () =>
-      sendPerformanceReport(decision)
-    );
-  }
-);
-```
-
-Every step checkpoints its output before proceeding. If a worker crashes mid-workflow, Inngest resumes from the last completed step — no work is lost and no API call is repeated. The `step.waitForEvent()` primitive handles human-in-the-loop approval gates natively.
-
-**Execution environment**: Inngest function invoked by the platform's event queue. Multiple functions run concurrently, one per ad account. No VM isolation is needed because the work is read-API-call-heavy and write-side mutations go through the Meta/Google Ads APIs, not the local filesystem.
-
-**Triage tools**: Campaign performance queries (CTR, CPC, ROAS, frequency), budget utilization check, and historical campaign comparison against the same period in prior weeks.
-
-**Execution tools**: Meta Ads API (adjust budgets, pause and enable campaigns, update targeting) and Google Ads API (keyword bid adjustments, ad copy updates). Creative generation tools are deferred to V2.
-
-**Risk model**:
-
-| Factor | Weight | Escalation Trigger |
-|---|---|---|
-| Daily spend increase | 30% | Budget change > $500/day |
-| New audience targeting | 25% | Targeting criteria not in approved list |
-| New creative concept | 20% | First-time visual style or messaging angle |
-| Platform policy risk | 15% | Claims, testimonials, or restricted categories |
-| ROAS deviation | 10% | Projected ROAS < 70% of benchmark |
-
-Any task with a composite risk score above threshold routes to a human via Slack before execution. The agent posts a summary of the proposed change, the risk breakdown, and one-click approve/reject buttons. Approved actions execute immediately; rejected actions close the task and log the reason.
+Detailed marketing agent specifications — risk model weights, tool configurations, and Inngest workflow patterns — will be defined when M6 planning begins.
 
 ---
 
@@ -1371,6 +1323,7 @@ erDiagram
     TASK {
         uuid id PK
         uuid archetype_id FK
+        uuid project_id FK
         string external_id
         string source_system
         string status
@@ -1797,6 +1750,9 @@ Each engineering task incurs LLM costs and Fly.io machine time. The range reflec
 | Execution LLM (Claude Opus via OpenRouter) | ~$0.50-$3.00 | Depends on code complexity |
 | Fly.io machine (`performance-2x`, execution) | ~$0.50-$2.00 | ~30-90 min per task |
 | **Total per engineering task** | **~$1.05-$5.15** | Without Claude Max |
+
+> **MVP note**: Triage is deferred in MVP. MVP per-task cost is ~$1.00–$5.00 (execution + compute only). The triage line item applies when the triage agent is added in M2.
+
 | **With Claude Max 20x** | **~$0.50-$2.40** | LLM costs ~$0; Fly.io compute unchanged |
 
 > **Post-MVP addition**: When the review agent is added (M4), expect an additional ~$0.60-$2.40 per task for review compute and LLM (Fly.io machine + Claude Sonnet via OpenRouter, including merge conflict resolution).
