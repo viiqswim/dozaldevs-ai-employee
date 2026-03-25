@@ -374,6 +374,8 @@ stateDiagram-v2
 
 > **Note on fix loop**: When `Validating → Executing` (validation fails), the execution agent re-enters at the **failing validation stage** and re-runs all subsequent stages from that point forward. A lint fix re-enters at lint and then continues through unit → integration → E2E. A TypeScript fix re-starts from TypeScript through all stages. This catches cascading failures where fixing one stage inadvertently breaks a later stage. Maximum **3 fix iterations per individual stage**; maximum **10 fix iterations total** across all stages before escalating to human.
 
+> **Note on re-dispatch**: When a Fly.io machine times out or fails (see §10 Pattern C Hybrid), the lifecycle function checks `dispatch_attempts` in Supabase. If `dispatch_attempts < 3`, the task returns to `Executing` state via a new machine dispatch — the existing branch is reused and execution continues from the last commit. If `dispatch_attempts >= 3`, the task moves to `AwaitingInput` and Slack escalation is triggered. The `dispatch_attempts` counter is stored on the `tasks` table (see §13) and is incremented on each re-dispatch. Total timeout budget: 6 hours across all attempts.
+
 ### 4.1 Department-Specific Interpretations
 
 The table below shows how each state maps to concrete actions per department. Engineering and Paid Marketing are fully specified. Finance and Sales are abbreviated — they follow the same pattern once their archetypes are built.
@@ -2066,6 +2068,10 @@ These risks are specific to the engineering department's code execution model.
 | Fly.io machine crash after branch creation but before PR | Re-dispatch is idempotent: `entrypoint.sh` checks if the task branch already exists and reuses it rather than creating a new one. `git push --force-with-lease` prevents stale overwrites. The 3-layer monitoring system (Section 10) detects stale machines and re-dispatches. |
 | Supabase connection pool exhaustion | Expected peak connections: 3 execution machines + 1 gateway + Inngest functions ≈ 10–15 concurrent connections. Supabase Pro provides 60 direct connections — headroom is adequate at MVP. Enable Supavisor (Supabase's connection pooler) if concurrent Fly.io machines regularly exceed 10. |
 | Credential expires during long-running execution | GitHub tokens have 90-day expiry — unlikely to expire during a 90-minute max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle. |
+| Completion event lost (machine → Inngest) | Supabase-first completion write: machine writes final status + PR URL to Supabase BEFORE sending Inngest event. Watchdog cron reconciles tasks stuck in `Submitting` state within 10 minutes. See §8 and §10. |
+| Timeout race (waitForEvent vs machine clock) | `step.waitForEvent` timeout set to machine hard timeout + 10 minutes buffer (4h10m). Prevents premature lifecycle function timeout when machine clock starts before `waitForEvent` begins. See §10. |
+| Infinite re-dispatch loop | `dispatch_attempts` counter on `tasks` table (see §13). Hard cap at 3 re-dispatches. Slack escalation after exhaustion. Task moves to `AwaitingInput`. |
+| Concurrent status writers causing inconsistent state | Optimistic locking via SQL WHERE clause on all status transitions: `UPDATE tasks SET status = $new WHERE id = $id AND status = $expected RETURNING id`. See §13 Optimistic Locking Pattern. |
 
 ---
 
@@ -2547,6 +2553,7 @@ These runbooks are for a solo developer operating the platform. Each is designed
 
 1. Create Fly.io account and apps: `ai-employee-gateway` (Event Gateway — Fastify/TS), `nexus-workers` (OpenCode execution machines)
 2. Create Supabase project, run schema migrations. (Enable pgvector extension when knowledge base indexing is needed — deferred for MVP.)
+2.5. Run schema migrations: `npx prisma migrate deploy` — applies all pending migrations to Supabase. For initial setup, this creates all tables. For subsequent deployments, run before `fly deploy` if schema changed.
 3. Create Inngest project, copy signing key and event key to Fly.io Secrets
 4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY`
 5. Configure Jira webhook pointing to the Event Gateway URL for each project
@@ -2557,8 +2564,13 @@ The Event Gateway exposes a `GET /health` endpoint that returns `200 OK` when re
 
 **Ongoing deployments** (< 5 minutes):
 
+- If schema changed: `npx prisma migrate deploy` before `fly deploy --app ai-employee-gateway`
 - `fly deploy --app ai-employee-gateway` for gateway changes
 - OpenCode execution images: `fly deploy --app nexus-workers` after `docker build`
+
+**Rollback**:
+
+- Schema rollback: `npx prisma migrate resolve --rolled-back <migration-name>` marks a failed migration. Manual SQL rollback if needed — Prisma does not auto-rollback applied migrations.
 
 Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://supabase.com/dashboard) | [Inngest Dashboard](https://app.inngest.com)
 
@@ -2572,6 +2584,8 @@ Dashboards: [Fly.io Apps](https://fly.io/apps) | [Supabase Projects](https://sup
 - Review [Inngest execution logs](https://app.inngest.com) for failed runs — check error patterns
 - Check [OpenRouter dashboard](https://openrouter.ai) for cost spike vs. yesterday baseline
 - Check Fly.io app health: `fly status --app ai-employee-gateway`
+- Check watchdog cron last execution: query `SELECT MAX(created_at) FROM task_status_log WHERE actor = 'watchdog'` — should be within last 10 minutes. If stale > 30 minutes, investigate watchdog cron health.
+- Check for tasks stuck in `Submitting` state: `SELECT id, created_at FROM tasks WHERE status = 'Submitting' AND created_at < NOW() - INTERVAL '15 minutes'` — these indicate the reverse-path SPOF; watchdog should have resolved them.
 
 **Weekly (< 15 minutes)**:
 
@@ -2617,6 +2631,20 @@ Dashboards: [Fly.io Logs](https://fly.io/apps) | [Inngest Dashboard](https://app
 - If corrections > 5 for any type: draft and apply prompt update
 - Create new `AGENT_VERSION` record with `changelog_note`
 
+- Check re-dispatch patterns (10 min):
+
+  ```sql
+  -- Check re-dispatch patterns (tasks requiring multiple machine attempts)
+  SELECT task_id, COUNT(*) as dispatch_count
+  FROM task_status_log
+  WHERE to_status = 'Executing'
+  GROUP BY task_id
+  HAVING COUNT(*) > 1
+  ORDER BY dispatch_count DESC;
+  ```
+
+  Tasks with dispatch_count > 1 required re-dispatch. If > 10% of tasks need re-dispatch, investigate machine stability or timeout configuration.
+
 **Monthly**:
 
 - Reindex knowledge base for all active projects (manual trigger or verify cron ran)
@@ -2657,6 +2685,101 @@ Dashboards: [Inngest Dashboard](https://app.inngest.com) | [Supabase Table Edito
 
 ---
 
+### 27.5 Local Development Setup
+
+This setup lets you test the full pipeline locally without deploying to Fly.io or Inngest Cloud. Use this for rapid iteration during M1 and M3 development.
+
+**Prerequisites**: Node.js 20+, Docker Desktop, Supabase CLI, GitHub CLI
+
+#### 1. Local Supabase
+
+```bash
+supabase start          # Starts PostgreSQL, Auth, Storage locally
+npx prisma migrate dev  # Applies schema migrations to local DB
+```
+
+Local Supabase dashboard: http://localhost:54323
+Local DB connection: `postgresql://postgres:postgres@localhost:54322/postgres`
+
+#### 2. Inngest Dev Server
+
+```bash
+npx inngest-cli@latest dev
+```
+
+Starts a local Inngest server at http://localhost:8288. Your Fastify app's Inngest functions are auto-discovered when you start the gateway. The dashboard shows all function executions, step-by-step traces, and event history — identical to the production Inngest dashboard.
+
+#### 3. Event Gateway (Local)
+
+```bash
+# Start the Fastify gateway locally
+DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres \
+INNGEST_DEV=1 \
+INNGEST_SIGNING_KEY=local \
+INNGEST_EVENT_KEY=local \
+GITHUB_TOKEN=<your-token> \
+npx ts-node src/gateway/index.ts
+```
+
+Gateway runs at http://localhost:3000. Inngest Dev Server auto-connects.
+
+#### 4. Webhook Tunneling
+
+To receive real Jira/GitHub webhooks locally:
+
+```bash
+# Option A: Smee (free, no account needed)
+npx smee-client --url https://smee.io/<your-channel> --target http://localhost:3000/webhooks/jira
+
+# Option B: ngrok (requires account for persistent URLs)
+ngrok http 3000
+```
+
+Configure your Jira webhook to point to the Smee/ngrok URL. GitHub webhooks: same pattern.
+
+#### 5. Mock Fly.io Machine (Local Testing)
+
+For testing the execution agent locally without a real Fly.io machine:
+
+```bash
+# Run entrypoint.sh directly in Docker
+docker build -t ai-employee-worker .
+docker run --env-file .env.local \
+  -e TASK_ID=<task-uuid> \
+  -e REPO_URL=<your-repo> \
+  -e REPO_BRANCH=main \
+  ai-employee-worker
+```
+
+Or test `orchestrate.mjs` directly against a local OpenCode server (`opencode serve`).
+
+#### Minimal `.env.local`
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
+SUPABASE_URL=http://localhost:54321
+SUPABASE_SECRET_KEY=<from supabase start output>
+INNGEST_SIGNING_KEY=local
+INNGEST_EVENT_KEY=local
+GITHUB_TOKEN=<your-github-pat>
+JIRA_TOKEN=<your-jira-api-token>
+OPENROUTER_API_KEY=<your-openrouter-key>
+```
+
+#### End-to-End Local Test Flow
+
+1. `supabase start` → `npx prisma migrate dev`
+2. `npx inngest-cli@latest dev`
+3. Start Event Gateway (step 3 above)
+4. Start Smee tunnel (step 4 above)
+5. Send a test Jira webhook via Smee (or use `curl -X POST http://localhost:3000/webhooks/jira -d @test-payload.json`)
+6. Verify event appears in Inngest Dev dashboard (http://localhost:8288)
+7. Verify task record created in local Supabase (http://localhost:54323)
+8. Trigger mock machine execution (step 5 above)
+9. Verify task status transitions in Supabase: `Received → Executing → Submitting → Done`
+
+---
+
 ## 28. Deferred Capabilities & Future Scale Path
 
 > This section records the technologies and capabilities deliberately deferred for V1 in favor of speed-to-market. Each item includes what was deferred, why, when to reconsider it, and the migration path.
@@ -2672,6 +2795,10 @@ Dashboards: [Inngest Dashboard](https://app.inngest.com) | [Supabase Table Edito
 | **Full API Rate Limiting** (token bucket + backpressure) | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking. | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards. | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely. | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work. |
 | **Jira Reconciliation Cron Job** (hourly webhook safety net) | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring. | Automatic detection and recovery of missed webhooks within 1 hour. | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store. | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play. |
 | **Dual-language runtime** (TypeScript + Python) | TypeScript-only | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks | When a department's work requires ML model inference, data science workflows, or Python-only API clients | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself. |
+
+> **Implementation Note — Nexus-Stack Completion Mechanism**: The AI Employee Platform's completion mechanism differs fundamentally from the nexus-stack pattern. The nexus-stack uses local SSE/polling: `orchestrate.mjs` monitors OpenCode session completion directly on the same machine via the `@opencode-ai/sdk` event stream. The AI Employee Platform uses remote Inngest events: the Fly.io machine sends `engineering/task.completed` to Inngest Cloud when done. This difference is intentional — Inngest provides durability and crash recovery that local monitoring cannot. The tradeoff is the reverse-path SPOF (mitigated by Supabase-first completion write + watchdog cron, see §8 and §10).
+
+> **Recovery Script Note — `dispatch-task.ts`**: The `dispatch-task.ts` CLI script (referenced in §8) remains a valid recovery path. The watchdog cron (§10 Layer 3) is the **primary** automated recovery mechanism. `dispatch-task.ts` is the **manual fallback** for cases where the watchdog itself fails or is unavailable. Usage: `npx dispatch-task.ts --status received --since 1h` re-sends events from Supabase for tasks stuck in `Received` state; `npx dispatch-task.ts --task-id <uuid>` re-dispatches a specific task.
 
 > **The guiding principle**: Every deferred item has a clear "when to reconsider" trigger and a concrete migration path. Nothing is permanently lost — just postponed until the evidence says it's needed. Shipping a working V1 with fewer moving parts is worth more than a theoretically perfect architecture that takes months to build.
 
