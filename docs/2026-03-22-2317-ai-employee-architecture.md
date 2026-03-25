@@ -651,6 +651,8 @@ The original design specified custom conflict detection at the orchestrator leve
 
 **Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
 
+**Inngest Send Retry**: The Event Gateway retries `inngest.send()` 3 times with exponential backoff (1s, 2s, 4s delay between attempts) before giving up. This is a design decision, not current implementation — it's documented here so it's built this way from the start. If all 3 retries fail (e.g., Inngest is temporarily unavailable), the task stays in `Received` state with the full payload preserved in `tasks.raw_event` (the existing SPOF mitigation from point 4 above). The `dispatch-task.ts` CLI script handles manual recovery for persistent failures. Escalation: if you observe >5 tasks/week stuck in `Received` due to Inngest failures, add an Inngest cron function that polls for stale `Received` tasks and re-sends them automatically (~20 lines).
+
 **Slack Interactions Endpoint**: The Event Gateway hosts a `/slack/interactions` endpoint that receives Slack interactive message payloads (approve/reject button clicks from Slack approval messages). It extracts the action (`approved` or `rejected`) and task metadata, then sends an Inngest event (`engineering/approval.received`) which resumes the review lifecycle function's `step.waitForEvent("engineering/approval.received", { timeout: "7d" })`. This closes the human approval loop: Slack button → Gateway → Inngest event → lifecycle function resumes.
 
 The diagram below shows how the engineering department's components connect. External systems push events in; the shared platform queues and routes them; the OpenCode agent pool does the work; Fly.io and Supabase are the two primary infrastructure dependencies.
@@ -723,6 +725,17 @@ A few things worth noting in this diagram:
 **Supabase is shared across all three agents.** The triage agent reads and writes task history and context. The execution agent reads task context written by triage. The review agent reads acceptance criteria and task metadata. One database, three consumers.
 
 **The execution and review agents run on Fly.io; triage runs as a stateless LLM call.** The review agent runs as an OpenCode session on a Fly.io machine (same infrastructure as the execution agent), giving it filesystem access for merge conflict resolution via rebase. A unique engineering capability enabled by this design is merge conflict resolution: if the PR branch has diverged from `main`, the review agent can rebase directly rather than requiring a round trip back to the execution agent. The triage agent runs as a stateless LLM inference call via OpenRouter since it only needs to read tickets and post clarifying questions — it doesn't write code and doesn't need OpenCode's file editing, git, or LSP capabilities.
+
+### Webhook Event Routing
+
+The Event Gateway determines its action by matching the `webhookEvent` field in the Jira payload. Unknown event types are logged and ignored.
+
+| Jira Event | MVP Action | Post-MVP Action |
+|---|---|---|
+| `jira:issue_created` | Create task record in Supabase (`Received` status), send `engineering/task.received` event to Inngest | Same + trigger triage agent enrichment of `triage_result` |
+| `jira:issue_updated` | Ignore (per Section 4.2 — updates during execution are not processed) | Update `triage_result` if task is pre-execution state |
+| `jira:issue_deleted` / status changed to Cancelled | Set task status to `Cancelled` in Supabase, send cancellation event to Inngest to halt in-flight lifecycle | Same |
+| `jira:comment_created` | Ignore | Resume `AwaitingInput` tasks — send `engineering/clarification.received` event to Inngest |
 
 ---
 
