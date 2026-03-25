@@ -1148,7 +1148,7 @@ export const engineeringTaskLifecycle = inngest.createFunction(
     const result = await step.waitForEvent("wait-for-completion", {
       event: "engineering/task.completed",
       timeout: "4h10m",  // 4h machine timeout + 10m buffer to prevent timeout race condition
-      if: `async.data.taskId == "${taskId}"`,
+      if: `async.data.taskId == '${taskId}'`,
     });
 
     // Step 4: Handle completion, timeout, or failure
