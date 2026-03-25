@@ -581,11 +581,11 @@ The nexus-stack fly-worker provides measured boot time data that directly inform
 
 **Pre-built images**: Docker images are rebuilt nightly and on every merge to `main`. The image includes the repo, installed `node_modules`, Docker-in-Docker for Supabase local, and all tooling. With a warm image already pulled, spin-up time drops to ~5-10 seconds for the container itself. The remaining time is repo checkout, dependency verification, and service startup.
 
-**Volume persistence**: Each Fly.io machine gets a persistent volume for the pnpm store and Docker image cache. This is critical for warm boot performance. Without volume persistence, every boot re-downloads gigabytes of dependencies. With it, the pnpm store is already populated and Docker layers are already cached.
+**Volume strategy**: Fly.io volumes are 1:1 with machines — they cannot be shared across machines. The platform uses **volume forking**: a seed volume per project is maintained with pre-installed dependencies (pnpm store, Docker layer cache). At dispatch time, the seed volume is forked — Fly.io creates a new volume as a copy with lazy hydration, attaches it to the new ephemeral machine, and the machine boots with the cached data already in place. The forked volume is destroyed with the machine when the task completes. This is critical for warm boot performance: without it, every boot re-downloads gigabytes of dependencies.
 
 **Cost**: ~$0.05/GB-hour for `performance-2x` (2 shared CPU, 8GB RAM). A typical engineering task runs 20-60 minutes, putting per-task cost at roughly $0.50-$2.00 including machine time and storage.
 
-**Teardown**: Machines auto-destroy on exit via `--auto-destroy`. Hard timeout is 4 hours (configurable per archetype) — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
+**Teardown**: Machines are destroyed explicitly via three mechanisms. The primary mechanism is self-destruct: the final step of `entrypoint.sh` calls the Fly.io Machines API (`DELETE /v1/apps/{app}/machines/{id}`) to destroy the machine after task completion (success or failure). As a backup, the Inngest lifecycle function's finalize step also calls `flyApi.destroyMachine(machine.id)` after receiving the completion event. The watchdog cron (Section 10) is the last-resort safety net: it destroys any machine that has been running for more than 4 hours. Hard timeout is 4 hours (configurable per archetype) — any task still running at that point is killed and re-dispatched. Stale machines are detected by the 3-layer monitoring system described in Section 10.
 
 ---
 
@@ -654,7 +654,9 @@ The original design specified custom conflict detection at the orchestrator leve
 
 **Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
 
-**Inngest Send Retry**: The Event Gateway retries `inngest.send()` 3 times with exponential backoff (1s, 2s, 4s delay between attempts) before giving up. This is a design decision, not current implementation — it's documented here so it's built this way from the start. If all 3 retries fail (e.g., Inngest is temporarily unavailable), the task stays in `Received` state with the full payload preserved in `tasks.raw_event` (the existing SPOF mitigation from point 4 above). The `dispatch-task.ts` CLI script handles manual recovery for persistent failures. Escalation: if you observe >5 tasks/week stuck in `Received` due to Inngest failures, add an Inngest cron function that polls for stale `Received` tasks and re-sends them automatically (~20 lines).
+**Project filtering**: The Event Gateway filters incoming webhooks by project before creating task records. On Jira webhooks, the gateway matches `issue.fields.project.key` against the registered projects in the `projects` table. If the project key is not found, the webhook is logged and the gateway returns `200 OK` without creating a task record. This prevents accumulating junk records for Jira projects not managed by the platform — especially important when the Jira instance hosts many projects beyond the platform's scope.
+
+**Inngest Send Retry**: The Event Gateway retries `inngest.send()` 3 times with exponential backoff (1s, 2s, 4s delay between attempts) before giving up. This is a design decision, not current implementation — it's documented here so it's built this way from the start. If all 3 retries fail (e.g., Inngest is temporarily unavailable), the task stays in `Received` state with the full payload preserved in `tasks.raw_event` (the existing SPOF mitigation from point 4 above). The `dispatch-task.ts` CLI script handles manual recovery for persistent failures. When `dispatch-task.ts` re-sends events, it MUST use the original webhook delivery ID from `tasks.raw_event` as the Inngest event ID. This ensures Inngest deduplicates correctly and prevents the same task from executing twice. Escalation: if you observe >5 tasks/week stuck in `Received` due to Inngest failures, add an Inngest cron function that polls for stale `Received` tasks and re-sends them automatically (~20 lines).
 
 **Reverse-Path SPOF Mitigation (Machine → Inngest)**: The forward path (Jira → Gateway → Supabase → Inngest) is protected by the Supabase-first write described above. The REVERSE-PATH SPOF is the critical gap: the Fly.io machine sends `engineering/task.completed` to Inngest AFTER doing its work. If this event send fails (network blip, Inngest outage), the lifecycle function times out and marks the task `Failed` even though the PR was created. Mitigation:
 
@@ -908,6 +910,8 @@ flowchart TD
 
 This pattern is already implemented in the nexus-stack `entrypoint.sh` (verified). It prevents duplicate PRs from appearing in GitHub when a task requires multiple machine dispatches to complete.
 
+**OpenCode crash recovery**: OpenCode does not provide automatic crash recovery. If the Fly.io machine crashes mid-execution, OpenCode's in-memory session state is lost. Platform-level recovery handles this: the 3-layer monitoring system (Section 10) detects the stale machine and re-dispatches to a new one. The new machine picks up the existing task branch as its starting point — the branch is the checkpoint. Any code already written and committed to the branch is preserved; only the work-in-progress since the last commit is lost.
+
 **Execution Environment**:
 
 - Isolated PostgreSQL + Supabase local instance (Docker-in-Docker)
@@ -1132,6 +1136,10 @@ export const engineeringTaskLifecycle = inngest.createFunction(
       });
     });
 
+    // Note: Fly.io rate-limits machine creation to 1 req/sec (3/sec burst).
+    // flyApi.createMachine() above uses exponential backoff (3 retries: 1s, 2s, 4s)
+    // on 429 responses. At MVP scale (2-3 concurrent tasks), this is rarely hit.
+
     // Step 3: Wait for completion event — 4h10m timeout (4h machine + 10m buffer for clock offset)
     // Pattern C Hybrid: Machine sends heartbeats to Supabase every 60s (Layer 2 monitoring).
     // Machine writes final status + PR URL to Supabase BEFORE sending this event (SPOF mitigation).
@@ -1146,6 +1154,8 @@ export const engineeringTaskLifecycle = inngest.createFunction(
     // Step 4: Handle completion, timeout, or failure
     await step.run("finalize", async () => {
       if (!result) {
+        // Cleanup: attempt to destroy the timed-out machine (self-destruct may have failed)
+        await flyApi.destroyMachine(machine.id).catch(() => {});
         // Timeout: check Supabase for partial progress before giving up
         const { data: task } = await supabase.from("tasks")
           .select("dispatch_attempts, status")
@@ -1186,6 +1196,10 @@ export const engineeringTaskLifecycle = inngest.createFunction(
             .update({ status: result.data.status ?? "Done" })
             .eq("id", taskId);
         }
+        // Backup machine cleanup: machine self-destructs first; this is the fallback
+        await flyApi.destroyMachine(machine.id).catch(() => {
+          // Machine may already be gone (self-destroyed) — ignore cleanup errors
+        });
       }
     });
   }
@@ -1212,6 +1226,11 @@ export const engineeringTaskRedispatch = inngest.createFunction(
         },
       });
     });
+
+    // Note: Fly.io rate-limits machine creation to 1 req/sec (3/sec burst).
+    // flyApi.createMachine() above uses exponential backoff (3 retries: 1s, 2s, 4s)
+    // on 429 responses. At MVP scale (2-3 concurrent tasks), this is rarely hit.
+
     // Trigger a new lifecycle function instance for this attempt
     await step.sendEvent("restart-lifecycle", {
       name: "engineering/task.received",
@@ -1229,10 +1248,10 @@ The platform uses three complementary layers to detect machine failures, ranging
 The Fly.io machine sends an Inngest event (`engineering/task.completed`) when it finishes work — but only AFTER writing its final status and PR URL to Supabase (Supabase-first completion write, see §8). The Inngest lifecycle function waits via `step.waitForEvent("engineering/task.completed", { timeout: "4h10m" })` — 4 hours for the machine plus a 10-minute buffer to prevent the timeout race condition (see §18). If the event arrives, the task advances. If the 4h10m timeout fires, the lifecycle function checks `dispatch_attempts` in Supabase: if < 3, it auto-re-dispatches a new machine to continue from the existing branch; if ≥ 3, it escalates to Slack.
 
 **Layer 2 — Progress Heartbeats to Supabase (visibility)**
-The Fly.io machine writes periodic status updates to the `executions` table (current phase, last activity timestamp, progress percentage). This provides visibility into machine health without requiring Inngest event overhead. The platform dashboard and alerting queries read this column for in-flight task status.
+`orchestrate.mjs` writes a heartbeat to the `executions` table between each validation stage (TypeScript check, lint, unit, integration, E2E) AND on a 60-second timer — whichever comes first. Each heartbeat record includes: current stage, fix iteration count, and last-updated timestamp. This provides visibility into machine health without requiring Inngest event overhead. If a heartbeat has not been written in 10 minutes, the watchdog (Layer 3) treats the machine as stale.
 
 **Layer 3 — Watchdog Cron (edge-case recovery)**
-An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog writes `status = 'Failed'` to Supabase and emits `engineering/task.failed` as a signal — but the lifecycle function does **not** listen for `task.failed` directly. Instead, the lifecycle function's `step.waitForEvent` 4h10m timeout fires (since no `task.completed` event arrives), and the finalize step then reads `dispatch_attempts` from Supabase and invokes the re-dispatch flow. This keeps the lifecycle function's event model simple: one `waitForEvent` for one event type. This also catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits `engineering/task.completed` on the machine's behalf (not `task.failed`) so the lifecycle function can finalize normally.
+An Inngest cron function runs every 10 minutes and queries Supabase for tasks in `Executing` state with no heartbeat update in the last 10 minutes. For each stale task, the watchdog checks if the Fly.io machine is still alive via the Fly.io Machines API. If the machine is dead, the watchdog writes `status = 'Failed'` to Supabase and emits `engineering/task.failed` as a signal — but the lifecycle function does **not** listen for `task.failed` directly. Instead, the lifecycle function's `step.waitForEvent` 4h10m timeout fires (since no `task.completed` event arrives), and the finalize step then reads `dispatch_attempts` from Supabase and invokes the re-dispatch flow. This keeps the lifecycle function's event model simple: one `waitForEvent` for one event type. This also catches the reverse-path SPOF: a machine that completed work but failed to send the Inngest event will have written `Submitting` status to Supabase; the watchdog detects this and emits `engineering/task.completed` on the machine's behalf (not `task.failed`) so the lifecycle function can finalize normally. The watchdog also calls `flyApi.destroyMachine()` on any machine that has been running for more than 4 hours, regardless of task status — this is the last-resort safety net for machines that failed both the self-destruct mechanism and the lifecycle-function-driven cleanup.
 
 ### 10.2 Scaling Strategy
 
@@ -1748,7 +1767,7 @@ graph LR
 
 1. **Read/write task state** — Fly.io Machines (engineering execution workers) read task context from Supabase at boot and write execution results, fix iteration counts, and status updates throughout the task lifecycle.
 2. **Send task events** — The Event Gateway sends all normalized webhook events to Inngest as workflow triggers, using Inngest's durable event queue as the handoff layer.
-3. **Persist volume cache** — Fly.io Machines write the pnpm store and Docker layer cache to Fly.io Volumes (Object Storage) so subsequent warm boots don't re-download gigabytes of dependencies.
+3. **Volume forking strategy** — Fly.io Machines use volume forking: a seed volume per project is maintained with pre-installed dependencies. At dispatch time, the seed volume is forked to create a new volume with lazy hydration, attached to the ephemeral machine, and destroyed with the machine when the task completes. This eliminates the need to re-download gigabytes of dependencies on each boot.
 4. **Log event traces** — The Event Gateway sends structured trace data to the Inngest Dashboard for each webhook received and event sent, enabling end-to-end tracing from ingest to delivery.
 5. **Send execution traces** — Fly.io Machines send OpenCode session traces to the Inngest Dashboard, capturing every LLM call, tool invocation, and state transition during engineering task execution.
 6. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
@@ -1825,7 +1844,7 @@ The platform uses a **single shared base image** for all Fly.io execution machin
 - `PLAN_NAME` — The `.sisyphus/plans/*.md` plan to execute (if plan-mode)
 - Project-specific secrets (GitHub token, Jira credentials) injected via Fly.io secrets
 
-**Boot-time clone**: The machine's entrypoint script clones the target repository at startup (shallow clone, depth=2) using the `REPO_URL` variable. A per-project volume cache (`worker_pool_*` volumes) stores the pnpm dependency store and Docker image layers across runs, dramatically reducing boot time for repeat executions.
+**Boot-time clone**: The machine's entrypoint script clones the target repository at startup (shallow clone, depth=2) using the `REPO_URL` variable. A per-project seed volume (`worker_pool_*` volumes) is maintained with pre-installed dependencies. At dispatch time, the seed volume is forked to create a new volume with lazy hydration, attached to the ephemeral machine, and destroyed with the machine when the task completes. This dramatically reduces boot time for repeat executions.
 
 This mirrors the approach proven in the nexus-stack (`tools/fly-worker/entrypoint.sh`), where the Docker image is project-agnostic and the repository is cloned at runtime.
 
