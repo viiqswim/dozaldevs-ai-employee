@@ -54,3 +54,67 @@
 - fixed v1.17 / 1433 resolved: 1
 
 **Evidence saved:** `.sisyphus/evidence/task-4-pattern-c-verification.txt`, `.sisyphus/evidence/task-4-redispatch-flow.txt`
+
+## Task 6: §4 + §18 re-dispatch pattern updates (2026-03-25)
+
+### Approach
+- §4 note inserted by matching the exact end of the "Note on fix loop" blockquote and the `### 4.1` header — clean sandwich edit
+- §18 rows appended by matching the last existing row + `---` separator line — standard table extension pattern
+
+### Observations
+- The doc already had extensive re-dispatch prose in §10/§13 — the new §4 note ties the state machine to that existing content
+- The case-sensitive grep verification for §18 risks returns 2 (not 4) because the new table rows use Title Case ("Completion event lost", "Timeout race", etc.) while grep patterns are lowercase. Still passes ≥ 2 threshold via pre-existing §10 prose matches ("timeout race condition" in code comments)
+- All four new risks already had mitigation prose scattered through §8/§10/§13 — this table consolidates the risk surface in one place
+
+### Patterns confirmed
+- `grep -c "pattern\|pattern2"` counts matching LINES (not occurrences) — one line with two matches counts as 1
+- Edit sandwich: oldString should span from distinct anchor above to distinct anchor below the insertion point
+
+## Task: Section 28 Update (Nexus-Stack & dispatch-task.ts Notes)
+
+**Completed**: 2026-03-25
+
+### What Was Done
+- Added two implementation notes to Section 28 (Deferred Capabilities) after the deferred capabilities table
+- Note 1: Nexus-Stack Completion Mechanism difference (SSE/polling vs remote Inngest events)
+- Note 2: dispatch-task.ts as manual fallback for watchdog failures
+
+### Key Learnings
+1. **Placement**: Notes inserted between table end (line 2680) and guiding principle blockquote (line 2686)
+2. **Format**: Used blockquote format (>) to match existing documentation style
+3. **Cross-references**: Both notes properly reference §8 and §10 for context
+4. **Verification**: Both grep patterns confirmed presence of content
+
+### Verification Results
+- ✓ Nexus-stack completion mechanism note present (grep count: 1)
+- ✓ dispatch-task.ts recovery script note present (grep count: 1)
+- ✓ Section 28 structure intact (header, table, notes, guiding principle, separator)
+- ✓ No markdown syntax errors
+
+### Evidence
+- Evidence file: `.sisyphus/evidence/task-8-1433-fix.txt`
+- Git diff shows clean insertion with no unintended changes
+
+## Task 7: §27 Operational Runbooks Update (2026-03-25)
+
+### What Was Done
+1. **Deployment Runbook — Initial Setup**: Added step 2.5 with `npx prisma migrate deploy` between steps 2 and 3
+2. **Deployment Runbook — Ongoing**: Added "If schema changed: `npx prisma migrate deploy`" bullet before `fly deploy`
+3. **Deployment Runbook — Rollback**: Added new **Rollback** subsection with `prisma migrate resolve --rolled-back` guidance
+4. **Monitoring Runbook — Daily**: Added 2 new watchdog checks (task_status_log actor query + Submitting state query)
+5. **Maintenance Runbook — Weekly**: Added re-dispatch pattern SQL query with dispatch_count analysis
+6. **§27.5 Local Development Setup**: Added new subsection with 5 setup steps (Supabase, Inngest Dev, Gateway, Webhook tunneling, Mock machine), .env.local template, and E2E test flow
+
+### Key Patterns
+- File had been modified by prior tasks between first read (2026-03-25T06:44:07) and first edit attempt — required re-read before applying edits
+- Edit sandwich pattern: anchor above + anchor below uniquely identifies insertion point
+- For §27.5, replaced `Dashboards:[Debugging]...\n\n---\n\n## 28.` with new content + existing `---` + `## 28.` — preserves existing separator while adding new subsection
+
+### Verification Results (all pass)
+- `grep -c "prisma migrate"` → 6 ✅ (≥1 required)
+- `grep -c "watchdog cron\|watchdog.*stale"` → 6 ✅ (≥1 required)
+- `grep -c "Local Development\|inngest.*dev\|supabase start\|smee\|ngrok"` → 10 ✅ (≥3 required)
+
+### Evidence Files
+- `.sisyphus/evidence/task-7-prisma-runbook.txt`
+- `.sisyphus/evidence/task-7-local-dev.txt`
