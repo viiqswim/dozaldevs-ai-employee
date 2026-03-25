@@ -2318,7 +2318,7 @@ interface CallLLMResult {
 
 **Cost accumulation**: Each call's `promptTokens` and `completionTokens` are accumulated in memory during an execution. On execution completion, the totals are written to the `EXECUTION` table's `prompt_tokens`, `completion_tokens`, and `estimated_cost_usd` columns (see Section 13 data model). Claude Max calls record a cost of $0 in `estimated_cost_usd` since they are covered by the flat subscription.
 
-**Circuit breaker check**: Before each call, the wrapper checks cumulative daily spend for the department via `SELECT SUM(estimated_cost_usd) FROM executions WHERE department_id = $dept AND created_at > NOW() - INTERVAL '1 day'`. If over the configured threshold, it throws `CostCircuitBreakerError` (triggering the Section 22.1 circuit breaker).
+**Circuit breaker check**: The wrapper caches cumulative daily spend per department in-memory. The cache is populated on first LLM call of each task and refreshed every 5 minutes (or when the cached value exceeds 80% of the threshold). This avoids a database query on every LLM call while maintaining cost protection. The SQL query `SELECT SUM(estimated_cost_usd) FROM executions WHERE department_id = $dept AND created_at > NOW() - INTERVAL '1 day'` is used for cache refresh. Before each call, the wrapper checks the cached value. If over the configured threshold, it throws `CostCircuitBreakerError` (triggering the Section 22.1 circuit breaker).
 
 ### Primary Interface: OpenRouter
 
