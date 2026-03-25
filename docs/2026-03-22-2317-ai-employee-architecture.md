@@ -1486,6 +1486,8 @@ graph LR
 
 > **Scale consideration**: pgvector handles tens of millions of vectors efficiently. If vector query performance becomes a bottleneck (typically beyond 5M vectors with a sub-100ms p99 latency requirement), migrate to Qdrant — a dedicated vector database with HNSW indexing optimized for high-throughput similarity search. The migration requires re-embedding and reindexing, but no application logic changes if the query interface is abstracted behind a repository pattern.
 
+> **Alternative**: pgvectorscale (Timescale, released March 2026) delivers 11.4× faster pgvector queries by adding StreamingDiskANN indexing. This stays within PostgreSQL — avoiding a new service (Qdrant). Consider as an intermediate step before evaluating Qdrant.
+
 ---
 
 ## 13. Platform Data Model
@@ -1677,6 +1679,8 @@ erDiagram
 ```
 
 > **Schema constraint**: The `TASK_STATUS_LOG.actor` column uses a CHECK constraint in the actual SQL migration: `CHECK (actor IN ('gateway', 'lifecycle_fn', 'watchdog', 'manual'))`. The erDiagram above shows the allowed values in the field comment; the CHECK constraint enforces them at the database level.
+
+> **Recommended**: Add a CHECK constraint on `tasks.status` to enforce valid values: `CHECK (status IN ('Received', 'Triaging', 'AwaitingInput', 'Ready', 'Executing', 'Validating', 'Submitting', 'Reviewing', 'Approved', 'Delivering', 'Done', 'Cancelled', 'Stale'))`. This catches typos at the database level.
 
 **Entity Relationships Explained**
 
@@ -1914,6 +1918,8 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Infra Observability** | Supabase Logs + structured logging | Built-in query and activity logs, no extra service to operate | Datadog |
 
 > **Prisma + pgvector note**: Prisma handles all standard relational tables (tasks, executions, feedback, etc.). For pgvector-specific schema (`knowledge_embeddings` table), use raw SQL migrations via `prisma db execute` — Prisma does not natively support pgvector column types.
+
+> **Update (March 2026)**: Prisma Next (expected GA July 2026) will add native pgvector support via `@prisma-next/extension-pgvector`, providing type-safe vector column definitions and query operations. This may simplify the knowledge base implementation when it ships.
 
 ### Key Changes from the Original Architecture Document
 
@@ -2719,6 +2725,8 @@ Dashboards: [Fly.io Logs](https://fly.io/apps) | [Inngest Dashboard](https://app
 - Review risk model weights per department: are auto-approval thresholds still appropriate?
 - Assess department expansion: is Marketing ready? Should Finance begin?
 - Review escalation patterns: what percentage of tasks required human intervention?
+
+> **Pre-production validation**: Before enabling autonomous mode, run a load test simulating 5–10 concurrent tasks across 2–3 projects. Verify: Inngest queue health, Fly.io machine creation rate limits not hit, Supabase connection pool not exhausted, cost circuit breaker triggers correctly. Use Inngest Dev Server + local Docker for initial validation.
 
 Dashboards: [Supabase Table Editor](https://supabase.com/dashboard) | [Fly.io Apps](https://fly.io/apps)
 
