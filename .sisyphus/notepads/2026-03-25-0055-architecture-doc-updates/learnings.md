@@ -118,3 +118,39 @@
 ### Evidence Files
 - `.sisyphus/evidence/task-7-prisma-runbook.txt`
 - `.sisyphus/evidence/task-7-local-dev.txt`
+
+## Task 9: Stale Reference Sweep (2026-03-25)
+
+### Findings
+- **Grep sweep identified 5 "90 min" references** in the architecture document
+- **4 were stale** (machine timeout, risk table, credential context, incident runbook)
+- **1 was acceptable** (cost estimation range — kept as-is)
+
+### Pattern Recognition
+- Stale references clustered in 3 sections: §7 (Machine Lifecycle), §18 (Risk Mitigation), §27 (Runbook)
+- All references to "90-minute max task" or "90-minute hard timeout" were in the context of the OLD single-wait pattern
+- Cost estimation section uses "~30-90 min" as a range, not a hard timeout — safe to keep
+
+### Cross-Reference Consistency
+- Verified §8 ↔ §10 (Supabase-first completion write mentioned in both)
+- Verified §10 ↔ §13 (dispatch_attempts referenced in both)
+- Verified §18 ↔ §8/§10 (risk mitigations point to correct sections)
+- Verified §27 ↔ §10 (runbook references 3-layer monitoring)
+- **All cross-references are consistent and accurate**
+
+### Changes Made
+1. Line 588: "90 minutes" → "4 hours (configurable per archetype)"
+2. Line 2063: "90-minute hard timeout" → "4-hour hard timeout"
+3. Line 2070: "90-minute max task" → "4-hour max task"
+4. Line 2607: "> 90 min" → "> 4 hours"
+
+### Verification
+- Post-fix grep shows only 1 "90 min" reference (cost estimation) — PASS
+- All cross-references validated — PASS
+- No unrelated content modified — PASS
+- Document integrity preserved — PASS
+
+### Lessons for Future Tasks
+- Timeout values are critical cross-references — always verify all sections when updating
+- Cost estimation sections use ranges and should be treated separately from hard timeouts
+- Incident runbook thresholds should match the actual timeout values they reference
