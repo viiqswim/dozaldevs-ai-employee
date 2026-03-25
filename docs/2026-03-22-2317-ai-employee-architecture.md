@@ -1507,6 +1507,8 @@ erDiagram
     TASK ||--o{ TASK_STATUS_LOG : tracks
     ARCHETYPE ||--o{ AGENT_VERSION : tracks
     PROJECT ||--o{ TASK : generates
+    TASK ||--o{ AUDIT_LOG : "records"
+    AGENT_VERSION ||--o{ AUDIT_LOG : "logged_by"
 
     DEPARTMENT {
         uuid id PK
@@ -1539,6 +1541,8 @@ erDiagram
         uuid tenant_id
         json raw_event "Full normalized webhook payload, stored before Inngest send for SPOF recovery"
         int dispatch_attempts
+        text failure_reason "Reason for failure (set on timeout/exhaustion)"
+        jsonb triage_result "Triage output: scope, files, plan (see §13 triage_result schema)"
     }
     EXECUTION {
         uuid id PK
@@ -1552,6 +1556,8 @@ erDiagram
         int completion_tokens
         string primary_model_id
         numeric estimated_cost_usd
+        timestamptz heartbeat_at "Last heartbeat from machine (Layer 2 monitoring)"
+        text current_stage "Current execution stage: boot, clone, install, execute, submit"
     }
     DELIVERABLE {
         uuid id PK
@@ -1650,7 +1656,16 @@ erDiagram
         uuid task_id FK
         text from_status
         text to_status
-        text actor "enum: gateway, lifecycle_fn, watchdog, manual"
+        text actor "CHECK: gateway, lifecycle_fn, watchdog, machine, manual"
+        timestamptz created_at
+    }
+    AUDIT_LOG {
+        uuid id PK
+        uuid task_id FK
+        uuid agent_version_id FK
+        text api_endpoint "External API endpoint called"
+        text http_method "GET, POST, PUT, DELETE"
+        int response_status "HTTP response status code"
         timestamptz created_at
     }
 ```
