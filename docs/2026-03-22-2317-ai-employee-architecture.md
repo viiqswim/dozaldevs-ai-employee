@@ -648,10 +648,19 @@ The original design specified custom conflict detection at the orchestrator leve
 > 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
  > 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
 > 4. **Inngest failure recovery** (SPOF mitigation): The Event Gateway writes the full normalized webhook payload to `tasks.raw_event` (JSONB) before sending to Inngest. If Inngest loses the event or has an outage, the full payload is recoverable from Supabase. A CLI script (`dispatch-task.ts`) can re-read tasks in `Received` state and re-send events to Inngest for manual recovery — no data is lost.
+> 5. **Dual-purpose Inngest function hosting**: The Event Gateway Fastify application serves dual duty: it is simultaneously (1) the webhook receiver for all external integrations (Jira, GitHub, Slack) and (2) the Inngest function host — all engineering lifecycle functions execute as steps within this Fastify app's process. Inngest Cloud orchestrates their execution via HTTP requests to the app's `/api/inngest` endpoint. This is the standard Inngest hosting model: you provide the compute (Fly.io), Inngest provides the durable orchestration layer.
 
 **Event Idempotency**: The Event Gateway sets the Inngest event `id` field to the webhook delivery ID to prevent duplicate task creation. Jira provides a `webhookEvent` ID in the payload; GitHub provides the `X-GitHub-Delivery` header. If a webhook provider retries delivery (e.g., due to a slow Gateway response), Inngest deduplicates by event ID and discards the duplicate.
 
 **Inngest Send Retry**: The Event Gateway retries `inngest.send()` 3 times with exponential backoff (1s, 2s, 4s delay between attempts) before giving up. This is a design decision, not current implementation — it's documented here so it's built this way from the start. If all 3 retries fail (e.g., Inngest is temporarily unavailable), the task stays in `Received` state with the full payload preserved in `tasks.raw_event` (the existing SPOF mitigation from point 4 above). The `dispatch-task.ts` CLI script handles manual recovery for persistent failures. Escalation: if you observe >5 tasks/week stuck in `Received` due to Inngest failures, add an Inngest cron function that polls for stale `Received` tasks and re-sends them automatically (~20 lines).
+
+**Reverse-Path SPOF Mitigation (Machine → Inngest)**: The forward path (Jira → Gateway → Supabase → Inngest) is protected by the Supabase-first write described above. The REVERSE-PATH SPOF is the critical gap: the Fly.io machine sends `engineering/task.completed` to Inngest AFTER doing its work. If this event send fails (network blip, Inngest outage), the lifecycle function times out and marks the task `Failed` even though the PR was created. Mitigation:
+
+1. The machine writes its final status (+ PR URL if applicable) to `tasks.status = 'Submitting'` in Supabase **BEFORE sending the Inngest event** — this is the Supabase-first pattern applied to the completion path
+2. The machine retries the Inngest event send 3 times with backoff before exiting
+3. The watchdog cron (Layer 3 in §10) detects tasks stuck in `Submitting` state with no corresponding lifecycle function completion, and emits the completion event on the machine's behalf
+
+This ensures that a successful PR creation is never silently lost: the `Submitting` state in Supabase is durable proof that the machine completed, regardless of whether the Inngest event was delivered.
 
 **Slack Interactions Endpoint**: The Event Gateway hosts a `/slack/interactions` endpoint that receives Slack interactive message payloads (approve/reject button clicks from Slack approval messages). It extracts the action (`approved` or `rejected`) and task metadata, then sends an Inngest event (`engineering/approval.received`) which resumes the review lifecycle function's `step.waitForEvent("engineering/approval.received", { timeout: "7d" })`. This closes the human approval loop: Slack button → Gateway → Inngest event → lifecycle function resumes.
 
@@ -736,6 +745,22 @@ The Event Gateway determines its action by matching the `webhookEvent` field in 
 | `jira:issue_updated` | Ignore (per Section 4.2 — updates during execution are not processed) | Update `triage_result` if task is pre-execution state |
 | `jira:issue_deleted` / status changed to Cancelled | Set task status to `Cancelled` in Supabase, send cancellation event to Inngest to halt in-flight lifecycle | Same |
 | `jira:comment_created` | Ignore | Resume `AwaitingInput` tasks — send `engineering/clarification.received` event to Inngest |
+
+### Error Handling Contract
+
+The Event Gateway applies a layered validation chain: signature verification → Zod payload validation → Supabase write → Inngest send. Each layer has a defined failure response.
+
+Payload validation uses Zod schemas applied after signature verification and before Supabase write. Required fields for Jira webhooks: `webhookEvent`, `issue.id`, `issue.key`, `issue.fields.summary`, `issue.fields.project.key`. Required fields for GitHub PR webhooks: `action`, `pull_request.number`, `repository.full_name`. Any missing required field returns 400 and logs the payload shape for debugging.
+
+| Failure Mode | HTTP Response | Behavior |
+|---|---|---|
+| Webhook signature verification fails | `return 401` | Log attempt, don't create task record |
+| Payload validation fails (Zod — missing required fields) | `return 400` | Log payload shape, don't create task record |
+| Supabase write fails | `return 500` | Let Jira/GitHub retry the webhook delivery |
+| Inngest send fails after 3 retries | `return 202` | Task is in Supabase with `raw_event`; manual recovery via `dispatch-task.ts` CLI |
+| `tasks(external_id, source_system, tenant_id)` UNIQUE violation | `return 200` idempotent | Task already exists, treat as success |
+
+The 202 response on Inngest failure (rather than 500) is intentional: it prevents Jira/GitHub from retrying the webhook, which would create a second `Received` task record. Recovery is via the `dispatch-task.ts` CLI, which reads `Received`-state tasks and re-sends them to Inngest.
 
 ---
 
@@ -1379,6 +1404,7 @@ erDiagram
     DELIVERABLE ||--o{ REVIEW : receives
     TASK ||--o{ CROSS_DEPT_TRIGGER : emits
     TASK ||--o{ FEEDBACK : generates
+    TASK ||--o{ TASK_STATUS_LOG : tracks
     ARCHETYPE ||--o{ AGENT_VERSION : tracks
     PROJECT ||--o{ TASK : generates
 
@@ -1412,6 +1438,7 @@ erDiagram
         json affected_resources
         uuid tenant_id
         json raw_event "Full normalized webhook payload, stored before Inngest send for SPOF recovery"
+        int dispatch_attempts
     }
     EXECUTION {
         uuid id PK
@@ -1518,6 +1545,14 @@ erDiagram
         timestamptz asked_at
         timestamptz answered_at
     }
+    TASK_STATUS_LOG {
+        uuid id PK
+        uuid task_id FK
+        text from_status
+        text to_status
+        text actor "enum: gateway, lifecycle_fn, watchdog, manual"
+        timestamptz created_at
+    }
 ```
 
 **Entity Relationships Explained**
@@ -1527,6 +1562,10 @@ The data model has three logical clusters:
 **Department & Archetype cluster**: A `DEPARTMENT` defines one or more `ARCHETYPE` records (e.g., the engineering department defines an engineering archetype). Each archetype declares its own `KNOWLEDGE_BASE`, `RISK_MODEL`, and `AGENT_VERSION` — so every department has independent knowledge and risk configuration.
 
 **Task execution cluster**: An `ARCHETYPE` processes many `TASK` records over time. Each task triggers exactly one `EXECUTION`, which records what actually happened (which Fly.io machine, how many fix iterations, which agent version ran). Executions produce `VALIDATION_RUN` records (one per test stage) and exactly one `DELIVERABLE` (a PR, a campaign draft, a journal entry). Deliverables receive `REVIEW` records from both AI and human reviewers.
+
+The `tasks` table includes a `UNIQUE(external_id, source_system, tenant_id)` constraint to ensure webhook idempotency. If the Event Gateway receives a duplicate webhook, the Supabase write returns a unique violation and the Gateway returns 200 OK (idempotent — see §8 Error Handling Contract).
+
+`dispatch_attempts` tracks how many times this task has been re-dispatched to a new Fly.io machine after timeout or failure. Hard cap: 3 attempts before Slack escalation.
 
 #### triage_result Interface
 
@@ -1563,6 +1602,19 @@ ALTER TABLE tasks ADD COLUMN triage_result JSONB;
 ```
 
 Adding the Triage Agent later is zero-cost: it writes to `triage_result`, the execution agent reads from it, and no other code changes.
+
+#### Optimistic Locking Pattern
+
+All status transitions MUST use optimistic locking to prevent concurrent writer conflicts. Pattern:
+
+```sql
+UPDATE tasks
+SET status = $new_status
+WHERE id = $task_id AND status = $expected_status
+RETURNING id;
+```
+
+If no row is returned, another writer changed the status concurrently — the caller must handle this as a conflict (log and skip, or escalate). This applies to all status transitions: `Received → Executing`, `Executing → Submitting`, `Submitting → Done`, and cancellation paths.
 
 **Feedback & observability cluster**: Every task can generate `FEEDBACK` records (when a human overrides an AI decision). Tasks can also emit `CROSS_DEPT_TRIGGER` records that fire work in another department. Every entity carries a `tenant_id` column for future multi-tenant isolation.
 
@@ -1619,6 +1671,25 @@ graph LR
 6. **Inject credentials** — Fly.io Secrets inject GitHub tokens, Jira tokens, and Supabase credentials into Fly.io Machine environment variables at machine start, never storing secrets in code or images.
 7. **Inject API keys** — Fly.io Secrets inject the OpenRouter API key, webhook validation tokens, and Inngest API key into the Event Gateway's environment at deploy time.
 
+#### Structured Logging Schema
+
+All platform components (Event Gateway, Inngest lifecycle functions, Fly.io machines, watchdog cron) MUST emit structured logs using this schema:
+
+```json
+{
+  "timestamp": "ISO 8601 (e.g., 2026-03-25T06:00:00.000Z)",
+  "level": "info | warn | error | debug",
+  "taskId": "uuid — nullable; omit for logs not scoped to a task",
+  "step": "string — lifecycle step name (e.g., 'triage', 'execute', 'review', 'gateway')",
+  "component": "string — source component (e.g., 'event-gateway', 'lifecycle-fn', 'fly-machine', 'watchdog')",
+  "message": "string — human-readable description",
+  "error": "string — nullable; stack trace or error message",
+  "metadata": "object — nullable; additional structured context"
+}
+```
+
+Using a consistent schema enables cross-component debugging: `grep taskId=<uuid>` across all log sources reconstructs the full end-to-end trace for any task. All components write to stdout; log aggregation (Fly.io logs, Supabase logs) handles collection.
+
 ### Runtime Selection
 
 | Runtime Type | Use When | Departments | Cost Profile |
@@ -1639,6 +1710,16 @@ These limits apply to all Inngest lifecycle functions in the platform. Architect
 | Max steps per function | 1,000 | Task lifecycle uses ~10–15 steps — no concern. Avoid unbounded loops. |
 | Max event payload | 256 KB (free) / 3 MB (pro) | Jira webhook payloads are 5–50 KB; GitHub PR webhooks are 10–100 KB — no concern at MVP |
 | Max sleep / wait duration | 7 days (free) / 1 year (pro) | Human approval waits (7d) require free tier minimum; use `step.waitForEvent()` correctly |
+
+**Free Tier Capacity** (relevant for MVP volume planning):
+
+| Limit | Free Tier | Pro ($75/mo) | MVP Usage |
+|---|---|---|---|
+| Function executions/month | 50,000 | 1M+ | ~9,000/mo at 20 tasks/day × 15 steps |
+| Concurrent steps | 5 | 100+ | ⚠️ Bottleneck if >3 lifecycle functions run simultaneously |
+| Trace retention | 24 hours | 7 days | Upgrade to Pro for debugging beyond 24h |
+
+> **Upgrade trigger**: Upgrade to Pro ($75/mo) when concurrent task volume regularly exceeds 3 simultaneous lifecycle functions. The 5-step concurrent limit, not the execution count, is the binding constraint at MVP scale.
 
 ---
 
@@ -1680,6 +1761,7 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
 | **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
 | **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
+| **Database Migrations** | Prisma (`prisma migrate`) | Already proven in nexus-stack. Type-safe schema management, version-controlled migration files, TypeScript client generation. | `supabase migration` CLI (lighter but no type generation) |
 | **LLM Access** | OpenRouter | Unified API for 100+ models, eliminates custom routing, provider-cost pricing | Direct provider APIs |
 | **LLM Optimization** | Claude Max 20x subscription | Reduces LLM costs to ~$0 for Claude models when under rate limits | — |
 | **Execution Compute (Eng)** | Fly.io Machines API | Proven in nexus-stack, pay-per-second, full isolation, volume persistence | Modal |
@@ -1696,6 +1778,8 @@ The table below covers every component in the stack. The "Alternative" column sh
 | **Accounting** | QuickBooks Online API | Standard for SMB finance automation | Xero |
 | **Agent Observability** | Inngest Dashboard | Built-in workflow execution traces, step-level inspection, replay | — |
 | **Infra Observability** | Supabase Logs + structured logging | Built-in query and activity logs, no extra service to operate | Datadog |
+
+> **Prisma + pgvector note**: Prisma handles all standard relational tables (tasks, executions, feedback, etc.). For pgvector-specific schema (`knowledge_embeddings` table), use raw SQL migrations via `prisma db execute` — Prisma does not natively support pgvector column types.
 
 ### Key Changes from the Original Architecture Document
 
