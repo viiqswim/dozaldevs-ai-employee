@@ -199,14 +199,19 @@ describe('Seed data verification', () => {
     expect(agentVersion!.model_id).toBe('anthropic/claude-sonnet-4');
   });
 
-  it('project has correct default tenant_id', async () => {
-    const prisma = getPrisma();
-    const project = await prisma.project.findFirst({
-      where: { name: 'test-project' },
-    });
-    expect(project!.tenant_id).toBe(TENANT_ID);
-  });
+   it('project has correct default tenant_id', async () => {
+     const prisma = getPrisma();
+     const project = await prisma.project.findFirst({
+       where: { name: 'test-project' },
+     });
+     expect(project!.tenant_id).toBe(TENANT_ID);
+   });
+});
 
+// ============================================================
+// GROUP 5: Default values
+// ============================================================
+describe('Default values', () => {
   it('tasks.dispatch_attempts defaults to 0', async () => {
     const prisma = getPrisma();
     const task = await prisma.task.create({
