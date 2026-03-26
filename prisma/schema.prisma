@@ -1,0 +1,315 @@
+// This is your Prisma schema file
+// AI Employee Platform — Phase 1 Foundation
+// Source of truth: docs/2026-03-22-2317-ai-employee-architecture.md §13
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_DIRECT")
+}
+
+// ============================================================
+// 7 MVP-Active Tables
+// ============================================================
+
+model Task {
+  id                 String   @id @default(uuid()) @db.Uuid
+  archetype_id       String?  @db.Uuid
+  project_id         String?  @db.Uuid
+  external_id        String?
+  source_system      String?
+  status             String   @default("Received")
+  requirements       Json?
+  scope_estimate     Int?
+  affected_resources Json?
+  tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  raw_event          Json?
+  dispatch_attempts  Int      @default(0)
+  failure_reason     String?
+  triage_result      Json?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  // Relations
+  archetype         Archetype?         @relation(fields: [archetype_id], references: [id])
+  project           Project?           @relation(fields: [project_id], references: [id])
+  executions        Execution[]
+  feedback          Feedback[]
+  statusLogs        TaskStatusLog[]
+  clarifications    Clarification[]
+  crossDeptTriggers CrossDeptTrigger[]
+  auditLogs         AuditLog[]
+
+  @@unique([external_id, source_system, tenant_id])
+  @@map("tasks")
+}
+
+model Execution {
+  id                 String    @id @default(uuid()) @db.Uuid
+  task_id            String    @db.Uuid
+  runtime_type       String?
+  runtime_id         String?
+  fix_iterations     Int       @default(0)
+  status             String    @default("pending")
+  agent_version_id   String?   @db.Uuid
+  prompt_tokens      Int       @default(0)
+  completion_tokens  Int       @default(0)
+  primary_model_id   String?
+  estimated_cost_usd Decimal   @default(0) @db.Decimal(10, 4)
+  heartbeat_at       DateTime?
+  current_stage      String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  // Relations
+  task           Task            @relation(fields: [task_id], references: [id])
+  agentVersion   AgentVersion?   @relation(fields: [agent_version_id], references: [id])
+  validationRuns ValidationRun[]
+  deliverables   Deliverable[]
+
+  @@map("executions")
+}
+
+model Deliverable {
+  id            String   @id @default(uuid()) @db.Uuid
+  execution_id  String   @db.Uuid
+  delivery_type String
+  external_ref  String?
+  risk_score    Int      @default(0)
+  status        String   @default("pending")
+  created_at    DateTime @default(now())
+
+  // Relations
+  execution Execution @relation(fields: [execution_id], references: [id])
+  reviews   Review[]
+
+  @@map("deliverables")
+}
+
+model ValidationRun {
+  id           String   @id @default(uuid()) @db.Uuid
+  execution_id String   @db.Uuid
+  stage        String
+  status       String
+  iteration    Int      @default(1)
+  error_output String?
+  duration_ms  Int?
+  created_at   DateTime @default(now())
+
+  // Relations
+  execution Execution @relation(fields: [execution_id], references: [id])
+
+  @@map("validation_runs")
+}
+
+model Project {
+  id                String   @id @default(uuid()) @db.Uuid
+  department_id     String?  @db.Uuid
+  name              String
+  repo_url          String
+  default_branch    String   @default("main")
+  concurrency_limit Int      @default(3)
+  tooling_config    Json?
+  tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relations
+  department Department? @relation(fields: [department_id], references: [id])
+  tasks      Task[]
+
+  @@map("projects")
+}
+
+model Feedback {
+  id                 String   @id @default(uuid()) @db.Uuid
+  task_id            String?  @db.Uuid
+  agent_version_id   String?  @db.Uuid
+  feedback_type      String
+  original_decision  Json?
+  corrected_decision Json?
+  correction_reason  String?
+  created_by         String?
+  created_at         DateTime @default(now())
+  tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+
+  // Relations
+  task         Task?         @relation(fields: [task_id], references: [id])
+  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
+
+  @@map("feedback")
+}
+
+model TaskStatusLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  task_id     String   @db.Uuid
+  from_status String?
+  to_status   String
+  actor       String
+  created_at  DateTime @default(now())
+
+  // Relations — CHECK constraint enforced via raw SQL migration (Task 5)
+  task Task @relation(fields: [task_id], references: [id])
+
+  @@map("task_status_log")
+}
+
+// ============================================================
+// 9 Forward-Compatibility Tables (empty but schema-ready)
+// Populated when their corresponding milestones are built
+// ============================================================
+
+model Department {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  slack_channel String?
+  tenant_id     String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  created_at    DateTime @default(now())
+
+  // Relations
+  archetypes Archetype[]
+  projects   Project[]
+
+  @@map("departments")
+}
+
+model Archetype {
+  id                String   @id @default(uuid()) @db.Uuid
+  department_id     String?  @db.Uuid
+  role_name         String?
+  runtime           String?
+  trigger_sources   Json?
+  tool_registry     Json?
+  risk_model        Json?
+  concurrency_limit Int      @default(3)
+  agent_version_id  String?  @db.Uuid
+  tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  created_at        DateTime @default(now())
+
+  // Relations
+  department     Department?     @relation(fields: [department_id], references: [id])
+  agentVersion   AgentVersion?   @relation("CurrentArchetypeVersion", fields: [agent_version_id], references: [id])
+  tasks          Task[]
+  knowledgeBases KnowledgeBase[]
+  riskModels     RiskModel[]
+  agentVersions  AgentVersion[]  @relation("ArchetypeVersions")
+
+  @@map("archetypes")
+}
+
+model KnowledgeBase {
+  id            String    @id @default(uuid()) @db.Uuid
+  archetype_id  String?   @db.Uuid
+  last_indexed  DateTime?
+  chunk_count   Int       @default(0)
+  source_config Json?
+  tenant_id     String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  created_at    DateTime  @default(now())
+
+  // Relations
+  archetype Archetype? @relation(fields: [archetype_id], references: [id])
+
+  @@map("knowledge_bases")
+}
+
+model RiskModel {
+  id                     String   @id @default(uuid()) @db.Uuid
+  archetype_id           String?  @db.Uuid
+  factors                Json?
+  auto_approve_threshold Int      @default(70)
+  created_at             DateTime @default(now())
+
+  // Relations
+  archetype Archetype? @relation(fields: [archetype_id], references: [id])
+
+  @@map("risk_models")
+}
+
+model CrossDeptTrigger {
+  id                  String   @id @default(uuid()) @db.Uuid
+  source_task_id      String?  @db.Uuid
+  target_archetype_id String?
+  runtime_hint        String?
+  payload             Json?
+  status              String   @default("pending")
+  created_at          DateTime @default(now())
+
+  // Relations
+  sourceTask Task? @relation(fields: [source_task_id], references: [id])
+
+  @@map("cross_dept_triggers")
+}
+
+model AgentVersion {
+  id               String   @id @default(uuid()) @db.Uuid
+  archetype_id     String?  @db.Uuid
+  prompt_hash      String?
+  model_id         String?
+  tool_config_hash String?
+  changelog_note   String?
+  created_at       DateTime @default(now())
+  is_active        Boolean  @default(true)
+
+  // Relations
+  archetype        Archetype?  @relation("ArchetypeVersions", fields: [archetype_id], references: [id])
+  activeArchetypes Archetype[] @relation("CurrentArchetypeVersion")
+  executions       Execution[]
+  feedback         Feedback[]
+  reviews          Review[]
+  auditLogs        AuditLog[]
+
+  @@map("agent_versions")
+}
+
+model Clarification {
+  id            String    @id @default(uuid()) @db.Uuid
+  task_id       String?   @db.Uuid
+  question      String?
+  answer        String?
+  source_system String?
+  external_ref  String?
+  asked_at      DateTime?
+  answered_at   DateTime?
+
+  // Relations
+  task Task? @relation(fields: [task_id], references: [id])
+
+  @@map("clarifications")
+}
+
+model Review {
+  id               String   @id @default(uuid()) @db.Uuid
+  deliverable_id   String?  @db.Uuid
+  reviewer_type    String?
+  agent_version_id String?  @db.Uuid
+  risk_score       Int?
+  verdict          String?
+  comments         String?
+  created_at       DateTime @default(now())
+
+  // Relations
+  deliverable  Deliverable?  @relation(fields: [deliverable_id], references: [id])
+  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
+
+  @@map("reviews")
+}
+
+model AuditLog {
+  id               String   @id @default(uuid()) @db.Uuid
+  task_id          String?  @db.Uuid
+  agent_version_id String?  @db.Uuid
+  api_endpoint     String?
+  http_method      String?
+  response_status  Int?
+  created_at       DateTime @default(now())
+
+  // Relations
+  task         Task?         @relation(fields: [task_id], references: [id])
+  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
+
+  @@map("audit_log")
+}
