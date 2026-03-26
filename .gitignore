@@ -11,3 +11,17 @@ Thumbs.db
 # Sisyphus internal state (plans are tracked, boulder state is not)
 .sisyphus/boulder.json
 .sisyphus/evidence/
+
+# Dependencies
+node_modules/
+dist/
+
+# Environment
+.env
+.env.local
+
+# Supabase temp files
+supabase/.temp/
+
+# TypeScript output
+*.tsbuildinfo
