@@ -1,12 +1,13 @@
 {
   "project": "ai-employee",
   "description": "Multi-department Digital AI Employee Platform — MVP progress registry. Read this file FIRST when resuming work on any phase.",
-  "last_updated": "2026-03-26T21:30:00Z",
-  "last_session_id": "ses_2e36a06e4ffe1zOr0sU12YK10L",
+  "last_updated": "2026-03-27T03:57:00Z",
+  "last_session_id": "ses_2d3081087ffe4g6e3iY9ZkPa65",
   "source_docs": {
     "architecture": "docs/2026-03-22-2317-ai-employee-architecture.md",
     "implementation_phases": "docs/2026-03-25-1901-mvp-implementation-phases.md",
-    "phase1_detail": "docs/2026-03-26-1511-phase1-foundation.md"
+    "phase1_detail": "docs/2026-03-26-1511-phase1-foundation.md",
+    "phase2_detail": "docs/2026-03-26-2257-phase2-event-gateway.md"
   },
   "how_to_resume": "1. Read this file to find the current phase (first phase where status != 'complete'). 2. Read the phase's resume_hint for what to do next. 3. Run the phase's verification_commands to assess actual state — checkpoints may be stale if work happened outside a tracked session. 4. After completing work, update this file: set checkpoint statuses, update phase status, set last_updated and last_session_id.",
   "phases": [
@@ -83,60 +84,80 @@
     {
       "id": 2,
       "name": "Event Gateway",
-      "status": "not_started",
+      "status": "complete",
       "description": "Fastify server accepts webhooks, validates signatures, parses payloads with Zod, writes task records to Supabase with idempotency and project filtering.",
       "architecture_refs": [
         "§8 Engineering Dept System Context",
         "§8 Webhook Event Routing table",
         "§8 Error Handling Contract"
       ],
-      "plan_file": null,
-      "doc_file": null,
-      "started_at": null,
-      "completed_at": null,
+      "plan_file": ".sisyphus/plans/2026-03-26-2046-phase2-event-gateway.md",
+      "doc_file": "docs/2026-03-26-2257-phase2-event-gateway.md",
+      "started_at": "2026-03-27T02:57:22Z",
+      "completed_at": "2026-03-27T03:57:00Z",
       "checkpoints": {
         "fastify_server": {
-          "status": "not_started",
+          "status": "complete",
           "description": "Fastify app with /health, /webhooks/jira, /webhooks/github routes in src/gateway/",
+          "verified_at": "2026-03-27T03:57:00Z",
           "verify_command": "curl -s http://localhost:3000/health | grep -q 'ok' && echo 'PASS' || echo 'FAIL'"
         },
         "signature_verification": {
-          "status": "not_started",
-          "description": "Jira HMAC and GitHub X-Hub-Signature-256 verification. Invalid signature → 401."
+          "status": "complete",
+          "description": "Jira HMAC and GitHub X-Hub-Signature-256 verification. Invalid signature → 401.",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "payload_validation": {
-          "status": "not_started",
-          "description": "Zod schemas for Jira and GitHub payloads. Invalid payload → 400."
+          "status": "complete",
+          "description": "Zod schemas for Jira and GitHub payloads. Invalid payload → 400.",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "webhook_routing": {
-          "status": "not_started",
-          "description": "jira:issue_created → task record (Ready), jira:issue_deleted → Cancelled, unknown → ignore"
+          "status": "complete",
+          "description": "jira:issue_created → task record (Ready), jira:issue_deleted → Cancelled, unknown → ignore",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "project_filtering": {
-          "status": "not_started",
-          "description": "Match issue.fields.project.key against projects table. Unknown project → 200, no task."
+          "status": "complete",
+          "description": "Match issue.fields.project.key against projects table. Unknown project → 200, no task.",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "task_creation": {
-          "status": "not_started",
-          "description": "Write tasks row with status Ready, populate triage_result with raw webhook, store raw_event. UNIQUE handles duplicates."
+          "status": "complete",
+          "description": "Write tasks row with status Ready, populate triage_result with raw webhook, store raw_event. UNIQUE handles duplicates.",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "status_logging": {
-          "status": "not_started",
-          "description": "task_status_log entry on every transition (actor: gateway)"
+          "status": "complete",
+          "description": "task_status_log entry on every transition (actor: gateway)",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "test_fixtures": {
-          "status": "not_started",
-          "description": "test-payloads/ directory with jira-issue-created.json, jira-issue-created-invalid.json, jira-issue-created-unknown-project.json"
+          "status": "complete",
+          "description": "test-payloads/ directory with jira-issue-created.json, jira-issue-created-invalid.json, jira-issue-created-unknown-project.json",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
         "tests_written": {
-          "status": "not_started",
-          "description": "Vitest or integration tests for all webhook scenarios"
+          "status": "complete",
+          "description": "76 tests across 11 test files",
+          "verified_at": "2026-03-27T03:57:00Z"
         },
-        "tests_passing": { "status": "not_started", "verify_command": "pnpm test -- --run" },
-        "committed": { "status": "not_started" },
-        "documented": { "status": "not_started" }
+        "tests_passing": {
+          "status": "complete",
+          "verify_command": "pnpm test -- --run",
+          "verified_at": "2026-03-27T03:57:00Z"
+        },
+        "committed": {
+          "status": "complete",
+          "verified_at": "2026-03-27T03:57:00Z"
+        },
+        "documented": {
+          "status": "complete",
+          "description": "docs/2026-03-26-2257-phase2-event-gateway.md",
+          "verified_at": "2026-03-27T03:57:00Z"
+        }
       },
-      "resume_hint": "Start by creating the Fastify server in src/gateway/. Read §8 of the architecture doc for the full webhook routing table and error handling contract. The Prisma schema and database are already complete from Phase 1 — no migrations needed."
+      "resume_hint": "Phase 2 is complete. Proceed to Phase 3 (Inngest Core)."
     },
     {
       "id": 3,
