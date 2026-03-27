@@ -58,8 +58,18 @@ export const inngestMock = {
   },
 };
 
-/**
- * NOTE: createTestApp() is intentionally deferred to Task 7.
- * It depends on src/gateway/server.ts (buildApp function) which is created in Task 6.
- * Task 7 will add createTestApp() to this file.
- */
+export async function createTestApp(opts?: { inngest?: typeof inngestMock }) {
+  // Dynamic import to avoid TypeScript errors when server.ts doesn't exist
+  // This function creates an isolated test instance of the Fastify app
+  const { buildApp } = await import('../src/gateway/server.js');
+
+  // Set required env vars for test
+  process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
+
+  const app = await buildApp({
+    inngestClient: opts?.inngest ?? inngestMock,
+  });
+
+  await app.ready();
+  return app;
+}
