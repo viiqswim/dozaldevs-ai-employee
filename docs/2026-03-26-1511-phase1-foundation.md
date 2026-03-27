@@ -11,18 +11,18 @@ This document describes everything built during Phase 1 of the AI Employee Platf
 ```mermaid
 flowchart LR
     subgraph Phase 1 - Completed
-        TS["TypeScript Project\n(pnpm + ESM)"]:::service
-        SCHEMA["Prisma Schema\n(16 tables)"]:::service
-        MIG["3 Migrations\n(init → constraints → sync)"]:::service
-        SEED["Seed Data\n(1 project, 1 agent_version)"]:::service
-        TESTS["Vitest Suite\n(12 tests, 5 groups)"]:::service
-        DIRS["Empty src/ Dirs\n(gateway, inngest, lib, workers)"]:::service
+        TS["TypeScript Project (ESM)"]:::service
+        SCHEMA["Prisma Schema (16 tables)"]:::service
+        MIG["3 Migrations"]:::service
+        SEED["Seed Data"]:::service
+        TESTS["Vitest Suite (12 tests)"]:::service
+        DIRS["Empty src/ Dirs"]:::service
     end
 
     subgraph Future Phases
-        GW["Event Gateway\n(Phase 2)"]:::future
-        ING["Inngest Functions\n(Phase 2)"]:::future
-        AGT["Agent Code\n(Phase 3+)"]:::future
+        GW["Event Gateway (Phase 2)"]:::future
+        ING["Inngest Functions (Phase 2)"]:::future
+        AGT["Agent Code (Phase 3+)"]:::future
     end
 
     TS ==>|"1. Scaffold project"| SCHEMA
@@ -266,9 +266,9 @@ Three migrations run in sequence. Each has a distinct purpose.
 
 ```mermaid
 flowchart LR
-    M1["20260326135305_init\nAll 16 tables\nAll FKs\nUNIQUE index"]:::service
-    M2["20260326135326_add_check_constraints\nCHECK on tasks.status\nCHECK on task_status_log.actor\ntenant_id defaults"]:::service
-    M3["20260326135742_sync_schema\nSchema/Prisma sync"]:::service
+    M1["Migration 1: init (16 tables + FKs + UNIQUE)"]:::service
+    M2["Migration 2: constraints (CHECK + tenant defaults)"]:::service
+    M3["Migration 3: schema sync"]:::service
 
     M1 ==>|"1. Create tables"| M2
     M2 ==>|"2. Enforce constraints"| M3
@@ -332,11 +332,11 @@ The seed script (`prisma/seed.ts`) uses idempotent `upsert` operations inside a 
 ```mermaid
 flowchart LR
     subgraph Test Groups
-        G1["Group 1\nTable Existence\n1 test"]:::service
-        G2["Group 2\nCHECK Constraints\n4 tests"]:::service
-        G3["Group 3\nUNIQUE Constraints\n2 tests"]:::service
-        G4["Group 4\nSeed Data\n3 tests"]:::service
-        G5["Group 5\nDefault Values\n2 tests"]:::service
+        G1["Table Existence (1 test)"]:::service
+        G2["CHECK Constraints (4 tests)"]:::service
+        G3["UNIQUE Constraints (2 tests)"]:::service
+        G4["Seed Data (3 tests)"]:::service
+        G5["Default Values (2 tests)"]:::service
     end
 
     G1 ==>|"1"| G2 ==>|"2"| G3 ==>|"3"| G4 ==>|"4"| G5
@@ -389,14 +389,14 @@ None of that requires touching the schema. The 16 tables, the constraints, the F
 ```mermaid
 flowchart TD
     subgraph Phase 1 - Complete
-        DB[("ai_employee\nPostgreSQL\n16 tables")]:::storage
-        SCHEMA["Prisma Schema\n+ Migrations"]:::service
+        DB[("ai_employee DB (PostgreSQL)")]:::storage
+        SCHEMA["Prisma Schema + Migrations"]:::service
     end
 
     subgraph Phase 2 - Next
-        GW["src/gateway/\nFastify webhook receiver"]:::event
-        ING["src/inngest/\nLifecycle function"]:::event
-        LIB["src/lib/\ncallLLM, jiraClient"]:::event
+        GW["src/gateway/ (webhook receiver)"]:::event
+        ING["src/inngest/ (lifecycle fn)"]:::event
+        LIB["src/lib/ (callLLM + clients)"]:::event
     end
 
     DB -->|"reads/writes"| GW
