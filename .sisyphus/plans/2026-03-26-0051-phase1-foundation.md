@@ -191,7 +191,7 @@ Max Concurrent: 3 (Wave 1)
 > Implementation + Test = ONE Task. Never separate.
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info + QA Scenarios.
 
-- [ ] 1. Init pnpm project with all dependencies
+- [x] 1. Init pnpm project with all dependencies
 
   **What to do**:
   - Run `pnpm init` to create `package.json`
@@ -294,7 +294,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `package.json`, `pnpm-lock.yaml`
   - Pre-commit: `test -f pnpm-lock.yaml`
 
-- [ ] 2. TypeScript, ESLint flat config, and Prettier configuration
+- [x] 2. TypeScript, ESLint flat config, and Prettier configuration
 
   **What to do**:
   - Create `tsconfig.json`:
@@ -402,7 +402,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `tsconfig.json`, `eslint.config.mjs`, `.prettierrc`, `.prettierignore`
   - Pre-commit: `pnpm tsc --noEmit && pnpm lint`
 
-- [ ] 3. Directory structure, Supabase init, and environment files
+- [x] 3. Directory structure, Supabase init, and environment files
 
   **What to do**:
   - Create directory structure with `.gitkeep` files:
@@ -533,7 +533,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `src/*/.gitkeep`, `tests/.gitkeep`, `scripts/.gitkeep`, `.gitignore`, `supabase/config.toml`, `.env.example`
   - Pre-commit: `supabase status`
 
-- [ ] 4. Prisma schema — datasource, generator, and all 16 table models
+- [x] 4. Prisma schema — datasource, generator, and all 16 table models
 
   **What to do**:
   - Create `prisma/schema.prisma` with:
@@ -766,7 +766,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `prisma/schema.prisma`
   - Pre-commit: `pnpm prisma validate`
 
-- [ ] 5. Apply Prisma migration and add CHECK constraints via raw SQL
+- [x] 5. Apply Prisma migration and add CHECK constraints via raw SQL
 
   **What to do**:
   - Step 1: Run `pnpm prisma migrate dev --name init` to create and apply the initial migration
@@ -909,7 +909,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `prisma/migrations/*/migration.sql`
   - Pre-commit: `pnpm prisma migrate dev 2>&1 | grep -q "applied" || pnpm prisma migrate dev 2>&1 | grep -q "already"`
 
-- [ ] 6. Seed data — idempotent upserts for project and agent_version
+- [x] 6. Seed data — idempotent upserts for project and agent_version
 
   **What to do**:
   - Create `prisma/seed.ts` with the following seed logic:
@@ -1022,7 +1022,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `prisma/seed.ts`
   - Pre-commit: `pnpm db:seed && pnpm db:seed`
 
-- [ ] 7. Vitest setup and automated schema constraint tests
+- [x] 7. Vitest setup and automated schema constraint tests
 
   **What to do**:
   - Create `vitest.config.ts`:
@@ -1168,7 +1168,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `vitest.config.ts`, `tests/setup.ts`, `tests/schema.test.ts`
   - Pre-commit: `pnpm test --run`
 
-- [ ] 8. Manual verification playbook — step-by-step commands for user
+- [x] 8. Manual verification playbook — step-by-step commands for user
 
   **What to do**:
   - Create `scripts/verify-phase1.sh` — a shell script the user runs to verify all Phase 1 criteria
@@ -1318,19 +1318,19 @@ Max Concurrent: 3 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `pnpm tsc --noEmit` + `pnpm lint` + `pnpm test --run`. Review all created files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic variable names.
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration: run `scripts/verify-phase1.sh` end-to-end. Test edge cases: double seed run, invalid constraint inserts. Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual files created. Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance — ensure no runtime code, no src/ file content, no extra dependencies. Flag unaccounted files.
   Output: `Tasks [N/N compliant] | Scope [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 

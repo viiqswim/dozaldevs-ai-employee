@@ -352,14 +352,6 @@ flowchart LR
 | 4   | Seed Data          | Project seed row has correct `repo_url`, `default_branch`, and `tenant_id`. Agent version seed row has correct `model_id` and `is_active = true`.                                        |
 | 5   | Default Values     | `tasks.dispatch_attempts` defaults to `0`. `tasks.status` defaults to `'Received'` when omitted from INSERT.                                                                             |
 
-| Group                  | What It Tests                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Table existence**    | All 16 app tables exist in `public` schema (excludes `_prisma_migrations`)                                         |
-| **CHECK constraints**  | Invalid status rejected, all 13 valid statuses accepted, invalid actor rejected, all 5 valid actors accepted       |
-| **UNIQUE constraints** | Duplicate `(external_id, source_system, tenant_id)` rejected; different `external_id` same `source_system` allowed |
-| **Seed data**          | Project name, repo_url, default_branch correct; agent_version model_id correct; default tenant_id is system UUID   |
-| **Default values**     | `dispatch_attempts` defaults to `0`; `status` defaults to `'Received'`                                             |
-
 Each test cleans up its own data via `afterEach` — no test leaves rows that could interfere with another.
 
 ---
@@ -399,7 +391,6 @@ flowchart TD
     subgraph Phase 1 - Complete
         DB[("ai_employee\nPostgreSQL\n16 tables")]:::storage
         SCHEMA["Prisma Schema\n+ Migrations"]:::service
-        TESTS["12 Vitest Tests\npassing"]:::service
     end
 
     subgraph Phase 2 - Next
@@ -411,8 +402,8 @@ flowchart TD
     DB -->|"reads/writes"| GW
     DB -->|"reads/writes"| ING
     DB -->|"reads"| LIB
-    SCHEMA -.->|"schema already complete"| GW
-    SCHEMA -.->|"schema already complete"| ING
+    SCHEMA -.->|"schema complete — no changes needed"| GW
+    SCHEMA -.->|"schema complete — no changes needed"| ING
 
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
