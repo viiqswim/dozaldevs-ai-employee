@@ -184,17 +184,17 @@ flowchart LR
 
 The table below is the quick-reference for what is built in the MVP versus what is designed but deferred. Each deferred capability has a `> **MVP Scope**:` callout in its section and a migration path in Section 28 (Deferred Capabilities).
 
-| Component | MVP (Building Now) | Post-MVP (Designed, Deferred) |
-|---|---|---|
-| Triage Agent | Raw Jira payload → `triage_result` column (no agent yet) | Full triage agent: ticket analysis, clarifying questions, pgvector similarity |
-| Execution Agent | Fly.io + OpenCode, single-project, full validation pipeline | Multi-project concurrency scheduling, knowledge base integration |
-| Review Agent | Deferred — human reviews PRs manually | Full review agent: risk scoring, auto-merge, Slack escalation (M4, post-MVP) |
-| Knowledge Base | SQL task history + OpenCode native codebase search | pgvector embedding pipeline for semantic ticket similarity |
-| Rate Limiting | Retry-on-429 wrappers in `callLLM()` | Centralized token bucket with backpressure and per-model quotas |
-| LLM Gateway | `callLLM()` wrapper → OpenRouter (Claude Sonnet default) | Claude Max routing, full fallback chain, per-call cost circuit breaker |
-| Agent Versioning | `agent_versions` table + forensic prompt trail | Performance profiles, A/B prompt experiments, auto-promotion |
-| Observability | Inngest Dashboard + Supabase query logs | Grafana dashboards, LangSmith tracing, custom alerting |
-| Departments | Engineering only | Paid Marketing, Finance, Sales (archetype-driven) |
+| Component        | MVP (Building Now)                                          | Post-MVP (Designed, Deferred)                                                 |
+| ---------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Triage Agent     | Raw Jira payload → `triage_result` column (no agent yet)    | Full triage agent: ticket analysis, clarifying questions, pgvector similarity |
+| Execution Agent  | Fly.io + OpenCode, single-project, full validation pipeline | Multi-project concurrency scheduling, knowledge base integration              |
+| Review Agent     | Deferred — human reviews PRs manually                       | Full review agent: risk scoring, auto-merge, Slack escalation (M4, post-MVP)  |
+| Knowledge Base   | SQL task history + OpenCode native codebase search          | pgvector embedding pipeline for semantic ticket similarity                    |
+| Rate Limiting    | Retry-on-429 wrappers in `callLLM()`                        | Centralized token bucket with backpressure and per-model quotas               |
+| LLM Gateway      | `callLLM()` wrapper → OpenRouter (Claude Sonnet default)    | Claude Max routing, full fallback chain, per-call cost circuit breaker        |
+| Agent Versioning | `agent_versions` table + forensic prompt trail              | Performance profiles, A/B prompt experiments, auto-promotion                  |
+| Observability    | Inngest Dashboard + Supabase query logs                     | Grafana dashboards, LangSmith tracing, custom alerting                        |
+| Departments      | Engineering only                                            | Paid Marketing, Finance, Sales (archetype-driven)                             |
 
 ---
 
@@ -204,20 +204,20 @@ An "archetype" is a declarative config object that describes everything a depart
 
 ### 3.1 Archetype Schema
 
-| Field | Purpose | Example (Engineering) | Example (Paid Marketing) |
-|---|---|---|---|
-| `department` | Logical grouping | `engineering` | `marketing.paid` |
-| `trigger_sources` | Webhook endpoints to monitor | Jira, GitHub | Meta Ads, GoHighLevel |
-| `triage_tools` | Tools during triage | Jira API, codebase search | Ad account API, campaign history |
-| `execution_tools` | Tools during execution | Git, file editor, test runner | Meta Ads API, analytics query |
-| `review_tools` | Tools during review | GitHub PR API, CI status | Performance dashboard, brand checker |
-| `knowledge_base` | Domain knowledge sources | pgvector embeddings, task history | Campaign playbooks, brand docs |
-| `delivery_target` | Where results go | GitHub PR | Ad platform draft |
-| `risk_model` | Approval gate configuration | File-count + critical-path score | Spend threshold + audience size |
-| `concurrency` | Max parallel tasks | 3 per project | 2 per ad account |
-| `escalation_rules` | When to involve human | DB migrations, auth changes | Budget > $500/day, new audience |
-| **`runtime`** | **Agent runtime to use** | **`opencode`** | **`inngest`** |
-| **`runtime_config`** | **Runtime-specific config** | **`{type: "fly-machine", vm_size: "performance-2x"}`** | **`{type: "inngest-function", function_id: "marketing/optimize-campaign"}`** |
+| Field                | Purpose                      | Example (Engineering)                                  | Example (Paid Marketing)                                                     |
+| -------------------- | ---------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `department`         | Logical grouping             | `engineering`                                          | `marketing.paid`                                                             |
+| `trigger_sources`    | Webhook endpoints to monitor | Jira, GitHub                                           | Meta Ads, GoHighLevel                                                        |
+| `triage_tools`       | Tools during triage          | Jira API, codebase search                              | Ad account API, campaign history                                             |
+| `execution_tools`    | Tools during execution       | Git, file editor, test runner                          | Meta Ads API, analytics query                                                |
+| `review_tools`       | Tools during review          | GitHub PR API, CI status                               | Performance dashboard, brand checker                                         |
+| `knowledge_base`     | Domain knowledge sources     | pgvector embeddings, task history                      | Campaign playbooks, brand docs                                               |
+| `delivery_target`    | Where results go             | GitHub PR                                              | Ad platform draft                                                            |
+| `risk_model`         | Approval gate configuration  | File-count + critical-path score                       | Spend threshold + audience size                                              |
+| `concurrency`        | Max parallel tasks           | 3 per project                                          | 2 per ad account                                                             |
+| `escalation_rules`   | When to involve human        | DB migrations, auth changes                            | Budget > $500/day, new audience                                              |
+| **`runtime`**        | **Agent runtime to use**     | **`opencode`**                                         | **`inngest`**                                                                |
+| **`runtime_config`** | **Runtime-specific config**  | **`{type: "fly-machine", vm_size: "performance-2x"}`** | **`{type: "inngest-function", function_id: "marketing/optimize-campaign"}`** |
 
 #### runtime_config Examples
 
@@ -307,7 +307,7 @@ The Archetype Registry is a simple in-memory map at startup. In MVP, this is a s
 
 The archetype pattern solves a real problem: every AI agent project starts with a custom orchestration layer that's tightly coupled to one domain. When you want to add a second department, you're not extending the system — you're building a second system. That's how you end up with 2 months of work instead of 2 weeks.
 
-By separating the *what* (archetype config) from the *how* (orchestration engine), the platform can onboard a new department without touching the core. The orchestrator doesn't know anything about Jira or Meta Ads — it knows about trigger sources, tool registries, and risk models. The archetype fills in the domain-specific values.
+By separating the _what_ (archetype config) from the _how_ (orchestration engine), the platform can onboard a new department without touching the core. The orchestrator doesn't know anything about Jira or Meta Ads — it knows about trigger sources, tool registries, and risk models. The archetype fills in the domain-specific values.
 
 This also makes cross-department workflows tractable. When an engineering task requires a marketing review (say, a landing page change that affects ad spend), the orchestrator can hand off between archetypes using the same task schema. Neither department's agent needs to know about the other's internals.
 
@@ -375,21 +375,21 @@ stateDiagram-v2
 
 The table below shows how each state maps to concrete actions per department. Engineering and Paid Marketing are fully specified. Finance and Sales are abbreviated — they follow the same pattern once their archetypes are built.
 
-| State | Engineering (OpenCode) | Paid Marketing (Inngest) | Finance (future) | Sales (future) |
-|---|---|---|---|---|
-| Received | Jira ticket created | Ad performance alert | Invoice received | Lead form submitted |
-| Triaging | Analyze requirements vs. codebase context | Analyze metrics vs. campaign goals | Classify expense, check budget | Qualify lead, check CRM history |
-| AwaitingInput | Questions posted to Jira, awaiting reporter | Clarification on creative brief | Missing receipt or PO number | Missing company info |
-| Executing | Write code on Fly.io machine, run tests | Inngest workflow: call Meta/Google Ads APIs | Categorize, reconcile, draft entry | Research prospect, draft outreach |
-| Validating | TypeScript → Lint → Unit → Integration → E2E | Brand compliance + budget limits check | Double-entry balance + policy check | Messaging tone + CRM completeness |
-| Reviewing | AI code review + risk score → Slack approval | Human creative approval via Slack | Manager approval over threshold | Manager approval for enterprise |
-| Delivering | PR merged via GitHub → Slack notification | Campaign draft published to Meta/Google | Journal entry posted, Slack alert | Email sequence sent via GoHighLevel |
+| State         | Engineering (OpenCode)                       | Paid Marketing (Inngest)                    | Finance (future)                    | Sales (future)                      |
+| ------------- | -------------------------------------------- | ------------------------------------------- | ----------------------------------- | ----------------------------------- |
+| Received      | Jira ticket created                          | Ad performance alert                        | Invoice received                    | Lead form submitted                 |
+| Triaging      | Analyze requirements vs. codebase context    | Analyze metrics vs. campaign goals          | Classify expense, check budget      | Qualify lead, check CRM history     |
+| AwaitingInput | Questions posted to Jira, awaiting reporter  | Clarification on creative brief             | Missing receipt or PO number        | Missing company info                |
+| Executing     | Write code on Fly.io machine, run tests      | Inngest workflow: call Meta/Google Ads APIs | Categorize, reconcile, draft entry  | Research prospect, draft outreach   |
+| Validating    | TypeScript → Lint → Unit → Integration → E2E | Brand compliance + budget limits check      | Double-entry balance + policy check | Messaging tone + CRM completeness   |
+| Reviewing     | AI code review + risk score → Slack approval | Human creative approval via Slack           | Manager approval over threshold     | Manager approval for enterprise     |
+| Delivering    | PR merged via GitHub → Slack notification    | Campaign draft published to Meta/Google     | Journal entry posted, Slack alert   | Email sequence sent via GoHighLevel |
 
 ### 4.2 Mid-Flight Task Updates
 
 **MVP approach**: Mid-flight updates to Jira tickets during execution are intentionally ignored. The current execution phase runs to completion and produces a PR.
 
-- **Ticket updated mid-execution**: The review phase reads the latest Jira ticket state. If the update changes acceptance criteria, the review agent flags the discrepancy in its PR comment before auto-merging or escalating. *(Post-MVP: in MVP, this discrepancy is noted in the PR description for the developer's review.)*
+- **Ticket updated mid-execution**: The review phase reads the latest Jira ticket state. If the update changes acceptance criteria, the review agent flags the discrepancy in its PR comment before auto-merging or escalating. _(Post-MVP: in MVP, this discrepancy is noted in the PR description for the developer's review.)_
 - **Ticket cancelled mid-execution**: When a cancellation is detected (a Jira `issue_deleted` or status-change-to-Cancelled webhook arrives), the Event Gateway writes `Cancelled` to the task's Supabase record. The running Fly.io machine is **not aborted** — it finishes its current work. The review phase checks task status before proceeding; if `Cancelled`, the PR is closed without merging and the ticket is updated accordingly.
 - **Entering the Cancelled state**: Any phase (triage, execution, review) checks `tasks.status` before beginning. Finding `Cancelled` terminates the lifecycle function gracefully.
 
@@ -645,7 +645,7 @@ The original design specified custom conflict detection at the orchestrator leve
 >
 > 1. **Task receipt tracking** (primary reason): Writing `Received` status to Supabase before enqueueing creates an idempotency record. If Inngest loses the event or the worker crashes, you know the event arrived and can reconcile. Without the Gateway, the first record of a webhook would be Inngest's internal state — which is ephemeral.
 > 2. **Vendor-independent webhook URLs**: External services (Jira, GitHub) are configured to send webhooks to your Gateway URL, not to Inngest's URL. Changing orchestration providers in the future doesn't require reconfiguring every external integration.
- > 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
+> 3. **Signature verification**: While this CAN be done in Inngest function code, centralizing it in the Gateway simplifies the function code and avoids signing secrets being passed to Inngest's infrastructure.
 > 4. **Inngest failure recovery** (SPOF mitigation): The Event Gateway writes the full normalized webhook payload to `tasks.raw_event` (JSONB) before sending to Inngest. If Inngest loses the event or has an outage, the full payload is recoverable from Supabase. A CLI script (`dispatch-task.ts`) can re-read tasks in `Received` state and re-send events to Inngest for manual recovery — no data is lost.
 > 5. **Dual-purpose Inngest function hosting**: The Event Gateway Fastify application serves dual duty: it is simultaneously (1) the webhook receiver for all external integrations (Jira, GitHub, Slack) and (2) the Inngest function host — all engineering lifecycle functions execute as steps within this Fastify app's process. Inngest Cloud orchestrates their execution via HTTP requests to the app's `/api/inngest` endpoint. This is the standard Inngest hosting model: you provide the compute (Fly.io), Inngest provides the durable orchestration layer.
 
@@ -721,7 +721,7 @@ graph LR
 4. **Trigger orchestrator** — Inngest triggers the Inngest lifecycle function, which reads task state from Supabase and decides which agent phase to run.
 5. **Launch triage session** — The Inngest lifecycle function invokes the Triage Agent as a stateless LLM call via OpenRouter, injecting the task context and Jira API access.
 6. **Launch execution session** — The orchestrator dispatches the task to the Execution Agent once triage marks it `Ready`, triggering Fly.io machine provisioning.
-7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access. *(Post-MVP: in MVP, the developer reviews PRs manually after the execution agent creates them.)*
+7. **Launch review session** — The Inngest lifecycle function provisions a Fly.io machine and launches the Review Agent as an OpenCode session, injecting the PR diff and GitHub API access. _(Post-MVP: in MVP, the developer reviews PRs manually after the execution agent creates them.)_
 8. **Query KB and write context** — The Triage Agent queries task history in Supabase (SQL) to build a structured context object, then writes the result back to Supabase.
 9. **Post clarifying questions** — The Triage Agent uses the Jira REST API to post specific, actionable questions as comments tagged to the ticket reporter.
 10. **Provision machine** — The Execution Agent calls `dispatch.sh` to launch a `performance-2x` Fly.io machine with the pre-built Docker image containing the repo and all tooling.
@@ -744,12 +744,12 @@ A few things worth noting in this diagram:
 
 The Event Gateway determines its action by matching the `webhookEvent` field in the Jira payload. Unknown event types are logged and ignored.
 
-| Jira Event | MVP Action | Post-MVP Action |
-|---|---|---|
-| `jira:issue_created` | Create task record in Supabase (`Ready` status), send `engineering/task.received` event to Inngest | Same + trigger triage agent enrichment of `triage_result` |
-| `jira:issue_updated` | Ignore (per Section 4.2 — updates during execution are not processed) | Update `triage_result` if task is pre-execution state |
-| `jira:issue_deleted` / status changed to Cancelled | Set task status to `Cancelled` in Supabase, send cancellation event to Inngest to halt in-flight lifecycle | Same |
-| `jira:comment_created` | Ignore | Resume `AwaitingInput` tasks — send `engineering/clarification.received` event to Inngest |
+| Jira Event                                         | MVP Action                                                                                                 | Post-MVP Action                                                                           |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `jira:issue_created`                               | Create task record in Supabase (`Ready` status), send `engineering/task.received` event to Inngest         | Same + trigger triage agent enrichment of `triage_result`                                 |
+| `jira:issue_updated`                               | Ignore (per Section 4.2 — updates during execution are not processed)                                      | Update `triage_result` if task is pre-execution state                                     |
+| `jira:issue_deleted` / status changed to Cancelled | Set task status to `Cancelled` in Supabase, send cancellation event to Inngest to halt in-flight lifecycle | Same                                                                                      |
+| `jira:comment_created`                             | Ignore                                                                                                     | Resume `AwaitingInput` tasks — send `engineering/clarification.received` event to Inngest |
 
 ### Error Handling Contract
 
@@ -757,13 +757,13 @@ The Event Gateway applies a layered validation chain: signature verification →
 
 Payload validation uses Zod schemas applied after signature verification and before Supabase write. Required fields for Jira webhooks: `webhookEvent`, `issue.id`, `issue.key`, `issue.fields.summary`, `issue.fields.project.key`. Required fields for GitHub PR webhooks: `action`, `pull_request.number`, `repository.full_name`. Any missing required field returns 400 and logs the payload shape for debugging.
 
-| Failure Mode | HTTP Response | Behavior |
-|---|---|---|
-| Webhook signature verification fails | `return 401` | Log attempt, don't create task record |
-| Payload validation fails (Zod — missing required fields) | `return 400` | Log payload shape, don't create task record |
-| Supabase write fails | `return 500` | Let Jira/GitHub retry the webhook delivery |
-| Inngest send fails after 3 retries | `return 202` | Task is in Supabase with `raw_event`; manual recovery via `dispatch-task.ts` CLI |
-| `tasks(external_id, source_system, tenant_id)` UNIQUE violation | `return 200` idempotent | Task already exists, treat as success |
+| Failure Mode                                                    | HTTP Response           | Behavior                                                                         |
+| --------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| Webhook signature verification fails                            | `return 401`            | Log attempt, don't create task record                                            |
+| Payload validation fails (Zod — missing required fields)        | `return 400`            | Log payload shape, don't create task record                                      |
+| Supabase write fails                                            | `return 500`            | Let Jira/GitHub retry the webhook delivery                                       |
+| Inngest send fails after 3 retries                              | `return 202`            | Task is in Supabase with `raw_event`; manual recovery via `dispatch-task.ts` CLI |
+| `tasks(external_id, source_system, tenant_id)` UNIQUE violation | `return 200` idempotent | Task already exists, treat as success                                            |
 
 The 202 response on Inngest failure (rather than 500) is intentional: it prevents Jira/GitHub from retrying the webhook, which would create a second `Received` task record. Recovery is via the `dispatch-task.ts` CLI, which reads `Received`-state tasks and re-sends them to Inngest.
 
@@ -814,8 +814,8 @@ flowchart TD
 3. **Query task history** — The Triage Agent queries the Supabase `tasks` table (SQL `WHERE` on project, labels, keywords) for similar past tickets. Uses OpenCode's native codebase search (file search, LSP, grep, AST tools) for code context — no vector similarity in V1.
 4. **Return relevant context** — Supabase returns matching historical task records. OpenCode's search tools provide code context without reading the entire repo.
 5. **Evaluate requirements** — The LLM call via OpenRouter analyzes the structured requirements against the retrieved context to determine whether the ticket is clear enough to execute.
-6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
-6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
+   6a. **Yes** — Requirements are unambiguous; the agent writes the structured task context to Supabase and marks the ticket `Ready` for execution.
+   6b. **No** — Requirements are ambiguous, contradictory, or incomplete; the agent generates specific questions to resolve the gaps.
 6. **Send execution event** — The Triage Agent signals the Inngest Lifecycle Functions that the task is `Ready`, and the Inngest Lifecycle Functions sends an execution event to Inngest.
 7. **Await new webhook** — The questions are posted as a Jira comment; the task moves to `AwaitingInput` and the triage loop waits for a new comment webhook to re-trigger (dashed = async loop-back).
 
@@ -884,18 +884,18 @@ flowchart TD
 3. **Boot complete** — The Fly.io machine runs `entrypoint.sh`: writes auth tokens, shallow-clones the repo, installs dependencies from the volume-cached pnpm store, starts Docker daemon and local Supabase (~80s warm).
 4. **Plan generated** — `orchestrate.mjs` wave 1 runs an OpenCode session to generate a structured implementation plan, identifying which files to change and in what order.
 5. **Code written** — The OpenCode session writes all code changes across the identified files, then moves to the first validation gate.
-6a. **TS Fail** — The TypeScript compiler reports errors; the Execution Agent sends the failing output to the Diagnose + Fix step.
-6b. **TS Pass** — TypeScript compiles cleanly; the pipeline advances to the Lint check.
-7a. **Lint Fail** — The linter reports violations; the Execution Agent sends the failing output to the Diagnose + Fix step.
-7b. **Lint Pass** — Lint passes cleanly; the pipeline advances to Unit Tests.
-8a. **Unit Fail** — Unit tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
-8b. **Unit Pass** — Unit tests pass; the pipeline advances to Integration Tests.
-9a. **Integration Fail** — Integration tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
-9b. **Integration Pass** — Integration tests pass; the pipeline advances to E2E Tests.
-10a. **E2E Fail** — End-to-end tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
-10b. **E2E Pass** — All tests pass; the Execution Agent uses the GitHub CLI to submit a Pull Request from the task branch.
-11. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed, running all subsequent stages from that point forward.
-12. **Escalate (iterations exhausted)** — When the per-stage iteration limit (3) or global cap (10 total) is reached, the agent posts the failing stage, full error output, and attempted diff to Slack and moves the task to `AwaitingInput`.
+   6a. **TS Fail** — The TypeScript compiler reports errors; the Execution Agent sends the failing output to the Diagnose + Fix step.
+   6b. **TS Pass** — TypeScript compiles cleanly; the pipeline advances to the Lint check.
+   7a. **Lint Fail** — The linter reports violations; the Execution Agent sends the failing output to the Diagnose + Fix step.
+   7b. **Lint Pass** — Lint passes cleanly; the pipeline advances to Unit Tests.
+   8a. **Unit Fail** — Unit tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+   8b. **Unit Pass** — Unit tests pass; the pipeline advances to Integration Tests.
+   9a. **Integration Fail** — Integration tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+   9b. **Integration Pass** — Integration tests pass; the pipeline advances to E2E Tests.
+   10a. **E2E Fail** — End-to-end tests fail; the Execution Agent sends the failing test output to the Diagnose + Fix step.
+   10b. **E2E Pass** — All tests pass; the Execution Agent uses the GitHub CLI to submit a Pull Request from the task branch.
+6. **Re-enter at failing stage** — The Diagnose + Fix step generates targeted fixes and re-enters the pipeline at the specific stage that failed, running all subsequent stages from that point forward.
+7. **Escalate (iterations exhausted)** — When the per-stage iteration limit (3) or global cap (10 total) is reached, the agent posts the failing stage, full error output, and attempted diff to Slack and moves the task to `AwaitingInput`.
 
 **Provisioning strategy**: `dispatch.sh` launches a `performance-2x` Fly.io machine (4GB RAM). Pre-built Docker images include the full repo, installed `node_modules`, and all tooling. The target warm boot is under 80 seconds, achieved through the `entrypoint.sh` boot lifecycle: write auth tokens, shallow clone the repo (`--depth=2`), checkout or create the branch, install dependencies against the volume-cached pnpm store, start the Docker daemon, start local Supabase, extract credentials, apply schema, configure OpenCode, then dispatch the task. Parallelized setup steps keep the total well under the target.
 
@@ -931,6 +931,7 @@ This pattern is already implemented in the nexus-stack `entrypoint.sh` (verified
 The AI Employee Platform generalizes this pattern: Inngest lifecycle functions replace the local `dispatch.sh` command, but the on-machine execution flow (`entrypoint.sh` → OpenCode serve → SDK orchestrator → session → completion event) remains the same.
 
 **Task Context Injection**: The Inngest lifecycle function passes task context to the Fly.io machine via environment variables at machine creation time. The `fly machine run` call injects:
+
 - `TASK_ID` — UUID of the task record in Supabase
 - `REPO_URL` — The project's GitHub repository URL (from the PROJECT record)
 - `REPO_BRANCH` — The base branch to clone from (default: `main`)
@@ -1107,36 +1108,34 @@ The pseudo-code below shows the actual Inngest function structure for the M1+M3 
 // Total timeout budget: 6 hours across all re-dispatch attempts (max 3)
 export const engineeringTaskLifecycle = inngest.createFunction(
   {
-    id: "engineering/task-lifecycle",
-    concurrency: [{ limit: 3, key: "event.data.projectId", scope: "fn" }],
+    id: 'engineering/task-lifecycle',
+    concurrency: [{ limit: 3, key: 'event.data.projectId', scope: 'fn' }],
   },
-  { event: "engineering/task.received" },
+  { event: 'engineering/task.received' },
   async ({ event, step }) => {
     const taskId = event.data.taskId;
 
     // Step 1: Update task status to Executing (optimistic locking — see §13)
-    await step.run("update-status-executing", async () => {
-      const { data } = await supabase.from("tasks")
-        .update({ status: "Executing" })
-        .eq("id", taskId)
-        .eq("status", "Ready")  // Optimistic lock: only update if still Ready
-        .select("id")
+    await step.run('update-status-executing', async () => {
+      const { data } = await supabase
+        .from('tasks')
+        .update({ status: 'Executing' })
+        .eq('id', taskId)
+        .eq('status', 'Ready') // Optimistic lock: only update if still Ready
+        .select('id')
         .single();
       if (!data) throw new Error(`Task ${taskId} status changed by concurrent writer`);
     });
 
     // Step 1.5: Check for cancellation before provisioning (§4.2 guarantee)
-    const isCancelled = await step.run("check-cancellation", async () => {
-      const { data } = await supabase.from("tasks")
-        .select("status")
-        .eq("id", taskId)
-        .single();
-      return data?.status === "Cancelled";
+    const isCancelled = await step.run('check-cancellation', async () => {
+      const { data } = await supabase.from('tasks').select('status').eq('id', taskId).single();
+      return data?.status === 'Cancelled';
     });
     if (isCancelled) return; // Task cancelled — skip machine dispatch
 
     // Step 2: Dispatch Fly.io machine with task context via env vars
-    const machine = await step.run("dispatch-fly-machine", async () => {
+    const machine = await step.run('dispatch-fly-machine', async () => {
       return await flyApi.createMachine({
         config: {
           env: {
@@ -1144,7 +1143,7 @@ export const engineeringTaskLifecycle = inngest.createFunction(
             REPO_URL: event.data.repoUrl,
             REPO_BRANCH: event.data.repoBranch,
           },
-          image: "registry.fly.io/ai-employee-workers:latest",
+          image: 'registry.fly.io/ai-employee-workers:latest',
         },
       });
     });
@@ -1158,56 +1157,64 @@ export const engineeringTaskLifecycle = inngest.createFunction(
     // Machine writes final status + PR URL to Supabase BEFORE sending this event (SPOF mitigation).
     // Watchdog cron (Layer 3) detects dead machines and marks the task Failed in Supabase.
     // The 4h10m timeout below then fires and invokes the re-dispatch flow (not a separate event listener).
-    const result = await step.waitForEvent("wait-for-completion", {
-      event: "engineering/task.completed",
-      timeout: "4h10m",  // 4h machine timeout + 10m buffer to prevent timeout race condition
+    const result = await step.waitForEvent('wait-for-completion', {
+      event: 'engineering/task.completed',
+      timeout: '4h10m', // 4h machine timeout + 10m buffer to prevent timeout race condition
       if: `async.data.taskId == '${taskId}'`,
     });
 
     // Step 4: Handle completion, timeout, or failure
-    await step.run("finalize", async () => {
+    await step.run('finalize', async () => {
       if (!result) {
         // Cleanup: attempt to destroy the timed-out machine (self-destruct may have failed)
         await flyApi.destroyMachine(machine.id).catch(() => {});
         // Timeout: check Supabase for partial progress before giving up
-        const { data: task } = await supabase.from("tasks")
-          .select("dispatch_attempts, status")
-          .eq("id", taskId)
+        const { data: task } = await supabase
+          .from('tasks')
+          .select('dispatch_attempts, status')
+          .eq('id', taskId)
           .single();
 
         const attempts = task?.dispatch_attempts ?? 0;
 
         if (attempts < 3) {
           // Partial progress may exist — auto re-dispatch
-          await supabase.from("tasks")
-            .update({ dispatch_attempts: attempts + 1, status: "Ready" })
-            .eq("id", taskId);
+          await supabase
+            .from('tasks')
+            .update({ dispatch_attempts: attempts + 1, status: 'Ready' })
+            .eq('id', taskId);
           // Emit re-dispatch event — handled by a separate Inngest function
           await inngest.send({
-            name: "engineering/task.redispatch",
-            data: { taskId, attempt: attempts + 1, reason: "timeout" },
+            name: 'engineering/task.redispatch',
+            data: { taskId, attempt: attempts + 1, reason: 'timeout' },
           });
         } else {
           // Max attempts exhausted — escalate to Slack
-          await supabase.from("tasks")
-            .update({ status: "AwaitingInput", failure_reason: `Exhausted ${attempts} re-dispatch attempts` })
-            .eq("id", taskId);
+          await supabase
+            .from('tasks')
+            .update({
+              status: 'AwaitingInput',
+              failure_reason: `Exhausted ${attempts} re-dispatch attempts`,
+            })
+            .eq('id', taskId);
           await slackClient.postMessage(
             // [TODO: define Slack message format during implementation]
-            `Task ${taskId} failed after ${attempts} attempts. Manual intervention required.`
+            `Task ${taskId} failed after ${attempts} attempts. Manual intervention required.`,
           );
         }
       } else {
         // Success: read final status from Supabase (machine wrote it before sending event)
-        const { data: task } = await supabase.from("tasks")
-          .select("status")
-          .eq("id", taskId)
+        const { data: task } = await supabase
+          .from('tasks')
+          .select('status')
+          .eq('id', taskId)
           .single();
         // Status already written by machine — just confirm
-        if (task?.status !== "Done") {
-          await supabase.from("tasks")
-            .update({ status: result.data.status ?? "Done" })
-            .eq("id", taskId);
+        if (task?.status !== 'Done') {
+          await supabase
+            .from('tasks')
+            .update({ status: result.data.status ?? 'Done' })
+            .eq('id', taskId);
         }
         // Backup machine cleanup: machine self-destructs first; this is the fallback
         await flyApi.destroyMachine(machine.id).catch(() => {
@@ -1215,24 +1222,24 @@ export const engineeringTaskLifecycle = inngest.createFunction(
         });
       }
     });
-  }
+  },
 );
 
 // Re-dispatch handler: spawns a new machine to continue from the existing branch
 export const engineeringTaskRedispatch = inngest.createFunction(
-  { id: "engineering/task-redispatch" },
-  { event: "engineering/task.redispatch" },
+  { id: 'engineering/task-redispatch' },
+  { event: 'engineering/task.redispatch' },
   async ({ event, step }) => {
     const { taskId, attempt } = event.data;
     // Total 6-hour budget check: if cumulative time exceeds 6h, escalate instead
     // [TODO: implement elapsed time check using task.created_at during implementation]
 
     // Trigger a new lifecycle function instance for this attempt
-    await step.sendEvent("restart-lifecycle", {
-      name: "engineering/task.received",
+    await step.sendEvent('restart-lifecycle', {
+      name: 'engineering/task.received',
       data: { taskId, attempt, repoUrl: event.data.repoUrl, repoBranch: event.data.repoBranch },
     });
-  }
+  },
 );
 ```
 
@@ -1475,12 +1482,12 @@ graph LR
 
 ### Per-Department Content
 
-| Layer | Engineering | Paid Marketing | Finance (future) | Sales (future) |
-|---|---|---|---|---|
-| Vector Embeddings (L1) | Code chunks, docstrings, README | Campaign playbooks, brand guides | Chart of accounts, expense policies | Sales playbook, email templates |
-| Task History (L2) | Past tickets, PRs, resolutions | Past campaign optimizations, ROAS data | Past categorizations, reconciliations | Past deals, outreach sequences |
-| Structural Index (L3, deferred) | Tree-sitter AST dependency graph | Campaign hierarchy structure | — | — |
-| Living Docs (L4, deferred) | ADRs, API specs, style guides | Brand guidelines, platform policies | Tax rules, approval hierarchies | ICP definitions, pricing matrix |
+| Layer                           | Engineering                      | Paid Marketing                         | Finance (future)                      | Sales (future)                  |
+| ------------------------------- | -------------------------------- | -------------------------------------- | ------------------------------------- | ------------------------------- |
+| Vector Embeddings (L1)          | Code chunks, docstrings, README  | Campaign playbooks, brand guides       | Chart of accounts, expense policies   | Sales playbook, email templates |
+| Task History (L2)               | Past tickets, PRs, resolutions   | Past campaign optimizations, ROAS data | Past categorizations, reconciliations | Past deals, outreach sequences  |
+| Structural Index (L3, deferred) | Tree-sitter AST dependency graph | Campaign hierarchy structure           | —                                     | —                               |
+| Living Docs (L4, deferred)      | ADRs, API specs, style guides    | Brand guidelines, platform policies    | Tax rules, approval hierarchies       | ICP definitions, pricing matrix |
 
 ### Migration Path
 
@@ -1823,10 +1830,10 @@ Using a consistent schema enables cross-component debugging: `grep taskId=<uuid>
 
 ### Runtime Selection
 
-| Runtime Type | Use When | Departments | Cost Profile |
-|---|---|---|---|
-| **Fly.io Machine** | Full OS isolation, long-running processes, filesystem access | Engineering | ~$0.05-$0.15/task |
-| **Event Gateway Worker** | Simple API calls, notifications, webhooks | Cross-platform routing | Negligible |
+| Runtime Type             | Use When                                                     | Departments            | Cost Profile      |
+| ------------------------ | ------------------------------------------------------------ | ---------------------- | ----------------- |
+| **Fly.io Machine**       | Full OS isolation, long-running processes, filesystem access | Engineering            | ~$0.05-$0.15/task |
+| **Event Gateway Worker** | Simple API calls, notifications, webhooks                    | Cross-platform routing | Negligible        |
 
 The tiered approach keeps costs in check. Running 20 engineering tickets/day on Fly.io machines costs ~$10-$40/day. Running 50 marketing optimization tasks in-process costs less than $3/day. The architecture supports both without structural changes. The archetype's `runtime_config` determines which tier gets provisioned at execution time.
 
@@ -1834,21 +1841,21 @@ The tiered approach keeps costs in check. Running 20 engineering tickets/day on 
 
 These limits apply to all Inngest lifecycle functions in the platform. Architect around them from the start.
 
-| Limit | Value | Platform Impact |
-|---|---|---|
-| Max step payload | 4 MB | Pass PR URLs and task IDs through steps, not full payloads (PR diffs, file contents) |
-| Max function state | 32 MB | Total state across all steps + event data; monitor for large triage contexts |
-| Max steps per function | 1,000 | Task lifecycle uses ~10–15 steps — no concern. Avoid unbounded loops. |
-| Max event payload | 256 KB (free) / 3 MB (pro) | Jira webhook payloads are 5–50 KB; GitHub PR webhooks are 10–100 KB — no concern at MVP |
+| Limit                     | Value                        | Platform Impact                                                                          |
+| ------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
+| Max step payload          | 4 MB                         | Pass PR URLs and task IDs through steps, not full payloads (PR diffs, file contents)     |
+| Max function state        | 32 MB                        | Total state across all steps + event data; monitor for large triage contexts             |
+| Max steps per function    | 1,000                        | Task lifecycle uses ~10–15 steps — no concern. Avoid unbounded loops.                    |
+| Max event payload         | 256 KB (free) / 3 MB (pro)   | Jira webhook payloads are 5–50 KB; GitHub PR webhooks are 10–100 KB — no concern at MVP  |
 | Max sleep / wait duration | 7 days (free) / 1 year (pro) | Human approval waits (7d) require free tier minimum; use `step.waitForEvent()` correctly |
 
 **Free Tier Capacity** (relevant for MVP volume planning):
 
-| Limit | Free Tier | Pro ($75/mo) | MVP Usage |
-|---|---|---|---|
-| Function executions/month | 50,000 | 1M+ | ~9,000/mo at 20 tasks/day × 15 steps |
-| Concurrent steps | 5 | 100+ | ⚠️ Bottleneck if >3 lifecycle functions run simultaneously |
-| Trace retention | 24 hours | 7 days | Upgrade to Pro for debugging beyond 24h |
+| Limit                     | Free Tier | Pro ($75/mo) | MVP Usage                                                  |
+| ------------------------- | --------- | ------------ | ---------------------------------------------------------- |
+| Function executions/month | 50,000    | 1M+          | ~9,000/mo at 20 tasks/day × 15 steps                       |
+| Concurrent steps          | 5         | 100+         | ⚠️ Bottleneck if >3 lifecycle functions run simultaneously |
+| Trace retention           | 24 hours  | 7 days       | Upgrade to Pro for debugging beyond 24h                    |
 
 > **Upgrade trigger**: Upgrade to Pro ($75/mo) when concurrent task volume regularly exceeds 3 simultaneous lifecycle functions. The 5-step concurrent limit, not the execution count, is the binding constraint at MVP scale.
 
@@ -1883,15 +1890,15 @@ This mirrors the approach proven in the nexus-stack (`tools/fly-worker/entrypoin
 
 The table below covers every component in the stack. The "Alternative" column shows what was considered and why it wasn't chosen — or what to migrate to if the recommended choice stops working.
 
-| Component | Recommended | Why | Alternative |
-|---|---|---|---|
-| **Platform Layer** | Fastify (TypeScript) | Fast, lightweight, OpenAPI plugin, type safety | Express |
-| **Eng Agent Runtime** | OpenCode (`opencode serve` + `@opencode-ai/sdk`) | Purpose-built for AI coding workflows. Proven in nexus-stack. Handles file editing, git, tests, LSP. | — |
-| **Non-Eng Agent Runtime** | Inngest | Durable execution with step-level checkpointing, event-driven state, human-in-the-loop pauses | Trigger.dev |
-| **Orchestration (Eng)** | Inngest step functions (evolved from `orchestrate.mjs` pattern) | Durable workflow execution with step-level checkpointing, concurrency control, and crash recovery. Not a separate service — the orchestrator IS these Inngest functions. | — |
-| **Orchestration (Non-Eng)** | Inngest workflows | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra | Trigger.dev |
-| **Job Queue** | Inngest | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate | SQS |
-| **Database + Vectors** | Supabase (PostgreSQL + pgvector) | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack | Neon |
+| Component                   | Recommended                                                     | Why                                                                                                                                                                      | Alternative |
+| --------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| **Platform Layer**          | Fastify (TypeScript)                                            | Fast, lightweight, OpenAPI plugin, type safety                                                                                                                           | Express     |
+| **Eng Agent Runtime**       | OpenCode (`opencode serve` + `@opencode-ai/sdk`)                | Purpose-built for AI coding workflows. Proven in nexus-stack. Handles file editing, git, tests, LSP.                                                                     | —           |
+| **Non-Eng Agent Runtime**   | Inngest                                                         | Durable execution with step-level checkpointing, event-driven state, human-in-the-loop pauses                                                                            | Trigger.dev |
+| **Orchestration (Eng)**     | Inngest step functions (evolved from `orchestrate.mjs` pattern) | Durable workflow execution with step-level checkpointing, concurrency control, and crash recovery. Not a separate service — the orchestrator IS these Inngest functions. | —           |
+| **Orchestration (Non-Eng)** | Inngest workflows                                               | Built-in step checkpointing; crash-safe; human interrupts; no self-hosted infra                                                                                          | Trigger.dev |
+| **Job Queue**               | Inngest                                                         | Managed event queue + workflow runner in one; per-function concurrency; no Redis to operate                                                                              | SQS         |
+| **Database + Vectors**      | Supabase (PostgreSQL + pgvector)                                | MCP server, AI toolkit, Edge Functions, Auth, already in nexus-stack                                                                                                     | Neon        |
 
 > **Optimization opportunity**: Inngest Connect establishes a persistent outbound connection from the Event Gateway to Inngest, reducing inter-step latency from ~120ms to <5ms. Since the Event Gateway runs on Fly.io (always-on), this is directly applicable. Consider enabling after MVP is stable.
 
@@ -1943,14 +1950,14 @@ This roadmap assumes one developer. Milestones are sequential — do not begin a
 
 **MVP = M1 + M3.** The initial launch targets platform foundation and the execution agent only. The triage agent (M2) and review agent (M4) are post-MVP. PRs are reviewed manually by the developer in MVP. M4 is explicitly post-MVP and will be built once execution agent output quality is proven and manual review becomes a bottleneck.
 
-| Milestone | Focus | Weeks | Gate |
-|---|---|---|---|
-| M1 *(MVP)* | Platform Foundation | 1-3 | Inngest processing events end-to-end |
-| M2 *(post-MVP)* | Engineering Triage Agent | 4-6 | Agent posting accurate questions on real Jira tickets |
-| M3 *(MVP)* | Engineering Execution Agent | 7-10 | Agent creating compilable PRs for simple tickets |
-| M4 *(post-MVP)* | Engineering Review Agent | 11-13 | Auto-merge working for low-risk PRs |
-| M5 | Engineering Multi-Project | 14-15 | 2-3 projects onboarded with per-project isolation |
-| M6 | Paid Marketing Department | 16-20 | Inngest campaign optimization running on real ad accounts |
+| Milestone       | Focus                       | Weeks | Gate                                                      |
+| --------------- | --------------------------- | ----- | --------------------------------------------------------- |
+| M1 _(MVP)_      | Platform Foundation         | 1-3   | Inngest processing events end-to-end                      |
+| M2 _(post-MVP)_ | Engineering Triage Agent    | 4-6   | Agent posting accurate questions on real Jira tickets     |
+| M3 _(MVP)_      | Engineering Execution Agent | 7-10  | Agent creating compilable PRs for simple tickets          |
+| M4 _(post-MVP)_ | Engineering Review Agent    | 11-13 | Auto-merge working for low-risk PRs                       |
+| M5              | Engineering Multi-Project   | 14-15 | 2-3 projects onboarded with per-project isolation         |
+| M6              | Paid Marketing Department   | 16-20 | Inngest campaign optimization running on real ad accounts |
 
 ### M1 — Platform Foundation (Weeks 1-3)
 
@@ -1975,7 +1982,7 @@ The first agent. Triage is the right starting point because it's read-only — t
 
 **Gate**: Agent posts accurate, specific clarifying questions on real Jira tickets. Human reviewer agrees the questions are relevant at least 75% of the time.
 
-### M3 — Engineering Execution Agent (Weeks 7-10) *(MVP milestone)*
+### M3 — Engineering Execution Agent (Weeks 7-10) _(MVP milestone)_
 
 The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop, and the OpenCode session management all come together. M3 completes the MVP: with M1 + M3 live, the platform receives Jira tickets, implements them, and creates PRs — the developer reviews PRs manually. The review agent (M4) is built after M3's quality is proven in production.
 
@@ -1986,7 +1993,7 @@ The hardest milestone. This is where the Fly.io machine lifecycle, the fix loop,
 
 **Gate**: Agent creates compilable PRs for simple, well-scoped tickets. Human reviewer can approve without requesting changes at least 60% of the time.
 
-### M4 — Engineering Review Agent (Weeks 11-13) *(post-MVP)*
+### M4 — Engineering Review Agent (Weeks 11-13) _(post-MVP)_
 
 Closes the loop. The review agent is what makes autonomous operation possible — without it, every PR needs a human. This milestone is explicitly post-MVP: it begins only after M3 is stable in production and manual PR review has become the primary bottleneck.
 
@@ -2041,23 +2048,23 @@ All pricing is approximate and based on current service rates at time of writing
 
 These costs are constant regardless of task volume.
 
-| Service | Plan | Cost/Month |
-|---|---|---|
-| Supabase | Pro | ~$25 |
-| Inngest | Pay-as-you-go | ~$0-25 |
-| Fly.io (persistent services) | 2-3 always-on apps | ~$15-30 |
-| **Total fixed** | | **~$40-80/month** |
+| Service                      | Plan               | Cost/Month        |
+| ---------------------------- | ------------------ | ----------------- |
+| Supabase                     | Pro                | ~$25              |
+| Inngest                      | Pay-as-you-go      | ~$0-25            |
+| Fly.io (persistent services) | 2-3 always-on apps | ~$15-30           |
+| **Total fixed**              |                    | **~$40-80/month** |
 
 ### Variable Costs — Engineering Tasks
 
 Each engineering task incurs LLM costs and Fly.io machine time. The range reflects ticket complexity.
 
-| Component | Cost Range | Notes |
-|---|---|---|
-| Triage LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.15 | Depends on ticket complexity |
-| Execution LLM (Claude Opus via OpenRouter) | ~$0.50-$3.00 | Depends on code complexity |
-| Fly.io machine (`performance-2x`, execution) | ~$0.05-$0.15 | ~30-90 min per task |
-| **Total per engineering task** | **~$0.60-$3.30** | Without Claude Max |
+| Component                                    | Cost Range       | Notes                        |
+| -------------------------------------------- | ---------------- | ---------------------------- |
+| Triage LLM (Claude Sonnet via OpenRouter)    | ~$0.05-$0.15     | Depends on ticket complexity |
+| Execution LLM (Claude Opus via OpenRouter)   | ~$0.50-$3.00     | Depends on code complexity   |
+| Fly.io machine (`performance-2x`, execution) | ~$0.05-$0.15     | ~30-90 min per task          |
+| **Total per engineering task**               | **~$0.60-$3.30** | Without Claude Max           |
 
 > **MVP note**: Triage is deferred in MVP. MVP per-task cost is ~$0.55–$3.15 (execution + compute only). The triage line item applies when the triage agent is added in M2.
 
@@ -2071,19 +2078,19 @@ Claude Max 20x reduces LLM costs to near zero for Claude models when under rate 
 
 Marketing tasks run in-process (no Fly.io machine), so costs are almost entirely LLM inference.
 
-| Component | Cost Range |
-|---|---|
-| Marketing workflow LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.20 |
-| In-process compute | ~$0.01-$0.03 |
-| **Total per marketing task** | **~$0.06-$0.23** |
+| Component                                             | Cost Range       |
+| ----------------------------------------------------- | ---------------- |
+| Marketing workflow LLM (Claude Sonnet via OpenRouter) | ~$0.05-$0.20     |
+| In-process compute                                    | ~$0.01-$0.03     |
+| **Total per marketing task**                          | **~$0.06-$0.23** |
 
 ### Monthly Projection at Steady State
 
-| Scenario | Volume | Monthly Variable Cost |
-|---|---|---|
-| Engineering only (without Claude Max) | 20 tasks/day | ~$990-$4,530 |
-| Engineering only (with Claude Max) | 20 tasks/day | ~$600-$2,400 |
-| Engineering + Marketing | 20 eng + 30 mkt/day | ~$1,044-$4,737 |
+| Scenario                              | Volume              | Monthly Variable Cost |
+| ------------------------------------- | ------------------- | --------------------- |
+| Engineering only (without Claude Max) | 20 tasks/day        | ~$990-$4,530          |
+| Engineering only (with Claude Max)    | 20 tasks/day        | ~$600-$2,400          |
+| Engineering + Marketing               | 20 eng + 30 mkt/day | ~$1,044-$4,737        |
 
 These projections don't include fixed infrastructure costs (~$40-80/month).
 
@@ -2099,37 +2106,37 @@ The platform accelerates a solo developer's output by 3-5x — it doesn't replac
 
 These risks apply across all departments.
 
-| Risk | Mitigation |
-|---|---|
-| Claude Max subscription ToS (automated usage) | Always maintain OpenRouter as fallback. Monitor Anthropic policy updates. Never architect the system to depend on Max being available. |
+| Risk                                                                 | Mitigation                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Max subscription ToS (automated usage)                        | Always maintain OpenRouter as fallback. Monitor Anthropic policy updates. Never architect the system to depend on Max being available.                                                                                                      |
 | Cross-language deployment complexity (when dual-language is enabled) | V1 is TypeScript-only — this risk activates when Python workers are added (see Section 28). Mitigation at that point: separate Dockerfiles per language, clear API contract via Inngest HTTP, documented local dev setup for both runtimes. |
-| Solo developer unavailability | Alert fatigue is real. Tune escalation thresholds so non-critical tasks wait in queue rather than spam Slack. |
-| LLM provider outage | LLM Gateway fallback chain: Claude (Max) → Claude (OpenRouter) → GPT-4o → GPT-4o-mini. |
-| Cost runaway | Primary: cost circuit breaker in Section 22 (daily spend cap + Slack alert). Secondary: per-department concurrency limits cap parallelism but not per-call cost. |
-| Knowledge base staleness | Per-project reindex on every merge to `main`; nightly full reindex for external content; drift detection via embedding distance score. |
-| Unauthorized autonomous actions | Risk-model-driven gates per department; full audit trail in Supabase `audit_log` table. |
+| Solo developer unavailability                                        | Alert fatigue is real. Tune escalation thresholds so non-critical tasks wait in queue rather than spam Slack.                                                                                                                               |
+| LLM provider outage                                                  | LLM Gateway fallback chain: Claude (Max) → Claude (OpenRouter) → GPT-4o → GPT-4o-mini.                                                                                                                                                      |
+| Cost runaway                                                         | Primary: cost circuit breaker in Section 22 (daily spend cap + Slack alert). Secondary: per-department concurrency limits cap parallelism but not per-call cost.                                                                            |
+| Knowledge base staleness                                             | Per-project reindex on every merge to `main`; nightly full reindex for external content; drift detection via embedding distance score.                                                                                                      |
+| Unauthorized autonomous actions                                      | Risk-model-driven gates per department; full audit trail in Supabase `audit_log` table.                                                                                                                                                     |
 
 ### Engineering-Specific Risks
 
 These risks are specific to the engineering department's code execution model.
 
-| Risk | Mitigation |
-|---|---|
-| AI generates buggy code that passes tests | 3-iteration fix budget per stage + human review gate for high-risk changes. |
-| Fix loop oscillation (fixing one stage breaks another) | Stage-targeted fix loop: re-enter at the failing stage, not at code generation. |
-| Webhook delivery failures | Inngest retries with exponential backoff. Hourly Jira reconciliation poll deferred for MVP (see §28); missed webhooks detected manually during daily monitoring (see §27). |
-| Fly.io machine hangs | 4-hour hard timeout + 3-layer monitoring system (Section 10). |
-| Merge conflicts between concurrent PRs | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow. |
-| AI-generated PR contains bugs (MVP) | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer. |
-| (Post-MVP) Auto-merged PR introduces regression | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
-| Event Gateway downtime | Fly.io health checks on `GET /health` endpoint detect and restart crashed gateway instances automatically. If Fly.io has a regional outage, webhooks queue on the provider side (Jira/GitHub retry for up to 24h). |
-| Fly.io machine crash after branch creation but before PR | Re-dispatch is idempotent: `entrypoint.sh` checks if the task branch already exists and reuses it rather than creating a new one. `git push --force-with-lease` prevents stale overwrites. The 3-layer monitoring system (Section 10) detects stale machines and re-dispatches. |
-| Supabase connection pool exhaustion | Expected peak connections: 3 execution machines + 1 gateway + Inngest functions ≈ 10–15 concurrent connections. Supabase Pro provides 60 direct connections — headroom is adequate at MVP. Enable Supavisor (Supabase's connection pooler) if concurrent Fly.io machines regularly exceed 10. |
-| Credential expires during long-running execution | GitHub tokens have 90-day expiry — unlikely to expire during a 4-hour max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle. |
-| Completion event lost (machine → Inngest) | Supabase-first completion write: machine writes final status + PR URL to Supabase BEFORE sending Inngest event. Watchdog cron reconciles tasks stuck in `Submitting` state within 10 minutes. See §8 and §10. |
-| Timeout race (waitForEvent vs machine clock) | `step.waitForEvent` timeout set to machine hard timeout + 10 minutes buffer (4h10m). Prevents premature lifecycle function timeout when machine clock starts before `waitForEvent` begins. See §10. |
-| Infinite re-dispatch loop | `dispatch_attempts` counter on `tasks` table (see §13). Hard cap at 3 re-dispatches. Slack escalation after exhaustion. Task moves to `AwaitingInput`. |
-| Concurrent status writers causing inconsistent state | Optimistic locking via SQL WHERE clause on all status transitions: `UPDATE tasks SET status = $new WHERE id = $id AND status = $expected RETURNING id`. See §13 Optimistic Locking Pattern. |
+| Risk                                                     | Mitigation                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AI generates buggy code that passes tests                | 3-iteration fix budget per stage + human review gate for high-risk changes.                                                                                                                                                                                                                                                                |
+| Fix loop oscillation (fixing one stage breaks another)   | Stage-targeted fix loop: re-enter at the failing stage, not at code generation.                                                                                                                                                                                                                                                            |
+| Webhook delivery failures                                | Inngest retries with exponential backoff. Hourly Jira reconciliation poll deferred for MVP (see §28); missed webhooks detected manually during daily monitoring (see §27).                                                                                                                                                                 |
+| Fly.io machine hangs                                     | 4-hour hard timeout + 3-layer monitoring system (Section 10).                                                                                                                                                                                                                                                                              |
+| Merge conflicts between concurrent PRs                   | Each task runs on an isolated Fly.io machine with its own git clone. Conflicts surface at PR review time and are resolved by the review agent via rebase — standard Git workflow.                                                                                                                                                          |
+| AI-generated PR contains bugs (MVP)                      | Human reviews all PRs manually in MVP; fix loop + per-stage escalation reduce defect rate before PR creation. Post-MVP: review agent adds automated validation layer.                                                                                                                                                                      |
+| (Post-MVP) Auto-merged PR introduces regression          | CI failure on `main` after merge triggers Slack alert with one-click "Create revert PR" button. Human clicks → system creates revert PR → review agent validates → merge. Post-MVP: automatic revert for PRs causing CI failure within 15 minutes of merge. (Probability: Low — risk scoring prevents high-risk auto-merges; Impact: High) |
+| Event Gateway downtime                                   | Fly.io health checks on `GET /health` endpoint detect and restart crashed gateway instances automatically. If Fly.io has a regional outage, webhooks queue on the provider side (Jira/GitHub retry for up to 24h).                                                                                                                         |
+| Fly.io machine crash after branch creation but before PR | Re-dispatch is idempotent: `entrypoint.sh` checks if the task branch already exists and reuses it rather than creating a new one. `git push --force-with-lease` prevents stale overwrites. The 3-layer monitoring system (Section 10) detects stale machines and re-dispatches.                                                            |
+| Supabase connection pool exhaustion                      | Expected peak connections: 3 execution machines + 1 gateway + Inngest functions ≈ 10–15 concurrent connections. Supabase Pro provides 60 direct connections — headroom is adequate at MVP. Enable Supavisor (Supabase's connection pooler) if concurrent Fly.io machines regularly exceed 10.                                              |
+| Credential expires during long-running execution         | GitHub tokens have 90-day expiry — unlikely to expire during a 4-hour max task. If auth fails at PR creation, the execution agent retries once with a fresh token read from Fly.io Secrets. Claude Max OAuth tokens are refreshed by `sync-token.sh` before each dispatch cycle.                                                           |
+| Completion event lost (machine → Inngest)                | Supabase-first completion write: machine writes final status + PR URL to Supabase BEFORE sending Inngest event. Watchdog cron reconciles tasks stuck in `Submitting` state within 10 minutes. See §8 and §10.                                                                                                                              |
+| Timeout race (waitForEvent vs machine clock)             | `step.waitForEvent` timeout set to machine hard timeout + 10 minutes buffer (4h10m). Prevents premature lifecycle function timeout when machine clock starts before `waitForEvent` begins. See §10.                                                                                                                                        |
+| Infinite re-dispatch loop                                | `dispatch_attempts` counter on `tasks` table (see §13). Hard cap at 3 re-dispatches. Slack escalation after exhaustion. Task moves to `AwaitingInput`.                                                                                                                                                                                     |
+| Concurrent status writers causing inconsistent state     | Optimistic locking via SQL WHERE clause on all status transitions: `UPDATE tasks SET status = $new WHERE id = $id AND status = $expected RETURNING id`. See §13 Optimistic Locking Pattern.                                                                                                                                                |
 
 ---
 
@@ -2167,24 +2174,24 @@ These metrics are appropriate for a solo developer starting point. V1 targets ar
 
 ### Platform Health (V1 Targets)
 
-| Metric | V1 Target | Alert Threshold |
-|---|---|---|
-| Task throughput | > 10 engineering tasks/day | < 5 tasks/day |
-| Queue wait time (p95) | < 10 minutes | > 30 minutes |
-| Escalation rate | < 25% (loosens over time) | > 50% |
-| LLM cost per task | Track baseline, trend down | > 2x baseline |
+| Metric                       | V1 Target                    | Alert Threshold       |
+| ---------------------------- | ---------------------------- | --------------------- |
+| Task throughput              | > 10 engineering tasks/day   | < 5 tasks/day         |
+| Queue wait time (p95)        | < 10 minutes                 | > 30 minutes          |
+| Escalation rate              | < 25% (loosens over time)    | > 50%                 |
+| LLM cost per task            | Track baseline, trend down   | > 2x baseline         |
 | Agent prompt refinement rate | Weekly review + update cycle | No updates in 30 days |
 
 The escalation rate target of < 25% is intentionally loose for V1. Starting at 50-60% escalation is normal and expected. The goal is a downward trend over weeks, not hitting 25% on day one.
 
 ### Per-Department Quality (Aspirational V1 Targets)
 
-| Metric | Engineering | Paid Marketing |
-|---|---|---|
-| Triage accuracy (questions relevant) | > 75% | > 70% |
-| Execution success (no human rework) | > 60% | > 70% |
-| Review catch rate (bad output blocked) | > 90% | > 85% |
-| Time to PR (vs. human baseline) | 40% faster | 60% faster |
+| Metric                                 | Engineering | Paid Marketing |
+| -------------------------------------- | ----------- | -------------- |
+| Triage accuracy (questions relevant)   | > 75%       | > 70%          |
+| Execution success (no human rework)    | > 60%       | > 70%          |
+| Review catch rate (bad output blocked) | > 90%       | > 85%          |
+| Time to PR (vs. human baseline)        | 40% faster  | 60% faster     |
 
 Marketing targets are slightly more aggressive than engineering because marketing tasks are more structured (API calls with defined inputs and outputs) and less open-ended than code changes.
 
@@ -2313,22 +2320,22 @@ All agent code calls `callLLM()`. No agent ever imports or calls an LLM provider
 
 ```typescript
 interface CallLLMOptions {
-  model: string;            // OpenRouter model ID (e.g., "anthropic/claude-sonnet-4")
-  messages: Message[];      // Standard chat messages array
-  taskType: string;         // "triage" | "execution" | "review" — drives model selection defaults
-  taskId?: string;          // For cost tracking — associates LLM usage with a task's EXECUTION record
-  temperature?: number;     // Default: 0 for code generation, 0.3 for analysis
-  maxTokens?: number;       // Default: model-dependent
-  timeoutMs?: number;       // Default: 120_000 (2 minutes)
+  model: string; // OpenRouter model ID (e.g., "anthropic/claude-sonnet-4-6")
+  messages: Message[]; // Standard chat messages array
+  taskType: string; // "triage" | "execution" | "review" — drives model selection defaults
+  taskId?: string; // For cost tracking — associates LLM usage with a task's EXECUTION record
+  temperature?: number; // Default: 0 for code generation, 0.3 for analysis
+  maxTokens?: number; // Default: model-dependent
+  timeoutMs?: number; // Default: 120_000 (2 minutes)
 }
 
 interface CallLLMResult {
-  content: string;          // The model's response text
-  model: string;            // Actual model used (may differ if fallback triggered)
-  promptTokens: number;     // From response.usage.prompt_tokens
+  content: string; // The model's response text
+  model: string; // Actual model used (may differ if fallback triggered)
+  promptTokens: number; // From response.usage.prompt_tokens
   completionTokens: number; // From response.usage.completion_tokens
   estimatedCostUsd: number; // Calculated from token counts × current model pricing
-  latencyMs: number;        // Wall-clock time for the LLM call
+  latencyMs: number; // Wall-clock time for the LLM call
 }
 ```
 
@@ -2379,14 +2386,14 @@ This data feeds the cost estimation dashboards described in Section 17.
 
 ### Model Selection by Task Type
 
-| Task Type | Recommended Model | Rationale |
-|---|---|---|
-| Engineering triage | Claude Sonnet (via OpenRouter) | Fast, sufficient reasoning for codebase analysis |
-| Engineering execution (code gen) | Claude Opus (via OpenRouter or Max) | Best code quality, handles complex TypeScript |
-| Engineering review | Claude Sonnet | Fast enough for review, cost-effective |
-| Marketing triage | Claude Sonnet | API analysis, not code |
-| Marketing execution | Claude Sonnet | Sufficient for campaign optimization decisions |
-| High-volume simple tasks | GPT-4o-mini | Cost-efficient for bulk operations |
+| Task Type                        | Recommended Model                   | Rationale                                        |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------ |
+| Engineering triage               | Claude Sonnet (via OpenRouter)      | Fast, sufficient reasoning for codebase analysis |
+| Engineering execution (code gen) | Claude Opus (via OpenRouter or Max) | Best code quality, handles complex TypeScript    |
+| Engineering review               | Claude Sonnet                       | Fast enough for review, cost-effective           |
+| Marketing triage                 | Claude Sonnet                       | API analysis, not code                           |
+| Marketing execution              | Claude Sonnet                       | Sufficient for campaign optimization decisions   |
+| High-volume simple tasks         | GPT-4o-mini                         | Cost-efficient for bulk operations               |
 
 Model assignments live in agent config, not in code. Changing the model for a task type is a config update that takes effect on the next deployment.
 
@@ -2463,7 +2470,7 @@ Every agent that runs in this platform is versioned. This isn't optional — it'
 Each agent version is a row in the Supabase `agent_versions` table with these fields:
 
 - `prompt_hash` — SHA256 of the prompt template. Changes when the prompt changes, even if the model doesn't.
-- `model_id` — The LLM model used (e.g., `anthropic/claude-opus-4-5`). Changes when you switch models.
+- `model_id` — The LLM model used (e.g., `anthropic/claude-opus-4-6`). Changes when you switch models.
 - `tool_config_hash` — SHA256 of the tool configuration JSON. Changes when tools are added, removed, or reconfigured.
 - `changelog_note` — Human-readable description of what changed and why.
 - `is_active` — Whether this version is currently live for new tasks.
@@ -2512,13 +2519,13 @@ When a rate limit bucket drops below 20% capacity, the orchestrator delays task 
 
 > **Future reference**: These limits will be used when the full token bucket is implemented.
 
-| External API | Platform Rate Limit | Recommended Budget | Bucket Refill |
-|---|---|---|---|
-| Jira REST API | 1,000 req/minute (Cloud) | 200 req/minute | Per minute |
-| GitHub REST API | 5,000 req/hour (authenticated) | 1,000 req/hour | Per hour |
-| GitHub GraphQL | 5,000 points/hour | 1,000 points/hour | Per hour |
-| Meta Marketing API | Varies by endpoint | 30% of limit | Per window |
-| GoHighLevel API | 400 req/minute | 100 req/minute | Per minute |
+| External API       | Platform Rate Limit            | Recommended Budget | Bucket Refill |
+| ------------------ | ------------------------------ | ------------------ | ------------- |
+| Jira REST API      | 1,000 req/minute (Cloud)       | 200 req/minute     | Per minute    |
+| GitHub REST API    | 5,000 req/hour (authenticated) | 1,000 req/hour     | Per hour      |
+| GitHub GraphQL     | 5,000 points/hour              | 1,000 points/hour  | Per hour      |
+| Meta Marketing API | Varies by endpoint             | 30% of limit       | Per window    |
+| GoHighLevel API    | 400 req/minute                 | 100 req/minute     | Per minute    |
 
 The "Recommended Budget" column is conservative by design. It leaves headroom for manual API calls from developers and other tooling that shares the same credentials.
 
@@ -2575,13 +2582,13 @@ The platform relies entirely on managed services with built-in redundancy. The D
 
 ### Failure Modes and Recovery
 
-| Failure | Detection | Recovery | Auto/Manual |
-|---|---|---|---|
-| Supabase outage | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint | Auto |
-| Inngest outage | Event Gateway cannot send events | Events are stored in `tasks.raw_event` before Inngest send. On recovery: Inngest retries with exponential backoff automatically. For extended outages: run `dispatch-task.ts` CLI to re-send events from Supabase for tasks stuck in `Received` state. | Auto |
-| Fly.io machine crash | 3-layer monitoring system (Section 10) | The orchestrator marks task as failed; re-dispatches to a new machine | Auto |
-| LLM provider outage | OpenRouter returns 5xx or timeout | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini | Auto |
-| Webhook delivery failure | Jira/GitHub built-in retry exhausted | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays | Auto |
+| Failure                  | Detection                                       | Recovery                                                                                                                                                                                                                                               | Auto/Manual |
+| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Supabase outage          | Inngest function fails with DB connection error | Inngest retries with exponential backoff; Supabase PITR recovers data to last checkpoint                                                                                                                                                               | Auto        |
+| Inngest outage           | Event Gateway cannot send events                | Events are stored in `tasks.raw_event` before Inngest send. On recovery: Inngest retries with exponential backoff automatically. For extended outages: run `dispatch-task.ts` CLI to re-send events from Supabase for tasks stuck in `Received` state. | Auto        |
+| Fly.io machine crash     | 3-layer monitoring system (Section 10)          | The orchestrator marks task as failed; re-dispatches to a new machine                                                                                                                                                                                  | Auto        |
+| LLM provider outage      | OpenRouter returns 5xx or timeout               | LLM Gateway fallback chain: Claude primary to GPT-4o to GPT-4o-mini                                                                                                                                                                                    | Auto        |
+| Webhook delivery failure | Jira/GitHub built-in retry exhausted            | Event Gateway is idempotent (deduplication by webhook ID); hourly reconciliation poll catches strays                                                                                                                                                   | Auto        |
 
 ### Manual Intervention Required
 
@@ -2614,12 +2621,7 @@ These runbooks are for a solo developer operating the platform. Each is designed
 
 > **Important**: Use the **direct** Supabase connection (port 5432) for all Prisma migration commands. The transaction pooler (port 6543) causes migrations to hang indefinitely.
 
-2.5. Run schema migrations: `npx prisma migrate deploy` — applies all pending migrations to Supabase. For initial setup, this creates all tables. For subsequent deployments, run before `fly deploy` if schema changed.
-3. Create Inngest project, copy signing key and event key to Fly.io Secrets
-4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY`
-5. Configure Jira webhook pointing to the Event Gateway URL for each project
-6. Configure GitHub webhook pointing to the Event Gateway URL for each repo
-7. Build and deploy: `fly deploy --app ai-employee-gateway`
+2.5. Run schema migrations: `npx prisma migrate deploy` — applies all pending migrations to Supabase. For initial setup, this creates all tables. For subsequent deployments, run before `fly deploy` if schema changed. 3. Create Inngest project, copy signing key and event key to Fly.io Secrets 4. Set Fly.io Secrets: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GITHUB_TOKEN`, `JIRA_TOKEN`, `OPENROUTER_API_KEY` 5. Configure Jira webhook pointing to the Event Gateway URL for each project 6. Configure GitHub webhook pointing to the Event Gateway URL for each repo 7. Build and deploy: `fly deploy --app ai-employee-gateway`
 
 The Event Gateway exposes a `GET /health` endpoint that returns `200 OK` when ready to accept webhooks. Configure Fly.io health checks to poll this endpoint every 10 seconds with a 5-second timeout — Fly.io will restart the gateway automatically if it stops responding.
 
@@ -2663,13 +2665,13 @@ Dashboards: [Inngest Dashboard](https://app.inngest.com) | [OpenRouter](https://
 
 Common failure modes and immediate actions:
 
-| Symptom | First Check | Fix |
-|---|---|---|
-| Task stuck in "Executing" for > 4 hours | `fly logs --app nexus-workers` | Machine likely hung — `fly machine stop <id>` + redispatch |
-| Triage agent posting wrong questions | Inngest execution logs for the task | Check which prompt version ran, compare to expected behavior |
-| LLM API errors | [OpenRouter status page](https://status.openrouter.ai) | Likely transient — Inngest will retry. Check fallback chain is active |
-| Jira webhook not firing | Jira Admin > Webhooks > Last delivery | Check webhook URL, re-test delivery |
-| Supabase connection errors | [Supabase dashboard](https://supabase.com/dashboard) > Database > Metrics | Check connection pool exhaustion; may need to increase pool size |
+| Symptom                                                    | First Check                                                                           | Fix                                                                                                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task stuck in "Executing" for > 4 hours                    | `fly logs --app nexus-workers`                                                        | Machine likely hung — `fly machine stop <id>` + redispatch                                                                                    |
+| Triage agent posting wrong questions                       | Inngest execution logs for the task                                                   | Check which prompt version ran, compare to expected behavior                                                                                  |
+| LLM API errors                                             | [OpenRouter status page](https://status.openrouter.ai)                                | Likely transient — Inngest will retry. Check fallback chain is active                                                                         |
+| Jira webhook not firing                                    | Jira Admin > Webhooks > Last delivery                                                 | Check webhook URL, re-test delivery                                                                                                           |
+| Supabase connection errors                                 | [Supabase dashboard](https://supabase.com/dashboard) > Database > Metrics             | Check connection pool exhaustion; may need to increase pool size                                                                              |
 | Tasks stuck in `Received` state (> 30 min, Inngest outage) | Check [Inngest status page](https://app.inngest.com) and Inngest Dashboard for errors | Run: `npx dispatch-task.ts --status received --since 1h` — re-sends events from Supabase `tasks.raw_event`. Inngest deduplicates by event ID. |
 
 Dashboards: [Fly.io Logs](https://fly.io/apps) | [Inngest Dashboard](https://app.inngest.com) | [OpenRouter Status](https://status.openrouter.ai)
@@ -2848,18 +2850,18 @@ OPENROUTER_API_KEY=<your-openrouter-key>
 
 > This section records the technologies and capabilities deliberately deferred for V1 in favor of speed-to-market. Each item includes what was deferred, why, when to reconsider it, and the migration path.
 
-| Deferred Capability | What We Use Instead (V1) | What We Gave Up | When to Reconsider | Migration Path |
-|---|---|---|---|---|
-| **BullMQ + Redis** (self-hosted job queue) | Inngest (managed) | Full control over queue infrastructure; no vendor dependency on critical path | When Inngest costs exceed $100/mo, or if Inngest has reliability issues | Replace `inngest.createFunction()` with BullMQ producers/consumers. Business logic inside each step is unchanged. Add Upstash Redis or self-hosted Redis. ~1-2 weeks of work. |
-| **LangGraph (Python)** (workflow orchestration) | Inngest step functions (TypeScript) | Python ML ecosystem; LangGraph's graph-based branching, multi-agent coordination, and sophisticated human-in-the-loop primitives | When marketing workflows need complex multi-step agent reasoning, multimodal creative generation, or ML model integration that TypeScript can't handle | Add Python workers alongside TypeScript. Marketing archetype's `runtime` field changes from `inngest` to `langgraph`. Inngest can trigger Python workers via HTTP. ~2-3 weeks. |
-| **LangSmith** ($39/mo agent observability) | Inngest dashboard + Supabase logging | Deep agent trace visualization — see exact prompt/response chains, token usage per step, latency breakdown across LLM calls | When debugging agent behavior becomes difficult from logs alone — typically when agents chain 5+ LLM calls with complex tool use | Sign up for LangSmith, add `@langchain/core` tracing middleware. Wrap LLM calls with LangSmith trace context. ~1 week. |
-| **Grafana** (self-hosted infra monitoring) | Fly.io + Supabase + Inngest + OpenRouter dashboards | Unified metrics view across all services; custom alerts; historical trend analysis across infrastructure | When you need cross-service correlation (e.g., "Fly.io machine CPU spike caused Supabase connection timeout") or custom SLO tracking | Deploy Grafana on Fly.io, connect data sources (Supabase metrics, Fly.io metrics API). ~2-3 days. |
-| **Custom Orchestration Service** (generalized orchestrate.mjs) | Inngest step functions | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks | When Inngest's concurrency model is too coarse — e.g., you need custom priority algorithms or advanced scheduling logic. | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks. |
+| Deferred Capability                                                | What We Use Instead (V1)                                                                                                                                                    | What We Gave Up                                                                                                                                     | When to Reconsider                                                                                                                                                                                 | Migration Path                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BullMQ + Redis** (self-hosted job queue)                         | Inngest (managed)                                                                                                                                                           | Full control over queue infrastructure; no vendor dependency on critical path                                                                       | When Inngest costs exceed $100/mo, or if Inngest has reliability issues                                                                                                                            | Replace `inngest.createFunction()` with BullMQ producers/consumers. Business logic inside each step is unchanged. Add Upstash Redis or self-hosted Redis. ~1-2 weeks of work.                                                                                                |
+| **LangGraph (Python)** (workflow orchestration)                    | Inngest step functions (TypeScript)                                                                                                                                         | Python ML ecosystem; LangGraph's graph-based branching, multi-agent coordination, and sophisticated human-in-the-loop primitives                    | When marketing workflows need complex multi-step agent reasoning, multimodal creative generation, or ML model integration that TypeScript can't handle                                             | Add Python workers alongside TypeScript. Marketing archetype's `runtime` field changes from `inngest` to `langgraph`. Inngest can trigger Python workers via HTTP. ~2-3 weeks.                                                                                               |
+| **LangSmith** ($39/mo agent observability)                         | Inngest dashboard + Supabase logging                                                                                                                                        | Deep agent trace visualization — see exact prompt/response chains, token usage per step, latency breakdown across LLM calls                         | When debugging agent behavior becomes difficult from logs alone — typically when agents chain 5+ LLM calls with complex tool use                                                                   | Sign up for LangSmith, add `@langchain/core` tracing middleware. Wrap LLM calls with LangSmith trace context. ~1 week.                                                                                                                                                       |
+| **Grafana** (self-hosted infra monitoring)                         | Fly.io + Supabase + Inngest + OpenRouter dashboards                                                                                                                         | Unified metrics view across all services; custom alerts; historical trend analysis across infrastructure                                            | When you need cross-service correlation (e.g., "Fly.io machine CPU spike caused Supabase connection timeout") or custom SLO tracking                                                               | Deploy Grafana on Fly.io, connect data sources (Supabase metrics, Fly.io metrics API). ~2-3 days.                                                                                                                                                                            |
+| **Custom Orchestration Service** (generalized orchestrate.mjs)     | Inngest step functions                                                                                                                                                      | Fine-grained control over task scheduling, custom priority algorithms, advanced conflict detection between concurrent tasks                         | When Inngest's concurrency model is too coarse — e.g., you need custom priority algorithms or advanced scheduling logic.                                                                           | Extract Inngest function logic into a standalone TypeScript service. Add BullMQ for queue management. Reuse orchestrate.mjs patterns from nexus-stack. ~2-3 weeks.                                                                                                           |
 | **pgvector Embedding Pipeline** (vector search for triage context) | OpenCode's native codebase search (file search, LSP, grep, AST tools) for code context. Direct SQL queries on `tasks` table for institutional memory. No vector similarity. | Semantic similarity search for triage context. Agents search by keyword/structure rather than semantic meaning. Lower recall for ambiguous tickets. | When triage agents frequently identify the wrong files or miss relevant past tasks. Track via the `feedback` table — if triage overrides exceed 30% for "wrong context" reasons, add the pipeline. | Add `knowledge_embeddings` table to Supabase, build webhook-triggered indexing (on merge to `main`), add embedding generation via OpenRouter (`text-embedding-3-small`), update triage query interface. ~2-3 days of agent work. No existing code changes — purely additive. |
-| **Full API Rate Limiting** (token bucket + backpressure) | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking. | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards. | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely. | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work. |
-| **Jira Reconciliation Cron Job** (hourly webhook safety net) | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring. | Automatic detection and recovery of missed webhooks within 1 hour. | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store. | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play. |
-| **Dual-language runtime** (TypeScript + Python) | TypeScript-only | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks | When a department's work requires ML model inference, data science workflows, or Python-only API clients | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself. |
-| **Pre-warmed Machine Pool** (standby machines) | Create machines on-demand via Fly.io Machines API with exponential backoff on 429 rate limits | Faster task start time (machine `start` is ~5-10s vs `create` at ~15-30s); avoidance of 1 req/sec creation rate limit at burst | When machine creation rate limit causes visible queuing delays, or when concurrent task volume regularly exceeds 5 simultaneous dispatches | Maintain a pool of 3-5 stopped `performance-2x` machines with forked seed volumes attached. On task arrival, `start` a pooled machine instead of `create` a new one. Add pool size monitoring and auto-replenishment. ~1 day of work. |
+| **Full API Rate Limiting** (token bucket + backpressure)           | Thin API service wrappers (`jiraClient.getTicket()`, `githubClient.createPR()`) with built-in retry-on-429 logic. No proactive rate tracking.                               | Proactive backpressure (delaying dispatch before hitting limits), cross-worker coordination (shared rate budget), per-API monitoring dashboards.    | When concurrent tasks cause cascading 429 failures, or when adding Meta Ads API (stricter limits than Jira/GitHub). At MVP volume (2-3 concurrent tasks, one project), this is unlikely.           | Add token bucket middleware to the thin API wrappers (single insertion point). Add Supabase table for cross-worker bucket state. Add Slack alerts at 80% utilization. ~1.5 days of agent work.                                                                               |
+| **Jira Reconciliation Cron Job** (hourly webhook safety net)       | Rely on Jira webhook delivery (99%+ reliable). Missed webhooks detected manually during daily monitoring.                                                                   | Automatic detection and recovery of missed webhooks within 1 hour.                                                                                  | When task state drift is observed in production — tasks exist in Jira but not in the platform's task state store.                                                                                  | Add an Inngest cron function that polls Jira REST API hourly, compares against `tasks` table, and enqueues missing tasks. ~0.5 days of agent work. Standalone function with zero integration points — plug and play.                                                         |
+| **Dual-language runtime** (TypeScript + Python)                    | TypeScript-only                                                                                                                                                             | Access to Python's ML ecosystem (scikit-learn, pandas, transformers), Python-native agent frameworks                                                | When a department's work requires ML model inference, data science workflows, or Python-only API clients                                                                                           | Add Python Fly.io app, connect via Inngest events or HTTP. No TypeScript code changes needed — just add a new runtime option. ~1 week for infrastructure, variable for the Python code itself.                                                                               |
+| **Pre-warmed Machine Pool** (standby machines)                     | Create machines on-demand via Fly.io Machines API with exponential backoff on 429 rate limits                                                                               | Faster task start time (machine `start` is ~5-10s vs `create` at ~15-30s); avoidance of 1 req/sec creation rate limit at burst                      | When machine creation rate limit causes visible queuing delays, or when concurrent task volume regularly exceeds 5 simultaneous dispatches                                                         | Maintain a pool of 3-5 stopped `performance-2x` machines with forked seed volumes attached. On task arrival, `start` a pooled machine instead of `create` a new one. Add pool size monitoring and auto-replenishment. ~1 day of work.                                        |
 
 > **Implementation Note — Nexus-Stack Completion Mechanism**: The AI Employee Platform's completion mechanism differs fundamentally from the nexus-stack pattern. The nexus-stack uses local SSE/polling: `orchestrate.mjs` monitors OpenCode session completion directly on the same machine via the `@opencode-ai/sdk` event stream. The AI Employee Platform uses remote Inngest events: the Fly.io machine sends `engineering/task.completed` to Inngest Cloud when done. This difference is intentional — Inngest provides durability and crash recovery that local monitoring cannot. The tradeoff is the reverse-path SPOF (mitigated by Supabase-first completion write + watchdog cron, see §8 and §10).
 

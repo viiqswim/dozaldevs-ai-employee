@@ -316,10 +316,10 @@ The seed script (`prisma/seed.ts`) uses idempotent `upsert` operations inside a 
 
 **What gets seeded**:
 
-| Record           | Fixed UUID          | Purpose                                                                           |
-| ---------------- | ------------------- | --------------------------------------------------------------------------------- |
-| `agent_versions` | `00000000-...-0002` | Baseline agent version (`claude-sonnet-4`, `initial-v1`) for development testing  |
-| `projects`       | `00000000-...-0003` | Placeholder project pointing to `your-org/your-test-repo` — update before Phase 5 |
+| Record           | Fixed UUID          | Purpose                                                                            |
+| ---------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `agent_versions` | `00000000-...-0002` | Baseline agent version (`claude-sonnet-4-6`, `initial-v1`) for development testing |
+| `projects`       | `00000000-...-0003` | Placeholder project pointing to `your-org/your-test-repo` — update before Phase 5  |
 
 **What's not seeded**: Department records, archetype configs, and other forward-compat table data. Those are populated as each milestone is built. The seed only establishes the minimum data needed to create a `Task` row with a valid FK chain during development.
 

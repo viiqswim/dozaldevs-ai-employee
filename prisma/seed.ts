@@ -12,14 +12,14 @@ async function main() {
       create: {
         id: '00000000-0000-0000-0000-000000000002',
         prompt_hash: 'initial-v1',
-        model_id: 'anthropic/claude-sonnet-4',
+        model_id: 'anthropic/claude-sonnet-4-6',
         tool_config_hash: 'initial-v1',
         changelog_note: 'Initial agent version for MVP testing',
         is_active: true,
       },
       update: {
         prompt_hash: 'initial-v1',
-        model_id: 'anthropic/claude-sonnet-4',
+        model_id: 'anthropic/claude-sonnet-4-6',
         tool_config_hash: 'initial-v1',
         changelog_note: 'Initial agent version for MVP testing',
         is_active: true,
