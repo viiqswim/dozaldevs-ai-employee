@@ -387,6 +387,10 @@
           "status": "not_started",
           "description": "All 12 verification checks from the implementation phases doc pass",
           "notes": "See docs/2026-03-25-1901-mvp-implementation-phases.md Phase 8 section for the full 12-point checklist"
+        },
+        "documented": {
+          "status": "not_started",
+          "description": "Phase architecture doc not yet created"
         }
       },
       "resume_hint": "Requires Phases 1-7 all complete. This is integration testing, not coding. Follow the exact test procedure in the implementation phases doc."
@@ -429,6 +433,10 @@
         "watchdog_running": {
           "status": "not_started",
           "description": "Watchdog cron executing on Inngest Cloud schedule"
+        },
+        "documented": {
+          "status": "not_started",
+          "description": "Phase architecture doc not yet created"
         }
       },
       "resume_hint": "Requires Phase 8 complete (local E2E passing). Follow the Deployment Runbook in §27. This should 'just work' — cloud is an infra swap, not a code change."
@@ -472,6 +480,10 @@
           "status": "not_started",
           "description": "After 10+ tickets: compilable PRs for simple tickets, >= 60% human approval without changes",
           "notes": "This is the M3 milestone gate from §16 of the architecture doc"
+        },
+        "documented": {
+          "status": "not_started",
+          "description": "Phase architecture doc not yet created"
         }
       },
       "resume_hint": "Requires Phase 9 complete (cloud deployment working). Start with shadow mode — do NOT skip to supervised. Read §21 for the feedback loop design."
