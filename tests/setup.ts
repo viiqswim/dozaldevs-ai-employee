@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { Inngest } from 'inngest';
 
 // Singleton PrismaClient for all tests
 let _prisma: PrismaClient | undefined;
@@ -49,21 +50,20 @@ export function computeJiraSignature(body: string, secret: string): string {
 }
 
 /**
- * Inngest mock for tests — replaces the real Inngest client.
- * The gateway accepts an InngestLike object for dependency injection.
+ * Inngest client for tests — uses real Inngest instance with test configuration.
+ * The gateway accepts an Inngest client for dependency injection.
  */
-export const inngestMock = {
-  send: async (_event: unknown): Promise<{ ids: string[] }> => {
-    return { ids: ['mock-event-id'] };
+export const inngestMock = new Inngest({
+  id: 'test-gateway',
+  baseUrl: 'http://localhost:8288',
+  fetch: async () => {
+    return new Response(JSON.stringify({ functions: [] }), { status: 200 });
   },
-};
+});
 
-export async function createTestApp(opts?: { inngest?: typeof inngestMock }) {
-  // Dynamic import to avoid TypeScript errors when server.ts doesn't exist
-  // This function creates an isolated test instance of the Fastify app
+export async function createTestApp(opts?: { inngest?: Inngest }) {
   const { buildApp } = await import('../src/gateway/server.js');
 
-  // Set required env vars for test
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
   const app = await buildApp({
