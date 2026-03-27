@@ -196,16 +196,16 @@ describe('Seed data verification', () => {
       where: { is_active: true },
     });
     expect(agentVersion).not.toBeNull();
-    expect(agentVersion!.model_id).toBe('anthropic/claude-sonnet-4');
+    expect(agentVersion!.model_id).toBe('anthropic/claude-sonnet-4-6');
   });
 
-   it('project has correct default tenant_id', async () => {
-     const prisma = getPrisma();
-     const project = await prisma.project.findFirst({
-       where: { name: 'test-project' },
-     });
-     expect(project!.tenant_id).toBe(TENANT_ID);
-   });
+  it('project has correct default tenant_id', async () => {
+    const prisma = getPrisma();
+    const project = await prisma.project.findFirst({
+      where: { name: 'test-project' },
+    });
+    expect(project!.tenant_id).toBe(TENANT_ID);
+  });
 });
 
 // ============================================================

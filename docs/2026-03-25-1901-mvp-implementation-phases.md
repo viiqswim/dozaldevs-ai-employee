@@ -57,18 +57,18 @@ Phase 9 (Cloud Deploy) → Phase 10 (Production)
 
 ## Phase Summary
 
-| # | Phase | What You're Testing | Key Verification |
-|---|---|---|---|
-| 1 | Foundation | Project compiles, DB schema exists, local Supabase running | `npx prisma migrate dev` succeeds, tables queryable |
-| 2 | Event Gateway | Webhooks received, validated, normalized, written to DB | `curl` test payload → task record in Supabase |
-| 3 | Inngest Core | Events flow Gateway → Inngest, lifecycle function triggers | Event visible in Inngest Dev dashboard, status transitions |
-| 4 | Execution Infrastructure | LLM wrapper works, Docker image builds, container boots | `callLLM()` returns response, container clones repo |
-| 5 | Execution Agent | OpenCode session runs, validation pipeline works, fix loop works | Code written, tests run, fix loop iterates on failure |
-| 6 | Completion & Delivery | Branch created, PR submitted, task marked Done | PR on GitHub, task status `Done` in Supabase |
-| 7 | Resilience & Monitoring | Failure recovery, watchdog, cost circuit breaker | Simulated failures → correct recovery behavior |
-| 8 | Full Local E2E | Complete flow: webhook → PR, all local | Jira webhook → PR appears → task lifecycle complete |
-| 9 | Cloud Deployment | Same flow on Fly.io + Supabase Cloud + Inngest Cloud | Same verification against cloud URLs |
-| 10 | Production Integration | Real Jira tickets trigger the flow, human reviews PRs | Real ticket → PR → human review → feedback recorded |
+| #   | Phase                    | What You're Testing                                              | Key Verification                                           |
+| --- | ------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | Foundation               | Project compiles, DB schema exists, local Supabase running       | `npx prisma migrate dev` succeeds, tables queryable        |
+| 2   | Event Gateway            | Webhooks received, validated, normalized, written to DB          | `curl` test payload → task record in Supabase              |
+| 3   | Inngest Core             | Events flow Gateway → Inngest, lifecycle function triggers       | Event visible in Inngest Dev dashboard, status transitions |
+| 4   | Execution Infrastructure | LLM wrapper works, Docker image builds, container boots          | `callLLM()` returns response, container clones repo        |
+| 5   | Execution Agent          | OpenCode session runs, validation pipeline works, fix loop works | Code written, tests run, fix loop iterates on failure      |
+| 6   | Completion & Delivery    | Branch created, PR submitted, task marked Done                   | PR on GitHub, task status `Done` in Supabase               |
+| 7   | Resilience & Monitoring  | Failure recovery, watchdog, cost circuit breaker                 | Simulated failures → correct recovery behavior             |
+| 8   | Full Local E2E           | Complete flow: webhook → PR, all local                           | Jira webhook → PR appears → task lifecycle complete        |
+| 9   | Cloud Deployment         | Same flow on Fly.io + Supabase Cloud + Inngest Cloud             | Same verification against cloud URLs                       |
+| 10  | Production Integration   | Real Jira tickets trigger the flow, human reviews PRs            | Real ticket → PR → human review → feedback recorded        |
 
 ---
 
@@ -449,7 +449,7 @@ Status transitions: Ready → Executing (logged in task_status_log)
 OPENROUTER_API_KEY=<your-key> npx ts-node -e "
   const { callLLM } = require('./src/lib/llm-gateway');
   callLLM({
-    model: 'anthropic/claude-sonnet-4',
+    model: 'anthropic/claude-sonnet-4-6',
     messages: [{ role: 'user', content: 'Reply with exactly: hello' }],
     taskType: 'execution',
   }).then(r => {
@@ -1229,11 +1229,11 @@ The MVP is operational when:
 
 While phases are ordered sequentially, some work can be developed in parallel:
 
-| Can Be Developed In Parallel | Reason |
-|---|---|
-| Phase 4 (LLM + Docker) alongside Phase 3 (Inngest) | LLM wrapper and Docker image don't depend on Inngest integration |
-| Phase 7 (Resilience) alongside Phase 6 (Completion) | Watchdog and circuit breaker are independent functions |
-| Test fixtures for all phases | Can be created upfront — Jira payloads, task records, etc. |
+| Can Be Developed In Parallel                        | Reason                                                           |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| Phase 4 (LLM + Docker) alongside Phase 3 (Inngest)  | LLM wrapper and Docker image don't depend on Inngest integration |
+| Phase 7 (Resilience) alongside Phase 6 (Completion) | Watchdog and circuit breaker are independent functions           |
+| Test fixtures for all phases                        | Can be created upfront — Jira payloads, task records, etc.       |
 
 **But always VERIFY sequentially.** Even if you build Phases 4 and 3 in parallel, verify Phase 3 first, then Phase 4, because Phase 4's Docker container verification requires Inngest to be working.
 
@@ -1241,18 +1241,18 @@ While phases are ordered sequentially, some work can be developed in parallel:
 
 ## Appendix B: Troubleshooting Common Issues
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| `prisma migrate dev` hangs | Using pooled Supabase connection (port 6543) | Use direct connection (port 5432) for all migrations |
-| Inngest functions not discovered | Gateway not exposing `/api/inngest` endpoint | Verify Inngest serve middleware is registered in Fastify |
-| Docker container can't reach local Supabase | Network isolation | Use `--network host` or set `SUPABASE_URL` to host IP |
-| OpenCode session hangs | Model timeout or token limit | Check OpenRouter dashboard, verify API key, try smaller model |
-| Webhook signature verification fails | Secret mismatch or encoding issue | Log the raw signature and expected HMAC, compare byte-by-byte |
-| `step.waitForEvent` never receives event | Inngest issue #1433 race condition | Implement Supabase pre-check before every `waitForEvent` call |
-| Machine boots but task read fails | Wrong `TASK_ID` or Supabase URL | Verify env vars in `docker run`, check Supabase is accessible |
-| PR creation fails | GitHub token permissions or branch protection | Verify token scopes (`repo` full access), check branch protection rules |
-| Cost circuit breaker fires unexpectedly | Stale cost cache or test data in executions table | Clear test execution records, verify cache refresh interval |
-| Lifecycle function retries indefinitely | Step failure without proper error handling | Check Inngest dashboard for step errors, add proper try/catch |
+| Symptom                                     | Likely Cause                                      | Fix                                                                     |
+| ------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| `prisma migrate dev` hangs                  | Using pooled Supabase connection (port 6543)      | Use direct connection (port 5432) for all migrations                    |
+| Inngest functions not discovered            | Gateway not exposing `/api/inngest` endpoint      | Verify Inngest serve middleware is registered in Fastify                |
+| Docker container can't reach local Supabase | Network isolation                                 | Use `--network host` or set `SUPABASE_URL` to host IP                   |
+| OpenCode session hangs                      | Model timeout or token limit                      | Check OpenRouter dashboard, verify API key, try smaller model           |
+| Webhook signature verification fails        | Secret mismatch or encoding issue                 | Log the raw signature and expected HMAC, compare byte-by-byte           |
+| `step.waitForEvent` never receives event    | Inngest issue #1433 race condition                | Implement Supabase pre-check before every `waitForEvent` call           |
+| Machine boots but task read fails           | Wrong `TASK_ID` or Supabase URL                   | Verify env vars in `docker run`, check Supabase is accessible           |
+| PR creation fails                           | GitHub token permissions or branch protection     | Verify token scopes (`repo` full access), check branch protection rules |
+| Cost circuit breaker fires unexpectedly     | Stale cost cache or test data in executions table | Clear test execution records, verify cache refresh interval             |
+| Lifecycle function retries indefinitely     | Step failure without proper error handling        | Check Inngest dashboard for step errors, add proper try/catch           |
 
 ---
 
@@ -1260,15 +1260,15 @@ While phases are ordered sequentially, some work can be developed in parallel:
 
 The local-first approach means most code is identical between environments. These are the differences:
 
-| Component | Local | Cloud |
-|---|---|---|
-| Supabase | `localhost:54322` via `supabase start` | `db.<project>.supabase.co:5432` |
-| Inngest | `localhost:8288` via `inngest-cli dev` | `app.inngest.com` (SaaS) |
-| Event Gateway | `localhost:3000` via `ts-node` | `ai-employee-gateway.fly.dev` via Fly.io |
-| Worker machines | Docker container via `docker run` | Fly.io machine via Machines API |
-| Webhooks | `curl` or Smee/ngrok tunnel | Direct Jira/GitHub → Fly.io URL |
-| Secrets | `.env.local` file or inline env vars | Fly.io Secrets (never in code) |
-| Machine self-destruct | Container exit | Fly.io Machines API `DELETE` call |
-| Volume caching | Docker volumes (optional) | Fly.io volume forking from seed |
+| Component             | Local                                  | Cloud                                    |
+| --------------------- | -------------------------------------- | ---------------------------------------- |
+| Supabase              | `localhost:54322` via `supabase start` | `db.<project>.supabase.co:5432`          |
+| Inngest               | `localhost:8288` via `inngest-cli dev` | `app.inngest.com` (SaaS)                 |
+| Event Gateway         | `localhost:3000` via `ts-node`         | `ai-employee-gateway.fly.dev` via Fly.io |
+| Worker machines       | Docker container via `docker run`      | Fly.io machine via Machines API          |
+| Webhooks              | `curl` or Smee/ngrok tunnel            | Direct Jira/GitHub → Fly.io URL          |
+| Secrets               | `.env.local` file or inline env vars   | Fly.io Secrets (never in code)           |
+| Machine self-destruct | Container exit                         | Fly.io Machines API `DELETE` call        |
+| Volume caching        | Docker volumes (optional)              | Fly.io volume forking from seed          |
 
 **The key principle**: If it works locally, it works in the cloud. The only failure modes unique to cloud are networking (DNS, TLS, firewall) and credential management (Fly.io Secrets rotation). Everything else — business logic, lifecycle management, error handling — is identical.
