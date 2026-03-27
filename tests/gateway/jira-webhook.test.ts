@@ -249,12 +249,16 @@ describe('POST /webhooks/jira', () => {
   });
 
   it('Inngest send failure → 202, task still in DB', async () => {
-    const failingApp = await createTestApp({
-      inngest: {
-        send: async () => {
-          throw new Error('Inngest down');
-        },
+    const { Inngest } = await import('inngest');
+    const failingInngest = new Inngest({
+      id: 'test-failing',
+      baseUrl: 'http://localhost:8288',
+      fetch: async () => {
+        throw new Error('Inngest down');
       },
+    });
+    const failingApp = await createTestApp({
+      inngest: failingInngest,
     });
 
     const body = loadRaw('jira-issue-created.json');
