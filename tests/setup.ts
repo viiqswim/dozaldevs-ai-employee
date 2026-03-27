@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 
 // Singleton PrismaClient for all tests
@@ -33,3 +34,32 @@ export async function disconnectPrisma(): Promise<void> {
     _prisma = undefined;
   }
 }
+
+// ============================================================
+// Phase 2: Gateway Test Helpers
+// ============================================================
+
+/**
+ * Compute Jira HMAC-SHA256 signature for use in tests.
+ * Produces the exact format the gateway expects: "sha256=<hex>"
+ */
+export function computeJiraSignature(body: string, secret: string): string {
+  const hmac = crypto.createHmac('sha256', secret).update(body).digest('hex');
+  return `sha256=${hmac}`;
+}
+
+/**
+ * Inngest mock for tests — replaces the real Inngest client.
+ * The gateway accepts an InngestLike object for dependency injection.
+ */
+export const inngestMock = {
+  send: async (_event: unknown): Promise<{ ids: string[] }> => {
+    return { ids: ['mock-event-id'] };
+  },
+};
+
+/**
+ * NOTE: createTestApp() is intentionally deferred to Task 7.
+ * It depends on src/gateway/server.ts (buildApp function) which is created in Task 6.
+ * Task 7 will add createTestApp() to this file.
+ */

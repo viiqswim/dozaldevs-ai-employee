@@ -1,0 +1,15 @@
+{
+  "webhookEvent": "jira:issue_created",
+  "timestamp": 1711497600000,
+  "issue": {
+    "id": "10002",
+    "fields": {
+      "project": {
+        "key": "TEST"
+      },
+      "status": {
+        "name": "To Do"
+      }
+    }
+  }
+}
