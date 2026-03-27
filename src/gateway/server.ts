@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import FastifyRawBody from 'fastify-raw-body';
+import { PrismaClient } from '@prisma/client';
 import { healthRoutes } from './routes/health.js';
+import { jiraRoutes, type JiraRouteOptions } from './routes/jira.js';
 
 export interface InngestLike {
   send(event: {
@@ -36,6 +38,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<ReturnTyp
 
   // Register routes
   await app.register(healthRoutes);
+
+  const prisma = new PrismaClient();
+  await app.register(jiraRoutes, {
+    inngestClient: options.inngestClient,
+    prisma,
+  } as JiraRouteOptions);
 
   return app;
 }
