@@ -114,6 +114,7 @@ model Project {
   default_branch    String   @default("main")
   concurrency_limit Int      @default(3)
   tooling_config    Json?
+  jira_project_key  String?
   tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
