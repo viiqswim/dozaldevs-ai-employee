@@ -1,0 +1,24 @@
+{
+  "webhookEvent": "jira:issue_created",
+  "timestamp": 1711497600000,
+  "issue": {
+    "id": "10003",
+    "key": "UNKNOWN-1",
+    "self": "https://example.atlassian.net/rest/api/2/issue/10003",
+    "fields": {
+      "summary": "This ticket is for an unregistered project",
+      "description": "This project is not registered in the platform.",
+      "issuetype": { "name": "Task" },
+      "project": {
+        "id": "99999",
+        "key": "UNKNOWN",
+        "name": "Unknown Project"
+      },
+      "status": { "name": "To Do" },
+      "priority": { "name": "Medium" },
+      "labels": [],
+      "reporter": { "displayName": "Test Developer", "accountId": "developer-account-id" },
+      "assignee": null
+    }
+  }
+}

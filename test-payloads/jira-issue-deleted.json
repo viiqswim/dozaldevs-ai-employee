@@ -1,0 +1,15 @@
+{
+  "webhookEvent": "jira:issue_deleted",
+  "timestamp": 1711497700000,
+  "issue": {
+    "id": "10001",
+    "key": "TEST-1",
+    "self": "https://example.atlassian.net/rest/api/2/issue/10001",
+    "fields": {
+      "summary": "Add utility function for date formatting",
+      "project": {
+        "key": "TEST"
+      }
+    }
+  }
+}
