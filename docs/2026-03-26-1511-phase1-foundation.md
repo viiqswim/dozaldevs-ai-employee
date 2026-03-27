@@ -9,8 +9,8 @@ This document describes everything built during Phase 1 of the AI Employee Platf
 ## What Was Built
 
 ```mermaid
-flowchart TD
-    subgraph Phase 1 Deliverables
+flowchart LR
+    subgraph Phase 1 - Completed
         TS["TypeScript Project\n(pnpm + ESM)"]:::service
         SCHEMA["Prisma Schema\n(16 tables)"]:::service
         MIG["3 Migrations\n(init → constraints → sync)"]:::service
@@ -19,20 +19,32 @@ flowchart TD
         DIRS["Empty src/ Dirs\n(gateway, inngest, lib, workers)"]:::service
     end
 
-    subgraph Not Built - Intentional
+    subgraph Future Phases
         GW["Event Gateway\n(Phase 2)"]:::future
-        INNGEST["Inngest Functions\n(Phase 2)"]:::future
-        AGENTS["Agent Code\n(Phase 3+)"]:::future
+        ING["Inngest Functions\n(Phase 2)"]:::future
+        AGT["Agent Code\n(Phase 3+)"]:::future
     end
 
-    TS --> SCHEMA --> MIG --> SEED --> TESTS
-    DIRS -.->|"scaffold for"| GW
-    DIRS -.->|"scaffold for"| INNGEST
-    DIRS -.->|"scaffold for"| AGENTS
+    TS ==>|"1. Scaffold project"| SCHEMA
+    SCHEMA ==>|"2. Define 16 tables"| MIG
+    MIG ==>|"3. Apply constraints"| SEED
+    SEED ==>|"4. Load dev data"| TESTS
+    DIRS -.->|"5a. Scaffolds gateway"| GW
+    DIRS -.->|"5b. Scaffolds functions"| ING
+    DIRS -.->|"5c. Scaffolds agents"| AGT
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
 ```
+
+| #     | What happens         | Details                                                                                                                                                    |
+| ----- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Scaffold project     | `package.json`, `tsconfig.json`, `eslint.config.mjs`, `.prettierrc`, pnpm workspace — the compiler and linter configured before any other file is written. |
+| 2     | Define 16 tables     | `prisma/schema.prisma` — 7 MVP-active tables and 9 forward-compat tables. All FK relationships, nullable constraints, and default values declared here.    |
+| 3     | Apply constraints    | 3 migration files run sequentially: create all tables, add CHECK constraints via raw SQL, sync schema. Database is now the enforcer of valid states.       |
+| 4     | Load dev data        | `prisma/seed.ts` upserts 1 project and 1 agent_version with fixed UUIDs. Idempotent — safe to run on every local reset.                                    |
+| 5     | Run 12 Vitest tests  | Schema validation suite confirms all 16 tables exist, constraints reject bad data, seed data is correct, and defaults are applied.                         |
+| 5a–5c | Scaffold future dirs | `src/gateway/`, `src/inngest/`, `src/workers/` exist as empty directories. Future phases drop files here without restructuring.                            |
 
 ---
 
@@ -196,26 +208,26 @@ These tables exist in the schema now but are empty — they'll be populated as l
 
 ```mermaid
 flowchart TD
-    subgraph MVP Active
-        T["tasks"]:::mvp
-        E["executions"]:::mvp
-        D["deliverables"]:::mvp
-        VR["validation_runs"]:::mvp
-        P["projects"]:::mvp
-        FB["feedback"]:::mvp
-        SL["task_status_log"]:::mvp
+    subgraph MVP Active Tables
+        T["tasks"]:::service
+        E["executions"]:::service
+        D["deliverables"]:::service
+        VR["validation_runs"]:::service
+        P["projects"]:::service
+        FB["feedback"]:::service
+        SL["task_status_log"]:::service
     end
 
-    subgraph Forward Compat
-        AV["agent_versions"]:::fwd
-        ARC["archetypes"]:::fwd
-        DEPT["departments"]:::fwd
-        KB["knowledge_bases"]:::fwd
-        RM["risk_models"]:::fwd
-        CDT["cross_dept_triggers"]:::fwd
-        CL["clarifications"]:::fwd
-        REV["reviews"]:::fwd
-        AL["audit_log"]:::fwd
+    subgraph Forward Compat Tables
+        AV["agent_versions"]:::future
+        ARC["archetypes"]:::future
+        DEPT["departments"]:::future
+        KB["knowledge_bases"]:::future
+        RM["risk_models"]:::future
+        CDT["cross_dept_triggers"]:::future
+        CL["clarifications"]:::future
+        REV["reviews"]:::future
+        AL["audit_log"]:::future
     end
 
     T -->|"1:many"| E
@@ -228,20 +240,20 @@ flowchart TD
     E -->|"1:many"| VR
     D -->|"1:many"| REV
 
-    T -..->|"nullable FK"| ARC
-    T -..->|"nullable FK"| P
-    E -..->|"nullable FK"| AV
-    FB -..->|"nullable FK"| AV
-    REV -..->|"nullable FK"| AV
-    AL -..->|"nullable FK"| AV
-    ARC -..->|"nullable FK"| DEPT
-    ARC -..->|"nullable FK"| AV
-    ARC -..->|"nullable FK"| KB
-    ARC -..->|"nullable FK"| RM
-    P -..->|"nullable FK"| DEPT
+    T -.->|"nullable FK"| ARC
+    T -.->|"nullable FK"| P
+    E -.->|"nullable FK"| AV
+    FB -.->|"nullable FK"| AV
+    REV -.->|"nullable FK"| AV
+    AL -.->|"nullable FK"| AV
+    ARC -.->|"nullable FK"| DEPT
+    ARC -.->|"nullable FK"| AV
+    ARC -.->|"nullable FK"| KB
+    ARC -.->|"nullable FK"| RM
+    P -.->|"nullable FK"| DEPT
 
-    classDef mvp fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef fwd fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
+    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
 ```
 
 Solid arrows = FK enforced with active data. Dashed arrows = FK defined, nullable, referenced table currently empty.
@@ -258,10 +270,17 @@ flowchart LR
     M2["20260326135326_add_check_constraints\nCHECK on tasks.status\nCHECK on task_status_log.actor\ntenant_id defaults"]:::service
     M3["20260326135742_sync_schema\nSchema/Prisma sync"]:::service
 
-    M1 ==> M2 ==> M3
+    M1 ==>|"1. Create tables"| M2
+    M2 ==>|"2. Enforce constraints"| M3
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
 ```
+
+| #   | Migration                              | What it does                                                                                                                                                                                                  |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `20260326135305_init`                  | Creates all 16 tables, establishes every FK relationship, and creates the UNIQUE index on `tasks(external_id, source_system, tenant_id)` for webhook idempotency.                                             |
+| 2   | `20260326135326_add_check_constraints` | Adds the `tasks.status` CHECK (13 valid values) and `task_status_log.actor` CHECK (5 valid values) via raw SQL — Prisma cannot generate these natively. Also locks in `tenant_id` defaults across all tables. |
+| —   | `20260326135742_sync_schema`           | Syncs the Prisma-generated schema definition to match the raw SQL constraints added in migration 2. No new database changes — purely a schema file alignment.                                                 |
 
 **Why CHECK constraints are in a separate migration (M2)**: Prisma's schema language has no native `CHECK` constraint support. They must be written in raw SQL via `prisma migrate --create-only`. M1 creates the tables with Prisma's generated SQL. M2 adds the CHECK constraints as a separate raw SQL migration. This two-step approach keeps Prisma as the authoritative schema source while still enforcing database-level constraints.
 
@@ -320,10 +339,18 @@ flowchart LR
         G5["Group 5\nDefault Values\n2 tests"]:::service
     end
 
-    G1 --> G2 --> G3 --> G4 --> G5
+    G1 ==>|"1"| G2 ==>|"2"| G3 ==>|"3"| G4 ==>|"4"| G5
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
 ```
+
+| #   | Group              | What it verifies                                                                                                                                                                         |
+| --- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Table Existence    | All 16 application tables exist in the `public` schema. Excludes `_prisma_migrations`. Fails fast if any migration didn't apply.                                                         |
+| 2   | CHECK Constraints  | Invalid `tasks.status` is rejected. All 13 valid statuses are accepted. Invalid `task_status_log.actor` is rejected. All 5 valid actors (including `machine`) are accepted.              |
+| 3   | UNIQUE Constraints | Duplicate `(external_id, source_system, tenant_id)` triplet is rejected — the webhook idempotency guarantee. Different `external_id` with the same `source_system` is correctly allowed. |
+| 4   | Seed Data          | Project seed row has correct `repo_url`, `default_branch`, and `tenant_id`. Agent version seed row has correct `model_id` and `is_active = true`.                                        |
+| 5   | Default Values     | `tasks.dispatch_attempts` defaults to `0`. `tasks.status` defaults to `'Received'` when omitted from INSERT.                                                                             |
 
 | Group                  | What It Tests                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -376,18 +403,18 @@ flowchart TD
     end
 
     subgraph Phase 2 - Next
-        GW["src/gateway/\nFastify webhook receiver"]:::next
-        ING["src/inngest/\nLifecycle function"]:::next
-        LIB["src/lib/\ncallLLM, jiraClient"]:::next
+        GW["src/gateway/\nFastify webhook receiver"]:::event
+        ING["src/inngest/\nLifecycle function"]:::event
+        LIB["src/lib/\ncallLLM, jiraClient"]:::event
     end
 
-    DB --> GW
-    DB --> ING
-    DB --> LIB
-    SCHEMA -.->|"already done"| GW
-    SCHEMA -.->|"already done"| ING
+    DB -->|"reads/writes"| GW
+    DB -->|"reads/writes"| ING
+    DB -->|"reads"| LIB
+    SCHEMA -.->|"schema already complete"| GW
+    SCHEMA -.->|"schema already complete"| ING
 
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef next fill:#50C878,stroke:#2D7A4A,color:#fff
+    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
