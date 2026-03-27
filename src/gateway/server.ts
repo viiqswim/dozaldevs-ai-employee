@@ -48,12 +48,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<ReturnTyp
   } as JiraRouteOptions);
 
   await app.register(githubRoutes);
-
-  if (options.inngestClient) {
-    await app.register(inngestServeRoutes, {
-      inngestClient: options.inngestClient,
-    });
-  }
+  await app.register(inngestServeRoutes);
 
   return app;
 }

@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
-import { Inngest } from 'inngest';
 
 // Singleton PrismaClient for all tests
 let _prisma: PrismaClient | undefined;
@@ -50,18 +49,19 @@ export function computeJiraSignature(body: string, secret: string): string {
 }
 
 /**
- * Inngest client for tests — uses real Inngest instance with test configuration.
- * The gateway accepts an Inngest client for dependency injection.
+ * Inngest mock for tests — simple duck-typed object.
+ * The gateway accepts an InngestLike object for dependency injection.
+ * Always succeeds (returns a mock event ID).
  */
-export const inngestMock = new Inngest({
-  id: 'test-gateway',
-  baseUrl: 'http://localhost:8288',
-  fetch: async () => {
-    return new Response(JSON.stringify({ functions: [] }), { status: 200 });
+export const inngestMock = {
+  send: async (_event: unknown): Promise<{ ids: string[] }> => {
+    return { ids: ['mock-event-id'] };
   },
-});
+};
 
-export async function createTestApp(opts?: { inngest?: Inngest }) {
+export async function createTestApp(opts?: {
+  inngest?: { send(event: unknown): Promise<{ ids: string[] }> };
+}) {
   const { buildApp } = await import('../src/gateway/server.js');
 
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';

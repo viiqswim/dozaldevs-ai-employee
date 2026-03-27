@@ -1,25 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { serve } from 'inngest/fastify';
-import type { InngestLike } from '../server.js';
+import { createInngestClient } from './client.js';
 
-export interface InngestServeOptions {
-  inngestClient?: InngestLike;
-}
-
-/**
- * Register the /api/inngest endpoint for Inngest function discovery and invocation.
- * Phase 3 will add actual function handlers; this phase registers the endpoint with zero functions.
- */
-export async function inngestServeRoutes(
-  app: FastifyInstance,
-  opts: InngestServeOptions,
-): Promise<void> {
-  if (!opts.inngestClient) {
-    throw new Error('inngestClient is required for inngestServeRoutes');
-  }
+export async function inngestServeRoutes(app: FastifyInstance): Promise<void> {
+  const inngest = createInngestClient();
 
   const handler = serve({
-    client: opts.inngestClient as any,
+    client: inngest,
     functions: [],
   });
 
