@@ -33,12 +33,14 @@ async function main() {
         repo_url: 'https://github.com/your-org/your-test-repo',
         default_branch: 'main',
         concurrency_limit: 3,
+        jira_project_key: 'TEST',
       },
       update: {
         name: 'test-project',
         repo_url: 'https://github.com/your-org/your-test-repo',
         default_branch: 'main',
         concurrency_limit: 3,
+        jira_project_key: 'TEST',
       },
     }),
   ]);
