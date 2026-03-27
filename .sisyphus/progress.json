@@ -1,0 +1,480 @@
+{
+  "project": "ai-employee",
+  "description": "Multi-department Digital AI Employee Platform — MVP progress registry. Read this file FIRST when resuming work on any phase.",
+  "last_updated": "2026-03-26T21:30:00Z",
+  "last_session_id": "ses_2e36a06e4ffe1zOr0sU12YK10L",
+  "source_docs": {
+    "architecture": "docs/2026-03-22-2317-ai-employee-architecture.md",
+    "implementation_phases": "docs/2026-03-25-1901-mvp-implementation-phases.md",
+    "phase1_detail": "docs/2026-03-26-1511-phase1-foundation.md"
+  },
+  "how_to_resume": "1. Read this file to find the current phase (first phase where status != 'complete'). 2. Read the phase's resume_hint for what to do next. 3. Run the phase's verification_commands to assess actual state — checkpoints may be stale if work happened outside a tracked session. 4. After completing work, update this file: set checkpoint statuses, update phase status, set last_updated and last_session_id.",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Foundation",
+      "status": "complete",
+      "description": "TypeScript project scaffold, Prisma schema (16 tables), local Supabase, migrations, seed data, Vitest test suite.",
+      "architecture_refs": [
+        "§13 Platform Data Model",
+        "§15 Technology Stack",
+        "§27.5 Local Development Setup"
+      ],
+      "plan_file": ".sisyphus/plans/2026-03-26-0051-phase1-foundation.md",
+      "doc_file": "docs/2026-03-26-1511-phase1-foundation.md",
+      "started_at": "2026-03-26T06:00:00Z",
+      "completed_at": "2026-03-26T14:30:00Z",
+      "checkpoints": {
+        "scaffolding": {
+          "status": "complete",
+          "description": "package.json, tsconfig.json, eslint.config.mjs, .prettierrc, directory structure",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "pnpm tsc --noEmit && pnpm lint"
+        },
+        "schema_defined": {
+          "status": "complete",
+          "description": "prisma/schema.prisma with 7 MVP + 9 forward-compat tables, all FKs, nullable FK strategy",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "pnpm prisma generate"
+        },
+        "migrations_applied": {
+          "status": "complete",
+          "description": "3 migrations: init (16 tables + FKs + UNIQUE), CHECK constraints (raw SQL), schema sync",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "pnpm prisma migrate status",
+          "notes": "Database is 'ai_employee' on local Supabase (not default 'postgres'). See AGENTS.md for per-project DB convention."
+        },
+        "constraints_enforced": {
+          "status": "complete",
+          "description": "CHECK on tasks.status (13 values), CHECK on task_status_log.actor (5 values), UNIQUE on tasks(external_id, source_system, tenant_id)",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \"INSERT INTO tasks (id, status, tenant_id, updated_at) VALUES (gen_random_uuid(), 'INVALID', '00000000-0000-0000-0000-000000000001', now());\" 2>&1 | grep -q 'violates check constraint' && echo 'PASS' || echo 'FAIL'"
+        },
+        "seed_data": {
+          "status": "complete",
+          "description": "1 project (test-project, UUID ...0003), 1 agent_version (claude-sonnet-4, UUID ...0002). Idempotent upserts.",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "pnpm prisma db seed"
+        },
+        "tests_written": {
+          "status": "complete",
+          "description": "12 Vitest tests in tests/schema.test.ts: table existence, CHECK constraints, UNIQUE constraints, seed data, default values",
+          "verified_at": "2026-03-26T19:47:00Z"
+        },
+        "tests_passing": {
+          "status": "complete",
+          "description": "All 12 tests pass against live ai_employee database",
+          "verified_at": "2026-03-26T19:47:00Z",
+          "verify_command": "pnpm test -- --run"
+        },
+        "committed": {
+          "status": "complete",
+          "description": "All Phase 1 code committed to main branch",
+          "verified_at": "2026-03-26T19:47:00Z"
+        },
+        "documented": {
+          "status": "complete",
+          "description": "docs/2026-03-26-1511-phase1-foundation.md covers full Phase 1 architecture",
+          "verified_at": "2026-03-26T19:47:00Z"
+        }
+      },
+      "resume_hint": "Phase 1 is complete. Proceed to Phase 2."
+    },
+    {
+      "id": 2,
+      "name": "Event Gateway",
+      "status": "not_started",
+      "description": "Fastify server accepts webhooks, validates signatures, parses payloads with Zod, writes task records to Supabase with idempotency and project filtering.",
+      "architecture_refs": [
+        "§8 Engineering Dept System Context",
+        "§8 Webhook Event Routing table",
+        "§8 Error Handling Contract"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "fastify_server": {
+          "status": "not_started",
+          "description": "Fastify app with /health, /webhooks/jira, /webhooks/github routes in src/gateway/",
+          "verify_command": "curl -s http://localhost:3000/health | grep -q 'ok' && echo 'PASS' || echo 'FAIL'"
+        },
+        "signature_verification": {
+          "status": "not_started",
+          "description": "Jira HMAC and GitHub X-Hub-Signature-256 verification. Invalid signature → 401."
+        },
+        "payload_validation": {
+          "status": "not_started",
+          "description": "Zod schemas for Jira and GitHub payloads. Invalid payload → 400."
+        },
+        "webhook_routing": {
+          "status": "not_started",
+          "description": "jira:issue_created → task record (Ready), jira:issue_deleted → Cancelled, unknown → ignore"
+        },
+        "project_filtering": {
+          "status": "not_started",
+          "description": "Match issue.fields.project.key against projects table. Unknown project → 200, no task."
+        },
+        "task_creation": {
+          "status": "not_started",
+          "description": "Write tasks row with status Ready, populate triage_result with raw webhook, store raw_event. UNIQUE handles duplicates."
+        },
+        "status_logging": {
+          "status": "not_started",
+          "description": "task_status_log entry on every transition (actor: gateway)"
+        },
+        "test_fixtures": {
+          "status": "not_started",
+          "description": "test-payloads/ directory with jira-issue-created.json, jira-issue-created-invalid.json, jira-issue-created-unknown-project.json"
+        },
+        "tests_written": {
+          "status": "not_started",
+          "description": "Vitest or integration tests for all webhook scenarios"
+        },
+        "tests_passing": { "status": "not_started", "verify_command": "pnpm test -- --run" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Start by creating the Fastify server in src/gateway/. Read §8 of the architecture doc for the full webhook routing table and error handling contract. The Prisma schema and database are already complete from Phase 1 — no migrations needed."
+    },
+    {
+      "id": 3,
+      "name": "Inngest Core",
+      "status": "not_started",
+      "description": "Events flow from Gateway to Inngest Dev Server, engineering lifecycle function triggers and manages status transitions with optimistic locking.",
+      "architecture_refs": [
+        "§10 Orchestration and Scaling",
+        "§10 MVP Lifecycle Function pseudo-code",
+        "§14 Inngest Execution Limits"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "inngest_client": {
+          "status": "not_started",
+          "description": "Inngest client configured in Gateway app, /api/inngest endpoint, inngest.send() after task creation"
+        },
+        "lifecycle_function": {
+          "status": "not_started",
+          "description": "engineering/task-lifecycle function with concurrency control (3 per project), status transitions, cancellation check, waitForEvent"
+        },
+        "optimistic_locking": {
+          "status": "not_started",
+          "description": "All status transitions use WHERE status = $expected. Conflict → log and skip."
+        },
+        "redispatch_handler": {
+          "status": "not_started",
+          "description": "engineering/task-redispatch function skeleton"
+        },
+        "inngest_send_failure": {
+          "status": "not_started",
+          "description": "If inngest.send() fails after 3 retries → 202 response, task stays in Received with raw_event preserved"
+        },
+        "tests_written": { "status": "not_started" },
+        "tests_passing": { "status": "not_started" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Requires Phase 2 complete (Gateway running). Start Inngest Dev Server (npx inngest-cli@latest dev). Read §10 for the lifecycle function pseudo-code."
+    },
+    {
+      "id": 4,
+      "name": "Execution Infrastructure",
+      "status": "not_started",
+      "description": "callLLM() wrapper calls OpenRouter, thin API wrappers handle retries, Docker image builds, worker container boots and reads task context.",
+      "architecture_refs": [
+        "§22 LLM Gateway Design",
+        "§24 API Rate Limiting MVP wrappers",
+        "§7.3 Fly.io Machine Lifecycle",
+        "§9.2 Execution Agent boot sequence"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "llm_gateway": {
+          "status": "not_started",
+          "description": "callLLM({ model, messages, taskType, taskId }) with OpenRouter, retry-on-429, token tracking, cost accumulation, timeout handling"
+        },
+        "api_wrappers": {
+          "status": "not_started",
+          "description": "jiraClient, githubClient, slackClient — each with retry-on-429"
+        },
+        "docker_image": {
+          "status": "not_started",
+          "description": "Dockerfile with Node.js, pnpm, git, gh CLI, OpenCode CLI, platform scripts",
+          "verify_command": "docker build -t ai-employee-worker . && echo 'PASS' || echo 'FAIL'"
+        },
+        "entrypoint_script": {
+          "status": "not_started",
+          "description": "entrypoint.sh: write auth tokens, shallow clone, checkout branch, install deps, read task context, write heartbeat"
+        },
+        "container_boots": {
+          "status": "not_started",
+          "description": "Container boots, clones repo, reads task from Supabase, writes heartbeat to executions table"
+        },
+        "tests_written": { "status": "not_started" },
+        "tests_passing": { "status": "not_started" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Can be partially developed in parallel with Phase 3 (LLM wrapper and Docker don't depend on Inngest). But verify Phase 3 first. Requires OPENROUTER_API_KEY and GITHUB_TOKEN in .env."
+    },
+    {
+      "id": 5,
+      "name": "Execution Agent",
+      "status": "not_started",
+      "description": "OpenCode session receives task context, generates plan, writes code, validation pipeline runs with fix loop.",
+      "architecture_refs": ["§9.2 Execution Agent", "§6.1 Engineering Department agent runtime"],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "orchestrate_script": {
+          "status": "not_started",
+          "description": "orchestrate.mjs: start opencode serve, create session via SDK, inject task context, monitor progress, write heartbeats"
+        },
+        "validation_pipeline": {
+          "status": "not_started",
+          "description": "Stage runner: TypeScript → Lint → Unit → Integration → E2E. Each stage records to validation_runs table."
+        },
+        "fix_loop": {
+          "status": "not_started",
+          "description": "On stage failure: send error to OpenCode, re-enter at failing stage. Per-stage limit: 3. Global limit: 10."
+        },
+        "escalation": {
+          "status": "not_started",
+          "description": "Budget exhaustion → Slack notification, task → AwaitingInput"
+        },
+        "execution_tracking": {
+          "status": "not_started",
+          "description": "executions record: agent_version_id, token counts, cost, primary_model_id"
+        },
+        "tests_written": { "status": "not_started" },
+        "tests_passing": { "status": "not_started" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Requires Phase 4 complete (Docker image boots, callLLM works). Test inside the Docker container. Read §9.2 for the full execution agent spec."
+    },
+    {
+      "id": 6,
+      "name": "Completion & Delivery",
+      "status": "not_started",
+      "description": "Agent creates branch + PR, writes completion to Supabase before Inngest event, lifecycle function finalizes task.",
+      "architecture_refs": [
+        "§9.4 Branch Naming",
+        "§9.2 PR Deduplication",
+        "§8 Reverse-Path SPOF Mitigation",
+        "§10 Lifecycle finalize step"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "branch_creation": {
+          "status": "not_started",
+          "description": "ai/<ticket-id>-<kebab-summary> format. Reuse existing branch on re-dispatch."
+        },
+        "pr_creation": {
+          "status": "not_started",
+          "description": "Deduplication check before gh pr create. Title: [AI] <ticket-id>: <summary>"
+        },
+        "supabase_first_write": {
+          "status": "not_started",
+          "description": "Write status=Submitting + PR URL to Supabase BEFORE sending Inngest event (SPOF mitigation)"
+        },
+        "inngest_completion_event": {
+          "status": "not_started",
+          "description": "engineering/task.completed event with deterministic ID for deduplication"
+        },
+        "lifecycle_finalize": {
+          "status": "not_started",
+          "description": "On completion: confirm Done. On timeout: check dispatch_attempts, re-dispatch or escalate. Create deliverables record."
+        },
+        "tests_written": { "status": "not_started" },
+        "tests_passing": { "status": "not_started" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Requires Phase 5 complete (agent writes code successfully). Read §8 Reverse-Path SPOF section — Supabase-first write order is critical."
+    },
+    {
+      "id": 7,
+      "name": "Resilience & Monitoring",
+      "status": "not_started",
+      "description": "Watchdog detects stale machines, re-dispatch works, cost circuit breaker, agent versioning, structured logging.",
+      "architecture_refs": [
+        "§10.1 3-Layer Monitoring",
+        "§22.1 Cost Circuit Breaker",
+        "§23 Agent Versioning",
+        "§18 Risk Mitigation"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "watchdog_cron": {
+          "status": "not_started",
+          "description": "Inngest cron every 10 min. Detect stale executions (no heartbeat 10 min), destroy 4h+ machines, recover Submitting tasks."
+        },
+        "redispatch_flow": {
+          "status": "not_started",
+          "description": "On timeout: dispatch_attempts < 3 → re-dispatch. >= 3 → Slack escalation, AwaitingInput. New machine reuses existing branch."
+        },
+        "cost_circuit_breaker": {
+          "status": "not_started",
+          "description": "Daily spend tracking per department. Over threshold ($50/day default) → pause LLM calls, Slack alert."
+        },
+        "waitforevent_race_fix": {
+          "status": "not_started",
+          "description": "Supabase pre-check before every step.waitForEvent call (§10 known issue)"
+        },
+        "agent_versioning": {
+          "status": "not_started",
+          "description": "agent_versions table populated, every execution links to agent_version_id"
+        },
+        "structured_logging": {
+          "status": "not_started",
+          "description": "All components emit JSON: timestamp, level, taskId, step, component, message, error, metadata"
+        },
+        "tests_written": { "status": "not_started" },
+        "tests_passing": { "status": "not_started" },
+        "committed": { "status": "not_started" },
+        "documented": { "status": "not_started" }
+      },
+      "resume_hint": "Can be partially developed alongside Phase 6 (watchdog and circuit breaker are independent). Read §10.1 for the 3-layer monitoring spec."
+    },
+    {
+      "id": 8,
+      "name": "Full Local E2E",
+      "status": "not_started",
+      "description": "Complete flow from Jira webhook to PR, running entirely locally. MVP validation milestone.",
+      "architecture_refs": ["§27.5 Local Development Setup", "§11 Full Lifecycle Sequence"],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "all_services_running": {
+          "status": "not_started",
+          "description": "Local Supabase + Inngest Dev Server + Event Gateway + Docker Desktop all running simultaneously"
+        },
+        "webhook_to_pr_flow": {
+          "status": "not_started",
+          "description": "Send realistic Jira webhook → task created → lifecycle triggers → container boots → code written → PR created → task Done"
+        },
+        "full_status_audit": {
+          "status": "not_started",
+          "description": "task_status_log shows: NULL→Ready(gateway), Ready→Executing(lifecycle_fn), Executing→Submitting(machine), Submitting→Done(lifecycle_fn)"
+        },
+        "all_records_populated": {
+          "status": "not_started",
+          "description": "tasks, executions, validation_runs, deliverables, task_status_log all have correct data"
+        },
+        "container_cleanup": {
+          "status": "not_started",
+          "description": "Worker container self-destructs after completion"
+        },
+        "twelve_point_checklist": {
+          "status": "not_started",
+          "description": "All 12 verification checks from the implementation phases doc pass",
+          "notes": "See docs/2026-03-25-1901-mvp-implementation-phases.md Phase 8 section for the full 12-point checklist"
+        }
+      },
+      "resume_hint": "Requires Phases 1-7 all complete. This is integration testing, not coding. Follow the exact test procedure in the implementation phases doc."
+    },
+    {
+      "id": 9,
+      "name": "Cloud Deployment",
+      "status": "not_started",
+      "description": "Same flow on Fly.io + Supabase Cloud + Inngest Cloud. Infrastructure swap, not code change.",
+      "architecture_refs": ["§27 Deployment Runbook", "§25 Security Model", "§15 Technology Stack"],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "supabase_cloud": {
+          "status": "not_started",
+          "description": "Supabase project created, migrations deployed, seed data inserted, connection verified"
+        },
+        "inngest_cloud": {
+          "status": "not_started",
+          "description": "Inngest project created, signing key + event key configured"
+        },
+        "flyio_gateway": {
+          "status": "not_started",
+          "description": "ai-employee-gateway app deployed with all secrets set, health check passing"
+        },
+        "flyio_worker_image": {
+          "status": "not_started",
+          "description": "Worker image built and pushed to Fly.io registry"
+        },
+        "webhooks_configured": {
+          "status": "not_started",
+          "description": "Jira and GitHub webhooks pointing to Fly.io gateway URL"
+        },
+        "cloud_e2e_passing": {
+          "status": "not_started",
+          "description": "Same 12-point checklist as Phase 8 but against cloud URLs"
+        },
+        "watchdog_running": {
+          "status": "not_started",
+          "description": "Watchdog cron executing on Inngest Cloud schedule"
+        }
+      },
+      "resume_hint": "Requires Phase 8 complete (local E2E passing). Follow the Deployment Runbook in §27. This should 'just work' — cloud is an infra swap, not a code change."
+    },
+    {
+      "id": 10,
+      "name": "Production Integration",
+      "status": "not_started",
+      "description": "Real Jira tickets trigger the flow. Shadow mode first, then supervised mode. Feedback loop captures corrections.",
+      "architecture_refs": [
+        "§16 Implementation Roadmap M3 gate",
+        "§19 Department Onboarding Checklist",
+        "§21 Feedback Loops"
+      ],
+      "plan_file": null,
+      "doc_file": null,
+      "started_at": null,
+      "completed_at": null,
+      "checkpoints": {
+        "real_jira_webhooks": {
+          "status": "not_started",
+          "description": "Jira project webhook configured to fire on issue_created and issue_deleted"
+        },
+        "shadow_mode": {
+          "status": "not_started",
+          "description": "1-2 weeks: system creates draft PRs with [SHADOW] prefix. Human reviews all output, records feedback. No merges."
+        },
+        "supervised_mode": {
+          "status": "not_started",
+          "description": "Remove [SHADOW] prefix. PRs created normally. Human reviews and merges manually. Feedback captured on every review."
+        },
+        "feedback_capture": {
+          "status": "not_started",
+          "description": "feedback table populated on PR rejection (pr_rejection) and approval with changes (merge_override)"
+        },
+        "monitoring_ritual": {
+          "status": "not_started",
+          "description": "Daily 5-min check (Inngest queue, execution logs, costs, Fly.io health). Weekly 15-min review (feedback, escalations, agent versions)."
+        },
+        "m3_gate_met": {
+          "status": "not_started",
+          "description": "After 10+ tickets: compilable PRs for simple tickets, >= 60% human approval without changes",
+          "notes": "This is the M3 milestone gate from §16 of the architecture doc"
+        }
+      },
+      "resume_hint": "Requires Phase 9 complete (cloud deployment working). Start with shadow mode — do NOT skip to supervised. Read §21 for the feedback loop design."
+    }
+  ]
+}
