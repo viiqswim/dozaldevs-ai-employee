@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@inngest/test": "^1.0.0",
     "@types/node": "^20.0.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
