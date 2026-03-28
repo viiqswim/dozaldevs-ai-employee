@@ -26,7 +26,7 @@ async function createTestTask(
   });
 }
 
-function makeEvent(taskId: string) {
+function makeEvent(taskId: string): [{ name: string; data: Record<string, unknown> }] {
   return [{ name: 'engineering/task.received', data: { taskId, projectId: SEED_PROJECT_ID } }];
 }
 
@@ -48,10 +48,12 @@ function makeEngineTimeout(noopFinalize = false) {
       const mocked = mockCtx(ctx);
       mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
       if (noopFinalize) {
-        mocked.step.run = vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
-          if (id === 'finalize') return undefined;
-          return origStepRun(id, fn);
-        });
+        mocked.step.run = vi
+          .fn()
+          .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+            if (id === 'finalize') return undefined;
+            return origStepRun(id, fn);
+          });
       }
       return mocked as any;
     },
@@ -78,10 +80,12 @@ function makeEngineForCancellation(cancelledResult: boolean) {
     transformCtx: (ctx: any) => {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
-      mocked.step.run = vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
-        if (id === 'check-cancellation') return cancelledResult;
-        return origStepRun(id, fn);
-      });
+      mocked.step.run = vi
+        .fn()
+        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+          if (id === 'check-cancellation') return cancelledResult;
+          return origStepRun(id, fn);
+        });
       return mocked as any;
     },
   });
@@ -95,12 +99,14 @@ function makeEngineForDispatch() {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
       mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
-      mocked.step.run = vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
-        if (id === 'finalize') return undefined;
-        const result = await origStepRun(id, fn);
-        if (id === 'dispatch-fly-machine') dispatchResult = result;
-        return result;
-      });
+      mocked.step.run = vi
+        .fn()
+        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+          if (id === 'finalize') return undefined;
+          const result = await origStepRun(id, fn);
+          if (id === 'dispatch-fly-machine') dispatchResult = result;
+          return result;
+        });
       return mocked as any;
     },
   });
@@ -108,7 +114,10 @@ function makeEngineForDispatch() {
 }
 
 beforeEach(() => {
-  vi.spyOn(inngest, 'send' as keyof typeof inngest).mockResolvedValue({ ids: [] } as never);
+  vi.spyOn(
+    inngest as unknown as { send: (...args: unknown[]) => unknown },
+    'send',
+  ).mockResolvedValue({ ids: [] });
 });
 
 afterEach(async () => {
@@ -229,7 +238,7 @@ describe('Group 4 — Finalize (step: finalize)', () => {
 
     const sendCalls = (inngest.send as unknown as MockCalls).mock.calls;
     expect(sendCalls.length).toBeGreaterThan(0);
-    const sentEvent = (sendCalls[0] as [{ name: string }])[0];
+    const sentEvent = (sendCalls[0] as unknown as [{ name: string }])[0];
     expect(sentEvent.name).toBe('engineering/task.redispatch');
   });
 
@@ -253,7 +262,9 @@ describe('Group 4 — Finalize (step: finalize)', () => {
     expect(log!.from_status).toBe('Executing');
 
     const warnCalls = warnSpy.mock.calls as unknown as Array<[string, ...unknown[]]>;
-    const slackCall = warnCalls.find(([msg]) => typeof msg === 'string' && msg.includes('[SLACK STUB]'));
+    const slackCall = warnCalls.find(
+      ([msg]) => typeof msg === 'string' && msg.includes('[SLACK STUB]'),
+    );
     expect(slackCall).toBeDefined();
   });
 
