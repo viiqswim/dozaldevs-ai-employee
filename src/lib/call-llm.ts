@@ -1,0 +1,186 @@
+import { PrismaClient } from '@prisma/client';
+import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
+import { withRetry } from './retry.js';
+
+export interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface CallLLMOptions {
+  model: string; // OpenRouter model ID e.g. "anthropic/claude-sonnet-4-6"
+  messages: Message[];
+  taskType: 'triage' | 'execution' | 'review';
+  taskId?: string;
+  temperature?: number; // default: 0
+  maxTokens?: number;
+  timeoutMs?: number; // default: 120_000
+}
+
+export interface CallLLMResult {
+  content: string;
+  model: string; // actual model used (may differ from requested)
+  promptTokens: number;
+  completionTokens: number;
+  estimatedCostUsd: number;
+  latencyMs: number;
+}
+
+const PRICING_PER_1M_TOKENS: Record<string, { prompt: number; completion: number }> = {
+  'anthropic/claude-sonnet-4-6': { prompt: 3.0, completion: 15.0 },
+  'anthropic/claude-opus-4-6': { prompt: 15.0, completion: 75.0 },
+  'openai/gpt-4o': { prompt: 2.5, completion: 10.0 },
+  'openai/gpt-4o-mini': { prompt: 0.15, completion: 0.6 },
+};
+
+let _prisma: PrismaClient | null = null;
+function getPrisma(): PrismaClient {
+  if (!_prisma) _prisma = new PrismaClient();
+  return _prisma;
+}
+
+const COST_CACHE: { value: number; refreshedAt: Date | null } = {
+  value: 0,
+  refreshedAt: null,
+};
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_COST_LIMIT_USD = 50;
+
+type CostRow = { total: number | string | null };
+
+async function checkCostCircuitBreaker(): Promise<void> {
+  const limitUsd =
+    parseFloat(process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY ?? '') || DEFAULT_COST_LIMIT_USD;
+
+  const now = new Date();
+  const cacheExpired =
+    COST_CACHE.refreshedAt === null ||
+    now.getTime() - COST_CACHE.refreshedAt.getTime() > CACHE_TTL_MS;
+
+  if (cacheExpired) {
+    const rows = await getPrisma().$queryRaw<CostRow[]>`
+      SELECT COALESCE(SUM(estimated_cost_usd), 0) as total
+      FROM executions
+      WHERE created_at > NOW() - INTERVAL '1 day'
+    `;
+    const rawTotal = rows[0]?.total;
+    COST_CACHE.value =
+      rawTotal === null || rawTotal === undefined ? 0 : parseFloat(String(rawTotal));
+    COST_CACHE.refreshedAt = now;
+  }
+
+  if (COST_CACHE.value > limitUsd) {
+    throw new CostCircuitBreakerError(
+      `Daily LLM spend $${COST_CACHE.value.toFixed(2)} exceeds limit $${limitUsd.toFixed(2)}`,
+      {
+        department: 'default',
+        currentSpendUsd: COST_CACHE.value,
+        limitUsd,
+      },
+    );
+  }
+}
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+/**
+ * Wraps fetch to throw RateLimitExceededError on 429 so withRetry can act on it.
+ */
+async function fetchWithRateLimitCheck(url: string, options: RequestInit): Promise<Response> {
+  const response = await fetch(url, options);
+  if (response.status === 429) {
+    throw new RateLimitExceededError('OpenRouter rate limit hit', {
+      service: 'openrouter',
+      attempts: 1,
+    });
+  }
+  return response;
+}
+
+interface OpenRouterResponse {
+  choices: Array<{ message: { content: string } }>;
+  model: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+}
+
+export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
+  const { model, messages, temperature, maxTokens, timeoutMs = 120_000 } = options;
+
+  // 1. Check cost circuit breaker (throws CostCircuitBreakerError if over limit)
+  await checkCostCircuitBreaker();
+
+  // 2. Build AbortController with timeout
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  const requestBody: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: temperature ?? 0,
+    ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
+  };
+
+  const fetchOptions: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ''}`,
+      'HTTP-Referer': 'https://ai-employee-platform',
+      'X-Title': 'AI Employee Platform',
+    },
+    body: JSON.stringify(requestBody),
+    signal: controller.signal,
+  };
+
+  const startMs = Date.now();
+  let response: Response;
+
+  try {
+    // 3. Fetch with retry-on-429
+    response = await withRetry(() => fetchWithRateLimitCheck(OPENROUTER_URL, fetchOptions), {
+      retryOn: (e) => e instanceof RateLimitExceededError,
+    });
+  } catch (err) {
+    // 4. Timeout → LLMTimeoutError
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new LLMTimeoutError(`LLM call timed out after ${timeoutMs}ms`, {
+        timeoutMs,
+        model,
+      });
+    }
+    // 5. RateLimitExceededError after retry exhaustion (or any other error) — re-throw as-is
+    throw err;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter returned ${response.status}: ${await response.text()}`);
+  }
+
+  const latencyMs = Date.now() - startMs;
+  const data = (await response.json()) as OpenRouterResponse;
+
+  const content = data.choices[0]?.message.content ?? '';
+  const actualModel = data.model;
+  const promptTokens = data.usage.prompt_tokens;
+  const completionTokens = data.usage.completion_tokens;
+
+  // 6. Calculate cost (0 if model not in pricing map)
+  const pricing = PRICING_PER_1M_TOKENS[model];
+  const estimatedCostUsd = pricing
+    ? (promptTokens * pricing.prompt + completionTokens * pricing.completion) / 1_000_000
+    : 0;
+
+  return {
+    content,
+    model: actualModel,
+    promptTokens,
+    completionTokens,
+    estimatedCostUsd,
+    latencyMs,
+  };
+}
