@@ -1,0 +1,11 @@
+{
+  "// Purpose": "Build config for Docker image — emits JS to dist/. Extends tsconfig.json (noEmit: true) but overrides noEmit to false.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts", "**/*.spec.ts", "supabase"]
+}
