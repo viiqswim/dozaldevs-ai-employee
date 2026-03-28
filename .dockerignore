@@ -1,0 +1,13 @@
+.git
+node_modules
+dist
+tests
+**/*.test.ts
+**/*.spec.ts
+.env
+.env.*
+.sisyphus
+docs
+*.md
+supabase
+.DS_Store
