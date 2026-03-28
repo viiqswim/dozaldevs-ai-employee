@@ -18,7 +18,6 @@ afterAll(async () => {
 describe('redispatch function', () => {
   it('function has correct ID: engineering/task-redispatch', () => {
     const fn = createRedispatchFunction(inngest, getPrisma());
-    // @ts-expect-error — accessing opts for testing
     expect((fn as any).opts.id).toBe('engineering/task-redispatch');
   });
 
