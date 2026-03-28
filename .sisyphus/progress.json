@@ -1,8 +1,8 @@
 {
   "project": "ai-employee",
   "description": "Multi-department Digital AI Employee Platform — MVP progress registry. Read this file FIRST when resuming work on any phase.",
-  "last_updated": "2026-03-27T03:57:00Z",
-  "last_session_id": "ses_2d3081087ffe4g6e3iY9ZkPa65",
+  "last_updated": "2026-03-28T01:27:19Z",
+  "last_session_id": "ses_2d248ef86ffemm3WZrKAHBmS19",
   "source_docs": {
     "architecture": "docs/2026-03-22-2317-ai-employee-architecture.md",
     "implementation_phases": "docs/2026-03-25-1901-mvp-implementation-phases.md",
@@ -162,44 +162,72 @@
     {
       "id": 3,
       "name": "Inngest Core",
-      "status": "not_started",
+      "status": "complete",
       "description": "Events flow from Gateway to Inngest Dev Server, engineering lifecycle function triggers and manages status transitions with optimistic locking.",
       "architecture_refs": [
         "§10 Orchestration and Scaling",
         "§10 MVP Lifecycle Function pseudo-code",
         "§14 Inngest Execution Limits"
       ],
-      "plan_file": null,
-      "doc_file": null,
-      "started_at": null,
-      "completed_at": null,
+      "plan_file": ".sisyphus/plans/2026-03-27-0015-phase3-inngest-core.md",
+      "doc_file": "docs/2026-03-27-2027-phase3-inngest-core.md",
+      "started_at": "2026-03-28T00:12:11.607Z",
+      "completed_at": "2026-03-28T01:27:19Z",
       "checkpoints": {
         "inngest_client": {
-          "status": "not_started",
-          "description": "Inngest client configured in Gateway app, /api/inngest endpoint, inngest.send() after task creation"
+          "status": "complete",
+          "description": "Inngest client, serve endpoint (/api/inngest with 2 registered functions), and send function with retry logic all implemented in Phase 2 and verified in Phase 3.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "curl -s http://localhost:3000/api/inngest | grep -q 'engineering/task-lifecycle' && echo 'PASS' || echo 'FAIL'"
         },
         "lifecycle_function": {
-          "status": "not_started",
-          "description": "engineering/task-lifecycle function with concurrency control (3 per project), status transitions, cancellation check, waitForEvent"
+          "status": "complete",
+          "description": "engineering/task-lifecycle function with concurrency (3/project), optimistic locking Ready→Executing, cancellation check, placeholder dispatch, waitForEvent 4h10m, finalize with re-dispatch/escalation.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "pnpm test -- --run tests/inngest/lifecycle.test.ts"
         },
         "optimistic_locking": {
-          "status": "not_started",
-          "description": "All status transitions use WHERE status = $expected. Conflict → log and skip."
+          "status": "complete",
+          "description": "All status transitions use prisma.task.updateMany with WHERE id = taskId AND status = expectedStatus. Lock failure throws NonRetriableError to prevent Inngest retries.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "pnpm test -- --run tests/inngest/lifecycle.test.ts"
         },
         "redispatch_handler": {
-          "status": "not_started",
-          "description": "engineering/task-redispatch function skeleton"
+          "status": "complete",
+          "description": "engineering/task-redispatch function skeleton that emits engineering/task.received via step.sendEvent() to trigger a new lifecycle instance. Phase 5 will add elapsed time check.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "pnpm test -- --run tests/inngest/redispatch.test.ts"
         },
         "inngest_send_failure": {
-          "status": "not_started",
-          "description": "If inngest.send() fails after 3 retries → 202 response, task stays in Received with raw_event preserved"
+          "status": "complete",
+          "description": "Implemented in Phase 2 (jira.ts lines 97-115). If inngest.send() fails after 3 retries → 202 response, task stays in DB with raw_event for manual recovery. Verified in Phase 3.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "pnpm test -- --run tests/gateway/inngest-send.test.ts"
         },
-        "tests_written": { "status": "not_started" },
-        "tests_passing": { "status": "not_started" },
-        "committed": { "status": "not_started" },
-        "documented": { "status": "not_started" }
+        "tests_written": {
+          "status": "complete",
+          "description": "11 lifecycle unit tests (tests/inngest/lifecycle.test.ts), 3 redispatch unit tests (tests/inngest/redispatch.test.ts), 4 registration tests added to inngest-serve.test.ts, 4 integration tests (tests/inngest/integration.test.ts, skip when no INNGEST_DEV_URL). Total Phase 3 tests: 22.",
+          "verified_at": "2026-03-28T01:27:19Z"
+        },
+        "tests_passing": {
+          "status": "complete",
+          "description": "107 tests pass + 4 integration tests skipped (total 111). 0 failures. TypeScript build clean (0 errors).",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "verify_command": "pnpm test -- --run"
+        },
+        "committed": {
+          "status": "complete",
+          "description": "All Phase 3 code committed: lifecycle.ts, redispatch.ts, serve.ts update, all test files, @inngest/test dependency.",
+          "verified_at": "2026-03-28T01:27:19Z"
+        },
+        "documented": {
+          "status": "complete",
+          "description": "Phase 3 completion doc created.",
+          "verified_at": "2026-03-28T01:27:19Z",
+          "doc_file": "docs/2026-03-27-2027-phase3-inngest-core.md"
+        }
       },
-      "resume_hint": "Requires Phase 2 complete (Gateway running). Start Inngest Dev Server (npx inngest-cli@latest dev). Read §10 for the lifecycle function pseudo-code."
+      "resume_hint": "Phase 3 is complete. Proceed to Phase 4 (Execution Infrastructure)."
     },
     {
       "id": 4,
