@@ -163,7 +163,7 @@ async function main(): Promise<void> {
       current_stage: 'done',
       updated_at: new Date().toISOString(),
     });
-    console.log(`[orchestrate] Task ${task.external_id} completed successfully`);
+    console.info(`[orchestrate] Task ${task.external_id} completed successfully`);
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(0);
