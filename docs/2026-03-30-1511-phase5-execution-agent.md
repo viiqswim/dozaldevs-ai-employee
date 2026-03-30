@@ -2,7 +2,7 @@
 
 ## What This Document Is
 
-This document describes everything built during Phase 5 of the AI Employee Platform: the orchestration script, worker library modules, validation pipeline, and fix loop that form the execution agent running inside the Fly.io worker container. Phase 5 builds directly on Phase 4's infrastructure (retry, error types, LLM gateway, API clients, Docker image, boot sequence) and delivers the core behavior: spawn an OpenCode session, monitor it, validate its output, and iterate until the code passes or limits are hit.
+This document describes everything built during Phase 5 of the AI Employee Platform: the orchestration script (`orchestrate.mts`) and the seven supporting modules that run inside the Fly.io container to manage end-to-end task execution. Phase 5 builds directly on Phase 4's boot infrastructure — `entrypoint.sh` Step 8 hands off to `orchestrate.mts`, which wires together OpenCode session management, a 5-stage validation pipeline, an automatic fix loop, and a 60-second heartbeat. Phase 5 produces no new HTTP endpoints and no new Inngest functions — it is the execution layer that runs inside the worker container.
 
 ---
 
@@ -11,56 +11,40 @@ This document describes everything built during Phase 5 of the AI Employee Platf
 ```mermaid
 flowchart LR
     subgraph Phase 5 - Completed
+        PGREST["PostgREST Client\n(workers/lib/postgrest-client.ts)"]:::service
+        TASKCTX["Task Context\n(workers/lib/task-context.ts)"]:::service
+        OPSRV["OpenCode Server\n(workers/lib/opencode-server.ts)"]:::service
+        SESSMGR["Session Manager\n(workers/lib/session-manager.ts)"]:::service
+        VALPIPE["Validation Pipeline\n(workers/lib/validation-pipeline.ts)"]:::service
+        FIXLOOP["Fix Loop\n(workers/lib/fix-loop.ts)"]:::service
+        HRTBT["Heartbeat\n(workers/lib/heartbeat.ts)"]:::service
         ORCH["orchestrate.mts\n(main entrypoint)"]:::service
-        PG["postgrest-client.ts\n(task context fetch)"]:::service
-        TC["task-context.ts\n(parse + buildPrompt)"]:::service
-        OCS["opencode-server.ts\n(spawn + health-poll)"]:::service
-        SM["session-manager.ts\n(SSE monitor)"]:::service
-        VP["validation-pipeline.ts\n(5 stages)"]:::service
-        FL["fix-loop.ts\n(per-stage 3, global 10)"]:::service
-        HB["heartbeat.ts\n(60s interval)"]:::service
     end
 
     subgraph Phase 4 - Foundation
-        BOOT["entrypoint.sh"]:::event
-        RETRY["withRetry()"]:::event
-        LLM["callLLM()"]:::event
+        BOOT["entrypoint.sh\n(8-step boot)"]:::service
     end
 
-    subgraph Deferred
-        TOKEN["Token tracking"]:::future
-        COMPLETE["Completion event"]:::future
-        BRPR["Branch + PR creation"]:::future
-    end
-
-    BOOT ==>|"1. Hands off to"| ORCH
-    PG ==>|"2. Fetches task"| ORCH
-    TC ==>|"3. Builds prompt"| ORCH
-    OCS ==>|"4. Spawns server"| ORCH
-    SM ==>|"5. Monitors session"| ORCH
-    VP ==>|"6. Validates output"| ORCH
-    FL ==>|"7. Drives fix loop"| ORCH
-    HB ==>|"8. Keeps alive"| ORCH
-    RETRY -.->|"wraps API calls"| PG
-    ORCH -.->|"deferred"| TOKEN
-    ORCH -.->|"deferred"| COMPLETE
-    ORCH -.->|"deferred"| BRPR
+    BOOT ==>|"exec node"| ORCH
+    ORCH --> PGREST
+    ORCH --> TASKCTX
+    ORCH --> OPSRV
+    ORCH --> SESSMGR
+    ORCH --> VALPIPE & FIXLOOP & HRTBT
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
-    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
 
-| #   | What happens            | Details                                                                                                                                                      |
-| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Boot hands off          | `entrypoint.sh` (Phase 4) ends with `exec node dist/workers/orchestrate.mjs` — no clean exit, process replaces the shell.                                    |
-| 2   | Task context fetched    | `postgrest-client.ts` calls the Supabase PostgREST API directly via `fetch`. No Supabase SDK. Returns the raw task row.                                      |
-| 3   | Prompt built            | `task-context.ts` parses the task row, resolves tooling config, and assembles the full prompt string passed to OpenCode.                                     |
-| 4   | OpenCode server spawned | `opencode-server.ts` spawns the OpenCode process, polls the health endpoint until ready, and holds a reference for clean shutdown.                           |
-| 5   | Session monitored       | `session-manager.ts` subscribes to the OpenCode SSE stream. Waits for a completion event or the 60-minute timeout, whichever comes first.                    |
-| 6   | Output validated        | `validation-pipeline.ts` runs 5 stages in sequence: TypeScript type-check, lint, unit tests, integration tests, E2E tests. Each uses `execFile`, not `exec`. |
-| 7   | Fix loop iterates       | `fix-loop.ts` re-enters at the failing stage. Per-stage limit is 3 attempts; global limit is 10. Exceeding either terminates with a failure status.          |
-| 8   | Heartbeat keeps alive   | `heartbeat.ts` fires every 60 seconds via `setInterval`, calling `escalate()` if the session appears stalled.                                                |
+| #   | What happens        | Details                                                                                                                                                                         |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Boot hands off      | `entrypoint.sh` Step 8 runs `exec node /app/dist/workers/orchestrate.mjs`. The `exec` replaces the shell process — orchestrate becomes PID 1 in the container.                  |
+| 2   | PostgREST client    | Thin `fetch`-only client for Supabase PostgREST. Workers have no direct DB connection — all reads and writes go through `${SUPABASE_URL}/rest/v1/...`.                          |
+| 3   | Task context        | Reads `/workspace/.task-context.json` (written by Step 6 of boot), extracts the task row, builds a structured markdown prompt from the Jira webhook payload in `triage_result`. |
+| 4   | OpenCode server     | Spawns `opencode serve --port 4096` as a child process, health-polls `GET /global/health` every 1s until `{ healthy: true }`, then returns a handle with a `kill()` method.     |
+| 5   | Session manager     | Creates an OpenCode session, injects the task prompt, and monitors for completion via SSE (`session.idle` event). Falls back to polling every 10s if SSE disconnects.           |
+| 6   | Validation pipeline | Runs 5 stages in order: TypeScript → Lint → Unit → Integration → E2E. Each stage result is recorded to `validation_runs` via PostgREST. Stops on first failure.                 |
+| 7   | Fix loop            | On validation failure, sends the error output back to OpenCode as a fix prompt, waits for the session to go idle, then re-runs the pipeline from the failing stage forward.     |
+| 8   | Heartbeat           | PATCHes `executions.heartbeat_at` every 60 seconds. Failures are logged but never crash the orchestrator.                                                                       |
 
 ---
 
@@ -70,267 +54,515 @@ flowchart LR
 ai-employee/
 ├── src/
 │   └── workers/
-│       ├── orchestrate.mts            # Main entrypoint — 183 lines, 12-step main()
+│       ├── orchestrate.mts                    # Main entrypoint — 12-step main() function
 │       └── lib/
-│           ├── postgrest-client.ts    # get(), post(), patch() via fetch — no SDK
-│           ├── task-context.ts        # parseTaskContext(), buildPrompt(), resolveToolingConfig()
-│           ├── opencode-server.ts     # spawn(), healthPoll(), shutdown()
-│           ├── session-manager.ts     # SSE monitoring, 60-minute timeout
-│           ├── validation-pipeline.ts # runPipeline() — 5 stages, execFile, cwd=/workspace
-│           ├── fix-loop.ts            # runFixLoop() — per-stage(3), global(10), re-entry
-│           └── heartbeat.ts          # startHeartbeat() — 60s setInterval, escalate()
-├── dist/
-│   └── workers/
-│       ├── orchestrate.mjs            # Compiled output (NodeNext module resolution)
-│       └── lib/
-│           └── *.mjs                  # Compiled worker lib modules
-├── tests/
-│   └── workers/
-│       ├── orchestrate.test.ts        # 1 integration smoke test
-│       ├── lib/
-│           ├── postgrest-client.test.ts   # 19 tests
-│           ├── task-context.test.ts       # 19 tests
-│           ├── opencode-server.test.ts    # 14 tests
-│           ├── session-manager.test.ts    # 25 tests
-│           ├── validation-pipeline.test.ts # 23 tests
-│           ├── fix-loop.test.ts           # 13 tests
-│           └── heartbeat.test.ts          # 17 tests
+│           ├── postgrest-client.ts            # createPostgRESTClient() — get, post, patch
+│           ├── task-context.ts                # parseTaskContext, buildPrompt, resolveToolingConfig, DEFAULT_TOOLING_CONFIG
+│           ├── opencode-server.ts             # startOpencodeServer, stopOpencodeServer, OpencodeServerHandle
+│           ├── session-manager.ts             # createSessionManager() — create, inject, monitor, abort, sendFixPrompt
+│           ├── validation-pipeline.ts         # runValidationPipeline, runSingleStage, STAGE_ORDER, ValidationStage
+│           ├── fix-loop.ts                    # runWithFixLoop — per-stage(3)/global(10) limits
+│           └── heartbeat.ts                   # startHeartbeat, escalate
+└── tests/
+    └── workers/
+        ├── orchestrate.test.ts                # 11 tests — main() integration scenarios
+        ├── integration.test.ts                # 7 tests — gated behind OPENCODE_TEST_URL
+        └── lib/
+            ├── postgrest-client.test.ts       # 19 tests
+            ├── task-context.test.ts           # 19 tests
+            ├── opencode-server.test.ts        # 14 tests
+            ├── session-manager.test.ts        # 25 tests
+            ├── validation-pipeline.test.ts    # 23 tests
+            ├── fix-loop.test.ts               # 13 tests
+            └── heartbeat.test.ts              # 17 tests
 ```
 
 ---
 
-## Foundation Utilities
-
-### Module System: `.mts` and NodeNext
-
-The worker files use the `.mts` extension rather than `.ts`. This is a TypeScript requirement when targeting NodeNext module resolution: TypeScript only emits `.mjs` output (which Node.js requires for ES modules) when the source file carries the `.mts` extension. Using `.ts` with `"module": "NodeNext"` would produce `.js` files that Node.js treats as CommonJS, breaking `import`/`export` at runtime.
-
-`entrypoint.sh` calls `exec node dist/workers/orchestrate.mjs` — the `.mjs` extension is explicit and required.
-
----
+## Module Architecture
 
 ### PostgREST Client (`src/workers/lib/postgrest-client.ts`)
 
-Three thin wrappers around `fetch` for reading and updating task rows via the Supabase PostgREST API. No Supabase client SDK is used anywhere in the worker.
+Thin `fetch`-based HTTP client for Supabase PostgREST. Workers run in Docker containers without a direct database connection — all DB access goes through the PostgREST REST API.
 
-| Function  | Method | Purpose                                     |
-| --------- | ------ | ------------------------------------------- |
-| `get()`   | GET    | Fetch a task row by ID                      |
-| `post()`  | POST   | Insert a new row (used for status events)   |
-| `patch()` | PATCH  | Update task status, result, or error fields |
+**Interface**
 
-All three accept a `PostgRESTConfig` object (base URL + service role key) and return typed responses. Errors surface as `ExternalApiError` from Phase 4's error types, making them compatible with `withRetry()`.
+```typescript
+export interface PostgRESTClient {
+  get(table: string, query: string): Promise<unknown[] | null>;
+  post(table: string, body: Record<string, unknown>): Promise<unknown | null>;
+  patch(table: string, query: string, body: Record<string, unknown>): Promise<unknown | null>;
+}
+
+export function createPostgRESTClient(): PostgRESTClient;
+```
+
+**Behavior**
+
+All three methods use native `fetch` with `apikey`, `Authorization: Bearer`, `Content-Type: application/json`, and `Prefer: return=representation` headers. If `SUPABASE_URL` or `SUPABASE_SECRET_KEY` are missing at construction time, the factory logs a warning and returns a no-op client that returns `null` for every call — the orchestrator continues without crashing.
+
+`post()` returns the first element of the PostgREST array response (PostgREST wraps created rows in an array). `get()` returns the full array. `patch()` returns the raw response body. All methods catch network errors and return `null` rather than throwing.
 
 ---
 
 ### Task Context (`src/workers/lib/task-context.ts`)
 
-Three functions that transform a raw task database row into the inputs `orchestrate.mts` needs.
+Reads the task row written by `entrypoint.sh` Step 6 and builds the prompt that is injected into the OpenCode session.
 
-| Function                 | Input         | Output                                                        |
-| ------------------------ | ------------- | ------------------------------------------------------------- |
-| `parseTaskContext()`     | Raw task row  | Typed `TaskContext` object with validated fields              |
-| `buildPrompt()`          | `TaskContext` | Full prompt string passed to the OpenCode session             |
-| `resolveToolingConfig()` | `TaskContext` | Which validation stages to run (e.g. skip E2E for some tasks) |
+**Exports**
 
-`buildPrompt()` injects the Jira issue description, acceptance criteria, repo context, and any tooling constraints into a structured prompt. `resolveToolingConfig()` reads the task's `tooling` field to decide whether to skip expensive stages like E2E tests.
+```typescript
+export interface ToolingConfig {
+  typescript?: string;
+  lint?: string;
+  unit?: string;
+  integration?: string;
+  e2e?: string;
+}
+
+export const DEFAULT_TOOLING_CONFIG: ToolingConfig;
+
+export interface TaskRow { id, external_id, status, triage_result, requirements, project_id, ... }
+export interface ProjectRow { id, tooling_config, name, repo_url, ... }
+
+export function parseTaskContext(filePath: string): TaskRow | null;
+export function buildPrompt(task: TaskRow): string;
+export function resolveToolingConfig(projectRow: ProjectRow | null): ToolingConfig;
+```
+
+**`DEFAULT_TOOLING_CONFIG`**
+
+| Stage         | Default command           |
+| ------------- | ------------------------- |
+| `typescript`  | `pnpm tsc --noEmit`       |
+| `lint`        | `pnpm lint`               |
+| `unit`        | `pnpm test -- --run`      |
+| `integration` | _(none — skip if absent)_ |
+| `e2e`         | _(none — skip if absent)_ |
+
+**`parseTaskContext`** reads the file at `filePath`, parses it as JSON, and returns the first element of the PostgREST array response. Returns `null` if the file is missing, malformed, or the array is empty.
+
+**`buildPrompt`** extracts the Jira issue key, summary, description (handling both plain strings and Atlassian Document Format), and project key from `task.triage_result`. Falls back to a generic prompt if `triage_result` is missing or invalid.
+
+**`resolveToolingConfig`** merges `projectRow.tooling_config` with `DEFAULT_TOOLING_CONFIG`, with the project config taking precedence. Returns defaults if `projectRow` is `null` or has no `tooling_config`.
 
 ---
 
 ### OpenCode Server (`src/workers/lib/opencode-server.ts`)
 
-Manages the lifecycle of the OpenCode process running inside the container.
+Manages the lifecycle of the `opencode serve` child process.
 
-| Function       | What it does                                                                                   |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| `spawn()`      | Starts the OpenCode process with the correct flags and environment variables                   |
-| `healthPoll()` | Polls the OpenCode HTTP health endpoint in a loop until it returns 200 or a timeout is reached |
-| `shutdown()`   | Sends SIGTERM to the OpenCode process and waits for it to exit cleanly                         |
+**Interface**
 
-`healthPoll()` uses a configurable interval and max-attempts rather than a fixed sleep, so the orchestrator doesn't waste time waiting when OpenCode starts quickly.
+```typescript
+export interface OpencodeServerHandle {
+  process: ChildProcess;
+  url: string;
+  kill: () => Promise<void>;
+}
+
+export interface StartOpencodeServerOptions {
+  port?: number; // default: 4096
+  cwd?: string; // default: '/workspace'
+  healthTimeoutMs?: number; // default: 30000
+}
+
+export async function startOpencodeServer(
+  options?: StartOpencodeServerOptions,
+): Promise<OpencodeServerHandle | null>;
+
+export async function stopOpencodeServer(handle: OpencodeServerHandle): Promise<void>;
+```
+
+**Startup sequence**
+
+1. `spawn('opencode', ['serve', '--port', String(port)], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })`
+2. Poll `GET http://localhost:{port}/global/health` every 1s
+3. Resolve with `OpencodeServerHandle` when `{ healthy: true }` is returned
+4. Resolve with `null` if the process emits an `error` event or the health check times out after `healthTimeoutMs`
+
+**Shutdown** (`stopOpencodeServer`) sends SIGTERM, waits up to 5 seconds for the process to exit, then sends SIGKILL. Never throws — cleanup must always succeed.
+
+**Process cleanup** registers `process.on('exit')` and `process.on('SIGTERM')` handlers at spawn time so the child process is always killed when the parent exits, regardless of how the parent exits.
 
 ---
 
 ### Session Manager (`src/workers/lib/session-manager.ts`)
 
-Subscribes to the OpenCode SSE (Server-Sent Events) stream and waits for the session to finish.
+Wraps `@opencode-ai/sdk` to manage OpenCode sessions.
 
-The 60-minute timeout is the hard wall. If OpenCode hasn't emitted a completion event within that window, `session-manager.ts` treats the session as stalled, calls `escalate()`, and returns a failure result. The SSE-first design means the orchestrator doesn't poll — it reacts to events as they arrive.
+**Interface**
 
-Key behaviors:
+```typescript
+export interface SessionManager {
+  createSession(title: string): Promise<string | null>;
+  injectTaskPrompt(sessionId: string, prompt: string): Promise<boolean>;
+  monitorSession(sessionId: string, options?: MonitorOptions): Promise<SessionMonitorResult>;
+  abortSession(sessionId: string): Promise<void>;
+  sendFixPrompt(sessionId: string, failedStage: string, errorOutput: string): Promise<boolean>;
+}
 
-- Reconnects automatically on SSE stream drops (up to a configurable limit)
-- Captures the final session ID for use by the validation pipeline
-- Emits structured log events at each state transition
+export interface MonitorOptions {
+  timeoutMs?: number; // default: 60 * 60 * 1000 (60 minutes)
+  minElapsedMs?: number; // default: 30000 (30 seconds minimum before marking complete)
+}
+
+export interface SessionMonitorResult {
+  completed: boolean;
+  reason?: 'idle' | 'timeout' | 'error';
+}
+
+export function createSessionManager(baseUrl: string): SessionManager;
+```
+
+**`monitorSession` strategy**
+
+Primary: subscribe to the SSE event stream via `client.event.subscribe()` and listen for `session.idle` or `session.status` events matching the session ID. The session is considered complete only after `minElapsedMs` has elapsed since monitoring started (prevents false positives from pre-existing idle state).
+
+Fallback: if SSE disconnects, attempt one reconnect. If the reconnect also fails, fall back to polling `client.session.status()` every 10 seconds.
+
+Timeout: a `setTimeout` fires after `timeoutMs` and resolves with `{ completed: false, reason: 'timeout' }`.
+
+**`sendFixPrompt`** truncates `errorOutput` to 4000 characters before embedding it in the fix prompt, to stay within prompt size limits.
 
 ---
 
 ### Validation Pipeline (`src/workers/lib/validation-pipeline.ts`)
 
-Runs up to 5 validation stages in sequence after the OpenCode session completes. Each stage calls a subprocess via `execFile` (not `exec`) with `cwd` set to `/workspace` — the directory where OpenCode wrote its changes.
+Runs the 5-stage validation suite and records each result to `validation_runs` via PostgREST.
 
-| Stage | Name              | Command                            | Skippable |
-| ----- | ----------------- | ---------------------------------- | --------- |
-| 1     | TypeScript        | `tsc --noEmit`                     | No        |
-| 2     | Lint              | `eslint src/`                      | No        |
-| 3     | Unit tests        | `vitest run --reporter=json`       | No        |
-| 4     | Integration tests | `vitest run --project=integration` | Yes       |
-| 5     | E2E tests         | `playwright test`                  | Yes       |
+**Interface**
 
-`execFile` is used instead of `exec` because it avoids shell injection — the command and arguments are passed as separate values, never concatenated into a shell string. This matters because some arguments (file paths, test names) come from task context data.
+```typescript
+export type ValidationStage = 'typescript' | 'lint' | 'unit' | 'integration' | 'e2e';
 
-`runPipeline()` returns a `PipelineResult` that includes the first failing stage (if any), its exit code, and its stdout/stderr. The fix loop uses the failing stage index to decide where to re-enter.
+export const STAGE_ORDER: ValidationStage[];
+
+export interface StageResult {
+  stage: ValidationStage;
+  passed: boolean;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  skipped?: boolean;
+}
+
+export interface PipelineResult {
+  passed: boolean;
+  failedStage?: ValidationStage;
+  errorOutput?: string;
+  stageResults: StageResult[];
+}
+
+export interface RunPipelineOptions {
+  executionId: string | null;
+  toolingConfig: ToolingConfig;
+  postgrestClient: PostgRESTClient;
+  fromStage?: ValidationStage;
+  iteration?: number;
+}
+
+export async function runValidationPipeline(options: RunPipelineOptions): Promise<PipelineResult>;
+export async function runSingleStage(
+  stage: ValidationStage,
+  command: string,
+  cwd?: string,
+): Promise<{ passed: boolean; stdout: string; stderr: string; durationMs: number }>;
+```
+
+**Stage execution**
+
+Each stage command is split on spaces and passed to `execFile` (not `exec`) to prevent shell injection from user-supplied `tooling_config` values. The working directory is always `/workspace`. Each stage has a 5-minute timeout (`STAGE_TIMEOUT_MS = 300_000`).
+
+If a stage has no command in `toolingConfig`, it is skipped (recorded as `passed: true, skipped: true`) and the pipeline continues.
+
+**`fromStage` re-entry** — the `fromStage` parameter lets the fix loop re-enter the pipeline at the failing stage rather than restarting from `typescript`. `STAGE_ORDER.indexOf(fromStage)` determines the slice start.
+
+**PostgREST recording** — after each stage, a `validation_runs` row is written: `{ execution_id, stage, status, iteration, error_output, duration_ms }`. `error_output` is truncated to 10,000 characters. If `executionId` is `null`, the write is skipped with a warning.
+
+**Failure behavior** — the pipeline stops at the first failing stage and returns `{ passed: false, failedStage, errorOutput }`. `errorOutput` is truncated to 4,000 characters for use in fix prompts.
 
 ---
 
 ### Fix Loop (`src/workers/lib/fix-loop.ts`)
 
-Drives the iteration between OpenCode sessions and validation runs.
+Orchestrates the retry cycle: run validation, send fix prompt, wait for OpenCode, re-run from failing stage.
+
+**Interface**
+
+```typescript
+export interface FixLoopOptions {
+  sessionId: string;
+  sessionManager: SessionManager;
+  executionId: string | null;
+  toolingConfig: ToolingConfig;
+  postgrestClient: PostgRESTClient;
+  heartbeat: HeartbeatHandle;
+  taskId: string;
+}
+
+export interface FixLoopResult {
+  success: boolean;
+  reason?: string;
+  failedStage?: ValidationStage;
+  totalIterations: number;
+}
+
+export async function runWithFixLoop(options: FixLoopOptions): Promise<FixLoopResult>;
+```
 
 **Limits**
 
-| Limit type | Value | Behavior when exceeded                             |
-| ---------- | ----- | -------------------------------------------------- |
-| Per-stage  | 3     | Move to next stage or terminate if on last stage   |
-| Global     | 10    | Terminate immediately with `MAX_ITERATIONS` status |
+| Limit     | Value | Behavior when exceeded                                                       |
+| --------- | ----- | ---------------------------------------------------------------------------- |
+| Per-stage | 3     | `escalate()` called, returns `{ success: false, reason: 'per_stage_limit' }` |
+| Global    | 10    | `escalate()` called, returns `{ success: false, reason: 'global_limit' }`    |
 
-**Re-entry logic**: when a validation stage fails, the fix loop re-enters the OpenCode session at the failing stage rather than restarting from stage 1. This avoids re-running passing stages and keeps iteration fast. The failing stage index and its error output are injected into the follow-up prompt so OpenCode has the context it needs to fix the specific failure.
+**Iteration tracking** — `fix_iterations` is PATCHed to the `executions` row after every fix attempt, so the count is durable across any unexpected process restart.
+
+**Fix session timeout** — each fix prompt waits up to 30 minutes for the session to go idle (half the initial 60-minute code generation timeout).
 
 ---
 
 ### Heartbeat (`src/workers/lib/heartbeat.ts`)
 
-Keeps the Fly.io machine alive and signals progress to the Inngest function.
+Keeps the execution record alive and handles escalation to human review.
 
-`startHeartbeat()` sets a `setInterval` at 60 seconds. Each tick calls `patch()` on the task row to update a `last_heartbeat_at` timestamp. If the session appears stalled (no SSE events in the last N seconds), the tick also calls `escalate()` — which posts a Slack alert and updates the task status to `stalled`.
+**Interface**
 
-`stopHeartbeat()` clears the interval. It's called in the `finally` block of `main()` so the interval never leaks, even on error paths.
+```typescript
+export interface HeartbeatOptions {
+  executionId: string | null;
+  postgrestClient: PostgRESTClient;
+  intervalMs?: number; // default: 60000
+  currentStage?: string; // initial stage name
+}
+
+export interface HeartbeatHandle {
+  stop: () => void;
+  updateStage: (stage: string) => void;
+}
+
+export interface EscalateOptions {
+  executionId: string | null;
+  taskId: string;
+  reason: string;
+  failedStage?: string;
+  errorOutput?: string;
+  postgrestClient: PostgRESTClient;
+}
+
+export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle;
+export async function escalate(options: EscalateOptions): Promise<void>;
+```
+
+**`startHeartbeat`** starts a `setInterval` that PATCHes `{ heartbeat_at, current_stage }` to the `executions` row every `intervalMs` milliseconds. The interval is fire-and-forget: failures are logged with `console.warn` but never thrown. `updateStage(stage)` updates the in-memory `currentStage` variable so the next heartbeat tick reflects the current execution phase. `stop()` calls `clearInterval`.
+
+**`escalate`** runs four steps, each wrapped in try/catch so a failure in one step does not prevent the others:
+
+1. Log the escalation reason to stdout
+2. PATCH `tasks` row: `{ status: 'AwaitingInput', failure_reason: reason }`
+3. POST `task_status_log` row: `{ task_id, from_status: 'Executing', to_status: 'AwaitingInput', actor: 'machine' }`
+4. POST to `SLACK_WEBHOOK_URL` with a plain-text message (simple webhook, not the `slackClient` from `src/lib/`)
+
+---
+
+### `orchestrate.mts` — Main Entrypoint
+
+The file that `entrypoint.sh` Step 8 hands off to via `exec node /app/dist/workers/orchestrate.mjs`. It wires all seven modules together in a 12-step `main()` function.
+
+The `.mts` extension is required: with `NodeNext` module resolution, `.mts` source files compile to `.mjs` output. `entrypoint.sh` references `orchestrate.mjs` explicitly — a `.ts` source would compile to `.js`, which would not be found at runtime.
+
+Two module-level globals (`serverHandleGlobal`, `heartbeatGlobal`) are set after construction so that `process.on('exit')` and `process.on('SIGTERM')` signal handlers can reach them for cleanup.
 
 ---
 
 ## Execution Flow
 
-`orchestrate.mts` exports a single `main()` function with 12 sequential steps.
-
-| Step | Action                        | Module called                               |
-| ---- | ----------------------------- | ------------------------------------------- |
-| 1    | Parse environment variables   | (inline)                                    |
-| 2    | Connect to PostgREST          | `postgrest-client.ts`                       |
-| 3    | Fetch task row                | `postgrest-client.ts`                       |
-| 4    | Parse task context            | `task-context.ts`                           |
-| 5    | Build prompt                  | `task-context.ts`                           |
-| 6    | Start heartbeat               | `heartbeat.ts`                              |
-| 7    | Spawn OpenCode server         | `opencode-server.ts`                        |
-| 8    | Poll until OpenCode is ready  | `opencode-server.ts`                        |
-| 9    | Start session + monitor SSE   | `session-manager.ts`                        |
-| 10   | Run validation pipeline       | `validation-pipeline.ts`                    |
-| 11   | Run fix loop if needed        | `fix-loop.ts`                               |
-| 12   | Update task status + shutdown | `postgrest-client.ts`, `opencode-server.ts` |
-
-Steps 10 and 11 repeat until validation passes or limits are hit. Step 12 always runs — it's in the `finally` block so the task row is never left in a running state after the process exits.
-
----
-
-## Validation Pipeline Detail
-
-The five stages run in order. A stage failure stops the pipeline and returns the failing stage index to the fix loop.
-
-```mermaid
-flowchart LR
-    S1["Stage 1\ntsc --noEmit"]:::service
-    S2["Stage 2\neslint src/"]:::service
-    S3["Stage 3\nvitest unit"]:::service
-    S4["Stage 4\nvitest integration"]:::service
-    S5["Stage 5\nplaywright"]:::service
-    PASS["PASS"]:::event
-    FAIL["FAIL + stage index"]:::future
-
-    S1 -->|"ok"| S2
-    S2 -->|"ok"| S3
-    S3 -->|"ok"| S4
-    S4 -->|"ok"| S5
-    S5 -->|"ok"| PASS
-    S1 -->|"fail"| FAIL
-    S2 -->|"fail"| FAIL
-    S3 -->|"fail"| FAIL
-    S4 -->|"fail"| FAIL
-    S5 -->|"fail"| FAIL
-
-    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
-    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
-```
-
----
-
-## Fix Loop Detail
-
 ```mermaid
 flowchart TD
-    START["Validation fails\nat stage N"]:::service
-    CHECK_STAGE{"Per-stage\nattempts < 3?"}:::service
-    CHECK_GLOBAL{"Global\nattempts < 10?"}:::service
-    REENTER["Re-enter OpenCode\nat stage N"]:::service
-    REVALIDATE["Re-run pipeline\nfrom stage N"]:::service
-    PASS["All stages pass"]:::event
-    FAIL_STAGE["Terminate\nPER_STAGE_LIMIT"]:::future
-    FAIL_GLOBAL["Terminate\nMAX_ITERATIONS"]:::future
+    S1["1: Read /tmp/.execution-id\n(graceful if missing)"]:::service
+    S2["2: Create PostgREST client\n(SUPABASE_URL + SUPABASE_SECRET_KEY)"]:::service
+    S3["3: Parse task context\n(/workspace/.task-context.json)"]:::service
+    S4["4: Resolve tooling config\n(DEFAULT_TOOLING_CONFIG in Phase 5)"]:::service
+    S5["5: Build prompt\n(from triage_result Jira payload)"]:::service
+    S6["6: PATCH execution record\n(current_stage: 'starting')"]:::service
+    S7["7: Start heartbeat\n(60s interval, fire-and-forget)"]:::service
+    S8["8: Start OpenCode server\n(spawn + health poll, 30s timeout)"]:::service
+    S9["9: Create session + inject prompt\n(sessionManager.createSession + injectTaskPrompt)"]:::service
+    S10["10: Monitor session\n(SSE to idle, 60-min timeout)"]:::service
+    S11["11: Run fix loop\n(validation pipeline + auto-fix)"]:::service
+    S12["12: Exit 0 (success) or 1 (failure)\n(PATCH status: completed or failed)"]:::service
 
-    START --> CHECK_GLOBAL
-    CHECK_GLOBAL -->|"yes"| CHECK_STAGE
-    CHECK_GLOBAL -->|"no"| FAIL_GLOBAL
-    CHECK_STAGE -->|"yes"| REENTER
-    CHECK_STAGE -->|"no"| FAIL_STAGE
-    REENTER --> REVALIDATE
-    REVALIDATE -->|"fail"| START
-    REVALIDATE -->|"pass"| PASS
+    S1 ==> S2 ==> S3 ==> S4 ==> S5 ==> S6 ==> S7 ==> S8 ==> S9 ==> S10 ==> S11 ==> S12
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
-    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
+
+| Step | Name                    | Failure behavior                                                                                                   |
+| ---- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1    | Read execution ID       | Continues with `executionId = null` — heartbeat and DB writes are skipped but execution proceeds                   |
+| 2    | Create PostgREST client | Always succeeds — returns no-op client if env vars are missing                                                     |
+| 3    | Parse task context      | `process.exit(1)` — cannot proceed without a task to execute                                                       |
+| 4    | Resolve tooling config  | Always succeeds — falls back to `DEFAULT_TOOLING_CONFIG`                                                           |
+| 5    | Build prompt            | Always succeeds — falls back to a generic prompt if `triage_result` is missing                                     |
+| 6    | PATCH execution record  | Logged and swallowed — non-fatal                                                                                   |
+| 7    | Start heartbeat         | Always succeeds — heartbeat failures are non-fatal by design                                                       |
+| 8    | Start OpenCode server   | `process.exit(1)` — cannot run sessions without the server                                                         |
+| 9    | Create session          | `process.exit(1)` — cannot inject prompt without a session                                                         |
+| 10   | Monitor session         | `process.exit(1)` on timeout — code generation did not complete within 60 minutes                                  |
+| 11   | Run fix loop            | Returns `{ success: false }` on escalation — `escalate()` already called inside fix-loop                           |
+| 12   | Handle result           | `exit(0)` on success (PATCHes `status: 'completed'`); `exit(1)` on failure (escalation already handled in step 11) |
+
+---
+
+## Validation Pipeline
+
+The pipeline runs stages in a fixed order. Each stage is skipped if its command is not configured in `toolingConfig`.
+
+| Stage         | Default command      | Skip behavior                                    |
+| ------------- | -------------------- | ------------------------------------------------ |
+| `typescript`  | `pnpm tsc --noEmit`  | Skipped if `toolingConfig.typescript` is absent  |
+| `lint`        | `pnpm lint`          | Skipped if `toolingConfig.lint` is absent        |
+| `unit`        | `pnpm test -- --run` | Skipped if `toolingConfig.unit` is absent        |
+| `integration` | _(none)_             | Always skipped unless project provides a command |
+| `e2e`         | _(none)_             | Always skipped unless project provides a command |
+
+Skipped stages are recorded to `validation_runs` with `status: 'passed'` and `duration_ms: 0` so the audit trail is complete.
+
+The pipeline stops at the first failing stage. Subsequent stages are not run — the fix loop re-enters at the failing stage after the fix is applied, running all stages from that point forward.
+
+---
+
+## Fix Loop
+
+The fix loop wraps the validation pipeline with automatic retry logic. It tracks two counters: a per-stage failure count (in memory) and a global iteration count (persisted to Supabase).
+
+**Iteration logic**
+
+```
+while true:
+  result = runValidationPipeline(fromStage)
+  if result.passed → return { success: true }
+
+  increment fix_iterations (PATCH executions)
+  increment per-stage count for result.failedStage
+
+  if per-stage count > 3 → escalate, return { success: false }
+  if fix_iterations >= 10 → escalate, return { success: false }
+
+  heartbeat.updateStage('fixing')
+  sessionManager.sendFixPrompt(sessionId, failedStage, errorOutput)
+  sessionManager.monitorSession(sessionId, { timeoutMs: 30min })
+
+  fromStage = result.failedStage  // re-enter at failing stage
+```
+
+**Re-entry example**
+
+If `typescript` fails on iteration 1, the fix is applied and the pipeline re-runs from `typescript` — all five stages run again. If `lint` fails on iteration 2, the fix is applied and the pipeline re-runs from `lint` — TypeScript is not re-run (it already passed). This ensures that a fix for a later stage cannot silently break an earlier stage.
+
+| Iteration | Failed stage | Re-entry point | Stages re-run                                |
+| --------- | ------------ | -------------- | -------------------------------------------- |
+| 1         | `typescript` | `typescript`   | typescript → lint → unit → integration → e2e |
+| 2         | `lint`       | `lint`         | lint → unit → integration → e2e              |
+| 3         | `unit`       | `unit`         | unit → integration → e2e                     |
 
 ---
 
 ## Known Limitations
 
-Three features were scoped out of Phase 5 and deferred to a later phase.
+**Token tracking** — `prompt_tokens`, `completion_tokens`, `estimated_cost_usd`, and `primary_model_id` on the `executions` row remain at their database defaults. The `@opencode-ai/sdk` does not expose token counts from session responses. Token tracking is deferred to Phase 7.
 
-| Feature              | Status   | Reason deferred                                                                                                                             |
-| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Token tracking       | Deferred | OpenCode doesn't expose per-session token counts via SSE. Requires a separate accounting pass.                                              |
-| Completion event     | Deferred | The Inngest function currently polls task status. A push-based completion event needs a new endpoint.                                       |
-| Branch + PR creation | Deferred | `github-client.ts` (Phase 4) has `createPR()` but the orchestrator doesn't call it yet. Requires branch naming conventions to be finalized. |
+**Completion event** — Phase 5 does NOT send the `engineering/task.completed` Inngest event. The lifecycle function's `finalize` step is not triggered. Sending the completion event is Phase 6 scope.
 
-None of these affect correctness of the current implementation. The task row is updated with the final status regardless, so the Inngest poller can detect completion.
+**Branch and PR creation** — Phase 5 does not create a task branch or open a pull request. The `githubClient` from Phase 4 is available but not called. Branch creation and PR creation are Phase 6 scope.
+
+**`tooling_config` from database** — Phase 5 always calls `resolveToolingConfig(null)`, which returns `DEFAULT_TOOLING_CONFIG`. The project row is not fetched from the database. Fetching the project's `tooling_config` and merging it with defaults is Phase 6 scope.
 
 ---
 
 ## Test Suite
 
-| File                                            | Tests | What it covers                                                           |
-| ----------------------------------------------- | ----- | ------------------------------------------------------------------------ |
-| `tests/workers/lib/postgrest-client.test.ts`    | 19    | get/post/patch happy paths, auth headers, error mapping                  |
-| `tests/workers/lib/task-context.test.ts`        | 19    | parseTaskContext validation, buildPrompt output, resolveToolingConfig    |
-| `tests/workers/lib/opencode-server.test.ts`     | 14    | spawn args, healthPoll retry logic, shutdown SIGTERM handling            |
-| `tests/workers/lib/session-manager.test.ts`     | 25    | SSE event parsing, 60-min timeout, reconnect logic, stall detection      |
-| `tests/workers/lib/validation-pipeline.test.ts` | 23    | execFile calls, stage ordering, skippable stages, PipelineResult shape   |
-| `tests/workers/lib/fix-loop.test.ts`            | 13    | per-stage limit, global limit, re-entry index, termination conditions    |
-| `tests/workers/lib/heartbeat.test.ts`           | 17    | setInterval timing, patch calls, escalate trigger, stopHeartbeat cleanup |
-| `tests/workers/orchestrate.test.ts`             | 1     | Integration smoke test — full main() with mocked modules                 |
+| Test file                                       | Tests | What it covers                                                                                                                                                                                       |
+| ----------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/workers/lib/postgrest-client.test.ts`    | 19    | `get`, `post`, `patch` success paths; HTTP error responses; network errors; missing env vars → no-op client                                                                                          |
+| `tests/workers/lib/task-context.test.ts`        | 19    | `parseTaskContext` file parsing; `buildPrompt` with full/partial/missing triage_result; `resolveToolingConfig` merge logic; `DEFAULT_TOOLING_CONFIG` shape                                           |
+| `tests/workers/lib/opencode-server.test.ts`     | 14    | Spawn + health poll success; health timeout → null; spawn error → null; `stopOpencodeServer` SIGTERM/SIGKILL; process cleanup handlers                                                               |
+| `tests/workers/lib/session-manager.test.ts`     | 25    | `createSession`; `injectTaskPrompt`; `monitorSession` SSE idle detection; SSE disconnect → polling fallback; timeout; `sendFixPrompt` truncation; `abortSession`                                     |
+| `tests/workers/lib/validation-pipeline.test.ts` | 23    | All stages pass; first stage fails; middle stage fails; `fromStage` re-entry; skipped stages; `validation_runs` PostgREST writes; `execFile` cwd verification                                        |
+| `tests/workers/lib/fix-loop.test.ts`            | 13    | All pass first run; one fix iteration; per-stage limit (3); global limit (10); `fix_iterations` PATCH on every iteration; re-entry at failing stage                                                  |
+| `tests/workers/lib/heartbeat.test.ts`           | 17    | 60s interval fires PATCH; `updateStage` changes next tick; `stop` clears interval; fetch failure → logged not thrown; `escalate` task PATCH; status log write; Slack webhook; Slack failure graceful |
+| `tests/workers/orchestrate.test.ts`             | 11    | Full `main()` happy path; missing task context → exit 1; OpenCode server failure → exit 1; session creation failure → exit 1; session timeout → exit 1; fix loop failure → exit 1                    |
+| `tests/workers/integration.test.ts`             | 7     | Gated behind `OPENCODE_TEST_URL` — real OpenCode server session create, prompt inject, monitor, abort                                                                                                |
 
-Total: 131 worker tests across 8 files. Combined with Phase 4's 146 tests, the suite covers the full execution stack.
+**Total new tests: 148** (19 + 19 + 14 + 25 + 23 + 13 + 17 + 11 + 7)
+
+**Total suite: 338 tests** (148 new + 190 pre-existing from Phases 1–4)
+
+```bash
+pnpm test -- --run
+```
+
+Integration tests are skipped automatically when `OPENCODE_TEST_URL` is not set.
 
 ---
 
 ## Key Design Decisions
 
-**`.mts` extension for worker files.** TypeScript's NodeNext module resolution only emits `.mjs` output when the source file uses `.mts`. Using `.ts` would produce `.js` files that Node.js treats as CommonJS, breaking ES module imports at runtime. Every file in `src/workers/` uses `.mts`.
+1. **`.mts` extension for `orchestrate`** — With `NodeNext` module resolution, `.mts` source files compile to `.mjs` output. `entrypoint.sh` Step 8 references `orchestrate.mjs` explicitly. Using `.ts` would produce `orchestrate.js`, which would not be found at runtime. The `.mts` extension makes the output format unambiguous.
 
-**PostgREST-only, no Supabase SDK.** The worker runs in a minimal Docker container. Adding the Supabase client SDK would increase image size and introduce a dependency that isn't needed — PostgREST's REST API covers everything the worker needs (read one row, update one row). Three `fetch` wrappers replace the entire SDK.
+2. **PostgREST-only, no Prisma** — Workers run in Docker containers that have no direct database connection. Prisma requires a connection string to a PostgreSQL server, which is not available inside the Fly.io worker VM. All DB access goes through Supabase's PostgREST HTTP API, which is accessible via `SUPABASE_URL`.
 
-**SSE-first session monitoring.** The session manager subscribes to OpenCode's SSE stream rather than polling a status endpoint. This means the orchestrator reacts to events as they happen instead of sleeping between polls. The 60-minute timeout is a safety net, not the primary completion signal.
+3. **SSE-first with polling fallback** — SSE provides real-time completion detection without polling overhead. However, SSE connections can drop on network hiccups. The session manager attempts one SSE reconnect before falling back to polling every 10 seconds. This keeps the common case fast while making the system resilient to transient disconnects.
 
-**`execFile` not `exec` for validation stages.** `exec` concatenates command and arguments into a shell string, which opens injection vectors when arguments contain user-controlled data (file paths, test names from task context). `execFile` takes the command and arguments separately and never invokes a shell. All five validation stages use `execFile`.
+4. **`execFile` not `exec` for validation** — `toolingConfig` commands come from the database and could contain shell metacharacters. `exec` passes the command string to `/bin/sh`, which would interpret those characters. `execFile` takes the executable and arguments separately, bypassing the shell entirely. This prevents shell injection from a malicious or malformed `tooling_config`.
 
-**5 production commits.** Phase 5 was delivered across 5 commits: postgrest-client + task-context, opencode-server + session-manager, validation-pipeline, fix-loop + heartbeat, orchestrate.mts integration.
+5. **Fire-and-forget heartbeats** — A heartbeat failure (e.g., Supabase is temporarily unreachable) must not crash the execution. The task is running correctly — losing a heartbeat tick is acceptable. Making heartbeat failures fatal would cause tasks to abort for reasons unrelated to the actual work being done.
+
+6. **`escalate` never throws** — Each of the four escalation steps (log, PATCH task, POST status log, Slack webhook) is wrapped in its own try/catch. If the Slack webhook is down, the task status is still updated. If the PostgREST PATCH fails, the status log is still attempted. Escalation is a best-effort notification — partial success is better than no escalation.
+
+7. **`resolveToolingConfig(null)` in Phase 5** — Fetching the project row from the database requires knowing the `project_id`, which requires parsing the task context first. Rather than adding a DB round-trip in Phase 5, the orchestrator always uses `DEFAULT_TOOLING_CONFIG`. Phase 6 will add the project fetch and pass the real `tooling_config`.
+
+8. **30-second minimum elapsed before idle** — The session manager requires at least 30 seconds to have elapsed before treating a `session.idle` event as a genuine completion. This prevents a race condition where the session is briefly idle between the `createSession` call and the `injectTaskPrompt` call from being misinterpreted as task completion.
+
+---
+
+## What Phase 6 Builds On Top
+
+Phase 5 ends with the execution record marked `status: 'completed'` and the process exiting 0. Phase 6 adds the steps that close the loop with the rest of the platform.
+
+```mermaid
+flowchart LR
+    subgraph Phase 5 - Foundation
+        ORCH["orchestrate.mts\n(execution complete)"]:::service
+        GH["githubClient\n(Phase 4)"]:::service
+    end
+
+    subgraph Phase 6 - Completion
+        BRANCH["Branch creation\n(git push task branch)"]:::future
+        PR["PR creation\n(githubClient.createPR)"]:::future
+        STATUS["status = 'Submitting'\n(+ PR URL in executions)"]:::future
+        EVENT["engineering/task.completed\n(Inngest event)"]:::future
+        FINALIZE["lifecycle finalize step\n(Inngest function)"]:::future
+    end
+
+    ORCH ==>|"1. Hands off to"| BRANCH
+    GH ==>|"2. Powers"| PR
+    BRANCH ==>|"3. Branch ready"| PR
+    PR ==>|"4. PR URL known"| STATUS
+    STATUS ==>|"5. Supabase write first"| EVENT
+    EVENT ==>|"6. Triggers"| FINALIZE
+
+    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
+```
+
+| #   | What Phase 6 adds                                                                                                                                                                                   |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Task branch push — the worker commits any uncommitted changes and pushes the task branch to the remote repository before creating a PR.                                                             |
+| 2   | PR creation — `githubClient.createPR()` from Phase 4 opens a pull request from the task branch to the default branch.                                                                               |
+| 3   | Supabase-first write — `executions.status` is set to `'Submitting'` and the PR URL is written before the Inngest event is sent. This ensures the DB is consistent even if the event delivery fails. |
+| 4   | `engineering/task.completed` Inngest event — sent from the worker after the Supabase write succeeds. Carries `taskId`, `executionId`, and `prUrl`.                                                  |
+| 5   | Lifecycle `finalize` step — the Inngest lifecycle function receives the completion event and handles downstream notifications (Jira transition, Slack message, etc.).                               |
+| 6   | Project `tooling_config` fetch — Phase 6 fetches the project row from the database and passes the real `tooling_config` to `resolveToolingConfig()`, replacing the Phase 5 default.                 |
