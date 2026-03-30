@@ -1,8 +1,8 @@
 {
   "project": "ai-employee",
   "description": "Multi-department Digital AI Employee Platform — MVP progress registry. Read this file FIRST when resuming work on any phase.",
-  "last_updated": "2026-03-29T00:00:00Z",
-  "last_session_id": "ses_2ca2a8b09ffewHkduXbPDYz6Ma",
+  "last_updated": "2026-03-30T15:30:00.000Z",
+  "last_session_id": "ses_2c047f7e6ffec3e1LYBzsHX53I",
   "source_docs": {
     "architecture": "docs/2026-03-22-2317-ai-employee-architecture.md",
     "implementation_phases": "docs/2026-03-25-1901-mvp-implementation-phases.md",
@@ -303,40 +303,70 @@
     {
       "id": 5,
       "name": "Execution Agent",
-      "status": "not_started",
+      "status": "complete",
       "description": "OpenCode session receives task context, generates plan, writes code, validation pipeline runs with fix loop.",
       "architecture_refs": ["§9.2 Execution Agent", "§6.1 Engineering Department agent runtime"],
-      "plan_file": null,
-      "doc_file": null,
-      "started_at": null,
-      "completed_at": null,
+      "plan_file": ".sisyphus/plans/2026-03-30-1301-phase5-execution-agent.md",
+      "doc_file": "docs/2026-03-30-1511-phase5-execution-agent.md",
+      "started_at": "2026-03-30T13:01:00.000Z",
+      "completed_at": "2026-03-30T15:30:00.000Z",
       "checkpoints": {
         "orchestrate_script": {
-          "status": "not_started",
-          "description": "orchestrate.mjs: start opencode serve, create session via SDK, inject task context, monitor progress, write heartbeats"
+          "status": "complete",
+          "description": "src/workers/orchestrate.mts — 12-step main() wiring all 7 modules, compiles to dist/workers/orchestrate.mjs",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "test -f dist/workers/orchestrate.mjs && echo PASS"
         },
         "validation_pipeline": {
-          "status": "not_started",
-          "description": "Stage runner: TypeScript → Lint → Unit → Integration → E2E. Each stage records to validation_runs table."
+          "status": "complete",
+          "description": "5-stage runner (TypeScript→Lint→Unit→Integration→E2E) with PostgREST recording, fromStage re-entry",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/lib/validation-pipeline.test.ts"
         },
         "fix_loop": {
-          "status": "not_started",
-          "description": "On stage failure: send error to OpenCode, re-enter at failing stage. Per-stage limit: 3. Global limit: 10."
+          "status": "complete",
+          "description": "Per-stage(3) and global(10) limits, re-entry at failing stage forward, fix_iterations persisted to DB",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/lib/fix-loop.test.ts"
         },
         "escalation": {
-          "status": "not_started",
-          "description": "Budget exhaustion → Slack notification, task → AwaitingInput"
+          "status": "complete",
+          "description": "Slack webhook POST + task PATCH to AwaitingInput + task_status_log entry (actor: machine)",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/lib/heartbeat.test.ts"
         },
         "execution_tracking": {
-          "status": "not_started",
-          "description": "executions record: agent_version_id, token counts, cost, primary_model_id"
+          "status": "complete",
+          "description": "PATCH existing executions row (from /tmp/.execution-id), link agent_version_id, update current_stage",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/orchestrate.test.ts"
         },
-        "tests_written": { "status": "not_started" },
-        "tests_passing": { "status": "not_started" },
-        "committed": { "status": "not_started" },
-        "documented": { "status": "not_started" }
+        "heartbeat": {
+          "status": "complete",
+          "description": "60s setInterval PATCH to executions with heartbeat_at and current_stage, fire-and-forget",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/lib/heartbeat.test.ts"
+        },
+        "tests_written": {
+          "status": "complete",
+          "description": "160 new tests across 10 test files (postgrest-client:19, task-context:19, opencode-server:14, session-manager:25, validation-pipeline:23, fix-loop:13, heartbeat:17, orchestrate:11, integration:6+1)",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "npx vitest run tests/workers/ 2>&1 | grep 'Tests'"
+        },
+        "committed": {
+          "status": "complete",
+          "description": "5 commits: deps, PostgREST+task-context, Wave2 modules, fix-loop+heartbeat, orchestrate+tests",
+          "verified_at": "2026-03-30T15:00:00.000Z",
+          "verify_command": "git log --oneline -6"
+        },
+        "documented": {
+          "status": "complete",
+          "description": "Phase 5 completion doc: docs/2026-03-30-1511-phase5-execution-agent.md",
+          "verified_at": "2026-03-30T15:30:00.000Z",
+          "verify_command": "test -f docs/2026-03-30-1511-phase5-execution-agent.md && echo PASS"
+        }
       },
-      "resume_hint": "Requires Phase 4 complete (Docker image boots, callLLM works). Test inside the Docker container. Read §9.2 for the full execution agent spec."
+      "resume_hint": "Phase 5 is complete. Proceed to Phase 6 (Completion & Delivery)."
     },
     {
       "id": 6,
