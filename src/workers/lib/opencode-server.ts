@@ -40,14 +40,16 @@ export async function startOpencodeServer(
     });
 
     let resolved = false;
-    let pollInterval: ReturnType<typeof setInterval> | undefined;
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timers = {
+      pollInterval: undefined as ReturnType<typeof setInterval> | undefined,
+      timeoutHandle: undefined as ReturnType<typeof setTimeout> | undefined,
+    };
 
     const resolveOnce = (value: OpencodeServerHandle | null) => {
       if (resolved) return;
       resolved = true;
-      if (pollInterval !== undefined) clearInterval(pollInterval);
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      if (timers.pollInterval !== undefined) clearInterval(timers.pollInterval);
+      if (timers.timeoutHandle !== undefined) clearTimeout(timers.timeoutHandle);
       resolve(value);
     };
 
@@ -64,7 +66,7 @@ export async function startOpencodeServer(
     process.on('exit', exitCleanup);
     process.on('SIGTERM', exitCleanup);
 
-    pollInterval = setInterval(() => {
+    timers.pollInterval = setInterval(() => {
       void (async () => {
         try {
           const response = await fetch(`http://localhost:${port}/global/health`);
@@ -85,7 +87,7 @@ export async function startOpencodeServer(
       })();
     }, 1000);
 
-    timeoutHandle = setTimeout(() => {
+    timers.timeoutHandle = setTimeout(() => {
       console.warn(
         `[opencode-server] Health check timed out after ${healthTimeoutMs}ms — killing process`,
       );

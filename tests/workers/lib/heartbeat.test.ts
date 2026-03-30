@@ -124,7 +124,7 @@ describe('startHeartbeat', () => {
 
   it('skips DB write when executionId is null', async () => {
     const mockClient = createMockClient();
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const handle = startHeartbeat({
       executionId: null,
@@ -134,10 +134,10 @@ describe('startHeartbeat', () => {
     await vi.advanceTimersByTimeAsync(60000);
 
     expect(mockClient.patch).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith('[heartbeat] No executionId, skipping DB write');
+    expect(warnSpy).toHaveBeenCalledWith('[heartbeat] No executionId, skipping DB write');
 
     handle.stop();
-    logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it('respects custom intervalMs option', async () => {

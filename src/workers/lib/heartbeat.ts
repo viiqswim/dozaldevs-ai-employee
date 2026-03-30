@@ -38,7 +38,7 @@ export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle {
 
   const heartbeatFn = async () => {
     if (!executionId) {
-      console.log('[heartbeat] No executionId, skipping DB write');
+      console.warn('[heartbeat] No executionId, skipping DB write');
       return;
     }
 

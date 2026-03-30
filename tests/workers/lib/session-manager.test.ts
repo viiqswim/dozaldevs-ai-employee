@@ -179,8 +179,8 @@ describe('createSessionManager', () => {
     it('resolves with timeout when timeoutMs is exceeded', async () => {
       vi.useFakeTimers();
 
+      // eslint-disable-next-line require-yield
       const mockStream = (async function* () {
-        // Never yields anything
         await new Promise(() => {});
       })();
 
@@ -287,6 +287,7 @@ describe('createSessionManager', () => {
     });
 
     it('handles SSE stream errors gracefully', async () => {
+      // eslint-disable-next-line require-yield
       const mockStream = (async function* () {
         throw new Error('SSE connection failed');
       })();
