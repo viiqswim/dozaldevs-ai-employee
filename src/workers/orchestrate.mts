@@ -2,7 +2,7 @@
  * Main orchestration entrypoint for the AI Employee worker.
  * Called by entrypoint.sh Step 8 after boot sequence completes.
  *
- * Wires together all 7 modules:
+ * Wires together all 11 modules:
  *   1. PostgREST client — DB access without Prisma
  *   2. Task context — parse .task-context.json and build prompt
  *   3. OpenCode server — spawn and health-check opencode serve
@@ -10,11 +10,10 @@
  *   5. Validation pipeline — run TS/lint/test checks (via fix-loop)
  *   6. Fix loop — auto-retry failed stages up to limits
  *   7. Heartbeat — periodic DB keep-alive during long operations
- *
- * Known limitations (Phase 5 MVP):
- *   - Does NOT send engineering/task.completed Inngest event (Phase 6)
- *   - Does NOT create branches or PRs (Phase 6)
- *   - Does NOT track token usage (Phase 7)
+ *   8. Branch manager — create/ensure branch, commit and push
+ *   9. PR manager — create or update GitHub PR
+ *  10. Completion flow — write Supabase-first, then send Inngest event
+ *  11. Project config — fetch project metadata from DB
  */
 
 import * as fs from 'fs';
@@ -24,6 +23,10 @@ import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager } from './lib/session-manager.js';
 import { runWithFixLoop } from './lib/fix-loop.js';
 import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
+import { buildBranchName, ensureBranch, commitAndPush } from './lib/branch-manager.js';
+import { createOrUpdatePR } from './lib/pr-manager.js';
+import { runCompletionFlow } from './lib/completion.js';
+import { fetchProjectConfig, parseRepoOwnerAndName } from './lib/project-config.js';
 
 // ---------------------------------------------------------------------------
 // Process cleanup globals — set after creation so signal handlers can reach them
@@ -86,9 +89,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ── Step 4: Resolve tooling config (Phase 5 MVP: use defaults) ───────────
-  // In a future phase, fetch the project row from DB and pass its tooling_config.
-  const toolingConfig = resolveToolingConfig(null);
+  // ── Step 4: Resolve tooling config ───────────────────────────────────────
+  // Uses defaults for the fix loop; project config is fetched in Step 12.
+  const toolingConfigResolved = resolveToolingConfig(null);
 
   // ── Step 5: Build prompt ─────────────────────────────────────────────────
   const prompt = buildPrompt(task);
@@ -150,14 +153,86 @@ async function main(): Promise<void> {
     sessionId,
     sessionManager,
     executionId,
-    toolingConfig,
+    toolingConfig: toolingConfigResolved,
     postgrestClient,
     heartbeat,
     taskId: task.id,
   });
 
-  // ── Step 12: Handle result ────────────────────────────────────────────────
   if (fixResult.success) {
+    // ── Step 12: Fetch project config (tooling_config + repo URL) ───────────
+    heartbeat.updateStage('completing');
+    await patchExecution(postgrestClient, executionId, { current_stage: 'completing' });
+    const projectConfig = await fetchProjectConfig(task.project_id ?? '', postgrestClient);
+    const { owner, repo } = projectConfig
+      ? parseRepoOwnerAndName(projectConfig.repo_url)
+      : { owner: '', repo: '' };
+    const defaultBranch = projectConfig?.default_branch ?? 'main';
+
+    // ── Step 13: Ensure task branch ──────────────────────────────────────────
+    const triageResult = task.triage_result as Record<string, unknown> | null;
+    const summary = (triageResult?.summary as string | undefined) ?? task.external_id ?? 'task';
+    const branchName = buildBranchName(task.external_id ?? 'TASK-0', summary);
+    const branchResult = await ensureBranch(branchName, '/workspace');
+    if (!branchResult.success) {
+      console.error(`[orchestrate] Failed to ensure branch: ${branchResult.error ?? 'unknown'}`);
+      heartbeat.stop();
+      await serverHandle.kill();
+      process.exit(1);
+    }
+
+    // ── Step 14: Commit and push changes ─────────────────────────────────────
+    const commitMessage = `feat: ${task.external_id} - ${summary}`;
+    const pushResult = await commitAndPush(branchName, commitMessage, '/workspace');
+    if (pushResult.error) {
+      console.error(`[orchestrate] Push failed: ${pushResult.error}`);
+      heartbeat.stop();
+      await serverHandle.kill();
+      process.exit(1);
+    }
+
+    // ── Step 15: Create or update PR ─────────────────────────────────────────
+    let prUrl: string | null = null;
+    if (pushResult.pushed && owner && repo) {
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (githubToken) {
+        const { createGitHubClient } = await import('../lib/github-client.js');
+        const githubClient = createGitHubClient({ token: githubToken });
+        const prResult = await createOrUpdatePR(
+          {
+            owner,
+            repo,
+            headBranch: branchName,
+            base: defaultBranch,
+            ticketId: task.external_id ?? 'TASK-0',
+            summary,
+            task,
+            executionId,
+          },
+          githubClient,
+        ).catch((err: Error) => {
+          console.warn(`[orchestrate] PR creation failed: ${err.message}`);
+          return null;
+        });
+        prUrl = prResult?.pr?.html_url ?? null;
+      }
+    }
+
+    // ── Step 16: Run completion flow (Supabase-first write → Inngest event) ──
+    const completionResult = await runCompletionFlow(
+      { taskId: task.id, executionId: executionId ?? '', prUrl },
+      postgrestClient,
+    );
+    if (!completionResult.supabaseWritten) {
+      console.error('[orchestrate] Completion Supabase write failed — task state lost');
+      heartbeat.stop();
+      await serverHandle.kill();
+      process.exit(1);
+    }
+    if (!completionResult.inngestSent) {
+      console.warn('[orchestrate] Inngest event not sent — watchdog will recover');
+    }
+
     await patchExecution(postgrestClient, executionId, {
       status: 'completed',
       current_stage: 'done',
