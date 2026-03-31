@@ -1,8 +1,8 @@
 {
   "project": "ai-employee",
   "description": "Multi-department Digital AI Employee Platform — MVP progress registry. Read this file FIRST when resuming work on any phase.",
-  "last_updated": "2026-03-30T15:30:00.000Z",
-  "last_session_id": "ses_2c047f7e6ffec3e1LYBzsHX53I",
+  "last_updated": "2026-03-31T01:00:00.000Z",
+  "last_session_id": "ses_2bf5f4167ffe1CE4ft0BRY3BFU",
   "source_docs": {
     "architecture": "docs/2026-03-22-2317-ai-employee-architecture.md",
     "implementation_phases": "docs/2026-03-25-1901-mvp-implementation-phases.md",
@@ -371,45 +371,72 @@
     {
       "id": 6,
       "name": "Completion & Delivery",
-      "status": "not_started",
-      "description": "Agent creates branch + PR, writes completion to Supabase before Inngest event, lifecycle function finalizes task.",
+      "status": "complete",
+      "description": "Worker creates task branch + PR (with deduplication), writes completion to Supabase before Inngest event (SPOF mitigation), lifecycle function finalizes task with deliverables record.",
       "architecture_refs": [
         "§9.4 Branch Naming",
         "§9.2 PR Deduplication",
         "§8 Reverse-Path SPOF Mitigation",
         "§10 Lifecycle finalize step"
       ],
-      "plan_file": null,
-      "doc_file": null,
-      "started_at": null,
-      "completed_at": null,
+      "plan_file": ".sisyphus/plans/2026-03-30-1624-phase6-completion-delivery.md",
+      "doc_file": "docs/2026-03-30-2038-phase6-completion-delivery.md",
+      "started_at": "2026-03-31T00:26:08Z",
+      "completed_at": "2026-03-31T01:00:00Z",
       "checkpoints": {
         "branch_creation": {
-          "status": "not_started",
-          "description": "ai/<ticket-id>-<kebab-summary> format. Reuse existing branch on re-dispatch."
+          "status": "complete",
+          "description": "src/workers/lib/branch-manager.ts — buildBranchName (ai/<id>-<kebab>), ensureBranch (ls-remote check + checkout/create), commitAndPush (--force-with-lease, empty diff detection)",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run tests/workers/lib/branch-manager.test.ts"
         },
         "pr_creation": {
-          "status": "not_started",
-          "description": "Deduplication check before gh pr create. Title: [AI] <ticket-id>: <summary>"
+          "status": "complete",
+          "description": "src/workers/lib/pr-manager.ts — checkExistingPR (listPRs with owner:branch filter), createOrUpdatePR (dedup check before createPR), buildPRBody. Title format: [AI] <ticket-id>: <summary>",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run tests/workers/lib/pr-manager.test.ts"
         },
         "supabase_first_write": {
-          "status": "not_started",
-          "description": "Write status=Submitting + PR URL to Supabase BEFORE sending Inngest event (SPOF mitigation)"
+          "status": "complete",
+          "description": "src/workers/lib/completion.ts — writeCompletionToSupabase PATCHes tasks to Submitting + POSTs deliverables + task_status_log. runCompletionFlow enforces Supabase-first ordering (invocationCallOrder tested).",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run tests/workers/lib/completion.test.ts"
         },
         "inngest_completion_event": {
-          "status": "not_started",
-          "description": "engineering/task.completed event with deterministic ID for deduplication"
+          "status": "complete",
+          "description": "sendCompletionEvent sends HTTP POST to Inngest with deterministic ID task-${taskId}-completion-${executionId}. 3 retries with exponential backoff. Returns false on failure (graceful).",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run tests/workers/lib/completion.test.ts"
         },
         "lifecycle_finalize": {
-          "status": "not_started",
-          "description": "On completion: confirm Done. On timeout: check dispatch_attempts, re-dispatch or escalate. Create deliverables record."
+          "status": "complete",
+          "description": "lifecycle.ts finalize updated: creates deliverables record (pull_request/no_changes), transitions Submitting→Done with optimistic lock, writes task_status_log (actor: lifecycle_fn). Idempotent for Done/Cancelled.",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run tests/inngest/lifecycle.test.ts"
         },
-        "tests_written": { "status": "not_started" },
-        "tests_passing": { "status": "not_started" },
-        "committed": { "status": "not_started" },
-        "documented": { "status": "not_started" }
+        "tests_written": {
+          "status": "complete",
+          "description": "104 new tests: branch-manager (24), pr-manager (19), completion (27), project-config (17), orchestrate updates (10+), lifecycle updates (7+)",
+          "verified_at": "2026-03-31T01:00:00Z"
+        },
+        "tests_passing": {
+          "status": "complete",
+          "description": "435 tests pass + 1 pre-existing container-boot infra failure + 10 skipped (OpenCode integration). 0 regressions from Phase 5 baseline of 331.",
+          "verified_at": "2026-03-31T01:00:00Z",
+          "verify_command": "pnpm test -- --run"
+        },
+        "committed": {
+          "status": "complete",
+          "description": "8 commits: branch-manager, pr-manager, completion module, project-config, orchestrate.mts integration, lifecycle.ts finalize, entrypoint.sh git identity, phase6 doc",
+          "verified_at": "2026-03-31T01:00:00Z"
+        },
+        "documented": {
+          "status": "complete",
+          "description": "docs/2026-03-30-2038-phase6-completion-delivery.md — 424 lines covering all modules, flow diagrams, design decisions, test suite table",
+          "verified_at": "2026-03-31T01:00:00Z"
+        }
       },
-      "resume_hint": "Requires Phase 5 complete (agent writes code successfully). Read §8 Reverse-Path SPOF section — Supabase-first write order is critical."
+      "resume_hint": "Phase 6 is complete. Proceed to Phase 7 (Resilience & Monitoring)."
     },
     {
       "id": 7,
