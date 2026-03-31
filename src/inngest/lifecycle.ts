@@ -111,18 +111,54 @@ export function createLifecycleFunction(
             );
           }
         } else {
-          // TODO Phase 6: Machine sends task.completed event with status and PR URL
-          // TODO Phase 5: await flyApi.destroyMachine(machine.id).catch(() => {})
           const task = await prisma.task.findUnique({
             where: { id: taskId },
             select: { status: true },
           });
-          if (task?.status !== 'Done') {
+
+          if (task?.status === 'Done' || task?.status === 'Cancelled') return;
+
+          const completionExecutionId = result.data.executionId as string | undefined;
+          const prUrl = result.data.prUrl as string | null | undefined;
+
+          if (completionExecutionId) {
+            await prisma.deliverable
+              .create({
+                data: {
+                  execution_id: completionExecutionId,
+                  delivery_type: prUrl ? 'pull_request' : 'no_changes',
+                  external_ref: prUrl ?? null,
+                  status: 'submitted',
+                },
+              })
+              .catch(() => {
+                /* Non-fatal — deliverable may already exist on re-delivery */
+              });
+          }
+
+          const updated = await prisma.task.updateMany({
+            where: { id: taskId, status: 'Submitting' },
+            data: { status: 'Done', updated_at: new Date() },
+          });
+
+          if (updated.count === 0 && task?.status !== 'Done') {
             await prisma.task.updateMany({
               where: { id: taskId },
               data: { status: 'Done', updated_at: new Date() },
             });
           }
+
+          await prisma.taskStatusLog.create({
+            data: {
+              task_id: taskId,
+              from_status: task?.status ?? 'Executing',
+              to_status: 'Done',
+              actor: 'lifecycle_fn',
+            },
+          });
+
+          // TODO Phase 7: await flyApi.destroyMachine(machine.id).catch(() => {})
+          void machine;
         }
       });
     },

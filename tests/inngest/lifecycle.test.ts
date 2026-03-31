@@ -74,6 +74,58 @@ function makeEngineSuccess() {
   });
 }
 
+function makeEngineCompletion(taskId: string, executionId: string, prUrl: string | null) {
+  return new InngestTestEngine({
+    function: createLifecycleFunction(inngest, getPrisma()),
+    transformCtx: (ctx: any) => {
+      const mocked = mockCtx(ctx);
+      mocked.step.waitForEvent = vi.fn().mockResolvedValue({
+        name: 'engineering/task.completed',
+        data: { taskId, executionId, prUrl },
+      });
+      return mocked as any;
+    },
+  });
+}
+
+function makeEngineCompletionWithPreFinalize(
+  taskId: string,
+  executionId: string,
+  prUrl: string | null,
+  preFinalize: () => Promise<void>,
+) {
+  return new InngestTestEngine({
+    function: createLifecycleFunction(inngest, getPrisma()),
+    transformCtx: (ctx: any) => {
+      const origStepRun = ctx.step.run;
+      const mocked = mockCtx(ctx);
+      mocked.step.waitForEvent = vi.fn().mockResolvedValue({
+        name: 'engineering/task.completed',
+        data: { taskId, executionId, prUrl },
+      });
+      mocked.step.run = vi
+        .fn()
+        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+          if (id === 'finalize') {
+            await preFinalize();
+            return fn();
+          }
+          return origStepRun(id, fn);
+        });
+      return mocked as any;
+    },
+  });
+}
+
+async function createTestExecution(taskId: string) {
+  return getPrisma().execution.create({
+    data: {
+      task_id: taskId,
+      status: 'completed',
+    },
+  });
+}
+
 function makeEngineForCancellation(cancelledResult: boolean) {
   return new InngestTestEngine({
     function: createLifecycleFunction(inngest, getPrisma()),
@@ -289,5 +341,148 @@ describe('Group 4 — Finalize (step: finalize)', () => {
     const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
     expect(updated!.dispatch_attempts).toBe(2);
     expect(updated!.status).toBe('Ready');
+  });
+});
+
+describe('Group 5 — Phase 6: Finalize Completion Path', () => {
+  it('finalize creates deliverable record with PR URL on completion', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+    const prUrl = 'https://github.com/org/repo/pull/42';
+
+    const { error } = await makeEngineCompletion(task.id, execution.id, prUrl).execute({
+      events: makeEvent(task.id),
+    });
+
+    expect(error).toBeUndefined();
+
+    const deliverable = await getPrisma().deliverable.findFirst({
+      where: { execution_id: execution.id },
+    });
+    expect(deliverable).not.toBeNull();
+    expect(deliverable!.delivery_type).toBe('pull_request');
+    expect(deliverable!.external_ref).toBe(prUrl);
+    expect(deliverable!.status).toBe('submitted');
+  });
+
+  it('finalize creates deliverable with delivery_type no_changes when prUrl is null', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletion(task.id, execution.id, null).execute({
+      events: makeEvent(task.id),
+    });
+
+    expect(error).toBeUndefined();
+
+    const deliverable = await getPrisma().deliverable.findFirst({
+      where: { execution_id: execution.id },
+    });
+    expect(deliverable).not.toBeNull();
+    expect(deliverable!.delivery_type).toBe('no_changes');
+    expect(deliverable!.external_ref).toBeNull();
+  });
+
+  it('finalize transitions task from Submitting to Done (optimistic lock)', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletionWithPreFinalize(
+      task.id,
+      execution.id,
+      null,
+      async () => {
+        await getPrisma().task.updateMany({
+          where: { id: task.id },
+          data: { status: 'Submitting' },
+        });
+      },
+    ).execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Done');
+  });
+
+  it('finalize writes status log entry (actor: lifecycle_fn, to_status: Done)', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletion(task.id, execution.id, null).execute({
+      events: makeEvent(task.id),
+    });
+
+    expect(error).toBeUndefined();
+
+    const log = await getPrisma().taskStatusLog.findFirst({
+      where: { task_id: task.id, to_status: 'Done', actor: 'lifecycle_fn' },
+    });
+    expect(log).not.toBeNull();
+    expect(log!.actor).toBe('lifecycle_fn');
+    expect(log!.to_status).toBe('Done');
+  });
+
+  it('finalize skips update when task already Done (idempotent)', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletionWithPreFinalize(
+      task.id,
+      execution.id,
+      null,
+      async () => {
+        await getPrisma().task.updateMany({
+          where: { id: task.id },
+          data: { status: 'Done' },
+        });
+      },
+    ).execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+
+    const doneLogs = await getPrisma().taskStatusLog.findMany({
+      where: { task_id: task.id, to_status: 'Done' },
+    });
+    expect(doneLogs).toHaveLength(0);
+  });
+
+  it('finalize skips update when task Cancelled', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletionWithPreFinalize(
+      task.id,
+      execution.id,
+      null,
+      async () => {
+        await getPrisma().task.updateMany({
+          where: { id: task.id },
+          data: { status: 'Cancelled' },
+        });
+      },
+    ).execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Cancelled');
+
+    const doneLogs = await getPrisma().taskStatusLog.findMany({
+      where: { task_id: task.id, to_status: 'Done' },
+    });
+    expect(doneLogs).toHaveLength(0);
+  });
+
+  it('finalize timeout branch still runs unchanged (re-dispatch logic)', async () => {
+    const task = await createTestTask({ status: 'Ready', dispatch_attempts: 0 });
+
+    const { error } = await makeEngineTimeout().execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Ready');
+    expect(updated!.dispatch_attempts).toBe(1);
   });
 });
