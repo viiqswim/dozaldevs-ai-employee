@@ -47,6 +47,9 @@ if ! step_done 1; then
     chmod 600 ~/.git-credentials ~/.netrc
     echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
   fi
+  # Set git identity for commits (required for git commit inside container)
+  git config --global user.email "ai-employee@platform.local"
+  git config --global user.name "AI Employee"
   mark_step_done 1
   log "[STEP 1/8] Auth tokens written [OK]"
 fi
