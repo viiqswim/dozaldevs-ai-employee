@@ -32,6 +32,34 @@ vi.mock('../../src/workers/lib/heartbeat.js', () => ({
   startHeartbeat: vi.fn(),
 }));
 
+vi.mock('../../src/workers/lib/branch-manager.js', () => ({
+  buildBranchName: vi.fn().mockReturnValue('ai/PROJ-1-test-task'),
+  ensureBranch: vi.fn().mockResolvedValue({ success: true, existed: false }),
+  commitAndPush: vi.fn().mockResolvedValue({ pushed: true }),
+}));
+
+vi.mock('../../src/workers/lib/pr-manager.js', () => ({
+  createOrUpdatePR: vi.fn().mockResolvedValue({
+    pr: { html_url: 'https://github.com/org/repo/pull/1', number: 1, title: '[AI] TEST-001', head: { ref: 'ai/PROJ-1-test-task' }, base: { ref: 'main' }, state: 'open' },
+    wasExisting: false,
+  }),
+}));
+
+vi.mock('../../src/workers/lib/completion.js', () => ({
+  runCompletionFlow: vi.fn().mockResolvedValue({ supabaseWritten: true, inngestSent: true }),
+}));
+
+vi.mock('../../src/workers/lib/project-config.js', () => ({
+  fetchProjectConfig: vi.fn().mockResolvedValue({
+    id: 'proj-1',
+    name: 'test',
+    repo_url: 'https://github.com/org/repo',
+    default_branch: 'main',
+    tooling_config: null,
+  }),
+  parseRepoOwnerAndName: vi.fn().mockReturnValue({ owner: 'org', repo: 'repo' }),
+}));
+
 import * as fs from 'fs';
 import { createPostgRESTClient } from '../../src/workers/lib/postgrest-client.js';
 import {
@@ -43,6 +71,10 @@ import { startOpencodeServer } from '../../src/workers/lib/opencode-server.js';
 import { createSessionManager } from '../../src/workers/lib/session-manager.js';
 import { runWithFixLoop } from '../../src/workers/lib/fix-loop.js';
 import { startHeartbeat } from '../../src/workers/lib/heartbeat.js';
+import { buildBranchName, ensureBranch, commitAndPush } from '../../src/workers/lib/branch-manager.js';
+import { createOrUpdatePR } from '../../src/workers/lib/pr-manager.js';
+import { runCompletionFlow } from '../../src/workers/lib/completion.js';
+import { fetchProjectConfig, parseRepoOwnerAndName } from '../../src/workers/lib/project-config.js';
 
 // Helper to create mock objects
 function createMockPostgRESTClient(): PostgRESTClient {
@@ -85,7 +117,7 @@ function createMockTask() {
     status: 'Executing',
     triage_result: null,
     requirements: null,
-    project_id: null,
+    project_id: 'proj-1',
   };
 }
 
@@ -106,6 +138,23 @@ function setupHappyPath() {
   vi.mocked(startHeartbeat).mockReturnValue(mockHeartbeat);
   vi.mocked(runWithFixLoop).mockResolvedValue({ success: true, totalIterations: 0 });
 
+  vi.mocked(fetchProjectConfig).mockResolvedValue({
+    id: 'proj-1',
+    name: 'test',
+    repo_url: 'https://github.com/org/repo',
+    default_branch: 'main',
+    tooling_config: null,
+  });
+  vi.mocked(parseRepoOwnerAndName).mockReturnValue({ owner: 'org', repo: 'repo' });
+  vi.mocked(buildBranchName).mockReturnValue('ai/PROJ-1-test-task');
+  vi.mocked(ensureBranch).mockResolvedValue({ success: true, existed: false });
+  vi.mocked(commitAndPush).mockResolvedValue({ pushed: true });
+  vi.mocked(createOrUpdatePR).mockResolvedValue({
+    pr: { html_url: 'https://github.com/org/repo/pull/1', number: 1, title: '[AI] TEST-001', head: { ref: 'ai/PROJ-1-test-task' }, base: { ref: 'main' }, state: 'open' },
+    wasExisting: false,
+  });
+  vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: true, inngestSent: true });
+
   return { mockHeartbeat, mockServerHandle, mockSessionManager, mockPostgREST, mockTask };
 }
 
@@ -118,11 +167,14 @@ describe('orchestrate.mts', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    process.env.GITHUB_TOKEN = 'test-token';
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.resetModules();
+    delete process.env.GITHUB_TOKEN;
   });
 
   it('happy path: all mocks succeed → execution completed, process.exit(0)', async () => {
@@ -233,5 +285,133 @@ describe('orchestrate.mts', () => {
     await import('../../src/workers/orchestrate.mjs');
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('happy path includes Steps 12-16: completing stage set, branch ensured, push done, PR created, completion called', async () => {
+    const { mockHeartbeat } = setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(mockHeartbeat.updateStage).toHaveBeenCalledWith('completing');
+    expect(fetchProjectConfig).toHaveBeenCalledWith('proj-1', expect.anything());
+    expect(buildBranchName).toHaveBeenCalled();
+    expect(ensureBranch).toHaveBeenCalledWith('ai/PROJ-1-test-task', '/workspace');
+    expect(commitAndPush).toHaveBeenCalledWith('ai/PROJ-1-test-task', expect.any(String), '/workspace');
+    expect(createOrUpdatePR).toHaveBeenCalled();
+    expect(runCompletionFlow).toHaveBeenCalledWith(
+      { taskId: 'task-1', executionId: expect.any(String), prUrl: expect.anything() },
+      expect.anything(),
+    );
+  });
+
+  it('project config fetch returns null: falls back to defaults, branch still created, completion still runs', async () => {
+    setupHappyPath();
+    vi.mocked(fetchProjectConfig).mockResolvedValue(null);
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(buildBranchName).toHaveBeenCalled();
+    expect(ensureBranch).toHaveBeenCalled();
+    expect(runCompletionFlow).toHaveBeenCalled();
+  });
+
+  it('branch creation failure → exit(1), heartbeat stopped, server killed', async () => {
+    const { mockHeartbeat, mockServerHandle } = setupHappyPath();
+    vi.mocked(ensureBranch).mockResolvedValue({ success: false, existed: false, error: 'checkout failed' });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(mockHeartbeat.stop).toHaveBeenCalled();
+    expect(mockServerHandle.kill).toHaveBeenCalled();
+  });
+
+  it('push failure (error set) → exit(1), heartbeat stopped, server killed', async () => {
+    const { mockHeartbeat, mockServerHandle } = setupHappyPath();
+    vi.mocked(commitAndPush).mockResolvedValue({ pushed: false, error: 'remote rejected' });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(mockHeartbeat.stop).toHaveBeenCalled();
+    expect(mockServerHandle.kill).toHaveBeenCalled();
+  });
+
+  it('empty diff (pushed: false, no error) → skips PR creation, still sends completion with null prUrl', async () => {
+    setupHappyPath();
+    vi.mocked(commitAndPush).mockResolvedValue({ pushed: false, reason: 'no_changes' });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(createOrUpdatePR).not.toHaveBeenCalled();
+    expect(runCompletionFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ prUrl: null }),
+      expect.anything(),
+    );
+  });
+
+  it('PR creation throws → logs warning, still sends completion with null prUrl, exit(0)', async () => {
+    setupHappyPath();
+    vi.mocked(createOrUpdatePR).mockRejectedValue(new Error('GitHub API error'));
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(console.warn).toHaveBeenCalled();
+    expect(runCompletionFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ prUrl: null }),
+      expect.anything(),
+    );
+  });
+
+  it('Supabase completion write fails → exit(1), heartbeat stopped, server killed', async () => {
+    const { mockHeartbeat, mockServerHandle } = setupHappyPath();
+    vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: false, inngestSent: false });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(mockHeartbeat.stop).toHaveBeenCalled();
+    expect(mockServerHandle.kill).toHaveBeenCalled();
+  });
+
+  it('Inngest send fails after Supabase written → warns, exit(0) (work done, watchdog recovers)', async () => {
+    setupHappyPath();
+    vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: true, inngestSent: false });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('watchdog will recover'),
+    );
+  });
+
+  it('GITHUB_TOKEN absent → PR creation skipped entirely, completion still called', async () => {
+    setupHappyPath();
+    delete process.env.GITHUB_TOKEN;
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(createOrUpdatePR).not.toHaveBeenCalled();
+    expect(runCompletionFlow).toHaveBeenCalled();
+  });
+
+  it('patchExecution includes completing stage in success path', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const stages = patchCalls
+      .filter((call) => call[2]?.current_stage)
+      .map((call) => call[2]?.current_stage);
+    expect(stages).toContain('completing');
+    expect(stages).toContain('done');
   });
 });
