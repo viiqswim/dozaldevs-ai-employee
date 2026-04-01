@@ -255,7 +255,9 @@ export function createLifecycleFunction(
               const { execSync } = await import('child_process');
               const containerName = `ai-worker-${taskId.slice(0, 8)}`;
               execSync(`docker stop ${containerName} 2>/dev/null || true`, { encoding: 'utf8' });
-            } catch {}
+            } catch {
+              /* ignore */
+            }
           } else {
             const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
             if (flyWorkerApp) {
@@ -372,7 +374,9 @@ export function createLifecycleFunction(
               const { execSync } = await import('child_process');
               const containerName = `ai-worker-${taskId.slice(0, 8)}`;
               execSync(`docker stop ${containerName} 2>/dev/null || true`, { encoding: 'utf8' });
-            } catch {}
+            } catch {
+              /* ignore */
+            }
           } else {
             const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
             if (flyWorkerApp) {
