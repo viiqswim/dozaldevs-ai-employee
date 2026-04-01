@@ -114,6 +114,9 @@ async function patchExecution(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  // Token tracking: will accumulate data if direct callLLM() calls are made.
+  // NOTE: OpenCode SDK v1 does not expose per-session token usage data,
+  // so tokens from OpenCode sessions are not tracked.
   const tokenTracker = new TokenTracker();
 
   // ── Step 1: Read execution ID ────────────────────────────────────────────
@@ -283,12 +286,16 @@ async function main(): Promise<void> {
 
     // ── Step 16: Persist accumulated token counts, then run completion flow ──
     const accumulated = tokenTracker.getAccumulated();
-    await patchExecution(postgrestClient, executionId, {
-      prompt_tokens: accumulated.promptTokens,
-      completion_tokens: accumulated.completionTokens,
-      estimated_cost_usd: accumulated.estimatedCostUsd,
-      primary_model_id: accumulated.primaryModelId || null,
-    });
+    // Only write if there's real token data (OpenCode SDK v1 doesn't expose per-session token usage;
+    // this guard prevents writing misleading zero values to the DB)
+    if (accumulated.promptTokens > 0 || accumulated.completionTokens > 0) {
+      await patchExecution(postgrestClient, executionId, {
+        prompt_tokens: accumulated.promptTokens,
+        completion_tokens: accumulated.completionTokens,
+        estimated_cost_usd: accumulated.estimatedCostUsd,
+        primary_model_id: accumulated.primaryModelId || null,
+      });
+    }
 
     const completionResult = await runCompletionFlow(
       { taskId: task.id, executionId: executionId ?? '', prUrl },
@@ -316,12 +323,16 @@ async function main(): Promise<void> {
   } else {
     // escalate() was already called inside fix-loop — persist partial token counts before exit
     const accumulatedOnFailure = tokenTracker.getAccumulated();
-    await patchExecution(postgrestClient, executionId, {
-      prompt_tokens: accumulatedOnFailure.promptTokens,
-      completion_tokens: accumulatedOnFailure.completionTokens,
-      estimated_cost_usd: accumulatedOnFailure.estimatedCostUsd,
-      primary_model_id: accumulatedOnFailure.primaryModelId || null,
-    });
+    // Only write if there's real token data (OpenCode SDK v1 doesn't expose per-session token usage;
+    // this guard prevents writing misleading zero values to the DB)
+    if (accumulatedOnFailure.promptTokens > 0 || accumulatedOnFailure.completionTokens > 0) {
+      await patchExecution(postgrestClient, executionId, {
+        prompt_tokens: accumulatedOnFailure.promptTokens,
+        completion_tokens: accumulatedOnFailure.completionTokens,
+        estimated_cost_usd: accumulatedOnFailure.estimatedCostUsd,
+        primary_model_id: accumulatedOnFailure.primaryModelId || null,
+      });
+    }
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);

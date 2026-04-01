@@ -507,8 +507,15 @@ describe('orchestrate.mts', () => {
     expect(stages).toContain('done');
   });
 
-  it('happy path: token counts are written to executions before completion flow', async () => {
-    const { mockPostgREST } = setupHappyPath();
+  it('happy path: token counts are written to executions before completion flow (when non-zero)', async () => {
+    const { mockPostgREST, mockTokenTracker } = setupHappyPath();
+    // Set non-zero token counts so the guard allows the write
+    vi.mocked(mockTokenTracker.getAccumulated).mockReturnValue({
+      promptTokens: 100,
+      completionTokens: 50,
+      estimatedCostUsd: 0.01,
+      primaryModelId: 'anthropic/claude-sonnet-4-6',
+    });
     await import('../../src/workers/orchestrate.mjs');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -517,15 +524,60 @@ describe('orchestrate.mts', () => {
     const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
     expect(tokenPatch).toBeDefined();
     expect(tokenPatch![2]).toMatchObject({
-      prompt_tokens: expect.any(Number),
-      completion_tokens: expect.any(Number),
-      estimated_cost_usd: expect.any(Number),
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      estimated_cost_usd: 0.01,
     });
   });
 
-  it('fix loop failure path: token counts are written to executions before exit', async () => {
-    const { mockPostgREST } = setupHappyPath();
+  it('zero token counts: PATCH is NOT called when both promptTokens and completionTokens are 0', async () => {
+    const { mockPostgREST, mockTokenTracker } = setupHappyPath();
+    vi.mocked(mockTokenTracker.getAccumulated).mockReturnValue({
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      primaryModelId: '',
+    });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
+    expect(tokenPatch).toBeUndefined();
+  });
+
+  it('non-zero prompt tokens: PATCH IS called even if completionTokens is 0', async () => {
+    const { mockPostgREST, mockTokenTracker } = setupHappyPath();
+    vi.mocked(mockTokenTracker.getAccumulated).mockReturnValue({
+      promptTokens: 100,
+      completionTokens: 0,
+      estimatedCostUsd: 0.01,
+      primaryModelId: 'anthropic/claude-sonnet-4-6',
+    });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
+    expect(tokenPatch).toBeDefined();
+    expect(tokenPatch![2]).toMatchObject({
+      prompt_tokens: 100,
+      completion_tokens: 0,
+    });
+  });
+
+  it('fix loop failure path: token counts are written to executions before exit (when non-zero)', async () => {
+    const { mockPostgREST, mockTokenTracker } = setupHappyPath();
     vi.mocked(runWithFixLoop).mockResolvedValue({ success: false, totalIterations: 3 });
+    // Set non-zero token counts so the guard allows the write
+    vi.mocked(mockTokenTracker.getAccumulated).mockReturnValue({
+      promptTokens: 50,
+      completionTokens: 25,
+      estimatedCostUsd: 0.005,
+      primaryModelId: 'anthropic/claude-sonnet-4-6',
+    });
     await import('../../src/workers/orchestrate.mjs');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -534,10 +586,28 @@ describe('orchestrate.mts', () => {
     const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
     expect(tokenPatch).toBeDefined();
     expect(tokenPatch![2]).toMatchObject({
-      prompt_tokens: expect.any(Number),
-      completion_tokens: expect.any(Number),
-      estimated_cost_usd: expect.any(Number),
+      prompt_tokens: 50,
+      completion_tokens: 25,
+      estimated_cost_usd: 0.005,
     });
+  });
+
+  it('fix loop failure with zero tokens: PATCH is NOT called when both token counts are 0', async () => {
+    const { mockPostgREST, mockTokenTracker } = setupHappyPath();
+    vi.mocked(runWithFixLoop).mockResolvedValue({ success: false, totalIterations: 3 });
+    vi.mocked(mockTokenTracker.getAccumulated).mockReturnValue({
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      primaryModelId: '',
+    });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
+    expect(tokenPatch).toBeUndefined();
   });
 
   it('TokenTracker is instantiated once per orchestration run', async () => {
