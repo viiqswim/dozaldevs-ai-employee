@@ -136,11 +136,46 @@ export function createLifecycleFunction(
         return flyMachine;
       });
 
-      const result = await step.waitForEvent('wait-for-completion', {
-        event: 'engineering/task.completed',
-        timeout: '4h10m',
-        if: `async.data.taskId == '${taskId}'`,
+      // Pre-check Supabase before waitForEvent to mitigate Inngest #1433 race condition.
+      // If the machine completed and wrote its status to Supabase BEFORE this step starts
+      // listening for the event, the event may have already been sent and missed.
+      // NOTE: This is a best-effort mitigation — a TOCTOU race window still exists between
+      // this read and the waitForEvent setup. Inngest's upcoming "event lookback" feature
+      // is the proper long-term fix.
+      const preCheckStatus = await step.run('pre-check-completion', async () => {
+        const task = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { status: true, triage_result: true },
+        });
+        return task?.status ?? null;
       });
+
+      if (preCheckStatus === 'Done' || preCheckStatus === 'Cancelled') {
+        return;
+      }
+
+      type CompletionResult = { data: Record<string, unknown> } | null;
+      let result: CompletionResult;
+
+      if (preCheckStatus === 'Submitting') {
+        // Machine completed and wrote Submitting status before we started listening.
+        // Synthesize the completion result to proceed to finalize.
+        const execution = await step.run('get-execution-for-completion', async () => {
+          const exec = await prisma.execution.findFirst({
+            where: { task_id: taskId },
+            select: { id: true },
+            orderBy: { created_at: 'desc' },
+          });
+          return exec;
+        });
+        result = { data: { taskId, executionId: execution?.id, prUrl: null } };
+      } else {
+        result = await step.waitForEvent('wait-for-completion', {
+          event: 'engineering/task.completed',
+          timeout: '4h10m',
+          if: `async.data.taskId == '${taskId}'`,
+        });
+      }
 
       await step.run('finalize', async () => {
         if (result === null) {

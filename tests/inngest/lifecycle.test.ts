@@ -630,3 +630,87 @@ describe('Group 6 — Cost Gate (step: check-cost-gate)', () => {
     expect(vi.mocked(createMachine)).toHaveBeenCalled();
   });
 });
+
+describe('Group 7 — Race Condition Pre-Check (step: pre-check-completion)', () => {
+  it('pre-check Submitting: skips waitForEvent, finalize runs with synthetic result → task Done', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    await createTestExecution(task.id);
+
+    const engine = new InngestTestEngine({
+      function: createLifecycleFunction(inngest, getPrisma()),
+      transformCtx: (ctx: any) => {
+        const origStepRun = ctx.step.run;
+        const mocked = mockCtx(ctx);
+        mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
+        mocked.step.run = vi
+          .fn()
+          .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+            if (id === 'pre-check-completion') return 'Submitting';
+            return origStepRun(id, fn);
+          });
+        return mocked as any;
+      },
+    });
+
+    const { ctx, error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect((ctx.step.waitForEvent as unknown as MockCalls).mock.calls).toHaveLength(0);
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Done');
+  });
+
+  it('pre-check Done: lifecycle returns early, waitForEvent and finalize not called', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+
+    const engine = new InngestTestEngine({
+      function: createLifecycleFunction(inngest, getPrisma()),
+      transformCtx: (ctx: any) => {
+        const origStepRun = ctx.step.run;
+        const mocked = mockCtx(ctx);
+        mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
+        mocked.step.run = vi
+          .fn()
+          .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+            if (id === 'pre-check-completion') return 'Done';
+            return origStepRun(id, fn);
+          });
+        return mocked as any;
+      },
+    });
+
+    const { ctx, error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect((ctx.step.waitForEvent as unknown as MockCalls).mock.calls).toHaveLength(0);
+    const wasFinalized = getStepRunCalls(ctx).some(([id]) => id === 'finalize');
+    expect(wasFinalized).toBe(false);
+  });
+
+  it('pre-check Executing: waitForEvent IS called (normal happy path unchanged)', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+
+    const engine = new InngestTestEngine({
+      function: createLifecycleFunction(inngest, getPrisma()),
+      transformCtx: (ctx: any) => {
+        const origStepRun = ctx.step.run;
+        const mocked = mockCtx(ctx);
+        mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
+        mocked.step.run = vi
+          .fn()
+          .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+            if (id === 'finalize') return undefined;
+            return origStepRun(id, fn);
+          });
+        return mocked as any;
+      },
+    });
+
+    const { ctx, error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    const waitCalls = (ctx.step.waitForEvent as unknown as MockCalls).mock.calls;
+    expect(waitCalls).toHaveLength(1);
+    expect(waitCalls[0][0]).toBe('wait-for-completion');
+  });
+});
