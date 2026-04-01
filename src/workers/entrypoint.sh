@@ -200,6 +200,19 @@ if ! step_done 7; then
 fi
 
 # =============================================================================
+# STEP 7.5: Write OpenCode provider credentials (auth.json)
+# =============================================================================
+log "[STEP 7.5/8] Configuring OpenCode provider credentials..."
+OPENCODE_AUTH_DIR="${HOME}/.local/share/opencode"
+mkdir -p "${OPENCODE_AUTH_DIR}"
+if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+  printf '{\n  "openrouter": {\n    "type": "api",\n    "key": "%s"\n  }\n}\n' "${OPENROUTER_API_KEY}" > "${OPENCODE_AUTH_DIR}/auth.json"
+  log "[STEP 7.5/8] OpenRouter credentials written [OK]"
+else
+  log "[STEP 7.5/8] OPENROUTER_API_KEY not set — skipping credentials [WARN]"
+fi
+
+# =============================================================================
 # STEP 8: Hand off to orchestrate.mjs
 # =============================================================================
 log "[STEP 8/8] Handing off to orchestrate.mjs..."

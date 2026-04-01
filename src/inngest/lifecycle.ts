@@ -98,6 +98,7 @@ export function createLifecycleFunction(
             `-e SUPABASE_SECRET_KEY="${process.env.SUPABASE_SECRET_KEY ?? ''}"`,
             `-e GITHUB_TOKEN="${process.env.GITHUB_TOKEN ?? ''}"`,
             `-e OPENROUTER_API_KEY="${process.env.OPENROUTER_API_KEY ?? ''}"`,
+            `-e OPENROUTER_MODEL="${process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7'}"`,
             `-e INNGEST_EVENT_KEY="${process.env.INNGEST_EVENT_KEY ?? 'local'}"`,
             `-e INNGEST_DEV="1"`,
             `-e INNGEST_BASE_URL="http://localhost:8288"`,
@@ -163,6 +164,7 @@ export function createLifecycleFunction(
             SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
             GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
             OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+            OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
           },
         });
 
