@@ -3,7 +3,7 @@ import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
-import { createMachine } from '../../src/lib/fly-client.js';
+import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
 
 vi.mock('../../src/lib/fly-client.js', () => ({
   createMachine: vi.fn(),
@@ -176,6 +176,7 @@ beforeEach(() => {
   process.env.FLY_API_TOKEN = 'test-fly-token';
   process.env.FLY_WORKER_APP = 'test-worker-app';
   vi.mocked(createMachine).mockResolvedValue({ id: 'test-machine-id', state: 'started' });
+  vi.mocked(destroyMachine).mockResolvedValue(undefined);
   vi.spyOn(
     inngest as unknown as { send: (...args: unknown[]) => unknown },
     'send',
@@ -547,6 +548,39 @@ describe('Group 5 — Phase 6: Finalize Completion Path', () => {
 
     expect(error).toBeUndefined();
 
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Ready');
+    expect(updated!.dispatch_attempts).toBe(1);
+  });
+
+  it('timeout path: destroyMachine called with correct app name and machine ID', async () => {
+    const task = await createTestTask({ status: 'Ready', dispatch_attempts: 0 });
+
+    const { error } = await makeEngineTimeout().execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(destroyMachine)).toHaveBeenCalledWith('test-worker-app', 'test-machine-id');
+  });
+
+  it('completion path: destroyMachine called as backup cleanup', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    const execution = await createTestExecution(task.id);
+
+    const { error } = await makeEngineCompletion(task.id, execution.id, null).execute({
+      events: makeEvent(task.id),
+    });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(destroyMachine)).toHaveBeenCalledWith('test-worker-app', 'test-machine-id');
+  });
+
+  it('destroyMachine throwing error does not break lifecycle (non-fatal)', async () => {
+    const task = await createTestTask({ status: 'Ready', dispatch_attempts: 0 });
+    vi.mocked(destroyMachine).mockRejectedValueOnce(new Error('Fly.io API error'));
+
+    const { error } = await makeEngineTimeout().execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
     const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
     expect(updated!.status).toBe('Ready');
     expect(updated!.dispatch_attempts).toBe(1);

@@ -1,7 +1,7 @@
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
-import { createMachine } from '../lib/fly-client.js';
+import { createMachine, destroyMachine } from '../lib/fly-client.js';
 
 export function createLifecycleFunction(
   inngest: Inngest,
@@ -144,8 +144,11 @@ export function createLifecycleFunction(
 
       await step.run('finalize', async () => {
         if (result === null) {
-          // TODO Phase 5: await flyApi.destroyMachine(machine.id).catch(() => {})
-          void machine; // suppress unused variable warning until Phase 5
+          // Cleanup attempt (machine may have already self-destructed — handle 404 as success)
+          const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
+          if (flyWorkerApp) {
+            await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+          }
 
           const task = await prisma.task.findUnique({
             where: { id: taskId },
@@ -243,8 +246,11 @@ export function createLifecycleFunction(
             },
           });
 
-          // TODO Phase 7: await flyApi.destroyMachine(machine.id).catch(() => {})
-          void machine;
+          // Cleanup attempt (machine may have already self-destructed — handle 404 as success)
+          const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
+          if (flyWorkerApp) {
+            await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+          }
         }
       });
     },
