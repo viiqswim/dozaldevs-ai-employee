@@ -30,14 +30,14 @@ async function main() {
       create: {
         id: '00000000-0000-0000-0000-000000000003',
         name: 'test-project',
-        repo_url: 'https://github.com/your-org/your-test-repo',
+        repo_url: 'https://github.com/viiqswim/ai-employee-test-target',
         default_branch: 'main',
         concurrency_limit: 3,
         jira_project_key: 'TEST',
       },
       update: {
         name: 'test-project',
-        repo_url: 'https://github.com/your-org/your-test-repo',
+        repo_url: 'https://github.com/viiqswim/ai-employee-test-target',
         default_branch: 'main',
         concurrency_limit: 3,
         jira_project_key: 'TEST',
