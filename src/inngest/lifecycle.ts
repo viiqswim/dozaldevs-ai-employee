@@ -1,6 +1,7 @@
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
+import { createMachine } from '../lib/fly-client.js';
 
 export function createLifecycleFunction(
   inngest: Inngest,
@@ -46,8 +47,61 @@ export function createLifecycleFunction(
       if (isCancelled) return;
 
       const machine = await step.run('dispatch-fly-machine', async () => {
-        // TODO Phase 5: Replace with real Fly.io machine dispatch via flyApi.createMachine()
-        return { id: 'placeholder-machine-id' };
+        const flyApiToken = process.env.FLY_API_TOKEN;
+        const flyWorkerApp = process.env.FLY_WORKER_APP;
+        const flyWorkerImage =
+          process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+
+        if (!flyApiToken || !flyWorkerApp) {
+          await prisma.task.updateMany({
+            where: { id: taskId },
+            data: {
+              status: 'AwaitingInput',
+              failure_reason:
+                'Fly.io dispatch misconfigured: FLY_API_TOKEN and FLY_WORKER_APP must be set',
+              updated_at: new Date(),
+            },
+          });
+          await prisma.taskStatusLog.create({
+            data: {
+              task_id: taskId,
+              from_status: 'Executing',
+              to_status: 'AwaitingInput',
+              actor: 'lifecycle_fn',
+            },
+          });
+          throw new NonRetriableError('FLY_API_TOKEN and FLY_WORKER_APP not configured');
+        }
+
+        const { repoUrl, repoBranch } = event.data as {
+          repoUrl: string;
+          repoBranch: string;
+          projectId: string;
+        };
+
+        const flyMachine = await createMachine(flyWorkerApp, {
+          image: flyWorkerImage,
+          vm_size: 'performance-2x',
+          auto_destroy: true,
+          env: {
+            TASK_ID: taskId,
+            REPO_URL: repoUrl ?? '',
+            REPO_BRANCH: repoBranch ?? 'main',
+            SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+            SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
+            GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
+            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+          },
+        });
+
+        await prisma.execution.updateMany({
+          where: { task_id: taskId },
+          data: {
+            runtime_id: flyMachine.id,
+          },
+        });
+
+        return flyMachine;
       });
 
       const result = await step.waitForEvent('wait-for-completion', {
