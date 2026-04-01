@@ -24,19 +24,19 @@ check_fail() {
 TASK_ID=""
 REPO="viiqswim/ai-employee-test-target"
 
-for arg in "$@"; do
-  case $arg in
-    --task-id=*) TASK_ID="${arg#*=}" ;;
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --task-id=*) TASK_ID="${1#*=}" ;;
     --task-id) TASK_ID="$2"; shift ;;
-    --repo=*) REPO="${arg#*=}" ;;
+    --repo=*) REPO="${1#*=}" ;;
     --repo) REPO="$2"; shift ;;
   esac
-  shift 2>/dev/null || true
+  shift
 done
 
 # Auto-detect most recent task ID if not provided
 if [ -z "$TASK_ID" ]; then
-  TASK_ID=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -t -c \
+  TASK_ID=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -t -c \
     "SELECT id FROM tasks ORDER BY created_at DESC LIMIT 1;" 2>/dev/null | tr -d ' \n')
 fi
 
@@ -44,7 +44,7 @@ fi
 # Database helper
 # ─────────────────────────────────────────────────────
 DB_QUERY() {
-  PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -t -c "$1" 2>/dev/null | tr -d ' \n'
+  PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -t -c "$1" 2>/dev/null | tr -d ' \n'
 }
 
 echo ""
