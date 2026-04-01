@@ -133,7 +133,7 @@ fi
 echo "── Check 7: PR created on GitHub ──"
 PR_LIST=$(gh pr list --repo "$REPO" --state open --json number,title 2>/dev/null | jq 'length')
 PR_MERGED=$(gh pr list --repo "$REPO" --state merged --json number,title 2>/dev/null | jq 'length')
-if [ -n "$PR_LIST" ] && [ "$PR_LIST" -ge 1 ] || [ -n "$PR_MERGED" ] && [ "$PR_MERGED" -ge 1 ]; then
+if { [ -n "$PR_LIST" ] && [ "$PR_LIST" -ge 1 ]; } || { [ -n "$PR_MERGED" ] && [ "$PR_MERGED" -ge 1 ]; }; then
   check_pass "Check 7: PR found on GitHub repo $REPO"
 else
   check_fail "Check 7: No PR found on GitHub repo $REPO"
