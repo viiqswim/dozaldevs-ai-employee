@@ -50,8 +50,10 @@ export async function writeCompletionToSupabase(
       status: 'Submitting',
       updated_at: new Date().toISOString(),
     });
-    if (result === null) {
-      log.warn(`[completion] PATCH tasks failed (null response) for task ${taskId}`);
+    if (result === null || (Array.isArray(result) && result.length === 0)) {
+      log.warn(
+        `[completion] PATCH tasks returned no rows for task ${taskId} — task may not exist or already in terminal state`,
+      );
       return false;
     }
   } catch (error) {
