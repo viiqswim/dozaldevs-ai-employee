@@ -2,6 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostgRESTClient } from '../../src/workers/lib/postgrest-client.js';
 import type { HeartbeatHandle } from '../../src/workers/lib/heartbeat.js';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 vi.mock('fs', () => ({
   readFileSync: vi.fn(),
 }));
@@ -441,7 +454,7 @@ describe('orchestrate.mts', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
-    expect(console.warn).toHaveBeenCalled();
+    expect(mockLogger.warn).toHaveBeenCalled();
     expect(runCompletionFlow).toHaveBeenCalledWith(
       expect.objectContaining({ prUrl: null }),
       expect.anything(),
@@ -466,7 +479,7 @@ describe('orchestrate.mts', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('watchdog will recover'));
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('watchdog will recover'));
   });
 
   it('GITHUB_TOKEN absent → PR creation skipped entirely, completion still called', async () => {
