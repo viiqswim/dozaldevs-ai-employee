@@ -92,9 +92,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ── Step 4: Resolve tooling config ───────────────────────────────────────
-  // Uses defaults for the fix loop; project config is fetched in Step 12.
-  const toolingConfigResolved = resolveToolingConfig(null);
+  // ── Step 4: Fetch project config and resolve tooling config ──────────────
+  // Fetch early so real tooling_config can be passed to fix loop.
+  const projectConfig = await fetchProjectConfig(task.project_id ?? '', postgrestClient);
+  const toolingConfigResolved = resolveToolingConfig(projectConfig);
 
   // ── Step 5: Build prompt ─────────────────────────────────────────────────
   const prompt = buildPrompt(task);
@@ -163,10 +164,9 @@ async function main(): Promise<void> {
   });
 
   if (fixResult.success) {
-    // ── Step 12: Fetch project config (tooling_config + repo URL) ───────────
+    // ── Step 12: Use project config (already fetched in Step 4) ─────────────
     heartbeat.updateStage('completing');
     await patchExecution(postgrestClient, executionId, { current_stage: 'completing' });
-    const projectConfig = await fetchProjectConfig(task.project_id ?? '', postgrestClient);
     const { owner, repo } = projectConfig
       ? parseRepoOwnerAndName(projectConfig.repo_url)
       : { owner: '', repo: '' };
