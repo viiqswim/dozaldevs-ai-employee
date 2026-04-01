@@ -80,6 +80,15 @@ vi.mock('../../src/workers/lib/token-tracker.js', () => ({
   })),
 }));
 
+vi.mock('../../src/lib/agent-version.js', () => ({
+  computeVersionHash: vi.fn().mockReturnValue({
+    promptHash: 'mock-prompt-hash',
+    modelId: 'anthropic/claude-sonnet-4-6',
+    toolConfigHash: 'mock-tool-config-hash',
+  }),
+  ensureAgentVersion: vi.fn(),
+}));
+
 import * as fs from 'fs';
 import { createPostgRESTClient } from '../../src/workers/lib/postgrest-client.js';
 import {
@@ -100,12 +109,13 @@ import { createOrUpdatePR } from '../../src/workers/lib/pr-manager.js';
 import { runCompletionFlow } from '../../src/workers/lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from '../../src/workers/lib/project-config.js';
 import { TokenTracker } from '../../src/workers/lib/token-tracker.js';
+import { computeVersionHash } from '../../src/lib/agent-version.js';
 
 // Helper to create mock objects
 function createMockPostgRESTClient(): PostgRESTClient {
   return {
     get: vi.fn().mockResolvedValue([]),
-    post: vi.fn().mockResolvedValue({}),
+    post: vi.fn().mockResolvedValue({ id: 'mock-agent-version-id' }),
     patch: vi.fn().mockResolvedValue({}),
   };
 }
@@ -166,6 +176,12 @@ function setupHappyPath() {
   const mockPostgREST = createMockPostgRESTClient();
   const mockTask = createMockTask();
   const mockTokenTracker = createMockTokenTracker();
+
+  vi.mocked(computeVersionHash).mockReturnValue({
+    promptHash: 'mock-prompt-hash',
+    modelId: 'anthropic/claude-sonnet-4-6',
+    toolConfigHash: 'mock-tool-config-hash',
+  });
 
   vi.mocked(TokenTracker).mockImplementation(
     () => mockTokenTracker as unknown as InstanceType<typeof TokenTracker>,
@@ -575,5 +591,49 @@ describe('orchestrate.mts', () => {
         toolingConfig: {},
       }),
     );
+  });
+
+  it('agent_version_id included in starting PATCH', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const startingPatch = patchCalls.find((call) => call[2]?.current_stage === 'starting');
+    expect(startingPatch).toBeDefined();
+    expect(startingPatch![2]).toHaveProperty('agent_version_id');
+    expect(startingPatch![2].agent_version_id).toBe('mock-agent-version-id');
+  });
+
+  it('agent_versions table queried for version lookup at startup', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const getCalls = vi.mocked(mockPostgREST.get).mock.calls;
+    const versionLookup = getCalls.find((call) => call[0] === 'agent_versions');
+    expect(versionLookup).toBeDefined();
+    expect(computeVersionHash).toHaveBeenCalledWith({
+      promptTemplate: 'opencode-execution-v1',
+      modelId: expect.any(String),
+      toolConfig: { version: '1.0', opencode: true },
+    });
+  });
+
+  it('existing agent version found → POST not called, reuses existing ID', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    vi.mocked(mockPostgREST.get).mockResolvedValue([{ id: 'existing-version-id' }]);
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const postCalls = vi.mocked(mockPostgREST.post).mock.calls;
+    const versionPost = postCalls.find((call) => call[0] === 'agent_versions');
+    expect(versionPost).toBeUndefined();
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const startingPatch = patchCalls.find((call) => call[2]?.current_stage === 'starting');
+    expect(startingPatch![2].agent_version_id).toBe('existing-version-id');
   });
 });

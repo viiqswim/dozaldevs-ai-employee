@@ -28,6 +28,7 @@ import { createOrUpdatePR } from './lib/pr-manager.js';
 import { runCompletionFlow } from './lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from './lib/project-config.js';
 import { TokenTracker } from './lib/token-tracker.js';
+import { computeVersionHash } from '../lib/agent-version.js';
 
 // ---------------------------------------------------------------------------
 // Process cleanup globals — set after creation so signal handlers can reach them
@@ -45,6 +46,46 @@ process.on('SIGTERM', () => {
   void serverHandleGlobal?.kill();
   process.exit(0);
 });
+
+// ---------------------------------------------------------------------------
+// Helper: upsert agent version via PostgREST (find-or-create semantics)
+// ---------------------------------------------------------------------------
+
+async function ensureAgentVersionViaPostgREST(
+  client: PostgRESTClient,
+  params: { promptHash: string; modelId: string; toolConfigHash: string },
+): Promise<string | null> {
+  try {
+    // 1. Try to find existing version with same hash combination
+    const existing = await client.get(
+      'agent_versions',
+      `prompt_hash=eq.${params.promptHash}&model_id=eq.${params.modelId}&tool_config_hash=eq.${params.toolConfigHash}&limit=1`,
+    );
+    if (existing && existing.length > 0) {
+      const record = existing[0] as { id: string };
+      return record.id ?? null;
+    }
+
+    // 2. Create new version if not found
+    const created = await client.post('agent_versions', {
+      prompt_hash: params.promptHash,
+      model_id: params.modelId,
+      tool_config_hash: params.toolConfigHash,
+      changelog_note: 'Auto-created at execution start',
+      is_active: true,
+    });
+    if (created && typeof (created as Record<string, unknown>).id === 'string') {
+      return (created as { id: string }).id;
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(
+      `[orchestrate] Failed to ensure agent version: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helper: fire-and-forget-safe PATCH wrapper
@@ -100,10 +141,26 @@ async function main(): Promise<void> {
   // ── Step 5: Build prompt ─────────────────────────────────────────────────
   const prompt = buildPrompt(task);
 
-  // ── Step 6: PATCH execution record with starting stage ───────────────────
+  // ── Step 6: PATCH execution record with starting stage + agent version ────
+  const {
+    promptHash,
+    modelId: versionModelId,
+    toolConfigHash,
+  } = computeVersionHash({
+    promptTemplate: 'opencode-execution-v1',
+    modelId: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4-6',
+    toolConfig: { version: '1.0', opencode: true },
+  });
+
+  const agentVersionId = await ensureAgentVersionViaPostgREST(postgrestClient, {
+    promptHash,
+    modelId: versionModelId,
+    toolConfigHash,
+  });
+
   await patchExecution(postgrestClient, executionId, {
     current_stage: 'starting',
-    agent_version_id: process.env.AGENT_VERSION_ID ?? null,
+    agent_version_id: agentVersionId,
     updated_at: new Date().toISOString(),
   });
 
