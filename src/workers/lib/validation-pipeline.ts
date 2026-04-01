@@ -1,7 +1,10 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from '../../lib/logger.js';
 import type { ToolingConfig } from './task-context.js';
 import type { PostgRESTClient } from './postgrest-client.js';
+
+const log = createLogger('validation-pipeline');
 
 const execFileAsync = promisify(execFile);
 
@@ -102,7 +105,7 @@ export async function runValidationPipeline(options: RunPipelineOptions): Promis
         duration_ms: result.durationMs,
       });
     } else {
-      console.warn(
+      log.warn(
         `[validation-pipeline] Skipping DB write for stage "${stage}" — executionId is null`,
       );
     }

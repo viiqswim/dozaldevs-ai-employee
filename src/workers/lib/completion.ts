@@ -1,4 +1,7 @@
+import { createLogger } from '../../lib/logger.js';
 import type { PostgRESTClient } from './postgrest-client.js';
+
+const log = createLogger('completion');
 
 export interface CompletionParams {
   taskId: string;
@@ -48,11 +51,11 @@ export async function writeCompletionToSupabase(
       updated_at: new Date().toISOString(),
     });
     if (result === null) {
-      console.warn(`[completion] PATCH tasks failed (null response) for task ${taskId}`);
+      log.warn(`[completion] PATCH tasks failed (null response) for task ${taskId}`);
       return false;
     }
   } catch (error) {
-    console.warn(
+    log.warn(
       `[completion] PATCH tasks error for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
     );
     return false;
@@ -68,7 +71,7 @@ export async function writeCompletionToSupabase(
       status: 'submitted',
     });
   } catch (error) {
-    console.warn(
+    log.warn(
       `[completion] POST deliverables error for execution ${executionId}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -82,7 +85,7 @@ export async function writeCompletionToSupabase(
       actor: 'machine',
     });
   } catch (error) {
-    console.warn(
+    log.warn(
       `[completion] POST task_status_log error for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -126,17 +129,17 @@ export async function sendCompletionEvent(params: CompletionEventParams): Promis
         return true;
       }
 
-      console.warn(
+      log.warn(
         `[completion] Inngest event send returned HTTP ${response.status} (attempt ${attempt + 1}/${MAX_ATTEMPTS})`,
       );
     } catch (error) {
-      console.warn(
+      log.warn(
         `[completion] Inngest event send failed (attempt ${attempt + 1}/${MAX_ATTEMPTS}): ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
 
-  console.warn(
+  log.warn(
     `[completion] Failed to send Inngest event for task ${taskId} after ${MAX_ATTEMPTS} attempts`,
   );
   return false;

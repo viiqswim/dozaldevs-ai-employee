@@ -4,6 +4,9 @@
  */
 
 import { spawn, type ChildProcess } from 'child_process';
+import { createLogger } from '../../lib/logger.js';
+
+const log = createLogger('opencode-server');
 
 export interface OpencodeServerHandle {
   process: ChildProcess;
@@ -54,7 +57,7 @@ export async function startOpencodeServer(
     };
 
     childProcess.on('error', (err) => {
-      console.warn(`[opencode-server] Failed to spawn opencode: ${err.message}`);
+      log.warn(`[opencode-server] Failed to spawn opencode: ${err.message}`);
       resolveOnce(null);
     });
 
@@ -88,7 +91,7 @@ export async function startOpencodeServer(
     }, 1000);
 
     timers.timeoutHandle = setTimeout(() => {
-      console.warn(
+      log.warn(
         `[opencode-server] Health check timed out after ${healthTimeoutMs}ms — killing process`,
       );
       if (!childProcess.killed) {
@@ -112,11 +115,11 @@ export async function stopOpencodeServer(handle: OpencodeServerHandle): Promise<
   await new Promise<void>((resolve) => {
     const forceKillTimeout = setTimeout(() => {
       if (!handle.process.killed) {
-        console.warn('[opencode-server] Process did not exit within 5s — sending SIGKILL');
+        log.warn('[opencode-server] Process did not exit within 5s — sending SIGKILL');
         try {
           handle.process.kill('SIGKILL');
         } catch (err) {
-          console.warn(
+          log.warn(
             `[opencode-server] SIGKILL failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         }

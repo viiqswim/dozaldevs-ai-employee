@@ -2,6 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startHeartbeat, escalate } from '../../../src/workers/lib/heartbeat.js';
 import type { PostgRESTClient } from '../../../src/workers/lib/postgrest-client.js';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 function createMockClient(): PostgRESTClient {
   return {
     get: vi.fn().mockResolvedValue([]),
@@ -99,7 +111,6 @@ describe('startHeartbeat', () => {
 
   it('logs warning and continues when heartbeat fetch fails', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockClient.patch = vi.fn().mockRejectedValue(new Error('Network error'));
 
@@ -110,7 +121,7 @@ describe('startHeartbeat', () => {
 
     await vi.advanceTimersByTimeAsync(60000);
 
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('[heartbeat] Failed to update execution exec-1'),
     );
 
@@ -119,12 +130,10 @@ describe('startHeartbeat', () => {
     expect(handle).toBeDefined();
 
     handle.stop();
-    warnSpy.mockRestore();
   });
 
   it('skips DB write when executionId is null', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const handle = startHeartbeat({
       executionId: null,
@@ -134,10 +143,9 @@ describe('startHeartbeat', () => {
     await vi.advanceTimersByTimeAsync(60000);
 
     expect(mockClient.patch).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith('[heartbeat] No executionId, skipping DB write');
+    expect(mockLogger.warn).toHaveBeenCalledWith('[heartbeat] No executionId, skipping DB write');
 
     handle.stop();
-    warnSpy.mockRestore();
   });
 
   it('respects custom intervalMs option', async () => {
@@ -195,7 +203,6 @@ describe('escalate', () => {
 
   it('patches task status to AwaitingInput with failure_reason', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await escalate({
       executionId: 'exec-1',
@@ -213,13 +220,10 @@ describe('escalate', () => {
         updated_at: expect.any(String),
       }),
     );
-
-    warnSpy.mockRestore();
   });
 
   it('posts task_status_log with correct transition', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await escalate({
       executionId: 'exec-1',
@@ -234,13 +238,10 @@ describe('escalate', () => {
       to_status: 'AwaitingInput',
       actor: 'machine',
     });
-
-    warnSpy.mockRestore();
   });
 
   it('posts to Slack webhook when SLACK_WEBHOOK_URL is set', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -261,13 +262,10 @@ describe('escalate', () => {
         body: expect.stringContaining('task-1'),
       }),
     );
-
-    warnSpy.mockRestore();
   });
 
   it('skips Slack POST when SLACK_WEBHOOK_URL is not set', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -282,15 +280,11 @@ describe('escalate', () => {
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
-
-    warnSpy.mockRestore();
   });
 
   it('logs warning but continues when task PATCH fails', async () => {
     const mockClient = createMockClient();
     mockClient.patch = vi.fn().mockRejectedValue(new Error('DB error'));
-
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await escalate({
       executionId: 'exec-1',
@@ -300,21 +294,17 @@ describe('escalate', () => {
     });
 
     // Should log warning about patch failure
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('[escalate] Failed to update task status'),
     );
 
     // But should still call post for task_status_log
     expect(mockClient.post).toHaveBeenCalledWith('task_status_log', expect.any(Object));
-
-    warnSpy.mockRestore();
   });
 
   it('logs warning but continues when task_status_log POST fails', async () => {
     const mockClient = createMockClient();
     mockClient.post = vi.fn().mockRejectedValue(new Error('DB error'));
-
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await escalate({
       executionId: 'exec-1',
@@ -324,19 +314,16 @@ describe('escalate', () => {
     });
 
     // Should log warning about post failure
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('[escalate] Failed to write task_status_log'),
     );
 
     // But should still have called patch
     expect(mockClient.patch).toHaveBeenCalledWith('tasks', 'id=eq.task-1', expect.any(Object));
-
-    warnSpy.mockRestore();
   });
 
   it('includes failedStage in Slack message when provided', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -354,13 +341,10 @@ describe('escalate', () => {
     const body = JSON.parse(callArgs[1].body as string);
 
     expect(body.text).toContain('data_processing');
-
-    warnSpy.mockRestore();
   });
 
   it('logs escalation to stdout', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await escalate({
       executionId: 'exec-1',
@@ -369,14 +353,11 @@ describe('escalate', () => {
       postgrestClient: mockClient,
     });
 
-    expect(warnSpy).toHaveBeenCalledWith('[escalate] Task task-1: Critical error');
-
-    warnSpy.mockRestore();
+    expect(mockLogger.warn).toHaveBeenCalledWith('[escalate] Task task-1: Critical error');
   });
 
   it('handles Slack webhook returning non-ok status', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 500 });
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -389,16 +370,13 @@ describe('escalate', () => {
       postgrestClient: mockClient,
     });
 
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('[escalate] Slack webhook returned HTTP 500'),
     );
-
-    warnSpy.mockRestore();
   });
 
   it('handles Slack fetch error gracefully', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.fn().mockRejectedValue(new Error('Network timeout'));
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -411,10 +389,8 @@ describe('escalate', () => {
       postgrestClient: mockClient,
     });
 
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('[escalate] Failed to post to Slack'),
     );
-
-    warnSpy.mockRestore();
   });
 });

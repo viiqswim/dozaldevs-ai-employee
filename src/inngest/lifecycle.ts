@@ -2,6 +2,9 @@ import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('lifecycle');
 
 export function createLifecycleFunction(
   inngest: Inngest,
@@ -229,8 +232,7 @@ export function createLifecycleFunction(
                 actor: 'lifecycle_fn',
               },
             });
-            // TODO Phase 7: Replace with real Slack client
-            console.warn(
+            log.warn(
               `[SLACK STUB] Task ${taskId} failed after ${attempts} attempts. Manual intervention required.`,
             );
           }

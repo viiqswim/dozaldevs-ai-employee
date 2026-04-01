@@ -1,4 +1,7 @@
 import { createOpencodeClient } from '@opencode-ai/sdk';
+import { createLogger } from '../../lib/logger.js';
+
+const log = createLogger('session-manager');
 
 export interface SessionMonitorResult {
   completed: boolean;
@@ -90,21 +93,20 @@ export function createSessionManager(baseUrl: string): SessionManager {
           if (settled) return;
 
           if (reconnect) {
-            console.warn(
+            log.warn(
               `[session-manager] SSE disconnected for session ${sessionId}, attempting reconnect`,
             );
             try {
               await runStreamOnce();
             } catch (reconnectError) {
               if (settled) return;
-              console.warn(
-                `[session-manager] SSE reconnect failed for session ${sessionId}, falling back to polling:`,
-                reconnectError,
+              log.warn(
+                `[session-manager] SSE reconnect failed for session ${sessionId}, falling back to polling: ${reconnectError instanceof Error ? reconnectError.message : String(reconnectError)}`,
               );
               startPolling();
             }
           } else {
-            console.warn(
+            log.warn(
               `[session-manager] SSE reconnect failed for session ${sessionId}, starting polling`,
             );
             startPolling();
@@ -133,7 +135,9 @@ export function createSessionManager(baseUrl: string): SessionManager {
                 }
               }
             } catch (pollError) {
-              console.warn(`[session-manager] Polling error for session ${sessionId}:`, pollError);
+              log.warn(
+                `[session-manager] Polling error for session ${sessionId}: ${pollError instanceof Error ? pollError.message : String(pollError)}`,
+              );
             }
           })();
         }, 10_000);
@@ -156,7 +160,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
         return response.data?.id ?? null;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(`[session-manager] Failed to create session "${title}": ${errorMsg}`);
+        log.warn(`[session-manager] Failed to create session "${title}": ${errorMsg}`);
         return null;
       }
     },
@@ -177,7 +181,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
         return true;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(
+        log.warn(
           `[session-manager] Failed to inject prompt into session ${sessionId}: ${errorMsg}`,
         );
         return false;
@@ -215,7 +219,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
         await client.session.abort({ path: { id: sessionId } });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(`[session-manager] Failed to abort session ${sessionId}: ${errorMsg}`);
+        log.warn(`[session-manager] Failed to abort session ${sessionId}: ${errorMsg}`);
       }
     },
 
@@ -252,7 +256,7 @@ Please analyze this error and fix the issue. Make the minimal changes needed to 
         return true;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(
+        log.warn(
           `[session-manager] Failed to send fix prompt to session ${sessionId}: ${errorMsg}`,
         );
         return false;

@@ -1,4 +1,7 @@
+import { createLogger } from '../../lib/logger.js';
 import type { PostgRESTClient } from './postgrest-client.js';
+
+const log = createLogger('heartbeat');
 
 export interface HeartbeatOptions {
   executionId: string | null;
@@ -38,7 +41,7 @@ export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle {
 
   const heartbeatFn = async () => {
     if (!executionId) {
-      console.warn('[heartbeat] No executionId, skipping DB write');
+      log.warn('[heartbeat] No executionId, skipping DB write');
       return;
     }
 
@@ -48,7 +51,7 @@ export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle {
         current_stage: currentStage,
       });
     } catch (error) {
-      console.warn(
+      log.warn(
         `[heartbeat] Failed to update execution ${executionId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -78,7 +81,7 @@ export async function escalate(options: EscalateOptions): Promise<void> {
   const { taskId, reason, failedStage, postgrestClient } = options;
 
   // Step 1: Log escalation to stdout
-  console.warn(`[escalate] Task ${taskId}: ${reason}`);
+  log.warn(`[escalate] Task ${taskId}: ${reason}`);
 
   // Step 2: PATCH task status to AwaitingInput
   try {
@@ -88,7 +91,7 @@ export async function escalate(options: EscalateOptions): Promise<void> {
       updated_at: new Date().toISOString(),
     });
   } catch (error) {
-    console.warn(
+    log.warn(
       `[escalate] Failed to update task status for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -102,7 +105,7 @@ export async function escalate(options: EscalateOptions): Promise<void> {
       actor: 'machine',
     });
   } catch (error) {
-    console.warn(
+    log.warn(
       `[escalate] Failed to write task_status_log for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -123,12 +126,10 @@ export async function escalate(options: EscalateOptions): Promise<void> {
       });
 
       if (!response.ok) {
-        console.warn(
-          `[escalate] Slack webhook returned HTTP ${response.status} for task ${taskId}`,
-        );
+        log.warn(`[escalate] Slack webhook returned HTTP ${response.status} for task ${taskId}`);
       }
     } catch (error) {
-      console.warn(
+      log.warn(
         `[escalate] Failed to post to Slack for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }

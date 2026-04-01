@@ -29,6 +29,9 @@ import { runCompletionFlow } from './lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from './lib/project-config.js';
 import { TokenTracker } from './lib/token-tracker.js';
 import { computeVersionHash } from '../lib/agent-version.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('orchestrate');
 
 // ---------------------------------------------------------------------------
 // Process cleanup globals — set after creation so signal handlers can reach them
@@ -80,7 +83,7 @@ async function ensureAgentVersionViaPostgREST(
 
     return null;
   } catch (err) {
-    console.warn(
+    log.warn(
       `[orchestrate] Failed to ensure agent version: ${err instanceof Error ? err.message : String(err)}`,
     );
     return null;
@@ -100,7 +103,7 @@ async function patchExecution(
   try {
     await client.patch('executions', `id=eq.${executionId}`, body);
   } catch (err) {
-    console.warn(
+    log.warn(
       `[orchestrate] Failed to patch execution: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
@@ -129,7 +132,7 @@ async function main(): Promise<void> {
   // ── Step 3: Parse task context ───────────────────────────────────────────
   const task = parseTaskContext('/workspace/.task-context.json');
   if (task === null) {
-    console.error('[orchestrate] Failed to parse task context — aborting');
+    log.error('[orchestrate] Failed to parse task context — aborting');
     process.exit(1);
   }
 
@@ -171,7 +174,7 @@ async function main(): Promise<void> {
   // ── Step 8: Start OpenCode server ────────────────────────────────────────
   const serverHandle = await startOpencodeServer({ port: 4096, cwd: '/workspace' });
   if (serverHandle === null) {
-    console.error('[orchestrate] Failed to start OpenCode server');
+    log.error('[orchestrate] Failed to start OpenCode server');
     heartbeat.stop();
     await patchExecution(postgrestClient, executionId, {
       status: 'failed',
@@ -185,7 +188,7 @@ async function main(): Promise<void> {
   const sessionManager = createSessionManager(serverHandle.url);
   const sessionId = await sessionManager.createSession(`Task ${task.external_id}`);
   if (sessionId === null) {
-    console.error('[orchestrate] Failed to create OpenCode session');
+    log.error('[orchestrate] Failed to create OpenCode session');
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);
@@ -200,7 +203,7 @@ async function main(): Promise<void> {
     timeoutMs: 60 * 60 * 1000, // 60 minutes for code generation
   });
   if (!monitorResult.completed) {
-    console.error('[orchestrate] Session timed out during code generation');
+    log.error('[orchestrate] Session timed out during code generation');
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);
@@ -235,7 +238,7 @@ async function main(): Promise<void> {
     const branchName = buildBranchName(task.external_id ?? 'TASK-0', summary);
     const branchResult = await ensureBranch(branchName, '/workspace');
     if (!branchResult.success) {
-      console.error(`[orchestrate] Failed to ensure branch: ${branchResult.error ?? 'unknown'}`);
+      log.error(`[orchestrate] Failed to ensure branch: ${branchResult.error ?? 'unknown'}`);
       heartbeat.stop();
       await serverHandle.kill();
       process.exit(1);
@@ -245,7 +248,7 @@ async function main(): Promise<void> {
     const commitMessage = `feat: ${task.external_id} - ${summary}`;
     const pushResult = await commitAndPush(branchName, commitMessage, '/workspace');
     if (pushResult.error) {
-      console.error(`[orchestrate] Push failed: ${pushResult.error}`);
+      log.error(`[orchestrate] Push failed: ${pushResult.error}`);
       heartbeat.stop();
       await serverHandle.kill();
       process.exit(1);
@@ -271,7 +274,7 @@ async function main(): Promise<void> {
           },
           githubClient,
         ).catch((err: Error) => {
-          console.warn(`[orchestrate] PR creation failed: ${err.message}`);
+          log.warn(`[orchestrate] PR creation failed: ${err.message}`);
           return null;
         });
         prUrl = prResult?.pr?.html_url ?? null;
@@ -292,13 +295,13 @@ async function main(): Promise<void> {
       postgrestClient,
     );
     if (!completionResult.supabaseWritten) {
-      console.error('[orchestrate] Completion Supabase write failed — task state lost');
+      log.error('[orchestrate] Completion Supabase write failed — task state lost');
       heartbeat.stop();
       await serverHandle.kill();
       process.exit(1);
     }
     if (!completionResult.inngestSent) {
-      console.warn('[orchestrate] Inngest event not sent — watchdog will recover');
+      log.warn('[orchestrate] Inngest event not sent — watchdog will recover');
     }
 
     await patchExecution(postgrestClient, executionId, {
@@ -306,7 +309,7 @@ async function main(): Promise<void> {
       current_stage: 'done',
       updated_at: new Date().toISOString(),
     });
-    console.info(`[orchestrate] Task ${task.external_id} completed successfully`);
+    log.info(`[orchestrate] Task ${task.external_id} completed successfully`);
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(0);
@@ -326,8 +329,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error(
-    `[orchestrate] Unhandled error: ${err instanceof Error ? err.message : String(err)}`,
-  );
+  log.error(`[orchestrate] Unhandled error: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 });
