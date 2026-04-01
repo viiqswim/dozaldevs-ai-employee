@@ -144,3 +144,92 @@ The fixture is intentionally scoped for ~30-minute implementation by the executi
 - Allows agent to demonstrate full workflow: clone → implement → test → PR
 
 **Commit**: `80668fa` - test: add realistic jira webhook fixture for e2e testing
+
+## E2E Verification Script (Task 6)
+
+**Deliverable**: `scripts/verify-e2e.sh` — 12-point automated E2E checklist
+
+**Structure**: Follows `verify-phase1.sh` exactly — `set -o pipefail`, PASS/FAIL counters, `check_pass()`/`check_fail()` functions, banner boxes.
+
+**Key Design Decisions**:
+
+- Check #2 (Inngest dashboard) is the only manual check — prints URL + instruction, calls `check_pass` unconditionally (Inngest Dev has no API for run history)
+- Checks 3, 4 are lenient: if task status is `Done` or `Submitting`, those earlier states were definitively hit
+- Check #12 uses a 5s-interval poll loop up to 30s — container may still be stopping when script runs
+- `DB_QUERY()` helper wraps all psql calls for DRY access to `ai_employee` DB on port 54322
+- Auto-detects most recent task ID from DB if `--task-id` not provided
+
+**Argument Parsing**: Supports `--task-id <uuid>`, `--task-id=<uuid>`, `--repo <owner/repo>`, `--repo=<owner/repo>`
+
+**Verification Results**:
+
+- `bash -n scripts/verify-e2e.sh` → SYNTAX OK
+- `grep -cE "check_pass|check_fail"` → 26 calls (≥24 required)
+- `chmod +x` → executable (mode 755)
+
+**Evidence**: `.sisyphus/evidence/task-6-script-structure.txt` (gitignored, local only)
+
+**Commit**: `8c2f3a4` - feat: add automated e2e verification script for 12-point checklist
+
+## E2E Integration Test Run (Task 7)
+
+**Date**: 2026-04-01
+**Result**: PARTIAL FAILURE — blocked at Phase 2 (Inngest event not sent)
+**Task UUID**: `84efcbac-33c6-4e56-8ebe-5265cd0e0646`
+
+### What Worked
+
+- ✅ All services started successfully (Supabase, Inngest dev@8288, Gateway@3000)
+- ✅ Inngest functions registered via `PUT http://localhost:8288/fn/register`
+- ✅ Jira webhook accepted with HTTP 200 (`action: task_created`)
+- ✅ Task record created in DB with status `Ready` (external_id: TEST-100)
+- ✅ Status log entry written by gateway actor
+
+### What Failed
+
+- ❌ Inngest lifecycle function never triggered
+- ❌ No status transitions beyond Ready
+- ❌ No Fly.io machine dispatched
+- ❌ No PR created on GitHub
+- ❌ Task never reached Done
+
+### Root Cause: Code Bug
+
+**Location**: `src/gateway/server.ts` line 60
+
+```typescript
+// BUG: called with no options → inngestClient is undefined
+buildApp().then((app) => app.listen({ port: 3000, host: '0.0.0.0' }));
+```
+
+When the gateway starts via `pnpm dev` → `tsx src/gateway/server.ts`, `buildApp()` is called without
+passing an Inngest client. This means `opts.inngestClient` is `undefined` in `jiraRoutes`, and the
+`if (inngest)` block that sends `engineering/task.received` is never entered.
+
+The `inngestServeRoutes` (line 51) creates its own `Inngest` client for serving functions, but it
+is not shared with `jiraRoutes`. The fix would be to create the client in `buildApp()` and pass it
+to both routes — but this is a code fix for T8 to decide.
+
+### Secondary Blocker (would also fail even if primary fixed)
+
+Missing env vars in `.env`: `FLY_API_TOKEN`, `FLY_WORKER_APP`, `GITHUB_TOKEN`, `OPENROUTER_API_KEY`
+Without these, the lifecycle would reach `AwaitingInput` with "Fly.io dispatch misconfigured" error.
+
+### HMAC Computation Gotcha
+
+Using `PAYLOAD=$(cat file)` in bash strips trailing newlines, causing HMAC mismatch.
+Must use: `openssl dgst -sha256 -hmac "$SECRET" < file` (reads directly from stdin).
+
+### Timeline
+
+- 14:23:41 — Inngest dev server started
+- 14:25:50 — Gateway started
+- 14:25:56 — Webhook sent and accepted (HTTP 200, 40ms response)
+- 14:25:56 — Task created in DB (status: Ready)
+- 14:26:34 — Inngest events API shows 0 events received
+- Flow terminated: no further progress expected without fix
+
+### Evidence Files
+
+- `.sisyphus/evidence/task-7-e2e-flow.txt` — full test run details
+- `.sisyphus/evidence/task-7-task-uuid.txt` — task UUID for T8

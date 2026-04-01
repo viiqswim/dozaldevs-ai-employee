@@ -1,0 +1,13 @@
+app = "ai-employee-workers"
+primary_region = "sjc"
+
+[build]
+
+# Workers are ephemeral machines dispatched via Machines API
+# No persistent HTTP service needed — machines are created on demand
+# and self-destruct after task completion
+[http_service]
+  internal_port = 8080
+  auto_stop_machines = true
+  auto_start_machines = false
+  min_machines_running = 0
