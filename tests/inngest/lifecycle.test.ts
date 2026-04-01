@@ -361,9 +361,8 @@ describe('Group 4 — Finalize (step: finalize)', () => {
     expect(sentEvent.name).toBe('engineering/task.redispatch');
   });
 
-  it('timeout, dispatch_attempts=3 → sets AwaitingInput, writes failure_reason, logs, warns [SLACK STUB]', async () => {
+  it('timeout, dispatch_attempts=3 → sets AwaitingInput, writes failure_reason, logs', async () => {
     const task = await createTestTask({ status: 'Ready', dispatch_attempts: 3 });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const { error } = await makeEngineTimeout().execute({ events: makeEvent(task.id) });
 
@@ -379,12 +378,6 @@ describe('Group 4 — Finalize (step: finalize)', () => {
     });
     expect(log).not.toBeNull();
     expect(log!.from_status).toBe('Executing');
-
-    const warnCalls = warnSpy.mock.calls as unknown as Array<[string, ...unknown[]]>;
-    const slackCall = warnCalls.find(
-      ([msg]) => typeof msg === 'string' && msg.includes('[SLACK STUB]'),
-    );
-    expect(slackCall).toBeDefined();
   });
 
   it('success event received → task confirmed Done', async () => {

@@ -9,6 +9,19 @@ import {
   type ToolingConfig,
 } from '../../../src/workers/lib/task-context.js';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 let mockReadFileSync: ReturnType<typeof vi.fn>;
 
 vi.mock('fs', () => ({
@@ -53,13 +66,12 @@ describe('task-context', () => {
     });
 
     it('returns null and warns when JSON is malformed', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       mockReadFileSync.mockReturnValue('{ invalid json }');
 
       const result = parseTaskContext('/workspace/.task-context.json');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
           '[task-context] Failed to parse task context from /workspace/.task-context.json',
         ),
@@ -67,7 +79,6 @@ describe('task-context', () => {
     });
 
     it('returns null and warns when file does not exist (ENOENT)', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       mockReadFileSync.mockImplementation(() => {
         const error = new Error('ENOENT: no such file or directory');
         throw error;
@@ -76,7 +87,7 @@ describe('task-context', () => {
       const result = parseTaskContext('/workspace/.task-context.json');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
           '[task-context] Failed to parse task context from /workspace/.task-context.json',
         ),

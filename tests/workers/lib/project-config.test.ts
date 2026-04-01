@@ -6,6 +6,19 @@ import {
 } from '../../../src/workers/lib/project-config.js';
 import type { PostgRESTClient } from '../../../src/workers/lib/postgrest-client.js';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 describe('project-config', () => {
   let mockPostgrestClient: PostgRESTClient;
 
@@ -62,26 +75,24 @@ describe('project-config', () => {
     });
 
     it('returns null and logs warning when PostgREST throws error', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const testError = new Error('Network error');
       vi.mocked(mockPostgrestClient.get).mockRejectedValue(testError);
 
       const result = await fetchProjectConfig('proj-123', mockPostgrestClient);
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('[project-config] Failed to fetch project proj-123: Network error'),
       );
     });
 
     it('returns null and logs warning when PostgREST throws non-Error object', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       vi.mocked(mockPostgrestClient.get).mockRejectedValue('Unknown error');
 
       const result = await fetchProjectConfig('proj-123', mockPostgrestClient);
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('[project-config] Failed to fetch project proj-123: Unknown error'),
       );
     });

@@ -2,6 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import type { ChildProcess } from 'child_process';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
@@ -118,8 +131,6 @@ describe('opencode-server', () => {
       mockSpawn.mockReturnValue(mockProc);
       vi.stubGlobal('fetch', vi.fn());
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
       const promise = startOpencodeServer();
 
       // Emit error immediately
@@ -128,7 +139,7 @@ describe('opencode-server', () => {
       const result = await promise;
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[opencode-server] Failed to spawn opencode: spawn failed',
       );
     });
@@ -140,8 +151,6 @@ describe('opencode-server', () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
       vi.stubGlobal('fetch', mockFetch);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
       vi.useFakeTimers();
 
       const promise = startOpencodeServer({ healthTimeoutMs: 30000 });
@@ -152,7 +161,7 @@ describe('opencode-server', () => {
       const result = await promise;
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[opencode-server] Health check timed out after 30000ms — killing process',
       );
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
@@ -257,8 +266,6 @@ describe('opencode-server', () => {
         kill: async () => {},
       };
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
       const promise = stopOpencodeServer(handle);
 
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
@@ -267,7 +274,7 @@ describe('opencode-server', () => {
       await promise;
 
       expect(mockProc.kill).toHaveBeenCalledWith('SIGKILL');
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[opencode-server] Process did not exit within 5s — sending SIGKILL',
       );
     });
@@ -336,14 +343,14 @@ describe('opencode-server', () => {
         kill: async () => {},
       };
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
       const promise = stopOpencodeServer(handle);
 
       // Wait for the 5s timeout to trigger SIGKILL attempt
       await promise;
 
-      expect(warnSpy).toHaveBeenCalledWith('[opencode-server] SIGKILL failed: Permission denied');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[opencode-server] SIGKILL failed: Permission denied',
+      );
     });
   });
 

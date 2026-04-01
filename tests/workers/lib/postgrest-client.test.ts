@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPostgRESTClient } from '../../../src/workers/lib/postgrest-client.js';
 
-const mockLogger = {
+const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
   info: vi.fn(),
+  debug: vi.fn(),
   child: vi.fn().mockReturnThis(),
-};
+}));
 
 vi.mock('../../../src/lib/logger.js', () => ({
   createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
 }));
 
 describe('createPostgRESTClient', () => {
@@ -202,25 +204,25 @@ describe('createPostgRESTClient', () => {
         json: () => Promise.resolve({ error: 'duplicate key' }),
       });
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.post('users', { email: 'duplicate@example.com' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[postgrest-client] POST users failed with HTTP 409');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] POST users failed with HTTP 409',
+      );
     });
 
     it('returns null and warns on network error', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.post('users', { name: 'Alice' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[postgrest-client] POST users error: Connection refused',
       );
     });
@@ -267,25 +269,27 @@ describe('createPostgRESTClient', () => {
         json: () => Promise.resolve({ error: 'not found' }),
       });
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.patch('users', 'id=eq.999', { name: 'Updated' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[postgrest-client] PATCH users failed with HTTP 404');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] PATCH users failed with HTTP 404',
+      );
     });
 
     it('returns null and warns on network error', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Socket hang up'));
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.patch('users', 'id=eq.1', { name: 'Updated' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[postgrest-client] PATCH users error: Socket hang up');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] PATCH users error: Socket hang up',
+      );
     });
 
     it('constructs correct URL with table and query', async () => {
