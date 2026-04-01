@@ -21,13 +21,15 @@ export async function sendTaskReceivedEvent(params: {
   inngest: InngestLike;
   taskId: string;
   projectId: string;
+  repoUrl?: string;
+  repoBranch?: string;
   eventId?: string;
 }): Promise<SendEventResult> {
-  const { inngest, taskId, projectId, eventId } = params;
+  const { inngest, taskId, projectId, repoUrl, repoBranch, eventId } = params;
 
   const event = {
     name: 'engineering/task.received',
-    data: { taskId, projectId },
+    data: { taskId, projectId, repoUrl, repoBranch },
     ...(eventId ? { id: eventId } : {}),
   };
 

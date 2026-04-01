@@ -100,6 +100,8 @@ export async function jiraRoutes(app: FastifyInstance, opts: JiraRouteOptions): 
         inngest,
         taskId: task.id,
         projectId: project.id,
+        repoUrl: project.repo_url ?? undefined,
+        repoBranch: project.default_branch ?? 'main',
         eventId,
       });
 
