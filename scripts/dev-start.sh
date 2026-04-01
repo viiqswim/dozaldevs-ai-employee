@@ -192,7 +192,7 @@ echo ""
 # Step 7: Start Event Gateway
 # ─────────────────────────────────────────────────────
 echo "── Step 7: Starting Event Gateway ──"
-pnpm dev > /tmp/gateway.log 2>&1 &
+USE_LOCAL_DOCKER=1 pnpm dev > /tmp/gateway.log 2>&1 &
 GATEWAY_PID=$!
 echo "  Event Gateway started (PID: $GATEWAY_PID)"
 echo ""
