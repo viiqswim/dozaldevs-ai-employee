@@ -27,6 +27,7 @@ import { buildBranchName, ensureBranch, commitAndPush } from './lib/branch-manag
 import { createOrUpdatePR } from './lib/pr-manager.js';
 import { runCompletionFlow } from './lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from './lib/project-config.js';
+import { TokenTracker } from './lib/token-tracker.js';
 
 // ---------------------------------------------------------------------------
 // Process cleanup globals — set after creation so signal handlers can reach them
@@ -69,6 +70,8 @@ async function patchExecution(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  const tokenTracker = new TokenTracker();
+
   // ── Step 1: Read execution ID ────────────────────────────────────────────
   const executionIdFile = '/tmp/.execution-id';
   let executionId: string | null = null;
@@ -218,7 +221,15 @@ async function main(): Promise<void> {
       }
     }
 
-    // ── Step 16: Run completion flow (Supabase-first write → Inngest event) ──
+    // ── Step 16: Persist accumulated token counts, then run completion flow ──
+    const accumulated = tokenTracker.getAccumulated();
+    await patchExecution(postgrestClient, executionId, {
+      prompt_tokens: accumulated.promptTokens,
+      completion_tokens: accumulated.completionTokens,
+      estimated_cost_usd: accumulated.estimatedCostUsd,
+      primary_model_id: accumulated.primaryModelId || null,
+    });
+
     const completionResult = await runCompletionFlow(
       { taskId: task.id, executionId: executionId ?? '', prUrl },
       postgrestClient,
@@ -243,7 +254,14 @@ async function main(): Promise<void> {
     await serverHandle.kill();
     process.exit(0);
   } else {
-    // escalate() was already called inside fix-loop
+    // escalate() was already called inside fix-loop — persist partial token counts before exit
+    const accumulatedOnFailure = tokenTracker.getAccumulated();
+    await patchExecution(postgrestClient, executionId, {
+      prompt_tokens: accumulatedOnFailure.promptTokens,
+      completion_tokens: accumulatedOnFailure.completionTokens,
+      estimated_cost_usd: accumulatedOnFailure.estimatedCostUsd,
+      primary_model_id: accumulatedOnFailure.primaryModelId || null,
+    });
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);

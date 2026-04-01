@@ -40,7 +40,14 @@ vi.mock('../../src/workers/lib/branch-manager.js', () => ({
 
 vi.mock('../../src/workers/lib/pr-manager.js', () => ({
   createOrUpdatePR: vi.fn().mockResolvedValue({
-    pr: { html_url: 'https://github.com/org/repo/pull/1', number: 1, title: '[AI] TEST-001', head: { ref: 'ai/PROJ-1-test-task' }, base: { ref: 'main' }, state: 'open' },
+    pr: {
+      html_url: 'https://github.com/org/repo/pull/1',
+      number: 1,
+      title: '[AI] TEST-001',
+      head: { ref: 'ai/PROJ-1-test-task' },
+      base: { ref: 'main' },
+      state: 'open',
+    },
     wasExisting: false,
   }),
 }));
@@ -60,6 +67,19 @@ vi.mock('../../src/workers/lib/project-config.js', () => ({
   parseRepoOwnerAndName: vi.fn().mockReturnValue({ owner: 'org', repo: 'repo' }),
 }));
 
+vi.mock('../../src/workers/lib/token-tracker.js', () => ({
+  TokenTracker: vi.fn().mockImplementation(() => ({
+    addUsage: vi.fn(),
+    getAccumulated: vi.fn().mockReturnValue({
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      primaryModelId: '',
+    }),
+    reset: vi.fn(),
+  })),
+}));
+
 import * as fs from 'fs';
 import { createPostgRESTClient } from '../../src/workers/lib/postgrest-client.js';
 import {
@@ -71,10 +91,15 @@ import { startOpencodeServer } from '../../src/workers/lib/opencode-server.js';
 import { createSessionManager } from '../../src/workers/lib/session-manager.js';
 import { runWithFixLoop } from '../../src/workers/lib/fix-loop.js';
 import { startHeartbeat } from '../../src/workers/lib/heartbeat.js';
-import { buildBranchName, ensureBranch, commitAndPush } from '../../src/workers/lib/branch-manager.js';
+import {
+  buildBranchName,
+  ensureBranch,
+  commitAndPush,
+} from '../../src/workers/lib/branch-manager.js';
 import { createOrUpdatePR } from '../../src/workers/lib/pr-manager.js';
 import { runCompletionFlow } from '../../src/workers/lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from '../../src/workers/lib/project-config.js';
+import { TokenTracker } from '../../src/workers/lib/token-tracker.js';
 
 // Helper to create mock objects
 function createMockPostgRESTClient(): PostgRESTClient {
@@ -121,12 +146,30 @@ function createMockTask() {
   };
 }
 
+function createMockTokenTracker() {
+  return {
+    addUsage: vi.fn(),
+    getAccumulated: vi.fn().mockReturnValue({
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      primaryModelId: '',
+    }),
+    reset: vi.fn(),
+  };
+}
+
 function setupHappyPath() {
   const mockHeartbeat = createMockHeartbeat();
   const mockServerHandle = createMockServerHandle();
   const mockSessionManager = createMockSessionManager();
   const mockPostgREST = createMockPostgRESTClient();
   const mockTask = createMockTask();
+  const mockTokenTracker = createMockTokenTracker();
+
+  vi.mocked(TokenTracker).mockImplementation(
+    () => mockTokenTracker as unknown as InstanceType<typeof TokenTracker>,
+  );
 
   vi.mocked(fs.readFileSync).mockReturnValue('exec-id-123');
   vi.mocked(createPostgRESTClient).mockReturnValue(mockPostgREST);
@@ -150,12 +193,26 @@ function setupHappyPath() {
   vi.mocked(ensureBranch).mockResolvedValue({ success: true, existed: false });
   vi.mocked(commitAndPush).mockResolvedValue({ pushed: true });
   vi.mocked(createOrUpdatePR).mockResolvedValue({
-    pr: { html_url: 'https://github.com/org/repo/pull/1', number: 1, title: '[AI] TEST-001', head: { ref: 'ai/PROJ-1-test-task' }, base: { ref: 'main' }, state: 'open' },
+    pr: {
+      html_url: 'https://github.com/org/repo/pull/1',
+      number: 1,
+      title: '[AI] TEST-001',
+      head: { ref: 'ai/PROJ-1-test-task' },
+      base: { ref: 'main' },
+      state: 'open',
+    },
     wasExisting: false,
   });
   vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: true, inngestSent: true });
 
-  return { mockHeartbeat, mockServerHandle, mockSessionManager, mockPostgREST, mockTask };
+  return {
+    mockHeartbeat,
+    mockServerHandle,
+    mockSessionManager,
+    mockPostgREST,
+    mockTask,
+    mockTokenTracker,
+  };
 }
 
 describe('orchestrate.mts', () => {
@@ -297,7 +354,11 @@ describe('orchestrate.mts', () => {
     expect(fetchProjectConfig).toHaveBeenCalledWith('proj-1', expect.anything());
     expect(buildBranchName).toHaveBeenCalled();
     expect(ensureBranch).toHaveBeenCalledWith('ai/PROJ-1-test-task', '/workspace');
-    expect(commitAndPush).toHaveBeenCalledWith('ai/PROJ-1-test-task', expect.any(String), '/workspace');
+    expect(commitAndPush).toHaveBeenCalledWith(
+      'ai/PROJ-1-test-task',
+      expect.any(String),
+      '/workspace',
+    );
     expect(createOrUpdatePR).toHaveBeenCalled();
     expect(runCompletionFlow).toHaveBeenCalledWith(
       { taskId: 'task-1', executionId: expect.any(String), prUrl: expect.anything() },
@@ -319,7 +380,11 @@ describe('orchestrate.mts', () => {
 
   it('branch creation failure → exit(1), heartbeat stopped, server killed', async () => {
     const { mockHeartbeat, mockServerHandle } = setupHappyPath();
-    vi.mocked(ensureBranch).mockResolvedValue({ success: false, existed: false, error: 'checkout failed' });
+    vi.mocked(ensureBranch).mockResolvedValue({
+      success: false,
+      existed: false,
+      error: 'checkout failed',
+    });
     await import('../../src/workers/orchestrate.mjs');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -385,9 +450,7 @@ describe('orchestrate.mts', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('watchdog will recover'),
-    );
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('watchdog will recover'));
   });
 
   it('GITHUB_TOKEN absent → PR creation skipped entirely, completion still called', async () => {
@@ -413,5 +476,47 @@ describe('orchestrate.mts', () => {
       .map((call) => call[2]?.current_stage);
     expect(stages).toContain('completing');
     expect(stages).toContain('done');
+  });
+
+  it('happy path: token counts are written to executions before completion flow', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
+    expect(tokenPatch).toBeDefined();
+    expect(tokenPatch![2]).toMatchObject({
+      prompt_tokens: expect.any(Number),
+      completion_tokens: expect.any(Number),
+      estimated_cost_usd: expect.any(Number),
+    });
+  });
+
+  it('fix loop failure path: token counts are written to executions before exit', async () => {
+    const { mockPostgREST } = setupHappyPath();
+    vi.mocked(runWithFixLoop).mockResolvedValue({ success: false, totalIterations: 3 });
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
+    const tokenPatch = patchCalls.find((call) => 'estimated_cost_usd' in (call[2] ?? {}));
+    expect(tokenPatch).toBeDefined();
+    expect(tokenPatch![2]).toMatchObject({
+      prompt_tokens: expect.any(Number),
+      completion_tokens: expect.any(Number),
+      estimated_cost_usd: expect.any(Number),
+    });
+  });
+
+  it('TokenTracker is instantiated once per orchestration run', async () => {
+    setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(TokenTracker).toHaveBeenCalledTimes(1);
   });
 });
