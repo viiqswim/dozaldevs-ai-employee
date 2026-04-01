@@ -440,9 +440,7 @@ The `pre-check-completion` step reads task status from Supabase before calling `
 
 2. **Cost circuit breaker auto-release**: Tasks held in `AwaitingInput` due to cost limits require manual release. There is no auto-release when the 24h window resets. An operator must manually transition the task back to `Ready` or increase `COST_LIMIT_USD_PER_DEPT_PER_DAY`.
 
-3. **Gateway logging deferred**: `console.log` calls in `src/gateway/` are NOT migrated to the structured logger. All gateway code still uses `console.log`. Migration is deferred to Phase 8.
-
-4. **Token tracking approximation**: The orchestrator accumulates tokens from OpenCode session responses, not from direct `callLLM()` calls. The exact source of token counts depends on how OpenCode exposes usage data in its session response format. Counts may undercount if OpenCode batches or omits usage metadata.
+3. **Token tracking approximation**: The orchestrator accumulates tokens from OpenCode session responses, not from direct `callLLM()` calls. The exact source of token counts depends on how OpenCode exposes usage data in its session response format. Counts may undercount if OpenCode batches or omits usage metadata.
 
 ---
 
