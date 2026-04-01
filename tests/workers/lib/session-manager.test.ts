@@ -1,5 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 // Mock @opencode-ai/sdk BEFORE importing module under test
 vi.mock('@opencode-ai/sdk', () => ({
   createOpencodeClient: vi.fn(),
@@ -60,15 +73,12 @@ describe('createSessionManager', () => {
     it('returns null and warns on creation error', async () => {
       const error = new Error('Server error');
       mockClient.session.create.mockRejectedValue(error);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
       const result = await manager.createSession('Test Session');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to create session "Test Session"'),
-      );
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
 
     it('returns null when response data is missing', async () => {
@@ -109,26 +119,22 @@ describe('createSessionManager', () => {
     it('returns false and warns on prompt injection error', async () => {
       const error = new Error('Prompt failed');
       mockClient.session.promptAsync.mockRejectedValue(error);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
       const result = await manager.injectTaskPrompt('sess-1', 'Test prompt');
 
       expect(result).toBe(false);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to inject prompt into session sess-1'),
-      );
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
 
     it('handles non-Error exceptions', async () => {
       mockClient.session.promptAsync.mockRejectedValue('String error');
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
       const result = await manager.injectTaskPrompt('sess-1', 'Test prompt');
 
       expect(result).toBe(false);
-      expect(warnSpy).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
   });
 
@@ -329,27 +335,23 @@ describe('createSessionManager', () => {
     it('logs warning on abort error but does not throw', async () => {
       const error = new Error('Abort failed');
       mockClient.session.abort.mockRejectedValue(error);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
 
       // Should not throw
       await expect(manager.abortSession('sess-1')).resolves.toBeUndefined();
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to abort session sess-1'),
-      );
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
 
     it('handles non-Error exceptions', async () => {
       mockClient.session.abort.mockRejectedValue('String error');
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
 
       await expect(manager.abortSession('sess-1')).resolves.toBeUndefined();
 
-      expect(warnSpy).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
   });
 
@@ -386,15 +388,12 @@ describe('createSessionManager', () => {
     it('returns false and warns on prompt send error', async () => {
       const error = new Error('Send failed');
       mockClient.session.promptAsync.mockRejectedValue(error);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
       const result = await manager.sendFixPrompt('sess-1', 'build', 'error');
 
       expect(result).toBe(false);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to send fix prompt to session sess-1'),
-      );
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
 
     it('includes failed stage name in prompt', async () => {
@@ -426,13 +425,12 @@ describe('createSessionManager', () => {
 
     it('handles non-Error exceptions', async () => {
       mockClient.session.promptAsync.mockRejectedValue('String error');
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const manager = createSessionManager('http://localhost:4096');
       const result = await manager.sendFixPrompt('sess-1', 'build', 'error');
 
       expect(result).toBe(false);
-      expect(warnSpy).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
   });
 

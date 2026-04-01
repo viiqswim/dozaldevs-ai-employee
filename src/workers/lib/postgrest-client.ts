@@ -2,6 +2,7 @@
  * Thin fetch-based PostgREST HTTP client for workers.
  * Accesses Supabase without Prisma using native fetch.
  */
+import { createLogger } from '../../lib/logger.js';
 
 export interface PostgRESTClient {
   get(table: string, query: string): Promise<unknown[] | null>;
@@ -9,13 +10,15 @@ export interface PostgRESTClient {
   patch(table: string, query: string, body: Record<string, unknown>): Promise<unknown | null>;
 }
 
+const log = createLogger('postgrest-client');
+
 export function createPostgRESTClient(): PostgRESTClient {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
   // Validate environment variables
   if (!supabaseUrl || !supabaseKey) {
-    console.warn('[postgrest-client] Missing SUPABASE_URL or SUPABASE_SECRET_KEY');
+    log.warn('[postgrest-client] Missing SUPABASE_URL or SUPABASE_SECRET_KEY');
     return {
       get: async () => null,
       post: async () => null,
@@ -41,14 +44,14 @@ export function createPostgRESTClient(): PostgRESTClient {
         });
 
         if (!response.ok) {
-          console.warn(`[postgrest-client] GET ${table} failed with HTTP ${response.status}`);
+          log.warn(`[postgrest-client] GET ${table} failed with HTTP ${response.status}`);
           return null;
         }
 
         const data = await response.json();
         return Array.isArray(data) ? data : null;
       } catch (error) {
-        console.warn(
+        log.warn(
           `[postgrest-client] GET ${table} error: ${error instanceof Error ? error.message : String(error)}`,
         );
         return null;
@@ -65,7 +68,7 @@ export function createPostgRESTClient(): PostgRESTClient {
         });
 
         if (!response.ok) {
-          console.warn(`[postgrest-client] POST ${table} failed with HTTP ${response.status}`);
+          log.warn(`[postgrest-client] POST ${table} failed with HTTP ${response.status}`);
           return null;
         }
 
@@ -73,7 +76,7 @@ export function createPostgRESTClient(): PostgRESTClient {
         // PostgREST returns an array; return the first element
         return Array.isArray(data) ? data[0] : data;
       } catch (error) {
-        console.warn(
+        log.warn(
           `[postgrest-client] POST ${table} error: ${error instanceof Error ? error.message : String(error)}`,
         );
         return null;
@@ -94,14 +97,14 @@ export function createPostgRESTClient(): PostgRESTClient {
         });
 
         if (!response.ok) {
-          console.warn(`[postgrest-client] PATCH ${table} failed with HTTP ${response.status}`);
+          log.warn(`[postgrest-client] PATCH ${table} failed with HTTP ${response.status}`);
           return null;
         }
 
         const data = await response.json();
         return data;
       } catch (error) {
-        console.warn(
+        log.warn(
           `[postgrest-client] PATCH ${table} error: ${error instanceof Error ? error.message : String(error)}`,
         );
         return null;

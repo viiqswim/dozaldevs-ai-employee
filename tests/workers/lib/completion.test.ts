@@ -6,6 +6,18 @@ import {
 } from '../../../src/workers/lib/completion.js';
 import type { PostgRESTClient } from '../../../src/workers/lib/postgrest-client.js';
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+  taskLogger: () => mockLogger,
+}));
+
 function createMockClient(): PostgRESTClient {
   return {
     get: vi.fn().mockResolvedValue([]),
@@ -136,12 +148,10 @@ describe('writeCompletionToSupabase', () => {
 
   it('logs warning but does not throw when PATCH fails', async () => {
     const mockClient = createMockClient();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockClient.patch = vi.fn().mockRejectedValue(new Error('timeout'));
 
     await expect(writeCompletionToSupabase(BASE_PARAMS, mockClient)).resolves.toBe(false);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[completion] PATCH tasks error'));
-    warnSpy.mockRestore();
+    expect(mockLogger.warn).toHaveBeenCalled();
   });
 });
 

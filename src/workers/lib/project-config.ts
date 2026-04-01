@@ -1,5 +1,8 @@
+import { createLogger } from '../../lib/logger.js';
 import type { PostgRESTClient } from './postgrest-client.js';
 import type { ProjectRow } from './task-context.js';
+
+const log = createLogger('project-config');
 
 /**
  * Project configuration fetched from the database.
@@ -37,7 +40,7 @@ export async function fetchProjectConfig(
     return result[0] as ProjectConfig;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.warn(`[project-config] Failed to fetch project ${projectId}: ${errorMsg}`);
+    log.warn(`[project-config] Failed to fetch project ${projectId}: ${errorMsg}`);
     return null;
   }
 }

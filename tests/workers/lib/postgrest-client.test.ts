@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPostgRESTClient } from '../../../src/workers/lib/postgrest-client.js';
 
+const mockLogger = {
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+};
+
+vi.mock('../../../src/lib/logger.js', () => ({
+  createLogger: () => mockLogger,
+}));
+
 describe('createPostgRESTClient', () => {
   beforeEach(() => {
     process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -17,26 +28,24 @@ describe('createPostgRESTClient', () => {
   describe('initialization', () => {
     it('returns null-returning client when SUPABASE_URL is missing', async () => {
       delete process.env.SUPABASE_URL;
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.get('users', '');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[postgrest-client] Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
       );
     });
 
     it('returns null-returning client when SUPABASE_SECRET_KEY is missing', async () => {
       delete process.env.SUPABASE_SECRET_KEY;
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.post('users', { name: 'test' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[postgrest-client] Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
       );
     });
@@ -44,13 +53,12 @@ describe('createPostgRESTClient', () => {
     it('returns null-returning client when both env vars are missing', async () => {
       delete process.env.SUPABASE_URL;
       delete process.env.SUPABASE_SECRET_KEY;
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.patch('users', 'id=1', { name: 'updated' });
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         '[postgrest-client] Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
       );
     });
@@ -83,25 +91,27 @@ describe('createPostgRESTClient', () => {
         json: () => Promise.resolve({ error: 'not found' }),
       });
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.get('users', 'id=999');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[postgrest-client] GET users failed with HTTP 404');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] GET users failed with HTTP 404',
+      );
     });
 
     it('returns null and warns on network error', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network timeout'));
       vi.stubGlobal('fetch', mockFetch);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const client = createPostgRESTClient();
       const result = await client.get('users', '');
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[postgrest-client] GET users error: Network timeout');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] GET users error: Network timeout',
+      );
     });
 
     it('constructs correct URL with table and query', async () => {

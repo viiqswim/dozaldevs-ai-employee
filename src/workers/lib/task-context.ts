@@ -1,4 +1,7 @@
 import * as fs from 'fs';
+import { createLogger } from '../../lib/logger.js';
+
+const log = createLogger('task-context');
 
 /**
  * Tooling configuration for a project.
@@ -94,7 +97,7 @@ export function parseTaskContext(filePath: string): TaskRow | null {
     return null;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.warn(`[task-context] Failed to parse task context from ${filePath}: ${errorMsg}`);
+    log.warn(`[task-context] Failed to parse task context from ${filePath}: ${errorMsg}`);
     return null;
   }
 }
