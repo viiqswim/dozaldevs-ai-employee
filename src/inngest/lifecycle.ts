@@ -209,8 +209,8 @@ export function createLifecycleFunction(
           return exec;
         });
         result = { data: { taskId, executionId: execution?.id, prUrl: null } };
-      } else if (process.env.INNGEST_DEV === '1') {
-        // LOCAL DEV MODE: Inngest Dev Server v1.17.7 resolves waitForEvent immediately (null).
+      } else if (process.env.USE_LOCAL_DOCKER === '1') {
+        // LOCAL DOCKER DEV MODE: Inngest Dev Server v1.17.7 resolves waitForEvent immediately (null).
         // Use step.sleep polling instead — checks Supabase every 30s for up to 20 minutes.
         // This is dev-only; production uses waitForEvent (Cloud properly suspends the function).
         let devResult: CompletionResult = null;
