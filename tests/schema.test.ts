@@ -186,7 +186,7 @@ describe('Seed data verification', () => {
       where: { name: 'test-project' },
     });
     expect(project).not.toBeNull();
-    expect(project!.repo_url).toBe('https://github.com/your-org/your-test-repo');
+    expect(project!.repo_url).toBe('https://github.com/viiqswim/ai-employee-test-target');
     expect(project!.default_branch).toBe('main');
   });
 

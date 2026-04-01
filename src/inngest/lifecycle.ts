@@ -84,6 +84,41 @@ export function createLifecycleFunction(
       if (!costCheckPassed) return;
 
       const machine = await step.run('dispatch-fly-machine', async () => {
+        if (process.env.USE_LOCAL_DOCKER === '1') {
+          const { execSync } = await import('child_process');
+          const containerName = `ai-worker-${taskId.slice(0, 8)}`;
+          const { repoUrl: localRepoUrl, repoBranch: localRepoBranch } = event.data as {
+            repoUrl?: string;
+            repoBranch?: string;
+          };
+
+          const envArgs = [
+            `-e TASK_ID="${taskId}"`,
+            `-e SUPABASE_URL="${process.env.SUPABASE_URL ?? 'http://localhost:54321'}"`,
+            `-e SUPABASE_SECRET_KEY="${process.env.SUPABASE_SECRET_KEY ?? ''}"`,
+            `-e GITHUB_TOKEN="${process.env.GITHUB_TOKEN ?? ''}"`,
+            `-e OPENROUTER_API_KEY="${process.env.OPENROUTER_API_KEY ?? ''}"`,
+            `-e INNGEST_EVENT_KEY="${process.env.INNGEST_EVENT_KEY ?? 'local'}"`,
+            `-e INNGEST_DEV="1"`,
+            `-e INNGEST_BASE_URL="http://localhost:8288"`,
+            localRepoUrl ? `-e REPO_URL="${localRepoUrl}"` : '',
+            localRepoBranch ? `-e REPO_BRANCH="${localRepoBranch}"` : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          const cmd = `docker run -d --rm --network host --name "${containerName}" ${envArgs} ai-employee-worker`;
+          const containerId = execSync(cmd, { encoding: 'utf8' }).trim();
+          log.info({ taskId, containerId, containerName }, 'Local Docker container dispatched');
+
+          await prisma.execution.updateMany({
+            where: { task_id: taskId, status: 'running' },
+            data: { runtime_id: `docker_${containerId.slice(0, 12)}` },
+          });
+
+          return { id: `docker_${containerId.slice(0, 12)}`, state: 'started' };
+        }
+
         const flyApiToken = process.env.FLY_API_TOKEN;
         const flyWorkerApp = process.env.FLY_WORKER_APP;
         const flyWorkerImage =
@@ -184,10 +219,17 @@ export function createLifecycleFunction(
 
       await step.run('finalize', async () => {
         if (result === null) {
-          // Cleanup attempt (machine may have already self-destructed — handle 404 as success)
-          const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
-          if (flyWorkerApp) {
-            await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+          if (machine.id.startsWith('docker_')) {
+            try {
+              const { execSync } = await import('child_process');
+              const containerName = `ai-worker-${taskId.slice(0, 8)}`;
+              execSync(`docker stop ${containerName} 2>/dev/null || true`, { encoding: 'utf8' });
+            } catch {}
+          } else {
+            const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
+            if (flyWorkerApp) {
+              await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+            }
           }
 
           const task = await prisma.task.findUnique({
@@ -288,10 +330,17 @@ export function createLifecycleFunction(
             },
           });
 
-          // Cleanup attempt (machine may have already self-destructed — handle 404 as success)
-          const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
-          if (flyWorkerApp) {
-            await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+          if (machine.id.startsWith('docker_')) {
+            try {
+              const { execSync } = await import('child_process');
+              const containerName = `ai-worker-${taskId.slice(0, 8)}`;
+              execSync(`docker stop ${containerName} 2>/dev/null || true`, { encoding: 'utf8' });
+            } catch {}
+          } else {
+            const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
+            if (flyWorkerApp) {
+              await destroyMachine(flyWorkerApp, machine.id).catch(() => {});
+            }
           }
         }
       });
