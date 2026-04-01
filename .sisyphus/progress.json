@@ -546,7 +546,7 @@
       "description": "Complete flow from Jira webhook to PR, running entirely locally. MVP validation milestone.",
       "architecture_refs": ["§27.5 Local Development Setup", "§11 Full Lifecycle Sequence"],
       "plan_file": ".sisyphus/plans/2026-04-01-0812-phase8-e2e.md",
-      "doc_file": "docs/2026-04-01-HHMM-phase8-e2e.md",
+      "doc_file": "docs/2026-04-01-1655-phase8-e2e.md",
       "started_at": "2026-04-01T00:00:00.000Z",
       "completed_at": "2026-04-01T21:54:35.000Z",
       "checkpoints": {
