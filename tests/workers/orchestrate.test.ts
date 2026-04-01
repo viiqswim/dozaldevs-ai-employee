@@ -519,4 +519,61 @@ describe('orchestrate.mts', () => {
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(TokenTracker).toHaveBeenCalledTimes(1);
   });
+
+  it('fetchProjectConfig called early (Step 4) before fix loop runs', async () => {
+    setupHappyPath();
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(fetchProjectConfig).toHaveBeenCalledWith('proj-1', expect.anything());
+    // Verify it was called before runWithFixLoop
+    const fetchCall = vi.mocked(fetchProjectConfig).mock.invocationCallOrder[0];
+    const fixLoopCall = vi.mocked(runWithFixLoop).mock.invocationCallOrder[0];
+    expect(fetchCall).toBeLessThan(fixLoopCall);
+  });
+
+  it('real tooling_config from project config passed to fix loop when available', async () => {
+    setupHappyPath();
+    const customToolingConfig = {
+      typescript: 'pnpm tsc --noEmit',
+      lint: 'pnpm eslint .',
+      unit: 'pnpm test',
+      integration: 'pnpm test:integration',
+      e2e: 'pnpm test:e2e',
+    };
+    vi.mocked(fetchProjectConfig).mockResolvedValue({
+      id: 'proj-1',
+      name: 'test',
+      repo_url: 'https://github.com/org/repo',
+      default_branch: 'main',
+      tooling_config: customToolingConfig,
+    });
+    vi.mocked(resolveToolingConfig).mockReturnValue(customToolingConfig);
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(runWithFixLoop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolingConfig: customToolingConfig,
+      }),
+    );
+  });
+
+  it('fallback to DEFAULT_TOOLING_CONFIG when fetchProjectConfig returns null', async () => {
+    setupHappyPath();
+    vi.mocked(fetchProjectConfig).mockResolvedValue(null);
+    vi.mocked(resolveToolingConfig).mockReturnValue({});
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(fetchProjectConfig).toHaveBeenCalled();
+    expect(runWithFixLoop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolingConfig: {},
+      }),
+    );
+  });
 });
