@@ -286,7 +286,13 @@ export function createLifecycleFunction(
             });
             await inngest.send({
               name: 'engineering/task.redispatch',
-              data: { taskId, attempt: attempts + 1, reason: 'timeout' },
+              data: {
+                taskId,
+                attempt: attempts + 1,
+                reason: 'timeout',
+                repoUrl: (event.data.repoUrl as string | undefined) ?? undefined,
+                repoBranch: (event.data.repoBranch as string | undefined) ?? undefined,
+              },
             });
           } else {
             await prisma.task.updateMany({
