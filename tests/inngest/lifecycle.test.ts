@@ -3,6 +3,12 @@ import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
+import { createMachine } from '../../src/lib/fly-client.js';
+
+vi.mock('../../src/lib/fly-client.js', () => ({
+  createMachine: vi.fn(),
+  destroyMachine: vi.fn(),
+}));
 
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 const SEED_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -166,6 +172,10 @@ function makeEngineForDispatch() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.FLY_API_TOKEN = 'test-fly-token';
+  process.env.FLY_WORKER_APP = 'test-worker-app';
+  vi.mocked(createMachine).mockResolvedValue({ id: 'test-machine-id', state: 'started' });
   vi.spyOn(
     inngest as unknown as { send: (...args: unknown[]) => unknown },
     'send',
@@ -173,6 +183,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  delete process.env.FLY_API_TOKEN;
+  delete process.env.FLY_WORKER_APP;
+  delete process.env.FLY_WORKER_IMAGE;
   vi.restoreAllMocks();
   await cleanupTestData();
 });
@@ -257,15 +270,67 @@ describe('Group 2 — Cancellation Check (step: check-cancellation)', () => {
   });
 });
 
-describe('Group 3 — Machine Dispatch Placeholder (step: dispatch-fly-machine)', () => {
-  it('returns { id: "placeholder-machine-id" }', async () => {
+describe('Group 3 — Machine Dispatch (step: dispatch-fly-machine)', () => {
+  it('calls createMachine and stores machine ID in execution record', async () => {
     const task = await createTestTask({ status: 'Ready' });
-    const { engine, getDispatchResult } = makeEngineForDispatch();
+    const execution = await getPrisma().execution.create({
+      data: { task_id: task.id, status: 'pending' },
+    });
+    const { engine } = makeEngineForDispatch();
 
     const { error } = await engine.execute({ events: makeEvent(task.id) });
 
     expect(error).toBeUndefined();
-    expect(getDispatchResult()).toEqual({ id: 'placeholder-machine-id' });
+    expect(vi.mocked(createMachine)).toHaveBeenCalledWith(
+      'test-worker-app',
+      expect.objectContaining({
+        image: 'registry.fly.io/ai-employee-workers:latest',
+        vm_size: 'performance-2x',
+        auto_destroy: true,
+        env: expect.objectContaining({ TASK_ID: task.id }),
+      }),
+    );
+    const updated = await getPrisma().execution.findUnique({ where: { id: execution.id } });
+    expect(updated!.runtime_id).toBe('test-machine-id');
+  });
+
+  it('missing FLY_API_TOKEN → NonRetriableError, task status AwaitingInput with failure reason', async () => {
+    delete process.env.FLY_API_TOKEN;
+    const task = await createTestTask({ status: 'Ready' });
+    const { engine } = makeEngineForDispatch();
+
+    const { error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeDefined();
+    expect((error as Error).message).toContain('FLY_API_TOKEN and FLY_WORKER_APP not configured');
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('AwaitingInput');
+    expect(updated!.failure_reason).toContain('FLY_API_TOKEN');
+  });
+
+  it('uses FLY_WORKER_IMAGE env var for machine image when set', async () => {
+    process.env.FLY_WORKER_IMAGE = 'custom-registry/workers:v2';
+    const task = await createTestTask({ status: 'Ready' });
+    const { engine } = makeEngineForDispatch();
+
+    const { error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(createMachine)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ image: 'custom-registry/workers:v2' }),
+    );
+  });
+
+  it('uses FLY_WORKER_APP env var as app name', async () => {
+    process.env.FLY_WORKER_APP = 'my-custom-app';
+    const task = await createTestTask({ status: 'Ready' });
+    const { engine } = makeEngineForDispatch();
+
+    const { error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(createMachine)).toHaveBeenCalledWith('my-custom-app', expect.any(Object));
   });
 });
 
