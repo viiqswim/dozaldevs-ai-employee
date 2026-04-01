@@ -209,6 +209,35 @@ export function createLifecycleFunction(
           return exec;
         });
         result = { data: { taskId, executionId: execution?.id, prUrl: null } };
+      } else if (process.env.INNGEST_DEV === '1') {
+        // LOCAL DEV MODE: Inngest Dev Server v1.17.7 resolves waitForEvent immediately (null).
+        // Use step.sleep polling instead — checks Supabase every 30s for up to 20 minutes.
+        // This is dev-only; production uses waitForEvent (Cloud properly suspends the function).
+        let devResult: CompletionResult = null;
+        const MAX_POLLS = 40;
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await step.sleep(`dev-poll-sleep-${i}`, '30s');
+          const taskStatus = await step.run(`dev-poll-check-${i}`, async () => {
+            const t = await prisma.task.findUnique({
+              where: { id: taskId },
+              select: { status: true },
+            });
+            return t?.status ?? null;
+          });
+          if (taskStatus === 'Submitting' || taskStatus === 'Done') {
+            const exec = await step.run(`dev-poll-get-exec-${i}`, async () =>
+              prisma.execution.findFirst({
+                where: { task_id: taskId },
+                select: { id: true },
+                orderBy: { created_at: 'desc' },
+              }),
+            );
+            devResult = { data: { taskId, executionId: exec?.id, prUrl: null } };
+            break;
+          }
+          if (taskStatus === 'AwaitingInput' || taskStatus === 'Cancelled') break;
+        }
+        result = devResult;
       } else {
         result = await step.waitForEvent('wait-for-completion', {
           event: 'engineering/task.completed',
