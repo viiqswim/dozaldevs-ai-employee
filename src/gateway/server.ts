@@ -5,6 +5,7 @@ import { healthRoutes } from './routes/health.js';
 import { jiraRoutes, type JiraRouteOptions } from './routes/jira.js';
 import { githubRoutes } from './routes/github.js';
 import { inngestServeRoutes } from './inngest/serve.js';
+import { createInngestClient } from './inngest/client.js';
 
 export interface InngestLike {
   send(event: {
@@ -57,5 +58,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<ReturnTyp
 const currentFile = new URL(import.meta.url).pathname;
 const calledFile = process.argv[1];
 if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile))) {
-  buildApp().then((app) => app.listen({ port: 3000, host: '0.0.0.0' }));
+  buildApp({ inngestClient: createInngestClient() }).then((app) =>
+    app.listen({ port: 3000, host: '0.0.0.0' }),
+  );
 }
