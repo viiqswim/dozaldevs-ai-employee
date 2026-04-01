@@ -451,8 +451,9 @@ Phase 8 (Full Local E2E) will:
 1. Run the complete flow from Jira webhook to PR creation locally, end-to-end
 2. Verify all 12 checklist items from the implementation phases doc under real conditions
 3. Exercise the watchdog, circuit breaker, and structured logging as part of the live test
-4. Migrate gateway `console.log` calls to the structured logger
-5. All Phase 7 resilience mechanisms are tested under real traffic for the first time
+4. All Phase 7 resilience mechanisms are tested under real traffic for the first time
+
+> **Note**: Gateway logging migration was listed as a Phase 8 task in the original plan, but a Phase 8 audit confirmed that `src/gateway/` already uses Fastify's structured logger (`request.log`) throughout — zero `console.log/warn/error` calls exist. No migration was needed.
 
 ```mermaid
 flowchart LR
@@ -466,13 +467,12 @@ flowchart LR
 
     subgraph Phase 8 - Next
         E2E["Full Local E2E Test"]:::event
-        GWLOG["Gateway Logging Migration"]:::event
         CHECKLIST["12-Item Checklist Verification"]:::event
     end
 
     WATCHDOG ==>|"tested under real traffic"| E2E
     CIRCUIT ==>|"tested under real traffic"| E2E
-    LOG ==>|"gateway migration"| GWLOG
+    LOG ==>|"verified end-to-end"| E2E
     TOKENS ==>|"verified end-to-end"| E2E
     FLY ==>|"real machine lifecycle"| E2E
     E2E ==> CHECKLIST
