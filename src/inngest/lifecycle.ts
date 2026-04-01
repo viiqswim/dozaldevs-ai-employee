@@ -1,6 +1,7 @@
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
+import type { SlackClient } from '../lib/slack-client.js';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
 import { createLogger } from '../lib/logger.js';
 
@@ -9,6 +10,7 @@ const log = createLogger('lifecycle');
 export function createLifecycleFunction(
   inngest: Inngest,
   prisma: PrismaClient,
+  slackClient: SlackClient,
 ): InngestFunction.Any {
   return inngest.createFunction(
     {
@@ -232,9 +234,12 @@ export function createLifecycleFunction(
                 actor: 'lifecycle_fn',
               },
             });
-            log.warn(
-              `[SLACK STUB] Task ${taskId} failed after ${attempts} attempts. Manual intervention required.`,
-            );
+            await slackClient
+              .postMessage({
+                text: `Task \`${taskId}\` failed after ${attempts} dispatch attempts. Manual intervention required.`,
+              })
+              .catch(() => {});
+            log.warn({ taskId, attempts }, 'Max dispatch attempts exhausted, Slack alert sent');
           }
         } else {
           const task = await prisma.task.findUnique({

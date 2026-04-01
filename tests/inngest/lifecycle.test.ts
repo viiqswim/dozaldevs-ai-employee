@@ -4,6 +4,7 @@ import { InngestTestEngine, mockCtx } from '@inngest/test';
 import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
 import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
+import type { SlackClient } from '../../src/lib/slack-client.js';
 
 vi.mock('../../src/lib/fly-client.js', () => ({
   createMachine: vi.fn(),
@@ -14,6 +15,13 @@ const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 const SEED_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const inngest = new Inngest({ id: 'ai-employee-test' });
+
+function createMockSlackClient(): SlackClient {
+  const postMessage = vi.fn().mockResolvedValue({});
+  return {
+    postMessage,
+  };
+}
 
 async function createTestTask(
   overrides: Partial<{ status: string; dispatch_attempts: number }> = {},
@@ -43,12 +51,14 @@ function getStepRunCalls(ctx: { step: { run: unknown } }): Array<[string, ...unk
 }
 
 function makeEngine() {
-  return new InngestTestEngine({ function: createLifecycleFunction(inngest, getPrisma()) });
+  return new InngestTestEngine({
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
+  });
 }
 
 function makeEngineTimeout(noopFinalize = false) {
   return new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
@@ -68,7 +78,7 @@ function makeEngineTimeout(noopFinalize = false) {
 
 function makeEngineSuccess() {
   return new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const mocked = mockCtx(ctx);
       mocked.step.waitForEvent = vi.fn().mockResolvedValue({
@@ -82,7 +92,7 @@ function makeEngineSuccess() {
 
 function makeEngineCompletion(taskId: string, executionId: string, prUrl: string | null) {
   return new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const mocked = mockCtx(ctx);
       mocked.step.waitForEvent = vi.fn().mockResolvedValue({
@@ -101,7 +111,7 @@ function makeEngineCompletionWithPreFinalize(
   preFinalize: () => Promise<void>,
 ) {
   return new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
@@ -134,7 +144,7 @@ async function createTestExecution(taskId: string) {
 
 function makeEngineForCancellation(cancelledResult: boolean) {
   return new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
@@ -152,7 +162,7 @@ function makeEngineForCancellation(cancelledResult: boolean) {
 function makeEngineForDispatch() {
   let dispatchResult: unknown;
   const engine = new InngestTestEngine({
-    function: createLifecycleFunction(inngest, getPrisma()),
+    function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
     transformCtx: (ctx: any) => {
       const origStepRun = ctx.step.run;
       const mocked = mockCtx(ctx);
@@ -378,6 +388,28 @@ describe('Group 4 — Finalize (step: finalize)', () => {
     });
     expect(log).not.toBeNull();
     expect(log!.from_status).toBe('Executing');
+  });
+
+  it('timeout, dispatch_attempts=3 → calls slackClient.postMessage with task failure alert', async () => {
+    const task = await createTestTask({ status: 'Ready', dispatch_attempts: 3 });
+    const slackClient = createMockSlackClient();
+    const engine = new InngestTestEngine({
+      function: createLifecycleFunction(inngest, getPrisma(), slackClient),
+      transformCtx: (ctx: any) => {
+        const mocked = mockCtx(ctx);
+        mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
+        return mocked as any;
+      },
+    });
+
+    const { error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(slackClient.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining(task.id),
+      }),
+    );
   });
 
   it('success event received → task confirmed Done', async () => {
@@ -630,7 +662,7 @@ describe('Group 7 — Race Condition Pre-Check (step: pre-check-completion)', ()
     await createTestExecution(task.id);
 
     const engine = new InngestTestEngine({
-      function: createLifecycleFunction(inngest, getPrisma()),
+      function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
       transformCtx: (ctx: any) => {
         const origStepRun = ctx.step.run;
         const mocked = mockCtx(ctx);
@@ -657,7 +689,7 @@ describe('Group 7 — Race Condition Pre-Check (step: pre-check-completion)', ()
     const task = await createTestTask({ status: 'Ready' });
 
     const engine = new InngestTestEngine({
-      function: createLifecycleFunction(inngest, getPrisma()),
+      function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
       transformCtx: (ctx: any) => {
         const origStepRun = ctx.step.run;
         const mocked = mockCtx(ctx);
@@ -684,7 +716,7 @@ describe('Group 7 — Race Condition Pre-Check (step: pre-check-completion)', ()
     const task = await createTestTask({ status: 'Ready' });
 
     const engine = new InngestTestEngine({
-      function: createLifecycleFunction(inngest, getPrisma()),
+      function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
       transformCtx: (ctx: any) => {
         const origStepRun = ctx.step.run;
         const mocked = mockCtx(ctx);

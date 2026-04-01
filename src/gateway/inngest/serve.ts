@@ -18,7 +18,7 @@ export async function inngestServeRoutes(app: FastifyInstance): Promise<void> {
 
   const flyClient = { getMachine, destroyMachine, createMachine };
 
-  const lifecycleFn = createLifecycleFunction(inngest, prisma);
+  const lifecycleFn = createLifecycleFunction(inngest, prisma, slackClient);
   const redispatchFn = createRedispatchFunction(inngest, prisma, slackClient);
   const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient);
 
