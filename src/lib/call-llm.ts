@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
 import { withRetry } from './retry.js';
+import { createSlackClient } from './slack-client.js';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -46,6 +47,13 @@ const COST_CACHE: { value: number; refreshedAt: Date | null } = {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_COST_LIMIT_USD = 50;
 
+let alertSentAt: Date | null = null;
+const ALERT_COOLDOWN_MS = 60 * 60 * 1000;
+
+export function _resetAlertState(): void {
+  alertSentAt = null;
+}
+
 type CostRow = { total: number | string | null };
 
 async function checkCostCircuitBreaker(): Promise<void> {
@@ -70,6 +78,21 @@ async function checkCostCircuitBreaker(): Promise<void> {
   }
 
   if (COST_CACHE.value > limitUsd) {
+    if (!alertSentAt || now.getTime() - alertSentAt.getTime() > ALERT_COOLDOWN_MS) {
+      alertSentAt = now;
+      const slackBotToken = process.env.SLACK_BOT_TOKEN;
+      if (slackBotToken) {
+        const slack = createSlackClient({
+          botToken: slackBotToken,
+          defaultChannel: process.env.SLACK_DEFAULT_CHANNEL ?? '#alerts',
+        });
+        await slack
+          .postMessage({
+            text: `🚨 *Cost Circuit Breaker Triggered*\nDepartment: default\nCurrent spend: $${COST_CACHE.value.toFixed(2)}\nLimit: $${limitUsd.toFixed(2)}\nTimestamp: ${now.toISOString()}\nNew LLM calls are paused until the daily limit resets or the limit is increased.`,
+          })
+          .catch(() => {});
+      }
+    }
     throw new CostCircuitBreakerError(
       `Daily LLM spend $${COST_CACHE.value.toFixed(2)} exceeds limit $${limitUsd.toFixed(2)}`,
       {
