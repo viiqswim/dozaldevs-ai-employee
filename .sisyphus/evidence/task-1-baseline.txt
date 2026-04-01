@@ -1,0 +1,324 @@
+
+> ai-employee@0.1.0 test /Users/victordozal/repos/dozal-devs/ai-employee
+> vitest -- --run
+
+
+ DEV  v2.1.9 /Users/victordozal/repos/dozal-devs/ai-employee
+
+(node:8025) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8025) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 SIGTERM listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+ ✓ tests/workers/orchestrate.test.ts (21 tests) 1115ms
+stderr | tests/inngest/lifecycle.test.ts > Group 1 — Optimistic Locking (step: update-status-executing) > lock conflict: Executing task → optimistic lock error, no log entry written
+Inngest step error
+NonRetriableError: Task f22046ff-54b2-47d0-93aa-43728c9d25ca optimistic lock failed: expected status Ready, task may have been modified by concurrent writer or does not exist
+    at /Users/victordozal/repos/dozal-devs/ai-employee/src/inngest/lifecycle.ts:25:17
+    at goIntervalTiming (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/helpers/promises.ts:284:5)
+    at InngestExecutionEngine.tryExecuteStep (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:914:14)
+    at steps-found (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:690:28)
+    at InngestExecutionEngine._start (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:267:24) {
+  cause: undefined
+}
+
+stderr | tests/inngest/lifecycle.test.ts > Group 1 — Optimistic Locking (step: update-status-executing) > task not found: non-existent taskId → optimistic lock error
+Inngest step error
+NonRetriableError: Task 00000000-dead-beef-dead-000000000000 optimistic lock failed: expected status Ready, task may have been modified by concurrent writer or does not exist
+    at /Users/victordozal/repos/dozal-devs/ai-employee/src/inngest/lifecycle.ts:25:17
+    at goIntervalTiming (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/helpers/promises.ts:284:5)
+    at InngestExecutionEngine.tryExecuteStep (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:914:14)
+    at steps-found (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:690:28)
+    at InngestExecutionEngine._start (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/execution/engine.ts:267:24) {
+  cause: undefined
+}
+
+ ✓ tests/inngest/lifecycle.test.ts (18 tests) 411ms
+ ✓ tests/workers/lib/session-manager.test.ts (25 tests) 13ms
+stderr | tests/workers/lib/validation-pipeline.test.ts > validation-pipeline > runValidationPipeline() > should skip DB write when executionId is null
+[validation-pipeline] Skipping DB write for stage "typescript" — executionId is null
+[validation-pipeline] Skipping DB write for stage "lint" — executionId is null
+[validation-pipeline] Skipping DB write for stage "unit" — executionId is null
+
+ ✓ tests/workers/lib/validation-pipeline.test.ts (23 tests) 5ms
+stderr | tests/workers/lib/completion.test.ts > writeCompletionToSupabase > returns false when PATCH throws
+[completion] PATCH tasks error for task task-123: DB connection failed
+
+stderr | tests/workers/lib/completion.test.ts > writeCompletionToSupabase > returns false when PATCH returns null
+[completion] PATCH tasks failed (null response) for task task-123
+
+stderr | tests/workers/lib/completion.test.ts > writeCompletionToSupabase > still returns true when deliverables POST throws
+[completion] POST deliverables error for execution exec-456: deliverables insert failed
+
+stderr | tests/workers/lib/completion.test.ts > writeCompletionToSupabase > still returns true when task_status_log POST throws
+[completion] POST task_status_log error for task task-123: status log insert failed
+
+stderr | tests/workers/lib/completion.test.ts > sendCompletionEvent > retries on failure and succeeds on the 3rd attempt
+[completion] Inngest event send failed (attempt 1/3): network error
+[completion] Inngest event send failed (attempt 2/3): network error
+
+stderr | tests/workers/lib/completion.test.ts > sendCompletionEvent > returns false after all 3 attempts fail
+[completion] Inngest event send failed (attempt 1/3): persistent failure
+[completion] Inngest event send failed (attempt 2/3): persistent failure
+[completion] Inngest event send failed (attempt 3/3): persistent failure
+[completion] Failed to send Inngest event for task task-123 after 3 attempts
+
+stderr | tests/workers/lib/completion.test.ts > sendCompletionEvent > returns false after all 3 attempts return non-ok HTTP status
+[completion] Inngest event send returned HTTP 500 (attempt 1/3)
+[completion] Inngest event send returned HTTP 500 (attempt 2/3)
+[completion] Inngest event send returned HTTP 500 (attempt 3/3)
+[completion] Failed to send Inngest event for task task-123 after 3 attempts
+
+stderr | tests/workers/lib/completion.test.ts > sendCompletionEvent > does not throw when all retries fail
+[completion] Inngest event send failed (attempt 1/3): down
+[completion] Inngest event send failed (attempt 2/3): down
+[completion] Inngest event send failed (attempt 3/3): down
+[completion] Failed to send Inngest event for task task-123 after 3 attempts
+
+stderr | tests/workers/lib/completion.test.ts > runCompletionFlow > returns { supabaseWritten: false, inngestSent: false } when Supabase PATCH fails
+[completion] PATCH tasks error for task task-123: DB error
+
+stderr | tests/workers/lib/completion.test.ts > runCompletionFlow > does not call Inngest when Supabase PATCH fails
+[completion] PATCH tasks error for task task-123: DB error
+
+stderr | tests/workers/lib/completion.test.ts > runCompletionFlow > returns { supabaseWritten: true, inngestSent: false } when Inngest fails after Supabase succeeds
+[completion] Inngest event send failed (attempt 1/3): inngest down
+[completion] Inngest event send failed (attempt 2/3): inngest down
+[completion] Inngest event send failed (attempt 3/3): inngest down
+[completion] Failed to send Inngest event for task task-123 after 3 attempts
+
+stderr | tests/workers/lib/completion.test.ts > runCompletionFlow > does not throw when Inngest send fails
+[completion] Inngest event send failed (attempt 1/3): inngest down
+[completion] Inngest event send failed (attempt 2/3): inngest down
+[completion] Inngest event send failed (attempt 3/3): inngest down
+[completion] Failed to send Inngest event for task task-123 after 3 attempts
+
+ ✓ tests/workers/lib/completion.test.ts (27 tests) 19ms
+ ✓ tests/workers/lib/heartbeat.test.ts (17 tests) 9ms
+ ✓ tests/workers/lib/task-context.test.ts (19 tests) 5ms
+stderr | tests/workers/lib/opencode-server.test.ts > opencode-server > startOpencodeServer() > spawns process with correct arguments and default options
+[opencode-server] Failed to spawn opencode: cleanup
+
+stderr | tests/workers/lib/opencode-server.test.ts > opencode-server > startOpencodeServer() > respects custom port option
+[opencode-server] Failed to spawn opencode: cleanup
+
+stderr | tests/workers/lib/opencode-server.test.ts > opencode-server > startOpencodeServer() > respects custom cwd option
+[opencode-server] Failed to spawn opencode: cleanup
+
+stderr | tests/workers/lib/opencode-server.test.ts > opencode-server > handle.kill() > calls stopOpencodeServer when handle.kill() is invoked
+[opencode-server] Process did not exit within 5s — sending SIGKILL
+
+ ✓ tests/workers/lib/opencode-server.test.ts (14 tests) 22521ms
+   ✓ opencode-server > startOpencodeServer() > returns handle with correct url and kill function on successful health check 1003ms
+   ✓ opencode-server > startOpencodeServer() > polls health endpoint until server is ready 3001ms
+   ✓ opencode-server > startOpencodeServer() > handles health check response with healthy=false 2502ms
+   ✓ opencode-server > stopOpencodeServer() > sends SIGKILL after 5s if process does not exit 5002ms
+   ✓ opencode-server > stopOpencodeServer() > handles SIGKILL failure gracefully 5003ms
+   ✓ opencode-server > handle.kill() > calls stopOpencodeServer when handle.kill() is invoked 6003ms
+ ✓ tests/workers/lib/postgrest-client.test.ts (19 tests) 15ms
+ ✓ tests/workers/lib/fix-loop.test.ts (13 tests) 7ms
+ ✓ tests/lib/call-llm.test.ts (16 tests) 16ms
+ ✓ tests/workers/lib/branch-manager.test.ts (24 tests) 2ms
+{"level":30,"time":1775013131743,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131780,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":37.47220802307129,"msg":"request completed"}
+{"level":30,"time":1775013131813,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131833,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":19.93379098176956,"msg":"request completed"}
+{"level":30,"time":1775013131846,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131865,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":19.296416997909546,"msg":"request completed"}
+{"level":30,"time":1775013131878,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":40,"time":1775013131878,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","url":"/webhooks/jira","msg":"Invalid Jira webhook signature"}
+{"level":30,"time":1775013131878,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":401},"responseTime":0.3884580135345459,"msg":"request completed"}
+{"level":30,"time":1775013131896,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":40,"time":1775013131897,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","issues":[{"expected":"string","code":"invalid_type","path":["issue","key"],"message":"Invalid input: expected string, received undefined"},{"expected":"string","code":"invalid_type","path":["issue","fields","summary"],"message":"Invalid input: expected string, received undefined"}],"msg":"Invalid Jira webhook payload"}
+{"level":30,"time":1775013131897,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":400},"responseTime":1.0542089939117432,"msg":"request completed"}
+{"level":30,"time":1775013131915,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131929,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","jiraProjectKey":"UNKNOWN","msg":"Project not registered — ignoring webhook"}
+{"level":30,"time":1775013131929,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":14.704584002494812,"msg":"request completed"}
+{"level":30,"time":1775013131944,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131968,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":23.713500022888184,"msg":"request completed"}
+{"level":30,"time":1775013131968,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013131994,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","taskId":"8176857d-ee1d-46cc-ab39-8ac6dbd0639e","msg":"Duplicate webhook — task already exists"}
+{"level":30,"time":1775013131994,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","res":{"statusCode":200},"responseTime":26.140500009059906,"msg":"request completed"}
+{"level":30,"time":1775013132012,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132013,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","webhookEvent":"jira:issue_updated","msg":"Ignoring jira:issue_updated per §4.2"}
+{"level":30,"time":1775013132013,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":1.1291249990463257,"msg":"request completed"}
+{"level":30,"time":1775013132032,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132059,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":27.154084026813507,"msg":"request completed"}
+{"level":30,"time":1775013132060,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132067,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","res":{"statusCode":200},"responseTime":6.672459006309509,"msg":"request completed"}
+{"level":30,"time":1775013132079,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132092,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":12.88933402299881,"msg":"request completed"}
+{"level":30,"time":1775013132104,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132124,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":20.491209030151367,"msg":"request completed"}
+{"level":30,"time":1775013132137,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013132157,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":20.027999997138977,"msg":"request completed"}
+{"level":30,"time":1775013132173,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/jira","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":40,"time":1775013135196,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","taskId":"b8bb4b76-f576-4f65-a7fa-8988a189eb04","error":"Inngest down","msg":"Inngest send failed — task in Received for manual recovery"}
+{"level":30,"time":1775013135196,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":202},"responseTime":3022.7207919955254,"msg":"request completed"}
+ ✓ tests/gateway/jira-webhook.test.ts (13 tests) 3704ms
+   ✓ POST /webhooks/jira > happy path: valid webhook → 200 with task_created 301ms
+   ✓ POST /webhooks/jira > Inngest send failure → 202, task still in DB 3046ms
+ ✓ tests/workers/lib/pr-manager.test.ts (19 tests) 2ms
+ ✓ tests/schema.test.ts (12 tests) 109ms
+ ✓ tests/lib/github-client.test.ts (11 tests) 18ms
+ ✓ tests/gateway/task-creation.test.ts (10 tests) 116ms
+ ✓ tests/inngest/integration.test.ts (5 tests | 4 skipped) 0ms
+ ✓ tests/workers/lib/project-config.test.ts (17 tests) 5ms
+ ✓ tests/lib/jira-client.test.ts (10 tests) 10ms
+ ✓ tests/lib/slack-client.test.ts (8 tests) 3011ms
+   ✓ Slack Client > RateLimitExceededError includes retryAfterMs from Retry-After header 3003ms
+ ✓ tests/gateway/schemas.test.ts (11 tests) 2ms
+ ✓ tests/lib/retry.test.ts (8 tests) 2ms
+ ✓ tests/lib/errors.test.ts (9 tests) 1ms
+ ✓ tests/gateway/inngest-send.test.ts (7 tests) 10016ms
+   ✓ sendTaskReceivedEvent > retries on first failure, succeeds on second 1003ms
+   ✓ sendTaskReceivedEvent > retries on first two failures, succeeds on third 3003ms
+   ✓ sendTaskReceivedEvent > returns failure after 3 retries exhausted (no throw) 3004ms
+   ✓ sendTaskReceivedEvent > does not throw even when all retries fail 3004ms
+ ✓ tests/workers/integration.test.ts (7 tests | 6 skipped) 0ms
+stderr | tests/workers/container-boot.test.ts > Container Boot Integration > container boots and exits cleanly
+stdout: 
+Container Boot Verification
+===========================
+
+Ensuring schema in Supabase postgres DB (PostgREST target)...
+Inserting test task 22222222-2222-2222-2222-222222222222...
+Running container (timeout: 120s)...
+
+
+stderr: NOTICE:  relation "projects" already exists, skipping
+NOTICE:  relation "tasks" already exists, skipping
+NOTICE:  relation "executions" already exists, skipping
+mktemp: mkstemp failed on /tmp/verify-container-boot-XXXXXX.log: File exists
+
+
+ ❯ tests/workers/container-boot.test.ts (4 tests | 1 failed) 24869ms
+   ✓ Container Boot Integration > verify-docker script passes 4188ms
+   × Container Boot Integration > container boots and exits cleanly 2272ms
+     → expected 1 to be +0 // Object.is equality
+   ✓ Container Boot Integration > container logs contain all 8 steps 18405ms
+ ✓ tests/inngest/redispatch.test.ts (3 tests) 42ms
+{"level":30,"time":1775013174222,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"GET","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+stderr | tests/gateway/inngest-serve.test.ts > /api/inngest endpoint > PUT /api/inngest route exists (registration endpoint)
+Failed to register
+TypeError: Cannot read properties of undefined (reading 'status')
+    at fetchWithAuthFallback (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/helpers/net.ts:33:31)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InngestCommHandler.register (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/InngestCommHandler.ts:2404:13)
+    at InngestCommHandler.handleAction (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/InngestCommHandler.ts:1992:47)
+    at ServerTiming.wrap (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/helpers/ServerTiming.ts:89:15)
+    at handleAndPrepare (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/components/InngestCommHandler.ts:1189:22)
+    at ServerTiming.wrap (file:///Users/victordozal/repos/dozal-devs/ai-employee/node_modules/.pnpm/inngest@4.1.0_@opentelemetry+core@2.6.1_@opentelemetry+api@1.9.1__fastify@5.8.4_typescript@5.9.3_zod@4.3.6/node_modules/src/helpers/ServerTiming.ts:89:15)
+
+{"level":30,"time":1775013174227,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":4.368667006492615,"msg":"request completed"}
+{"level":30,"time":1775013174227,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","req":{"method":"PUT","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174236,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","res":{"statusCode":500},"responseTime":9.025292038917542,"msg":"request completed"}
+{"level":30,"time":1775013174236,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","req":{"method":"GET","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174238,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","res":{"statusCode":200},"responseTime":1.183167040348053,"msg":"request completed"}
+{"level":30,"time":1775013174238,"pid":8025,"hostname":"MacBookPro","reqId":"req-4","req":{"method":"GET","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174239,"pid":8025,"hostname":"MacBookPro","reqId":"req-4","res":{"statusCode":200},"responseTime":1.178333044052124,"msg":"request completed"}
+{"level":30,"time":1775013174239,"pid":8025,"hostname":"MacBookPro","reqId":"req-5","req":{"method":"GET","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174240,"pid":8025,"hostname":"MacBookPro","reqId":"req-5","res":{"statusCode":200},"responseTime":1.1651250123977661,"msg":"request completed"}
+{"level":30,"time":1775013174241,"pid":8025,"hostname":"MacBookPro","reqId":"req-6","req":{"method":"GET","url":"/api/inngest","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174242,"pid":8025,"hostname":"MacBookPro","reqId":"req-6","res":{"statusCode":200},"responseTime":1.4326250553131104,"msg":"request completed"}
+ ✓ tests/gateway/inngest-serve.test.ts (6 tests) 35ms
+ ✓ tests/gateway/signature.test.ts (11 tests) 1ms
+ ✓ tests/lib/build.test.ts (9 tests) 2ms
+ ✓ tests/gateway/fixtures.test.ts (7 tests) 1ms
+ ✓ tests/workers/entrypoint.test.ts (8 tests) 9ms
+{"level":30,"time":1775013174304,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"POST","url":"/webhooks/github","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174304,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","event":"github_webhook_received_stub","msg":"GitHub webhook received (stub)"}
+{"level":30,"time":1775013174304,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":0.2864999771118164,"msg":"request completed"}
+{"level":30,"time":1775013174330,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","req":{"method":"POST","url":"/webhooks/github","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174330,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","event":"github_webhook_received_stub","msg":"GitHub webhook received (stub)"}
+{"level":30,"time":1775013174330,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","res":{"statusCode":200},"responseTime":0.19533300399780273,"msg":"request completed"}
+{"level":30,"time":1775013174335,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","req":{"method":"POST","url":"/webhooks/github","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174335,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","event":"github_webhook_received_stub","msg":"GitHub webhook received (stub)"}
+{"level":30,"time":1775013174335,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","res":{"statusCode":200},"responseTime":0.1588749885559082,"msg":"request completed"}
+{"level":30,"time":1775013174341,"pid":8025,"hostname":"MacBookPro","reqId":"req-4","req":{"method":"POST","url":"/webhooks/github","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174341,"pid":8025,"hostname":"MacBookPro","reqId":"req-4","event":"github_webhook_received_stub","msg":"GitHub webhook received (stub)"}
+{"level":30,"time":1775013174341,"pid":8025,"hostname":"MacBookPro","reqId":"req-4","res":{"statusCode":200},"responseTime":0.10975003242492676,"msg":"request completed"}
+ ✓ tests/gateway/github-stub.test.ts (4 tests) 59ms
+ ✓ tests/gateway/project-lookup.test.ts (4 tests) 45ms
+ ✓ tests/gateway/migration.test.ts (3 tests) 24ms
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","req":{"method":"GET","url":"/health","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-1","res":{"statusCode":200},"responseTime":0.10112500190734863,"msg":"request completed"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","req":{"method":"GET","url":"/health","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-2","res":{"statusCode":200},"responseTime":0.038083016872406006,"msg":"request completed"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","req":{"method":"GET","url":"/nonexistent","host":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","msg":"Route GET:/nonexistent not found"}
+{"level":30,"time":1775013174448,"pid":8025,"hostname":"MacBookPro","reqId":"req-3","res":{"statusCode":404},"responseTime":0.08654201030731201,"msg":"request completed"}
+ ✓ tests/gateway/health.test.ts (4 tests) 17ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/workers/container-boot.test.ts > Container Boot Integration > container boots and exits cleanly
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/workers/container-boot.test.ts:53:27
+     51|     }
+     52| 
+     53|     expect(result.status).toBe(0);
+       |                           ^
+     54|   });
+     55| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 36 passed (37)
+      Tests  1 failed | 435 passed | 10 skipped (446)
+   Start at  22:11:46
+   Duration  67.64s (transform 312ms, setup 0ms, collect 1.15s, tests 66.24s, environment 0ms, prepare 40ms)
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+
+> ai-employee@0.1.0 lint /Users/victordozal/repos/dozal-devs/ai-employee
+> eslint .
+
+
+/Users/victordozal/repos/dozal-devs/ai-employee/src/gateway/services/task-creation.ts
+  5:7  warning  'SYSTEM_TENANT_ID' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/victordozal/repos/dozal-devs/ai-employee/src/workers/lib/session-manager.ts
+  89:18  warning  'sseError' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/victordozal/repos/dozal-devs/ai-employee/tests/gateway/schemas.test.ts
+  10:3  warning  'parseJiraIssueDeletion' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/victordozal/repos/dozal-devs/ai-employee/tests/inngest/lifecycle.test.ts
+   46:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   58:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   72:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   80:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   86:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  115:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  141:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  150:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  162:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/victordozal/repos/dozal-devs/ai-employee/tests/inngest/redispatch.test.ts
+  21:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  36:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  56:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  63:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/victordozal/repos/dozal-devs/ai-employee/tests/lib/slack-client.test.ts
+   66:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  186:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/victordozal/repos/dozal-devs/ai-employee/tests/workers/lib/session-manager.test.ts
+  441:13  warning  'manager' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  449:13  warning  'manager1' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  450:13  warning  'manager2' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 25 problems (0 errors, 25 warnings)
+
