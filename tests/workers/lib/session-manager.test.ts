@@ -112,7 +112,10 @@ describe('createSessionManager', () => {
       expect(result).toBe(true);
       expect(mockClient.session.promptAsync).toHaveBeenCalledWith({
         path: { id: 'sess-1' },
-        body: { parts: [{ type: 'text', text: 'Test prompt' }] },
+        body: {
+          parts: [{ type: 'text', text: 'Test prompt' }],
+          model: { providerID: 'openrouter', modelID: 'minimax/minimax-m2.7' },
+        },
       });
     });
 
