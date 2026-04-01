@@ -46,6 +46,38 @@ export function createLifecycleFunction(
       });
       if (isCancelled) return;
 
+      const costCheckPassed = await step.run('check-cost-gate', async () => {
+        const limitUsd = parseFloat(process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY ?? '') || 50;
+        const rows = await prisma.$queryRaw<Array<{ total: number | string | null }>>`
+          SELECT COALESCE(SUM(estimated_cost_usd), 0) as total
+          FROM executions
+          WHERE created_at > NOW() - INTERVAL '1 day'
+        `;
+        const currentSpend = parseFloat(String(rows[0]?.total ?? 0));
+
+        if (currentSpend > limitUsd) {
+          await prisma.task.updateMany({
+            where: { id: taskId },
+            data: {
+              status: 'AwaitingInput',
+              failure_reason: `Daily cost limit ($${limitUsd.toFixed(2)}) exceeded. Current spend: $${currentSpend.toFixed(2)}. Task paused until cost window resets or limit is increased.`,
+              updated_at: new Date(),
+            },
+          });
+          await prisma.taskStatusLog.create({
+            data: {
+              task_id: taskId,
+              from_status: 'Executing',
+              to_status: 'AwaitingInput',
+              actor: 'lifecycle_fn',
+            },
+          });
+          return false;
+        }
+        return true;
+      });
+      if (!costCheckPassed) return;
+
       const machine = await step.run('dispatch-fly-machine', async () => {
         const flyApiToken = process.env.FLY_API_TOKEN;
         const flyWorkerApp = process.env.FLY_WORKER_APP;

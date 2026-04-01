@@ -186,6 +186,7 @@ afterEach(async () => {
   delete process.env.FLY_API_TOKEN;
   delete process.env.FLY_WORKER_APP;
   delete process.env.FLY_WORKER_IMAGE;
+  delete process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY;
   vi.restoreAllMocks();
   await cleanupTestData();
 });
@@ -549,5 +550,49 @@ describe('Group 5 — Phase 6: Finalize Completion Path', () => {
     const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
     expect(updated!.status).toBe('Ready');
     expect(updated!.dispatch_attempts).toBe(1);
+  });
+});
+
+describe('Group 6 — Cost Gate (step: check-cost-gate)', () => {
+  it('over-threshold: sets task to AwaitingInput with failure_reason, writes log, skips dispatch', async () => {
+    const expensiveTask = await createTestTask();
+    await getPrisma().execution.create({
+      data: {
+        task_id: expensiveTask.id,
+        status: 'completed',
+        estimated_cost_usd: 100,
+      },
+    });
+    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+
+    const task = await createTestTask({ status: 'Ready' });
+
+    const { error } = await makeEngine().execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('AwaitingInput');
+    expect(updated!.failure_reason).toContain('Daily cost limit');
+    expect(updated!.failure_reason).toContain('$50.00');
+
+    const log = await getPrisma().taskStatusLog.findFirst({
+      where: { task_id: task.id, to_status: 'AwaitingInput', actor: 'lifecycle_fn' },
+    });
+    expect(log).not.toBeNull();
+    expect(log!.from_status).toBe('Executing');
+
+    expect(vi.mocked(createMachine)).not.toHaveBeenCalled();
+  });
+
+  it('under-threshold: cost gate passes and dispatch-fly-machine runs normally', async () => {
+    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    const task = await createTestTask({ status: 'Ready' });
+    const { engine } = makeEngineForDispatch();
+
+    const { error } = await engine.execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(createMachine)).toHaveBeenCalled();
   });
 });

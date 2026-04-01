@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { callLLM } from '../../src/lib/call-llm.js';
+import { callLLM, _resetAlertState } from '../../src/lib/call-llm.js';
+import { createSlackClient } from '../../src/lib/slack-client.js';
 import {
   CostCircuitBreakerError,
   LLMTimeoutError,
@@ -12,6 +13,14 @@ vi.mock('@prisma/client', () => ({
   PrismaClient: vi.fn().mockImplementation(() => ({
     $queryRaw: mockQueryRaw,
   })),
+}));
+
+const mockPostMessage = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ts: '1', channel: '#alerts' }),
+);
+
+vi.mock('../../src/lib/slack-client.js', () => ({
+  createSlackClient: vi.fn().mockReturnValue({ postMessage: mockPostMessage }),
 }));
 
 const mockOpenRouterResponse = {
@@ -44,19 +53,22 @@ describe('callLLM', () => {
   beforeEach(() => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '999999';
-    mockQueryRaw.mockResolvedValue([{ total: 0 }]);
+    _resetAlertState();
     vi.clearAllMocks();
+    mockQueryRaw.mockResolvedValue([{ total: 0 }]);
+    vi.mocked(createSlackClient).mockReturnValue({ postMessage: mockPostMessage });
+    mockPostMessage.mockResolvedValue({ ts: '1', channel: '#alerts' });
   });
 
   afterEach(() => {
+    delete process.env.SLACK_BOT_TOKEN;
+    delete process.env.SLACK_DEFAULT_CHANNEL;
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
   it('returns content, model, tokens, estimatedCostUsd and latencyMs on success', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      makeFetchResponse(mockOpenRouterResponse),
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
       model: 'anthropic/claude-sonnet-4-6',
@@ -220,9 +232,7 @@ describe('callLLM', () => {
   });
 
   it('calculates estimatedCostUsd correctly for claude-sonnet-4-6', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      makeFetchResponse(mockOpenRouterResponse),
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
       model: 'anthropic/claude-sonnet-4-6',
@@ -240,9 +250,7 @@ describe('callLLM', () => {
     mockQueryRaw.mockResolvedValueOnce([{ total: 100 }]);
     process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      makeFetchResponse(mockOpenRouterResponse),
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     await expect(
       callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
@@ -264,9 +272,7 @@ describe('callLLM', () => {
   });
 
   it('returns a non-negative numeric latencyMs', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      makeFetchResponse(mockOpenRouterResponse),
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
       model: 'anthropic/claude-sonnet-4-6',
@@ -276,5 +282,49 @@ describe('callLLM', () => {
 
     expect(typeof result.latencyMs).toBe('number');
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('sends Slack alert with spend/threshold info when cost exceeds limit and SLACK_BOT_TOKEN is set', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2099-01-01T08:00:00Z'));
+
+    mockQueryRaw.mockResolvedValue([{ total: 75 }]);
+    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+
+    await expect(
+      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+    ).rejects.toThrow(CostCircuitBreakerError);
+
+    expect(mockPostMessage).toHaveBeenCalledTimes(1);
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Cost Circuit Breaker'),
+      }),
+    );
+    expect(mockPostMessage.mock.calls[0][0].text).toContain('$75.00');
+    expect(mockPostMessage.mock.calls[0][0].text).toContain('$50.00');
+    expect(mockPostMessage.mock.calls[0][0].text).toContain('default');
+  });
+
+  it('sends Slack alert only once per cooldown — second call within cooldown skips alert', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2099-01-01T09:00:00Z'));
+
+    mockQueryRaw.mockResolvedValue([{ total: 75 }]);
+    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+
+    await expect(
+      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+    ).rejects.toThrow(CostCircuitBreakerError);
+
+    vi.setSystemTime(new Date('2099-01-01T09:30:00Z'));
+
+    await expect(
+      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+    ).rejects.toThrow(CostCircuitBreakerError);
+
+    expect(mockPostMessage).toHaveBeenCalledTimes(1);
   });
 });
