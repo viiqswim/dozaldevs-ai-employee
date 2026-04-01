@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     toolConfigHash,
   } = computeVersionHash({
     promptTemplate: 'opencode-execution-v1',
-    modelId: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4-6',
+    modelId: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
     toolConfig: { version: '1.0', opencode: true },
   });
 
@@ -186,6 +186,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   serverHandleGlobal = serverHandle;
+
+  // ── Step 8.5: Configure OpenRouter provider via REST API (belt-and-suspenders) ──
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      await fetch(`${serverHandle.url}/auth/openrouter`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'api', key: process.env.OPENROUTER_API_KEY }),
+      });
+      log.info('[orchestrate] OpenRouter provider configured via REST API');
+    } catch (err) {
+      log.warn(
+        `[orchestrate] Failed to configure OpenRouter via REST API — auth.json fallback: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // ── Step 9: Create session and inject prompt ──────────────────────────────
   const sessionManager = createSessionManager(serverHandle.url);

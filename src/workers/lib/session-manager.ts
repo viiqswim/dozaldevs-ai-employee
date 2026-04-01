@@ -173,10 +173,16 @@ export function createSessionManager(baseUrl: string): SessionManager {
      * @returns true on success, false on error
      */
     async injectTaskPrompt(sessionId: string, prompt: string): Promise<boolean> {
+      const providerID = process.env.OPENCODE_PROVIDER_ID ?? 'openrouter';
+      const modelID =
+        process.env.OPENROUTER_MODEL ?? process.env.OPENCODE_MODEL_ID ?? 'minimax/minimax-m2.7';
       try {
         await client.session.promptAsync({
           path: { id: sessionId },
-          body: { parts: [{ type: 'text', text: prompt }] },
+          body: {
+            parts: [{ type: 'text', text: prompt }],
+            model: { providerID, modelID },
+          },
         });
         return true;
       } catch (error) {
@@ -251,7 +257,16 @@ Please analyze this error and fix the issue. Make the minimal changes needed to 
       try {
         await client.session.promptAsync({
           path: { id: sessionId },
-          body: { parts: [{ type: 'text', text: fixPrompt }] },
+          body: {
+            parts: [{ type: 'text', text: fixPrompt }],
+            model: {
+              providerID: process.env.OPENCODE_PROVIDER_ID ?? 'openrouter',
+              modelID:
+                process.env.OPENROUTER_MODEL ??
+                process.env.OPENCODE_MODEL_ID ??
+                'minimax/minimax-m2.7',
+            },
+          },
         });
         return true;
       } catch (error) {
