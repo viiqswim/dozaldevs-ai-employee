@@ -13,7 +13,7 @@
 
 import { $ } from 'zx';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 $.verbose = false;
 
@@ -135,10 +135,10 @@ try {
 }
 
 try {
-  await $`command -v supabase`;
-  ok('Supabase CLI available');
+  await $`docker compose version`;
+  ok('Docker Compose available');
 } catch {
-  fail('Supabase CLI not found — install via: brew install supabase/tap/supabase');
+  fail('Docker Compose not found — install Docker Desktop or the Compose plugin');
   prereqFail = true;
 }
 
@@ -174,8 +174,33 @@ log('');
 // ─────────────────────────────────────────────────────
 if (resetFlag) {
   log('── Step 2: Resetting DB (--reset flag) ──');
+  log('  Stopping Docker Compose and removing volumes...');
   $.verbose = true;
-  await $`supabase db reset`;
+  await $`docker compose -f docker/docker-compose.yml down -v`;
+  log('  Starting Docker Compose fresh...');
+  await $`docker compose -f docker/docker-compose.yml up -d`;
+  $.verbose = false;
+
+  // Wait for PostgreSQL to be ready before running migrations
+  log('  Waiting for database to be ready...');
+  let dbReady = false;
+  for (let i = 0; i < 24; i++) {
+    await new Promise<void>((r) => setTimeout(r, 5000));
+    try {
+      await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -c "SELECT 1" -q`;
+      dbReady = true;
+      break;
+    } catch {
+      log(`  ... waiting for DB (${(i + 1) * 5}s)`);
+    }
+  }
+
+  if (!dbReady) {
+    fail('Database not ready after 120s');
+    process.exit(1);
+  }
+
+  $.verbose = true;
   await $`pnpm prisma migrate deploy`;
   await $`pnpm prisma db seed`;
   $.verbose = false;
@@ -186,29 +211,50 @@ if (resetFlag) {
 // ─────────────────────────────────────────────────────
 // Step 3: Start Supabase (skip if already running)
 // ─────────────────────────────────────────────────────
-log('── Step 3: Starting Supabase ──');
+log('── Step 3: Starting Docker Compose Services ──');
 
 try {
-  await $`supabase status`;
-  ok('Supabase already running — skipping start');
+  await $`supabase stop`;
+  log('  Stopped Supabase CLI containers');
 } catch {
-  info('Starting Supabase (this may take a moment)...');
-  try {
-    $.verbose = true;
-    await $`supabase start`;
-    $.verbose = false;
-    ok('Supabase started');
-  } catch {
-    $.verbose = false;
-    fail('Failed to start Supabase');
-    process.exit(1);
+  /* Supabase CLI not running or not installed — OK */
+}
+
+if (!existsSync('docker/.env')) {
+  if (existsSync('docker/.env.example')) {
+    writeFileSync('docker/.env', readFileSync('docker/.env.example', 'utf8'));
+    info('docker/.env created from docker/.env.example');
   }
 }
 
-// Run migrations (non-blocking — may be a no-op if already up-to-date)
+let servicesRunning = false;
+try {
+  const result = await $`docker compose -f docker/docker-compose.yml ps --format json`;
+  const containers = result.stdout.trim().split('\n').filter(Boolean);
+  servicesRunning = containers.length > 0;
+} catch {
+  /* not running */
+}
+
+if (!servicesRunning) {
+  info('Starting Docker Compose services...');
+  try {
+    $.verbose = true;
+    await $`docker compose -f docker/docker-compose.yml up -d`;
+    $.verbose = false;
+    ok('Docker Compose services started');
+  } catch {
+    $.verbose = false;
+    fail('Failed to start Docker Compose services');
+    process.exit(1);
+  }
+} else {
+  ok('Docker Compose services already running — skipping start');
+}
+
 info('Running Prisma migrations...');
 try {
-  await $`pnpm prisma migrate dev --skip-generate`;
+  await $`pnpm prisma migrate deploy`;
 } catch {
   /* already up-to-date */
 }
@@ -218,13 +264,13 @@ log('');
 // ─────────────────────────────────────────────────────
 // Step 4: Wait for Supabase health (up to 60s)
 // ─────────────────────────────────────────────────────
-log('── Step 4: Waiting for Supabase health (up to 60s) ──');
-const supabaseReady = await waitForHttp('http://localhost:54321/health', 60_000);
+log('── Step 4: Waiting for Docker Compose services (up to 120s) ──');
+const supabaseReady = await waitForHttp('http://localhost:54321/rest/v1/', 120_000);
 if (!supabaseReady) {
-  fail('Supabase did not become healthy after 60s');
+  fail('Docker Compose services did not become healthy after 120s');
   process.exit(1);
 }
-ok('Supabase is healthy at http://localhost:54321');
+ok('Docker Compose services healthy at http://localhost:54321');
 log('');
 
 // ─────────────────────────────────────────────────────

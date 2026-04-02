@@ -66,10 +66,10 @@ else
   PREREQ_FAIL=1
 fi
 
-if command -v supabase > /dev/null 2>&1; then
-  echo "  ✓ Supabase CLI available"
+if docker compose version > /dev/null 2>&1; then
+  echo "  ✓ Docker Compose available"
 else
-  echo "  ✗ Supabase CLI not found — install via: brew install supabase/tap/supabase"
+  echo "  ✗ Docker Compose not found — install Docker Desktop or the Compose plugin"
   PREREQ_FAIL=1
 fi
 
@@ -105,58 +105,74 @@ echo ""
 # Step 2: DB Reset (only when --reset flag passed)
 # ─────────────────────────────────────────────────────
 if [ "$RESET" = true ]; then
-  echo "── Step 2: Resetting DB tables (--reset flag) ──"
-  TABLES=("task_status_log" "validation_runs" "deliverables" "executions" "tasks")
-  for table in "${TABLES[@]}"; do
-    if PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
-        -c "DELETE FROM $table;" > /dev/null 2>&1; then
-      echo "  ✓ Cleared: $table"
-    else
-      echo "  ✗ Could not clear $table (Supabase may not be running yet — will skip)"
+  echo "── Step 2: Resetting DB (--reset flag) ──"
+  echo "  Stopping Docker Compose and removing volumes..."
+  docker compose -f docker/docker-compose.yml down -v
+  echo "  Starting Docker Compose fresh..."
+  docker compose -f docker/docker-compose.yml up -d
+  echo "  Waiting for database to be ready (up to 120s)..."
+  DB_ELAPSED=0
+  until PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -c "SELECT 1" -q > /dev/null 2>&1; do
+    if [ "$DB_ELAPSED" -ge 120 ]; then
+      echo "  ✗ Database not ready after 120s"
+      exit 1
     fi
+    sleep 5
+    DB_ELAPSED=$((DB_ELAPSED + 5))
+    echo "  ... waiting for DB (${DB_ELAPSED}s)"
   done
+  pnpm prisma migrate deploy
+  pnpm prisma db seed
+  echo "  ✓ Database reset complete"
   echo ""
 fi
 
 # ─────────────────────────────────────────────────────
 # Step 3: Start Supabase (skip if already running)
 # ─────────────────────────────────────────────────────
-echo "── Step 3: Starting Supabase ──"
+echo "── Step 3: Starting Docker Compose Services ──"
 
-if supabase status > /dev/null 2>&1; then
-  echo "  ✓ Supabase already running — skipping start"
+supabase stop > /dev/null 2>&1 || true
+
+if [ ! -f docker/.env ] && [ -f docker/.env.example ]; then
+  cp docker/.env.example docker/.env
+  echo "  → docker/.env created from docker/.env.example"
+fi
+
+CONTAINERS=$(docker compose -f docker/docker-compose.yml ps --format json 2>/dev/null | grep -c '{' || echo "0")
+if [ "$CONTAINERS" -gt 0 ]; then
+  echo "  ✓ Docker Compose services already running — skipping start"
 else
-  echo "  Starting Supabase (this may take a moment)..."
-  if supabase start; then
-    echo "  ✓ Supabase started"
+  echo "  → Starting Docker Compose services..."
+  if docker compose -f docker/docker-compose.yml up -d; then
+    echo "  ✓ Docker Compose services started"
   else
-    echo "  ✗ Failed to start Supabase"
+    echo "  ✗ Failed to start Docker Compose services"
     exit 1
   fi
 fi
 
-# Run migrations (non-blocking — may fail if DB schema is already up-to-date)
-echo "  Running Prisma migrations..."
-pnpm prisma migrate dev --skip-generate > /dev/null 2>&1 || true
+echo "  → Running Prisma migrations..."
+pnpm prisma migrate deploy > /dev/null 2>&1 || true
 echo "  ✓ Migrations complete (or already up-to-date)"
 echo ""
 
 # ─────────────────────────────────────────────────────
 # Step 4: Wait for Supabase health
 # ─────────────────────────────────────────────────────
-echo "── Step 4: Waiting for Supabase health (up to 60s) ──"
-SUPABASE_TIMEOUT=60
+echo "── Step 4: Waiting for Docker Compose services (up to 120s) ──"
+SUPABASE_TIMEOUT=120
 SUPABASE_ELAPSED=0
-until curl -sf http://localhost:54321/health > /dev/null 2>&1; do
+until curl -sf http://localhost:54321/rest/v1/ > /dev/null 2>&1; do
   if [ "$SUPABASE_ELAPSED" -ge "$SUPABASE_TIMEOUT" ]; then
-    echo "  ✗ Supabase did not become healthy after ${SUPABASE_TIMEOUT}s"
+    echo "  ✗ Docker Compose services did not become healthy after ${SUPABASE_TIMEOUT}s"
     exit 1
   fi
   sleep 2
   SUPABASE_ELAPSED=$((SUPABASE_ELAPSED + 2))
   echo "  ... waiting (${SUPABASE_ELAPSED}s)"
 done
-echo "  ✓ Supabase is healthy at http://localhost:54321"
+echo "  ✓ Docker Compose services healthy at http://localhost:54321"
 echo ""
 
 # ─────────────────────────────────────────────────────
