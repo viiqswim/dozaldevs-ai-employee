@@ -272,7 +272,7 @@ async function getTaskStatus(
  * Returns undefined if no PR deliverable exists yet.
  */
 async function getPrUrl(taskId: string): Promise<string | undefined> {
-  const sql = `SELECT external_ref FROM deliverables WHERE task_id = '${taskId}' AND delivery_type = 'pull_request' LIMIT 1`;
+  const sql = `SELECT d.external_ref FROM deliverables d JOIN executions e ON d.execution_id = e.id WHERE e.task_id = '${taskId}' AND d.delivery_type = 'pull_request' LIMIT 1`;
   const ref = await psqlQuery(sql).catch(() => '');
   return ref || undefined;
 }
@@ -503,6 +503,7 @@ async function main(): Promise<void> {
   const pollIntervalMs = 30_000;
 
   let lastStatus = '';
+  let lastPrintedStatus = '';
   let consecutiveErrors = 0;
 
   while (Date.now() - startMs < timeoutMs) {
@@ -523,19 +524,24 @@ async function main(): Promise<void> {
     consecutiveErrors = 0;
     const { status: taskStatus, dispatchAttempts } = row;
 
-    // Print status only when it changes
     if (taskStatus !== lastStatus) {
+      if (lastPrintedStatus) process.stdout.write('\n');
       const elapsed = formatDuration(startMs);
       const dispatchNote = dispatchAttempts > 0 ? ` (dispatch attempts: ${dispatchAttempts})` : '';
       console.log(
         `  ${C.dim}[${elapsed}]${C.reset} ${C.bold}${taskStatus}${C.reset}${C.dim}${dispatchNote}${C.reset}`,
       );
       lastStatus = taskStatus;
+      lastPrintedStatus = '';
+    } else {
+      process.stdout.write('.');
+      lastPrintedStatus = taskStatus;
     }
 
     // ── Terminal states ───────────────────────────────────────────────────
 
     if (taskStatus === 'Done') {
+      if (lastPrintedStatus) process.stdout.write('\n');
       section('Result');
       ok(`Task completed`, formatDuration(startMs));
 
@@ -556,6 +562,7 @@ async function main(): Promise<void> {
     }
 
     if (taskStatus === 'Error') {
+      if (lastPrintedStatus) process.stdout.write('\n');
       section('Result');
       fail(`Task ended with Error`);
       fail(`Duration: ${formatDuration(startMs)}`);
@@ -565,6 +572,7 @@ async function main(): Promise<void> {
     }
 
     if (taskStatus === 'Cancelled') {
+      if (lastPrintedStatus) process.stdout.write('\n');
       section('Result');
       warn('Task was cancelled');
       console.log(`  Task ID:  ${taskId}`);
