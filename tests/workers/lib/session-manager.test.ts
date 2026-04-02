@@ -461,6 +461,35 @@ describe('createSessionManager', () => {
       vi.useRealTimers();
     });
 
+    it('deferred idle check — session absent from status map resolves as complete', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield {
+          type: 'session.idle',
+          properties: { sessionID: 'sess-1' },
+        };
+        await new Promise((r) => setTimeout(r, 999999));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+      // Empty map: session was cleaned up after completion
+      mockClient.session.status.mockResolvedValue({ data: {} });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', {
+        minElapsedMs: 1000,
+        timeoutMs: 5000,
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const result = await promise;
+      expect(result).toEqual({ completed: true, reason: 'idle' });
+
+      vi.useRealTimers();
+    });
+
     it('session.error event resolves monitor with error reason', async () => {
       vi.useFakeTimers();
 
