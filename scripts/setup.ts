@@ -55,14 +55,13 @@ Options:
   --help    Show this help
 
 Steps performed:
-  1. Check prerequisites (node, pnpm, docker, supabase, git)
-  2. Verify .env file exists (copies from .env.example if not)
-  3. Start Supabase local instance
-  4. Create ai_employee database
-  5. Run Prisma migrations
-  6. Seed database
-  7. Build Docker image
-  8. Verify health (PostgREST accessible)
+  1. Check prerequisites (node, pnpm, docker, docker compose, git)
+  2. Verify .env + docker/.env files
+  3. Start Docker Compose services (PostgreSQL, PostgREST, and more)
+  4. Run Prisma migrations
+  5. Seed database
+  6. Build Docker image
+  7. Verify health (PostgREST accessible)
 
 All steps are idempotent — safe to run multiple times.
 `);
@@ -82,7 +81,6 @@ const prereqs: Prereq[] = [
   { cmd: 'node', versionArg: '--version', name: 'Node.js ≥20' },
   { cmd: 'pnpm', versionArg: '--version', name: 'pnpm' },
   { cmd: 'docker', versionArg: '--version', name: 'Docker' },
-  { cmd: 'supabase', versionArg: '--version', name: 'Supabase CLI' },
   { cmd: 'git', versionArg: '--version', name: 'git' },
 ];
 
@@ -95,6 +93,15 @@ for (const { cmd, versionArg, name } of prereqs) {
     fail(`${name} — not found. Install it first.`);
     hasErrors = true;
   }
+}
+
+// Check docker compose separately (two-word command)
+try {
+  const result = await $`docker compose version`;
+  ok('Docker Compose', result.stdout.trim().split('\n')[0]);
+} catch {
+  fail('Docker Compose not found — install Docker Desktop or Docker Compose plugin');
+  hasErrors = true;
 }
 
 if (hasErrors) {
@@ -134,33 +141,80 @@ if (!existsSync('.env')) {
   }
 }
 
+if (!existsSync('docker/.env')) {
+  if (existsSync('docker/.env.example')) {
+    writeFileSync('docker/.env', readFileSync('docker/.env.example', 'utf8'));
+    ok('docker/.env created from docker/.env.example');
+  } else {
+    warn('docker/.env.example not found', 'Docker Compose may fail without it');
+  }
+} else {
+  ok('docker/.env present');
+}
+
 if (hasErrors) {
   log(`\n${COLORS.red}Setup failed at Step 2.${COLORS.reset}`);
   process.exit(1);
 }
 
-// ─── Step 3: Start Supabase ──────────────────────────────────────────────────
-section('Step 3: Supabase');
+// ─── Step 3: Start Docker Compose (Supabase Services) ────────────────────────
+section('Step 3: Docker Compose (Supabase Services)');
 
-let supabaseRunning = false;
+// Stop any existing Supabase CLI containers that may conflict on ports 54321/54322
 try {
-  const healthResult = await $`curl -sf http://localhost:54321/health`;
-  if (healthResult.stdout.includes('healthy')) {
-    supabaseRunning = true;
-    ok('Supabase already running', 'port 54321');
-  }
-} catch {}
+  await $`supabase stop`;
+  log('  Stopped Supabase CLI containers');
+} catch {
+  /* Supabase CLI not running or not installed — OK */
+}
 
-if (!supabaseRunning) {
-  log('  Starting Supabase...');
+const kongResponding = async (): Promise<boolean> => {
+  const result = await $`curl -s -o /dev/null -w "%{http_code}" http://localhost:54321/rest/v1/`;
+  const code = result.stdout.trim();
+  return code !== '000' && code !== '';
+};
+
+let servicesRunning = false;
+try {
+  if (await kongResponding()) {
+    servicesRunning = true;
+    ok('Docker Compose services already running', 'port 54321 healthy');
+  }
+} catch {
+  /* not running yet */
+}
+
+if (!servicesRunning) {
+  log('  Starting Docker Compose services...');
   try {
     $.verbose = true;
-    await $`supabase start`;
+    await $`docker compose -f docker/docker-compose.yml up -d`;
     $.verbose = false;
-    ok('Supabase started');
+
+    // Wait up to 120s for PostgREST to be healthy
+    let ready = false;
+    for (let i = 0; i < 24; i++) {
+      await new Promise<void>((r) => setTimeout(r, 5000));
+      try {
+        if (await kongResponding()) {
+          ready = true;
+          break;
+        }
+      } catch {
+        /* ignore */
+      }
+      log(`  ... waiting for services (${(i + 1) * 5}s / 120s)`);
+    }
+
+    if (!ready) {
+      fail('Docker Compose services did not become healthy after 120s');
+      hasErrors = true;
+    } else {
+      ok('Docker Compose services started and healthy');
+    }
   } catch (err) {
     $.verbose = false;
-    fail('Failed to start Supabase', String(err));
+    fail('Failed to start Docker Compose', String(err));
     hasErrors = true;
   }
 }
@@ -170,31 +224,8 @@ if (hasErrors) {
   process.exit(1);
 }
 
-// ─── Step 4: Create ai_employee database ─────────────────────────────────────
-section('Step 4: Database');
-
-try {
-  const dbCheck =
-    await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -c "SELECT 1" 2>&1 || echo "NOT_FOUND"`;
-  if (dbCheck.stdout.includes('NOT_FOUND') || dbCheck.exitCode !== 0) {
-    log('  Creating ai_employee database...');
-    await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c "CREATE DATABASE ai_employee" 2>&1`;
-    ok('ai_employee database created');
-  } else {
-    ok('ai_employee database exists');
-  }
-} catch {
-  // Try to create it — may fail if it already exists (race condition)
-  try {
-    await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c "CREATE DATABASE ai_employee" 2>&1`;
-    ok('ai_employee database created');
-  } catch {
-    warn('Could not create ai_employee database', 'may already exist or psql unavailable');
-  }
-}
-
-// ─── Step 5: Prisma migrations ───────────────────────────────────────────────
-section('Step 5: Migrations');
+// ─── Step 4: Prisma migrations ───────────────────────────────────────────────
+section('Step 4: Migrations');
 
 try {
   $.verbose = true;
@@ -208,12 +239,12 @@ try {
 }
 
 if (hasErrors) {
-  log(`\n${COLORS.red}Setup failed at Step 5.${COLORS.reset}`);
+  log(`\n${COLORS.red}Setup failed at Step 4.${COLORS.reset}`);
   process.exit(1);
 }
 
-// ─── Step 6: Seed database ───────────────────────────────────────────────────
-section('Step 6: Seed Data');
+// ─── Step 5: Seed database ───────────────────────────────────────────────────
+section('Step 5: Seed Data');
 
 try {
   $.verbose = true;
@@ -225,8 +256,8 @@ try {
   warn('Seed may have partial results', String(err));
 }
 
-// ─── Step 7: Docker image ─────────────────────────────────────────────────────
-section('Step 7: Docker Image');
+// ─── Step 6: Docker image ─────────────────────────────────────────────────────
+section('Step 6: Docker Image');
 
 let imageExists = false;
 try {
@@ -254,8 +285,8 @@ if (imageExists && !resetFlag) {
   }
 }
 
-// ─── Step 8: Health verification ─────────────────────────────────────────────
-section('Step 8: Health Check');
+// ─── Step 7: Health verification ─────────────────────────────────────────────
+section('Step 7: Health Check');
 
 try {
   const envContent = readFileSync('.env', 'utf8');
