@@ -65,7 +65,7 @@ flowchart LR
 | 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                                  | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                                                                       |
 | 2     | Event Gateway            | Fastify server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                      |
 | 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                                 | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                                                           |
-| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/lib/cost-gate.ts`                                                                                              |
+| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/inngest/lifecycle.ts`                                                                                          |
 | 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                                 | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`                                              |
 | 6     | Completion & Delivery    | Validation pipeline (5 stages), fix loop, branch manager, PR manager, completion flow                                   | `src/workers/lib/validation-pipeline.ts`, `src/workers/lib/fix-loop.ts`, `src/workers/lib/pr-manager.ts`, `src/workers/lib/completion.ts`                                           |
 | 7     | Resilience               | Watchdog cron, redispatch function, token tracker, agent version tracking, Slack client                                 | `src/inngest/watchdog.ts`, `src/inngest/redispatch.ts`, `src/workers/lib/token-tracker.ts`                                                                                          |
@@ -301,12 +301,15 @@ src/
 │   │   ├── jira.ts             # POST /webhooks/jira — HMAC, task creation
 │   │   └── github.ts           # POST /webhooks/github — stub
 │   ├── inngest/
-│   │   └── send.ts             # inngest.send() wrapper
+│   │   ├── client.ts           # Inngest client initialization
+│   │   ├── send.ts             # inngest.send() wrapper
+│   │   └── serve.ts            # Inngest serve handler
 │   ├── services/
 │   │   ├── task-creation.ts    # createTaskFromJiraWebhook(), cancelTaskByExternalId()
 │   │   └── project-lookup.ts   # findProjectByJiraKey()
 │   └── validation/
-│       └── schemas.ts          # Zod schemas for webhook payloads
+│       ├── schemas.ts          # Zod schemas for webhook payloads
+│       └── signature.ts        # HMAC-SHA256 webhook signature verification
 │
 ├── inngest/                    # Inngest functions (run in gateway process)
 │   ├── lifecycle.ts            # engineering/task-lifecycle — main flow
@@ -318,7 +321,10 @@ src/
 │   ├── fly-client.ts           # Fly.io Machines API client
 │   ├── github-client.ts        # Octokit wrapper
 │   ├── slack-client.ts         # Slack Web API wrapper
-│   ├── cost-gate.ts            # Per-dept daily cost threshold check
+│   ├── jira-client.ts          # Jira REST API client
+│   ├── call-llm.ts             # Direct LLM API calls
+│   ├── errors.ts               # Shared error definitions
+│   ├── retry.ts                # Retry with backoff utility
 │   └── agent-version.ts        # computeVersionHash() for model tracking
 │
 └── workers/                    # Docker container code
