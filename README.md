@@ -4,7 +4,7 @@ Automated engineering workflow: receives Jira tickets via webhook and delivers p
 
 ## Quick Start
 
-**Prerequisites**: Node ≥20, pnpm, Docker, Supabase CLI
+**Prerequisites**: Node ≥20, pnpm, Docker (with Compose plugin)
 
 1. `git clone <repo> && pnpm install`
 2. `pnpm setup` — sets up local Supabase, runs migrations, builds Docker image
@@ -24,12 +24,12 @@ Full architecture: [docs/2026-04-01-1726-system-overview.md](docs/2026-04-01-172
 
 ## Scripts
 
-| Script            | Command                            | Purpose                                            |
-| ----------------- | ---------------------------------- | -------------------------------------------------- |
-| `setup.ts`        | `pnpm setup`                       | One-time setup: Supabase, migrations, seed, Docker |
-| `dev-start.ts`    | `pnpm dev:start`                   | Start all local services                           |
-| `trigger-task.ts` | `pnpm trigger-task`                | Send mock webhook and monitor                      |
-| `verify-e2e.ts`   | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                          |
+| Script            | Command                            | Purpose                                                                 |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------------------- |
+| `setup.ts`        | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image |
+| `dev-start.ts`    | `pnpm dev:start`                   | Start all local services                                                |
+| `trigger-task.ts` | `pnpm trigger-task`                | Send mock webhook and monitor                                           |
+| `verify-e2e.ts`   | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                               |
 
 ## Project Structure
 
@@ -41,6 +41,7 @@ src/
 └── lib/         # Shared: logger, fly-client, github-client, retry
 prisma/          # Schema (16 tables), migrations, seed
 scripts/         # zx TypeScript scripts (setup, trigger, verify)
+docker/          # Supabase Docker Compose infrastructure
 docs/            # Architecture and phase documentation
 ```
 
