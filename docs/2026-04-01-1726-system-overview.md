@@ -134,8 +134,8 @@ sequenceDiagram
 
 | Service                     | Port  | How to start                                                      |
 | --------------------------- | ----- | ----------------------------------------------------------------- |
-| Supabase (PostgREST + Auth) | 54321 | `supabase start`                                                  |
-| Supabase PostgreSQL         | 54322 | started by `supabase start`                                       |
+| Supabase (PostgREST + Auth) | 54321 | `docker compose -f docker/docker-compose.yml up -d`               |
+| Supabase PostgreSQL         | 54322 | started by Docker Compose                                         |
 | Inngest Dev Server          | 8288  | `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest` |
 | Gateway (Fastify)           | 3000  | `USE_LOCAL_DOCKER=1 pnpm dev`                                     |
 
@@ -146,13 +146,13 @@ pnpm dev:start          # recommended — TypeScript version (scripts/dev-start.
 ./scripts/dev-start.sh  # bash original (preserved for reference)
 ```
 
-Both scripts start Supabase, wait for it to be healthy, start Inngest Dev Server, then start the gateway.
+Both scripts start Docker Compose services (PostgreSQL, PostgREST, Kong), wait for them to be healthy, start Inngest Dev Server, then start the gateway.
 
 ### Manual Steps (if dev-start.sh fails)
 
 ```bash
-# 1. Start Supabase
-supabase start
+# 1. Start Docker Compose services (PostgreSQL, PostgREST, and more)
+docker compose -f docker/docker-compose.yml up -d
 
 # 2. Run migrations and seed
 pnpm prisma migrate deploy
@@ -337,7 +337,7 @@ src/
 
 1. **Test suite**: 515 tests pass. 2 pre-existing failures exist: `container-boot.test.ts` (infrastructure test that requires a real Docker socket) and `inngest-serve.test.ts` (function count mismatch — expects a different number of registered functions). Neither is a regression from Phase 8. Two tests intermittently fail in parallel runs due to shared DB state: `migration.test.ts` and `project-lookup.test.ts`. Run them serially if they fail: `pnpm test -- --run --reporter=verbose`.
 
-2. **Database name**: The system uses the `ai_employee` database (not `postgres`). The migration `20260401210430_postgrest_grants` applied explicit GRANTs so PostgREST can access all tables via `service_role`. If you run multiple projects on the same Supabase instance, each needs its own database — see `AGENTS.md` for the convention.
+2. **Database name**: The system uses the `ai_employee` database. PostgreSQL is initialized with `POSTGRES_DB=ai_employee` via Docker Compose (`docker/.env`), so all Supabase services (including PostgREST) natively use this database. The migration `20260401210430_postgrest_grants` applied explicit GRANTs so PostgREST can access all tables via `service_role`.
 
 3. **Watchdog in local Docker mode**: The watchdog checks for executions with `heartbeat_at < now() - 10 minutes`. In local Docker mode, the watchdog calls `flyClient.getMachine()` which will fail (no Fly.io credentials), causing it to skip the stale task rather than recover it. The watchdog's stale-detection path is effectively a no-op locally. The Submitting-recovery path (15-min threshold) does work because it only uses Inngest.
 
