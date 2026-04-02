@@ -719,4 +719,20 @@ describe('orchestrate.mts', () => {
     const startingPatch = patchCalls.find((call) => call[2]?.current_stage === 'starting');
     expect(startingPatch![2].agent_version_id).toBe('existing-version-id');
   });
+
+  it('uses ORCHESTRATE_TIMEOUT_MINS env var for code gen timeout', async () => {
+    const { mockSessionManager } = setupHappyPath();
+    process.env.ORCHESTRATE_TIMEOUT_MINS = '120';
+    await import('../../src/workers/orchestrate.mjs');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(mockSessionManager.monitorSession).toHaveBeenCalledWith(
+      'sess-1',
+      expect.objectContaining({
+        timeoutMs: 120 * 60 * 1000, // 7,200,000 ms
+      }),
+    );
+    delete process.env.ORCHESTRATE_TIMEOUT_MINS;
+  });
 });
