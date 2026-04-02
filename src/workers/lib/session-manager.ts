@@ -133,6 +133,13 @@ export function createSessionManager(baseUrl: string): SessionManager {
               }, remainingMs);
             }
           }
+
+          if (event.type === 'session.error' && event.properties.sessionID === sessionId) {
+            const errorInfo = event.properties.error;
+            log.error(`[session-manager] Session ${sessionId} error: ${JSON.stringify(errorInfo)}`);
+            settle({ completed: false, reason: 'error' });
+            return;
+          }
         }
       };
 

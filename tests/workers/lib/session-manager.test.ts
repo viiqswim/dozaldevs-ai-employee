@@ -460,6 +460,66 @@ describe('createSessionManager', () => {
 
       vi.useRealTimers();
     });
+
+    it('session.error event resolves monitor with error reason', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield {
+          type: 'session.error',
+          properties: {
+            sessionID: 'sess-1',
+            error: { type: 'UnknownError', message: 'Something went wrong' },
+          },
+        };
+        await new Promise((r) => setTimeout(r, 999999));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', {
+        minElapsedMs: 1000,
+        timeoutMs: 5000,
+      });
+
+      await vi.advanceTimersByTimeAsync(100);
+      const result = await promise;
+      expect(result).toEqual({ completed: false, reason: 'error' });
+
+      vi.useRealTimers();
+    });
+
+    it('session.error event for different session is ignored', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        // Error for a DIFFERENT session — should be ignored
+        yield {
+          type: 'session.error',
+          properties: {
+            sessionID: 'other-session',
+            error: { type: 'UnknownError', message: 'Something went wrong' },
+          },
+        };
+        await new Promise((r) => setTimeout(r, 999999));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', {
+        minElapsedMs: 1000,
+        timeoutMs: 500,
+      });
+
+      // Advance past timeout — error for other session was ignored, timeout fires
+      await vi.advanceTimersByTimeAsync(501);
+      const result = await promise;
+      expect(result).toEqual({ completed: false, reason: 'timeout' });
+
+      vi.useRealTimers();
+    });
   });
 
   describe('abortSession()', () => {

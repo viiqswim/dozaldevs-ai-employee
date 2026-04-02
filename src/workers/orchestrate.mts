@@ -223,7 +223,8 @@ async function main(): Promise<void> {
     timeoutMs: codeGenTimeoutMins * 60 * 1000,
   });
   if (!monitorResult.completed) {
-    log.error('[orchestrate] Session timed out during code generation');
+    const reason = monitorResult.reason === 'error' ? 'session error' : 'timeout';
+    log.error(`[orchestrate] Session failed during code generation: ${reason}`);
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);
