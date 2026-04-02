@@ -380,9 +380,9 @@ describe('createSessionManager', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      // With fix: deferred check fired and called status once (found busy, did not settle)
+      // With fix: initial poll + deferred check = 2 calls (initial sees busy, deferred sees idle)
       // Without fix: no deferred check was scheduled, status never called
-      expect(mockClient.session.status).toHaveBeenCalledTimes(1);
+      expect(mockClient.session.status).toHaveBeenCalledTimes(2);
 
       vi.advanceTimersByTime(5);
 
@@ -410,8 +410,8 @@ describe('createSessionManager', () => {
       // Drain microtasks so stream processes idle at t=0
       for (let i = 0; i < 5; i++) await Promise.resolve();
 
-      // With fix: 3 pending timers (outer timeout + deferred check + stream hang)
-      // Without fix: 2 pending timers (outer timeout + stream hang — no deferred check)
+      // With initial poll: 3 pending timers (outer timeout + SSE idle deferred + stream hang)
+      // Initial poll is async and doesn't create a timer until it resolves
       expect(vi.getTimerCount()).toBe(3);
 
       vi.advanceTimersByTime(501);
@@ -422,7 +422,8 @@ describe('createSessionManager', () => {
       vi.advanceTimersByTime(1000);
       await Promise.resolve();
       await Promise.resolve();
-      expect(mockClient.session.status).not.toHaveBeenCalled();
+      // Initial poll calls status once; deferred check is cleared by settle()
+      expect(mockClient.session.status).toHaveBeenCalledTimes(1);
 
       vi.useRealTimers();
     });
@@ -456,7 +457,8 @@ describe('createSessionManager', () => {
       // With fix: deferred check settled at t=1000ms → idle
       // Without fix: outer timeout settled at t=5000ms → timeout
       expect(result).toEqual({ completed: true, reason: 'idle' });
-      expect(mockClient.session.status).toHaveBeenCalledTimes(1);
+      // Initial poll + deferred check = 2 calls
+      expect(mockClient.session.status).toHaveBeenCalledTimes(2);
 
       vi.useRealTimers();
     });
@@ -482,6 +484,33 @@ describe('createSessionManager', () => {
         timeoutMs: 5000,
       });
 
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const result = await promise;
+      expect(result).toEqual({ completed: true, reason: 'idle' });
+
+      vi.useRealTimers();
+    });
+
+    it('initial poll catches session that completed before SSE connects', async () => {
+      vi.useFakeTimers();
+
+      // SSE stream never yields any events — simulates subscribing after idle already fired
+      const mockStream = (async function* () {
+        await new Promise((r) => setTimeout(r, 999999));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+      // Session already idle when we poll
+      mockClient.session.status.mockResolvedValue({ data: { 'sess-1': { type: 'idle' } } });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', {
+        minElapsedMs: 1000,
+        timeoutMs: 5000,
+      });
+
+      // Advance past minElapsedMs — initial poll sees idle, schedules deferred, deferred fires
       await vi.advanceTimersByTimeAsync(1000);
 
       const result = await promise;
