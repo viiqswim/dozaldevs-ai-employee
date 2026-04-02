@@ -69,8 +69,7 @@ The built-in E2E uses [`viiqswim/ai-employee-test-target`](https://github.com/vi
 | [Phase 8: E2E](docs/2026-04-01-1655-phase8-e2e.md)               | MVP validation and verification               |
 | [Phase 7: Resilience](docs/2026-04-01-0114-phase7-resilience.md) | Watchdog, redispatch, error handling          |
 | [All phase docs](docs/)                                          | Phase 1-7 implementation details              |
-
-Troubleshooting: see [docs/](docs/) for common E2E failures and fixes.
+| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)       | Common E2E failures with symptoms and fixes   |
 
 ## Testing
 
