@@ -265,7 +265,9 @@ try {
   if (imageCheck.exitCode === 0) {
     imageExists = true;
   }
-} catch {}
+} catch {
+  /* image not found — imageExists stays false, will build below */
+}
 
 if (imageExists && !resetFlag) {
   ok('Docker image ai-employee-worker:latest exists', 'use --reset to rebuild');
