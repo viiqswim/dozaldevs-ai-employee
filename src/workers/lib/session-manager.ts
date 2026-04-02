@@ -64,6 +64,42 @@ export function createSessionManager(baseUrl: string): SessionManager {
         settle({ completed: false, reason: 'timeout' });
       }, timeoutMs);
 
+      // Initial status check: catch sessions that completed before SSE connects
+      void (async () => {
+        try {
+          const statusResponse = await client.session.status();
+          const sessionStatus = statusResponse.data?.[sessionId];
+          if (!settled && (!sessionStatus || sessionStatus.type === 'idle')) {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= minElapsedMs) {
+              settle({ completed: true, reason: 'idle' });
+            } else if (deferredCheckHandle === null) {
+              const remainingMs = minElapsedMs - elapsed;
+              log.info(
+                `[session-manager] Session ${sessionId} already idle at start, scheduling deferred check in ${remainingMs}ms`,
+              );
+              deferredCheckHandle = setTimeout(() => {
+                deferredCheckHandle = null;
+                if (settled) return;
+                void (async () => {
+                  try {
+                    const recheck = await client.session.status();
+                    const recheckStatus = recheck.data?.[sessionId];
+                    if (!settled && (!recheckStatus || recheckStatus.type === 'idle')) {
+                      settle({ completed: true, reason: 'idle' });
+                    }
+                  } catch {
+                    // Recheck failed — SSE or timeout will handle it
+                  }
+                })();
+              }, remainingMs);
+            }
+          }
+        } catch {
+          // Initial check failed — SSE will be primary, polling as fallback
+        }
+      })();
+
       const runStreamOnce = async (): Promise<void> => {
         const result = await client.event.subscribe();
         for await (const event of result.stream) {
