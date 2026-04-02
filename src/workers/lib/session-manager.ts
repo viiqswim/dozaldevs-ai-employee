@@ -88,10 +88,14 @@ export function createSessionManager(baseUrl: string): SessionManager {
                   try {
                     const statusResponse = await client.session.status();
                     const statusMap = statusResponse.data;
-                    if (!settled && statusMap && statusMap[sessionId]?.type === 'idle') {
-                      settle({ completed: true, reason: 'idle' });
+                    const sessionStatus = statusMap?.[sessionId];
+                    if (!settled) {
+                      if (!sessionStatus || sessionStatus.type === 'idle') {
+                        // idle = done; undefined = session cleaned up after completion
+                        settle({ completed: true, reason: 'idle' });
+                      }
+                      // If busy/retry, session resumed — SSE will catch next idle naturally
                     }
-                    // If busy/retry, session resumed — SSE will catch next idle naturally
                   } catch {
                     // Status check failed — SSE still active, will catch next idle or timeout
                   }
@@ -123,8 +127,11 @@ export function createSessionManager(baseUrl: string): SessionManager {
                   try {
                     const statusResponse = await client.session.status();
                     const statusMap = statusResponse.data;
-                    if (!settled && statusMap && statusMap[sessionId]?.type === 'idle') {
-                      settle({ completed: true, reason: 'idle' });
+                    const sessionStatus = statusMap?.[sessionId];
+                    if (!settled) {
+                      if (!sessionStatus || sessionStatus.type === 'idle') {
+                        settle({ completed: true, reason: 'idle' });
+                      }
                     }
                   } catch {
                     // Status check failed — SSE still active, will catch next idle or timeout
