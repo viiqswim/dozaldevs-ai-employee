@@ -14,6 +14,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
+    "setup": "tsx scripts/setup.ts",
+    "trigger-task": "tsx scripts/trigger-task.ts",
+    "dev:start": "tsx scripts/dev-start.ts",
+    "verify:e2e": "tsx scripts/verify-e2e.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
@@ -44,6 +48,7 @@
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "zx": "^8.8.5"
   }
 }
