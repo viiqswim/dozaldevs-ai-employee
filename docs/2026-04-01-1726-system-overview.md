@@ -60,16 +60,16 @@ flowchart LR
 
 ## What Each Phase Built
 
-| Phase | Name                     | What It Added                                                                                                 | Key Files                                                                                                                                 |
-| ----- | ------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                        | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                             |
-| 2     | Event Gateway            | Fastify server, Jira webhook route with HMAC validation, task creation service, project lookup                | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                            |
-| 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                       | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                 |
-| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/lib/cost-gate.ts`                                                    |
-| 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                       | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`    |
-| 6     | Completion & Delivery    | Validation pipeline (5 stages), fix loop, branch manager, PR manager, completion flow                         | `src/workers/lib/validation-pipeline.ts`, `src/workers/lib/fix-loop.ts`, `src/workers/lib/pr-manager.ts`, `src/workers/lib/completion.ts` |
-| 7     | Resilience               | Watchdog cron, redispatch function, token tracker, agent version tracking, Slack client                       | `src/inngest/watchdog.ts`, `src/inngest/redispatch.ts`, `src/workers/lib/token-tracker.ts`                                                |
-| 8     | E2E Validation           | Local Docker dispatch path, Supabase polling (replaces waitForEvent), dev scripts, 7 infrastructure bug fixes | `scripts/dev-start.sh`, `scripts/verify-e2e.sh`, fixes across `lifecycle.ts`, `completion.ts`, `session-manager.ts`, `entrypoint.sh`      |
+| Phase | Name                     | What It Added                                                                                                           | Key Files                                                                                                                                                                           |
+| ----- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                                  | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                                                                       |
+| 2     | Event Gateway            | Fastify server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                      |
+| 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                                 | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                                                           |
+| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/lib/cost-gate.ts`                                                                                              |
+| 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                                 | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`                                              |
+| 6     | Completion & Delivery    | Validation pipeline (5 stages), fix loop, branch manager, PR manager, completion flow                                   | `src/workers/lib/validation-pipeline.ts`, `src/workers/lib/fix-loop.ts`, `src/workers/lib/pr-manager.ts`, `src/workers/lib/completion.ts`                                           |
+| 7     | Resilience               | Watchdog cron, redispatch function, token tracker, agent version tracking, Slack client                                 | `src/inngest/watchdog.ts`, `src/inngest/redispatch.ts`, `src/workers/lib/token-tracker.ts`                                                                                          |
+| 8     | E2E Validation           | Local Docker dispatch path, Supabase polling (replaces waitForEvent), zx TypeScript scripts, 7 infrastructure bug fixes | `scripts/dev-start.ts`, `scripts/verify-e2e.ts`, `scripts/setup.ts`, `scripts/trigger-task.ts`, fixes across `lifecycle.ts`, `completion.ts`, `session-manager.ts`, `entrypoint.sh` |
 
 ---
 
@@ -142,10 +142,11 @@ sequenceDiagram
 ### Start Everything at Once
 
 ```bash
-./scripts/dev-start.sh
+pnpm dev:start          # recommended — TypeScript version (scripts/dev-start.ts)
+./scripts/dev-start.sh  # bash original (preserved for reference)
 ```
 
-This script starts Supabase, waits for it to be healthy, starts Inngest Dev Server, then starts the gateway. All output is multiplexed to the terminal.
+Both scripts start Supabase, wait for it to be healthy, start Inngest Dev Server, then start the gateway.
 
 ### Manual Steps (if dev-start.sh fails)
 
@@ -164,13 +165,27 @@ npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
 USE_LOCAL_DOCKER=1 pnpm dev
 ```
 
+### First-Time Setup
+
+Run the interactive setup wizard (idempotent — safe to re-run):
+
+```bash
+pnpm setup    # runs scripts/setup.ts
+```
+
+To trigger a test task after services are running:
+
+```bash
+pnpm trigger-task    # runs scripts/trigger-task.ts
+```
+
 ### Database
 
-The running system uses the `postgres` database (PostgREST default), not `ai_employee`. The `.env.example` shows `ai_employee` but the actual local setup connects to `postgres` because PostgREST on the shared Supabase instance defaults to that database.
+The system uses the `ai_employee` database on the shared local Supabase instance (port 54322). A PostgREST migration (`20260401210430_postgrest_grants`) applied explicit GRANTs and DB-side UUID defaults so PostgREST can read/write all 16 tables via `service_role`.
 
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
-DATABASE_URL_DIRECT=postgresql://postgres:postgres@localhost:54322/postgres
+DATABASE_URL=postgresql://postgres:postgres@localhost:54322/ai_employee
+DATABASE_URL_DIRECT=postgresql://postgres:postgres@localhost:54322/ai_employee
 ```
 
 ### Docker Image
@@ -322,7 +337,7 @@ src/
 
 1. **Test suite**: 515 tests pass. 2 pre-existing failures exist: `container-boot.test.ts` (infrastructure test that requires a real Docker socket) and `inngest-serve.test.ts` (function count mismatch — expects a different number of registered functions). Neither is a regression from Phase 8. Two tests intermittently fail in parallel runs due to shared DB state: `migration.test.ts` and `project-lookup.test.ts`. Run them serially if they fail: `pnpm test -- --run --reporter=verbose`.
 
-2. **Database name**: The system runs against the `postgres` database, not `ai_employee`. PostgREST on the shared local Supabase instance defaults to `postgres`. The `.env.example` shows `ai_employee` but that's aspirational — the actual working `.env` uses `postgres`. This matters if you run multiple projects on the same Supabase instance.
+2. **Database name**: The system uses the `ai_employee` database (not `postgres`). The migration `20260401210430_postgrest_grants` applied explicit GRANTs so PostgREST can access all tables via `service_role`. If you run multiple projects on the same Supabase instance, each needs its own database — see `AGENTS.md` for the convention.
 
 3. **Watchdog in local Docker mode**: The watchdog checks for executions with `heartbeat_at < now() - 10 minutes`. In local Docker mode, the watchdog calls `flyClient.getMachine()` which will fail (no Fly.io credentials), causing it to skip the stale task rather than recover it. The watchdog's stale-detection path is effectively a no-op locally. The Submitting-recovery path (15-min threshold) does work because it only uses Inngest.
 
@@ -344,19 +359,19 @@ src/
 
 ### Gateway Process
 
-| Variable                          | Required | Description                                                                          |
-| --------------------------------- | -------- | ------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                    | Yes      | Prisma connection string — `postgresql://postgres:postgres@localhost:54322/postgres` |
-| `DATABASE_URL_DIRECT`             | Yes      | Direct connection (same as above for local)                                          |
-| `SUPABASE_URL`                    | Yes      | PostgREST base URL — `http://localhost:54321`                                        |
-| `SUPABASE_SECRET_KEY`             | Yes      | Supabase service role key (from `supabase status`)                                   |
-| `JIRA_WEBHOOK_SECRET`             | Yes      | HMAC secret for Jira webhook validation                                              |
-| `GITHUB_WEBHOOK_SECRET`           | No       | HMAC secret for GitHub webhooks (stub route)                                         |
-| `INNGEST_EVENT_KEY`               | Yes      | Inngest event key (use `local` for dev)                                              |
-| `INNGEST_SIGNING_KEY`             | No       | Inngest signing key (not required for local dev)                                     |
-| `INNGEST_DEV`                     | Yes      | Set to `1` to point at local Inngest Dev Server                                      |
-| `USE_LOCAL_DOCKER`                | Yes      | Set to `1` to use local Docker instead of Fly.io                                     |
-| `COST_LIMIT_USD_PER_DEPT_PER_DAY` | No       | Daily cost cap per department (default: 50)                                          |
+| Variable                          | Required | Description                                                                             |
+| --------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                    | Yes      | Prisma connection string — `postgresql://postgres:postgres@localhost:54322/ai_employee` |
+| `DATABASE_URL_DIRECT`             | Yes      | Direct connection (same as above for local)                                             |
+| `SUPABASE_URL`                    | Yes      | PostgREST base URL — `http://localhost:54321`                                           |
+| `SUPABASE_SECRET_KEY`             | Yes      | Supabase service role key (from `supabase status`)                                      |
+| `JIRA_WEBHOOK_SECRET`             | Yes      | HMAC secret for Jira webhook validation                                                 |
+| `GITHUB_WEBHOOK_SECRET`           | No       | HMAC secret for GitHub webhooks (stub route)                                            |
+| `INNGEST_EVENT_KEY`               | Yes      | Inngest event key (use `local` for dev)                                                 |
+| `INNGEST_SIGNING_KEY`             | No       | Inngest signing key (not required for local dev)                                        |
+| `INNGEST_DEV`                     | Yes      | Set to `1` to point at local Inngest Dev Server                                         |
+| `USE_LOCAL_DOCKER`                | Yes      | Set to `1` to use local Docker instead of Fly.io                                        |
+| `COST_LIMIT_USD_PER_DEPT_PER_DAY` | No       | Daily cost cap per department (default: 50)                                             |
 
 ### Lifecycle Function (reads from gateway process env)
 
