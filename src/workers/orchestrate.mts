@@ -218,8 +218,9 @@ async function main(): Promise<void> {
   heartbeat.updateStage('executing');
   await patchExecution(postgrestClient, executionId, { current_stage: 'executing' });
 
+  const codeGenTimeoutMins = parseInt(process.env.ORCHESTRATE_TIMEOUT_MINS ?? '60', 10);
   const monitorResult = await sessionManager.monitorSession(sessionId, {
-    timeoutMs: 60 * 60 * 1000, // 60 minutes for code generation
+    timeoutMs: codeGenTimeoutMins * 60 * 1000,
   });
   if (!monitorResult.completed) {
     log.error('[orchestrate] Session timed out during code generation');
