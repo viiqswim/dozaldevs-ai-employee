@@ -44,6 +44,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
     return new Promise<SessionMonitorResult>((resolve) => {
       let settled = false;
       let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      let deferredCheckHandle: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (result: SessionMonitorResult): void => {
         if (settled) return;
@@ -51,6 +52,10 @@ export function createSessionManager(baseUrl: string): SessionManager {
         if (timeoutHandle !== null) {
           clearTimeout(timeoutHandle);
           timeoutHandle = null;
+        }
+        if (deferredCheckHandle !== null) {
+          clearTimeout(deferredCheckHandle);
+          deferredCheckHandle = null;
         }
         resolve(result);
       };
@@ -70,6 +75,29 @@ export function createSessionManager(baseUrl: string): SessionManager {
               settle({ completed: true, reason: 'idle' });
               return;
             }
+            // Early idle: schedule deferred verification (only one timer at a time)
+            if (deferredCheckHandle === null) {
+              const remainingMs = minElapsedMs - elapsed;
+              log.info(
+                `[session-manager] Early idle for session ${sessionId} at ${elapsed}ms, scheduling deferred check in ${remainingMs}ms`,
+              );
+              deferredCheckHandle = setTimeout(() => {
+                deferredCheckHandle = null;
+                if (settled) return;
+                void (async () => {
+                  try {
+                    const statusResponse = await client.session.status();
+                    const statusMap = statusResponse.data;
+                    if (!settled && statusMap && statusMap[sessionId]?.type === 'idle') {
+                      settle({ completed: true, reason: 'idle' });
+                    }
+                    // If busy/retry, session resumed — SSE will catch next idle naturally
+                  } catch {
+                    // Status check failed — SSE still active, will catch next idle or timeout
+                  }
+                })();
+              }, remainingMs);
+            }
           }
 
           if (
@@ -81,6 +109,28 @@ export function createSessionManager(baseUrl: string): SessionManager {
             if (elapsed >= minElapsedMs) {
               settle({ completed: true, reason: 'idle' });
               return;
+            }
+            // Early idle: schedule deferred verification (only one timer at a time)
+            if (deferredCheckHandle === null) {
+              const remainingMs = minElapsedMs - elapsed;
+              log.info(
+                `[session-manager] Early idle (status event) for session ${sessionId} at ${elapsed}ms, scheduling deferred check in ${remainingMs}ms`,
+              );
+              deferredCheckHandle = setTimeout(() => {
+                deferredCheckHandle = null;
+                if (settled) return;
+                void (async () => {
+                  try {
+                    const statusResponse = await client.session.status();
+                    const statusMap = statusResponse.data;
+                    if (!settled && statusMap && statusMap[sessionId]?.type === 'idle') {
+                      settle({ completed: true, reason: 'idle' });
+                    }
+                  } catch {
+                    // Status check failed — SSE still active, will catch next idle or timeout
+                  }
+                })();
+              }, remainingMs);
             }
           }
         }

@@ -321,6 +321,145 @@ describe('createSessionManager', () => {
 
       vi.useRealTimers();
     });
+
+    it('deferred idle check — fast completion resolves after minElapsedMs', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        await new Promise((r) => setTimeout(r, 60000));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+      mockClient.session.status.mockResolvedValue({ data: { 'sess-1': { type: 'idle' } } });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', { minElapsedMs: 1000, timeoutMs: 5000 });
+
+      // Drain the microtask chain so the stream processes the idle event while the
+      // fake clock is still at t=0 (elapsed=0 < minElapsedMs=1000).
+      // Without the fix the idle is silently discarded; with the fix a deferred
+      // check is scheduled for t=1000ms.
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(5000);
+
+      const result = await promise;
+      // With fix: deferred check settled at t=1000ms → idle
+      // Without fix: outer timeout settled at t=5000ms → timeout
+      expect(result).toEqual({ completed: true, reason: 'idle' });
+
+      vi.useRealTimers();
+    });
+
+    it('deferred idle check — session resumes before deferred check fires', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        await new Promise((r) => setTimeout(r, 1001));
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        await new Promise((r) => setTimeout(r, 60000));
+      })();
+
+      // Status returns busy — session resumed after the early idle
+      mockClient.session.status.mockResolvedValue({ data: { 'sess-1': { type: 'busy' } } });
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', { minElapsedMs: 1000, timeoutMs: 5000 });
+
+      // Drain microtasks so stream processes first idle at t=0
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // With fix: deferred check fired and called status once (found busy, did not settle)
+      // Without fix: no deferred check was scheduled, status never called
+      expect(mockClient.session.status).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(5);
+
+      const result = await promise;
+      expect(result).toEqual({ completed: true, reason: 'idle' });
+
+      vi.useRealTimers();
+    });
+
+    it('deferred idle check — outer timeout fires before deferred check', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        await new Promise((r) => setTimeout(r, 60000));
+      })();
+
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+      mockClient.session.status.mockResolvedValue({ data: { 'sess-1': { type: 'idle' } } });
+
+      const manager = createSessionManager('http://localhost:4096');
+      // timeoutMs=500 fires BEFORE the deferred check at 1000ms
+      const promise = manager.monitorSession('sess-1', { minElapsedMs: 1000, timeoutMs: 500 });
+
+      // Drain microtasks so stream processes idle at t=0
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+
+      // With fix: 3 pending timers (outer timeout + deferred check + stream hang)
+      // Without fix: 2 pending timers (outer timeout + stream hang — no deferred check)
+      expect(vi.getTimerCount()).toBe(3);
+
+      vi.advanceTimersByTime(501);
+      const result = await promise;
+      expect(result).toEqual({ completed: false, reason: 'timeout' });
+
+      // Advance past where deferred check would have fired — settle() cleared it
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockClient.session.status).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('deferred idle check — multiple early idle events only schedule one timer', async () => {
+      vi.useFakeTimers();
+
+      const mockStream = (async function* () {
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        yield { type: 'session.idle', properties: { sessionID: 'sess-1' } };
+        await new Promise((r) => setTimeout(r, 60000));
+      })();
+
+      mockClient.session.status.mockResolvedValue({ data: { 'sess-1': { type: 'idle' } } });
+      mockClient.event.subscribe.mockResolvedValue({ stream: mockStream });
+
+      const manager = createSessionManager('http://localhost:4096');
+      const promise = manager.monitorSession('sess-1', { minElapsedMs: 1000, timeoutMs: 5000 });
+
+      // 3 yields × 2 microtask hops each + 1 initial = 7 hops; use 10 for safety
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(5000);
+
+      const result = await promise;
+      // With fix: deferred check settled at t=1000ms → idle
+      // Without fix: outer timeout settled at t=5000ms → timeout
+      expect(result).toEqual({ completed: true, reason: 'idle' });
+      expect(mockClient.session.status).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
   });
 
   describe('abortSession()', () => {
