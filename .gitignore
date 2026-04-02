@@ -25,3 +25,10 @@ supabase/.temp/
 
 # TypeScript output
 *.tsbuildinfo
+
+# Docker Compose local state
+docker/.env
+docker/volumes/db/data/
+docker/volumes/storage/
+docker/volumes/logs/
+docker/volumes/pooler/
