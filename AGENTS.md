@@ -37,6 +37,12 @@ Worker Docker image must be built before any task can run:
 docker build -t ai-employee-worker .
 ```
 
+**CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` requires rebuilding the image before the fix takes effect in E2E runs. The gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild — they run directly from source. After applying a fix, always:
+
+```bash
+docker build -t ai-employee-worker:latest . && pnpm trigger-task
+```
+
 ## Project Structure
 
 ```
