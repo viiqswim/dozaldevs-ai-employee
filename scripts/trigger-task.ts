@@ -53,7 +53,7 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { $ } from 'zx';
 
 // Suppress zx command echoing — we control all output manually

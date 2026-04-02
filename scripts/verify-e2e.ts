@@ -35,6 +35,35 @@ const args = process.argv.slice(2);
 let taskId = '';
 let repo = 'viiqswim/ai-employee-test-target';
 
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+verify-e2e.ts — 12-point E2E verification for AI Employee
+
+Usage:
+  npx tsx scripts/verify-e2e.ts --task-id <uuid> [--repo owner/repo]
+
+Options:
+  --task-id <uuid>   Task UUID to verify (required)
+  --repo <owner/repo> GitHub repo to check for PR (default: viiqswim/ai-employee-test-target)
+  --help, -h         Show this help
+
+Checks performed:
+  1.  Task created in Supabase
+  2.  Inngest Dev dashboard (manual URL printed)
+  3.  Lifecycle triggered, status → Executing
+  4.  Docker container booted
+  5.  Heartbeats in executions table
+  6.  Validation runs recorded
+  7.  PR created on GitHub
+  8.  Task status = Done
+  9.  Full status log audit trail
+  10. Deliverable record exists
+  11. Execution record fully populated
+  12. Container cleaned up
+`);
+  process.exit(0);
+}
+
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--task-id' && args[i + 1]) {
     taskId = args[++i];
