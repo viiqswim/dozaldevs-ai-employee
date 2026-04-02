@@ -74,7 +74,7 @@ pnpm prisma migrate deploy
 
 ```bash
 pnpm prisma db seed
-PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres \
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
   -c "DELETE FROM agent_versions WHERE id != '00000000-0000-0000-0000-000000000002';"
 ```
 
