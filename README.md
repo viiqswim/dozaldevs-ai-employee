@@ -41,9 +41,15 @@ src/
 └── lib/         # Shared: logger, fly-client, github-client, retry
 prisma/          # Schema (16 tables), migrations, seed
 scripts/         # zx TypeScript scripts (setup, trigger, verify)
-docker/          # Supabase Docker Compose infrastructure
+docker/          # Supabase self-hosted Docker Compose (replaces `supabase start` — see note below)
 docs/            # Architecture and phase documentation
 ```
+
+## Infrastructure Note: Docker Compose vs `supabase start`
+
+This project uses the [official Supabase self-hosted Docker Compose](docker/docker-compose.yml) instead of the Supabase CLI (`supabase start`). The reason: the CLI hardcodes `Database: "postgres"` in its Go source and cannot be overridden — PostgREST always connects to `postgres`, regardless of `DATABASE_URL`. Since worker containers read task data via PostgREST, this would create a split-brain with `ai_employee` as the app database. The Docker Compose uses `${POSTGRES_DB}` throughout, so setting `POSTGRES_DB=ai_employee` in `docker/.env` makes all services natively use the right database.
+
+**You do not need the Supabase CLI installed.** `pnpm setup` and `pnpm dev:start` use `docker compose` directly.
 
 ## Environment Variables
 

@@ -130,6 +130,14 @@ sequenceDiagram
 
 ## Local Development Environment
 
+### Why Docker Compose instead of `supabase start`
+
+The Supabase CLI (`supabase start`) hardcodes `Database: "postgres"` in its Go source (`start.go`) and cannot be changed via `config.toml`, environment variables, or CLI flags. This means PostgREST — used by worker containers to read and write task data — always connects to the `postgres` database, regardless of what `DATABASE_URL` is set to.
+
+If we ran `supabase start` and set `DATABASE_URL` to `ai_employee`, we'd have a split-brain: Prisma (gateway, lifecycle) would write tasks to `ai_employee`, but the worker container would query PostgREST and find nothing, because PostgREST is reading from `postgres`.
+
+The self-hosted [Supabase Docker Compose](../docker/docker-compose.yml) uses `${POSTGRES_DB}` everywhere — including in PostgREST's `PGRST_DB_URI`. Setting `POSTGRES_DB=ai_employee` in `docker/.env` makes every service (PostgREST, Auth, Storage, etc.) natively use `ai_employee` from the start, with no workarounds needed.
+
 ### Required Services
 
 | Service                     | Port  | How to start                                                      |
