@@ -68,7 +68,7 @@ fi
 
 if ! psql "${APP_DB_URL}" -c "SELECT 1" >/dev/null 2>&1; then
   echo "ERROR: Cannot connect to app database at ${APP_DB_URL}" >&2
-  echo "       Is Supabase running? Run: supabase start" >&2
+  echo "       Is Supabase running? Run: pnpm setup or docker compose -f docker/docker-compose.yml up -d" >&2
   exit 1
 fi
 
