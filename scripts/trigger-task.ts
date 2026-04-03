@@ -580,9 +580,6 @@ async function main(): Promise<void> {
       );
       lastStatus = taskStatus;
       lastPrintedStatus = '';
-    } else {
-      process.stdout.write('.');
-      lastPrintedStatus = taskStatus;
     }
 
     // ── Rich progress: stage, validation, PR URL ──────────────────────────
@@ -642,7 +639,11 @@ async function main(): Promise<void> {
       }
     }
 
-    void richPrinted;
+    // Print dot only if no rich progress was shown this cycle
+    if (!richPrinted) {
+      process.stdout.write('.');
+      lastPrintedStatus = taskStatus;
+    }
 
     // ── Terminal states ───────────────────────────────────────────────────
 
