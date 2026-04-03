@@ -152,6 +152,18 @@ if (!existsSync('docker/.env')) {
   ok('docker/.env present');
 }
 
+if (existsSync('docker/.env')) {
+  const dockerEnvContent = readFileSync('docker/.env', 'utf8');
+  if (!dockerEnvContent.match(/^COMPOSE_PROJECT_NAME=.+$/m)) {
+    warn(
+      'docker/.env missing COMPOSE_PROJECT_NAME',
+      'add COMPOSE_PROJECT_NAME=supabase-ai-employee to docker/.env',
+    );
+  } else {
+    ok('docker/.env has COMPOSE_PROJECT_NAME');
+  }
+}
+
 if (hasErrors) {
   log(`\n${COLORS.red}Setup failed at Step 2.${COLORS.reset}`);
   process.exit(1);
