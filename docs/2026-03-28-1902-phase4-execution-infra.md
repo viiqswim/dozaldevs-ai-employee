@@ -1,3 +1,5 @@
+> ⚠️ **Historical Document**: This document was written before the Docker Compose migration (April 2026). The Supabase infrastructure described here (`supabase start`) is no longer used. For current setup, see [docs/2026-04-03-1251-supabase-infrastructure.md](2026-04-03-1251-supabase-infrastructure.md).
+
 # Phase 4: Execution Infrastructure — Architecture & Implementation
 
 ## What This Document Is

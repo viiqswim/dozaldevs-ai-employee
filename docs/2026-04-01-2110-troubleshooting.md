@@ -112,6 +112,8 @@ pnpm prisma db seed && pnpm test
 
 **Fix**:
 
+> **Note**: `pnpm setup` handles this automatically — it calls `supabase stop` before starting Docker Compose. You only need these manual steps if you encounter port conflicts outside of the normal setup flow.
+
 ```bash
 supabase stop
 docker compose -f docker/docker-compose.yml up -d
