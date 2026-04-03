@@ -378,7 +378,7 @@ src/
 | `DATABASE_URL`                    | Yes      | Prisma connection string — `postgresql://postgres:postgres@localhost:54322/ai_employee` |
 | `DATABASE_URL_DIRECT`             | Yes      | Direct connection (same as above for local)                                             |
 | `SUPABASE_URL`                    | Yes      | PostgREST base URL — `http://localhost:54321`                                           |
-| `SUPABASE_SECRET_KEY`             | Yes      | Supabase service role key (from `supabase status`)                                      |
+| `SUPABASE_SECRET_KEY`             | Yes      | Supabase service role key (from docker/.env — SERVICE_ROLE_KEY)                         |
 | `JIRA_WEBHOOK_SECRET`             | Yes      | HMAC secret for Jira webhook validation                                                 |
 | `GITHUB_WEBHOOK_SECRET`           | No       | HMAC secret for GitHub webhooks (stub route)                                            |
 | `INNGEST_EVENT_KEY`               | Yes      | Inngest event key (use `local` for dev)                                                 |
