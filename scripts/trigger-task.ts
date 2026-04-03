@@ -496,8 +496,19 @@ async function main(): Promise<void> {
 
   section('Monitoring');
 
-  info(`Polling every 30s (timeout: ${TIMEOUT_MINS} minutes)`);
+  info(
+    `Polling every 30s (monitoring timeout: ${TIMEOUT_MINS} min, override with --timeout <mins>)`,
+  );
   info(`Task ID: ${C.bold}${taskId}${C.reset}`);
+
+  console.log(`\n  ${C.dim}Useful commands while waiting:${C.reset}`);
+  console.log(
+    `  ${C.dim}  docker logs -f ai-worker-${taskId.slice(0, 8)}${C.reset}  ${C.dim}# Worker container logs${C.reset}`,
+  );
+  console.log(
+    `  ${C.dim}  open http://localhost:8288${C.reset}                      ${C.dim}# Inngest dashboard${C.reset}`,
+  );
+  console.log();
 
   const timeoutMs = TIMEOUT_MINS * 60 * 1000;
   const pollIntervalMs = 30_000;
