@@ -571,6 +571,22 @@ async function main(): Promise<void> {
     consecutiveErrors = 0;
     const { status: taskStatus, dispatchAttempts } = row;
 
+    // ── PR URL check (before status transition) ───────────────────────────
+    let richPrinted = false;
+    if (!prUrlPrinted) {
+      const prUrl = await getPrUrl(taskId).catch(() => undefined);
+      if (prUrl) {
+        if (lastPrintedStatus) {
+          process.stdout.write('\n');
+          lastPrintedStatus = '';
+        }
+        const elapsed = formatDuration(startMs);
+        console.log(`  ${C.dim}[${elapsed}]${C.reset}    ${C.cyan}→${C.reset} PR: ${prUrl}`);
+        prUrlPrinted = true;
+        richPrinted = true;
+      }
+    }
+
     if (taskStatus !== lastStatus) {
       if (lastPrintedStatus) process.stdout.write('\n');
       const elapsed = formatDuration(startMs);
@@ -582,8 +598,7 @@ async function main(): Promise<void> {
       lastPrintedStatus = '';
     }
 
-    // ── Rich progress: stage, validation, PR URL ──────────────────────────
-    let richPrinted = false;
+    // ── Rich progress: stage, validation ─────────────────────────────────
 
     const execProgress = await getExecutionProgress(taskId).catch(() => null);
     if (execProgress && execProgress.currentStage !== lastStage) {
@@ -621,20 +636,6 @@ async function main(): Promise<void> {
           }
         }
         printedValidations.add(key);
-        richPrinted = true;
-      }
-    }
-
-    if (!prUrlPrinted) {
-      const prUrl = await getPrUrl(taskId).catch(() => undefined);
-      if (prUrl) {
-        if (lastPrintedStatus) {
-          process.stdout.write('\n');
-          lastPrintedStatus = '';
-        }
-        const elapsed = formatDuration(startMs);
-        console.log(`  ${C.dim}[${elapsed}]${C.reset}    ${C.cyan}→${C.reset} PR: ${prUrl}`);
-        prUrlPrinted = true;
         richPrinted = true;
       }
     }
