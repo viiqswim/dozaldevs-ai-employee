@@ -25,7 +25,6 @@
  *   npx tsx scripts/trigger-task.ts
  *   npx tsx scripts/trigger-task.ts --key TEST-$(date +%s)
  *   npx tsx scripts/trigger-task.ts --payload test-payloads/jira-realistic-task.json --key TEST-200
- *   npx tsx scripts/trigger-task.ts --gateway http://localhost:3000 --timeout 30
  *
  * The Jira webhook payload format (required fields):
  *   {
