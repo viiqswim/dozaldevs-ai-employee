@@ -263,6 +263,49 @@ async function getTaskStatus(
 }
 
 /**
+ * Get the current execution stage and fix iteration count for a task.
+ * Returns null if no execution row exists yet.
+ */
+async function getExecutionProgress(
+  taskId: string,
+): Promise<{ currentStage: string; fixIterations: number } | null> {
+  const sql = `SELECT current_stage, fix_iterations FROM executions WHERE task_id = '${taskId}' ORDER BY created_at DESC LIMIT 1`;
+  const row = await psqlQuery(sql).catch(() => '');
+  if (!row) return null;
+  const [stage, iterations] = row.split('|');
+  const currentStage = (stage ?? '').trim();
+  if (!currentStage) return null;
+  return {
+    currentStage,
+    fixIterations: parseInt(iterations ?? '0', 10),
+  };
+}
+
+/**
+ * Get all validation run results for a task's executions.
+ * Returns an array of { stage, status, iteration, errorOutput } objects.
+ */
+async function getValidationRuns(
+  taskId: string,
+): Promise<Array<{ stage: string; status: string; iteration: number; errorOutput: string }>> {
+  const sql = `SELECT vr.stage, vr.status, vr.iteration, COALESCE(LEFT(vr.error_output, 200), '') FROM validation_runs vr JOIN executions e ON vr.execution_id = e.id WHERE e.task_id = '${taskId}' ORDER BY vr.created_at ASC`;
+  const raw = await psqlQuery(sql).catch(() => '');
+  if (!raw) return [];
+  return raw
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => {
+      const [stage, status, iteration, errorOutput] = line.split('|');
+      return {
+        stage: (stage ?? '').trim(),
+        status: (status ?? '').trim(),
+        iteration: parseInt(iteration ?? '0', 10),
+        errorOutput: (errorOutput ?? '').trim(),
+      };
+    });
+}
+
+/**
  * Get the PR URL from the deliverables table once the task is Done.
  * Returns undefined if no PR deliverable exists yet.
  */
@@ -506,6 +549,9 @@ async function main(): Promise<void> {
   let lastStatus = '';
   let lastPrintedStatus = '';
   let consecutiveErrors = 0;
+  let lastStage = '';
+  const printedValidations = new Set<string>();
+  let prUrlPrinted = false;
 
   while (true) {
     const row = await getTaskStatus(taskId).catch(() => null);
@@ -538,6 +584,65 @@ async function main(): Promise<void> {
       process.stdout.write('.');
       lastPrintedStatus = taskStatus;
     }
+
+    // ── Rich progress: stage, validation, PR URL ──────────────────────────
+    let richPrinted = false;
+
+    const execProgress = await getExecutionProgress(taskId).catch(() => null);
+    if (execProgress && execProgress.currentStage !== lastStage) {
+      if (lastPrintedStatus) {
+        process.stdout.write('\n');
+        lastPrintedStatus = '';
+      }
+      const elapsed = formatDuration(startMs);
+      let stageLine = `  ${C.dim}[${elapsed}]${C.reset}  ${C.bold}Executing${C.reset} ${C.dim}›${C.reset} ${execProgress.currentStage}`;
+      if (execProgress.fixIterations > 0 && execProgress.currentStage === 'executing') {
+        stageLine += ` ${C.dim}(fix attempt ${execProgress.fixIterations})${C.reset}`;
+      }
+      console.log(stageLine);
+      lastStage = execProgress.currentStage;
+      richPrinted = true;
+    }
+
+    const validations = await getValidationRuns(taskId).catch(() => []);
+    for (const vr of validations) {
+      const key = `${vr.stage}-${vr.iteration}`;
+      if (!printedValidations.has(key)) {
+        if (lastPrintedStatus) {
+          process.stdout.write('\n');
+          lastPrintedStatus = '';
+        }
+        const elapsed = formatDuration(startMs);
+        if (vr.status === 'passed') {
+          console.log(
+            `  ${C.dim}[${elapsed}]${C.reset}    ${C.green}✓${C.reset} ${vr.stage} passed`,
+          );
+        } else {
+          console.log(`  ${C.dim}[${elapsed}]${C.reset}    ${C.red}✗${C.reset} ${vr.stage} failed`);
+          if (vr.errorOutput) {
+            console.log(`  ${C.dim}[${elapsed}]      ${vr.errorOutput}${C.reset}`);
+          }
+        }
+        printedValidations.add(key);
+        richPrinted = true;
+      }
+    }
+
+    if (!prUrlPrinted) {
+      const prUrl = await getPrUrl(taskId).catch(() => undefined);
+      if (prUrl) {
+        if (lastPrintedStatus) {
+          process.stdout.write('\n');
+          lastPrintedStatus = '';
+        }
+        const elapsed = formatDuration(startMs);
+        console.log(`  ${C.dim}[${elapsed}]${C.reset}    ${C.cyan}→${C.reset} PR: ${prUrl}`);
+        prUrlPrinted = true;
+        richPrinted = true;
+      }
+    }
+
+    void richPrinted;
 
     // ── Terminal states ───────────────────────────────────────────────────
 
