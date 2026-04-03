@@ -19,7 +19,6 @@
  *   --key <key>        Override Jira issue key to avoid branch conflicts
  *                      Tip: use a unique key, e.g. --key TEST-$(date +%s)
  *   --gateway <url>    Gateway base URL (default: http://localhost:3000)
- *   --timeout <mins>   Max minutes to wait for completion (default: 20)
  *   --help             Show this help
  *
  * Examples:
@@ -120,23 +119,21 @@ ${C.bold}Options:${C.reset}
   ${C.cyan}--key <key>${C.reset}       Override Jira issue key (e.g. TEST-200)
                     Use a unique key to avoid duplicate-task skips
                     Tip: --key TEST-$(date +%s)
-  ${C.cyan}--gateway <url>${C.reset}   Gateway base URL (default: http://localhost:3000)
-  ${C.cyan}--timeout <mins>${C.reset}  Max minutes to wait for task completion (default: 20)
-  ${C.cyan}--help${C.reset}            Show this help
+   ${C.cyan}--gateway <url>${C.reset}   Gateway base URL (default: http://localhost:3000)
+   ${C.cyan}--help${C.reset}            Show this help
 
 ${C.bold}Examples:${C.reset}
   npx tsx scripts/trigger-task.ts
   npx tsx scripts/trigger-task.ts --key TEST-$(date +%s)
-  npx tsx scripts/trigger-task.ts --payload test-payloads/jira-realistic-task.json --key TEST-200
-  npx tsx scripts/trigger-task.ts --gateway http://localhost:3000 --timeout 30
+   npx tsx scripts/trigger-task.ts --payload test-payloads/jira-realistic-task.json --key TEST-200
 
 ${C.bold}What it does:${C.reset}
   1. Reads payload JSON (raw bytes preserved for HMAC signing)
   2. Computes HMAC-SHA256 signature matching gateway validation
   3. POSTs to /webhooks/jira — expects HTTP 200
-  4. Waits for task row to appear in the database
-  5. Polls status every 30s until Done/Error/Cancelled/Timeout
-  6. Reports PR URL on success
+   4. Waits for task row to appear in the database
+   5. Polls status every 30s until Done/Error/Cancelled
+   6. Reports PR URL on success
 `);
   process.exit(0);
 }
@@ -175,7 +172,6 @@ function getEnv(key: string): string {
 const PAYLOAD_PATH = getArg('--payload') ?? 'test-payloads/jira-realistic-task.json';
 const ISSUE_KEY_OVERRIDE = getArg('--key');
 const GATEWAY_BASE = getArg('--gateway') ?? 'http://localhost:3000';
-const TIMEOUT_MINS = parseInt(getArg('--timeout') ?? '20', 10);
 const WEBHOOK_ENDPOINT = `${GATEWAY_BASE}/webhooks/jira`;
 
 const JIRA_SECRET = getEnv('JIRA_WEBHOOK_SECRET');
@@ -313,7 +309,6 @@ async function main(): Promise<void> {
 
   status('payload', PAYLOAD_PATH);
   status('gateway', WEBHOOK_ENDPOINT);
-  status('timeout', `${TIMEOUT_MINS} minutes`);
   if (ISSUE_KEY_OVERRIDE) status('key override', ISSUE_KEY_OVERRIDE);
 
   // ── 2. Build rawBody (exact bytes to sign AND send) ───────────────────────
@@ -484,7 +479,7 @@ async function main(): Promise<void> {
   if (!taskId) taskId = resolvedTaskId;
   ok(`Task found in DB`, taskId);
 
-  // ── 6. Monitor status until terminal state or timeout ─────────────────────
+  // ── 6. Monitor status until terminal state ──────────────────────────────
   //
   // Task status lifecycle (from Prisma schema):
   //   Ready → Executing → Submitting → Done
@@ -492,13 +487,10 @@ async function main(): Promise<void> {
   //                     → Cancelled
   //
   // We poll every 30 seconds. Terminal states: Done, Error, Cancelled.
-  // Timeout after --timeout minutes (default 20).
 
   section('Monitoring');
 
-  info(
-    `Polling every 30s (monitoring timeout: ${TIMEOUT_MINS} min, override with --timeout <mins>)`,
-  );
+  info(`Polling every 30s until task completes`);
   info(`Task ID: ${C.bold}${taskId}${C.reset}`);
 
   console.log(`\n  ${C.dim}Useful commands while waiting:${C.reset}`);
@@ -510,14 +502,13 @@ async function main(): Promise<void> {
   );
   console.log();
 
-  const timeoutMs = TIMEOUT_MINS * 60 * 1000;
   const pollIntervalMs = 30_000;
 
   let lastStatus = '';
   let lastPrintedStatus = '';
   let consecutiveErrors = 0;
 
-  while (Date.now() - startMs < timeoutMs) {
+  while (true) {
     const row = await getTaskStatus(taskId).catch(() => null);
 
     if (!row) {
@@ -594,15 +585,6 @@ async function main(): Promise<void> {
     // Not terminal — wait and poll again
     await sleep(pollIntervalMs);
   }
-
-  // Timeout reached
-  section('Timeout');
-  fail(`Timed out after ${TIMEOUT_MINS} minutes`);
-  fail(`Task did not reach a terminal state.`);
-  fail(`Last status: ${lastStatus || 'unknown'}`);
-  fail(`Task ID: ${taskId}`);
-  fail(`Check Inngest dashboard: http://localhost:8288`);
-  process.exit(1);
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
