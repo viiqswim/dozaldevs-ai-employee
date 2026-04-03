@@ -210,7 +210,7 @@ function parseDatabaseUrl(url: string): {
  * Execute a SQL query via psql and return trimmed stdout.
  * Uses PGPASSWORD env var to avoid password prompts.
  */
-async function psqlQuery(sql: string): Promise<string> {
+export async function psqlQuery(sql: string): Promise<string> {
   if (!DATABASE_URL) throw new Error('DATABASE_URL not set in .env');
   const db = parseDatabaseUrl(DATABASE_URL);
 
@@ -266,7 +266,7 @@ async function getTaskStatus(
  * Get the current execution stage and fix iteration count for a task.
  * Returns null if no execution row exists yet.
  */
-async function getExecutionProgress(
+export async function getExecutionProgress(
   taskId: string,
 ): Promise<{ currentStage: string; fixIterations: number } | null> {
   const sql = `SELECT current_stage, fix_iterations FROM executions WHERE task_id = '${taskId}' ORDER BY created_at DESC LIMIT 1`;
@@ -285,7 +285,7 @@ async function getExecutionProgress(
  * Get all validation run results for a task's executions.
  * Returns an array of { stage, status, iteration, errorOutput } objects.
  */
-async function getValidationRuns(
+export async function getValidationRuns(
   taskId: string,
 ): Promise<Array<{ stage: string; status: string; iteration: number; errorOutput: string }>> {
   const sql = `SELECT vr.stage, vr.status, vr.iteration, COALESCE(LEFT(vr.error_output, 200), '') FROM validation_runs vr JOIN executions e ON vr.execution_id = e.id WHERE e.task_id = '${taskId}' ORDER BY vr.created_at ASC`;
