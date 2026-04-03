@@ -203,23 +203,41 @@ if (!servicesRunning) {
     await $`docker compose -f docker/docker-compose.yml up -d`;
     $.verbose = false;
 
-    // Wait up to 120s for PostgREST to be healthy
+    // Retry pattern: poll Kong health every 30s, re-run docker compose up -d if not responding
+    // This handles the case where Logflare (analytics) takes time to stabilize, blocking Studio and Kong
     let ready = false;
-    for (let i = 0; i < 24; i++) {
-      await new Promise<void>((r) => setTimeout(r, 5000));
+    let retries = 0;
+    const maxRetries = 8; // 8 * 30s = 4 minutes
+
+    while (!ready && retries < maxRetries) {
+      // Wait 30 seconds
+      await new Promise<void>((r) => setTimeout(r, 30_000));
+
       try {
         if (await kongResponding()) {
           ready = true;
           break;
         }
       } catch {
-        /* ignore */
+        /* not ready yet */
       }
-      log(`  ... waiting for services (${(i + 1) * 5}s / 120s)`);
+
+      // Re-run docker compose up -d to unstick any services waiting on analytics
+      retries++;
+      log(
+        `  ... waiting for services (${retries * 30}s / ${maxRetries * 30}s) — retrying docker compose up`,
+      );
+      try {
+        $.verbose = true;
+        await $`docker compose -f docker/docker-compose.yml up -d`;
+        $.verbose = false;
+      } catch {
+        /* already running, ignore */
+      }
     }
 
     if (!ready) {
-      fail('Docker Compose services did not become healthy after 120s');
+      fail('Docker Compose services did not become healthy after 240s');
       hasErrors = true;
     } else {
       ok('Docker Compose services started and healthy');
