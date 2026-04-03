@@ -38,10 +38,10 @@ fi
 # Check 2: Local Supabase is running
 # ─────────────────────────────────────────────────────
 echo "── Check 2: Local Supabase running ──"
-if supabase status > /dev/null 2>&1; then
-  check_pass "Supabase is running (supabase status OK)"
+if docker compose -f docker/docker-compose.yml ps --format json 2>/dev/null | grep -q '"running"'; then
+  check_pass "Supabase is running (Docker Compose)"
 else
-  check_fail "Supabase is not running — run 'supabase start'"
+  check_fail "Supabase is not running — run 'pnpm setup' or 'docker compose -f docker/docker-compose.yml up -d'"
 fi
 
 # ─────────────────────────────────────────────────────
