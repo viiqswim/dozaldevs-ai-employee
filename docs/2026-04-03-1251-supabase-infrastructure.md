@@ -181,7 +181,6 @@ For production, use your Supabase cloud project with its own credentials.
 ## Replicating This System for a New Repository
 
 ### Step 1: Choose port range
-
 Pick the next available `5{N}3xx` range. Current allocations:
 | Project | Range | Kong | PostgreSQL | Studio |
 |--------------|-------|-------|------------|--------|
@@ -192,54 +191,37 @@ Pick the next available `5{N}3xx` range. Current allocations:
 | next project | 583xx | 58321 | 58322 | 58323 |
 
 ### Step 2: Copy docker/ directory
-
 Copy the entire `docker/` directory from any existing repo to your new project.
 
 ### Step 3: Configure docker/.env.example
-
 Update these values in `docker/.env.example`:
-
 ```
 COMPOSE_PROJECT_NAME=supabase-{your-project}
 POSTGRES_DB={your_database_name}
 KONG_HTTP_PORT_HOST={your_kong_port}
-KONG_HTTPS_PORT_HOST={your_https_port}
 POSTGRES_PORT_HOST={your_pg_port}
 STUDIO_PORT_HOST={your_studio_port}
-INBUCKET_SMTP_PORT_HOST={your_inbucket_smtp}
-INBUCKET_WEB_PORT_HOST={your_inbucket_web}
-POOLER_PORT_HOST={your_pooler_port}
-ANALYTICS_PORT_HOST={your_analytics_port}
+# (update all remaining *_PORT_HOST vars)
 ```
 
 ### Step 4: Create grants SQL
-
-Copy `docker/volumes/db/{any}_grants.sql` → `docker/volumes/db/{your_db}_grants.sql`.
-Replace all occurrences of the old database name with `{your_db}`.
-
+Copy `docker/volumes/db/{any}_grants.sql` → `docker/volumes/db/{your_db}_grants.sql`. Replace old database name.
 ### Step 5: Create setup script
-
 Copy `scripts/setup-db.ts` from any repo. Update port numbers and database name.
-
 ### Step 6: Update project .env.example
-
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:{your_pg_port}/{your_db}
 SUPABASE_URL=http://localhost:{your_kong_port}
 ```
 
 ### Step 7: Verify
-
 ```bash
 cp docker/.env.example docker/.env
 docker compose -f docker/docker-compose.yml up -d
-# Wait ~3 minutes, then:
-curl -s http://localhost:{your_kong_port}/rest/v1/     # → HTTP 401 (correct)
+curl -s http://localhost:{your_kong_port}/rest/v1/     # HTTP 401 = correct
 psql postgresql://postgres:postgres@localhost:{your_pg_port}/{your_db} -c "SELECT 1;"
 ```
-
 ### Hard constraints
-
 - NEVER use `supabase start` — it hardcodes database as `postgres`
 - NEVER share port ranges between projects
 - ALWAYS underscore in database names (not hyphens)
