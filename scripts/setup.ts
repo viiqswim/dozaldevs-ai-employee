@@ -200,7 +200,7 @@ if (!servicesRunning) {
   log('  Starting Docker Compose services...');
   try {
     $.verbose = true;
-    await $`docker compose -f docker/docker-compose.yml up -d`;
+    await $`docker compose -f docker/docker-compose.yml up -d`.nothrow();
     $.verbose = false;
 
     // Retry pattern: poll Kong health every 30s, re-run docker compose up -d if not responding
@@ -227,13 +227,9 @@ if (!servicesRunning) {
       log(
         `  ... waiting for services (${retries * 30}s / ${maxRetries * 30}s) — retrying docker compose up`,
       );
-      try {
-        $.verbose = true;
-        await $`docker compose -f docker/docker-compose.yml up -d`;
-        $.verbose = false;
-      } catch {
-        /* already running, ignore */
-      }
+      $.verbose = true;
+      await $`docker compose -f docker/docker-compose.yml up -d`.nothrow();
+      $.verbose = false;
     }
 
     if (!ready) {
@@ -257,14 +253,49 @@ if (hasErrors) {
 // ─── Step 4: Prisma migrations ───────────────────────────────────────────────
 section('Step 4: Migrations');
 
+// Warn if DATABASE_URL uses 127.0.0.1 (causes Prisma schema-engine P1001 on macOS)
 try {
-  $.verbose = true;
-  await $`DATABASE_URL=postgresql://postgres:postgres@localhost:54322/ai_employee DATABASE_URL_DIRECT=postgresql://postgres:postgres@localhost:54322/ai_employee pnpm prisma migrate deploy`;
-  $.verbose = false;
-  ok('Migrations applied');
-} catch (err) {
-  $.verbose = false;
-  fail('Migration failed', String(err));
+  const envContent = readFileSync('.env', 'utf8');
+  if (/DATABASE_URL="postgresql:\/\/.*@127\.0\.0\.1/.test(envContent)) {
+    warn(
+      'DATABASE_URL uses 127.0.0.1 — Prisma schema-engine fails on macOS (P1001). Use localhost instead.',
+    );
+    warn("Fix: sed -i '' 's/127\\.0\\.0\\.1/localhost/g' .env");
+  }
+} catch {
+  /* .env not readable — skip check */
+}
+
+let migrationApplied = false;
+for (let attempt = 1; attempt <= 3; attempt++) {
+  if (attempt > 1) {
+    log(`  ... retrying migration (attempt ${attempt}/3)...`);
+    await new Promise<void>((r) => setTimeout(r, 5_000));
+  }
+  // Pre-check: verify PostgreSQL is reachable before invoking Prisma schema-engine
+  try {
+    await $`docker exec supabase-ai-employee-db-1 psql -U postgres -c "SELECT 1;" --no-psqlrc -q`.nothrow();
+  } catch {
+    /* not reachable yet — will retry */
+    continue;
+  }
+  try {
+    $.verbose = true;
+    await $`DATABASE_URL=postgresql://postgres:postgres@localhost:54322/ai_employee DATABASE_URL_DIRECT=postgresql://postgres:postgres@localhost:54322/ai_employee pnpm prisma migrate deploy`;
+    $.verbose = false;
+    ok('Migrations applied');
+    migrationApplied = true;
+    break;
+  } catch (err) {
+    $.verbose = false;
+    if (attempt >= 3) {
+      fail('Migration failed after 3 attempts', String(err));
+      hasErrors = true;
+    }
+  }
+}
+if (!migrationApplied && !hasErrors) {
+  fail('Migration did not complete');
   hasErrors = true;
 }
 
