@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { pino } from 'pino';
-// @ts-expect-error module does not exist yet
 import { pollForCompletion } from '../../../src/inngest/lib/poll-completion.js';
 
 const silentLogger = pino({ level: 'silent' });
