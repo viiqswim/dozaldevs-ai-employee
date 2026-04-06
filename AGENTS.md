@@ -43,6 +43,8 @@ docker build -t ai-employee-worker .
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
 ```
 
+For **hybrid mode** (USE_FLY_HYBRID), also run `pnpm fly:image` to push the updated image to Fly.io registry.
+
 ## Project Structure
 
 ```
