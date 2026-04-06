@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-// @ts-expect-error module does not exist yet — RED state
 import { getNgrokTunnelUrl } from '../../src/lib/ngrok-client.js';
 
 describe('ngrok-client', () => {
