@@ -6,7 +6,6 @@ import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
 import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
 import type { SlackClient } from '../../src/lib/slack-client.js';
 import { getNgrokTunnelUrl } from '../../src/lib/ngrok-client.js';
-// @ts-expect-error — module does not exist yet
 import { pollForCompletion } from '../../src/inngest/lib/poll-completion.js';
 
 vi.mock('../../src/lib/fly-client.js', () => ({
