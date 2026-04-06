@@ -203,15 +203,16 @@ if (!servicesRunning) {
     await $`docker compose -f docker/docker-compose.yml up -d`.nothrow();
     $.verbose = false;
 
-    // Retry pattern: poll Kong health every 30s, re-run docker compose up -d if not responding
-    // This handles the case where Logflare (analytics) takes time to stabilize, blocking Studio and Kong
+    // Poll Kong health every 5s, max 60s
     let ready = false;
-    let retries = 0;
-    const maxRetries = 8; // 8 * 30s = 4 minutes
+    let polls = 0;
+    const pollIntervalMs = 5_000;
+    const maxPollMs = 60_000;
+    const maxPolls = maxPollMs / pollIntervalMs; // 12
 
-    while (!ready && retries < maxRetries) {
-      // Wait 30 seconds
-      await new Promise<void>((r) => setTimeout(r, 30_000));
+    while (!ready && polls < maxPolls) {
+      // Wait 5 seconds
+      await new Promise<void>((r) => setTimeout(r, pollIntervalMs));
 
       try {
         if (await kongResponding()) {
@@ -222,18 +223,12 @@ if (!servicesRunning) {
         /* not ready yet */
       }
 
-      // Re-run docker compose up -d to unstick any services waiting on analytics
-      retries++;
-      log(
-        `  ... waiting for services (${retries * 30}s / ${maxRetries * 30}s) — retrying docker compose up`,
-      );
-      $.verbose = true;
-      await $`docker compose -f docker/docker-compose.yml up -d`.nothrow();
-      $.verbose = false;
+      polls++;
+      log(`  ... waiting for services (${polls * 5}s / 60s)`);
     }
 
     if (!ready) {
-      fail('Docker Compose services did not become healthy after 240s');
+      fail('Docker Compose services did not become healthy after 60s');
       hasErrors = true;
     } else {
       ok('Docker Compose services started and healthy');
