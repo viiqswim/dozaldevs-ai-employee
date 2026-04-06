@@ -5,7 +5,6 @@ import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
 import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
 import type { SlackClient } from '../../src/lib/slack-client.js';
-// @ts-expect-error — module does not exist yet
 import { getNgrokTunnelUrl } from '../../src/lib/ngrok-client.js';
 // @ts-expect-error — module does not exist yet
 import { pollForCompletion } from '../../src/inngest/lib/poll-completion.js';
