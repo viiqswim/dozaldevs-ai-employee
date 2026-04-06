@@ -5,10 +5,20 @@ import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
 import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
 import type { SlackClient } from '../../src/lib/slack-client.js';
+// @ts-expect-error — module does not exist yet
+import { getNgrokTunnelUrl } from '../../src/lib/ngrok-client.js';
+// @ts-expect-error — module does not exist yet
+import { pollForCompletion } from '../../src/inngest/lib/poll-completion.js';
 
 vi.mock('../../src/lib/fly-client.js', () => ({
   createMachine: vi.fn(),
   destroyMachine: vi.fn(),
+}));
+vi.mock('../../src/lib/ngrok-client.js', () => ({
+  getNgrokTunnelUrl: vi.fn(),
+}));
+vi.mock('../../src/inngest/lib/poll-completion.js', () => ({
+  pollForCompletion: vi.fn(),
 }));
 
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
@@ -737,5 +747,157 @@ describe('Group 7 — Race Condition Pre-Check (step: pre-check-completion)', ()
     const waitCalls = (ctx.step.waitForEvent as unknown as MockCalls).mock.calls;
     expect(waitCalls).toHaveLength(1);
     expect(waitCalls[0][0]).toBe('wait-for-completion');
+  });
+});
+
+describe('dispatch mode: USE_FLY_HYBRID', () => {
+  beforeEach(() => {
+    process.env.USE_FLY_HYBRID = '1';
+    delete process.env.USE_LOCAL_DOCKER;
+    vi.mocked(createMachine).mockResolvedValue({ id: 'fly-machine-123', state: 'started' });
+    vi.mocked(destroyMachine).mockResolvedValue(undefined);
+    vi.mocked(getNgrokTunnelUrl).mockResolvedValue('https://abc123.ngrok-free.app');
+    vi.mocked(pollForCompletion).mockResolvedValue({ completed: true, finalStatus: 'Submitting' });
+  });
+
+  afterEach(() => {
+    delete process.env.USE_FLY_HYBRID;
+    delete process.env.USE_LOCAL_DOCKER;
+    delete process.env.FLY_HYBRID_POLL_MAX;
+    delete process.env.NGROK_AGENT_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
+  });
+
+  function makeEngineHybrid() {
+    return new InngestTestEngine({
+      function: createLifecycleFunction(inngest, getPrisma(), createMockSlackClient()),
+      transformCtx: (ctx: any) => {
+        const mocked = mockCtx(ctx);
+        mocked.step.waitForEvent = vi.fn().mockResolvedValue(null);
+        return mocked as any;
+      },
+    });
+  }
+
+  it('happy path: calls getNgrokTunnelUrl, createMachine, pollForCompletion, destroyMachine in order', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+    await createTestExecution(task.id);
+
+    const { error } = await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(error).toBeUndefined();
+    expect(vi.mocked(getNgrokTunnelUrl)).toHaveBeenCalled();
+    expect(vi.mocked(createMachine)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ restart: { policy: 'no' } }),
+    );
+    expect(vi.mocked(pollForCompletion)).toHaveBeenCalled();
+    expect(vi.mocked(destroyMachine)).toHaveBeenCalled();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('Done');
+  });
+
+  it('env block correctness: createMachine env contains required vars, NOT forbidden ones', async () => {
+    process.env.SUPABASE_SECRET_KEY = 'test-skey';
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    const calls = vi.mocked(createMachine).mock.calls;
+    expect(calls).toHaveLength(1);
+    const machineConfig = calls[0][1] as unknown as Record<string, unknown>;
+    const env = machineConfig.env as Record<string, string>;
+
+    expect(env).toMatchObject({
+      TASK_ID: task.id,
+      SUPABASE_URL: 'https://abc123.ngrok-free.app',
+      SUPABASE_SECRET_KEY: 'test-skey',
+    });
+    expect(env).not.toHaveProperty('INNGEST_BASE_URL');
+    expect(env).not.toHaveProperty('INNGEST_EVENT_KEY');
+    expect(env).not.toHaveProperty('INNGEST_DEV');
+  });
+
+  it('restart policy: createMachine called with restart: { policy: "no" }, NOT auto_destroy: true', async () => {
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    const calls = vi.mocked(createMachine).mock.calls;
+    expect(calls).toHaveLength(1);
+    const machineConfig = calls[0][1] as unknown as Record<string, unknown>;
+
+    expect(machineConfig.restart).toEqual({ policy: 'no' });
+    expect(machineConfig.auto_destroy).toBeUndefined();
+  });
+
+  it('pre-flight ngrok failure: does NOT call createMachine', async () => {
+    vi.mocked(getNgrokTunnelUrl).mockRejectedValueOnce(new Error('ngrok is not running'));
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(createMachine)).not.toHaveBeenCalled();
+    expect(vi.mocked(destroyMachine)).not.toHaveBeenCalled();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('AwaitingInput');
+  });
+
+  it('polling timeout: calls destroyMachine', async () => {
+    vi.mocked(pollForCompletion).mockResolvedValueOnce({
+      completed: false,
+      finalStatus: 'Executing',
+    });
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(destroyMachine)).toHaveBeenCalled();
+
+    const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
+    expect(updated!.status).toBe('AwaitingInput');
+  });
+
+  it('maxPolls override via env var: pollForCompletion called with maxPolls: 60', async () => {
+    process.env.FLY_HYBRID_POLL_MAX = '60';
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(pollForCompletion)).toHaveBeenCalledWith(
+      expect.objectContaining({ maxPolls: 60 }),
+    );
+  });
+
+  it('default maxPolls is 120 when FLY_HYBRID_POLL_MAX not set', async () => {
+    delete process.env.FLY_HYBRID_POLL_MAX;
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(pollForCompletion)).toHaveBeenCalledWith(
+      expect.objectContaining({ maxPolls: 120 }),
+    );
+  });
+
+  it('mode precedence: USE_LOCAL_DOCKER wins when both flags set', async () => {
+    process.env.USE_LOCAL_DOCKER = '1';
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(createMachine)).not.toHaveBeenCalled();
+    expect(vi.mocked(getNgrokTunnelUrl)).not.toHaveBeenCalled();
+  });
+
+  it('custom NGROK_AGENT_URL: passed to getNgrokTunnelUrl', async () => {
+    process.env.NGROK_AGENT_URL = 'http://custom:5555';
+    const task = await createTestTask({ status: 'Ready' });
+
+    await makeEngineHybrid().execute({ events: makeEvent(task.id) });
+
+    expect(vi.mocked(getNgrokTunnelUrl)).toHaveBeenCalledWith('http://custom:5555');
   });
 });
