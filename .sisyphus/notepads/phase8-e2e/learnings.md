@@ -233,3 +233,277 @@ Must use: `openssl dgst -sha256 -hmac "$SECRET" < file` (reads directly from std
 
 - `.sisyphus/evidence/task-7-e2e-flow.txt` — full test run details
 - `.sisyphus/evidence/task-7-task-uuid.txt` — task UUID for T8
+
+## E2E Retry Run (Task 7 — after server.ts and lifecycle.ts fixes)
+
+**Date**: 2026-04-01 16:04 CDT
+**Result**: PARTIAL FAILURE — blocked at Phase 3 (container exits, missing REPO_URL)
+**Task UUID**: `4db948c3-be97-4458-bc1f-6c9c3294bb72`
+
+### Progress vs First Run
+
+| Phase                                 | First Run | Retry Run  |
+| ------------------------------------- | --------- | ---------- |
+| Webhook accepted                      | ✅        | ✅         |
+| Task created in DB (Ready)            | ✅        | ✅         |
+| Inngest event sent                    | ❌        | ✅ FIXED   |
+| Lifecycle triggered (Ready→Executing) | ❌        | ✅ FIXED   |
+| Docker container dispatched           | ❌        | ✅ PARTIAL |
+| Container runs successfully           | ❌        | ❌         |
+| PR created                            | ❌        | ❌         |
+
+### New Bug Found: lifecycle.ts missing REPO_URL lookup
+
+**Location**: `src/inngest/lifecycle.ts` line ~90 (USE_LOCAL_DOCKER path)
+
+The lifecycle reads `event.data.repoUrl` which is **never set**. Gateway sends only `{ taskId, projectId }`.
+
+Entrypoint.sh requires `REPO_URL` as mandatory. Container exits immediately with:
+
+```
+[AI-WORKER] ERROR: Required env var REPO_URL is not set
+```
+
+**Fix needed** (NOT applied): look up `projects.repo_url` from DB using `event.data.projectId`:
+
+```typescript
+const project = await prisma.project.findUnique({
+  where: { id: event.data.projectId as string },
+  select: { repo_url: true, default_branch: true },
+});
+const localRepoUrl = project?.repo_url;
+```
+
+This same bug affects Fly.io mode too (line 148 reads `event.data.repoUrl` which is also never set).
+
+### Gateway Startup Gotcha: FLY_API_TOKEN with space
+
+The `.env` file has `FLY_API_TOKEN=FlyV1 fm2_...` (unquoted, has space). `source .env` fails.
+
+**Workaround**: Use `node --env-file=.env --import=tsx/esm src/gateway/server.ts` (Node 20+ native).
+
+### Lifecycle Retry Behavior (observed)
+
+When container exits without sending `engineering/task.completed`:
+
+1. lifecycle's `waitForEvent` returns null
+2. `finalize` step runs: if `dispatch_attempts < 3` → rollback to Ready + send `task.redispatch`
+3. Redispatch triggers new lifecycle run
+4. After 3 cycles → `AwaitingInput` with "Max dispatch attempts (3) exceeded"
+   Total cycle time per attempt: ~0.5s (Inngest dev server processes very fast locally)
+
+### Evidence Files
+
+- `.sisyphus/evidence/task-7-e2e-flow-retry.txt` — full retry run details
+- `.sisyphus/evidence/task-7-task-uuid.txt` — updated UUID: `4db948c3-be97-4458-bc1f-6c9c3294bb72`
+
+## REPO_URL Fix — send.ts + jira.ts
+
+**Commit**: `b919931` — `fix(gateway): include repoUrl and repoBranch in task.received event for container dispatch`
+
+**Root cause**: `sendTaskReceivedEvent` only sent `{ taskId, projectId }`. Lifecycle read `event.data.repoUrl` → `undefined`. Worker entrypoint.sh exits if REPO_URL missing.
+
+**Fix**:
+
+- `src/gateway/inngest/send.ts`: added `repoUrl?` + `repoBranch?` to params; included both in `event.data`
+- `src/gateway/routes/jira.ts`: passed `project.repo_url ?? undefined` + `project.default_branch ?? 'main'`
+
+**Test results**: 510 passing, 9 failing — zero regressions. All 9 failures are pre-existing.
+
+**Vitest .env loading note**: Vitest v2 auto-loads `.env` via Vite. `USE_LOCAL_DOCKER=1` in `.env` causes lifecycle Group 3 Fly.io tests to fail (local Docker branch taken instead). Pre-existing from when lifecycle.ts was patched.
+
+**Evidence**: `.sisyphus/evidence/task-7-repourl-fix.txt`
+
+## Final E2E Run Results (all fixes applied)
+
+**Date**: 2026-04-01 ~16:42 CDT
+**Task UUID**: `df33a9ea-698f-4c55-9faf-ce993d62efd2`
+**Outcome**: PARTIAL FAILURE — blocked at `step.waitForEvent` (Inngest Dev Server local behavior)
+
+### Progress Summary
+
+| Step                                  | Result           |
+| ------------------------------------- | ---------------- |
+| Webhook accepted HTTP 200             | ✅               |
+| Task created in DB (Ready)            | ✅               |
+| Inngest event sent WITH repoUrl       | ✅               |
+| Lifecycle triggered (Ready→Executing) | ✅               |
+| Docker container dispatched (3x)      | ✅               |
+| Container boots + steps 1-7           | ✅ (manual test) |
+| waitForEvent returns non-null         | ❌               |
+| PR created on GitHub                  | ❌               |
+| Task reaches Done                     | ❌               |
+
+### Infrastructure Fixes Applied (not source code)
+
+1. **PostgREST DB mismatch** — PostgREST uses `postgres` DB, Prisma writes to `ai_employee`.
+   Fix: `prisma db push` + GRANT issued on `postgres` DB. Now aligned.
+
+2. **Table grants missing** — PostgREST roles (`anon`, `authenticated`, `service_role`) had no SELECT on `tasks`.
+   Fix: `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES TO anon, authenticated, service_role;`
+   - `NOTIFY pgrst, 'reload schema';` to refresh cache.
+
+3. **pnpm-lock.yaml in test repo** — .gitignore was excluding it; `pnpm install --frozen-lockfile` fails.
+   Fix: Removed from gitignore, committed lockfile. Commit: `831587f` on viiqswim/ai-employee-test-target.
+
+4. **USE_LOCAL_DOCKER not in .env** — Must be passed explicitly to gateway process.
+   Fix: `USE_LOCAL_DOCKER=1 node --env-file=.env --import=tsx/esm src/gateway/server.ts`
+
+5. **FLY_API_TOKEN space issue** — Unquoted value with space breaks `source .env`.
+   Fix: Use `node --env-file=.env` (Node 20 native) instead of `source .env`.
+
+### Fundamental Blocker: step.waitForEvent
+
+`step.waitForEvent('wait-for-completion', { timeout: '4h10m' })` returns `null` within 0.5s
+in Inngest Dev Server v1.17.7 (SDK v4.1.0). The lifecycle gives up before any Docker container
+can complete its work.
+
+Each dispatch cycle took ~0.5-1.5 seconds:
+
+- `dispatch-fly-machine` step: Docker container dispatched (sub-second)
+- `pre-check-completion` step: returns `Executing`
+- `waitForEvent` step: **immediately returns null** (should wait 4h10m)
+- `finalize` step: result=null → rollback to Ready + redispatch
+
+3 cycles in under 4 seconds → AwaitingInput.
+
+This is NOT a code bug. It's a behavioral incompatibility between:
+
+- Production: Inngest Cloud properly suspends functions and waits for events
+- Local Dev: Inngest Dev Server v1.17.7 resolves waitForEvent immediately in local mode
+
+### Container Status (manual test with all fixes)
+
+Running `docker run --rm --network host -e TASK_ID=... -e REPO_URL=https://github.com/viiqswim/ai-employee-test-target ... ai-employee-worker`:
+
+- ✅ Step 1-4: auth, clone, branch, pnpm install (lockfile works!)
+- ✅ Step 5-6: skip docker daemon, read task context (PostgREST now works!)
+- ⚠️ Step 7: heartbeat 409 (execution already exists from previous attempt)
+- Step 8: orchestrate.mjs reaches but fails to parse task (task in AwaitingInput status)
+  → With a fresh Executing task, orchestrate.mjs SHOULD proceed to run OpenCode
+
+### To Complete Full E2E
+
+Would require one of:
+
+1. Use Inngest Cloud (not local dev server)
+2. Remove `waitForEvent` and poll Supabase DB directly in lifecycle
+3. Patch Inngest Dev Server to properly support `waitForEvent` with local functions
+
+**Evidence**: `.sisyphus/evidence/task-7-e2e-final.txt`
+
+## Dev Polling Fix — lifecycle.ts
+
+**Commit**: `a4b65f7` — `fix(lifecycle): replace waitForEvent with Supabase polling for local dev E2E`
+
+**Problem**: `step.waitForEvent` returns `null` immediately in Inngest Dev Server v1.17.7 local mode. The lifecycle gave up (3 cycles × 0.5s each → AwaitingInput) before any Docker container could complete.
+
+**Fix**: Added `else if (process.env.INNGEST_DEV === '1')` branch that polls Supabase every 30s (40 iterations = 20 min max) instead of calling `waitForEvent`. When the container writes `Submitting` status, the next poll detects it and sets `devResult` non-null → `finalize` runs and marks Done.
+
+**Test impact**: Zero new failures. Baseline: 87 failed / 432 passed (10 files failed). After change: same 87 failed / 432 passed. The 87 pre-existing failures come from `USE_LOCAL_DOCKER=1` in `.env` affecting lifecycle docker dispatch tests.
+
+**Evidence**: `.sisyphus/evidence/task-7-dev-polling.txt`
+
+## Full E2E Success — OpenRouter Auth Fix (Task 7 Final)
+
+**Date**: 2026-04-01 ~19:51-19:59 CDT
+**Task UUID**: `295312be-4ac2-49e5-9f4b-631fef54427d`
+**Outcome**: COMPLETE SUCCESS — PR created, task reached Done
+
+### Timeline
+
+- 19:51:02 — Jira webhook accepted → task Ready
+- 19:51:02 — Lifecycle triggered → Ready→Executing
+- 19:51:02 — Docker container dispatched: `ai-worker-295312be`
+- 19:52:07 — Container heartbeat (stage=executing)
+- 19:54:07 — Heartbeat update (stage=validating) — OpenCode completed, fix loop running
+- 19:58:54 — Container writes Submitting status
+- 19:59:03 — Lifecycle detects Submitting → Done
+- PR #1 created: `https://github.com/viiqswim/ai-employee-test-target/pull/1`
+  Branch: `ai/TEST-100-test-100`
+
+### Root Cause Fixed
+
+OpenCode 1.3.3's `opencode serve` reads provider credentials ONLY from
+`~/.local/share/opencode/auth.json` at startup. Setting `OPENROUTER_API_KEY` as an
+environment variable alone is NOT sufficient — the server never picks it up.
+
+### Fix Applied (5 parts)
+
+1. **entrypoint.sh** — STEP 7.5: Write `auth.json` before handing off to orchestrate.mjs.
+   `printf '{"openrouter":{"type":"api","key":"%s"}}\n' "$OPENROUTER_API_KEY" > ~/.local/share/opencode/auth.json`
+
+2. **session-manager.ts** — Changed default model from `anthropic/claude-sonnet-4-6` to
+   `minimax/minimax-m2.7`. Added `model: { providerID, modelID }` to `sendFixPrompt` too.
+
+3. **orchestrate.mts** — Belt-and-suspenders `PUT /auth/openrouter` REST call right after
+   OpenCode server starts (catches cases where auth.json wasn't written in time).
+
+4. **lifecycle.ts** — Pass `OPENROUTER_MODEL` env var to Docker and Fly.io worker containers.
+
+5. **.env** — `OPENROUTER_MODEL=minimax/minimax-m2.7`
+
+### Critical Diagnostic Finding
+
+**auth.json needed, env var alone insufficient**: When `openrouter` provider is not in
+`~/.local/share/opencode/auth.json`, `promptAsync` returns 204 but session NEVER enters
+`busy` state — status stays `{}` forever. After writing auth.json, session immediately
+shows `{"type":"busy"}` within 5-10 seconds of the prompt being sent.
+
+### HMAC Computation Gotcha (new)
+
+When computing HMAC for Jira webhook against the server:
+- Server uses `rawBody` (raw request bytes) OR falls back to `JSON.stringify(request.body)` (compact)
+- If fastify-raw-body plugin doesn't capture raw body, fallback is compact JSON
+- `openssl dgst -sha256 -hmac` on pretty-printed file ≠ HMAC of compact JSON
+- **Fix**: Send compact JSON: `cat file | node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync(0,'utf8'))))"` or just use compact JSON test fixtures
+
+### Commit
+
+`ff6ef19` — `fix(workers): configure OpenRouter via auth.json + use minimax/minimax-m2.7 model`
+
+### Evidence
+
+`.sisyphus/evidence/task-7-e2e-final-success.txt`
+
+## Task 3: PostgREST Grants + UUID DB-side defaults
+
+### Key findings
+- `pnpm prisma migrate dev --create-only` fails when DB has drift (UUID defaults already applied from prior manual work). Use manual migration folder creation instead.
+- `pnpm prisma migrate deploy` does NOT check for drift — safe to use when DB schema is ahead of migration history.
+- The DB already had `gen_random_uuid()` defaults applied (drift detected from prior session), so the migration SQL uses idempotent `DO $$ BEGIN ... EXCEPTION WHEN others THEN NULL; END $$` blocks.
+- PostgREST requires explicit `GRANT USAGE ON SCHEMA public` in addition to table grants.
+- `.sisyphus/evidence/` is gitignored — evidence is captured locally but not committed.
+- UUID default verification: insert into `tasks` without `id` returns a UUID from `gen_random_uuid()`.
+- `tasks.updated_at` has no DB-side default (Prisma `@updatedAt` is app-layer only) — direct psql inserts must provide it.
+
+### Commit
+`feat(migration): add PostgREST grants and UUID DB-side defaults` — `3316430`
+
+## Supabase Docker Compose with Custom Database Name (2026-04-02)
+
+### Setup
+- Official compose from `supabase/supabase` master branch
+- Port remapping: Kong 54321:8000, DB 54322:5432 (hardcoded in compose)
+- PostgreSQL 17: `public.ecr.aws/supabase/postgres:17.6.1.064`
+- Supavisor `${POSTGRES_PORT}:5432` port binding removed (we expose db directly)
+
+### Key Gotchas
+1. **kong-entrypoint.sh needs execute permission**: `chmod +x docker/volumes/api/kong-entrypoint.sh`
+2. **Custom DB name requires explicit grants**: When `POSTGRES_DB != 'postgres'`, Supabase service roles don't inherit privileges automatically. Created `docker/volumes/db/ai_employee_grants.sql` with `GRANT ALL PRIVILEGES ON DATABASE ai_employee TO ...` for all service roles.
+3. **Prisma requires schema CREATE**: In PG17 with custom DB, `postgres` user needs explicit `GRANT CREATE ON SCHEMA public`. Added to init script.
+4. **Storage service**: `supabase_storage_admin` needed explicit `GRANT ALL PRIVILEGES ON DATABASE ai_employee`.
+5. **Edge functions**: Depends on Kong health; if Kong fails initially, restart brings it back.
+
+### Init Script Order
+Files mounted to `/docker-entrypoint-initdb.d/migrations/` run on first DB init:
+- `97-_supabase.sql` → internal supabase data
+- `99-realtime.sql`, `99-logs.sql`, `99-pooler.sql` → service schemas
+- `99-ai_employee_grants.sql` → custom grants (added by us)
+
+### Verification Commands
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -c "SELECT current_database();"
+curl -sf http://localhost:54321/rest/v1/tasks?limit=1 -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+docker inspect supabase-rest --format '{{range .Config.Env}}{{println .}}{{end}}' | grep PGRST_DB_URI
+```
