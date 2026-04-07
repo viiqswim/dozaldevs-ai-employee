@@ -1055,7 +1055,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `test-payloads/jira-realistic-task-103.json`
   - Pre-commit: Verify exactly 1 file staged; post-commit verify working tree is clean
 
-- [ ] 11. Push all commits to `origin/main` (fast-forward only)
+- [x] 11. Push all commits to `origin/main` (fast-forward only)
 
   **What to do**:
   - **PRE-PUSH SAFETY GATE**: Run `git fetch origin main` then `git log HEAD..origin/main | wc -l` — MUST return 0. If non-zero, STOP and report.
