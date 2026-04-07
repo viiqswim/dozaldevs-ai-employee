@@ -143,6 +143,88 @@ Intermittently fail in parallel runs (run serially if needed):
 - `tests/gateway/migration.test.ts`
 - `tests/gateway/project-lookup.test.ts`
 
+## Long-Running Command Protocol (MANDATORY)
+
+**NEVER** run a command expected to take >30 seconds with a blocking shell call. Doing so
+makes the process unmonitorable — you cannot observe progress, detect hangs, or take corrective
+action. This project has many such commands (`pnpm trigger-task`, `docker build`, `fly logs`,
+`pnpm dev:start`, `cloudflared tunnel`, etc.).
+
+### Rule
+
+> Every command that can run for more than 30 seconds MUST be launched in a detached tmux
+> session with output piped to a log file. Poll the log file every 30–60 seconds. Never block
+> waiting for completion.
+
+### Pattern (use verbatim)
+
+**Step 1 — Launch** (use `mcp_interactive_bash` with tmux):
+
+```bash
+# Create a named detached session
+tmux new-session -d -s <session-name> -x 220 -y 50
+
+# Start the command; append EXIT_CODE marker so you can detect completion
+tmux send-keys -t <session-name> \
+  "cd /path/to/repo && COMMAND 2>&1 | tee /tmp/<session-name>.log; echo 'EXIT_CODE:'$? >> /tmp/<session-name>.log" \
+  Enter
+```
+
+**Step 2 — Poll every 30–60 s** (use `mcp_bash`):
+
+```bash
+# Check last output lines
+tail -30 /tmp/<session-name>.log
+
+# Detect completion (EXIT_CODE line appears when command finishes)
+grep "EXIT_CODE:" /tmp/<session-name>.log && echo "FINISHED" || echo "STILL RUNNING"
+
+# Alternatively, capture the live tmux pane
+tmux capture-pane -t <session-name> -p | tail -20
+```
+
+**Step 3 — React if stuck**:
+
+```bash
+# Send Ctrl+C to the running process
+tmux send-keys -t <session-name> C-c
+
+# Kill the session entirely
+tmux kill-session -t <session-name>
+```
+
+### Commands that ALWAYS require this pattern
+
+| Command                          | Reason                                     |
+| -------------------------------- | ------------------------------------------ |
+| `pnpm trigger-task`              | Polls until task Done — can take 45–90 min |
+| `pnpm dev:start`                 | Blocks forever by design                   |
+| `docker build / buildx`          | 5–15 min cross-compile                     |
+| `fly logs` (without `--no-tail`) | Streams forever                            |
+| `cloudflared tunnel --url ...`   | Persistent daemon                          |
+| `ngrok http ...`                 | Persistent daemon                          |
+
+### Naming convention for sessions and logs
+
+Use `<project>-<task>` format, e.g.:
+
+- Session: `ai-e2e`, `ai-dev`, `ai-build`
+- Log: `/tmp/ai-e2e.log`, `/tmp/ai-dev.log`
+
+### Example: running `pnpm trigger-task` for T13
+
+```bash
+# Launch
+tmux new-session -d -s ai-e2e -x 220 -y 50
+tmux send-keys -t ai-e2e \
+  "cd /Users/victordozal/repos/dozal-devs/ai-employee && TUNNEL_URL=$(cat .sisyphus/evidence/task-13-ngrok-url.txt) USE_FLY_HYBRID=1 pnpm trigger-task -- --key TEST-300 2>&1 | tee /tmp/ai-e2e.log; echo 'EXIT_CODE:'$? >> /tmp/ai-e2e.log" \
+  Enter
+
+# Poll 60 s later
+tail -30 /tmp/ai-e2e.log
+grep "EXIT_CODE:" /tmp/ai-e2e.log && echo "DONE" || echo "RUNNING"
+```
+
 ## Git Rules
 
 - Never use `--no-verify`
