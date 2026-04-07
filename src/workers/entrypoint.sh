@@ -149,7 +149,7 @@ if ! step_done 6; then
       -H "apikey: ${SUPABASE_SECRET_KEY}" \
       -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
       -H "Content-Type: application/json" \
-      "${SUPABASE_URL}/rest/v1/tasks?id=eq.${TASK_ID}&select=*")
+      "${SUPABASE_URL}/rest/v1/tasks?id=eq.${TASK_ID}&select=*") || true
     HTTP_BODY=$(echo "${HTTP_RESPONSE}" | head -n -1)
     HTTP_CODE=$(echo "${HTTP_RESPONSE}" | tail -n 1)
     if [[ "${HTTP_CODE}" == "200" ]]; then
@@ -180,7 +180,7 @@ if ! step_done 7; then
       -H "Content-Type: application/json" \
       -H "Prefer: return=representation" \
       -d "${HEARTBEAT_PAYLOAD}" \
-      "${SUPABASE_URL}/rest/v1/executions")
+      "${SUPABASE_URL}/rest/v1/executions") || true
     HTTP_BODY=$(echo "${HTTP_RESPONSE}" | head -n -1)
     HTTP_CODE=$(echo "${HTTP_RESPONSE}" | tail -n 1)
     if [[ "${HTTP_CODE}" == "201" ]]; then
