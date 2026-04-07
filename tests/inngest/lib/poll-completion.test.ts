@@ -135,7 +135,7 @@ describe('pollForCompletion', () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://test-url:54321/tasks?id=eq.task-abc&select=status');
+    expect(url).toBe('http://test-url:54321/rest/v1/tasks?id=eq.task-abc&select=status');
     expect(options.headers.apikey).toBe('test-key-123');
   });
 

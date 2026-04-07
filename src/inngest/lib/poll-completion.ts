@@ -35,7 +35,7 @@ export async function pollForCompletion(
 ): Promise<PollForCompletionResult> {
   const { taskId, supabaseUrl, supabaseKey, maxPolls = 40, intervalMs = 30_000, logger } = opts;
 
-  const url = `${supabaseUrl}/tasks?id=eq.${taskId}&select=status`;
+  const url = `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`;
   const headers = { apikey: supabaseKey };
 
   let lastStatus: string | null = null;
