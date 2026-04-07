@@ -124,7 +124,7 @@ export function createLifecycleFunction(
             repoBranch?: string;
           };
           const flyWorkerImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:bd34f83';
           const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
 
           // Use direct fetch for hybrid mode so we can pass restart: { policy: "no" }
