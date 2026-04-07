@@ -13,6 +13,17 @@ describe('ngrok-client', () => {
     vi.unstubAllGlobals();
   });
 
+  it('should return TUNNEL_URL env var directly when set', async () => {
+    process.env.TUNNEL_URL = 'https://abc123.trycloudflare.com';
+    try {
+      const result = await getNgrokTunnelUrl();
+      expect(result).toBe('https://abc123.trycloudflare.com');
+      expect(mockFetch).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.TUNNEL_URL;
+    }
+  });
+
   function makeTunnelsResponse(
     tunnels: Array<{ public_url: string; proto: string; config?: Record<string, unknown> }>,
   ) {
