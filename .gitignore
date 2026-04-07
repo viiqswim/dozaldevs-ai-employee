@@ -8,9 +8,10 @@ Thumbs.db
 *.swp
 *.swo
 
-# Sisyphus internal state (plans are tracked, boulder state is not)
+# Sisyphus internal state (plans are tracked, boulder state / evidence / drafts are not)
 .sisyphus/boulder.json
 .sisyphus/evidence/
+.sisyphus/drafts/
 
 # Dependencies
 node_modules/
