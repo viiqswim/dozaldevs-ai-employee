@@ -739,7 +739,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `.sisyphus/notepads/phase8-e2e/learnings.md` (modified) + 5 new notepad directories
   - Pre-commit: `git diff --cached --stat | grep -v "notepads/"` must show no leaked files
 
-- [ ] 7. Commit: plan catchup (13 untracked plans)
+- [x] 7. Commit: plan catchup (13 untracked plans)
 
   **What to do**:
   - Stage ALL 13 plan files EXPLICITLY (no glob, no `git add .sisyphus/plans/`):
@@ -836,7 +836,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: 13 plan files (including T4-updated `shared-supabase-infra.md`)
   - Pre-commit: Verify exactly 13 files staged, all in `.sisyphus/plans/`
 
-- [ ] 8. Commit: hybrid mode current-state documentation
+- [x] 8. Commit: hybrid mode current-state documentation
 
   **What to do**:
   - Stage the single new doc EXPLICITLY: `git add docs/2026-04-07-1732-hybrid-mode-current-state.md`
@@ -901,7 +901,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: `docs/2026-04-07-1732-hybrid-mode-current-state.md`
   - Pre-commit: Verify exactly 1 file staged
 
-- [ ] 9. Commit: infra templates relocation + gitignore drafts
+- [x] 9. Commit: infra templates relocation + gitignore drafts
 
   **What to do**:
   - Stage the new `infra/templates/` directory EXPLICITLY:
@@ -991,7 +991,7 @@ Max Concurrent: 3 (Wave 1)
   - Files: 9 files in `infra/templates/` + `.gitignore`
   - Pre-commit: Verify exactly 10 files staged; no plan files leaked
 
-- [ ] 10. Commit: test payload fixture
+- [x] 10. Commit: test payload fixture
 
   **What to do**:
   - Stage the single new test payload EXPLICITLY: `git add test-payloads/jira-realistic-task-103.json`
