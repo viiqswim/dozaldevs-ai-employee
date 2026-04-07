@@ -38,7 +38,7 @@ export async function getNgrokTunnelUrl(
   let response: Response;
   try {
     const raw = await fetch(url);
-    // If mock is exhausted (vi.fn() returns undefined), treat as unreachable
+    // Guard against malformed fetch responses (e.g., missing .json method)
     if (!raw || typeof raw.json !== 'function') {
       throw new Error('no response');
     }
