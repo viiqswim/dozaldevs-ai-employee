@@ -19,6 +19,7 @@
 
 /**
  * Query the ngrok agent API and return the first HTTPS tunnel URL.
+ * If the TUNNEL_URL environment variable is set, it is returned directly without querying the agent API.
  * @param agentUrl - ngrok agent base URL (default: "http://localhost:4040")
  * @returns The public HTTPS tunnel URL
  * @throws Error if agent is unreachable, no tunnels exist, or JSON parsing fails
@@ -26,6 +27,12 @@
 export async function getNgrokTunnelUrl(
   agentUrl: string = 'http://localhost:4040',
 ): Promise<string> {
+  // Allow TUNNEL_URL env var to bypass ngrok agent API (e.g., for Cloudflare Tunnel)
+  const tunnelUrlOverride = process.env.TUNNEL_URL;
+  if (tunnelUrlOverride && tunnelUrlOverride.trim().length > 0) {
+    return tunnelUrlOverride.trim();
+  }
+
   const url = `${agentUrl}/api/tunnels`;
 
   let response: Response;
