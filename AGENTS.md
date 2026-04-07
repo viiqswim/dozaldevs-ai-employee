@@ -45,6 +45,48 @@ docker build -t ai-employee-worker:latest . && pnpm trigger-task
 
 For **hybrid mode** (USE_FLY_HYBRID), also run `pnpm fly:image` to push the updated image to Fly.io registry.
 
+## Hybrid Fly.io Mode (USE_FLY_HYBRID)
+
+### Purpose
+
+Use hybrid mode when you want to test real Fly.io machine dispatch without migrating Supabase or Inngest to the cloud. The gateway, Inngest Dev Server, and Supabase all run locally; only the worker container runs on a real Fly.io machine. An ngrok tunnel exposes local PostgREST to the Fly machine.
+
+### Prerequisites
+
+- Fly.io account with `FLY_API_TOKEN` set in `.env`
+- Fly.io worker app `ai-employee-workers` created: run `pnpm fly:setup`
+- Worker image pushed to registry: run `pnpm fly:image`
+- ngrok installed (`brew install ngrok` on macOS) and configured (`ngrok config add-authtoken <your-token>`)
+
+### Setup Steps
+
+1. `pnpm dev:start` — start local Supabase, gateway, and Inngest Dev Server
+2. In a separate terminal: `ngrok http 54321` — expose PostgREST to the internet
+3. In another terminal: `USE_FLY_HYBRID=1 pnpm trigger-task` — dispatch task to real Fly machine
+
+### Workflow Notes
+
+- Worker code changes require BOTH `docker build -t ai-employee-worker:latest .` (for local Docker mode) AND `pnpm fly:image` (for hybrid mode)
+- ngrok URL is read dynamically at dispatch time — restarting ngrok mid-task is safe for new tasks but breaks the in-flight one
+- Free-tier ngrok URLs change on every ngrok restart — that's fine, hybrid mode reads it fresh each dispatch
+
+### Debugging
+
+```bash
+fly logs --app ai-employee-workers                              # View Fly machine logs
+fly machines list --app ai-employee-workers                    # Verify machine cleanup
+fly machines exec <machine-id> --app ai-employee-workers env   # Check env passed to machine
+```
+
+Inspect ngrok request log: `http://localhost:4040/inspect/http`
+
+### Known Limitations
+
+- Hybrid mode requires ngrok running locally — failed pre-flight aborts dispatch and sets task to `AwaitingInput`
+- Polling ceiling is 60 minutes (configurable via `FLY_HYBRID_POLL_MAX`)
+- Worker's completion event to Inngest will fail (no `INNGEST_BASE_URL` passed) — this is intentional; completion is detected via Supabase polling instead
+- The existing default Fly.io mode has a known `auto_destroy` bug (machines may persist) — hybrid mode does NOT have this bug (uses `restart: { policy: "no" }`)
+
 ## Project Structure
 
 ```
