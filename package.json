@@ -19,7 +19,7 @@
     "dev:start": "tsx scripts/dev-start.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
     "fly:setup": "tsx scripts/fly-setup.ts",
-    "fly:image": "docker build -t registry.fly.io/ai-employee-workers:latest . && docker push registry.fly.io/ai-employee-workers:latest",
+    "fly:image": "docker buildx build --platform linux/amd64 --tag registry.fly.io/ai-employee-workers:latest --push .",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
