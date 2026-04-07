@@ -1,0 +1,44 @@
+{
+  "webhookEvent": "jira:issue_created",
+  "timestamp": 1743523200000,
+  "issue": {
+    "id": "20003",
+    "key": "TEST-103",
+    "self": "https://example.atlassian.net/rest/api/2/issue/20003",
+    "fields": {
+      "summary": "Add hello message to README",
+      "description": "Add the word \"Hello\" on its own line at the top of `README.md`, directly below the first heading.\n\nAcceptance Criteria:\n- `README.md` contains the word \"Hello\" near the top of the file\n- No other files are modified\n- TypeScript compiles cleanly with no errors",
+      "issuetype": {
+        "name": "Task",
+        "iconUrl": "https://example.atlassian.net/images/icons/issuetypes/task.png"
+      },
+      "project": {
+        "id": "10000",
+        "key": "TEST",
+        "name": "Test Project",
+        "self": "https://example.atlassian.net/rest/api/2/project/10000"
+      },
+      "status": {
+        "name": "To Do",
+        "statusCategory": { "name": "To Do" }
+      },
+      "priority": {
+        "name": "Medium",
+        "iconUrl": "https://example.atlassian.net/images/icons/priorities/medium.png"
+      },
+      "labels": ["docs"],
+      "reporter": {
+        "displayName": "Test Developer",
+        "emailAddress": "developer@example.com",
+        "accountId": "developer-account-id"
+      },
+      "assignee": null,
+      "created": "2026-04-02T18:00:00.000+0000",
+      "updated": "2026-04-02T18:00:00.000+0000"
+    }
+  },
+  "user": {
+    "accountId": "developer-account-id",
+    "displayName": "Test Developer"
+  }
+}
