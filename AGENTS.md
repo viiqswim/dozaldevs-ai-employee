@@ -49,16 +49,27 @@ For **hybrid mode** (USE_FLY_HYBRID), also run `pnpm fly:image` to push the upda
 
 ### Purpose
 
-Use hybrid mode when you want to test real Fly.io machine dispatch without migrating Supabase or Inngest to the cloud. The gateway, Inngest Dev Server, and Supabase all run locally; only the worker container runs on a real Fly.io machine. An ngrok tunnel exposes local PostgREST to the Fly machine.
+Use hybrid mode when you want to test real Fly.io machine dispatch without migrating Supabase or Inngest to the cloud. The gateway, Inngest Dev Server, and Supabase all run locally; only the worker container runs on a real Fly.io machine. A tunnel exposes local PostgREST to the Fly machine.
 
 ### Prerequisites
 
 - Fly.io account with `FLY_API_TOKEN` set in `.env`
 - Fly.io worker app `ai-employee-workers` created: run `pnpm fly:setup`
 - Worker image pushed to registry: run `pnpm fly:image`
-- ngrok installed (`brew install ngrok` on macOS) and configured (`ngrok config add-authtoken <your-token>`)
+- A tunnel tool installed — **Cloudflare Tunnel is recommended** (ngrok free-tier blocks Fly.io IPs):
+  - Cloudflare: `brew install cloudflared` (no account needed for quick tunnels)
+  - ngrok (paid): `brew install ngrok` + `ngrok config add-authtoken <your-token>`
 
 ### Setup Steps
+
+#### Option A: Cloudflare Tunnel (recommended — free, works with Fly.io)
+
+1. `pnpm dev:start` — start local Supabase, gateway, and Inngest Dev Server
+2. In a separate terminal: `cloudflared tunnel --url http://localhost:54321` — note the `https://xxx.trycloudflare.com` URL printed to stderr
+3. Set the tunnel URL: `export TUNNEL_URL=https://xxx.trycloudflare.com`
+4. In another terminal: `USE_FLY_HYBRID=1 pnpm trigger-task` — dispatch task to real Fly machine
+
+#### Option B: ngrok (paid plans only — free tier blocks Fly.io IPs)
 
 1. `pnpm dev:start` — start local Supabase, gateway, and Inngest Dev Server
 2. In a separate terminal: `ngrok http 54321` — expose PostgREST to the internet
@@ -67,8 +78,9 @@ Use hybrid mode when you want to test real Fly.io machine dispatch without migra
 ### Workflow Notes
 
 - Worker code changes require BOTH `docker build -t ai-employee-worker:latest .` (for local Docker mode) AND `pnpm fly:image` (for hybrid mode)
-- ngrok URL is read dynamically at dispatch time — restarting ngrok mid-task is safe for new tasks but breaks the in-flight one
-- Free-tier ngrok URLs change on every ngrok restart — that's fine, hybrid mode reads it fresh each dispatch
+- If `TUNNEL_URL` env var is set, it is used directly (bypasses ngrok agent API) — use this for Cloudflare Tunnel
+- If `TUNNEL_URL` is not set, the ngrok agent API at `NGROK_AGENT_URL` (default: `http://localhost:4040`) is queried at dispatch time
+- Tunnel URL changes on every restart — that's fine, hybrid mode reads it fresh each dispatch
 
 ### Debugging
 
@@ -82,7 +94,8 @@ Inspect ngrok request log: `http://localhost:4040/inspect/http`
 
 ### Known Limitations
 
-- Hybrid mode requires ngrok running locally — failed pre-flight aborts dispatch and sets task to `AwaitingInput`
+- Hybrid mode requires a tunnel running locally — failed pre-flight aborts dispatch and sets task to `AwaitingInput`
+- **ngrok free-tier is NOT compatible** — Fly.io cloud egress IPs are blocked by ngrok's free infrastructure; use Cloudflare Tunnel or a paid ngrok plan
 - Polling ceiling is 60 minutes (configurable via `FLY_HYBRID_POLL_MAX`)
 - Worker's completion event to Inngest will fail (no `INNGEST_BASE_URL` passed) — this is intentional; completion is detected via Supabase polling instead
 - The existing default Fly.io mode has a known `auto_destroy` bug (machines may persist) — hybrid mode does NOT have this bug (uses `restart: { policy: "no" }`)
