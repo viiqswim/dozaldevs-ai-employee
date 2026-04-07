@@ -3,6 +3,9 @@ import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import type { SlackClient } from '../lib/slack-client.js';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
+import type { FlyMachineConfig } from '../lib/fly-client.js';
+import { getNgrokTunnelUrl } from '../lib/ngrok-client.js';
+import { pollForCompletion } from './lib/poll-completion.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('lifecycle');
@@ -20,9 +23,11 @@ export function createLifecycleFunction(
     },
     async ({ event, step }) => {
       const taskId = event.data.taskId as string;
-      // projectId is available as event.data.projectId for concurrency key — no need to extract explicitly
 
-      await step.run('update-status-executing', async () => {
+      const dispatchMode = await step.run('update-status-executing', async () => {
+        const flyHybrid = process.env.USE_FLY_HYBRID;
+        const localDocker = process.env.USE_LOCAL_DOCKER;
+
         const result = await prisma.task.updateMany({
           where: { id: taskId, status: 'Ready' },
           data: { status: 'Executing', updated_at: new Date() },
@@ -40,7 +45,14 @@ export function createLifecycleFunction(
             actor: 'lifecycle_fn',
           },
         });
+
+        return { useFlyHybrid: flyHybrid, useLocalDocker: localDocker };
       });
+
+      const { useFlyHybrid, useLocalDocker } = dispatchMode as {
+        useFlyHybrid: string | undefined;
+        useLocalDocker: string | undefined;
+      };
 
       const isCancelled = await step.run('check-cancellation', async () => {
         const task = await prisma.task.findUnique({
@@ -83,8 +95,125 @@ export function createLifecycleFunction(
       });
       if (!costCheckPassed) return;
 
+      if (useFlyHybrid === '1' && useLocalDocker !== '1') {
+        const hybridMachine = await step.run('hybrid-spawn', async () => {
+          let tunnelUrl: string;
+          try {
+            tunnelUrl = await getNgrokTunnelUrl(process.env.NGROK_AGENT_URL);
+          } catch (err) {
+            await prisma.task.updateMany({
+              where: { id: taskId },
+              data: {
+                status: 'AwaitingInput',
+                failure_reason: `Hybrid mode pre-flight failed: ${err instanceof Error ? err.message : String(err)}`,
+                updated_at: new Date(),
+              },
+            });
+            await prisma.taskStatusLog.create({
+              data: {
+                task_id: taskId,
+                from_status: 'Executing',
+                to_status: 'AwaitingInput',
+                actor: 'lifecycle_fn',
+              },
+            });
+            return null;
+          }
+
+          const { repoUrl: hybridRepoUrl, repoBranch: hybridRepoBranch } = event.data as {
+            repoUrl?: string;
+            repoBranch?: string;
+          };
+          const flyWorkerImage =
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+
+          const flyMachine = await createMachine(flyWorkerApp, {
+            image: flyWorkerImage,
+            vm_size: 'performance-2x',
+            restart: { policy: 'no' },
+            env: {
+              TASK_ID: taskId,
+              REPO_URL: hybridRepoUrl ?? '',
+              REPO_BRANCH: hybridRepoBranch ?? 'main',
+              SUPABASE_URL: tunnelUrl,
+              SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
+              GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
+              OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+              OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+            },
+          } as unknown as FlyMachineConfig);
+
+          return flyMachine;
+        });
+
+        if (hybridMachine === null) return;
+
+        const maxPolls = parseInt(process.env.FLY_HYBRID_POLL_MAX ?? '120');
+        const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+
+        let pollResult: { completed: boolean; finalStatus: string | null } = {
+          completed: false,
+          finalStatus: null,
+        };
+        try {
+          pollResult = await pollForCompletion({
+            taskId,
+            supabaseUrl: process.env.SUPABASE_URL ?? '',
+            supabaseKey: process.env.SUPABASE_SECRET_KEY ?? '',
+            maxPolls,
+            intervalMs: 30_000,
+            logger: log,
+          });
+        } finally {
+          await destroyMachine(flyWorkerApp, hybridMachine.id).catch((err) => {
+            log.warn({ err, machineId: hybridMachine.id }, 'hybrid: failed to destroy machine');
+          });
+        }
+
+        await step.run('hybrid-finalize', async () => {
+          if (pollResult.completed) {
+            await prisma.task.updateMany({
+              where: { id: taskId },
+              data: { status: 'Done', updated_at: new Date() },
+            });
+            await prisma.taskStatusLog.create({
+              data: {
+                task_id: taskId,
+                from_status: 'Executing',
+                to_status: 'Done',
+                actor: 'lifecycle_fn',
+              },
+            });
+          } else {
+            await prisma.task.updateMany({
+              where: { id: taskId },
+              data: {
+                status: 'AwaitingInput',
+                failure_reason: `Hybrid mode polling timed out after ${maxPolls} polls. Last status: ${pollResult.finalStatus ?? 'unknown'}`,
+                updated_at: new Date(),
+              },
+            });
+            await prisma.taskStatusLog.create({
+              data: {
+                task_id: taskId,
+                from_status: 'Executing',
+                to_status: 'AwaitingInput',
+                actor: 'lifecycle_fn',
+              },
+            });
+          }
+        });
+
+        return;
+      }
+
+      if (useLocalDocker === '1' && useFlyHybrid === '1') {
+        return;
+      }
+
       const machine = await step.run('dispatch-fly-machine', async () => {
-        if (process.env.USE_LOCAL_DOCKER === '1') {
+        if (useLocalDocker === '1') {
           const { execSync } = await import('child_process');
           const containerName = `ai-worker-${taskId.slice(0, 8)}`;
           const { repoUrl: localRepoUrl, repoBranch: localRepoBranch } = event.data as {
@@ -211,7 +340,7 @@ export function createLifecycleFunction(
           return exec;
         });
         result = { data: { taskId, executionId: execution?.id, prUrl: null } };
-      } else if (process.env.USE_LOCAL_DOCKER === '1') {
+      } else if (useLocalDocker === '1') {
         // LOCAL DOCKER DEV MODE: Inngest Dev Server v1.17.7 resolves waitForEvent immediately (null).
         // Use step.sleep polling instead — checks Supabase every 30s for up to 20 minutes.
         // This is dev-only; production uses waitForEvent (Cloud properly suspends the function).

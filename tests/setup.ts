@@ -73,3 +73,15 @@ export async function createTestApp(opts?: {
   await app.ready();
   return app;
 }
+
+// Eagerly instantiate Prisma so .env is loaded (synchronously via new PrismaClient())
+// before any test's beforeEach runs. Without this, Prisma's lazy .env loading on the
+// first query can restore env vars that a beforeEach deleted (e.g. USE_LOCAL_DOCKER).
+getPrisma()
+  .$connect()
+  .catch(() => {});
+
+// After .env is loaded, clear USE_LOCAL_DOCKER so all tests default to the standard
+// Fly.io dispatch path. Tests or describe blocks that specifically exercise local-docker
+// behaviour should set process.env.USE_LOCAL_DOCKER = '1' in their own beforeEach.
+delete process.env.USE_LOCAL_DOCKER;
