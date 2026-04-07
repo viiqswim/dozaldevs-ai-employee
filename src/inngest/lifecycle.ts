@@ -3,7 +3,6 @@ import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import type { SlackClient } from '../lib/slack-client.js';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
-import type { FlyMachineConfig } from '../lib/fly-client.js';
 import { getNgrokTunnelUrl } from '../lib/ngrok-client.js';
 import { pollForCompletion } from './lib/poll-completion.js';
 import { createLogger } from '../lib/logger.js';
@@ -128,21 +127,43 @@ export function createLifecycleFunction(
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
           const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
 
-          const flyMachine = await createMachine(flyWorkerApp, {
-            image: flyWorkerImage,
-            vm_size: 'performance-2x',
-            restart: { policy: 'no' },
-            env: {
-              TASK_ID: taskId,
-              REPO_URL: hybridRepoUrl ?? '',
-              REPO_BRANCH: hybridRepoBranch ?? 'main',
-              SUPABASE_URL: tunnelUrl,
-              SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
-              GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
-              OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
-              OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+          // Use direct fetch for hybrid mode so we can pass restart: { policy: "no" }
+          // and the correct guest block (vm_size is ignored by the Fly API; the correct
+          // field is config.guest with cpu_kind/cpus/memory_mb).
+          // createMachine() only serialises FlyMachineConfig fields (no restart/guest support).
+          const flyApiToken = process.env.FLY_API_TOKEN;
+          if (!flyApiToken) throw new Error('FLY_API_TOKEN not set');
+          const machineResp = await fetch(
+            `https://api.machines.dev/v1/apps/${flyWorkerApp}/machines`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${flyApiToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                config: {
+                  image: flyWorkerImage,
+                  guest: { cpu_kind: 'performance', cpus: 2, memory_mb: 4096 },
+                  restart: { policy: 'no' },
+                  env: {
+                    TASK_ID: taskId,
+                    REPO_URL: hybridRepoUrl ?? '',
+                    REPO_BRANCH: hybridRepoBranch ?? 'main',
+                    SUPABASE_URL: tunnelUrl,
+                    SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
+                    GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
+                    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+                    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+                  },
+                },
+              }),
             },
-          } as unknown as FlyMachineConfig);
+          );
+          if (!machineResp.ok) {
+            throw new Error(`Fly API error ${machineResp.status}: ${await machineResp.text()}`);
+          }
+          const flyMachine = (await machineResp.json()) as { id: string; state: string };
 
           return flyMachine;
         });
