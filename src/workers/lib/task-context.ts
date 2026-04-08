@@ -8,6 +8,7 @@ const log = createLogger('task-context');
  * Each field is an optional command string that can be executed during validation.
  */
 export interface ToolingConfig {
+  install?: string;
   typescript?: string;
   lint?: string;
   unit?: string;
@@ -20,6 +21,7 @@ export interface ToolingConfig {
  * Projects can override these with their own config.
  */
 export const DEFAULT_TOOLING_CONFIG: ToolingConfig = {
+  install: 'pnpm install --frozen-lockfile',
   typescript: 'pnpm tsc --noEmit',
   lint: 'pnpm lint',
   unit: 'pnpm test -- --run',
