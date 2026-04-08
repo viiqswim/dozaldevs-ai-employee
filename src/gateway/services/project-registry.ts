@@ -142,4 +142,47 @@ export async function updateProject(params: {
   }
 }
 
+export type DeleteProjectResult =
+  | { deleted: true }
+  | { deleted: false; reason: 'not_found' }
+  | { deleted: false; reason: 'active_tasks'; activeTaskIds: string[] };
+
+export async function deleteProject(params: {
+  id: string;
+  tenantId: string;
+  prisma: PrismaClient;
+}): Promise<DeleteProjectResult> {
+  const { id, tenantId, prisma } = params;
+
+  return prisma.$transaction<DeleteProjectResult>(async (tx) => {
+    const project = await tx.project.findFirst({
+      where: { id, tenant_id: tenantId },
+    });
+
+    if (!project) {
+      return { deleted: false, reason: 'not_found' };
+    }
+
+    const activeTasks = await tx.task.findMany({
+      where: {
+        project_id: id,
+        status: { in: ['Ready', 'Executing', 'Submitting'] },
+      },
+      select: { id: true },
+    });
+
+    if (activeTasks.length > 0) {
+      return {
+        deleted: false,
+        reason: 'active_tasks',
+        activeTaskIds: activeTasks.map((t) => t.id),
+      };
+    }
+
+    await tx.project.delete({ where: { id } });
+
+    return { deleted: true };
+  });
+}
+
 export { ProjectRegistryConflictError } from '../../lib/errors.js';
