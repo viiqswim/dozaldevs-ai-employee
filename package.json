@@ -16,6 +16,7 @@
     "test": "vitest",
     "setup": "tsx scripts/setup.ts",
     "trigger-task": "tsx scripts/trigger-task.ts",
+    "register-project": "tsx scripts/register-project.ts",
     "dev:start": "tsx scripts/dev-start.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
     "fly:setup": "tsx scripts/fly-setup.ts",
