@@ -534,3 +534,245 @@ Key insight: fresh Fastify instance for route-specific tests is clean, fast, and
 ### Fastify Plugin Encapsulation Note
 
 `fastify.addHook('preHandler', requireAdminKey)` inside a plugin scope applies ONLY to routes in that same plugin scope — does NOT affect `/webhooks/jira`, `/health`, etc. This is the correct behavior for route-level auth.
+
+## [2026-04-08] Task 15: GET /admin/projects list and read routes
+
+### Implementation Summary
+
+Added two GET routes to `src/gateway/routes/admin-projects.ts`:
+
+1. **`GET /admin/projects`** — List all projects
+   - Calls `listProjects({ tenantId: SYSTEM_TENANT_ID, prisma })`
+   - Returns 200 with `{ projects: [...] }` array
+   - No pagination parameters (out of scope for T15)
+
+2. **`GET /admin/projects/:id`** — Read single project by ID
+   - Extracts `id` from `req.params`
+   - Validates UUID format using regex: `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`
+   - Returns 400 `{ error: 'INVALID_ID' }` if malformed
+   - Calls `getProjectById({ id, tenantId: SYSTEM_TENANT_ID, prisma })`
+   - Returns 404 `{ error: 'NOT_FOUND' }` if not found
+   - Returns 200 with project payload if found
+
+### TDD Test Suite
+
+Created `tests/gateway/admin-projects-read.test.ts` with 7 test cases (exceeds 6 minimum):
+
+1. ✓ GET /admin/projects without X-Admin-Key → 401
+2. ✓ GET /admin/projects with valid key → 200 + `{ projects: [...] }` array
+3. ✓ GET /admin/projects returns seed project (id: '00000000-0000-0000-0000-000000000003')
+4. ✓ GET /admin/projects/:id without X-Admin-Key → 401
+5. ✓ GET /admin/projects/:id (seed project) → 200 + project payload
+6. ✓ GET /admin/projects/:id (nonexistent uuid) → 404
+7. ✓ GET /admin/projects/:id (malformed id: 'not-a-uuid') → 400
+
+### Test Results
+
+- All 7 tests pass in 56ms
+- `pnpm build` exits 0 (no TypeScript errors)
+- Pre-existing test failures (6 Fly hybrid, 1 inngest-serve, 1 container-boot) are NOT regressions
+
+### Key Design Decisions
+
+- **UUID validation**: Regex pattern validates format before DB query (security + performance)
+- **Error responses**: Consistent with POST route pattern (400 for invalid input, 404 for not found, 500 for server errors)
+- **Tenant isolation**: Both routes use SYSTEM_TENANT_ID (hardcoded, never from request)
+- **Fresh Fastify instance in tests**: Same pattern as admin-projects-create.test.ts (route not in server.ts yet)
+- **No pagination in list**: Kept simple per spec (T18 will handle pagination if needed)
+
+### Commit
+
+- `feat(gateway): add GET /admin/projects list and read routes`
+- Files: `src/gateway/routes/admin-projects.ts`, `tests/gateway/admin-projects-read.test.ts`
+- No AI/Claude references ✓
+
+### Integration Points
+
+- Routes use `listProjects` and `getProjectById` from project-registry.ts (T9)
+- Auth via `requireAdminKey` middleware (T4)
+- Will be registered in server.ts (T18)
+- Follows Fastify plugin pattern established by POST route (T14)
+
+
+## [2026-04-08] Task 16: PATCH /admin/projects/:id route
+
+### Implementation Summary
+
+Added `PATCH /admin/projects/:id` to `src/gateway/routes/admin-projects.ts` by:
+1. Extending imports to include `updateProject` from project-registry and `UpdateProjectSchema` from schemas
+2. Appending the PATCH handler after the existing GET-by-id route (86 → 121 lines total)
+
+### Handler Flow
+
+UUID regex validation → `UpdateProjectSchema.safeParse(req.body)` → `updateProject(...)` → null check (404) → `ProjectRegistryConflictError` (409) → generic catch (500) → 200 with updated project
+
+### TDD Approach
+
+Test file created first (`tests/gateway/admin-projects-update.test.ts`) with 8 test cases (exceeds 7 minimum):
+1. Missing X-Admin-Key → 401
+2. Non-existent id → 404
+3. Empty body `{}` → 400 (UpdateProjectSchema superRefine rejects zero fields)
+4. Name-only update → 200 with new name, other fields unchanged
+5. repo_url-only update → 200, name/jira_project_key untouched
+6. Duplicate jira_project_key (seed 'TEST') → 409 CONFLICT
+7. Malformed UUID → 400 INVALID_ID
+8. Persists to DB — verified via direct Prisma query after PATCH
+
+### Key Insights
+
+- `result.data` from `UpdateProjectSchema.safeParse()` is typed as `UpdateProjectInput` — matches `updateProject()` param directly, no cast needed (unlike POST route's tooling_config cast)
+- `UpdateProjectSchema.partial()` without `.strict()` — unknown keys are silently stripped by Zod (not rejected). This is pre-existing schema design from T3, not changed in T16.
+- Fresh Fastify instance pattern (same as T14/T15): no createTestApp(), just register adminProjectRoutes directly
+- `cleanupTestData()` in afterEach preserves the seed project (id 00000000-0000-0000-0000-000000000003, key 'TEST') — used in conflict test case
+
+### Test Results
+
+- All 8 tests pass in 75ms
+- `pnpm build` exits 0 (TypeScript clean)
+- Commit: `feat(gateway): add PATCH /admin/projects/:id route`
+
+## [2026-04-08] Task 17: DELETE /admin/projects/:id route
+
+### Implementation Summary
+
+Added DELETE route and integration tests:
+
+1. **Import update** — Added `deleteProject` and `type DeleteProjectResult` to the named imports from `../services/project-registry.js` (used inline `type` keyword for the type import)
+2. **Route** — Appended `fastify.delete<{ Params: { id: string } }>('/admin/projects/:id', ...)` to the plugin (same UUID regex validation pattern as GET/PATCH)
+3. **Handler flow**: UUID regex → `deleteProject()` → `{ deleted: true }` → 204 empty | `{ reason: 'not_found' }` → 404 | `{ reason: 'active_tasks', activeTaskIds }` → 409 CONFLICT | catch → 500
+
+### Type Usage Pattern
+
+Used explicit type annotation `const result: DeleteProjectResult = await deleteProject(...)` so TypeScript narrows the discriminated union properly in the conditional branches. This also satisfies the import requirement.
+
+### Test Results
+
+7 tests pass in 143ms:
+1. Missing X-Admin-Key → 401 ✓
+2. Invalid UUID format → 400 INVALID_ID ✓
+3. Non-existent id → 404 NOT_FOUND ✓
+4. Active Executing task → 409 CONFLICT with activeTaskIds ✓
+5. Project with no tasks → 204 + DB row gone ✓
+6. Project with only Done tasks → 204 + DB row gone ✓
+7. After 409 (active Ready task), project still exists ✓
+
+### Key Insights
+
+- TDD approach: test file created before route implementation — all tests failed initially, then passed after implementation
+- 204 response sends empty body (`reply.code(204).send()`) — `res.body` is empty string `''`
+- Confirm test IDs are unique per run using `Date.now()` suffix on `external_id` values
+- Fresh Fastify instance pattern (same as T14/T15/T16) — route not in server.ts yet
+- `type DeleteProjectResult` imported inline in the named imports block (TypeScript 4.5+ inline type imports)
+- `pnpm build` exits 0 (no TypeScript errors)
+- Commit: `feat(gateway): add DELETE /admin/projects/:id with active-task guard`
+
+## [2026-04-08] Task 18: Register adminProjectRoutes in server.ts
+
+**Summary**: Successfully registered the `adminProjectRoutes` plugin in `src/gateway/server.ts`.
+
+**Changes**:
+- Added import: `import { adminProjectRoutes } from './routes/admin-projects.js';`
+- Registered route in `buildApp()` after existing routes: `await app.register(adminProjectRoutes, { prisma });`
+- Placement: After `githubRoutes`, before `inngestServeRoutes` (line 56)
+
+**Verification**:
+- ✅ `pnpm build` — TypeScript compilation successful
+- ✅ `pnpm test -- --run tests/gateway/` — All 10 gateway test files pass (117 tests total)
+- ✅ Commit: `feat(gateway): register adminProjectRoutes in server` (11c5252)
+
+**Key Pattern**: Fastify route plugins receive `{ prisma }` option object, which is already instantiated in `buildApp()`. The plugin's `AdminProjectRouteOptions` interface extends `FastifyPluginOptions` and accepts optional `prisma` parameter.
+
+**Status**: ✅ COMPLETE — Admin endpoints are now live when gateway starts.
+
+## [2026-04-08] Task 19: orchestrate.mts install-runner integration
+
+### Where resolveToolingConfig is called
+`resolveToolingConfig()` is called in Step 4 (line 145-146) of `main()` in `orchestrate.mts`, right after `fetchProjectConfig()`. Step 4 was already labeled "Fetch project config and resolve tooling config".
+
+### What was added
+1. **Import**: `import { runInstallCommand } from './lib/install-runner.js';` — added after the `project-config.js` import (ESM `.js` extension required)
+2. **Step 4.5** block inserted between Step 4 and Step 5:
+   ```typescript
+   // ── Step 4.5: Run install command ─────────────────────────────────────────
+   const installCmd = toolingConfigResolved.install ?? 'pnpm install --frozen-lockfile';
+   log.info(`[orchestrate] Running install command: ${installCmd}`);
+   await runInstallCommand({ installCommand: installCmd, cwd: '/workspace' });
+   log.info('[orchestrate] Install command completed');
+   ```
+3. **Test mock added** to `tests/workers/orchestrate.test.ts`:
+   - `vi.mock('../../src/workers/lib/install-runner.js', () => ({ runInstallCommand: vi.fn().mockResolvedValue(undefined) }))`
+   - Import added: `import { runInstallCommand } from '../../src/workers/lib/install-runner.js';`
+
+### Test results
+- `tests/workers/orchestrate.test.ts` — 34/34 pass ✓
+- `pnpm build` — TypeScript compile clean ✓
+- Pre-existing failures unchanged: lifecycle.test.ts (6 Fly hybrid, 401 auth), container-boot.test.ts, inngest-serve.test.ts
+
+### Critical lesson: always mock new imports in orchestrate.test.ts
+The orchestrate test file uses `vi.mock()` + `vi.resetModules()` in `afterEach`. Any new module imported by `orchestrate.mts` must be mocked in the test file, otherwise the real implementation runs (causing exec failures for `/workspace` which doesn't exist in test environment).
+
+### Commit
+- `feat(worker): invoke install-runner from orchestrate.mts using tooling_config.install`
+- Files: `src/workers/orchestrate.mts`, `tests/workers/orchestrate.test.ts`
+
+## [2026-04-08] Task 20: Remove hardcoded install from entrypoint.sh
+
+### Implementation Summary
+
+Removed the hardcoded `pnpm install --frozen-lockfile` step from `src/workers/entrypoint.sh` since it has been moved to `orchestrate.mts` (T19).
+
+### Changes Made
+
+1. **Removed STEP 4** entirely (lines 97-119 in original file):
+   - Deleted the `pnpm install --frozen-lockfile` command block
+   - Deleted the retry loop and `.install-done` flag file touch
+   - Deleted the step_done/mark_step_done guards for step 4
+
+2. **Updated step numbering** — cascading renumbering from 8 steps to 7 steps:
+   - Header comment: "8-step" → "7-step" (line 3)
+   - STEP 1: [STEP 1/8] → [STEP 1/7] (lines 42, 54)
+   - STEP 2: [STEP 2/8] → [STEP 2/7] (lines 61, 67, 70, 74, 76)
+   - STEP 3: [STEP 3/8] → [STEP 3/7] (lines 83, 94)
+   - STEP 4 (Docker): [STEP 5/8] → [STEP 4/7] (lines 102, 107, 109, 112)
+   - STEP 5 (Supabase): [STEP 6/8] → [STEP 5/7] (lines 121, 136, 139, 143)
+   - STEP 6 (Heartbeat): [STEP 7/8] → [STEP 6/7] (lines 150, 168, 171, 175)
+   - STEP 6.5 (OpenCode): [STEP 7.5/8] → [STEP 6.5/7] (lines 181, 186, 188)
+   - STEP 7 (Handoff): [STEP 8/8] → [STEP 7/7] (lines 194, 199, 200)
+
+### Verification
+
+- ✅ `pnpm build` — TypeScript compile clean (no errors)
+- ✅ Commit: `feat(worker): remove hardcoded install from entrypoint.sh` (7047d49)
+- ✅ File size reduced: 226 lines → 202 lines (24 lines removed)
+
+### Key Insight
+
+The install step was moved to `orchestrate.mts` (T19) via `runInstallCommand()` which reads the install command from `toolingConfig.install` (T7). This allows per-project customization of the install command (e.g., `bun install`, `npm install`, etc.) instead of hardcoding `pnpm install --frozen-lockfile` at boot time.
+
+### Commit Message
+
+- `feat(worker): remove hardcoded install from entrypoint.sh`
+- No AI/Claude references ✓
+
+## [2026-04-08] Task 21: Documentation updates
+
+Added "## Registering Projects" section to `README.md` after "## How It Works":
+- Lists all 5 admin endpoints (POST/GET/GET:id/PATCH/DELETE /admin/projects)
+- Includes curl example for project creation with all fields including optional `tooling_config.install`
+- Notes that `tooling_config.install` defaults to `pnpm install --frozen-lockfile`
+- Notes that `GITHUB_TOKEN` must have push access to all registered repos
+- Notes that DELETE returns 409 if project has active tasks
+
+Updated `README.md` Environment Variables section:
+- Added `ADMIN_API_KEY` with description and auto-generation note
+- Clarified `GITHUB_TOKEN` must have push access to all registered repos
+
+Updated `AGENTS.md` Commands table:
+- Added "Register project" row with curl example using `X-Admin-Key: $ADMIN_API_KEY`
+
+Updated `AGENTS.md` Environment Variables section:
+- Added `ADMIN_API_KEY` with description and generation command
+- Added note that `tooling_config.install` is configurable per project via POST /admin/projects
+
+Build: `pnpm build` exits 0 (markdown-only changes, no TypeScript impact).
+Commit: `docs: document admin project registration API and ADMIN_API_KEY` (58d3d7a)

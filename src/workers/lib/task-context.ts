@@ -78,14 +78,7 @@ interface JiraPayload {
   };
 }
 
-/**
- * Parse task context from a JSON file.
- * Expects a PostgREST array response: [{...task row...}]
- * Returns the first element if array is non-empty, otherwise null.
- *
- * @param filePath - Path to the .task-context.json file
- * @returns TaskRow if found, null if file doesn't exist or array is empty
- */
+// Parse task context from a JSON file.
 export function parseTaskContext(filePath: string): TaskRow | null {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
@@ -104,13 +97,7 @@ export function parseTaskContext(filePath: string): TaskRow | null {
   }
 }
 
-/**
- * Render Jira description (which can be a complex ADF structure) to plain text.
- * Handles both simple string descriptions and Atlassian Document Format (ADF).
- *
- * @param description - The description field from Jira issue
- * @returns Plain text description or empty string
- */
+// Render Jira description (which can be a complex ADF structure) to plain text.
 function renderDescription(description: unknown): string {
   if (!description) {
     return '';
@@ -149,14 +136,7 @@ function renderDescription(description: unknown): string {
   return '';
 }
 
-/**
- * Build a structured markdown prompt from a task.
- * Extracts information from the Jira webhook payload (triage_result).
- * Falls back to a generic prompt if triage_result is missing or invalid.
- *
- * @param task - The task row containing triage_result and requirements
- * @returns Markdown-formatted prompt string
- */
+// Build a structured markdown prompt from a task.
 export function buildPrompt(task: TaskRow): string {
   // Attempt to extract Jira payload from triage_result
   const jiraPayload = task.triage_result as JiraPayload | null;
@@ -203,13 +183,7 @@ After implementing, ensure the code compiles without TypeScript errors.
 `;
 }
 
-/**
- * Resolve the effective tooling configuration for a project.
- * Merges project-specific config with defaults, with project config taking precedence.
- *
- * @param projectRow - The project row from the database, or null
- * @returns Merged ToolingConfig with defaults applied
- */
+// Resolve the effective tooling configuration for a project.
 export function resolveToolingConfig(projectRow: ProjectRow | null): ToolingConfig {
   // If no project or no tooling config, return defaults
   if (!projectRow || !projectRow.tooling_config) {

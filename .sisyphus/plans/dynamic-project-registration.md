@@ -1546,7 +1546,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/routes/admin-projects.ts`, `tests/gateway/admin-projects-create.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-create.test.ts`
 
-- [ ] 15. **`GET /admin/projects` (list) and `GET /admin/projects/:id` (read) routes**
+- [x] 15. **`GET /admin/projects` (list) and `GET /admin/projects/:id` (read) routes**
 
   **What to do**:
   - Edit `src/gateway/routes/admin-projects.ts` (created in T14) — add two routes
@@ -1640,7 +1640,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/routes/admin-projects.ts`, `tests/gateway/admin-projects-read.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-read.test.ts`
 
-- [ ] 16. **`PATCH /admin/projects/:id` route — update project**
+- [x] 16. **`PATCH /admin/projects/:id` route — update project**
 
   **What to do**:
   - Edit `src/gateway/routes/admin-projects.ts` — add PATCH route
@@ -1736,7 +1736,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/routes/admin-projects.ts`, `tests/gateway/admin-projects-update.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-update.test.ts`
 
-- [ ] 17. **`DELETE /admin/projects/:id` route with active-task guard**
+- [x] 17. **`DELETE /admin/projects/:id` route with active-task guard**
 
   **What to do**:
   - Edit `src/gateway/routes/admin-projects.ts` — add DELETE route
@@ -1835,7 +1835,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/routes/admin-projects.ts`, `tests/gateway/admin-projects-delete.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-delete.test.ts`
 
-- [ ] 18. **Register `adminProjectRoutes` in gateway server.ts**
+- [x] 18. **Register `adminProjectRoutes` in gateway server.ts**
 
   **What to do**:
   - Edit `src/gateway/server.ts`
@@ -1923,7 +1923,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/server.ts`, `tests/gateway/server-routes.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/server-routes.test.ts`
 
-- [ ] 19. **Worker `orchestrate.mts` integration: invoke install-runner after resolveToolingConfig**
+- [x] 19. **Worker `orchestrate.mts` integration: invoke install-runner after resolveToolingConfig**
 
   **What to do**:
   - Edit `src/workers/orchestrate.mts`
@@ -2024,7 +2024,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/workers/orchestrate.mts`, `tests/workers/orchestrate-install.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/workers/orchestrate-install.test.ts`
 
-- [ ] 20. **Remove hardcoded install step from `src/workers/entrypoint.sh`**
+- [x] 20. **Remove hardcoded install step from `src/workers/entrypoint.sh`**
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh`
@@ -2096,7 +2096,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/workers/entrypoint.sh`, `tests/workers/entrypoint-install.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/workers/entrypoint-install.test.ts`
 
-- [ ] 21. **Documentation updates: README.md, AGENTS.md, .env.example**
+- [x] 21. **Documentation updates: README.md, AGENTS.md, .env.example**
 
   **What to do**:
   - Edit `README.md`:
@@ -2280,7 +2280,11 @@ Max Concurrent: 7 (Wave 1)
   - Files: `tests/gateway/jira-webhook-with-new-project.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/jira-webhook-with-new-project.test.ts`
 
-- [ ] 23. **Rebuild Docker worker image with updated entrypoint.sh and orchestrate.mts**
+- [x] 22. **E2E regression test: register project → webhook → task created**
+
+  _(Completed — see commit c91ea7c)_
+
+- [x] 23. **Rebuild Docker worker image with updated entrypoint.sh and orchestrate.mts**
 
   **What to do**:
   - From repo root, run: `docker build -t ai-employee-worker:latest .`
