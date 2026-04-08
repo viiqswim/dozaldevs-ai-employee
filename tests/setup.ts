@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 
+export const ADMIN_TEST_KEY = 'test-admin-key-do-not-use-in-prod';
+
 // Singleton PrismaClient for all tests
 let _prisma: PrismaClient | undefined;
 
@@ -24,7 +26,10 @@ export async function cleanupTestData(): Promise<void> {
   await prisma.feedback.deleteMany({ where: { task_id: { not: null } } });
   await prisma.auditLog.deleteMany({});
   await prisma.task.deleteMany({});
-  // NOTE: Do NOT delete projects or agent_versions — those are seed data
+  // Preserve seed project: '00000000-0000-0000-0000-000000000003'
+  await prisma.project.deleteMany({
+    where: { id: { not: '00000000-0000-0000-0000-000000000003' } },
+  });
 }
 
 // Disconnect after all tests
@@ -61,10 +66,14 @@ export const inngestMock = {
 
 export async function createTestApp(opts?: {
   inngest?: { send(event: unknown): Promise<{ ids: string[] }> };
+  adminApiKey?: string;
 }) {
   const { buildApp } = await import('../src/gateway/server.js');
 
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
+  if (opts?.adminApiKey) {
+    process.env.ADMIN_API_KEY = opts.adminApiKey;
+  }
 
   const app = await buildApp({
     inngestClient: opts?.inngest ?? inngestMock,
