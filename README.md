@@ -58,12 +58,13 @@ curl -X POST http://localhost:3000/admin/projects \
 
 ## Scripts
 
-| Script            | Command                            | Purpose                                                                 |
-| ----------------- | ---------------------------------- | ----------------------------------------------------------------------- |
-| `setup.ts`        | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image |
-| `dev-start.ts`    | `pnpm dev:start`                   | Start all local services                                                |
-| `trigger-task.ts` | `pnpm trigger-task`                | Send mock webhook and monitor                                           |
-| `verify-e2e.ts`   | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                               |
+| Script                | Command                            | Purpose                                                                 |
+| --------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
+| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image |
+| `dev-start.ts`        | `pnpm dev:start`                   | Start all local services                                                |
+| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API          |
+| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                           |
+| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                               |
 
 ## Project Structure
 
@@ -105,13 +106,14 @@ The built-in E2E uses [`viiqswim/ai-employee-test-target`](https://github.com/vi
 
 ## Documentation
 
-| Document                                                         | Description                                   |
-| ---------------------------------------------------------------- | --------------------------------------------- |
-| [System Overview](docs/2026-04-01-1726-system-overview.md)       | Complete architecture, data flow, local setup |
-| [Phase 8: E2E](docs/2026-04-01-1655-phase8-e2e.md)               | MVP validation and verification               |
-| [Phase 7: Resilience](docs/2026-04-01-0114-phase7-resilience.md) | Watchdog, redispatch, error handling          |
-| [All phase docs](docs/)                                          | Phase 1-7 implementation details              |
-| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)       | Common E2E failures with symptoms and fixes   |
+| Document                                                                                             | Description                                         |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [System Overview](docs/2026-04-01-1726-system-overview.md)                                           | Complete architecture, data flow, local setup       |
+| [Project Registration & Dev Loop](docs/2026-04-08-1357-project-registration-and-development-loop.md) | Register projects, trigger AI development, get a PR |
+| [Phase 8: E2E](docs/2026-04-01-1655-phase8-e2e.md)                                                   | MVP validation and verification                     |
+| [Phase 7: Resilience](docs/2026-04-01-0114-phase7-resilience.md)                                     | Watchdog, redispatch, error handling                |
+| [All phase docs](docs/)                                                                              | Phase 1-7 implementation details                    |
+| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)                                           | Common E2E failures with symptoms and fixes         |
 
 ## Testing
 

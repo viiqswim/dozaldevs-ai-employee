@@ -31,6 +31,9 @@ model Task {
   dispatch_attempts  Int      @default(0)
   failure_reason     String?
   triage_result      Json?
+  planContent        String?  @map("plan_content") @db.Text
+  planGeneratedAt    DateTime? @map("plan_generated_at")
+  costUsdCents       Int      @default(0) @map("cost_usd_cents")
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
@@ -62,6 +65,8 @@ model Execution {
   estimated_cost_usd Decimal   @default(0) @db.Decimal(10, 4)
   heartbeat_at       DateTime?
   current_stage      String?
+  waveNumber         Int?      @map("wave_number")
+  waveState          Json?     @map("wave_state")
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 

@@ -1,0 +1,61 @@
+-- AlterTable
+ALTER TABLE "agent_versions" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "archetypes" ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001';
+
+-- AlterTable
+ALTER TABLE "audit_log" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "clarifications" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "cross_dept_triggers" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "deliverables" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "departments" ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001';
+
+-- AlterTable
+ALTER TABLE "executions" ADD COLUMN     "wave_number" INTEGER,
+ADD COLUMN     "wave_state" JSONB,
+ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "updated_at" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "feedback" ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001';
+
+-- AlterTable
+ALTER TABLE "knowledge_bases" ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001';
+
+-- AlterTable
+ALTER TABLE "projects" ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001',
+ALTER COLUMN "updated_at" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "reviews" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "risk_models" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "task_status_log" ALTER COLUMN "id" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "tasks" ADD COLUMN     "cost_usd_cents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "plan_content" TEXT,
+ADD COLUMN     "plan_generated_at" TIMESTAMP(3),
+ALTER COLUMN "id" DROP DEFAULT,
+ALTER COLUMN "tenant_id" SET DEFAULT '00000000-0000-0000-0000-000000000001',
+ALTER COLUMN "updated_at" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "validation_runs" ALTER COLUMN "id" DROP DEFAULT;
