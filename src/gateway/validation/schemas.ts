@@ -98,3 +98,69 @@ export function parseJiraWebhook(body: unknown): JiraWebhookPayload {
 export function parseJiraIssueDeletion(body: unknown): JiraIssueDeletedPayload {
   return JiraIssueDeletedSchema.parse(body);
 }
+
+// ────────────────────────────────────────────────────────────
+// Admin Project CRUD
+// ────────────────────────────────────────────────────────────
+
+import { parseRepoOwnerAndName } from '../../lib/repo-url.js';
+
+export const ToolingConfigSchema = z
+  .object({
+    install: z.string().optional(),
+    typescript: z.string().optional(),
+    lint: z.string().optional(),
+    unit: z.string().optional(),
+    integration: z.string().optional(),
+    e2e: z.string().optional(),
+  })
+  .strict();
+
+export type ToolingConfigInput = z.infer<typeof ToolingConfigSchema>;
+
+const ProjectFieldsSchema = z.object({
+  name: z.string().min(1, 'name is required'),
+  repo_url: z.string().refine(
+    (url) => {
+      try {
+        parseRepoOwnerAndName(url);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: 'repo_url must be a valid HTTPS GitHub URL (e.g. https://github.com/owner/repo)',
+    },
+  ),
+  jira_project_key: z.string().min(1, 'jira_project_key is required'),
+  default_branch: z.string().optional(),
+  concurrency_limit: z.number().int().positive().optional(),
+  tooling_config: ToolingConfigSchema.optional(),
+});
+
+export const CreateProjectSchema = ProjectFieldsSchema.extend({
+  default_branch: z.string().optional().default('main'),
+  concurrency_limit: z.number().int().positive().optional().default(3),
+});
+
+export type CreateProjectInput = z.infer<typeof CreateProjectSchema>;
+
+export const UpdateProjectSchema = ProjectFieldsSchema.partial().superRefine((obj, ctx) => {
+  if (Object.keys(obj).length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'At least one field is required for update',
+    });
+  }
+});
+
+export type UpdateProjectInput = z.infer<typeof UpdateProjectSchema>;
+
+export function parseCreateProject(body: unknown): CreateProjectInput {
+  return CreateProjectSchema.parse(body);
+}
+
+export function parseUpdateProject(body: unknown): UpdateProjectInput {
+  return UpdateProjectSchema.parse(body);
+}
