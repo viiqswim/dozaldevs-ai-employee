@@ -8,7 +8,8 @@
  */
 
 import { $ } from 'zx';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 // Disable auto-output by default, we control output
 $.verbose = false;
@@ -364,6 +365,25 @@ try {
   }
 } catch (err) {
   warn('Health check failed', String(err));
+}
+
+// ─── Step 8: Auto-generate ADMIN_API_KEY ─────────────────────────────────────
+section('Step 8: Admin API Key');
+
+try {
+  const envContent = readFileSync('.env', 'utf8');
+  const adminKeyMatch = envContent.match(/^ADMIN_API_KEY=(.*)$/m);
+  const adminKeyValue = adminKeyMatch ? adminKeyMatch[1].trim().replace(/^"|"$/g, '') : '';
+
+  if (!adminKeyValue || adminKeyValue === '') {
+    const newKey = randomBytes(32).toString('hex');
+    appendFileSync('.env', `\nADMIN_API_KEY=${newKey}`);
+    ok('ADMIN_API_KEY generated and written to .env');
+  } else {
+    ok('ADMIN_API_KEY already set', 'skipping generation');
+  }
+} catch (err) {
+  warn('Failed to auto-generate ADMIN_API_KEY', String(err));
 }
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
