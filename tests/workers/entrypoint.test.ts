@@ -21,10 +21,10 @@ describe('entrypoint.sh', () => {
     expect(fileContent).toContain('set -euo pipefail');
   });
 
-  it('has all 8 steps', () => {
+  it('has all 7 steps', () => {
     fileContent = readFileSync(entrypointPath, 'utf-8');
-    for (let i = 1; i <= 8; i++) {
-      expect(fileContent).toContain(`[STEP ${i}/8]`);
+    for (let i = 1; i <= 7; i++) {
+      expect(fileContent).toContain(`[STEP ${i}/7]`);
     }
   });
 
