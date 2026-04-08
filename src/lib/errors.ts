@@ -74,3 +74,17 @@ export class ExternalApiError extends Error {
     this.endpoint = params.endpoint;
   }
 }
+
+/**
+ * Thrown when a project registry operation violates a unique constraint.
+ */
+export class ProjectRegistryConflictError extends Error {
+  readonly code = 'CONFLICT';
+  readonly field: string;
+
+  constructor(field: string) {
+    super(`Conflict: ${field} already exists`);
+    this.name = 'ProjectRegistryConflictError';
+    this.field = field;
+  }
+}
