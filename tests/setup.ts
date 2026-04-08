@@ -71,9 +71,7 @@ export async function createTestApp(opts?: {
   const { buildApp } = await import('../src/gateway/server.js');
 
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
-  if (opts?.adminApiKey) {
-    process.env.ADMIN_API_KEY = opts.adminApiKey;
-  }
+  process.env.ADMIN_API_KEY = opts?.adminApiKey ?? ADMIN_TEST_KEY;
 
   const app = await buildApp({
     inngestClient: opts?.inngest ?? inngestMock,
