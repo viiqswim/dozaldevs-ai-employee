@@ -37,8 +37,8 @@ export interface LongRunningConfig {
   watchdogStaleThresholdMs: number;
   /** Enable fallback PR creation on failure (true) */
   fallbackPrEnabled: boolean;
-  /** Cost breaker limit in USD cents per task ($50) */
-  costBreakerUsdCentsPerTask: number;
+  /** Token cap for cost circuit breaker (4M tokens) */
+  costBreakerTokenCap: number;
 }
 
 /**
@@ -56,7 +56,7 @@ export const DEFAULT_LONG_RUNNING_CONFIG: LongRunningConfig = {
   heartbeatIntervalMs: 60000, // 60s
   watchdogStaleThresholdMs: 1200000, // 20min
   fallbackPrEnabled: true,
-  costBreakerUsdCentsPerTask: 5000, // $50
+  costBreakerTokenCap: 4000000, // 4M tokens
 };
 
 /**
@@ -115,9 +115,6 @@ export function readConfigFromEnv(): LongRunningConfig {
     heartbeatIntervalMs: parseInt(process.env['HEARTBEAT_INTERVAL_MS'] ?? '60000', 10),
     watchdogStaleThresholdMs: parseInt(process.env['WATCHDOG_STALE_THRESHOLD_MS'] ?? '1200000', 10),
     fallbackPrEnabled: (process.env['FALLBACK_PR_ENABLED'] ?? 'true') !== 'false',
-    costBreakerUsdCentsPerTask: parseInt(
-      process.env['COST_BREAKER_USD_CENTS_PER_TASK'] ?? '5000',
-      10,
-    ),
+    costBreakerTokenCap: parseInt(process.env['COST_BREAKER_TOKEN_CAP'] ?? '4000000', 10),
   };
 }
