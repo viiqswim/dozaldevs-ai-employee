@@ -6,6 +6,8 @@ import {
   listProjects,
   getProjectById,
   updateProject,
+  deleteProject,
+  type DeleteProjectResult,
 } from '../services/project-registry.js';
 import { CreateProjectSchema, UpdateProjectSchema } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
@@ -121,6 +123,40 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
         return reply.code(409).send({ error: 'CONFLICT', message: err.message });
       }
       req.log.error({ err }, 'Failed to update project');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
+    const { id } = req.params;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return reply.code(400).send({ error: 'INVALID_ID' });
+    }
+
+    try {
+      const result: DeleteProjectResult = await deleteProject({
+        id,
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      });
+
+      if (result.deleted) {
+        return reply.code(204).send();
+      }
+
+      if (result.reason === 'not_found') {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      return reply.code(409).send({
+        error: 'CONFLICT',
+        message: 'Project has active tasks. Wait for them to complete or cancel them first.',
+        activeTaskIds: result.activeTaskIds,
+      });
+    } catch (err) {
+      req.log.error({ err }, 'Failed to delete project');
       return reply.code(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
