@@ -6,6 +6,7 @@ import {
   listProjects,
   getProjectById,
   updateProject,
+  deleteProject,
   ProjectRegistryConflictError,
 } from '../../src/gateway/services/project-registry.js';
 
@@ -512,5 +513,259 @@ describe('updateProject', () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe('deleteProject', () => {
+  it('deletes existing project with no tasks — returns { deleted: true } and row is gone from DB', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Delete Test No Tasks',
+        repo_url: 'https://github.com/test/delete-no-tasks',
+        jira_project_key: 'DEL1',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: true });
+
+    const found = await prisma.project.findUnique({ where: { id: project.id } });
+    expect(found).toBeNull();
+  });
+
+  it('returns { deleted: false, reason: "active_tasks" } when project has a Ready task', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Project with Ready Task',
+        repo_url: 'https://github.com/test/delete-ready',
+        jira_project_key: 'DEL2',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const task = await prisma.task.create({
+      data: {
+        external_id: 'DEL-READY-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Ready',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({
+      deleted: false,
+      reason: 'active_tasks',
+      activeTaskIds: [task.id],
+    });
+  });
+
+  it('returns { deleted: false, reason: "active_tasks" } when project has an Executing task', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Project with Executing Task',
+        repo_url: 'https://github.com/test/delete-executing',
+        jira_project_key: 'DEL3',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const task = await prisma.task.create({
+      data: {
+        external_id: 'DEL-EXECUTING-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Executing',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({
+      deleted: false,
+      reason: 'active_tasks',
+      activeTaskIds: [task.id],
+    });
+  });
+
+  it('returns { deleted: false, reason: "active_tasks" } when project has a Submitting task', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Project with Submitting Task',
+        repo_url: 'https://github.com/test/delete-submitting',
+        jira_project_key: 'DEL4',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const task = await prisma.task.create({
+      data: {
+        external_id: 'DEL-SUBMITTING-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Submitting',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({
+      deleted: false,
+      reason: 'active_tasks',
+      activeTaskIds: [task.id],
+    });
+  });
+
+  it('deletes project with only Done tasks — returns { deleted: true } (Done is not active)', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Project with Done Tasks',
+        repo_url: 'https://github.com/test/delete-done',
+        jira_project_key: 'DEL5',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    await prisma.task.create({
+      data: {
+        external_id: 'DEL-DONE-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Done',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: true });
+  });
+
+  it('deletes project with only Cancelled tasks — returns { deleted: true } (Cancelled is not active)', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Project with Cancelled Tasks',
+        repo_url: 'https://github.com/test/delete-cancelled',
+        jira_project_key: 'DEL6',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    await prisma.task.create({
+      data: {
+        external_id: 'DEL-CANCELLED-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Cancelled',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: true });
+  });
+
+  it('returns { deleted: false, reason: "not_found" } for non-existent project id', async () => {
+    const result = await deleteProject({
+      id: '00000000-0000-0000-0000-999999999999',
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: false, reason: 'not_found' });
+  });
+
+  it('returns { deleted: false, reason: "not_found" } when project exists but tenantId does not match', async () => {
+    const project = await createProject({
+      input: {
+        name: 'Tenant Mismatch Delete',
+        repo_url: 'https://github.com/test/delete-tenant-mismatch',
+        jira_project_key: 'DEL8',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: '00000000-0000-0000-0000-000000000099', // Different tenant
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: false, reason: 'not_found' });
+
+    const found = await prisma.project.findUnique({ where: { id: project.id } });
+    expect(found).not.toBeNull();
+  });
+
+  it('BONUS: Done tasks have project_id = null after project deletion (FK ON DELETE SET NULL)', async () => {
+    const project = await createProject({
+      input: {
+        name: 'FK Set Null Test',
+        repo_url: 'https://github.com/test/delete-fk-null',
+        jira_project_key: 'DEL9',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const task = await prisma.task.create({
+      data: {
+        external_id: 'DEL-FK-001',
+        source_system: 'jira',
+        tenant_id: SYSTEM_TENANT_ID,
+        project_id: project.id,
+        status: 'Done',
+      },
+    });
+
+    const result = await deleteProject({
+      id: project.id,
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toEqual({ deleted: true });
+
+    const updatedTask = await prisma.task.findUnique({ where: { id: task.id } });
+    expect(updatedTask).not.toBeNull();
+    expect(updatedTask?.project_id).toBeNull();
   });
 });
