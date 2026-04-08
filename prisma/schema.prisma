@@ -123,6 +123,7 @@ model Project {
   department Department? @relation(fields: [department_id], references: [id])
   tasks      Task[]
 
+  @@unique([jira_project_key, tenant_id])
   @@map("projects")
 }
 
