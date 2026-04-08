@@ -1,8 +1,13 @@
 import type { FastifyPluginAsync, FastifyPluginOptions } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { createProject, listProjects, getProjectById } from '../services/project-registry.js';
-import { CreateProjectSchema } from '../validation/schemas.js';
+import {
+  createProject,
+  listProjects,
+  getProjectById,
+  updateProject,
+} from '../services/project-registry.js';
+import { CreateProjectSchema, UpdateProjectSchema } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
 
 const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -80,6 +85,42 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
       return reply.code(200).send(project);
     } catch (err) {
       req.log.error({ err }, 'Failed to get project');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  fastify.patch<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
+    const { id } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return reply.code(400).send({ error: 'INVALID_ID' });
+    }
+
+    const result = UpdateProjectSchema.safeParse(req.body);
+    if (!result.success) {
+      return reply.code(400).send({ error: 'INVALID_REQUEST', issues: result.error.issues });
+    }
+
+    try {
+      const project = await updateProject({
+        id,
+        input: result.data,
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      });
+
+      if (!project) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      return reply.code(200).send(project);
+    } catch (err) {
+      if (err instanceof ProjectRegistryConflictError) {
+        return reply.code(409).send({ error: 'CONFLICT', message: err.message });
+      }
+      req.log.error({ err }, 'Failed to update project');
       return reply.code(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
