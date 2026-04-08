@@ -149,3 +149,179 @@ Added `ADMIN_API_KEY` environment variable with auto-generation in setup:
 - `pnpm build` passes (TypeScript compile clean)
 - `tests/lib/repo-url.test.ts` all 10 tests pass
 - No regressions in worker tests (verified via earlier runs)
+
+## [2026-04-08] Task 3: Validation Schemas for Admin Project CRUD
+
+### Implementation Summary
+
+Added three Zod schemas to `src/gateway/validation/schemas.ts` for admin project CRUD operations:
+
+1. **ToolingConfigSchema** — strict object with optional fields: `install`, `typescript`, `lint`, `unit`, `integration`, `e2e`
+2. **CreateProjectSchema** — extends ProjectFieldsSchema with defaults for `default_branch` ('main') and `concurrency_limit` (3)
+3. **UpdateProjectSchema** — partial ProjectFieldsSchema with validation that at least one field is required
+
+### Key Design Decisions
+
+- **ProjectFieldsSchema** — internal schema without defaults, used as base for both Create and Update
+- **CreateProjectSchema** — extends ProjectFieldsSchema with `.extend()` to add defaults only for creation
+- **UpdateProjectSchema** — uses `.partial()` on ProjectFieldsSchema (no defaults) + `.superRefine()` to validate non-empty object
+- **repo_url validation** — uses `.refine()` with `parseRepoOwnerAndName()` to validate HTTPS GitHub URLs
+- **ToolingConfigSchema** — uses `.strict()` to reject unknown keys (not `.passthrough()`)
+
+### Test Coverage
+
+Created `tests/gateway/admin-projects-validation.test.ts` with 20 test cases:
+- ToolingConfigSchema: 5 tests (valid, empty, partial, unknown keys, single field)
+- CreateProjectSchema: 10 tests (valid, with tooling_config, missing fields, invalid URLs, SSH rejection, unknown keys, custom defaults)
+- UpdateProjectSchema: 5 tests (partial updates, empty rejection, invalid URLs, multiple fields, partial tooling_config)
+
+All 20 tests pass.
+
+### Build & Verification
+
+- `pnpm build` — TypeScript compile succeeds with no errors
+- `git diff src/gateway/validation/schemas.ts` — shows only additions (69 lines), no modifications to existing schemas
+- Commit: `feat(gateway): add Zod schemas for admin project CRUD requests`
+- Evidence: `.sisyphus/evidence/task-3-validation-tests.log` (20 tests passed)
+
+### Import Path Pattern
+
+- ESM imports use `.js` extension: `import { parseRepoOwnerAndName } from '../../lib/repo-url.js'`
+- Relative path from `src/gateway/validation/schemas.ts` to `src/lib/repo-url.ts` is `../../lib/repo-url.js`
+
+## [2026-04-08] Task 8: createProject Service with TDD
+
+### Implementation Summary
+
+Created `src/gateway/services/project-registry.ts` with the `createProject` function:
+
+1. **Function signature**: `createProject({ input, tenantId, prisma }): Promise<Project>`
+2. **Input type**: `CreateProjectInput` with fields: name, repo_url, jira_project_key, default_branch?, concurrency_limit?, tooling_config?
+3. **Normalization**: Calls `normalizeRepoUrl()` to strip `.git` suffix before insert
+4. **Error handling**: Catches Prisma P2002 (unique constraint) and re-throws as `ProjectRegistryConflictError`
+5. **Tenant isolation**: Always uses provided `tenantId` (caller responsibility to pass SYSTEM_TENANT_ID)
+
+### Error Class
+
+Added `ProjectRegistryConflictError` to `src/lib/errors.ts`:
+- Extends Error with `code = 'CONFLICT'` readonly property
+- Stores `field` (e.g., 'jira_project_key') for debugging
+- Message format: `Conflict: {field} already exists`
+
+### TDD Test Suite
+
+Created `tests/gateway/admin-projects-registry.test.ts` with 5 test cases:
+
+1. **Happy path**: Creates project with all required fields, returns with generated id
+2. **Optional tooling_config**: Persists JSON correctly to DB
+3. **Repo URL normalization**: Strips trailing `.git` before storage
+4. **Duplicate jira_project_key**: Throws ProjectRegistryConflictError with code='CONFLICT'
+5. **Tenant isolation**: Created project has correct tenant_id (SYSTEM_TENANT_ID)
+
+### Test Results
+
+- All 5 tests pass ✓
+- No lint errors in new files
+- Evidence: `.sisyphus/evidence/task-8-create-tests.log`
+
+### Commit
+
+- `feat(gateway): implement createProject registry service with TDD`
+- Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`, `src/lib/errors.ts`
+- No AI/Claude references ✓
+
+### Key Decisions
+
+- Used interim `CreateProjectInput` type (not importing from Zod schemas yet, as T3 may still be running)
+- Followed `task-creation.ts` pattern for service function signature
+- Reused `normalizeRepoUrl` from `src/lib/repo-url.ts` (already extracted in T2)
+- Prisma P2002 detection for unique constraint violations (standard Prisma error code)
+
+## [2026-04-08] Task 12: install-runner Module
+
+### Implementation Summary
+
+Created `src/workers/lib/install-runner.ts` with `runInstallCommand` function for executing configurable install commands:
+
+1. **Module**: `src/workers/lib/install-runner.ts`
+   - Exports `RunInstallOptions` interface with fields: `installCommand`, `cwd`, `timeoutMs?`
+   - Exports `runInstallCommand(opts): Promise<void>` function
+   - Uses `execFile` + `promisify` pattern (same as validation-pipeline.ts)
+   - Default timeout: 5 minutes (5 * 60 * 1000 ms)
+   - Max buffer: 10 MB for stdout/stderr
+   - Command splitting: `"pnpm install --frozen-lockfile".split(' ')` → `['pnpm', 'install', '--frozen-lockfile']`
+
+2. **Tests**: `tests/workers/install-runner.test.ts`
+   - 6 test cases (exceeds 5 minimum requirement)
+   - Happy path: `echo ok` resolves without error
+   - Error handling: failing command (exit 1) rejects with error
+   - Working directory: verifies `cwd` passed correctly
+   - Timeout: command exceeding timeout rejects
+   - Arguments: handles multi-arg commands like `echo hello world test`
+   - Default timeout: verifies 5-minute default applied
+   - All tests pass in 125ms
+
+3. **Key Design Decisions**
+   - No error catching inside function — errors propagate to caller (orchestrate.mts T19)
+   - Simple string split for command parsing (works for these use cases)
+   - Follows validation-pipeline.ts pattern exactly for consistency
+   - Interface field name is `install` (not `install_command`) to match T7 ToolingConfig
+
+4. **Build & Verification**
+   - `pnpm test -- --run tests/workers/install-runner.test.ts` → 6 tests pass
+   - `pnpm build` → TypeScript compile clean
+   - No regressions in other test suites
+   - Commit: `feat(worker): add install-runner module for configurable install commands`
+
+### Integration Points
+
+- Called from orchestrate.mts (T19) with `toolingConfig.install` command
+- Receives install command from `resolveToolingConfig()` (T7)
+- Default: `"pnpm install --frozen-lockfile"` from DEFAULT_TOOLING_CONFIG
+- Errors propagate naturally — caller handles retry/failure logic
+
+### TDD Approach
+
+- Tests written first in `tests/workers/install-runner.test.ts`
+- Implementation followed immediately after
+- All tests passed on first run (no iteration needed)
+- Demonstrates clean API design and proper error handling
+
+
+## [2026-04-08] Task 13: Fail-Fast Startup Check for ADMIN_API_KEY
+
+### Implementation
+
+Added fail-fast startup validation for `ADMIN_API_KEY` environment variable:
+
+1. **`src/gateway/server.ts`** — Added check after JIRA_WEBHOOK_SECRET (lines 27-29):
+   ```typescript
+   if (!process.env.ADMIN_API_KEY) {
+     throw new Error('Missing required environment variable: ADMIN_API_KEY');
+   }
+   ```
+
+2. **`tests/gateway/server-startup.test.ts`** — New test file with 3 test cases:
+   - Throws if JIRA_WEBHOOK_SECRET is missing
+   - Throws if ADMIN_API_KEY is missing
+   - Succeeds when both env vars are set
+   - Uses `beforeEach`/`afterEach` to save/restore env vars
+
+3. **`tests/setup.ts`** — Updated `createTestApp()` (line 74):
+   - Changed from conditional to default: `process.env.ADMIN_API_KEY = opts?.adminApiKey ?? ADMIN_TEST_KEY`
+   - Ensures all tests using createTestApp() have ADMIN_API_KEY set
+   - Prevents cascading test failures from missing env var
+
+### Test Results
+
+- ✓ tests/gateway/server-startup.test.ts (3 tests) 12ms
+- ✓ pnpm build (no TypeScript errors)
+- ✓ All 3 startup validation tests pass
+
+### Key Learnings
+
+- Fail-fast pattern: check env vars at buildApp() entry, before any async operations
+- Test isolation: save/restore env vars in afterEach to prevent test pollution
+- Test setup: createTestApp() must provide defaults for all required env vars
+- Commit: `feat(gateway): fail-fast startup if ADMIN_API_KEY is unset`
+

@@ -365,7 +365,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `prisma/schema.prisma`, `prisma/migrations/*_unique_jira_project_key_per_tenant/migration.sql`
   - Pre-commit: `pnpm lint && pnpm prisma validate`
 
-- [ ] 2. **Extract `parseRepoOwnerAndName` into shared `src/lib/repo-url.ts`**
+- [x] 2. **Extract `parseRepoOwnerAndName` into shared `src/lib/repo-url.ts`**
 
   **What to do**:
   - Create `src/lib/repo-url.ts` with two exported functions:
@@ -463,7 +463,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/lib/repo-url.ts`, `tests/lib/repo-url.test.ts`, `src/workers/lib/project-config.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/lib/repo-url.test.ts`
 
-- [ ] 3. **Zod schemas for admin project CRUD**
+- [x] 3. **Zod schemas for admin project CRUD**
 
   **What to do**:
   - Append to `src/gateway/validation/schemas.ts` (do NOT modify existing schemas):
@@ -553,7 +553,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/validation/schemas.ts`, `tests/gateway/admin-projects-validation.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-validation.test.ts`
 
-- [ ] 4. **Admin auth middleware: `requireAdminKey`**
+- [x] 4. **Admin auth middleware: `requireAdminKey`**
 
   **What to do**:
   - Create `src/gateway/middleware/admin-auth.ts`.
@@ -654,7 +654,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/middleware/admin-auth.ts`, `tests/gateway/admin-projects-auth.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-auth.test.ts`
 
-- [ ] 5. **Extend `cleanupTestData()` and `createTestApp()` for admin tests**
+- [x] 5. **Extend `cleanupTestData()` and `createTestApp()` for admin tests**
 
   **What to do**:
   - Update `tests/setup.ts`:
@@ -737,7 +737,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `tests/setup.ts`, `tests/setup.test.ts` (if new)
   - Pre-commit: `pnpm lint && pnpm test -- --run`
 
-- [ ] 6. **Add `ADMIN_API_KEY` env var and auto-generate in setup.ts**
+- [x] 6. **Add `ADMIN_API_KEY` env var and auto-generate in setup.ts**
 
   **What to do**:
   - Update `.env.example`:
@@ -832,7 +832,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `.env.example`, `scripts/setup.ts`, `src/lib/logger.ts`
   - Pre-commit: `pnpm lint && pnpm build`
 
-- [ ] 7. **Add `install` field to `ToolingConfig` interface and `DEFAULT_TOOLING_CONFIG`**
+- [x] 7. **Add `install` field to `ToolingConfig` interface and `DEFAULT_TOOLING_CONFIG`**
 
   **What to do**:
   - Update `src/workers/lib/task-context.ts`:
@@ -919,7 +919,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/workers/lib/task-context.ts`, `tests/workers/tooling-config-install.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/workers/tooling-config-install.test.ts`
 
-- [ ] 8. **`project-registry.createProject` service**
+- [x] 8. **`project-registry.createProject` service**
 
   **What to do**:
   - Create `src/gateway/services/project-registry.ts` with a first exported function `createProject(params: { input: CreateProjectInput; tenantId: string; prisma: PrismaClient; }): Promise<Project>`.
@@ -1243,7 +1243,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-registry.test.ts`
 
-- [ ] 12. **Install runner module: `src/workers/lib/install-runner.ts`**
+- [x] 12. **Install runner module: `src/workers/lib/install-runner.ts`**
 
   **What to do**:
   - Create `src/workers/lib/install-runner.ts` with one exported function:
@@ -1335,7 +1335,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/workers/lib/install-runner.ts`, `tests/workers/install-runner.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/workers/install-runner.test.ts`
 
-- [ ] 13. **Gateway server.ts: fail-fast startup check for `ADMIN_API_KEY`**
+- [x] 13. **Gateway server.ts: fail-fast startup check for `ADMIN_API_KEY`**
 
   **What to do**:
   - Update `src/gateway/server.ts` — add a startup validation block alongside the existing `JIRA_WEBHOOK_SECRET` check at lines 24-25. Example insertion:

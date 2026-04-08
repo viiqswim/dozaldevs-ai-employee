@@ -43,4 +43,41 @@ export async function createProject(params: {
   }
 }
 
+export async function listProjects(params: {
+  tenantId: string;
+  prisma: PrismaClient;
+  limit?: number;
+  offset?: number;
+}): Promise<Project[]> {
+  const { tenantId, prisma, limit = 50, offset = 0 } = params;
+
+  const clampedLimit = Math.min(limit, 200);
+
+  return prisma.project.findMany({
+    where: {
+      tenant_id: tenantId,
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+    take: clampedLimit,
+    skip: offset,
+  });
+}
+
+export async function getProjectById(params: {
+  id: string;
+  tenantId: string;
+  prisma: PrismaClient;
+}): Promise<Project | null> {
+  const { id, tenantId, prisma } = params;
+
+  return prisma.project.findFirst({
+    where: {
+      id,
+      tenant_id: tenantId,
+    },
+  });
+}
+
 export { ProjectRegistryConflictError } from '../../lib/errors.js';
