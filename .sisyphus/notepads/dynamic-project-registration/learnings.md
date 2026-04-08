@@ -98,3 +98,54 @@ Added `ADMIN_API_KEY` environment variable with auto-generation in setup:
 - `feat(env): introduce ADMIN_API_KEY with setup auto-generation`
 - Files: `.env.example`, `scripts/setup.ts`, `src/lib/logger.ts`
 - No AI/Claude references in message ✓
+
+## [2026-04-08] Task 7: Add install field to ToolingConfig
+
+### Implementation
+- Added `install?: string` to ToolingConfig interface (line 11)
+- Added `install: 'pnpm install --frozen-lockfile'` to DEFAULT_TOOLING_CONFIG (line 24)
+- Created comprehensive TDD test suite with 5 test cases in tests/workers/tooling-config-install.test.ts
+- All tests pass (6 tests in 1ms)
+- pnpm build succeeds with no errors
+- resolveToolingConfig() works without code changes (object spread merge handles new field automatically)
+
+### Key Insights
+- The field name MUST be `install` (not `install_command`) to match what T12 (install-runner) and T19 (orchestrate.mts) will consume
+- Keeping `install: "pnpm install --frozen-lockfile"` as default ensures seeded projects (tooling_config: null) continue working unchanged
+- No changes needed to validation-pipeline.ts or fix-loop.ts — install is NOT a validation stage
+- TDD approach: write tests first, then implementation — all tests passed on first run
+
+### Commit
+- feat(gateway): add requireAdminKey middleware with timing-safe compare (includes T7 changes)
+- Changes: src/workers/lib/task-context.ts, tests/workers/tooling-config-install.test.ts
+
+## [2026-04-08] Task 2: Extract parseRepoOwnerAndName to src/lib/repo-url.ts
+
+### Implementation Pattern
+
+- TDD approach: write tests first in `tests/lib/repo-url.test.ts` (10 test cases total)
+- Created `src/lib/repo-url.ts` with two functions:
+  - `normalizeRepoUrl(url: string): string` — strips `.git` suffix and whitespace
+  - `parseRepoOwnerAndName(url: string): { owner: string; repo: string }` — regex-based parser
+- Updated `src/workers/lib/project-config.ts` to re-export both functions
+- Removed local `parseRepoOwnerAndName` implementation from project-config.ts
+
+### Test Coverage
+
+- 8 parseRepoOwnerAndName cases: happy path (with/without .git), error cases (http, SSH, GitLab, empty, missing repo)
+- 2 normalizeRepoUrl cases: strips .git and whitespace
+- All 10 tests passing
+
+### Key Learnings
+
+- ESM imports use `.js` extension: `import { ... } from '../../lib/repo-url.js'`
+- Shared lib modules in `src/lib/` follow simple pattern (see logger.ts)
+- JSDoc docstrings are necessary for public API documentation
+- Regex pattern: `^https:\/\/github\.com\/([^/]+)\/([^/]+)$` (after normalization)
+- Re-export pattern: `export { func1, func2 }` at module top for convenience
+
+### Build & Tests
+
+- `pnpm build` passes (TypeScript compile clean)
+- `tests/lib/repo-url.test.ts` all 10 tests pass
+- No regressions in worker tests (verified via earlier runs)
