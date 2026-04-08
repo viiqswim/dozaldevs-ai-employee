@@ -1014,7 +1014,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`, possibly `src/lib/errors.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-registry.test.ts`
 
-- [ ] 9. **`project-registry.listProjects` and `getProjectById` services**
+- [x] 9. **`project-registry.listProjects` and `getProjectById` services**
 
   **What to do**:
   - Append to `src/gateway/services/project-registry.ts`:

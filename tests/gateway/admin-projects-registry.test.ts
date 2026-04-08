@@ -5,6 +5,7 @@ import {
   createProject,
   listProjects,
   getProjectById,
+  updateProject,
   ProjectRegistryConflictError,
 } from '../../src/gateway/services/project-registry.js';
 
@@ -359,5 +360,157 @@ describe('getProjectById', () => {
     });
 
     expect(project).toBeNull();
+  });
+});
+
+describe('updateProject', () => {
+  it('updates project with partial name only — other fields unchanged, returns updated project', async () => {
+    // Create a project with initial values
+    const created = await createProject({
+      input: {
+        name: 'Original Name',
+        repo_url: 'https://github.com/test/original',
+        jira_project_key: 'ORIG1',
+        default_branch: 'develop',
+        concurrency_limit: 5,
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    // Update only the name
+    const updated = await updateProject({
+      id: created.id,
+      input: { name: 'Updated Name' },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(updated).toBeDefined();
+    expect(updated?.id).toBe(created.id);
+    expect(updated?.name).toBe('Updated Name');
+    // Other fields should remain unchanged
+    expect(updated?.repo_url).toBe('https://github.com/test/original');
+    expect(updated?.jira_project_key).toBe('ORIG1');
+    expect(updated?.default_branch).toBe('develop');
+    expect(updated?.concurrency_limit).toBe(5);
+  });
+
+  it('updates project with repo_url and normalizes by removing .git suffix', async () => {
+    const created = await createProject({
+      input: {
+        name: 'Repo Test',
+        repo_url: 'https://github.com/test/old-repo',
+        jira_project_key: 'REPO1',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const updated = await updateProject({
+      id: created.id,
+      input: { repo_url: 'https://github.com/test/new-repo.git' },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(updated?.repo_url).toBe('https://github.com/test/new-repo');
+  });
+
+  it('returns null when project id does not exist', async () => {
+    const result = await updateProject({
+      id: '00000000-0000-0000-0000-999999999999',
+      input: { name: 'Nonexistent' },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('throws ProjectRegistryConflictError when changing jira_project_key to an existing one', async () => {
+    // Create a project
+    const created = await createProject({
+      input: {
+        name: 'Conflict Test',
+        repo_url: 'https://github.com/test/conflict',
+        jira_project_key: 'CONF1',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    // Try to update to the seed project's key (TEST)
+    await expect(
+      updateProject({
+        id: created.id,
+        input: { jira_project_key: SEED_PROJECT_KEY },
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      }),
+    ).rejects.toThrow(ProjectRegistryConflictError);
+
+    try {
+      await updateProject({
+        id: created.id,
+        input: { jira_project_key: SEED_PROJECT_KEY },
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProjectRegistryConflictError);
+      expect((error as ProjectRegistryConflictError).field).toBe('jira_project_key');
+    }
+  });
+
+  it('replaces tooling_config entirely (not merged) when provided', async () => {
+    const created = await createProject({
+      input: {
+        name: 'Tooling Test',
+        repo_url: 'https://github.com/test/tooling',
+        jira_project_key: 'TOOL2',
+        tooling_config: {
+          install: 'pnpm install --frozen-lockfile',
+          lint: 'pnpm lint',
+          unit: 'pnpm test',
+        },
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    // Update with a different tooling_config
+    const updated = await updateProject({
+      id: created.id,
+      input: { tooling_config: { install: 'bun install' } },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    // tooling_config should be replaced entirely, not merged
+    expect(updated?.tooling_config).toEqual({ install: 'bun install' });
+    expect(updated?.tooling_config).not.toHaveProperty('lint');
+    expect(updated?.tooling_config).not.toHaveProperty('unit');
+  });
+
+  it('returns null when project exists but tenant_id does not match', async () => {
+    const created = await createProject({
+      input: {
+        name: 'Tenant Mismatch',
+        repo_url: 'https://github.com/test/tenant-mismatch',
+        jira_project_key: 'TMIS1',
+      },
+      tenantId: SYSTEM_TENANT_ID,
+      prisma,
+    });
+
+    const result = await updateProject({
+      id: created.id,
+      input: { name: 'Should Not Update' },
+      tenantId: '00000000-0000-0000-0000-000000000099', // Different tenant
+      prisma,
+    });
+
+    expect(result).toBeNull();
   });
 });

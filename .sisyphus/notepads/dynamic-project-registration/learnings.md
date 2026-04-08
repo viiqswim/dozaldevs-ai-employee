@@ -325,3 +325,61 @@ Added fail-fast startup validation for `ADMIN_API_KEY` environment variable:
 - Test setup: createTestApp() must provide defaults for all required env vars
 - Commit: `feat(gateway): fail-fast startup if ADMIN_API_KEY is unset`
 
+
+## [2026-04-08] Task 9: listProjects and getProjectById Services
+
+### Implementation Summary
+
+Created two query services in `src/gateway/services/project-registry.ts`:
+
+1. **`listProjects(params: { tenantId, prisma, limit?, offset? }): Promise<Project[]>`**
+   - Returns projects filtered by tenant_id, ordered by `created_at DESC`
+   - Default limit: 50, default offset: 0
+   - Silently clamps limit to max 200 (if limit > 200, use 200)
+   - Uses Prisma `findMany` with `take` and `skip` for pagination
+
+2. **`getProjectById(params: { id, tenantId, prisma }): Promise<Project | null>`**
+   - Returns single project or null if not found
+   - Scoped by tenant_id for isolation
+   - Uses Prisma `findFirst` with compound WHERE clause
+
+### TDD Test Suite
+
+Created 8 new test cases in `tests/gateway/admin-projects-registry.test.ts`:
+
+1. ✓ `listProjects()` returns array containing seed project (id: '00000000-0000-0000-0000-000000000003')
+2. ✓ `listProjects()` returns projects in `created_at DESC` order (create 2, verify order)
+3. ✓ `listProjects({ limit: 2 })` respects limit (create 3, verify only 2 returned)
+4. ✓ `listProjects({ limit: 500 })` clamps to 200 (verify take: 200 is used)
+5. ✓ `listProjects({ offset: 1 })` respects offset (skip first, verify order)
+6. ✓ `getProjectById({ id: seed })` returns seed project
+7. ✓ `getProjectById({ id: nonexistent })` returns null
+8. ✓ `getProjectById` with wrong tenantId returns null (tenant isolation)
+
+### Test Results
+
+- All 13 tests pass (5 existing + 8 new) in 96ms
+- No lint errors
+- `pnpm build` succeeds with no TypeScript errors
+
+### Key Design Decisions
+
+- **Limit clamping**: `Math.min(limit, 200)` silently clamps without throwing
+- **Ordering**: `created_at DESC` ensures newest projects appear first
+- **Tenant isolation**: Both functions filter by tenant_id in WHERE clause
+- **Null handling**: `getProjectById` returns null (not throwing) for missing records
+- **Pagination**: Offset-based (not cursor-based) per requirements
+
+### Commit
+
+- `feat(gateway): implement listProjects and getProjectById services with TDD`
+- Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
+- No AI/Claude references ✓
+
+### Integration Points
+
+- `listProjects` will be called by admin GET /api/projects endpoint (future T10)
+- `getProjectById` will be called by admin GET /api/projects/:id endpoint (future T10)
+- Both follow the service pattern established by `createProject` (T8)
+- Both use SYSTEM_TENANT_ID constant (hardcoded, never from request)
+
