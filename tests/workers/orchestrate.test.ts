@@ -125,7 +125,6 @@ import {
 import { createOrUpdatePR } from '../../src/workers/lib/pr-manager.js';
 import { runCompletionFlow } from '../../src/workers/lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from '../../src/workers/lib/project-config.js';
-import { runInstallCommand } from '../../src/workers/lib/install-runner.js';
 import { TokenTracker } from '../../src/workers/lib/token-tracker.js';
 import { computeVersionHash } from '../../src/lib/agent-version.js';
 

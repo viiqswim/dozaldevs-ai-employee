@@ -1,21 +1,9 @@
-/**
- * Normalize a GitHub repository URL by trimming whitespace and removing .git suffix.
- *
- * @param url - The repository URL to normalize
- * @returns Normalized URL without trailing .git and whitespace
- */
+// Normalize a GitHub repository URL by trimming whitespace and removing .git suffix.
 export function normalizeRepoUrl(url: string): string {
   return url.trim().replace(/\.git$/, '');
 }
 
-/**
- * Parse GitHub repository URL to extract owner and repo name.
- * Handles HTTPS URLs with optional .git suffix.
- *
- * @param repoUrl - GitHub repository URL (e.g., https://github.com/owner/repo or https://github.com/owner/repo.git)
- * @returns Object with owner and repo properties
- * @throws Error if URL format is not recognized
- */
+// Parse GitHub repository URL to extract owner and repo name.
 export function parseRepoOwnerAndName(repoUrl: string): { owner: string; repo: string } {
   // Normalize the URL first
   const normalized = normalizeRepoUrl(repoUrl);

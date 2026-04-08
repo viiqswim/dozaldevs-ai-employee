@@ -13,6 +13,7 @@ import { CreateProjectSchema, UpdateProjectSchema } from '../validation/schemas.
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
 
 const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AdminProjectRouteOptions extends FastifyPluginOptions {
   prisma?: PrismaClient;
@@ -34,10 +35,7 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
 
     try {
       const project = await createProject({
-        input: {
-          ...result.data,
-          tooling_config: result.data.tooling_config as Record<string, string> | undefined,
-        },
+        input: result.data,
         tenantId: SYSTEM_TENANT_ID,
         prisma,
       });
@@ -68,8 +66,7 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
     const { id } = req.params;
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!UUID_REGEX.test(id)) {
       return reply.code(400).send({ error: 'INVALID_ID' });
     }
 
@@ -95,8 +92,7 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
     const { id } = req.params;
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!UUID_REGEX.test(id)) {
       return reply.code(400).send({ error: 'INVALID_ID' });
     }
 
@@ -130,8 +126,7 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
   fastify.delete<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
     const { id } = req.params;
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!UUID_REGEX.test(id)) {
       return reply.code(400).send({ error: 'INVALID_ID' });
     }
 

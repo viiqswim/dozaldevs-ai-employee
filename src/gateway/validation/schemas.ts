@@ -99,10 +99,7 @@ export function parseJiraIssueDeletion(body: unknown): JiraIssueDeletedPayload {
   return JiraIssueDeletedSchema.parse(body);
 }
 
-// ────────────────────────────────────────────────────────────
 // Admin Project CRUD
-// ────────────────────────────────────────────────────────────
-
 import { parseRepoOwnerAndName } from '../../lib/repo-url.js';
 
 export const ToolingConfigSchema = z
