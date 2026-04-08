@@ -4,7 +4,6 @@ import { PrismaClient } from '@prisma/client';
 import { healthRoutes } from './routes/health.js';
 import { jiraRoutes, type JiraRouteOptions } from './routes/jira.js';
 import { githubRoutes } from './routes/github.js';
-import { adminTestRoutes } from './routes/admin-test.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { createInngestClient } from './inngest/client.js';
 
@@ -50,7 +49,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<ReturnTyp
   } as JiraRouteOptions);
 
   await app.register(githubRoutes);
-  await app.register(adminTestRoutes);
   await app.register(inngestServeRoutes);
 
   return app;

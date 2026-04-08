@@ -1,28 +1,29 @@
-import { describe, it, expect, afterEach, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
-import { createTestApp, disconnectPrisma } from '../setup.js';
+import { requireAdminKey } from '../../src/gateway/middleware/admin-auth.js';
 
 let app: FastifyInstance;
 
 beforeEach(async () => {
-  // Set the admin key BEFORE creating the test app
   process.env.ADMIN_API_KEY = 'test-admin-key-x';
-  app = await createTestApp();
+  app = Fastify({ logger: false });
+  app.get('/admin/ping', { preHandler: requireAdminKey }, async (_req, reply) => {
+    return reply.send({ success: true });
+  });
+  await app.ready();
 });
 
 afterEach(async () => {
+  delete process.env.ADMIN_API_KEY;
   await app.close();
-});
-
-afterAll(async () => {
-  await disconnectPrisma();
 });
 
 describe('requireAdminKey middleware', () => {
   it('missing X-Admin-Key header → 401 with error body', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
     });
 
     expect(res.statusCode).toBe(401);
@@ -33,7 +34,7 @@ describe('requireAdminKey middleware', () => {
   it('wrong key value → 401 with error body', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
       headers: {
         'x-admin-key': 'wrong-key',
       },
@@ -47,7 +48,7 @@ describe('requireAdminKey middleware', () => {
   it('key with wrong length (one char) → 401, no ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH thrown', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
       headers: {
         'x-admin-key': 'x',
       },
@@ -61,7 +62,7 @@ describe('requireAdminKey middleware', () => {
   it('correct key → 200 with success response', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
       headers: {
         'x-admin-key': 'test-admin-key-x',
       },
@@ -75,7 +76,7 @@ describe('requireAdminKey middleware', () => {
   it('array value header (multiple values) → 401', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
       headers: {
         'x-admin-key': ['test-admin-key-x', 'another-key'],
       },
@@ -89,7 +90,7 @@ describe('requireAdminKey middleware', () => {
   it('empty string header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/test',
+      url: '/admin/ping',
       headers: {
         'x-admin-key': '',
       },
