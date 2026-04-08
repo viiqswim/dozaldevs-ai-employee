@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI Employee Worker — Fly.io Machine Boot Script
-# 8-step idempotent boot sequence. Uses flag files to skip completed steps on restart.
+# 7-step idempotent boot sequence. Uses flag files to skip completed steps on restart.
 # Required env vars: TASK_ID, REPO_URL, SUPABASE_URL, SUPABASE_SECRET_KEY
 # Optional env vars: REPO_BRANCH (default: main), ENABLE_DOCKER_DAEMON (default: unset), GITHUB_TOKEN
 
@@ -39,7 +39,7 @@ mark_step_done() {
 # STEP 1: Auth tokens
 # =============================================================================
 if ! step_done 1; then
-  log "[STEP 1/8] Writing auth tokens..."
+  log "[STEP 1/7] Writing auth tokens..."
   git config --global credential.helper store
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
@@ -51,36 +51,36 @@ if ! step_done 1; then
   git config --global user.email "ai-employee@platform.local"
   git config --global user.name "AI Employee"
   mark_step_done 1
-  log "[STEP 1/8] Auth tokens written [OK]"
+  log "[STEP 1/7] Auth tokens written [OK]"
 fi
 
 # =============================================================================
 # STEP 2: Shallow clone repo
 # =============================================================================
 if ! step_done 2; then
-  log "[STEP 2/8] Cloning repository ${REPO_URL}..."
+  log "[STEP 2/7] Cloning repository ${REPO_URL}..."
   for attempt in 1 2 3; do
     if git clone --depth=2 "${REPO_URL}" "${WORKSPACE}" 2>&1; then
       break
     fi
     if [[ $attempt -eq 3 ]]; then
-      log "[STEP 2/8] Clone failed after 3 attempts [FAIL]" >&2
+      log "[STEP 2/7] Clone failed after 3 attempts [FAIL]" >&2
       exit 1
     fi
-    log "[STEP 2/8] Clone attempt ${attempt} failed, retrying in 5s..."
+    log "[STEP 2/7] Clone attempt ${attempt} failed, retrying in 5s..."
     sleep 5
   done
   mark_step_done 2
-  log "[STEP 2/8] Repository cloned [OK]"
+  log "[STEP 2/7] Repository cloned [OK]"
 else
-  log "[STEP 2/8] Repository already cloned — skipping [SKIP]"
+  log "[STEP 2/7] Repository already cloned — skipping [SKIP]"
 fi
 
 # =============================================================================
 # STEP 3: Checkout/create task branch
 # =============================================================================
 if ! step_done 3; then
-  log "[STEP 3/8] Setting up task branch..."
+  log "[STEP 3/7] Setting up task branch..."
   cd "${WORKSPACE}"
   TASK_BRANCH="${TASK_BRANCH:-}"
   if [[ -n "${TASK_BRANCH}" ]]; then
@@ -91,58 +91,34 @@ if ! step_done 3; then
     fi
   fi
   mark_step_done 3
-  log "[STEP 3/8] Task branch ready [OK]"
+  log "[STEP 3/7] Task branch ready [OK]"
 fi
 
 # =============================================================================
-# STEP 4: Install dependencies
+# STEP 4: Start Docker daemon (optional)
 # =============================================================================
 if ! step_done 4; then
-  log "[STEP 4/8] Installing dependencies..."
-  cd "${WORKSPACE}"
-  for attempt in 1 2 3; do
-    if pnpm install --frozen-lockfile 2>&1; then
-      break
-    fi
-    if [[ $attempt -eq 3 ]]; then
-      log "[STEP 4/8] pnpm install failed after 3 attempts [FAIL]" >&2
-      exit 1
-    fi
-    log "[STEP 4/8] Install attempt ${attempt} failed, retrying in 5s..."
-    sleep 5
-  done
-  touch "${WORKSPACE}/node_modules/.install-done"
-  mark_step_done 4
-  log "[STEP 4/8] Dependencies installed [OK]"
-else
-  log "[STEP 4/8] Dependencies already installed — skipping [SKIP]"
-fi
-
-# =============================================================================
-# STEP 5: Start Docker daemon (optional)
-# =============================================================================
-if ! step_done 5; then
   if [[ -n "${ENABLE_DOCKER_DAEMON:-}" ]]; then
-    log "[STEP 5/8] Starting rootless Docker daemon..."
+    log "[STEP 4/7] Starting rootless Docker daemon..."
     dockerd-rootless.sh &
     DOCKER_PID=$!
     sleep 3
     if ! docker info >/dev/null 2>&1; then
-      log "[STEP 5/8] Docker daemon failed to start [WARN] — continuing without Docker"
+      log "[STEP 4/7] Docker daemon failed to start [WARN] — continuing without Docker"
     else
-      log "[STEP 5/8] Docker daemon started (PID: ${DOCKER_PID}) [OK]"
+      log "[STEP 4/7] Docker daemon started (PID: ${DOCKER_PID}) [OK]"
     fi
   else
-    log "[STEP 5/8] ENABLE_DOCKER_DAEMON not set — skipping Docker daemon [SKIP]"
+    log "[STEP 4/7] ENABLE_DOCKER_DAEMON not set — skipping Docker daemon [SKIP]"
   fi
-  mark_step_done 5
+  mark_step_done 4
 fi
 
 # =============================================================================
-# STEP 6: Read task context from Supabase
+# STEP 5: Read task context from Supabase
 # =============================================================================
-if ! step_done 6; then
-  log "[STEP 6/8] Reading task context from Supabase..."
+if ! step_done 5; then
+  log "[STEP 5/7] Reading task context from Supabase..."
   TASK_CONTEXT_FILE="${WORKSPACE}/.task-context.json"
   for attempt in 1 2 3; do
     HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
@@ -157,21 +133,21 @@ if ! step_done 6; then
       break
     fi
     if [[ $attempt -eq 3 ]]; then
-      log "[STEP 6/8] Failed to read task context (HTTP ${HTTP_CODE}) [FAIL]" >&2
+      log "[STEP 5/7] Failed to read task context (HTTP ${HTTP_CODE}) [FAIL]" >&2
       exit 1
     fi
-    log "[STEP 6/8] Supabase read attempt ${attempt} failed (HTTP ${HTTP_CODE}), retrying in 5s..."
+    log "[STEP 5/7] Supabase read attempt ${attempt} failed (HTTP ${HTTP_CODE}), retrying in 5s..."
     sleep 5
   done
-  mark_step_done 6
-  log "[STEP 6/8] Task context saved to ${TASK_CONTEXT_FILE} [OK]"
+  mark_step_done 5
+  log "[STEP 5/7] Task context saved to ${TASK_CONTEXT_FILE} [OK]"
 fi
 
 # =============================================================================
-# STEP 7: Write initial heartbeat
+# STEP 6: Write initial heartbeat
 # =============================================================================
-if ! step_done 7; then
-  log "[STEP 7/8] Writing initial heartbeat to executions table..."
+if ! step_done 6; then
+  log "[STEP 6/7] Writing initial heartbeat to executions table..."
   HEARTBEAT_PAYLOAD="{\"task_id\": \"${TASK_ID}\", \"runtime_type\": \"opencode\", \"current_stage\": \"boot\", \"status\": \"running\", \"heartbeat_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
   for attempt in 1 2 3; do
     HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
@@ -189,38 +165,38 @@ if ! step_done 7; then
       break
     fi
     if [[ $attempt -eq 3 ]]; then
-      log "[STEP 7/8] Heartbeat write failed (HTTP ${HTTP_CODE}) — continuing [WARN]"
+      log "[STEP 6/7] Heartbeat write failed (HTTP ${HTTP_CODE}) — continuing [WARN]"
       break
     fi
-    log "[STEP 7/8] Heartbeat attempt ${attempt} failed (HTTP ${HTTP_CODE}), retrying in 5s..."
+    log "[STEP 6/7] Heartbeat attempt ${attempt} failed (HTTP ${HTTP_CODE}), retrying in 5s..."
     sleep 5
   done
-  mark_step_done 7
-  log "[STEP 7/8] Initial heartbeat written [OK]"
+  mark_step_done 6
+  log "[STEP 6/7] Initial heartbeat written [OK]"
 fi
 
 # =============================================================================
-# STEP 7.5: Write OpenCode provider credentials (auth.json)
+# STEP 6.5: Write OpenCode provider credentials (auth.json)
 # =============================================================================
-log "[STEP 7.5/8] Configuring OpenCode provider credentials..."
+log "[STEP 6.5/7] Configuring OpenCode provider credentials..."
 OPENCODE_AUTH_DIR="${HOME}/.local/share/opencode"
 mkdir -p "${OPENCODE_AUTH_DIR}"
 if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
   printf '{\n  "openrouter": {\n    "type": "api",\n    "key": "%s"\n  }\n}\n' "${OPENROUTER_API_KEY}" > "${OPENCODE_AUTH_DIR}/auth.json"
-  log "[STEP 7.5/8] OpenRouter credentials written [OK]"
+  log "[STEP 6.5/7] OpenRouter credentials written [OK]"
 else
-  log "[STEP 7.5/8] OPENROUTER_API_KEY not set — skipping credentials [WARN]"
+  log "[STEP 6.5/7] OPENROUTER_API_KEY not set — skipping credentials [WARN]"
 fi
 
 # =============================================================================
-# STEP 8: Hand off to orchestrate.mjs
+# STEP 7: Hand off to orchestrate.mjs
 # =============================================================================
-log "[STEP 8/8] Handing off to orchestrate.mjs..."
+log "[STEP 7/7] Handing off to orchestrate.mjs..."
 ORCHESTRATE_SCRIPT="/app/dist/workers/orchestrate.mjs"
 if [[ -f "${ORCHESTRATE_SCRIPT}" ]]; then
   exec node "${ORCHESTRATE_SCRIPT}"
 else
-  log "[STEP 8/8] orchestrate.mjs not found at ${ORCHESTRATE_SCRIPT} — Phase 5 not yet built"
-  log "[STEP 8/8] Handoff point reached [OK] — exiting cleanly"
+  log "[STEP 7/7] orchestrate.mjs not found at ${ORCHESTRATE_SCRIPT} — Phase 5 not yet built"
+  log "[STEP 7/7] Handoff point reached [OK] — exiting cleanly"
   exit 0
 fi
