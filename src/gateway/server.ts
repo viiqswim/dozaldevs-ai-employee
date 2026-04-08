@@ -24,6 +24,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<ReturnTyp
   if (!process.env.JIRA_WEBHOOK_SECRET) {
     throw new Error('Missing required environment variable: JIRA_WEBHOOK_SECRET');
   }
+  if (!process.env.ADMIN_API_KEY) {
+    throw new Error('Missing required environment variable: ADMIN_API_KEY');
+  }
 
   const app = Fastify({
     logger: {
