@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyPluginOptions } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { createProject } from '../services/project-registry.js';
+import { createProject, listProjects, getProjectById } from '../services/project-registry.js';
 import { CreateProjectSchema } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
 
@@ -40,6 +40,46 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
         return reply.code(409).send({ error: 'CONFLICT', message: err.message });
       }
       req.log.error({ err }, 'Failed to create project');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  fastify.get('/admin/projects', async (req, reply) => {
+    try {
+      const projects = await listProjects({
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      });
+      return reply.code(200).send({ projects });
+    } catch (err) {
+      req.log.error({ err }, 'Failed to list projects');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  fastify.get<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
+    const { id } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return reply.code(400).send({ error: 'INVALID_ID' });
+    }
+
+    try {
+      const project = await getProjectById({
+        id,
+        tenantId: SYSTEM_TENANT_ID,
+        prisma,
+      });
+
+      if (!project) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      return reply.code(200).send(project);
+    } catch (err) {
+      req.log.error({ err }, 'Failed to get project');
       return reply.code(500).send({ error: 'INTERNAL_ERROR' });
     }
   });

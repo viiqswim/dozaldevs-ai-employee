@@ -383,3 +383,154 @@ Created 8 new test cases in `tests/gateway/admin-projects-registry.test.ts`:
 - Both follow the service pattern established by `createProject` (T8)
 - Both use SYSTEM_TENANT_ID constant (hardcoded, never from request)
 
+
+## [2026-04-08] Task 10: updateProject Service with TDD
+
+### Implementation Summary
+
+Created `updateProject` function in `src/gateway/services/project-registry.ts`:
+
+1. **Function signature**: `updateProject({ id, input, tenantId, prisma }): Promise<Project | null>`
+2. **Input type**: `UpdateProjectInput` (imported from `src/gateway/validation/schemas.js`)
+3. **Behavior**:
+   - Checks if project exists with `findFirst({ id, tenant_id })`
+   - Returns null if not found (not found or wrong tenant)
+   - Builds update data from ONLY provided fields (partial update)
+   - Normalizes `repo_url` via `normalizeRepoUrl()` if provided
+   - Calls `prisma.project.update()` with only the provided fields
+   - Catches P2002 (unique constraint) and re-throws as `ProjectRegistryConflictError`
+   - Returns updated project row
+
+### Key Design Decisions
+
+- **Partial updates**: Only fields present in `input` are included in update data (using `if (input.field !== undefined)` checks)
+- **Replacement semantics for tooling_config**: PATCH with `tooling_config: { install: "bun install" }` replaces the entire JSON, not merged
+- **Tenant isolation**: Both findFirst and update scoped by tenant_id
+- **Null return on not found**: Consistent with getProjectById pattern (not throwing)
+- **Normalization**: repo_url normalized before update (same as createProject)
+
+### TDD Test Suite
+
+Created 6 new test cases in `tests/gateway/admin-projects-registry.test.ts`:
+
+1. ✓ Updates project with partial `name` only — other fields unchanged
+2. ✓ Updates `repo_url` and normalizes by removing `.git` suffix
+3. ✓ Returns null when project id does not exist
+4. ✓ Throws ProjectRegistryConflictError when changing jira_project_key to existing one
+5. ✓ Replaces tooling_config entirely (not merged) when provided
+6. ✓ Returns null when project exists but tenant_id does not match
+
+### Test Results
+
+- All 19 tests pass (13 existing + 6 new) in 214ms
+- No lint errors
+- `pnpm build` succeeds with no TypeScript errors
+
+### Code Comments
+
+Added critical comment on line 58:
+```typescript
+// tooling_config uses replacement semantics — the entire JSON is replaced, not merged
+```
+
+This documents the non-obvious PATCH semantics required by the spec.
+
+### Commit
+
+- `feat(gateway): implement updateProject service with TDD`
+- Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
+- No AI/Claude references ✓
+
+### Integration Points
+
+- `updateProject` will be called by admin PATCH /api/projects/:id endpoint (future T11)
+- Follows the service pattern established by createProject (T8), listProjects (T9), getProjectById (T9)
+- Uses SYSTEM_TENANT_ID constant (hardcoded, never from request)
+- Reuses normalizeRepoUrl from src/lib/repo-url.ts (extracted in T2)
+
+## [2026-04-08] Task 11: deleteProject with active-task guard
+
+### Implementation Summary
+
+Appended `deleteProject` to `src/gateway/services/project-registry.ts`:
+
+1. **`DeleteProjectResult` type** — 3-member discriminated union (cleaner than the 2-member spec):
+   - `{ deleted: true }`
+   - `{ deleted: false; reason: 'not_found' }`
+   - `{ deleted: false; reason: 'active_tasks'; activeTaskIds: string[] }`
+
+2. **`deleteProject({ id, tenantId, prisma }): Promise<DeleteProjectResult>`**
+   - Wraps all DB ops in `prisma.$transaction<DeleteProjectResult>(async (tx) => { ... })`
+   - Step 1: `tx.project.findFirst({ where: { id, tenant_id: tenantId } })` → not_found guard
+   - Step 2: `tx.task.findMany({ where: { project_id: id, status: { in: ['Ready', 'Executing', 'Submitting'] } }, select: { id: true } })` → active_tasks guard
+   - Step 3: `tx.project.delete({ where: { id } })` → `{ deleted: true }`
+
+### Key Design Decisions
+
+- **Discriminated union**: Used 3-member union instead of spec's 2-member with `activeTaskIds?` — better type safety, separates not_found from active_tasks
+- **Type parameter on $transaction**: `prisma.$transaction<DeleteProjectResult>` ensures TypeScript verifies each branch returns the correct union member
+- **Active statuses**: `['Ready', 'Executing', 'Submitting']` — NOT Done, Cancelled, Received
+- **FK behavior**: `project_id` FK is optional (`String?`) in Prisma schema, so default `onDelete` is SetNull — verified by test 9 (BONUS)
+
+### Test Results
+
+- All 28 tests pass (19 existing + 9 new): `✓ tests/gateway/admin-projects-registry.test.ts (28 tests) 191ms`
+- `pnpm build` exits 0 (no TypeScript errors)
+- Pre-existing lifecycle.test.ts failures (6 Fly hybrid tests) are NOT regressions
+
+### Test Task Creation Pattern
+
+```typescript
+await prisma.task.create({
+  data: {
+    external_id: 'DEL-READY-001',
+    source_system: 'jira',
+    tenant_id: SYSTEM_TENANT_ID,
+    project_id: project.id,
+    status: 'Ready',
+  },
+});
+```
+Note: Task model has no `title`, `description`, or `raw_payload` fields — the task spec was incorrect. Only `external_id`, `source_system`, `tenant_id`, `project_id`, `status` are needed (rest have defaults or are optional).
+
+### Gotchas
+
+- The task description listed non-existent Task fields (`title`, `description`, `raw_payload`). The actual Task schema only has: `id`, `archetype_id`, `project_id`, `external_id`, `source_system`, `status`, `requirements`, `scope_estimate`, `affected_resources`, `tenant_id`, `raw_event`, `dispatch_attempts`, `failure_reason`, `triage_result`
+- Cleanup: `cleanupTestData()` already does `prisma.task.deleteMany({})` (no where clause) — deletes ALL tasks including test ones
+- FK SET NULL is verified via test 9: after `tx.project.delete()`, tasks with `project_id = project.id` get `project_id = null` automatically (Prisma default for optional FK)
+
+### Commit
+
+- `feat(gateway): implement deleteProject with active-task guard (TDD)`
+- Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
+
+## [2026-04-08] Task 14: POST /admin/projects route
+
+### Implementation Summary
+
+Created `src/gateway/routes/admin-projects.ts` with `adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions>`:
+
+1. **Plugin structure**: `FastifyPluginAsync<AdminProjectRouteOptions>` where `AdminProjectRouteOptions extends FastifyPluginOptions { prisma?: PrismaClient }`
+2. **Auth**: `fastify.addHook('preHandler', requireAdminKey)` — applied to all routes in plugin scope
+3. **Handler flow**: `CreateProjectSchema.safeParse(req.body)` → 400 on invalid, `createProject()` → 201 on success, `ProjectRegistryConflictError` → 409, generic → 500
+4. **SYSTEM_TENANT_ID**: Defined locally as `const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001'` (NOT exported from project-registry.ts)
+
+### Type Mismatch Gotcha
+
+`CreateProjectSchema` (Zod) infers `tooling_config?: ToolingConfigInput` where values are `string | undefined`. The service's `CreateProjectInput` expects `tooling_config?: Record<string, string>`. These are NOT directly assignable in TypeScript because optional keys (`{ install?: string }`) are not compatible with index signatures (`{ [key: string]: string }`). Solution: explicit cast in the spread: `tooling_config: result.data.tooling_config as Record<string, string> | undefined`.
+
+### Test Architecture Decision
+
+`createTestApp()` calls `buildApp()` + `ready()`. Since admin routes are NOT in `server.ts` yet (T18), using `createTestApp()` would mean routes aren't registered. Solution: create a fresh Fastify instance in the test with only `adminProjectRoutes` registered. Uses all helper constants from `tests/setup.ts` (ADMIN_TEST_KEY, getPrisma, cleanupTestData, disconnectPrisma) but NOT `createTestApp()`.
+
+Key insight: fresh Fastify instance for route-specific tests is clean, fast, and avoids plugin registration ordering issues.
+
+### Test Results
+
+- All 6 tests pass in 57ms
+- `pnpm build` exits 0 (no TypeScript errors)
+- Commit: `feat(gateway): add POST /admin/projects route for project registration`
+
+### Fastify Plugin Encapsulation Note
+
+`fastify.addHook('preHandler', requireAdminKey)` inside a plugin scope applies ONLY to routes in that same plugin scope — does NOT affect `/webhooks/jira`, `/health`, etc. This is the correct behavior for route-level auth.

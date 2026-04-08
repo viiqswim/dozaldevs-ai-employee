@@ -1084,7 +1084,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-registry.test.ts`
 
-- [ ] 10. **`project-registry.updateProject` service**
+- [x] 10. **`project-registry.updateProject` service**
 
   **What to do**:
   - Append to `src/gateway/services/project-registry.ts`:
@@ -1151,7 +1151,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/services/project-registry.ts`, `tests/gateway/admin-projects-registry.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/admin-projects-registry.test.ts`
 
-- [ ] 11. **`project-registry.deleteProject` service with active-task guard**
+- [x] 11. **`project-registry.deleteProject` service with active-task guard**
 
   **What to do**:
   - Append to `src/gateway/services/project-registry.ts`:
@@ -1424,7 +1424,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `src/gateway/server.ts`, `tests/gateway/server-startup.test.ts`
   - Pre-commit: `pnpm lint && pnpm test -- --run tests/gateway/server-startup.test.ts`
 
-- [ ] 14. **`POST /admin/projects` route — create project**
+- [x] 14. **`POST /admin/projects` route — create project**
 
   **What to do**:
   - Create `src/gateway/routes/admin-projects.ts`
