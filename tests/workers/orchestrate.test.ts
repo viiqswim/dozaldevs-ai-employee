@@ -69,6 +69,10 @@ vi.mock('../../src/workers/lib/completion.js', () => ({
   runCompletionFlow: vi.fn().mockResolvedValue({ supabaseWritten: true, inngestSent: true }),
 }));
 
+vi.mock('../../src/workers/lib/install-runner.js', () => ({
+  runInstallCommand: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../src/workers/lib/project-config.js', () => ({
   fetchProjectConfig: vi.fn().mockResolvedValue({
     id: 'proj-1',
@@ -121,6 +125,7 @@ import {
 import { createOrUpdatePR } from '../../src/workers/lib/pr-manager.js';
 import { runCompletionFlow } from '../../src/workers/lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from '../../src/workers/lib/project-config.js';
+import { runInstallCommand } from '../../src/workers/lib/install-runner.js';
 import { TokenTracker } from '../../src/workers/lib/token-tracker.js';
 import { computeVersionHash } from '../../src/lib/agent-version.js';
 

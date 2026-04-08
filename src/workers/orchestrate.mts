@@ -27,6 +27,7 @@ import { buildBranchName, ensureBranch, commitAndPush } from './lib/branch-manag
 import { createOrUpdatePR } from './lib/pr-manager.js';
 import { runCompletionFlow } from './lib/completion.js';
 import { fetchProjectConfig, parseRepoOwnerAndName } from './lib/project-config.js';
+import { runInstallCommand } from './lib/install-runner.js';
 import { TokenTracker } from './lib/token-tracker.js';
 import { computeVersionHash } from '../lib/agent-version.js';
 import { createLogger } from '../lib/logger.js';
@@ -143,6 +144,12 @@ async function main(): Promise<void> {
   // Fetch early so real tooling_config can be passed to fix loop.
   const projectConfig = await fetchProjectConfig(task.project_id ?? '', postgrestClient);
   const toolingConfigResolved = resolveToolingConfig(projectConfig);
+
+  // ── Step 4.5: Run install command ─────────────────────────────────────────
+  const installCmd = toolingConfigResolved.install ?? 'pnpm install --frozen-lockfile';
+  log.info(`[orchestrate] Running install command: ${installCmd}`);
+  await runInstallCommand({ installCommand: installCmd, cwd: '/workspace' });
+  log.info('[orchestrate] Install command completed');
 
   // ── Step 5: Build prompt ─────────────────────────────────────────────────
   const prompt = buildPrompt(task);
