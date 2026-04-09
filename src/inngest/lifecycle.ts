@@ -242,6 +242,7 @@ export function createLifecycleFunction(
             repoBranch?: string;
           };
 
+          const resumeFromWave = (event.data as Record<string, unknown>).resumeFromWave;
           const envArgs = [
             `-e TASK_ID="${taskId}"`,
             `-e SUPABASE_URL="${process.env.SUPABASE_URL ?? 'http://localhost:54321'}"`,
@@ -254,6 +255,7 @@ export function createLifecycleFunction(
             `-e INNGEST_BASE_URL="http://localhost:8288"`,
             localRepoUrl ? `-e REPO_URL="${localRepoUrl}"` : '',
             localRepoBranch ? `-e REPO_BRANCH="${localRepoBranch}"` : '',
+            resumeFromWave != null ? `-e RESUME_FROM_WAVE="${resumeFromWave}"` : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -302,20 +304,26 @@ export function createLifecycleFunction(
           projectId: string;
         };
 
+        const flyResumeFromWave = (event.data as Record<string, unknown>).resumeFromWave;
+        const flyEnv: Record<string, string> = {
+          TASK_ID: taskId,
+          REPO_URL: repoUrl ?? '',
+          REPO_BRANCH: repoBranch ?? 'main',
+          SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+          SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
+          GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
+          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+          OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+        };
+        if (flyResumeFromWave != null) {
+          flyEnv.RESUME_FROM_WAVE = String(flyResumeFromWave);
+        }
+
         const flyMachine = await createMachine(flyWorkerApp, {
           image: flyWorkerImage,
           vm_size: 'performance-2x',
           auto_destroy: true,
-          env: {
-            TASK_ID: taskId,
-            REPO_URL: repoUrl ?? '',
-            REPO_BRANCH: repoBranch ?? 'main',
-            SUPABASE_URL: process.env.SUPABASE_URL ?? '',
-            SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
-            GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
-            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
-            OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
-          },
+          env: flyEnv,
         });
 
         await prisma.execution.updateMany({
@@ -391,9 +399,12 @@ export function createLifecycleFunction(
         }
         result = devResult;
       } else {
+        // Timeout must exceed orchestrate budget (8h) with safety margin.
+        // Coordinated with watchdog machine cleanup (9h) and redispatch (8h).
+        // See .sisyphus/plans/long-running-session-overhaul.md
         result = await step.waitForEvent('wait-for-completion', {
           event: 'engineering/task.completed',
-          timeout: '4h10m',
+          timeout: '8h30m',
           if: `async.data.taskId == '${taskId}'`,
         });
       }
@@ -449,11 +460,25 @@ export function createLifecycleFunction(
               },
             });
           } else {
+            const waveData = await prisma.execution.findFirst({
+              where: { task_id: taskId },
+              select: { waveNumber: true, waveState: true },
+              orderBy: { created_at: 'desc' },
+            });
+            const allExecutions = await prisma.execution.findMany({
+              where: { task_id: taskId, waveNumber: { not: null } },
+              select: { waveNumber: true },
+            });
+            const completedWaves = allExecutions
+              .map((e) => e.waveNumber)
+              .filter((n): n is number => n !== null);
+
+            const failureReason = `Exhausted ${attempts} re-dispatch attempts`;
             await prisma.task.updateMany({
               where: { id: taskId },
               data: {
                 status: 'AwaitingInput',
-                failure_reason: `Exhausted ${attempts} re-dispatch attempts`,
+                failure_reason: failureReason,
                 updated_at: new Date(),
               },
             });
@@ -465,6 +490,18 @@ export function createLifecycleFunction(
                 actor: 'lifecycle_fn',
               },
             });
+            await inngest
+              .send({
+                name: 'engineering/task.escalated',
+                data: {
+                  taskId,
+                  wave_number: waveData?.waveNumber ?? null,
+                  wave_error: failureReason,
+                  completed_waves: completedWaves,
+                  total_waves: 0,
+                },
+              })
+              .catch(() => {});
             await slackClient
               .postMessage({
                 text: `Task \`${taskId}\` failed after ${attempts} dispatch attempts. Manual intervention required.`,

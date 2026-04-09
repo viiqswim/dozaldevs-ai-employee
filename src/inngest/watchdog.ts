@@ -34,7 +34,9 @@ export async function runWatchdog(
   };
   const flyWorkerApp = process.env.FLY_WORKER_APP ?? '';
 
-  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
+  // 20min threshold: accommodates wave transition pauses (install re-run, session creation).
+  // Do NOT exceed 20min — real hangs need detection.
+  const staleThreshold = new Date(Date.now() - 20 * 60 * 1000);
 
   const staleExecutions = await prisma.execution.findMany({
     where: {
@@ -119,11 +121,14 @@ export async function runWatchdog(
     }
   }
 
-  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  // Machine cleanup threshold is 9h. MUST be greater than total orchestrate budget (8h).
+  // Changing this can silently kill long-running tasks.
+  // See Metis review in .sisyphus/plans/long-running-session-overhaul.md
+  const nineHoursAgo = new Date(Date.now() - 9 * 60 * 60 * 1000);
 
   const longRunningExecutions = await prisma.execution.findMany({
     where: {
-      created_at: { lt: fourHoursAgo },
+      created_at: { lt: nineHoursAgo },
       runtime_id: { not: null },
     },
   });
@@ -139,7 +144,7 @@ export async function runWatchdog(
       });
       log.info(
         { executionId: exec.id, machineId: exec.runtime_id },
-        'Watchdog destroyed 4h+ machine',
+        'Watchdog destroyed 9h+ machine',
       );
     }
   }

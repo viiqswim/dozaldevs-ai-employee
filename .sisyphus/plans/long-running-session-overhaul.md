@@ -2768,7 +2768,7 @@ Max Concurrent: 11 (Wave 2)
   - Files: `src/workers/orchestrate.mts`, `src/workers/lib/task-context.ts` + any updated test files
   - Pre-commit: `pnpm lint && pnpm build && pnpm test -- --run`
 
-- [ ] 29. entrypoint.sh — Resource Caps Injection
+- [x] 29. entrypoint.sh — Resource Caps Injection
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — near the top (after basic env setup, before starting any heavy processes):
@@ -2849,7 +2849,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 30. entrypoint.sh — Cache Validation Integration
+- [x] 30. entrypoint.sh — Cache Validation Integration
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — in the repo clone step:
@@ -2926,7 +2926,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 31. entrypoint.sh — Disk Space Pre-Check Integration
+- [x] 31. entrypoint.sh — Disk Space Pre-Check Integration
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — as the FIRST actionable step after env setup:
@@ -2998,7 +2998,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 32. entrypoint.sh — Step Timing Instrumentation
+- [x] 32. entrypoint.sh — Step Timing Instrumentation
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — wrap each major step with timing:
@@ -3078,7 +3078,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 33. entrypoint.sh — opencode.json Override File
+- [x] 33. entrypoint.sh — opencode.json Override File
 
   **What to do**:
   - Create template file `src/workers/config/opencode.json` with:
@@ -3164,7 +3164,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 34. entrypoint.sh — boulder.json Context File
+- [x] 34. entrypoint.sh — boulder.json Context File
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — after clone + branch setup, before OpenCode starts:
@@ -3243,7 +3243,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 4 commit)
 
-- [ ] 35. entrypoint.sh — Plan File Sync on Restart
+- [x] 35. entrypoint.sh — Plan File Sync on Restart
 
   **What to do**:
   - Edit `src/workers/entrypoint.sh` — after repo clone + branch setup, before starting OpenCode:
