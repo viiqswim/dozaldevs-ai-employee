@@ -371,10 +371,10 @@ export function createLifecycleFunction(
         result = { data: { taskId, executionId: execution?.id, prUrl: null } };
       } else if (useLocalDocker === '1') {
         // LOCAL DOCKER DEV MODE: Inngest Dev Server v1.17.7 resolves waitForEvent immediately (null).
-        // Use step.sleep polling instead — checks Supabase every 30s for up to 20 minutes.
+        // Use step.sleep polling instead — checks Supabase every 30s for up to 90 minutes.
         // This is dev-only; production uses waitForEvent (Cloud properly suspends the function).
         let devResult: CompletionResult = null;
-        const MAX_POLLS = 40;
+        const MAX_POLLS = 180;
         for (let i = 0; i < MAX_POLLS; i++) {
           await step.sleep(`dev-poll-sleep-${i}`, '30s');
           const taskStatus = await step.run(`dev-poll-check-${i}`, async () => {
