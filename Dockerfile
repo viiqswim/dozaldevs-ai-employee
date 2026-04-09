@@ -53,6 +53,7 @@ COPY --from=builder /build/package.json ./
 
 COPY src/workers/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
+COPY src/workers/config/opencode.json /app/opencode.json
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"

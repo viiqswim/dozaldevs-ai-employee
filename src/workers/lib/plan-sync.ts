@@ -71,3 +71,35 @@ export class PlanSync {
     });
   }
 }
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const [, , subcommand, taskId, diskPath] = process.argv;
+  if (subcommand === 'load' && taskId && diskPath) {
+    Promise.all([import('../../lib/logger.js'), import('./postgrest-client.js')])
+      .then(([{ createLogger }, { createPostgRESTClient }]) => {
+        const logger = createLogger('plan-sync-cli');
+        const postgrestClient = createPostgRESTClient();
+        const planSync = new PlanSync({ postgrestClient, logger, diskPath });
+        return planSync.loadPlanOnRestart(taskId);
+      })
+      .then((result) => {
+        if (result) {
+          process.stdout.write(JSON.stringify({ loaded: true, source: result.source }) + '\n');
+          process.exit(0);
+        } else {
+          process.stdout.write(JSON.stringify({ loaded: false, reason: 'no plan found' }) + '\n');
+          process.exit(1);
+        }
+      })
+      .catch((err: unknown) => {
+        process.stdout.write(JSON.stringify({ loaded: false, reason: String(err) }) + '\n');
+        process.exit(1);
+      });
+  } else {
+    process.stdout.write(
+      JSON.stringify({ loaded: false, reason: 'Usage: plan-sync.js load <taskId> <diskPath>' }) +
+        '\n',
+    );
+    process.exit(1);
+  }
+}
