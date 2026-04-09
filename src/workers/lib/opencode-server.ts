@@ -24,7 +24,7 @@ export interface StartOpencodeServerOptions {
 }
 
 /**
- * Spawns `opencode serve --port {port}` and waits until the health endpoint
+ * Spawns `opencode serve --port {port} --hostname 0.0.0.0` and waits until the health endpoint
  * responds `{ healthy: true }`. Returns null if the process fails to start or
  * the health check times out.
  */
@@ -36,11 +36,15 @@ export async function startOpencodeServer(
   const healthTimeoutMs = options?.healthTimeoutMs ?? 30000;
 
   return new Promise<OpencodeServerHandle | null>((resolve) => {
-    const childProcess = spawn('opencode', ['serve', '--port', String(port)], {
-      cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false,
-    });
+    const childProcess = spawn(
+      'opencode',
+      ['serve', '--port', String(port), '--hostname', '0.0.0.0'],
+      {
+        cwd,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      },
+    );
 
     let resolved = false;
     const timers = {
