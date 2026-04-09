@@ -37,10 +37,9 @@ import { TokenTracker } from './lib/token-tracker.js';
 import { computeVersionHash } from '../lib/agent-version.js';
 import { createLogger, logStep, logTiming, logTool, logCost } from '../lib/logger.js';
 import { readConfigFromEnv } from './config/long-running.js';
-import type { LongRunningConfig, WaveState, WaveStateArray } from './config/long-running.js';
+import type { LongRunningConfig, WaveState } from './config/long-running.js';
 import { parsePlan } from './lib/plan-parser.js';
 import type { ParsedPlan } from './lib/plan-parser.js';
-import { WaveExecutor } from './lib/wave-executor.js';
 import { CostTrackerV2 } from './lib/cost-tracker-v2.js';
 import { CostBreaker } from './lib/cost-breaker.js';
 import { CompletionDetector } from './lib/completion-detector.js';
@@ -501,20 +500,6 @@ async function phase2Execution(opts: {
     planParser: planParserDeps,
     sessionManager,
     logger: log,
-  });
-
-  // Instantiate WaveExecutor (Task 21) — provides wave metadata and hooks
-  const _waveExecutor = new WaveExecutor({
-    sessionManager,
-    config,
-    planParser: {
-      parsePlanFile: (_filePath: string) => Promise.resolve(plan),
-      findNextUncheckedTasks: (wave) => wave.tasks.filter((t) => !t.completed),
-    },
-    costTracker,
-    logger: log,
-    heartbeat,
-    planFilePath: planPath,
   });
 
   // Task 21: Determine starting wave from DB (restart idempotency)

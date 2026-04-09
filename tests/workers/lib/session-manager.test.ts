@@ -496,6 +496,7 @@ describe('createSessionManager', () => {
       vi.useFakeTimers();
 
       // SSE stream never yields any events — simulates subscribing after idle already fired
+      // eslint-disable-next-line require-yield
       const mockStream = (async function* () {
         await new Promise((r) => setTimeout(r, 999999));
       })();
