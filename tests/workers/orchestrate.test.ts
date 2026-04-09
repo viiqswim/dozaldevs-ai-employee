@@ -851,18 +851,14 @@ describe('orchestrate.mts', () => {
     expect(mockServerHandle.kill).toHaveBeenCalled();
   });
 
-  it('empty diff (pushed: false, no error) → skips PR creation, still sends completion with null prUrl', async () => {
+  it('empty diff (pushed: false, no error) → still creates PR, sends completion with prUrl', async () => {
     setupHappyPath();
     vi.mocked(commitAndPush).mockResolvedValue({ pushed: false, reason: 'no_changes' });
     await main().catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
-    expect(createOrUpdatePR).not.toHaveBeenCalled();
-    expect(runCompletionFlow).toHaveBeenCalledWith(
-      expect.objectContaining({ prUrl: null }),
-      expect.anything(),
-    );
+    expect(createOrUpdatePR).toHaveBeenCalled();
   });
 
   it('PR creation throws → logs warning, still sends completion with null prUrl, exit(0)', async () => {
