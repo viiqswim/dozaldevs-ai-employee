@@ -1,6 +1,3 @@
 {
-  "permission": { "*": "allow", "question": "deny" },
-  "tools": {
-    "bash": { "timeout_ms": 1200000 }
-  }
+  "permission": { "*": "allow", "question": "deny" }
 }
