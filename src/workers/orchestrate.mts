@@ -901,7 +901,7 @@ async function finalize(opts: FinalizeOpts): Promise<void> {
 
     // ── Create or update PR ──────────────────────────────────────────────
     let prUrl: string | null = null;
-    if (pushResult.pushed && owner && repo) {
+    if (!pushResult.error && owner && repo) {
       const githubToken = process.env.GITHUB_TOKEN;
       if (githubToken) {
         const githubClient = createGitHubClient({ token: githubToken });

@@ -74,7 +74,6 @@ export async function pushBetweenWaves(
     );
     const commitSha = shaOutput.trim();
 
-    // 5. Push with --force-with-lease
     await execFileAsync(
       'git',
       ['-C', repoRoot, 'push', '--force-with-lease', 'origin', branchName],
