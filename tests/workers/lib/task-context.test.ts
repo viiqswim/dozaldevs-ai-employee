@@ -22,6 +22,10 @@ vi.mock('../../../src/lib/logger.js', () => ({
   taskLogger: () => mockLogger,
 }));
 
+vi.mock('../../../src/workers/lib/prompt-builder.js', () => ({
+  buildExecutionPrompt: vi.fn().mockResolvedValue('mocked execution prompt'),
+}));
+
 let mockReadFileSync: ReturnType<typeof vi.fn>;
 
 vi.mock('fs', () => ({
@@ -122,7 +126,47 @@ describe('task-context', () => {
   });
 
   describe('buildPrompt', () => {
-    it('builds markdown prompt from valid Jira triage_result', () => {
+    it('returns fallback prompt when triage_result is null (no prompt-builder call)', async () => {
+      const task: TaskRow = {
+        id: 'task-1',
+        external_id: 'PROJ-123',
+        status: 'Executing',
+        triage_result: null,
+        requirements: null,
+        project_id: 'proj-1',
+      };
+
+      const prompt = await buildPrompt(task);
+
+      expect(prompt).toBe(
+        'Implement task PROJ-123: Please examine the codebase and implement the required changes.',
+      );
+    });
+
+    it('returns fallback prompt when triage_result has no issue field', async () => {
+      const jiraPayload = {
+        webhookEvent: 'jira:issue_created',
+      };
+
+      const task: TaskRow = {
+        id: 'task-1',
+        external_id: 'PROJ-456',
+        status: 'Executing',
+        triage_result: jiraPayload,
+        requirements: null,
+        project_id: 'proj-1',
+      };
+
+      const prompt = await buildPrompt(task);
+
+      expect(prompt).toBe(
+        'Implement task PROJ-456: Please examine the codebase and implement the required changes.',
+      );
+    });
+
+    it('calls buildExecutionPrompt with ticket info from valid Jira triage_result', async () => {
+      const { buildExecutionPrompt } = await import('../../../src/workers/lib/prompt-builder.js');
+
       const jiraPayload = {
         webhookEvent: 'jira:issue_created',
         issue: {
@@ -147,82 +191,24 @@ describe('task-context', () => {
         project_id: 'proj-1',
       };
 
-      const prompt = buildPrompt(task);
+      const prompt = await buildPrompt(task);
 
-      expect(prompt).toContain('# Task: TEST-001 — Add date formatting utility');
-      expect(prompt).toContain('**Ticket ID**: TEST-001');
-      expect(prompt).toContain('**Project**: TEST');
-      expect(prompt).toContain('Create a utility function that formats dates as ISO strings.');
-      expect(prompt).toContain('## Requirements');
-      expect(prompt).toContain('## Instructions');
-    });
-
-    it('returns fallback prompt when triage_result is null', () => {
-      const task: TaskRow = {
-        id: 'task-1',
-        external_id: 'PROJ-123',
-        status: 'Executing',
-        triage_result: null,
-        requirements: null,
-        project_id: 'proj-1',
-      };
-
-      const prompt = buildPrompt(task);
-
-      expect(prompt).toBe(
-        'Implement task PROJ-123: Please examine the codebase and implement the required changes.',
+      expect(buildExecutionPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({
+            key: 'TEST-001',
+            summary: 'Add date formatting utility',
+          }),
+          repoRoot: '/workspace',
+          wave: expect.objectContaining({ number: 1 }),
+        }),
       );
+      expect(prompt).toBe('mocked execution prompt');
     });
 
-    it('returns fallback prompt when triage_result has no issue field', () => {
-      const jiraPayload = {
-        webhookEvent: 'jira:issue_created',
-      };
+    it('passes requirements in description to buildExecutionPrompt', async () => {
+      const { buildExecutionPrompt } = await import('../../../src/workers/lib/prompt-builder.js');
 
-      const task: TaskRow = {
-        id: 'task-1',
-        external_id: 'PROJ-456',
-        status: 'Executing',
-        triage_result: jiraPayload,
-        requirements: null,
-        project_id: 'proj-1',
-      };
-
-      const prompt = buildPrompt(task);
-
-      expect(prompt).toBe(
-        'Implement task PROJ-456: Please examine the codebase and implement the required changes.',
-      );
-    });
-
-    it('uses UNKNOWN for missing issue key and project key', () => {
-      const jiraPayload = {
-        webhookEvent: 'jira:issue_created',
-        issue: {
-          id: '10001',
-          fields: {
-            summary: 'Test task',
-            description: 'Test description',
-          },
-        },
-      };
-
-      const task: TaskRow = {
-        id: 'task-1',
-        external_id: 'TEST-001',
-        status: 'Executing',
-        triage_result: jiraPayload,
-        requirements: null,
-        project_id: 'proj-1',
-      };
-
-      const prompt = buildPrompt(task);
-
-      expect(prompt).toContain('# Task: UNKNOWN — Test task');
-      expect(prompt).toContain('**Project**: UNKNOWN');
-    });
-
-    it('includes requirements section when task.requirements is provided', () => {
       const jiraPayload = {
         webhookEvent: 'jira:issue_created',
         issue: {
@@ -238,7 +224,6 @@ describe('task-context', () => {
 
       const requirements = {
         acceptance_criteria: ['Criterion 1', 'Criterion 2'],
-        estimated_hours: 4,
       };
 
       const task: TaskRow = {
@@ -250,29 +235,23 @@ describe('task-context', () => {
         project_id: 'proj-1',
       };
 
-      const prompt = buildPrompt(task);
+      await buildPrompt(task);
 
-      expect(prompt).toContain('"acceptance_criteria"');
-      expect(prompt).toContain('"estimated_hours"');
-      expect(prompt).toContain('Criterion 1');
+      const call = vi.mocked(buildExecutionPrompt).mock.calls[0]?.[0];
+      expect(call?.ticket.description).toContain('Criterion 1');
+      expect(call?.ticket.description).toContain('Requirements');
     });
 
-    it('handles ADF (Atlassian Document Format) description', () => {
+    it('uses UNKNOWN for missing issue key', async () => {
+      const { buildExecutionPrompt } = await import('../../../src/workers/lib/prompt-builder.js');
+
       const jiraPayload = {
         webhookEvent: 'jira:issue_created',
         issue: {
           id: '10001',
-          key: 'TEST-001',
           fields: {
             summary: 'Test task',
-            description: {
-              content: [
-                {
-                  content: [{ text: 'First line' }, { text: 'Second line' }],
-                },
-              ],
-            },
-            project: { key: 'TEST' },
+            description: 'Test description',
           },
         },
       };
@@ -286,10 +265,61 @@ describe('task-context', () => {
         project_id: 'proj-1',
       };
 
-      const prompt = buildPrompt(task);
+      await buildPrompt(task);
 
-      expect(prompt).toContain('First line');
-      expect(prompt).toContain('Second line');
+      const call = vi.mocked(buildExecutionPrompt).mock.calls[0]?.[0];
+      expect(call?.ticket.key).toBe('UNKNOWN');
+    });
+
+    it('synthetic wave number is always 1', async () => {
+      const { buildExecutionPrompt } = await import('../../../src/workers/lib/prompt-builder.js');
+
+      const jiraPayload = {
+        issue: {
+          key: 'TEST-001',
+          fields: { summary: 'Task', description: 'desc' },
+        },
+      };
+
+      const task: TaskRow = {
+        id: 'task-1',
+        external_id: 'TEST-001',
+        status: 'Executing',
+        triage_result: jiraPayload,
+        requirements: null,
+        project_id: 'proj-1',
+      };
+
+      await buildPrompt(task);
+
+      const call = vi.mocked(buildExecutionPrompt).mock.calls[0]?.[0];
+      expect(call?.wave.number).toBe(1);
+    });
+
+    it('passes agentsMdContent as null', async () => {
+      const { buildExecutionPrompt } = await import('../../../src/workers/lib/prompt-builder.js');
+
+      const jiraPayload = {
+        issue: {
+          key: 'TEST-001',
+          fields: { summary: 'Task', description: 'desc' },
+        },
+      };
+
+      const task: TaskRow = {
+        id: 'task-1',
+        external_id: 'TEST-001',
+        status: 'Executing',
+        triage_result: jiraPayload,
+        requirements: null,
+        project_id: 'proj-1',
+      };
+
+      await buildPrompt(task);
+
+      const call = vi.mocked(buildExecutionPrompt).mock.calls[0]?.[0];
+      expect(call?.agentsMdContent).toBeNull();
+      expect(call?.boulderContext).toBeNull();
     });
   });
 
