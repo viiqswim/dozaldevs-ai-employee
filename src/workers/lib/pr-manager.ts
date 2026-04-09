@@ -1,6 +1,59 @@
 import { GitHubClient, GitHubPR } from '../../lib/github-client.js';
 import { TaskRow } from './task-context.js';
 
+export interface SuccessPrBodyOpts {
+  ticketKey: string;
+  ticketSummary: string;
+  diffStats: string;
+  waveStates: Array<{ number: number; status: string }>;
+  testCount: number;
+  branchName: string;
+  commitLog: string;
+}
+
+export function buildSuccessPrBody(opts: SuccessPrBodyOpts): string {
+  const waveList = opts.waveStates
+    .map((w) => `- Wave ${w.number}: ${w.status === 'completed' ? '✅' : '❌'}`)
+    .join('\n');
+
+  return `## Summary
+
+${opts.ticketSummary}
+
+## Ticket
+
+${opts.ticketKey} — ${opts.ticketSummary}
+
+## Changes
+
+\`\`\`
+${opts.diffStats}
+\`\`\`
+
+## Waves Completed
+
+${waveList}
+
+## Testing
+
+- TypeScript: \`pnpm build\` ✅
+- Lint: \`pnpm lint\` ✅
+- Unit tests: \`pnpm test -- --run\` ✅ (${opts.testCount} tests passed)
+
+## How to Verify
+
+1. Check out this branch: \`git checkout ${opts.branchName}\`
+2. Install: \`pnpm install\`
+3. Run tests: \`pnpm test -- --run\`
+
+## Commit Log
+
+\`\`\`
+${opts.commitLog}
+\`\`\`
+`;
+}
+
 const PR_BODY_DESC_LIMIT = 500;
 
 export interface CreateOrUpdatePRParams {

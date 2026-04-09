@@ -6,6 +6,8 @@ import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('redispatch');
 
+const TOTAL_BUDGET_MS = 8 * 60 * 60 * 1000;
+
 export function createRedispatchFunction(
   inngest: Inngest,
   prisma: PrismaClient,
@@ -56,33 +58,43 @@ export function createRedispatchFunction(
       }
 
       const elapsedMs = Date.now() - new Date(task.created_at).getTime();
-      const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
-      if (elapsedHours > 6) {
+      if (elapsedMs > TOTAL_BUDGET_MS) {
+        const elapsedHours = (elapsedMs / (1000 * 60 * 60)).toFixed(1);
         logger.warn(
           { taskId, elapsedHours, dispatch_attempts: task.dispatch_attempts },
-          '6-hour budget exceeded',
+          '8-hour budget exceeded',
         );
         await step.run('handle-budget-exceeded', async () => {
           await prisma.task.update({
             where: { id: taskId },
             data: {
               status: 'AwaitingInput',
-              failure_reason: `Total timeout budget (6h) exceeded after ${task.dispatch_attempts} dispatch attempts`,
+              failure_reason: `Total timeout budget (8h) exceeded after ${task.dispatch_attempts} dispatch attempts`,
               updated_at: new Date(),
             },
           });
           await slackClient.postMessage({
-            text: `Task ${taskId} has exceeded the 6-hour total budget after ${task.dispatch_attempts} dispatch attempts. Manual intervention required.`,
+            text: `Task ${taskId} has exceeded the 8-hour total budget after ${task.dispatch_attempts} dispatch attempts. Manual intervention required.`,
           });
         });
         return;
       }
 
-      logger.info({ taskId, attempt, elapsedHours }, 'Re-dispatching task');
+      const resumeFromWave = await step.run('fetch-wave-number', async () => {
+        const exec = await prisma.execution.findFirst({
+          where: { task_id: taskId },
+          select: { waveNumber: true },
+          orderBy: { created_at: 'desc' },
+        });
+        return exec?.waveNumber ?? null;
+      });
+
+      const elapsedHours = elapsedMs / (1000 * 60 * 60);
+      logger.info({ taskId, attempt, elapsedHours, resumeFromWave }, 'Re-dispatching task');
       await step.sendEvent('restart-lifecycle', {
         name: 'engineering/task.received',
-        data: { taskId, attempt, repoUrl, repoBranch },
+        data: { taskId, attempt, repoUrl, repoBranch, resumeFromWave },
       });
     },
   );

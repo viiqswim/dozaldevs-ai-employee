@@ -3,6 +3,7 @@ import {
   checkExistingPR,
   createOrUpdatePR,
   buildPRBody,
+  buildSuccessPrBody,
   CreateOrUpdatePRParams,
 } from '../../../src/workers/lib/pr-manager.js';
 import {
@@ -253,6 +254,74 @@ describe('pr-manager', () => {
       expect(() => buildPRBody(taskNoTriage, null)).not.toThrow();
       const body = buildPRBody(taskNoTriage, null);
       expect(body).toContain('PROJ-123');
+    });
+  });
+
+  describe('buildSuccessPrBody()', () => {
+    const baseOpts = {
+      ticketKey: 'PROJ-123',
+      ticketSummary: 'Fix login bug',
+      diffStats: '3 files changed, 42 insertions(+), 7 deletions(-)',
+      waveStates: [
+        { number: 1, status: 'completed' },
+        { number: 2, status: 'completed' },
+        { number: 3, status: 'failed' },
+      ],
+      testCount: 520,
+      branchName: 'ai/PROJ-123-fix-login-bug',
+      commitLog: 'abc1234 fix: resolve login issue\ndef5678 test: add coverage',
+    };
+
+    it('contains ## Summary section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Summary');
+    });
+
+    it('contains ## Ticket section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Ticket');
+    });
+
+    it('contains ## Changes section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Changes');
+    });
+
+    it('contains ## Waves Completed section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Waves Completed');
+    });
+
+    it('contains ## Testing section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Testing');
+    });
+
+    it('contains ## How to Verify section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## How to Verify');
+    });
+
+    it('contains ## Commit Log section header', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('## Commit Log');
+    });
+
+    it('marks completed waves with checkmark and failed waves with X', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('Wave 1: ✅');
+      expect(body).toContain('Wave 2: ✅');
+      expect(body).toContain('Wave 3: ❌');
+    });
+
+    it('includes test count in testing section', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('520 tests passed');
+    });
+
+    it('includes branch name in how to verify section', () => {
+      const body = buildSuccessPrBody(baseOpts);
+      expect(body).toContain('ai/PROJ-123-fix-login-bug');
     });
   });
 });

@@ -121,10 +121,10 @@ describe('redispatch function', () => {
     });
   });
 
-  describe('elapsed > 6h (within attempt limit)', () => {
+  describe('elapsed > 8h (within attempt limit)', () => {
     it('sets task to AwaitingInput with elapsed-time failure_reason', async () => {
-      const sevenHoursAgo = new Date(Date.now() - 7 * 60 * 60 * 1000);
-      const task = await createTestTask({ dispatch_attempts: 1, created_at: sevenHoursAgo });
+      const nineHoursAgo = new Date(Date.now() - 9 * 60 * 60 * 1000);
+      const task = await createTestTask({ dispatch_attempts: 1, created_at: nineHoursAgo });
       const slack = makeSlackMock();
       const sentEvents: Array<{ name: string; data: unknown }> = [];
 
@@ -137,13 +137,13 @@ describe('redispatch function', () => {
       const updated = await getPrisma().task.findUnique({ where: { id: task.id } });
       expect(updated!.status).toBe('AwaitingInput');
       expect(updated!.failure_reason).toContain(
-        'Total timeout budget (6h) exceeded after 1 dispatch attempts',
+        'Total timeout budget (8h) exceeded after 1 dispatch attempts',
       );
     });
 
     it('posts Slack alert and does not emit re-dispatch event', async () => {
-      const sevenHoursAgo = new Date(Date.now() - 7 * 60 * 60 * 1000);
-      const task = await createTestTask({ dispatch_attempts: 1, created_at: sevenHoursAgo });
+      const nineHoursAgo = new Date(Date.now() - 9 * 60 * 60 * 1000);
+      const task = await createTestTask({ dispatch_attempts: 1, created_at: nineHoursAgo });
       const slack = makeSlackMock();
       const sentEvents: Array<{ name: string; data: unknown }> = [];
 
@@ -157,7 +157,7 @@ describe('redispatch function', () => {
     });
   });
 
-  describe('elapsed < 6h AND attempts < 3 (re-dispatch path)', () => {
+  describe('elapsed < 8h AND attempts < 3 (re-dispatch path)', () => {
     it('emits engineering/task.received with taskId and attempt', async () => {
       const task = await createTestTask({ dispatch_attempts: 1 });
       const slack = makeSlackMock();
@@ -206,6 +206,59 @@ describe('redispatch function', () => {
 
       expect(error).toBeUndefined();
       expect(slack.postMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('wave-aware redispatch (RESUME_FROM_WAVE)', () => {
+    it('includes resumeFromWave=2 in emitted event when latest execution has wave_number=2', async () => {
+      const task = await createTestTask({ dispatch_attempts: 1 });
+      await getPrisma().execution.create({
+        data: { task_id: task.id, status: 'running', waveNumber: 2 },
+      });
+      const slack = makeSlackMock();
+      const sentEvents: Array<{ name: string; data: unknown }> = [];
+
+      const { error } = await makeEngine(slack, sentEvents).execute({
+        events: makeRedispatchEvent(task.id, { attempt: 2 }),
+      });
+
+      expect(error).toBeUndefined();
+      expect(sentEvents).toHaveLength(1);
+      const eventData = sentEvents[0].data as Record<string, unknown>;
+      expect(eventData.resumeFromWave).toBe(2);
+    });
+
+    it('includes resumeFromWave=3 in emitted event when latest execution has wave_number=3', async () => {
+      const task = await createTestTask({ dispatch_attempts: 1 });
+      await getPrisma().execution.create({
+        data: { task_id: task.id, status: 'running', waveNumber: 3 },
+      });
+      const slack = makeSlackMock();
+      const sentEvents: Array<{ name: string; data: unknown }> = [];
+
+      const { error } = await makeEngine(slack, sentEvents).execute({
+        events: makeRedispatchEvent(task.id, { attempt: 2 }),
+      });
+
+      expect(error).toBeUndefined();
+      expect(sentEvents).toHaveLength(1);
+      const eventData = sentEvents[0].data as Record<string, unknown>;
+      expect(eventData.resumeFromWave).toBe(3);
+    });
+
+    it('omits resumeFromWave (null) in emitted event when no execution has wave_number', async () => {
+      const task = await createTestTask({ dispatch_attempts: 0 });
+      const slack = makeSlackMock();
+      const sentEvents: Array<{ name: string; data: unknown }> = [];
+
+      const { error } = await makeEngine(slack, sentEvents).execute({
+        events: makeRedispatchEvent(task.id, { attempt: 1 }),
+      });
+
+      expect(error).toBeUndefined();
+      expect(sentEvents).toHaveLength(1);
+      const eventData = sentEvents[0].data as Record<string, unknown>;
+      expect(eventData.resumeFromWave).toBeNull();
     });
   });
 });
