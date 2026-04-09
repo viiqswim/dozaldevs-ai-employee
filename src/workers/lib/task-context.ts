@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import { createLogger } from '../../lib/logger.js';
+import { buildExecutionPrompt } from './prompt-builder.js';
+import type { ParsedWave } from './plan-parser.js';
 
 const log = createLogger('task-context');
 
@@ -136,14 +138,10 @@ function renderDescription(description: unknown): string {
   return '';
 }
 
-// Build a structured markdown prompt from a task.
-export function buildPrompt(task: TaskRow): string {
-  // Attempt to extract Jira payload from triage_result
+export async function buildPrompt(task: TaskRow): Promise<string> {
   const jiraPayload = task.triage_result as JiraPayload | null;
 
-  // Validate that we have a valid Jira payload
   if (!jiraPayload || typeof jiraPayload !== 'object' || !jiraPayload.issue) {
-    // Fallback prompt for missing or invalid triage_result
     return `Implement task ${task.external_id}: Please examine the codebase and implement the required changes.`;
   }
 
@@ -151,36 +149,35 @@ export function buildPrompt(task: TaskRow): string {
   const fields = issue.fields || {};
   const issueKey = issue.key || 'UNKNOWN';
   const summary = fields.summary || 'No summary provided';
-  const projectKey = fields.project?.key || 'UNKNOWN';
   const description = renderDescription(fields.description) || 'No description provided';
 
-  // Build requirements section
-  let requirementsSection = 'See description above';
+  let requirementsText = '';
   if (task.requirements && typeof task.requirements === 'object') {
     try {
-      requirementsSection = JSON.stringify(task.requirements, null, 2);
+      requirementsText = '\n\n## Requirements\n' + JSON.stringify(task.requirements, null, 2);
     } catch {
-      requirementsSection = 'See description above';
+      requirementsText = '';
     }
   }
 
-  return `# Task: ${issueKey} — ${summary}
+  const syntheticWave: ParsedWave = {
+    number: 1,
+    tasks: [{ number: 1, title: summary, completed: false }],
+  };
 
-## Ticket Information
-- **Ticket ID**: ${task.external_id}
-- **Project**: ${projectKey}
-
-## Description
-${description}
-
-## Requirements
-${requirementsSection}
-
-## Instructions
-Implement the requirements described above. Make all changes in the current working directory (/workspace). 
-Write clean, well-tested code that follows the existing project conventions.
-After implementing, ensure the code compiles without TypeScript errors.
-`;
+  return buildExecutionPrompt({
+    ticket: {
+      key: issueKey,
+      summary,
+      description: description + requirementsText,
+    },
+    repoRoot: '/workspace',
+    projectMeta: { repoUrl: '', name: '' },
+    wave: syntheticWave,
+    planPath: '',
+    agentsMdContent: null,
+    boulderContext: null,
+  });
 }
 
 // Resolve the effective tooling configuration for a project.
