@@ -298,7 +298,11 @@ async function runPreFlight(
   heartbeatGlobal = heartbeat;
 
   // Start OpenCode server
-  const serverHandle = await startOpencodeServer({ port: 4096, cwd: '/workspace' });
+  const serverHandle = await startOpencodeServer({
+    port: 4096,
+    cwd: '/workspace',
+    healthTimeoutMs: 60000,
+  });
   if (serverHandle === null) {
     log.error('[orchestrate] Failed to start OpenCode server');
     heartbeat.stop();
