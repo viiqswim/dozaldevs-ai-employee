@@ -119,3 +119,17 @@ async function getDiskSpaceViaDf(path: string): Promise<number> {
 
   return availableKb * 1024;
 }
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const path = process.argv[2] ?? '/workspace';
+  const minBytes = parseInt(process.argv[3] ?? '2147483648', 10);
+  checkDiskSpace(path, minBytes)
+    .then((result) => {
+      process.stdout.write(JSON.stringify(result) + '\n');
+      process.exit(result.ok ? 0 : 1);
+    })
+    .catch((err: unknown) => {
+      process.stdout.write(JSON.stringify({ ok: false, freeBytes: 0, reason: String(err) }) + '\n');
+      process.exit(1);
+    });
+}

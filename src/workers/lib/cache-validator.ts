@@ -112,3 +112,24 @@ async function checkHeadSanity(cachePath: string): Promise<boolean> {
     return false;
   }
 }
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const repoPath = process.argv[2];
+  const remoteUrl = process.argv[3];
+  if (!repoPath || !remoteUrl) {
+    process.stdout.write(
+      JSON.stringify({ valid: false, reason: 'Usage: cache-validator.js <repoPath> <remoteUrl>' }) +
+        '\n',
+    );
+    process.exit(1);
+  }
+  validateCache(repoPath, remoteUrl)
+    .then((result) => {
+      process.stdout.write(JSON.stringify(result) + '\n');
+      process.exit(result.valid ? 0 : 1);
+    })
+    .catch((err: unknown) => {
+      process.stdout.write(JSON.stringify({ valid: false, reason: String(err) }) + '\n');
+      process.exit(1);
+    });
+}
