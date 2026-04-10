@@ -124,8 +124,16 @@ export function createLifecycleFunction(
             repoBranch?: string;
           };
           const flyWorkerImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:bd34f83';
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
           const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+
+          const execution = await prisma.execution.create({
+            data: {
+              task_id: taskId,
+              status: 'running',
+            },
+          });
+          const executionId = execution.id;
 
           // Use direct fetch for hybrid mode so we can pass restart: { policy: "no" }
           // and the correct guest block (vm_size is ignored by the Fly API; the correct
@@ -148,6 +156,7 @@ export function createLifecycleFunction(
                   restart: { policy: 'no' },
                   env: {
                     TASK_ID: taskId,
+                    EXECUTION_ID: executionId,
                     REPO_URL: hybridRepoUrl ?? '',
                     REPO_BRANCH: hybridRepoBranch ?? 'main',
                     SUPABASE_URL: tunnelUrl,
@@ -165,10 +174,15 @@ export function createLifecycleFunction(
           }
           const flyMachine = (await machineResp.json()) as { id: string; state: string };
 
-          return flyMachine;
+          return { id: flyMachine.id, state: flyMachine.state, executionId };
         });
 
         if (hybridMachine === null) return;
+
+        await prisma.execution.update({
+          where: { id: hybridMachine.executionId },
+          data: { runtime_id: hybridMachine.id },
+        });
 
         const maxPolls = parseInt(process.env.FLY_HYBRID_POLL_MAX ?? '120');
         const flyWorkerApp = process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
