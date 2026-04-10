@@ -215,14 +215,18 @@ interface ParsedContext {
 }
 
 async function parseContextFromEnv(): Promise<ParsedContext> {
-  // Read execution ID
   const executionIdFile = '/tmp/.execution-id';
   let executionId: string | null = null;
-  try {
-    const raw = fs.readFileSync(executionIdFile, 'utf8').trim();
-    executionId = raw.length > 0 ? raw : null;
-  } catch {
-    // File missing — proceed without it
+  const envExecutionId = process.env.EXECUTION_ID;
+  if (envExecutionId && envExecutionId.trim().length > 0) {
+    executionId = envExecutionId.trim();
+  } else {
+    try {
+      const raw = fs.readFileSync(executionIdFile, 'utf8').trim();
+      executionId = raw.length > 0 ? raw : null;
+    } catch {
+      // File missing — proceed without it
+    }
   }
 
   // Create PostgREST client
