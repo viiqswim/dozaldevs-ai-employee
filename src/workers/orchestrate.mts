@@ -1076,6 +1076,24 @@ async function main(): Promise<void> {
     log.error(
       `[orchestrate] Fatal error in orchestration: ${err instanceof Error ? err.message : String(err)}`,
     );
+    // Write AwaitingInput status so watchdog can detect failure
+    try {
+      await ctx.postgrestClient.patch('tasks', `id=eq.${ctx.task.id}`, {
+        status: 'AwaitingInput',
+        failure_reason: `Fatal orchestration error: ${err instanceof Error ? err.message : String(err)}`,
+        updated_at: new Date().toISOString(),
+      });
+      await ctx.postgrestClient.post('task_status_log', {
+        task_id: ctx.task.id,
+        from_status: 'Executing',
+        to_status: 'AwaitingInput',
+        actor: 'machine',
+      });
+    } catch (dbErr) {
+      log.warn(
+        `[orchestrate] Failed to write AwaitingInput status: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
+      );
+    }
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);
