@@ -243,8 +243,18 @@ export function createLifecycleFunction(
           };
 
           const resumeFromWave = (event.data as Record<string, unknown>).resumeFromWave;
+
+          const execution = await prisma.execution.create({
+            data: {
+              task_id: taskId,
+              status: 'running',
+            },
+          });
+          const executionId = execution.id;
+
           const envArgs = [
             `-e TASK_ID="${taskId}"`,
+            `-e EXECUTION_ID="${executionId}"`,
             `-e SUPABASE_URL="${process.env.SUPABASE_URL ?? 'http://localhost:54321'}"`,
             `-e SUPABASE_SECRET_KEY="${process.env.SUPABASE_SECRET_KEY ?? ''}"`,
             `-e GITHUB_TOKEN="${process.env.GITHUB_TOKEN ?? ''}"`,
@@ -262,10 +272,13 @@ export function createLifecycleFunction(
 
           const cmd = `docker run -d --rm --network host --name "${containerName}" ${envArgs} ai-employee-worker`;
           const containerId = execSync(cmd, { encoding: 'utf8' }).trim();
-          log.info({ taskId, containerId, containerName }, 'Local Docker container dispatched');
+          log.info(
+            { taskId, containerId, containerName, executionId },
+            'Local Docker container dispatched',
+          );
 
-          await prisma.execution.updateMany({
-            where: { task_id: taskId, status: 'running' },
+          await prisma.execution.update({
+            where: { id: executionId },
             data: { runtime_id: `docker_${containerId.slice(0, 12)}` },
           });
 
