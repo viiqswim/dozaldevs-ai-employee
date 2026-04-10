@@ -80,7 +80,7 @@ model Execution {
 }
 
 model Deliverable {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   execution_id  String   @db.Uuid
   delivery_type String
   external_ref  String?
@@ -96,7 +96,7 @@ model Deliverable {
 }
 
 model ValidationRun {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   execution_id String   @db.Uuid
   stage        String
   status       String
@@ -152,7 +152,7 @@ model Feedback {
 }
 
 model TaskStatusLog {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   task_id     String   @db.Uuid
   from_status String?
   to_status   String
