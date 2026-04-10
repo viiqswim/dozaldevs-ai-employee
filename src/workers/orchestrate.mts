@@ -976,6 +976,24 @@ async function finalize(opts: FinalizeOpts): Promise<void> {
         primary_model_id: accumulatedOnFailure.primaryModelId || null,
       });
     }
+    // Write AwaitingInput status so watchdog can detect failure
+    try {
+      await postgrestClient.patch('tasks', `id=eq.${task.id}`, {
+        status: 'AwaitingInput',
+        failure_reason: `Fix loop failed after ${fixResult.totalIterations} iterations: ${fixResult.reason ?? 'unknown'}`,
+        updated_at: new Date().toISOString(),
+      });
+      await postgrestClient.post('task_status_log', {
+        task_id: task.id,
+        from_status: 'Executing',
+        to_status: 'AwaitingInput',
+        actor: 'machine',
+      });
+    } catch (err) {
+      log.warn(
+        `[orchestrate] Failed to write AwaitingInput status: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     heartbeat.stop();
     await serverHandle.kill();
     process.exit(1);

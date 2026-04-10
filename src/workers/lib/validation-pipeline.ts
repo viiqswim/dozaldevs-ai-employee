@@ -96,14 +96,20 @@ export async function runValidationPipeline(options: RunPipelineOptions): Promis
     stageResults.push({ stage, ...result });
 
     if (executionId) {
-      await postgrestClient.post('validation_runs', {
-        execution_id: executionId,
-        stage,
-        status: result.passed ? 'passed' : 'failed',
-        iteration,
-        error_output: result.passed ? null : (result.stderr || result.stdout).slice(0, 10000),
-        duration_ms: result.durationMs,
-      });
+      try {
+        await postgrestClient.post('validation_runs', {
+          execution_id: executionId,
+          stage,
+          status: result.passed ? 'passed' : 'failed',
+          iteration,
+          error_output: result.passed ? null : (result.stderr || result.stdout).slice(0, 10000),
+          duration_ms: result.durationMs,
+        });
+      } catch (err) {
+        log.warn(
+          `[validation-pipeline] Failed to write validation_run for stage "${stage}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     } else {
       log.warn(
         `[validation-pipeline] Skipping DB write for stage "${stage}" — executionId is null`,
