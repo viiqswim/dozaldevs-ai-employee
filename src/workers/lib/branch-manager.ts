@@ -92,6 +92,13 @@ export async function commitAndPush(
 
     await execFileAsync('git', ['commit', '-m', message], { cwd, timeout: GIT_TIMEOUT_MS });
 
+    try {
+      await execFileAsync('git', ['fetch', 'origin'], {
+        cwd,
+        timeout: GIT_TIMEOUT_MS,
+      });
+    } catch (_) {}
+
     await execFileAsync('git', ['push', '--force-with-lease', 'origin', branchName], {
       cwd,
       timeout: GIT_TIMEOUT_MS,

@@ -28,7 +28,7 @@ export interface BetweenWavePushResult {
  * 3. Stage all changes: `git add -A`
  * 4. Commit with message: `feat(wave-{N}): {description}`
  * 5. Get commit SHA: `git rev-parse HEAD`
- * 6. Push with --force-with-lease: `git push --force-with-lease origin {branchName}`
+ * 6. Push with --force: `git push --force origin {branchName}`
  * 7. Return { pushed: true, commitSha }
  *
  * On any git error, logs and throws (caller decides fallback).
@@ -74,13 +74,9 @@ export async function pushBetweenWaves(
     );
     const commitSha = shaOutput.trim();
 
-    await execFileAsync(
-      'git',
-      ['-C', repoRoot, 'push', '--force-with-lease', 'origin', branchName],
-      {
-        timeout: GIT_TIMEOUT_MS,
-      },
-    );
+    await execFileAsync('git', ['-C', repoRoot, 'push', '--force', 'origin', branchName], {
+      timeout: GIT_TIMEOUT_MS,
+    });
 
     logger.info({ wave: waveNumber, commitSha }, `pushed wave ${waveNumber}`);
     return { pushed: true, commitSha };

@@ -151,15 +151,13 @@ export async function createFallbackPr(opts: FallbackPrOpts): Promise<FallbackPr
   const prBody = buildPrBody({ ticket, completedWaves, failedWave, error, diffStats, commitLog });
   const title = `[DRAFT] ${ticket.key}: ${ticket.summary}`;
 
-  const pr = await githubClient.createPullRequest({
+  const pr = await githubClient.createPR({
     owner: repoOwner,
     repo: repoName,
     title,
     head: branchName,
     base: 'main',
     body: prBody,
-    draft: true,
-    labels: ['agent-failure'],
   });
 
   logger.info({ branchName, prUrl: pr.html_url }, 'Fallback draft PR created');
