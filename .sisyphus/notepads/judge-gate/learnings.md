@@ -91,3 +91,18 @@
   - Prompt alone is the lightest-touch fix
 - Test baseline maintained: 50 failed | 816 passed | 10 skipped (876) — no new failures
 - Build: `pnpm build` exits 0 (tsc -p tsconfig.build.json clean)
+
+## T7 Learnings (Correction Prompt Strengthening)
+
+- The HEAD commit `d786bdb` already contained the strengthened `buildCorrectionPrompt` — verify via `git show HEAD:src/workers/lib/prompt-builder.ts` before making edits
+- Key improvements in the strengthened correction prompt:
+  - Changed "DO NOT: Explore repo" → "DO: Explore repo" (critical — rejection reasons include scope_match/function_names requiring codebase awareness)
+  - Changed "Minimum 1 wave" → "Minimum 2 waves" per task spec
+  - Concrete `formatCurrency` example with real task titles (not `<task title>` placeholders)
+  - `500 bytes` minimum stated explicitly twice + noted as "programmatically enforced"
+  - DO NOT/DO directives prominently at the top
+  - "Write the plan file NOW" imperative instruction
+- Test baseline remains: 50 failures, 816 passing, 10 skipped (total 876)
+- Docker build: `docker build -t ai-employee-worker:latest .` — EXIT_CODE:0 (~60s)
+- Fly push: `pnpm fly:image` — EXIT_CODE:0 (~3min)
+- `pnpm build` (tsc -p tsconfig.build.json) — EXIT_CODE:0 for prompt-only string changes
