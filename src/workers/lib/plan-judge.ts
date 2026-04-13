@@ -31,6 +31,38 @@ export interface JudgeResult {
 
 export type PlanJudge = (planContent: string, ticket: Ticket) => Promise<JudgeResult>;
 
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 const PASS_RESULT: JudgeResult = {
   verdict: 'PASS',
   checks: { scope_match: true, function_names: true, no_hallucination: true },
@@ -83,12 +115,12 @@ export async function callPlanJudge(
         throw new Error('No content in response');
       }
 
-      // Extract first JSON object from response (handles trailing text, code fences, etc.)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      // Extract first JSON object from response (handles trailing text, code fences, nested objects, etc.)
+      const jsonMatch = extractFirstJsonObject(content);
       if (jsonMatch == null) {
         throw new Error('No JSON object found in response');
       }
-      const parsed = JSON.parse(jsonMatch[0]) as {
+      const parsed = JSON.parse(jsonMatch) as {
         verdict?: unknown;
         checks?: {
           scope_match?: unknown;
