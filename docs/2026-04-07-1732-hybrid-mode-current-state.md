@@ -59,8 +59,8 @@ flowchart LR
     CF -.->|7 forwards to localhost:54321| SB
     DOCKER -->|writes PR url + status=Submitting| SB
     FLY -->|writes PR url + status=Submitting| SB
-    DOCKER -->|gh pr create| GH
-    FLY -->|gh pr create| GH
+    DOCKER -->|create PR| GH
+    FLY -->|create PR| GH
     LIFE -->|8 polls Supabase status<br/>then marks Done| SB
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
@@ -75,28 +75,28 @@ flowchart LR
 
 ### Flow Walkthrough
 
-| Step | Actor      | Action                                                                                             | File / Detail                         |
-| ---- | ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| 1    | Jira       | Sends webhook to `POST /webhooks/jira` with `X-Hub-Signature: sha256=<hex>`                        | `src/gateway/routes/jira.ts`          |
-| 2    | Gateway    | Validates HMAC, parses payload (Zod), looks up project, INSERTs task row with `status=Ready`       | `createTaskFromJiraWebhook()`         |
-| 3    | Gateway    | Sends `engineering/task.received` event to Inngest with `{taskId, projectId, repoUrl, repoBranch}` | `sendTaskReceivedEvent()`             |
-| 4    | Inngest    | Invokes the registered Lifecycle function                                                          | `src/inngest/lifecycle.ts`            |
-| 5a   | Lifecycle  | If `USE_LOCAL_DOCKER=1` → spawns `docker run -d --rm --network host ai-employee-worker`            | `lifecycle.ts:237-271`                |
-| 5b   | Lifecycle  | If `USE_FLY_HYBRID=1` → POSTs to `https://api.machines.dev/v1/apps/.../machines`                   | `lifecycle.ts:97-230`                 |
-| 6    | Worker     | Reads task context from Supabase via PostgREST                                                     | `entrypoint.sh` Step 6                |
-| 7    | Cloudflare | Tunnel forwards Fly machine HTTPS request to `localhost:54321`                                     | `cloudflared tunnel --url ...`        |
-| 8    | Lifecycle  | After worker writes `status=Submitting`, polls Supabase for terminal state, marks `Done`           | `lifecycle.ts` + `poll-completion.ts` |
+| Step | Actor      | Action                                                                                             | File / Detail                                 |
+| ---- | ---------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 1    | Jira       | Sends webhook to `POST /webhooks/jira` with `X-Hub-Signature: sha256=<hex>`                        | `src/gateway/routes/jira.ts`                  |
+| 2    | Gateway    | Validates HMAC, parses payload (Zod), looks up project, INSERTs task row with `status=Ready`       | `createTaskFromJiraWebhook()`                 |
+| 3    | Gateway    | Sends `engineering/task.received` event to Inngest with `{taskId, projectId, repoUrl, repoBranch}` | `sendTaskReceivedEvent()`                     |
+| 4    | Inngest    | Invokes the registered Lifecycle function                                                          | `src/inngest/lifecycle.ts`                    |
+| 5a   | Lifecycle  | If `USE_LOCAL_DOCKER=1` → spawns `docker run -d --rm --network host ai-employee-worker`            | `local Docker dispatch block in lifecycle.ts` |
+| 5b   | Lifecycle  | If `USE_FLY_HYBRID=1` → POSTs to `https://api.machines.dev/v1/apps/.../machines`                   | `hybrid dispatch block in lifecycle.ts`       |
+| 6    | Worker     | Reads task context from Supabase via PostgREST                                                     | `entrypoint.sh` Step 6                        |
+| 7    | Cloudflare | Tunnel forwards Fly machine HTTPS request to `localhost:54321`                                     | `cloudflared tunnel --url ...`                |
+| 8    | Lifecycle  | After worker writes `status=Submitting`, polls Supabase for terminal state, marks `Done`           | `lifecycle.ts` + `poll-completion.ts`         |
 
 ---
 
 ## The Three Worker Dispatch Modes
 
-The Lifecycle function (`src/inngest/lifecycle.ts`) selects one of three dispatch paths based on environment variables. All three paths exist in the same file. Mode selection happens at lines 26–54.
+The Lifecycle function (`src/inngest/lifecycle.ts`) selects one of three dispatch paths based on environment variables. All three paths exist in the same file. Mode selection happens in the `update-status-executing` step.
 
 ### Mode Selection Logic
 
 ```typescript
-// lifecycle.ts:26-49
+// update-status-executing step
 const dispatchMode = await step.run('update-status-executing', async () => {
   const flyHybrid = process.env.USE_FLY_HYBRID;
   const localDocker = process.env.USE_LOCAL_DOCKER;
@@ -105,13 +105,13 @@ const dispatchMode = await step.run('update-status-executing', async () => {
 });
 ```
 
-| Condition                                         | Mode                    | Path                   |
-| ------------------------------------------------- | ----------------------- | ---------------------- |
-| `USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER !== '1'` | **Hybrid Fly.io** (NEW) | `lifecycle.ts:97-230`  |
-| `USE_LOCAL_DOCKER=1` AND `USE_FLY_HYBRID !== '1'` | **Local Docker**        | `lifecycle.ts:237-271` |
-| Neither set                                       | **Default Fly.io**      | `lifecycle.ts:305-329` |
+| Condition                                         | Mode                    | Path                                            |
+| ------------------------------------------------- | ----------------------- | ----------------------------------------------- |
+| `USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER !== '1'` | **Hybrid Fly.io** (NEW) | `hybrid dispatch block in lifecycle.ts`         |
+| `USE_LOCAL_DOCKER=1` AND `USE_FLY_HYBRID !== '1'` | **Local Docker**        | `local Docker dispatch block in lifecycle.ts`   |
+| Neither set                                       | **Default Fly.io**      | `default Fly.io dispatch block in lifecycle.ts` |
 
-If both flags are set (`USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER=1`), neither path runs — the `dispatch-fly-machine` step returns early at lines 247–249 with no dispatch and no status update. This is a silent no-op. Use only one flag at a time.
+If both flags are set (`USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER=1`), neither path runs — the `dispatch-fly-machine` step returns early with no dispatch and no status update. This is a silent no-op. Use only one flag at a time.
 
 ### Mode Comparison Table
 
@@ -173,10 +173,10 @@ Cloudflare Tunnel does not have this restriction. It's free, requires no account
 
 ### How `TUNNEL_URL` Bypasses ngrok Agent API
 
-The Lifecycle function calls `getNgrokTunnelUrl()` from `src/lib/ngrok-client.ts`. The first thing that function does (lines 30–34) is check for a `TUNNEL_URL` env var:
+The Lifecycle function calls `getNgrokTunnelUrl()` from `src/lib/ngrok-client.ts`. The first thing that function does is check for a `TUNNEL_URL` env var:
 
 ```typescript
-// src/lib/ngrok-client.ts:30-34
+// getNgrokTunnelUrl() — TUNNEL_URL override
 const tunnelUrlOverride = process.env.TUNNEL_URL;
 if (tunnelUrlOverride && tunnelUrlOverride.trim().length > 0) {
   return tunnelUrlOverride.trim();
@@ -190,7 +190,7 @@ If `TUNNEL_URL` is set (which is what you do for Cloudflare), the function retur
 Before creating the Fly machine, the Lifecycle function attempts to resolve the tunnel URL. If this fails (no `TUNNEL_URL` env var AND no ngrok agent reachable), the task transitions to `AwaitingInput` with a `failure_reason` like `Hybrid mode pre-flight failed: ngrok agent not reachable at ...`. This is a fail-fast safeguard so you don't end up with a Fly machine that can't reach Supabase.
 
 ```typescript
-// lifecycle.ts:99-120
+// hybridFlyDispatch — pre-flight tunnel check
 let tunnelUrl: string;
 try {
   tunnelUrl = await getNgrokTunnelUrl(process.env.NGROK_AGENT_URL);
@@ -239,7 +239,7 @@ sequenceDiagram
     SB-->>M: task JSON
     M->>M: orchestrate.mts (two-phase: planning + wave execution)
     M->>M: opencode serve + session + fix loop
-    M->>GH: gh pr create
+    M->>GH: create PR (GitHub API)
     GH-->>M: PR URL
     M->>CF: POST deliverables<br/>PATCH tasks status=Submitting
     CF->>SB: forward
@@ -273,7 +273,7 @@ sequenceDiagram
 
 ## The Hybrid Machine Env Block (Verbatim)
 
-This is the exact JSON sent to Fly's Machines API in hybrid mode (`lifecycle.ts:157-168` — the `env` object; surrounding `guest`/`restart` config at lines 155–156):
+This is the exact JSON sent to Fly's Machines API in hybrid mode:
 
 ```typescript
 body: JSON.stringify({
@@ -314,11 +314,11 @@ The worker container runs the same code regardless of whether it's launched via 
 - GitHub CLI v2.45.0 at `/usr/local/bin/gh`
 - `opencode-ai@1.3.3` (note: package name is `opencode-ai`, NOT `opencode`)
 - Compiled application at `/app/dist/`
-- Entrypoint: `bash /app/entrypoint.sh`
+- Run command: `CMD ["bash", "entrypoint.sh"]` (from WORKDIR `/app`)
 
 ### entrypoint.sh — Boot Sequence
 
-The entrypoint script is idempotent: it uses flag files in `/tmp/.boot-flags/` so a restart skips already-completed steps. The script declares 7 numbered steps, with several sub-steps in between.
+The entrypoint script uses flag files in `/tmp/.boot-flags/` for idempotency on its primary steps. Sub-steps 3.5, 3.6, 3.7, and 6.5 are not flag-guarded and re-run on every boot (all are safe to re-run). The script declares 7 numbered steps, with several sub-steps in between.
 
 **Note**: There is no `pnpm install` step in entrypoint.sh. Dependency installation is handled inside `orchestrate.mjs` (the compiled worker), not in the shell entrypoint.
 
@@ -353,15 +353,15 @@ After `exec node /app/dist/workers/orchestrate.mjs`, the Node process takes over
 
 #### Pre-flight (runs before planning)
 
-| Step | Action                                                                                                                        | Module                                         |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1    | Read execution ID from `EXECUTION_ID` env var or `/tmp/.execution-id`; create PostgREST client                                | inline                                         |
-| 2    | Parse `/workspace/.task-context.json`; fetch project config from Supabase                                                     | `lib/task-context.ts`, `lib/project-config.ts` |
-| 3    | Resolve tooling config; run install command (default: `pnpm install --frozen-lockfile`) in `/workspace`                       | `lib/install-runner.ts`                        |
-| 4    | Start 60-second heartbeat to `executions` table                                                                               | `lib/heartbeat.ts`                             |
-| 5    | Spawn `opencode serve --port 4096 --hostname 0.0.0.0`, poll `http://localhost:4096/global/health` until healthy (60s timeout) | `lib/opencode-server.ts`                       |
-| 6    | PUT `/auth/openrouter` to OpenCode server (belt-and-suspenders alongside `auth.json`)                                         | inline fetch                                   |
-| 7    | Build branch name `ai/{TICKET_ID}-{kebab-slug}` (slug max 60 chars), create or checkout branch in `/workspace`                | `lib/branch-manager.ts`                        |
+| Step | Action                                                                                                                                              | Module                                         |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1    | Read execution ID from `EXECUTION_ID` env var or `/tmp/.execution-id`; create PostgREST client                                                      | inline                                         |
+| 2    | Parse `/workspace/.task-context.json`; fetch project config from Supabase                                                                           | `lib/task-context.ts`, `lib/project-config.ts` |
+| 3    | Resolve tooling config; run install command (default: `pnpm install --frozen-lockfile`) in `/workspace`                                             | `lib/install-runner.ts`                        |
+| 4    | Start 60-second heartbeat to `executions` table                                                                                                     | `lib/heartbeat.ts`                             |
+| 5    | Spawn `opencode serve --port 4096 --hostname 0.0.0.0`, poll `http://localhost:4096/global/health` until healthy (60s timeout)                       | `lib/opencode-server.ts`                       |
+| 6    | PUT `/auth/openrouter` to OpenCode server (belt-and-suspenders alongside `auth.json`)                                                               | inline fetch                                   |
+| 7    | Build branch name `ai/{TICKET_ID}-{kebab-slug}` (60-char limit on the combined `TICKET_ID-slug` portion), create or checkout branch in `/workspace` | `lib/branch-manager.ts`                        |
 
 #### Phase 1 — Planning
 
@@ -383,14 +383,14 @@ After `exec node /app/dist/workers/orchestrate.mjs`, the Node process takes over
 
 #### Finalize
 
-| Step | Action                                                                                                     | Module                   |
-| ---- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
-| 13   | Create final OpenCode session with fix-loop prompt; monitor session                                        | `lib/session-manager.ts` |
-| 14   | Run fix loop: validation pipeline → on failure send fix prompt → retry up to 3 per stage, 10 globally      | `lib/fix-loop.ts`        |
-| 15   | `git add -A` → commit with `feat: {TICKET_ID} - {summary}` → `git push --force-with-lease`                 | `lib/branch-manager.ts`  |
-| 16   | Check for existing PR on branch; if none, `gh pr create` with title `[AI] {TICKET_ID}: {summary}`          | `lib/pr-manager.ts`      |
-| 17   | PATCH `tasks.status = Submitting`, POST to `deliverables` table with PR URL, POST to `task_status_log`     | `lib/completion.ts`      |
-| 18   | Send `engineering/task.completed` event to Inngest (retried 3×; non-fatal — fails silently in hybrid mode) | `lib/completion.ts`      |
+| Step | Action                                                                                                                                    | Module                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 13   | Create final OpenCode session with fix-loop prompt; monitor session                                                                       | `lib/session-manager.ts` |
+| 14   | Run fix loop: validation pipeline → on failure send fix prompt → retry up to 3 per stage, 10 globally                                     | `lib/fix-loop.ts`        |
+| 15   | `git add -A` → commit with `feat: {TICKET_ID} - {summary}` → `git push --force-with-lease`                                                | `lib/branch-manager.ts`  |
+| 16   | Check for existing PR on branch; if none, create via GitHub REST API (`githubClient.createPR()`) with title `[AI] {TICKET_ID}: {summary}` | `lib/pr-manager.ts`      |
+| 17   | PATCH `tasks.status = Submitting`, POST to `deliverables` table with PR URL, POST to `task_status_log`                                    | `lib/completion.ts`      |
+| 18   | Send `engineering/task.completed` event to Inngest (retried 3×; non-fatal — fails silently in hybrid mode)                                | `lib/completion.ts`      |
 
 ### The Fix Loop (`lib/fix-loop.ts`)
 
@@ -428,7 +428,7 @@ Each run is recorded in the `validation_runs` table with stage, status, iteratio
 
 ## How the PR Gets Created
 
-The PR creation happens in `src/workers/lib/pr-manager.ts` and is invoked from `orchestrate.mts` step 14.
+The PR creation happens in `src/workers/lib/pr-manager.ts` and is invoked from `orchestrate.mts` step 16.
 
 ### PR Title Template
 
@@ -438,7 +438,7 @@ The PR creation happens in `src/workers/lib/pr-manager.ts` and is invoked from `
 
 Example: `[AI] TEST-300: Add validation script for API contracts`
 
-### PR Body Template (`buildPRBody()` in `pr-manager.ts:42-70`)
+### PR Body Template (`buildPRBody()` in `pr-manager.ts`)
 
 ```markdown
 ## Ticket: {TICKET_ID}
@@ -462,10 +462,10 @@ Before creating, `checkExistingPR()` queries the GitHub API for any open PR on t
 
 ### URL Capture and Persistence
 
-After `gh pr create` succeeds, the PR URL is extracted from the response (`pr.html_url`) and persisted in two places via `runCompletionFlow()` (`lib/completion.ts:30-100`):
+After PR creation succeeds, the PR URL is extracted from the response (`pr.html_url`) and persisted in two places via `runCompletionFlow()` in `lib/completion.ts`:
 
 1. **`tasks` table**: `status = Submitting`, `updated_at = now()`
-2. **`deliverables` table**: new row with `delivery_type = 'pull_request'`, `external_ref = <PR URL>`, `status = 'submitted'`
+2. **`deliverables` table**: new row with `delivery_type = 'pull_request'` (or `'no_changes'` if no PR URL), `external_ref = <PR URL>`, `status = 'submitted'`
 3. **`task_status_log` table**: new row recording the status transition
 
 The order matters: Supabase write happens **first**, Inngest event happens **second**. If the Supabase write fails, the worker exits 1 — the task state has been lost, and the watchdog can recover. If the Supabase write succeeds but the Inngest event fails, the lifecycle function will still detect the `Submitting` status via polling and mark the task `Done`. This is what the plan calls "hard Supabase-first ordering."
@@ -488,11 +488,11 @@ Because the worker in hybrid mode does not send an Inngest completion event (no 
 ### Behavior
 
 ```typescript
-// poll-completion.ts:36
+// pollForCompletion() — opts destructuring
 const { taskId, supabaseUrl, supabaseKey, maxPolls = 40, intervalMs = 30_000 } = opts;
 ```
 
-In hybrid mode (called from `lifecycle.ts:173-186`):
+In hybrid mode:
 
 - `maxPolls = parseInt(process.env.FLY_HYBRID_POLL_MAX ?? '120')` → default **120 polls**
 - `intervalMs = 30_000` → **30 seconds between polls**
@@ -501,7 +501,7 @@ In hybrid mode (called from `lifecycle.ts:173-186`):
 ### Detection Logic
 
 ```typescript
-// poll-completion.ts:59-65
+// terminal status detection
 if (status === 'Submitting' || status === 'Done') {
   return { completed: true, finalStatus: status };
 }
@@ -520,7 +520,7 @@ if (status === 'AwaitingInput' || status === 'Cancelled') {
 The polling URL must include the `/rest/v1` PostgREST path prefix. Without it, the fetch hits the bare Cloudflare tunnel root and gets a 404 from the Kong gateway. This was discovered during T13 when the lifecycle was correctly polling but always reading "no rows." Fix:
 
 ```typescript
-// poll-completion.ts:38
+// task status query URL
 const url = `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`;
 ```
 
@@ -529,7 +529,7 @@ const url = `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`;
 The hybrid path wraps `pollForCompletion` in a try/finally:
 
 ```typescript
-// lifecycle.ts:189-193
+// machine cleanup — finally block
 finally {
   await destroyMachine(flyWorkerApp, hybridMachine.id).catch((err) => {
     log.warn({ err, machineId: hybridMachine.id }, 'hybrid: failed to destroy machine');
@@ -592,7 +592,7 @@ Below is the full set of env vars relevant to running the system, grouped by pur
 | `OPENROUTER_API_KEY`       | Yes      | —                      | OpenCode AI provider credentials                                                              |
 | `OPENROUTER_MODEL`         | No       | `minimax/minimax-m2.7` | Model used for code generation                                                                |
 | `PLAN_VERIFIER_MODEL`      | No       | `''` (disabled)        | Model for plan judge gate (e.g. `anthropic/claude-haiku-4-5`); empty string disables the gate |
-| `GITHUB_TOKEN`             | Yes      | —                      | Used for `git push` and `gh pr create`                                                        |
+| `GITHUB_TOKEN`             | Yes      | —                      | Used for `git push` and PR creation                                                           |
 | `ORCHESTRATE_TIMEOUT_MINS` | No       | `60`                   | Code generation timeout in minutes                                                            |
 
 ### Fly.io
@@ -728,14 +728,14 @@ The plan added or modified these files (other files in the codebase remain untou
 
 ### Modified Files
 
-| File                        | Change                                                                                                                                        |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/inngest/lifecycle.ts`  | Added hybrid Fly.io dispatch branch (lines 97-230), pre-flight tunnel check, direct fetch to Fly Machines API, polling, finally-block cleanup |
-| `src/workers/entrypoint.sh` | Added `\|\| true` after curl commands in steps 5 and 6 to prevent `set -e` from aborting retry loops                                          |
-| `Dockerfile`                | (No changes — image still rebuilt via `docker buildx` for `linux/amd64`)                                                                      |
-| `package.json`              | Added `fly:image` and `fly:setup` scripts                                                                                                     |
-| `AGENTS.md`                 | Added "Hybrid Fly.io Mode" section, "Long-Running Command Protocol" section                                                                   |
-| `.env.example`              | Added `USE_FLY_HYBRID`, `FLY_HYBRID_POLL_MAX`, `NGROK_AGENT_URL`, `TUNNEL_URL`                                                                |
+| File                        | Change                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `src/inngest/lifecycle.ts`  | Added hybrid Fly.io dispatch branch, pre-flight tunnel check, direct fetch to Fly Machines API, polling, finally-block cleanup |
+| `src/workers/entrypoint.sh` | Added `\|\| true` after curl commands in steps 5 and 6 to prevent `set -e` from aborting retry loops                           |
+| `Dockerfile`                | (No changes — image still rebuilt via `docker buildx` for `linux/amd64`)                                                       |
+| `package.json`              | Added `fly:image` and `fly:setup` scripts                                                                                      |
+| `AGENTS.md`                 | Added "Hybrid Fly.io Mode" section, "Long-Running Command Protocol" section                                                    |
+| `.env.example`              | Added `USE_FLY_HYBRID`, `FLY_HYBRID_POLL_MAX`, `NGROK_AGENT_URL`, `TUNNEL_URL`                                                 |
 
 ### Files Deliberately NOT Modified
 
@@ -784,7 +784,7 @@ The plan added or modified these files (other files in the codebase remain untou
 | `src/workers/lib/planning-orchestrator.ts` | Judge gate + retry loop injected after `validatePlan()`, before `chmod 0o444`; throws `PlanJudgeExhaustedError` on exhaustion |
 | `src/workers/lib/prompt-builder.ts`        | Added `buildCorrectionPrompt()` (sync) used by the retry loop                                                                 |
 | `src/workers/config/long-running.ts`       | Added `planVerifierModel: string` field (reads `PLAN_VERIFIER_MODEL`, default `''`)                                           |
-| `src/inngest/lifecycle.ts`                 | `PLAN_VERIFIER_MODEL` added to all 3 dispatch paths (lines 167, 278, 346)                                                     |
+| `src/inngest/lifecycle.ts`                 | `PLAN_VERIFIER_MODEL` added to all 3 dispatch paths                                                                           |
 | `src/workers/orchestrate.mts`              | `callPlanJudge` wired into `runPlanningPhase`; `extractTicketFromTask` fixed to read from `triage_result`                     |
 | `.env.example`                             | Added `PLAN_VERIFIER_MODEL=anthropic/claude-haiku-4-5` with disable comment                                                   |
 
