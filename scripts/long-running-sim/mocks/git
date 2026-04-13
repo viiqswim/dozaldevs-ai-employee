@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock git — accepts all commands, exits 0
+echo "mock-git: $*" >> /tmp/mock-git.log
+exit 0

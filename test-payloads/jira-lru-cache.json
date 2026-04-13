@@ -1,0 +1,44 @@
+{
+  "webhookEvent": "jira:issue_created",
+  "timestamp": 1744228800000,
+  "issue": {
+    "id": "20200",
+    "key": "TEST-200",
+    "self": "https://example.atlassian.net/rest/api/2/issue/20200",
+    "fields": {
+      "summary": "Implement typed LRU cache module with TTL eviction and full test suite",
+      "description": "## Overview\n\nImplement a production-quality LRU (Least-Recently-Used) cache module in TypeScript with TTL (time-to-live) support and a comprehensive Vitest test suite.\n\n## Files to create\n\n- `src/cache/types.ts` — TypeScript interfaces and types\n- `src/cache/lru-cache.ts` — core LRU cache implementation\n- `src/cache/index.ts` — public re-exports\n- `src/cache/lru-cache.test.ts` — comprehensive Vitest test suite (target: 30+ tests)\n- Update `src/index.ts` to re-export from `src/cache/index.ts`\n\n## Detailed Requirements\n\n### Types (`src/cache/types.ts`)\n\n```typescript\nexport interface CacheOptions {\n  capacity: number;           // max number of entries; must be >= 1\n  defaultTtlMs?: number;      // optional default TTL in milliseconds\n}\n\nexport interface CacheEntry<V> {\n  value: V;\n  expiresAt: number | null;   // Date.now() + ttl, or null if no TTL\n}\n\nexport interface CacheStats {\n  size: number;       // current number of entries\n  capacity: number;   // max capacity\n  hits: number;       // total cache hits\n  misses: number;     // total cache misses\n  evictions: number;  // total LRU evictions\n  expirations: number;// total TTL expirations\n}\n```\n\n### LRU Cache class (`src/cache/lru-cache.ts`)\n\nImplement `class LRUCache<K, V>` with the following public API:\n\n```typescript\nconstructor(options: CacheOptions)\n\nget(key: K): V | undefined\nset(key: K, value: V, ttlMs?: number): void\nhas(key: K): boolean\ndelete(key: K): boolean\nclear(): void\n\nget size(): number\nget capacity(): number\nstats(): CacheStats\nkeys(): K[]\nvalues(): V[]\nentries(): [K, V][]\n```\n\n### LRU Eviction Policy\n\n- When `set()` would exceed capacity, evict the least-recently-used entry first\n- Both `get()` and `set()` on an existing key count as a use (move to most-recent position)\n- Use a doubly-linked list + Map internally for O(1) get and set\n\n### TTL Behaviour\n\n- If `ttlMs` is passed to `set()`, entry expires after that many milliseconds\n- If not passed, use `options.defaultTtlMs` if set; otherwise no expiry\n- `get()` on an expired entry must: delete the entry, increment expirations, return undefined\n- `has()` must return false for expired entries\n\n### Stats Tracking\n\n- hits: incremented every time get() returns a value\n- misses: incremented every time get() returns undefined (missing OR expired)\n- evictions: incremented every time an entry is evicted due to capacity\n- expirations: incremented every time an expired entry is discovered\n\n## Test Requirements (`src/cache/lru-cache.test.ts`)\n\nWrite a Vitest test suite covering at minimum:\n\n1. Basic operations - set/get/has/delete/clear\n2. LRU eviction order - correct entry is evicted\n3. Access updates recency - get() moves entry to most-recent\n4. TTL expiry - expired entries return undefined\n5. Default TTL - defaultTtlMs applies when no per-entry ttl\n6. Stats accuracy - hits, misses, evictions, expirations\n7. Capacity=1 edge case\n8. Update existing key - set() on existing key updates value, does NOT evict\n9. Delete - removed entries don't count toward size\n10. keys/values/entries return items in LRU order\n11. Generic types - works with different key/value types\n12. size getter reflects live entries only\n\n## Acceptance Criteria\n\n- pnpm build passes with no TypeScript errors\n- pnpm test passes\n- pnpm lint passes\n- No any types in src/cache/*.ts\n- All public API surface has JSDoc comments\n- LRUCache exported from src/index.ts",
+      "issuetype": {
+        "name": "Story",
+        "iconUrl": "https://example.atlassian.net/images/icons/issuetypes/story.png"
+      },
+      "project": {
+        "id": "10000",
+        "key": "TEST",
+        "name": "Test Project",
+        "self": "https://example.atlassian.net/rest/api/2/project/10000"
+      },
+      "status": {
+        "name": "To Do",
+        "statusCategory": { "name": "To Do" }
+      },
+      "priority": {
+        "name": "High",
+        "iconUrl": "https://example.atlassian.net/images/icons/priorities/high.png"
+      },
+      "labels": ["cache", "typescript", "data-structures", "performance"],
+      "reporter": {
+        "displayName": "Test Developer",
+        "emailAddress": "developer@example.com",
+        "accountId": "developer-account-id"
+      },
+      "assignee": null,
+      "created": "2026-04-09T14:00:00.000+0000",
+      "updated": "2026-04-09T14:00:00.000+0000"
+    }
+  },
+  "user": {
+    "accountId": "developer-account-id",
+    "displayName": "Test Developer"
+  }
+}

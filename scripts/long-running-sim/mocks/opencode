@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Mock OpenCode — simulates wave execution
+WAVE_NUM="${WAVE_NUMBER:-1}"
+PLAN_PATH="${PLAN_PATH:-/workspace/.sisyphus/plans/TEST-001.md}"
+DELAY="${WAVE_DELAY_SECONDS:-2}"
+
+echo "Mock OpenCode: Wave $WAVE_NUM starting (delay: ${DELAY}s)"
+sleep "$DELAY"
+
+# Write a mock plan file if this is wave 0 (planning phase)
+if [[ "$WAVE_NUM" == "0" ]]; then
+  mkdir -p "$(dirname "$PLAN_PATH")"
+  cat > "$PLAN_PATH" << 'PLAN_EOF'
+## Wave 1 — Foundation
+- [ ] 1. Create basic structure
+- [ ] 2. Add configuration
+
+## Wave 2 — Implementation
+- [ ] 3. Implement core logic
+- [ ] 4. Add error handling
+
+## Wave 3 — Testing
+- [ ] 5. Write unit tests
+- [ ] 6. Run validation
+PLAN_EOF
+  echo "Mock OpenCode: Plan written to $PLAN_PATH"
+fi
+
+echo "Mock OpenCode: Wave $WAVE_NUM complete"
+exit 0
