@@ -207,56 +207,111 @@ export function buildCorrectionPrompt(
 
   return `# ⚠️ PLANNING CORRECTION — Attempt ${attempt + 1}
 
-Your previous plan was rejected by the plan verifier.
+## CRITICAL INSTRUCTION — READ FIRST
 
-## What Was Wrong
-${rejectionReason}
+Your previous plan was REJECTED. You MUST write a NEW, COMPLETE plan file RIGHT NOW.
 
-## What You Must Do Differently
-Read the ticket description carefully. Implement EXACTLY what is asked — no more, no less.
-Do not add features not mentioned in the ticket. Match the exact function names requested.
+**DO NOT:**
+- Ask clarifying questions
+- Write a short summary or stub
+- Write fewer than 500 bytes
+- Use placeholder text like "Task title goes here", "TBD", or angle-bracket placeholders
+
+**DO:**
+- Explore the repository to understand what files and functions already exist
+- Write the full plan file to \`${planPath}\` with REAL task titles (not placeholders)
+- Include detailed task descriptions (not one-liners)
+- Follow the EXACT format shown below
 
 ---
 
-# Re-Planning Phase — ${ticket.key}
+## Why Your Previous Plan Was Rejected
 
-## Ticket
+${rejectionReason}
+
+## The Ticket You Must Plan For
+
 - **Key**: ${ticket.key}
 - **Summary**: ${ticket.summary}
 
-## Description
+### Ticket Description (implement EXACTLY this — no more, no less)
 ${ticket.description}
 
-## Your Task
-You are in the **re-planning phase**. Your previous plan was rejected. Write a corrected plan file.
+---
 
-### Steps
-1. Re-read the ticket description above carefully — focus on what is EXPLICITLY requested.
-2. Explore the repository structure using your available tools if needed.
-3. Write a corrected plan to \`${planPath}\`.
+## Plan File Requirements
 
-### Plan File Format (STRICT — do not deviate)
+### File to write: \`${planPath}\`
+
+### Size requirement: The file MUST be at least 500 bytes. This is enforced programmatically — shorter files will cause the task to fail.
+
+### Format (STRICT — do not deviate from this grammar):
+
 \`\`\`
-# ${ticket.key} — ${ticket.summary}
+# TICKET-KEY — Ticket Summary
 
-<brief description of the corrected approach>
+Brief description of the overall implementation approach, explaining what will be built
+and how the work is broken into waves.
 
 ## Wave 1
 
-- [ ] 1. <task title>
+- [ ] 1. Task title — detailed description of what this task involves
+- [ ] 2. Task title — detailed description of what this task involves
+- [ ] 3. Task title — detailed description of what this task involves
 
 ## Wave 2
 
-- [ ] 1. <task title>
+- [ ] 1. Task title — detailed description of what this task involves
 \`\`\`
 
-Rules:
-- Wave headers: exactly \`## Wave N\`
-- Task lines: exactly \`- [ ] N. Title\`
-- Minimum 1 wave, 1 task per wave, 500 bytes
+### Grammar rules (must be followed exactly):
+- Wave headers: exactly \`## Wave N\` where N is a 1-indexed integer (## Wave 1, ## Wave 2, etc.)
+- Task lines: exactly \`- [ ] N. Title\` where N matches position in that wave (space between \`-\` and \`[\`, space inside \`[ ]\`)
+- Minimum 2 waves, minimum 1 task per wave
+- Plan file must be at least 500 bytes — add detail to task descriptions if needed
+- Do NOT use \`- [x]\` — all tasks start unchecked
 
-### When You Are Done
-Once you have written \`${planPath}\`, **exit the session immediately**.
+---
+
+## Concrete Example of a VALID Plan
+
+Here is an example of a correctly formatted plan for a \`formatCurrency\` ticket.
+**Copy this structure** — replace content to match your ticket:
+
+\`\`\`markdown
+# TICKET-123 — Implement formatCurrency utility function
+
+Implement a \`formatCurrency(amount, currency)\` utility function in the shared utils module.
+The function will format a numeric amount into a locale-aware currency string.
+Work is split into two waves: implementation then test coverage.
+
+## Wave 1
+
+- [ ] 1. Create formatCurrency function in src/utils/currency.ts — implement the function that
+  accepts a numeric amount and ISO 4217 currency code, uses Intl.NumberFormat for locale-aware
+  formatting, handles edge cases (null, undefined, NaN), and exports the function
+- [ ] 2. Add TypeScript types and JSDoc — add parameter types, return type annotation, and
+  JSDoc comment describing parameters, return value, and example usage
+- [ ] 3. Export from barrel file — add the formatCurrency export to src/utils/index.ts
+  so it can be imported from the package root
+
+## Wave 2
+
+- [ ] 1. Write unit tests in src/utils/currency.test.ts — cover happy path with USD/EUR/GBP,
+  edge cases (zero, negative, large numbers), and invalid input handling using vitest
+- [ ] 2. Run completion gate and fix any failures — run pnpm lint && pnpm build && pnpm test
+  and address any TypeScript errors, lint violations, or failing tests before marking done
+\`\`\`
+
+---
+
+## Your Plan Must Cover: ${ticket.summary}
+
+Write the plan file to \`${planPath}\` NOW. Match the ticket description exactly.
+Include detailed descriptions for each task (not just titles).
+The plan file must be at least 500 bytes — add context and detail to reach this minimum.
+
+**After writing the file, exit the session immediately. Do not begin implementation.**
 `;
 }
 

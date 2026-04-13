@@ -83,7 +83,11 @@ export async function callPlanJudge(
         throw new Error('No content in response');
       }
 
-      const parsed = JSON.parse(content) as {
+      const stripped = content
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/, '')
+        .trim();
+      const parsed = JSON.parse(stripped) as {
         verdict?: unknown;
         checks?: {
           scope_match?: unknown;
