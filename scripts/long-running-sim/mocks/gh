@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Mock gh — simulates PR creation
+echo "mock-gh: $*" >> /tmp/mock-gh.log
+if [[ "$1" == "pr" && "$2" == "create" ]]; then
+  echo "https://github.com/test/repo/pull/42"
+fi
+exit 0
