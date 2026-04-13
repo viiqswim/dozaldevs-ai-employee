@@ -3323,7 +3323,7 @@ Max Concurrent: 11 (Wave 2)
   - Files: `src/workers/entrypoint.sh`, `src/workers/config/opencode.json`, `Dockerfile` (if modified), `src/workers/lib/cache-validator.ts` (CLI entry), `src/workers/lib/disk-check.ts` (CLI entry), `src/workers/lib/plan-sync.ts` (CLI entry)
   - Pre-commit: `pnpm lint && pnpm build && pnpm test -- --run && docker build -t ai-employee-worker:latest .`
 
-- [ ] 36. Raise Inngest waitForEvent to 8h30m
+- [x] 36. Raise Inngest waitForEvent to 8h30m
 
   **What to do**:
   - Edit `src/inngest/lifecycle.ts` — find the `step.waitForEvent("engineering/task.completed", { timeout: "4h10m" })` call
@@ -3386,7 +3386,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 37. Raise Watchdog Machine Cleanup to 9 Hours
+- [x] 37. Raise Watchdog Machine Cleanup to 9 Hours
 
   **What to do**:
   - Edit `src/inngest/watchdog.ts` — find the machine cleanup threshold (currently 4 hours based on prior analysis)
@@ -3451,7 +3451,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 38. Update Watchdog Stale Heartbeat Threshold
+- [x] 38. Update Watchdog Stale Heartbeat Threshold
 
   **What to do**:
   - Edit `src/inngest/watchdog.ts` — find the stale heartbeat detection threshold (currently 10 minutes)
@@ -3505,7 +3505,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 39. Update Redispatch for 8h + Wave-Aware Behavior
+- [x] 39. Update Redispatch for 8h + Wave-Aware Behavior
 
   **What to do**:
   - Edit `src/inngest/redispatch.ts`:
@@ -3571,7 +3571,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 40. Enhanced PR Description Template
+- [x] 40. Enhanced PR Description Template
 
   **What to do**:
   - Edit `src/lib/github-client.ts` (or wherever `createPullRequest` body is assembled for the success path — may also be in `src/workers/lib/pr-manager.ts`)
@@ -3679,7 +3679,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 41. CI Status Classification Helper
+- [x] 41. CI Status Classification Helper
 
   **What to do**:
   - Create `src/workers/lib/ci-classifier.ts`
@@ -3758,7 +3758,7 @@ Max Concurrent: 11 (Wave 2)
 
   **Commit**: NO (groups with Wave 5 commit)
 
-- [ ] 42. Escalation Payload Enrichment
+- [x] 42. Escalation Payload Enrichment
 
   **What to do**:
   - Edit `src/inngest/lifecycle.ts` (and `src/workers/lib/completion.ts` if escalation happens there) — when emitting the failure/escalation event:
