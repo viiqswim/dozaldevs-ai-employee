@@ -324,7 +324,7 @@ curl -X DELETE http://localhost:3000/admin/projects/<id> \
 
 ### PR not created / task stuck in Executing
 
-**Symptom**: The task reaches `Executing` but never moves to `Submitting`. No PR appears on GitHub. Container logs show a git push error or `gh pr create` failure.
+**Symptom**: The task reaches `Executing` but never moves to `Submitting`. No PR appears on GitHub. Container logs show a git push error or a GitHub API PR creation failure.
 
 **Root cause**: `GITHUB_TOKEN` doesn't have push access to the registered repo.
 
