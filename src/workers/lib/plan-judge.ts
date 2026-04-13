@@ -46,86 +46,94 @@ export async function callPlanJudge(
   }
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ''}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: JUDGE_SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: `TICKET:\nKey: ${ticket.key}\nSummary: ${ticket.summary}\nDescription: ${ticket.description}\n\nPLAN:\n${planContent}`,
-          },
-        ],
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: JUDGE_SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: `TICKET:\nKey: ${ticket.key}\nSummary: ${ticket.summary}\nDescription: ${ticket.description}\n\nPLAN:\n${planContent}`,
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-
-    const content = data.choices?.[0]?.message?.content;
-    if (content == null) {
-      throw new Error('No content in response');
-    }
-
-    const parsed = JSON.parse(content) as {
-      verdict?: unknown;
-      checks?: {
-        scope_match?: unknown;
-        function_names?: unknown;
-        no_hallucination?: unknown;
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
       };
-      rejection_reason?: unknown;
-    };
 
-    const verdict = parsed.verdict;
-    if (verdict !== 'PASS' && verdict !== 'REJECT') {
-      throw new Error(`Unexpected verdict: ${String(verdict)}`);
+      const content = data.choices?.[0]?.message?.content;
+      if (content == null) {
+        throw new Error('No content in response');
+      }
+
+      const parsed = JSON.parse(content) as {
+        verdict?: unknown;
+        checks?: {
+          scope_match?: unknown;
+          function_names?: unknown;
+          no_hallucination?: unknown;
+        };
+        rejection_reason?: unknown;
+      };
+
+      const verdict = parsed.verdict;
+      if (verdict !== 'PASS' && verdict !== 'REJECT') {
+        throw new Error(`Unexpected verdict: ${String(verdict)}`);
+      }
+
+      const checks = parsed.checks;
+      if (
+        typeof checks?.scope_match !== 'boolean' ||
+        typeof checks?.function_names !== 'boolean' ||
+        typeof checks?.no_hallucination !== 'boolean'
+      ) {
+        throw new Error('Missing or invalid checks fields');
+      }
+
+      const result: JudgeResult = {
+        verdict,
+        checks: {
+          scope_match: checks.scope_match,
+          function_names: checks.function_names,
+          no_hallucination: checks.no_hallucination,
+        },
+      };
+
+      if (verdict === 'REJECT' && typeof parsed.rejection_reason === 'string') {
+        result.rejection_reason = parsed.rejection_reason;
+      }
+
+      log.info(
+        { verdict: result.verdict, checks: result.checks },
+        'plan-judge: verdict=%s checks=%j',
+        result.verdict,
+        result.checks,
+      );
+
+      return result;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const checks = parsed.checks;
-    if (
-      typeof checks?.scope_match !== 'boolean' ||
-      typeof checks?.function_names !== 'boolean' ||
-      typeof checks?.no_hallucination !== 'boolean'
-    ) {
-      throw new Error('Missing or invalid checks fields');
-    }
-
-    const result: JudgeResult = {
-      verdict,
-      checks: {
-        scope_match: checks.scope_match,
-        function_names: checks.function_names,
-        no_hallucination: checks.no_hallucination,
-      },
-    };
-
-    if (verdict === 'REJECT' && typeof parsed.rejection_reason === 'string') {
-      result.rejection_reason = parsed.rejection_reason;
-    }
-
-    log.info(
-      { verdict: result.verdict, checks: result.checks },
-      'plan-judge: verdict=%s checks=%j',
-      result.verdict,
-      result.checks,
-    );
-
-    return result;
-  } catch {
-    log.warn('plan-judge: API unavailable, defaulting to PASS');
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.warn({ err, errMsg }, 'plan-judge: API unavailable, defaulting to PASS');
     return PASS_RESULT;
   }
 }
