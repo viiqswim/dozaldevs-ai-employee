@@ -49,6 +49,7 @@ import { PlanSync } from './lib/plan-sync.js';
 import { pushBetweenWaves } from './lib/between-wave-push.js';
 import { createFallbackPr } from './lib/fallback-pr.js';
 import { runPlanningPhase } from './lib/planning-orchestrator.js';
+import { callPlanJudge } from './lib/plan-judge.js';
 import type {
   PromptBuilder,
   PlanParser,
@@ -431,6 +432,8 @@ async function phase1Planning(opts: {
     config,
     promptBuilder,
     planParser,
+    planJudge: (planContent, ticket) =>
+      callPlanJudge(planContent, ticket, config.planVerifierModel),
     logger: log,
     repoRoot: '/workspace',
   });
