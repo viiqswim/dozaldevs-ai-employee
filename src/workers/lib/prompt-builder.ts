@@ -198,6 +198,68 @@ You are done with this wave when all tasks above have \`[x]\` in the plan file a
 `;
 }
 
+export function buildCorrectionPrompt(
+  ticket: TicketInfo,
+  rejectionReason: string,
+  attempt: number,
+): string {
+  const planPath = `.sisyphus/plans/${ticket.key}.md`;
+
+  return `# ⚠️ PLANNING CORRECTION — Attempt ${attempt + 1}
+
+Your previous plan was rejected by the plan verifier.
+
+## What Was Wrong
+${rejectionReason}
+
+## What You Must Do Differently
+Read the ticket description carefully. Implement EXACTLY what is asked — no more, no less.
+Do not add features not mentioned in the ticket. Match the exact function names requested.
+
+---
+
+# Re-Planning Phase — ${ticket.key}
+
+## Ticket
+- **Key**: ${ticket.key}
+- **Summary**: ${ticket.summary}
+
+## Description
+${ticket.description}
+
+## Your Task
+You are in the **re-planning phase**. Your previous plan was rejected. Write a corrected plan file.
+
+### Steps
+1. Re-read the ticket description above carefully — focus on what is EXPLICITLY requested.
+2. Explore the repository structure using your available tools if needed.
+3. Write a corrected plan to \`${planPath}\`.
+
+### Plan File Format (STRICT — do not deviate)
+\`\`\`
+# ${ticket.key} — ${ticket.summary}
+
+<brief description of the corrected approach>
+
+## Wave 1
+
+- [ ] 1. <task title>
+
+## Wave 2
+
+- [ ] 1. <task title>
+\`\`\`
+
+Rules:
+- Wave headers: exactly \`## Wave N\`
+- Task lines: exactly \`- [ ] N. Title\`
+- Minimum 1 wave, 1 task per wave, 500 bytes
+
+### When You Are Done
+Once you have written \`${planPath}\`, **exit the session immediately**.
+`;
+}
+
 export async function buildContinuationPrompt(
   uncheckedTasks: ParsedTask[],
   waveNumber: number,
