@@ -26,6 +26,7 @@ const MOCK_CONFIG: LongRunningConfig = {
   watchdogStaleThresholdMs: 1200000,
   fallbackPrEnabled: true,
   costBreakerTokenCap: 4000000,
+  planVerifierModel: '',
 };
 
 const MOCK_PARSED_PLAN: ParsedPlan = {
