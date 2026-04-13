@@ -4,6 +4,8 @@ import type { SessionManager } from './session-manager.js';
 import type { LongRunningConfig } from '../config/long-running.js';
 import type { Logger } from '../../lib/logger.js';
 import type { ParsedPlan } from './plan-parser.js';
+import type { PlanJudge } from './plan-judge.js';
+import { buildCorrectionPrompt } from './prompt-builder.js';
 
 /**
  * Thrown when a plan file fails structural validation.
@@ -16,6 +18,13 @@ export class PlanValidationError extends Error {
     super(message);
     this.name = 'PlanValidationError';
     this.errors = errors;
+  }
+}
+
+export class PlanJudgeExhaustedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PlanJudgeExhaustedError';
   }
 }
 
@@ -48,6 +57,7 @@ export interface PlanningPhaseOptions {
   planParser: PlanParser;
   config: LongRunningConfig;
   logger: Logger;
+  planJudge?: PlanJudge;
 }
 
 export interface PlanningPhaseResult {
@@ -74,6 +84,7 @@ export async function runPlanningPhase(opts: PlanningPhaseOptions): Promise<Plan
     planParser,
     config,
     logger,
+    planJudge,
   } = opts;
 
   const prompt = promptBuilder.buildPlanningPrompt({ ticket, repoRoot, projectMeta });
@@ -103,7 +114,7 @@ export async function runPlanningPhase(opts: PlanningPhaseOptions): Promise<Plan
     throw new Error(`Plan file not found at ${planPath} after planning phase`);
   }
 
-  const planContent = await fs.promises.readFile(planPath, 'utf8');
+  let planContent = await fs.promises.readFile(planPath, 'utf8');
 
   const parsed = planParser.parsePlanFile(planContent);
 
@@ -113,6 +124,77 @@ export async function runPlanningPhase(opts: PlanningPhaseOptions): Promise<Plan
       `Plan validation failed: ${validationResult.errors.join(', ')}`,
       validationResult.errors,
     );
+  }
+
+  if (planJudge != null && config.planVerifierModel !== '') {
+    let attempt = 1;
+    let currentContent = planContent;
+
+    while (true) {
+      const judgeResult = await planJudge(currentContent, ticket);
+      logger.info(
+        { verdict: judgeResult.verdict, attempt, checks: judgeResult.checks },
+        'plan-judge: verdict=%s attempt=%d',
+        judgeResult.verdict,
+        attempt,
+      );
+
+      if (judgeResult.verdict === 'PASS') {
+        break;
+      }
+
+      if (attempt >= 2) {
+        throw new PlanJudgeExhaustedError(
+          `Plan judge rejected plan after ${attempt} attempts. Last reason: ${judgeResult.rejection_reason ?? 'No reason given'}`,
+        );
+      }
+
+      await fs.promises.unlink(planPath);
+
+      const correctionPrompt = buildCorrectionPrompt(
+        ticket,
+        judgeResult.rejection_reason ?? 'Plan did not match ticket requirements',
+        attempt,
+      );
+
+      const correctionSessionId = await sessionManager.createSession(
+        `Planning (correction ${attempt}): ${ticket.key}`,
+      );
+      if (!correctionSessionId) {
+        throw new Error(`Failed to create correction planning session for ticket ${ticket.key}`);
+      }
+
+      await sessionManager.injectTaskPrompt(correctionSessionId, correctionPrompt);
+
+      const correctionMonitorResult = await sessionManager.monitorSession(correctionSessionId, {
+        timeoutMs: config.planningTimeoutMs,
+      });
+
+      if (!correctionMonitorResult.completed) {
+        throw new Error(`Correction planning phase timed out after ${config.planningTimeoutMs}ms`);
+      }
+
+      try {
+        await fs.promises.access(planPath);
+      } catch {
+        throw new Error(`Plan file not found at ${planPath} after correction phase`);
+      }
+
+      currentContent = await fs.promises.readFile(planPath, 'utf8');
+
+      const correctionParsed = planParser.parsePlanFile(currentContent);
+      const correctionValidation = planParser.validatePlan(correctionParsed);
+      if (!correctionValidation.ok) {
+        throw new PlanValidationError(
+          `Plan validation failed after correction: ${correctionValidation.errors.join(', ')}`,
+          correctionValidation.errors,
+        );
+      }
+
+      attempt++;
+    }
+
+    planContent = currentContent;
   }
 
   await fs.promises.chmod(planPath, 0o444);

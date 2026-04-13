@@ -48,3 +48,20 @@
 - lifecycle.ts has 3 dispatch paths: hybrid Fly (env object in JSON), local Docker (envArgs string array), native Fly (flyEnv Record object)
 - Path 2 (Docker) uses string template literals `-e KEY="VALUE"` format — different from the other two
 - PLAN_VERIFIER_MODEL added adjacent to OPENROUTER_MODEL in all 3 paths
+
+## T3 Learnings
+
+- buildCorrectionPrompt: SYNC (no async), returns complete replacement prompt
+- TicketInfo used locally (same shape as Ticket from planning-orchestrator.ts)
+- No projectMeta/repoRoot needed — simpler than buildPlanningPrompt
+
+## T5 Learnings
+
+- planContent changed from const to let to allow retry reassignment
+- PlanJudgeExhaustedError added to planning-orchestrator.ts (alongside PlanValidationError)
+- buildCorrectionPrompt imported directly (no interface extension needed — called by orchestrator, not via PromptBuilder interface)
+- Gate condition: planJudge != null && config.planVerifierModel !== ''
+- Retry creates a new session (createSession) with correction prompt
+- After retry: re-reads file, re-validates with planParser
+- planContent updated to corrected content after gate passes
+- MOCK_CONFIG in tests updated with planVerifierModel: ''
