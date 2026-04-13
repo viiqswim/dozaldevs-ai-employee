@@ -83,6 +83,21 @@ describe('callPlanJudge', () => {
     // Warn is logged internally — just verify PASS is returned, not thrown
   });
 
+  it('returns PASS when API response has trailing text after JSON object', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockFetchResponse({
+        choices: [
+          { message: { content: JSON.stringify(PASS_RESULT) + '\n\nSome explanation text.' } },
+        ],
+      }) as unknown as Response,
+    );
+
+    const result = await callPlanJudge('good plan', MOCK_TICKET, 'anthropic/claude-haiku-4-5');
+
+    expect(result.verdict).toBe('PASS');
+    expect(result.checks.scope_match).toBe(true);
+  });
+
   it('returns PASS when fetch returns non-200 status', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       mockFetchResponse({ error: 'Unauthorized' }, false, 401) as unknown as Response,

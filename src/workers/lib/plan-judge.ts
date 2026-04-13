@@ -83,11 +83,12 @@ export async function callPlanJudge(
         throw new Error('No content in response');
       }
 
-      const stripped = content
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```\s*$/, '')
-        .trim();
-      const parsed = JSON.parse(stripped) as {
+      // Extract first JSON object from response (handles trailing text, code fences, etc.)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch == null) {
+        throw new Error('No JSON object found in response');
+      }
+      const parsed = JSON.parse(jsonMatch[0]) as {
         verdict?: unknown;
         checks?: {
           scope_match?: unknown;
