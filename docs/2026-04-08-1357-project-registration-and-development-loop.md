@@ -22,6 +22,7 @@ Before registering a project or triggering a task, make sure the following are i
 - **`OPENROUTER_API_KEY` in `.env`**: used by the worker container for AI code generation
 - **Docker image built**: `docker build -t ai-employee-worker:latest .` — required before any task can run; rebuild after any change to `src/workers/`
 - **Target GitHub repo exists**: the repo at `repo_url` must be accessible by `GITHUB_TOKEN`
+- **`PLAN_VERIFIER_MODEL` in `.env`** (optional): Set to `anthropic/claude-haiku-4-5` to enable the plan judge gate, which verifies the AI's plan matches the ticket before coding begins. Leave empty (default) to disable.
 
 ---
 
@@ -204,16 +205,17 @@ The script signs the payload with `JIRA_WEBHOOK_SECRET`, posts it to `POST /webh
 Once the task is dispatched, the worker container handles everything:
 
 1. Clones the registered repo (`git clone --depth=2`)
-2. Creates branch `ai/ACME-1609459200-add-formatcurrency-utility` from the default branch
-3. Runs the install command (`npm ci` in this example)
+2. Runs the install command (`npm ci` in this example) inside the cloned workspace
+3. Creates branch `ai/ACME-1609459200-add-formatcurrency-utility` from the default branch
 4. Starts OpenCode (AI coding agent) on port 4096 inside the container
-5. Feeds the ticket summary and description to OpenCode as a prompt
-6. OpenCode writes the implementation, editing files in the cloned repo
-7. Runs the validation pipeline in order: TypeScript check, lint, unit tests, integration tests, e2e tests
-8. On any failure, re-prompts OpenCode with the error output and retries (up to 3 iterations per stage)
-9. Commits the changes and opens a PR on GitHub
+5. **Planning phase**: runs a dedicated OpenCode session that produces a structured plan file (`.sisyphus/plans/{TICKET_ID}.md`). The plan is structurally validated (must have at least one wave with at least one task).
+6. **Plan judge gate** (if `PLAN_VERIFIER_MODEL` is set): sends the plan to the configured model for a rubric check (`scope_match`, `function_names`, `no_hallucination`). If rejected, rewrites the plan with corrective feedback and retries (up to 2 attempts total). If all attempts fail, the task transitions to `AwaitingInput`.
+7. Executes the plan wave by wave — each wave is a separate OpenCode session implementing the tasks in that wave, followed by a git push
+8. Runs the validation pipeline: TypeScript check, lint, unit tests, integration tests, e2e tests (only stages configured in the project registration run; unconfigured stages are skipped)
+9. On any failure, re-prompts OpenCode with the error output and retries (up to 3 iterations per stage, 10 globally)
+10. Commits the changes and opens a PR on GitHub
 
-Typical duration is 5 to 20 minutes depending on ticket complexity and model response time.
+Typical duration is 10 to 30 minutes depending on ticket complexity, number of plan waves, and model response time. The planning phase adds roughly 2–5 minutes before coding begins.
 
 ### Step 4 — The PR
 
@@ -221,7 +223,7 @@ The PR lands on GitHub with:
 
 - **Branch**: `ai/{ticketId}-{slug}` where `slug` is the ticket summary in kebab-case
 - **Base branch**: the `default_branch` from the project registration
-- **Title**: the ticket summary verbatim
+- **Title**: `[AI] {TICKET_ID}: {summary}` (e.g. `[AI] ACME-1609459200: Add formatCurrency utility`)
 
 `GITHUB_TOKEN` must have push access to the repo. The token is passed into the worker container by the lifecycle function — it's the same token for all registered projects.
 
