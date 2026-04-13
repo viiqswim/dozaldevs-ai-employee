@@ -164,6 +164,7 @@ export function createLifecycleFunction(
                     GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
                     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
                     OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+                    PLAN_VERIFIER_MODEL: process.env.PLAN_VERIFIER_MODEL ?? '',
                   },
                 },
               }),
@@ -274,6 +275,7 @@ export function createLifecycleFunction(
             `-e GITHUB_TOKEN="${process.env.GITHUB_TOKEN ?? ''}"`,
             `-e OPENROUTER_API_KEY="${process.env.OPENROUTER_API_KEY ?? ''}"`,
             `-e OPENROUTER_MODEL="${process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7'}"`,
+            `-e PLAN_VERIFIER_MODEL="${process.env.PLAN_VERIFIER_MODEL ?? ''}"`,
             `-e INNGEST_EVENT_KEY="${process.env.INNGEST_EVENT_KEY ?? 'local'}"`,
             `-e INNGEST_DEV="1"`,
             `-e INNGEST_BASE_URL="http://localhost:8288"`,
@@ -341,6 +343,7 @@ export function createLifecycleFunction(
           GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
           OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
           OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
+          PLAN_VERIFIER_MODEL: process.env.PLAN_VERIFIER_MODEL ?? '',
         };
         if (flyResumeFromWave != null) {
           flyEnv.RESUME_FROM_WAVE = String(flyResumeFromWave);

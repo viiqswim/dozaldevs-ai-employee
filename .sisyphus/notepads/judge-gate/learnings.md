@@ -25,12 +25,14 @@
 - chmod 0o444 ONLY after judge PASS (or gate disabled)
 
 ## T2 Learnings
+
 - planVerifierModel added to LongRunningConfig — default '' (empty = disabled)
 - .env.example location for PLAN_VERIFIER_MODEL: added in the "Execution (Worker Container)" section, directly after OPENROUTER_MODEL
 - readConfigFromEnv() uses process.env['PLAN_VERIFIER_MODEL'] ?? '' (no parseInt — string field)
 - Build passes (tsc -p tsconfig.build.json exits 0) after adding the field to all 3 locations: interface, default const, readConfigFromEnv return
 
 ## T1 Learnings
+
 - Ticket type: imported from './planning-orchestrator.js'
 - Logger: named export `createLogger` (no default export) — use `const log = createLogger('plan-judge')`
 - Node fetch: native (no node-fetch needed)
@@ -40,3 +42,9 @@
 - Exact warn message must be: `'plan-judge: API unavailable, defaulting to PASS'`
 - Empty model → return PASS_RESULT immediately, no logging, no network
 - `pnpm build` (tsconfig.build.json) and `pnpm tsc --noEmit` both exit 0 for the new file
+
+## T4 Learnings
+
+- lifecycle.ts has 3 dispatch paths: hybrid Fly (env object in JSON), local Docker (envArgs string array), native Fly (flyEnv Record object)
+- Path 2 (Docker) uses string template literals `-e KEY="VALUE"` format — different from the other two
+- PLAN_VERIFIER_MODEL added adjacent to OPENROUTER_MODEL in all 3 paths
