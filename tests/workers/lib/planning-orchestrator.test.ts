@@ -8,6 +8,7 @@ import type { ParsedPlan } from '../../../src/workers/lib/plan-parser.js';
 import {
   runPlanningPhase,
   PlanValidationError,
+  PlanJudgeExhaustedError,
 } from '../../../src/workers/lib/planning-orchestrator.js';
 
 const TICKET = { key: 'TEST-42', summary: 'Add auth flow', description: 'Implement JWT auth.' };
@@ -221,5 +222,180 @@ describe('PlanValidationError', () => {
     expect(err.errors).toEqual(errors);
     expect(err.message).toContain('Plan validation failed');
     expect(err).toBeInstanceOf(Error);
+  });
+});
+
+describe('runPlanningPhase — judge gate integration', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'planning-judge-test-'));
+  });
+
+  afterEach(async () => {
+    await fs.promises
+      .chmod(path.join(tempDir, '.sisyphus', 'plans', `${TICKET.key}.md`), 0o644)
+      .catch(() => {});
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
+  });
+
+  const MOCK_CONFIG_WITH_JUDGE: LongRunningConfig = {
+    ...MOCK_CONFIG,
+    planVerifierModel: 'anthropic/claude-haiku-4-5',
+  };
+
+  it('no planJudge in options → gate skipped, normal flow (backward compat)', async () => {
+    await writePlanFile(tempDir, TICKET.key, 'plan content');
+    const sessionManager = createMockSessionManager();
+
+    const result = await runPlanningPhase({
+      ticket: TICKET,
+      repoRoot: tempDir,
+      projectMeta: PROJECT_META,
+      sessionManager,
+      promptBuilder: createMockPromptBuilder(),
+      planParser: createMockPlanParser(),
+      config: MOCK_CONFIG_WITH_JUDGE,
+      logger: createMockLogger(),
+    });
+
+    expect(result.planContent).toBe('plan content');
+    expect(sessionManager.createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('planJudge returns PASS → called once, chmod 444, no error', async () => {
+    await writePlanFile(tempDir, TICKET.key, 'plan content');
+    const planJudge = vi.fn().mockResolvedValue({
+      verdict: 'PASS' as const,
+      checks: { scope_match: true, function_names: true, no_hallucination: true },
+    });
+
+    await runPlanningPhase({
+      ticket: TICKET,
+      repoRoot: tempDir,
+      projectMeta: PROJECT_META,
+      sessionManager: createMockSessionManager(),
+      promptBuilder: createMockPromptBuilder(),
+      planParser: createMockPlanParser(),
+      config: MOCK_CONFIG_WITH_JUDGE,
+      logger: createMockLogger(),
+      planJudge,
+    });
+
+    expect(planJudge).toHaveBeenCalledTimes(1);
+    const planPath = path.join(tempDir, '.sisyphus', 'plans', `${TICKET.key}.md`);
+    const stat = await fs.promises.stat(planPath);
+    expect(stat.mode & 0o777).toBe(0o444);
+  });
+
+  it('planJudge returns REJECT then PASS → called twice, plan re-run, chmod on second pass', async () => {
+    await writePlanFile(tempDir, TICKET.key, 'original plan');
+
+    const sessionManager = createMockSessionManager({
+      createSession: vi
+        .fn()
+        .mockResolvedValueOnce('sess-plan-1')
+        .mockResolvedValueOnce('sess-correction-1'),
+      monitorSession: vi
+        .fn()
+        .mockResolvedValueOnce({ completed: true, reason: 'idle' })
+        .mockImplementationOnce(async () => {
+          await writePlanFile(tempDir, TICKET.key, 'corrected plan');
+          return { completed: true, reason: 'idle' };
+        }),
+    });
+
+    const planJudge = vi
+      .fn()
+      .mockResolvedValueOnce({
+        verdict: 'REJECT' as const,
+        checks: { scope_match: false, function_names: true, no_hallucination: true },
+        rejection_reason: 'Wrong scope',
+      })
+      .mockResolvedValueOnce({
+        verdict: 'PASS' as const,
+        checks: { scope_match: true, function_names: true, no_hallucination: true },
+      });
+
+    const result = await runPlanningPhase({
+      ticket: TICKET,
+      repoRoot: tempDir,
+      projectMeta: PROJECT_META,
+      sessionManager,
+      promptBuilder: createMockPromptBuilder(),
+      planParser: createMockPlanParser(),
+      config: MOCK_CONFIG_WITH_JUDGE,
+      logger: createMockLogger(),
+      planJudge,
+    });
+
+    expect(planJudge).toHaveBeenCalledTimes(2);
+    expect(sessionManager.createSession).toHaveBeenCalledTimes(2);
+    expect(result.planContent).toBe('corrected plan');
+  });
+
+  it('planJudge returns REJECT both times → PlanJudgeExhaustedError thrown', async () => {
+    await writePlanFile(tempDir, TICKET.key, 'bad plan');
+
+    const sessionManager = createMockSessionManager({
+      createSession: vi
+        .fn()
+        .mockResolvedValueOnce('sess-plan-1')
+        .mockResolvedValueOnce('sess-correction-1'),
+      monitorSession: vi
+        .fn()
+        .mockResolvedValueOnce({ completed: true, reason: 'idle' })
+        .mockImplementationOnce(async () => {
+          await writePlanFile(tempDir, TICKET.key, 'still bad plan');
+          return { completed: true, reason: 'idle' };
+        }),
+    });
+
+    const planJudge = vi.fn().mockResolvedValue({
+      verdict: 'REJECT' as const,
+      checks: { scope_match: false, function_names: false, no_hallucination: true },
+      rejection_reason: 'Plan is wrong',
+    });
+
+    await expect(
+      runPlanningPhase({
+        ticket: TICKET,
+        repoRoot: tempDir,
+        projectMeta: PROJECT_META,
+        sessionManager,
+        promptBuilder: createMockPromptBuilder(),
+        planParser: createMockPlanParser(),
+        config: MOCK_CONFIG_WITH_JUDGE,
+        logger: createMockLogger(),
+        planJudge,
+      }),
+    ).rejects.toThrow(PlanJudgeExhaustedError);
+
+    expect(planJudge).toHaveBeenCalledTimes(2);
+    const planPath = path.join(tempDir, '.sisyphus', 'plans', `${TICKET.key}.md`);
+    const stat = await fs.promises.stat(planPath);
+    expect(stat.mode & 0o777).not.toBe(0o444);
+  });
+
+  it('planVerifierModel is empty string → planJudge not called even if provided', async () => {
+    await writePlanFile(tempDir, TICKET.key, 'plan content');
+    const planJudge = vi.fn().mockResolvedValue({
+      verdict: 'PASS' as const,
+      checks: { scope_match: true, function_names: true, no_hallucination: true },
+    });
+
+    await runPlanningPhase({
+      ticket: TICKET,
+      repoRoot: tempDir,
+      projectMeta: PROJECT_META,
+      sessionManager: createMockSessionManager(),
+      promptBuilder: createMockPromptBuilder(),
+      planParser: createMockPlanParser(),
+      config: MOCK_CONFIG,
+      logger: createMockLogger(),
+      planJudge,
+    });
+
+    expect(planJudge).not.toHaveBeenCalled();
   });
 });
