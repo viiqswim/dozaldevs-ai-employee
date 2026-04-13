@@ -39,6 +39,8 @@ export interface LongRunningConfig {
   fallbackPrEnabled: boolean;
   /** Token cap for cost circuit breaker (4M tokens) */
   costBreakerTokenCap: number;
+  /** Model ID for plan judge gate ('' = disabled) */
+  planVerifierModel: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export const DEFAULT_LONG_RUNNING_CONFIG: LongRunningConfig = {
   watchdogStaleThresholdMs: 1200000, // 20min
   fallbackPrEnabled: true,
   costBreakerTokenCap: 4000000, // 4M tokens
+  planVerifierModel: '',
 };
 
 /**
@@ -116,5 +119,6 @@ export function readConfigFromEnv(): LongRunningConfig {
     watchdogStaleThresholdMs: parseInt(process.env['WATCHDOG_STALE_THRESHOLD_MS'] ?? '1200000', 10),
     fallbackPrEnabled: (process.env['FALLBACK_PR_ENABLED'] ?? 'true') !== 'false',
     costBreakerTokenCap: parseInt(process.env['COST_BREAKER_TOKEN_CAP'] ?? '4000000', 10),
+    planVerifierModel: process.env['PLAN_VERIFIER_MODEL'] ?? '',
   };
 }
