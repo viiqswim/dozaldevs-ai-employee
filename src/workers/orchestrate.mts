@@ -178,8 +178,11 @@ async function getPackageJsonHash(repoRoot: string): Promise<string> {
 // Helper: extract Ticket from TaskRow
 // ---------------------------------------------------------------------------
 
-interface JiraPayload {
-  issue?: {
+interface TriageResult {
+  ticket_id?: string;
+  title?: string;
+  description?: string | null;
+  raw_ticket?: {
     key?: string;
     fields?: {
       summary?: string;
@@ -189,17 +192,25 @@ interface JiraPayload {
 }
 
 function extractTicketFromTask(task: TaskRow): Ticket {
-  const jiraPayload = task.triage_result as JiraPayload | null;
-  const issue = jiraPayload?.issue;
-  const fields = issue?.fields ?? {};
+  const triage = task.triage_result as TriageResult | null;
+  const rawTicket = triage?.raw_ticket;
 
-  const key = issue?.key ?? task.external_id ?? 'TASK-0';
+  const key =
+    (typeof triage?.ticket_id === 'string' ? triage.ticket_id : null) ??
+    rawTicket?.key ??
+    task.external_id ??
+    'TASK-0';
+
   const summary =
-    typeof fields.summary === 'string' ? fields.summary : (task.external_id ?? 'No summary');
+    (typeof triage?.title === 'string' ? triage.title : null) ??
+    rawTicket?.fields?.summary ??
+    task.external_id ??
+    'No summary';
+
   const description =
-    typeof fields.description === 'string'
-      ? fields.description
-      : JSON.stringify(fields.description ?? '');
+    (typeof triage?.description === 'string' ? triage.description : null) ??
+    (typeof rawTicket?.fields?.description === 'string' ? rawTicket.fields.description : null) ??
+    '';
 
   return { key, summary, description };
 }
