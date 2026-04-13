@@ -8,7 +8,7 @@ This document covers:
 
 - The complete request flow from a Jira webhook to a merged PR
 - All three worker dispatch modes (local Docker, hybrid Fly.io, default Fly.io) with exact env blocks
-- What happens inside the worker container (8 boot steps + 16 orchestration steps)
+- What happens inside the worker container (entrypoint.sh boot sequence + orchestrate.mts two-phase flow)
 - How the PR gets created, named, bodied, and persisted back to the database
 - The Cloudflare Tunnel mechanism that makes hybrid mode work (and why ngrok free-tier doesn't)
 - All environment variables grouped by purpose
@@ -233,7 +233,7 @@ sequenceDiagram
     LIFE->>FLY: POST /v1/apps/ai-employee-workers/machines<br/>(image, env, restart=no)
     FLY-->>LIFE: 200 {machine.id}
     LIFE->>LIFE: pollForCompletion (30s × 120)
-    M->>M: entrypoint.sh boot (8 steps)
+    M->>M: entrypoint.sh boot (7 steps + sub-steps)
     M->>CF: GET /rest/v1/tasks?id=eq.<id>
     CF->>SB: forward to localhost:54321
     SB-->>M: task JSON
@@ -261,7 +261,7 @@ sequenceDiagram
 | 7    | Lifecycle    | POSTs to `https://api.machines.dev/v1/apps/ai-employee-workers/machines` with full env block (see below)                    |
 | 8    | Fly API      | Creates the machine, returns machine ID                                                                                     |
 | 9    | Lifecycle    | Calls `pollForCompletion()` which loops every 30s (max 120 iterations = 60 min)                                             |
-| 10   | Worker       | entrypoint.sh boots: auth, clone, install, read task, write heartbeat, write OpenCode auth, exec orchestrate.mts            |
+| 10   | Worker       | entrypoint.sh boots: auth, clone, branch checkout, read task, write heartbeat, write OpenCode auth, exec orchestrate.mts    |
 | 11   | Worker       | All HTTP requests to `${SUPABASE_URL}/rest/v1/...` go through the Cloudflare Tunnel back to local Supabase                  |
 | 12   | Worker       | orchestrate.mts runs Phase 1 (planning + judge gate), Phase 2 (wave-by-wave execution), then fix loop, branch + commit + PR |
 | 13   | Worker       | Writes `tasks.status = Submitting`, POSTs to `deliverables` table with PR URL                                               |
@@ -273,7 +273,7 @@ sequenceDiagram
 
 ## The Hybrid Machine Env Block (Verbatim)
 
-This is the exact JSON sent to Fly's Machines API in hybrid mode (`lifecycle.ts:155-170`):
+This is the exact JSON sent to Fly's Machines API in hybrid mode (`lifecycle.ts:157-168` — the `env` object; surrounding `guest`/`restart` config at lines 155–156):
 
 ```typescript
 body: JSON.stringify({
@@ -410,7 +410,7 @@ When either limit is exceeded, `escalate()` is called: the task transitions to `
 
 ### Validation Pipeline (`lib/validation-pipeline.ts`)
 
-The pipeline runs five configurable shell commands sequentially. Each is a 5-minute timeout. The defaults (from `resolveToolingConfig()`):
+The pipeline runs five configurable shell commands sequentially. Each has a 5-minute timeout. All commands are sourced from the project's `tooling_config` (via `resolveToolingConfig()`):
 
 | Stage       | Command                                                 | Configurable Per Project            |
 | ----------- | ------------------------------------------------------- | ----------------------------------- |
@@ -731,7 +731,7 @@ The plan added or modified these files (other files in the codebase remain untou
 | File                        | Change                                                                                                                                        |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/inngest/lifecycle.ts`  | Added hybrid Fly.io dispatch branch (lines 97-230), pre-flight tunnel check, direct fetch to Fly Machines API, polling, finally-block cleanup |
-| `src/workers/entrypoint.sh` | Added `\|\| true` after curl commands in steps 6 and 7 to prevent `set -e` from aborting retry loops                                          |
+| `src/workers/entrypoint.sh` | Added `\|\| true` after curl commands in steps 5 and 6 to prevent `set -e` from aborting retry loops                                          |
 | `Dockerfile`                | (No changes — image still rebuilt via `docker buildx` for `linux/amd64`)                                                                      |
 | `package.json`              | Added `fly:image` and `fly:setup` scripts                                                                                                     |
 | `AGENTS.md`                 | Added "Hybrid Fly.io Mode" section, "Long-Running Command Protocol" section                                                                   |
