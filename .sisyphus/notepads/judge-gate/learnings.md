@@ -65,3 +65,12 @@
 - After retry: re-reads file, re-validates with planParser
 - planContent updated to corrected content after gate passes
 - MOCK_CONFIG in tests updated with planVerifierModel: ''
+
+## T6 Learnings
+
+- plan-judge tests: use vi.spyOn(globalThis, 'fetch') for mocking native fetch
+- planning-orchestrator judge tests: mock monitorSession with mockImplementationOnce to write plan file during async execution
+- MOCK_CONFIG_WITH_JUDGE uses spread: { ...MOCK_CONFIG, planVerifierModel: 'anthropic/claude-haiku-4-5' }
+- PlanJudgeExhaustedError imported and tested with .rejects.toThrow(PlanJudgeExhaustedError)
+- After REJECT exhaustion: chmod 444 is NOT called — verify by checking file mode != 0o444
+- 816 tests passing after T6 (806 baseline + 5 plan-judge + 5 planning-orchestrator judge integration)
