@@ -98,6 +98,22 @@ describe('callPlanJudge', () => {
     expect(result.checks.scope_match).toBe(true);
   });
 
+  it('returns PASS when API response has trailing } characters after JSON object', async () => {
+    // Simulates LLM response with extra } in trailing explanation text
+    const contentWithTrailingBrace =
+      JSON.stringify(PASS_RESULT) + ' extra } text with closing brace';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockFetchResponse({
+        choices: [{ message: { content: contentWithTrailingBrace } }],
+      }) as unknown as Response,
+    );
+
+    const result = await callPlanJudge('good plan', MOCK_TICKET, 'anthropic/claude-haiku-4-5');
+
+    expect(result.verdict).toBe('PASS');
+    expect(result.checks.scope_match).toBe(true);
+  });
+
   it('returns PASS when fetch returns non-200 status', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       mockFetchResponse({ error: 'Unauthorized' }, false, 401) as unknown as Response,
