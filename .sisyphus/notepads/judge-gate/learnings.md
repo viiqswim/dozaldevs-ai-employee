@@ -74,3 +74,20 @@
 - PlanJudgeExhaustedError imported and tested with .rejects.toThrow(PlanJudgeExhaustedError)
 - After REJECT exhaustion: chmod 444 is NOT called — verify by checking file mode != 0o444
 - 816 tests passing after T6 (806 baseline + 5 plan-judge + 5 planning-orchestrator judge integration)
+
+## T7 Learnings — Correction Prompt Strengthening
+
+- Root cause: MiniMax wrote only 214 bytes in correction session (stub response)
+- Fix: Strengthened `buildCorrectionPrompt()` in `src/workers/lib/prompt-builder.ts`
+- Key additions:
+  1. DO NOT / DO section upfront — "Do not explore before writing", "Write immediately"
+  2. Explicit size enforcement message: "The file MUST be at least 500 bytes. This is enforced programmatically"
+  3. Full concrete example with `formatCurrency` ticket showing valid plan (~800+ bytes in output)
+  4. Task descriptions include `— detailed description` suffix pattern to encourage verbose output
+  5. "Write the plan file to `{planPath}` NOW" directive at the end
+- Chose Option A (prompt strengthening) over Option B (session continuation) because:
+  - Test at line 333 of planning-orchestrator.test.ts expects `createSession` called 2 times
+  - Option B would require test modification
+  - Prompt alone is the lightest-touch fix
+- Test baseline maintained: 50 failed | 816 passed | 10 skipped (876) — no new failures
+- Build: `pnpm build` exits 0 (tsc -p tsconfig.build.json clean)
