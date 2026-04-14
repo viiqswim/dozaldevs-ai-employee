@@ -57,12 +57,46 @@ Employees collaborate via **event-based pub/sub** — each declares `input_event
 
 All employees share this state machine — only the transitions' internal behavior changes per employee:
 
-```
-Received → Triaging → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done
-                ↓                    ↑                                     ↓
-          AwaitingInput              └──────────────────── Changes Requested
-                ↓
-           Stale (72h timeout)
+```mermaid
+flowchart TD
+    START(["Event from trigger source"]):::external
+    RECV["Received"]:::service
+    TRIAGE["Triaging"]:::service
+    AWAIT["AwaitingInput"]:::decision
+    STALE(["Stale — 72h timeout"]):::future
+    READY["Ready"]:::service
+    EXEC["Executing"]:::service
+    VALID["Validating"]:::service
+    SUBMIT["Submitting"]:::service
+    REVIEW["Reviewing"]:::service
+    CHANGES["Changes Requested"]:::decision
+    APPROVED["Approved"]:::event
+    DELIVER["Delivering"]:::service
+    DONE(["Done"]):::event
+    CANCEL(["Cancelled"]):::future
+
+    START -->|"1. Event arrives"| RECV
+    RECV -->|"2. Dispatch to triage"| TRIAGE
+    TRIAGE -->|"3. Clarification needed"| AWAIT
+    TRIAGE ==>|"4. Task is unambiguous"| READY
+    AWAIT -->|"5. Input received"| TRIAGE
+    AWAIT -->|"6. No response 72h"| STALE
+    READY ==>|"7. Slot available, runtime ready"| EXEC
+    EXEC ==>|"8. Work output produced"| VALID
+    VALID -->|"9. Validation fails"| EXEC
+    VALID ==>|"10. All checks pass"| SUBMIT
+    SUBMIT ==>|"11. Submitted for review"| REVIEW
+    REVIEW ==>|"12. Review passed"| APPROVED
+    REVIEW -->|"13. Changes requested"| CHANGES
+    CHANGES -->|"13. Re-execute"| EXEC
+    APPROVED ==>|"14. Approval gate cleared"| DELIVER
+    DELIVER ==>|"15. Result delivered"| DONE
+
+    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    classDef external fill:#F5A623,stroke:#C4841A,color:#fff
+    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
+    classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
+    classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
 ```
 
 Any state can also transition to `Cancelled`.
