@@ -1,10 +1,89 @@
 # AI Employee Platform — Agent Guide
 
-## Project Overview
+> **IMPORTANT — Keep this file current**: Before every commit, verify that this file accurately reflects the current state of the codebase. If your changes affect project structure, commands, conventions, environment variables, infrastructure, or any other section documented here, update this file in the same commit. This is the primary onboarding document for agents working in this repo — stale information here causes compounding errors downstream.
 
-One-line: Automated Jira-to-PR pipeline — receives Jira tickets via webhook, spawns a Docker worker running OpenCode (AI coding agent), delivers a GitHub PR.
+## Platform Vision
 
-Stack: TypeScript · Fastify · Inngest · Prisma · Docker · Supabase (PostgREST)
+A **multi-department Digital AI Employee Platform** — deploys autonomous AI agents ("digital employees") that monitor work queues, triage incoming tasks, execute domain-specific work, and submit results for review.
+
+Every department follows the same five-step workflow:
+
+1. **Trigger** — An event arrives from an external system (Jira ticket, ad platform alert, invoice, lead form)
+2. **Triage** — An AI agent analyzes the task, consults a knowledge base, and asks clarifying questions
+3. **Execute** — An AI agent performs the work using domain-specific tools
+4. **Review** — An AI agent validates output against acceptance criteria
+5. **Deliver** — The result is published/merged/filed and stakeholders are notified
+
+What changes between departments: **integrations** (which systems to watch), **tools** (what the agent can do), **knowledge base** (domain expertise), and **approval gates** (risk thresholds). The orchestration layer, queue infrastructure, state management, and observability are shared.
+
+### Department Roadmap
+
+| Department      | Runtime                     | Status                       |
+| --------------- | --------------------------- | ---------------------------- |
+| **Engineering** | OpenCode on Fly.io / Docker | **Active — MVP operational** |
+| Paid Marketing  | Inngest workflow functions  | Designed, not built          |
+| Finance         | Inngest workflow functions  | Planned                      |
+| Sales           | Inngest workflow functions  | Planned                      |
+
+Engineering is the MVP department — fully operational. Each subsequent department is addable by writing an archetype config (trigger sources, tools, knowledge base, risk model, runtime), not new orchestration logic.
+
+### Archetype Framework
+
+Each department is defined by a declarative **archetype config** — the orchestrator reads it and knows which webhooks to watch, which tools to provision, which knowledge base to query, and which agent runtime to spin up:
+
+| Field             | Purpose                      | Engineering Example              |
+| ----------------- | ---------------------------- | -------------------------------- |
+| `trigger_sources` | Webhook endpoints to monitor | Jira, GitHub                     |
+| `execution_tools` | Tools during execution       | Git, file editor, test runner    |
+| `knowledge_base`  | Domain knowledge sources     | Task history, codebase search    |
+| `delivery_target` | Where results go             | GitHub PR                        |
+| `risk_model`      | Approval gate config         | File-count + critical-path score |
+| `runtime`         | Agent runtime                | `opencode` (Fly.io machine)      |
+
+### Universal Task Lifecycle
+
+All departments share this state machine — only the transitions' internal behavior changes per archetype:
+
+```
+Received → Triaging → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done
+                ↓                    ↑                                     ↓
+          AwaitingInput              └──────────────────── Changes Requested
+                ↓
+           Stale (72h timeout)
+```
+
+Any state can also transition to `Cancelled`.
+
+**Engineering MVP simplification**: The gateway writes `Ready` directly (triage bypassed), PRs are reviewed manually (review agent deferred), so the active flow is: `Ready → Executing → Submitting → Done`.
+
+Full architecture: `docs/2026-03-22-2317-ai-employee-architecture.md`
+
+## Current Implementation (Engineering MVP)
+
+The Engineering department is live: receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode (AI coding agent), delivers a GitHub PR.
+
+**Stack**: TypeScript · Fastify · Inngest · Prisma · Docker · Supabase (PostgREST)
+
+### What's Built
+
+- **Event Gateway** (Fastify) — Jira/GitHub webhook receiver + Inngest function host
+- **Inngest lifecycle functions** — task orchestration, watchdog, redispatch
+- **Execution Agent** — OpenCode-based worker on Docker or Fly.io machines
+- **Supabase** (PostgreSQL + PostgREST) — task state, project registry
+- **Admin API** — project registration and management (`/admin/projects`)
+- **Slack integration** — notifications and escalations
+
+### What's Deferred
+
+- **Triage Agent** — raw Jira payload passed directly to execution (no triage step yet)
+- **Review Agent** — PRs reviewed manually by developer (no AI review yet)
+- **Knowledge Base** — no pgvector embeddings; SQL task history + OpenCode native search only
+- **Paid Marketing Department** — archetype designed, not implemented
+- **Cross-Department Workflows** — event contract designed, wiring deferred
+
+### Active Redesign
+
+The worker orchestration is being redesigned to delegate planning and execution to the oh-my-opencode agent system (Prometheus for planning, Atlas for execution) instead of custom TypeScript orchestration. Key changes: thin `orchestrate.mts` wrapper replacing ~600 lines, unified `WORKER_RUNTIME` env var replacing two boolean flags, language-agnostic Docker base image, cost-based escalation replacing iteration limits. See `.sisyphus/plans/worker-agent-delegation-redesign.md`.
 
 ## Commands
 
@@ -105,22 +184,25 @@ Inspect ngrok request log: `http://localhost:4040/inspect/http`
 
 ```
 src/
-├── gateway/     # Fastify HTTP server — Jira/GitHub webhooks, Inngest wiring
-├── inngest/     # lifecycle.ts, watchdog.ts, redispatch.ts
-├── workers/     # Docker container: entrypoint.sh, orchestrate.mts, validation pipeline
-└── lib/         # logger, fly-client, github-client, slack-client, jira-client, retry, errors
+├── gateway/     # Fastify HTTP server — webhook receiver + Inngest function host
+├── inngest/     # Durable workflow functions: lifecycle, watchdog, redispatch
+├── workers/     # Docker container code — runs inside the worker machine
+│                # (entrypoint.sh boot lifecycle → orchestrate.mts → OpenCode sessions)
+└── lib/         # Shared: fly-client, github-client, slack-client, jira-client, logger, retry, errors
 prisma/          # schema.prisma (16 tables), migrations, seed.ts
 scripts/         # setup.ts, dev-start.ts, trigger-task.ts, verify-e2e.ts (all tsx)
 docker/          # Supabase self-hosted Docker Compose
+docs/            # Architecture vision, phase docs, troubleshooting
 ```
 
 ## Key Conventions
 
-- Task status flow: `NULL → Ready → Executing → Submitting → Done`
+- Task status flow: `NULL → Ready → Executing → Submitting → Done` (MVP simplified from the universal lifecycle)
 - Worker branch naming: `ai/{ticketId}-{slug}`
 - Inngest functions register in the gateway process (not a separate service)
 - Worker containers communicate with Supabase via PostgREST REST API (not direct Prisma)
 - All `scripts/` are TypeScript, run via `tsx`
+- Department behavior is config-driven (archetype pattern), not hardcoded orchestration logic
 
 ## Environment Variables
 
@@ -215,13 +297,13 @@ Use `<project>-<task>` format, e.g.:
 - Session: `ai-e2e`, `ai-dev`, `ai-build`
 - Log: `/tmp/ai-e2e.log`, `/tmp/ai-dev.log`
 
-### Example: running `pnpm trigger-task` for T13
+### Example: running `pnpm trigger-task`
 
 ```bash
 # Launch
 tmux new-session -d -s ai-e2e -x 220 -y 50
 tmux send-keys -t ai-e2e \
-  "cd /Users/victordozal/repos/dozal-devs/ai-employee && TUNNEL_URL=$(cat .sisyphus/evidence/task-13-ngrok-url.txt) USE_FLY_HYBRID=1 pnpm trigger-task -- --key TEST-300 2>&1 | tee /tmp/ai-e2e.log; echo 'EXIT_CODE:'$? >> /tmp/ai-e2e.log" \
+  "cd /Users/victordozal/repos/dozal-devs/ai-employee && pnpm trigger-task 2>&1 | tee /tmp/ai-e2e.log; echo 'EXIT_CODE:'$? >> /tmp/ai-e2e.log" \
   Enter
 
 # Poll 60 s later
