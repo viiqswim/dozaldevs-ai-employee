@@ -31,14 +31,20 @@ Engineering is the MVP department — fully operational. Each subsequent departm
 
 Each department is defined by a declarative **archetype config** — the orchestrator reads it and knows which webhooks to watch, which tools to provision, which knowledge base to query, and which agent runtime to spin up:
 
-| Field             | Purpose                      | Engineering Example              |
-| ----------------- | ---------------------------- | -------------------------------- |
-| `trigger_sources` | Webhook endpoints to monitor | Jira, GitHub                     |
-| `execution_tools` | Tools during execution       | Git, file editor, test runner    |
-| `knowledge_base`  | Domain knowledge sources     | Task history, codebase search    |
-| `delivery_target` | Where results go             | GitHub PR                        |
-| `risk_model`      | Approval gate config         | File-count + critical-path score |
-| `runtime`         | Agent runtime                | `opencode` (Fly.io machine)      |
+| Field              | Purpose                      | Engineering Example                                | Marketing Example                    |
+| ------------------ | ---------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `trigger_sources`  | Webhook endpoints to monitor | Jira, GitHub                                       | Meta Ads API, GoHighLevel            |
+| `triage_tools`     | Tools during triage          | Jira API, codebase search                          | Ad account API, campaign history     |
+| `execution_tools`  | Tools during execution       | Git, file editor, test runner                      | Meta Ads API, analytics query        |
+| `review_tools`     | Tools during review          | GitHub PR API, CI status                           | Performance dashboard, brand checker |
+| `knowledge_base`   | Domain knowledge sources     | pgvector embeddings, task history                  | Campaign playbooks, brand docs       |
+| `delivery_target`  | Where results go             | GitHub PR                                          | Ad platform draft                    |
+| `risk_model`       | Approval gate config         | File-count + critical-path score                   | Spend threshold + audience size      |
+| `escalation_rules` | When to involve a human      | DB migrations, auth changes                        | Budget > $500/day, new audience      |
+| `runtime`          | Agent runtime                | `opencode` (Fly.io machine)                        | `inngest` (workflow function)        |
+| `runtime_config`   | Runtime-specific settings    | `{type: "fly-machine", vm_size: "performance-2x"}` | `{type: "inngest-function", ...}`    |
+
+> **Current state**: The `departments`, `archetypes`, `knowledge_bases`, `risk_models`, `cross_dept_triggers`, and `agent_versions` tables exist in the Prisma schema and are migrated, but are **empty and unused by application code**. All event routing, webhook handling, and cost tracking are currently hardcoded to the Engineering department. Activating multi-department support requires seeding these tables and parameterizing the application code. See `docs/2026-04-14-0104-full-system-vision.md` §"What's Built vs. What's Designed" for the full gap analysis.
 
 ### Universal Task Lifecycle
 
@@ -55,6 +61,8 @@ Received → Triaging → Ready → Executing → Validating → Submitting → 
 Any state can also transition to `Cancelled`.
 
 **Engineering MVP simplification**: The gateway writes `Ready` directly (triage bypassed), PRs are reviewed manually (review agent deferred), so the active flow is: `Ready → Executing → Submitting → Done`.
+
+Full lifecycle diagram with all 15 transitions and department-specific state interpretations: `docs/2026-04-14-0104-full-system-vision.md` §"Universal Task Lifecycle"
 
 Full architecture: `docs/2026-03-22-2317-ai-employee-architecture.md`
 
