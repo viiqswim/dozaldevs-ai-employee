@@ -135,33 +135,48 @@ flowchart LR
     subgraph Shared Platform
         GW["Event Gateway"]:::service
         INN["Inngest"]:::service
-        SB[("Supabase\n+ pgvector")]:::storage
+        SB[("Supabase + pgvector")]:::storage
     end
 
     subgraph Engineering Agents
-        TRIAGE["Triage Agent\n(LLM call)"]:::service
-        EXEC["Execution Agent\n(Prometheus+Atlas\non Fly.io)"]:::service
-        REVIEW["Review Agent\n(OpenCode\non Fly.io)"]:::service
+        TRIAGE["Triage Agent — LLM call"]:::service
+        EXEC["Execution Agent — Prometheus+Atlas on Fly.io"]:::service
+        REVIEW["Review Agent — OpenCode on Fly.io"]:::service
     end
 
-    JIRA -.->|"ticket webhook"| GW
-    GH -.->|"PR webhook"| GW
-    GW ==>|"event"| INN
-    INN ==>|"triage"| TRIAGE
-    INN ==>|"execute"| EXEC
-    INN ==>|"review"| REVIEW
-    TRIAGE -->|"questions"| JIRA
-    TRIAGE -->|"context"| SB
-    EXEC -->|"PR"| GH
-    EXEC -->|"status"| SB
-    REVIEW -->|"merge"| GH
-    REVIEW -->|"risk score"| SB
-    REVIEW -.->|"escalation"| SLACK
+    JIRA -.->|"1. Ticket webhook"| GW
+    GH -.->|"1. PR webhook"| GW
+    GW ==>|"2. Normalized event"| INN
+    INN ==>|"3a. Triage"| TRIAGE
+    INN ==>|"3b. Execute"| EXEC
+    INN ==>|"3c. Review"| REVIEW
+    TRIAGE -->|"4. Clarifying questions"| JIRA
+    TRIAGE -->|"5. Context lookup"| SB
+    EXEC -->|"6. Create PR"| GH
+    EXEC -->|"7. Write status"| SB
+    REVIEW -->|"8. Merge PR"| GH
+    REVIEW -->|"9. Write risk score"| SB
+    REVIEW -.->|"10. Escalation"| SLACK
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
 ```
+
+| #   | What happens         | Details                                                                            |
+| --- | -------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Webhooks arrive      | Jira ticket events and GitHub PR events hit the Event Gateway                      |
+| 2   | Normalized event     | Gateway validates, normalizes payload, and emits a typed event to Inngest          |
+| 3a  | Triage               | Inngest dispatches to Triage Agent for new tickets requiring analysis              |
+| 3b  | Execute              | Inngest dispatches to Execution Agent for triaged tickets ready for implementation |
+| 3c  | Review               | Inngest dispatches to Review Agent for PRs awaiting validation                     |
+| 4   | Clarifying questions | Triage posts questions back to Jira when requirements are ambiguous                |
+| 5   | Context lookup       | Triage queries Supabase (pgvector embeddings + task history) for similar past work |
+| 6   | Create PR            | Execution Agent pushes branch and opens PR on GitHub                               |
+| 7   | Write status         | Execution Agent updates task state in Supabase throughout its lifecycle            |
+| 8   | Merge PR             | Review Agent merges the PR after validation passes and risk score is acceptable    |
+| 9   | Write risk score     | Review Agent persists the computed risk score (0-100) to Supabase                  |
+| 10  | Escalation           | Review Agent sends Slack notification when risk score exceeds auto-merge threshold |
 
 ### Task Lifecycle (Engineering)
 
