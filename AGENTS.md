@@ -4,51 +4,58 @@
 
 ## Platform Vision
 
-A **multi-department Digital AI Employee Platform** — deploys autonomous AI agents ("digital employees") that monitor work queues, triage incoming tasks, execute domain-specific work, and submit results for review.
+A **single-responsibility AI Employee Platform** — deploys autonomous AI agents ("digital employees"), each with one job, that monitor work queues, triage incoming tasks, execute domain-specific work, and submit results for review. Departments are organizational groupings, not architectural concepts.
 
-Every department follows the same five-step workflow:
+Every employee follows the same five-step workflow:
 
-1. **Trigger** — An event arrives from an external system (Jira ticket, ad platform alert, invoice, lead form)
-2. **Triage** — An AI agent analyzes the task, consults a knowledge base, and asks clarifying questions
-3. **Execute** — An AI agent performs the work using domain-specific tools
-4. **Review** — An AI agent validates output against acceptance criteria
+1. **Trigger** — An event arrives (webhook, cron, employee event, manual command)
+2. **Triage** — The employee analyzes the task, consults a knowledge base, and asks clarifying questions
+3. **Execute** — The employee performs the work using domain-specific tools on a Fly.io machine
+4. **Review** — Output is validated against acceptance criteria (auto or human)
 5. **Deliver** — The result is published/merged/filed and stakeholders are notified
 
-What changes between departments: **integrations** (which systems to watch), **tools** (what the agent can do), **knowledge base** (domain expertise), and **approval gates** (risk thresholds). The orchestration layer, queue infrastructure, state management, and observability are shared.
+What changes per employee: **triggers** (what starts it), **tools** (what it can do), **knowledge base** (domain expertise), **model** (which LLM to use), and **approval gates** (risk thresholds). The orchestration layer (Inngest), state management (Supabase), runtime (Fly.io), and observability are shared.
 
-### Department Roadmap
+### Employee Roadmap
 
-| Department      | Runtime                     | Status                       |
-| --------------- | --------------------------- | ---------------------------- |
-| **Engineering** | OpenCode on Fly.io / Docker | **Active — MVP operational** |
-| Paid Marketing  | Inngest workflow functions  | Designed, not built          |
-| Finance         | Inngest workflow functions  | Planned                      |
-| Sales           | Inngest workflow functions  | Planned                      |
+| Employee                         | Department  | Runtime | Status                       |
+| -------------------------------- | ----------- | ------- | ---------------------------- |
+| **Engineering - Coder**          | Engineering | Fly.io  | **Active — MVP operational** |
+| Engineering - Code Reviewer      | Engineering | Fly.io  | Designed, not built          |
+| Operations - Slack Daily Digest  | Operations  | Fly.io  | Designed (recommended next)  |
+| Operations - Jira Daily Status   | Operations  | Fly.io  | Designed                     |
+| Operations - PR Summary Bot      | Operations  | Fly.io  | Designed                     |
+| Operations - Repo Health Checker | Operations  | Fly.io  | Designed                     |
+| Marketing - Campaign Optimizer   | Marketing   | Fly.io  | Planned                      |
 
-Engineering is the MVP department — fully operational. Each subsequent department is addable by writing an archetype config (trigger sources, tools, knowledge base, risk model, runtime), not new orchestration logic.
+All employees use Fly.io machines as their runtime — no exceptions. Inngest is the orchestrator and scheduler, NOT a runtime.
 
 ### Archetype Framework
 
-Each department is defined by a declarative **archetype config** — the orchestrator reads it and knows which webhooks to watch, which tools to provision, which knowledge base to query, and which agent runtime to spin up:
+Each employee is defined by a declarative **archetype config** — the platform reads it and knows what triggers the employee, what tools it needs, what model to use, what events it emits, and how to evaluate its output:
 
-| Field              | Purpose                      | Engineering Example                                | Marketing Example                    |
-| ------------------ | ---------------------------- | -------------------------------------------------- | ------------------------------------ |
-| `trigger_sources`  | Webhook endpoints to monitor | Jira, GitHub                                       | Meta Ads API, GoHighLevel            |
-| `triage_tools`     | Tools during triage          | Jira API, codebase search                          | Ad account API, campaign history     |
-| `execution_tools`  | Tools during execution       | Git, file editor, test runner                      | Meta Ads API, analytics query        |
-| `review_tools`     | Tools during review          | GitHub PR API, CI status                           | Performance dashboard, brand checker |
-| `knowledge_base`   | Domain knowledge sources     | pgvector embeddings, task history                  | Campaign playbooks, brand docs       |
-| `delivery_target`  | Where results go             | GitHub PR                                          | Ad platform draft                    |
-| `risk_model`       | Approval gate config         | File-count + critical-path score                   | Spend threshold + audience size      |
-| `escalation_rules` | When to involve a human      | DB migrations, auth changes                        | Budget > $500/day, new audience      |
-| `runtime`          | Agent runtime                | `opencode` (Fly.io machine)                        | `inngest` (workflow function)        |
-| `runtime_config`   | Runtime-specific settings    | `{type: "fly-machine", vm_size: "performance-2x"}` | `{type: "inngest-function", ...}`    |
+| Field              | Purpose                          | Engineering - Coder                             | Ops - Slack Summarizer                        |
+| ------------------ | -------------------------------- | ----------------------------------------------- | --------------------------------------------- |
+| `department`       | Organizational grouping          | `engineering`                                   | `operations`                                  |
+| `role_name`        | What this employee does          | `coder`                                         | `slack-summarizer`                            |
+| `trigger_sources`  | What starts this employee        | Jira webhook                                    | Cron (daily 9am)                              |
+| `input_events`     | Events from other employees      | `review.changes_requested`                      | (none)                                        |
+| `output_events`    | Events this employee emits       | `pr.created`, `execution.complete`              | `summary.posted`                              |
+| `execution_tools`  | Tools available during execution | Git, file editor, test runner                   | Slack API                                     |
+| `knowledge_base`   | Domain knowledge sources         | pgvector embeddings, task history               | Channel history, past summaries               |
+| `delivery_target`  | Where results go                 | GitHub PR                                       | Slack message                                 |
+| `risk_model`       | Approval gate config             | File-count + critical-path score                | (none — auto-deliver)                         |
+| `escalation_rules` | When to involve a human          | DB migrations, auth changes                     | (none)                                        |
+| `model_config`     | LLM selection                    | `{planner: "opus-4", executor: "sonnet-4"}`     | `{primary: "haiku-4.5"}`                      |
+| `runtime_config`   | Fly.io machine settings          | `{vm_size: "performance-2x", max_duration: 90}` | `{vm_size: "shared-cpu-1x", max_duration: 5}` |
 
-> **Current state**: The `departments`, `archetypes`, `knowledge_bases`, `risk_models`, `cross_dept_triggers`, and `agent_versions` tables exist in the Prisma schema and are migrated, but are **empty and unused by application code**. All event routing, webhook handling, and cost tracking are currently hardcoded to the Engineering department. Activating multi-department support requires seeding these tables and parameterizing the application code. See `docs/2026-04-14-0104-full-system-vision.md` §"What's Built vs. What's Designed" for the full gap analysis.
+Employees collaborate via **event-based pub/sub** — each declares `input_events` and `output_events`, and the platform's event router automatically builds the routing table. Adding a new employee requires zero changes to existing employees.
+
+> **Current state**: The `departments`, `archetypes`, `knowledge_bases`, `risk_models`, `cross_dept_triggers`, and `agent_versions` tables exist in the Prisma schema and are migrated, but are **empty and unused by application code**. All event routing, webhook handling, and cost tracking are currently hardcoded to the Engineering - Coder employee. Activating multi-employee support requires seeding these tables and parameterizing the application code. See `docs/2026-04-14-0104-full-system-vision.md` §"What's Built vs. What's Designed" for the full gap analysis.
 
 ### Universal Task Lifecycle
 
-All departments share this state machine — only the transitions' internal behavior changes per archetype:
+All employees share this state machine — only the transitions' internal behavior changes per employee:
 
 ```
 Received → Triaging → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done
@@ -62,7 +69,7 @@ Any state can also transition to `Cancelled`.
 
 **Engineering MVP simplification**: The gateway writes `Ready` directly (triage bypassed), PRs are reviewed manually (review agent deferred), so the active flow is: `Ready → Executing → Submitting → Done`.
 
-Full lifecycle diagram with all 15 transitions and department-specific state interpretations: `docs/2026-04-14-0104-full-system-vision.md` §"Universal Task Lifecycle"
+Full lifecycle diagram with all 15 transitions and per-employee state interpretations: `docs/2026-04-14-0104-full-system-vision.md` §"Universal Task Lifecycle"
 
 Full architecture: `docs/2026-03-22-2317-ai-employee-architecture.md`
 
@@ -210,7 +217,7 @@ docs/            # Architecture vision, phase docs, troubleshooting
 - Inngest functions register in the gateway process (not a separate service)
 - Worker containers communicate with Supabase via PostgREST REST API (not direct Prisma)
 - All `scripts/` are TypeScript, run via `tsx`
-- Department behavior is config-driven (archetype pattern), not hardcoded orchestration logic
+- Employee behavior is config-driven (archetype pattern), not hardcoded orchestration logic
 
 ## Environment Variables
 
