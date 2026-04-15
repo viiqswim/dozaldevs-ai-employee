@@ -10,6 +10,7 @@ export interface FlyMachineConfig {
   vm_size?: string; // e.g. "performance-2x"
   env?: Record<string, string>; // env vars injected at launch
   auto_destroy?: boolean;
+  cmd?: string[]; // Optional CMD override — runs instead of Dockerfile CMD
 }
 
 export interface FlyMachine {
@@ -111,6 +112,7 @@ export async function createMachine(
       vm_size: config.vm_size,
       env: config.env,
       auto_destroy: config.auto_destroy,
+      ...(config.cmd ? { init: { cmd: config.cmd } } : {}),
     },
   };
 
