@@ -43,15 +43,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   const prisma = new PrismaClient();
   const app = express();
 
-  app.use(
-    express.json({
-      verify: (req: express.Request & { rawBody?: string }, _res, buf) => {
-        req.rawBody = buf.toString('utf8');
-      },
-    }),
-  );
-  app.use(express.urlencoded({ extended: true }));
-
   let boltApp: App | undefined;
 
   if (process.env.SLACK_SIGNING_SECRET && process.env.SLACK_BOT_TOKEN) {
@@ -61,7 +52,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     });
 
     boltApp = new App({
-      token: process.env.SLACK_BOT_TOKEN,
+      authorize: async () => ({
+        botToken: process.env.SLACK_BOT_TOKEN ?? '',
+        botId: 'LOCAL',
+        botUserId: 'LOCAL',
+      }),
       receiver,
     });
 
@@ -75,6 +70,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   } else {
     logger.warn('Slack not configured — /webhooks/slack/interactions unavailable');
   }
+
+  app.use(
+    express.json({
+      verify: (req: express.Request & { rawBody?: string }, _res, buf) => {
+        req.rawBody = buf.toString('utf8');
+      },
+    }),
+  );
+  app.use(express.urlencoded({ extended: true }));
 
   app.use(healthRoutes());
   app.use(jiraRoutes({ inngestClient: options.inngestClient, prisma }));
