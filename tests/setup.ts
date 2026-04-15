@@ -1,9 +1,11 @@
 import crypto from 'crypto';
+import * as http from 'node:http';
+import supertest from 'supertest';
+import type { Application } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 export const ADMIN_TEST_KEY = 'test-admin-key-do-not-use-in-prod';
 
-// Singleton PrismaClient for all tests
 let _prisma: PrismaClient | undefined;
 
 export function getPrisma(): PrismaClient {
@@ -16,7 +18,6 @@ export function getPrisma(): PrismaClient {
 // Clean up test-inserted data but preserve seed records
 export async function cleanupTestData(): Promise<void> {
   const prisma = getPrisma();
-  // Delete in FK-safe order
   await prisma.taskStatusLog.deleteMany({});
   await prisma.validationRun.deleteMany({});
   await prisma.deliverable.deleteMany({});
@@ -26,13 +27,11 @@ export async function cleanupTestData(): Promise<void> {
   await prisma.feedback.deleteMany({ where: { task_id: { not: null } } });
   await prisma.auditLog.deleteMany({});
   await prisma.task.deleteMany({});
-  // Preserve seed project: '00000000-0000-0000-0000-000000000003'
   await prisma.project.deleteMany({
     where: { id: { not: '00000000-0000-0000-0000-000000000003' } },
   });
 }
 
-// Disconnect after all tests
 export async function disconnectPrisma(): Promise<void> {
   if (_prisma) {
     await _prisma.$disconnect();
@@ -40,24 +39,59 @@ export async function disconnectPrisma(): Promise<void> {
   }
 }
 
-// ============================================================
-// Phase 2: Gateway Test Helpers
-// ============================================================
+export class TestApp {
+  private readonly _server: http.Server;
 
-/**
- * Compute Jira HMAC-SHA256 signature for use in tests.
- * Produces the exact format the gateway expects: "sha256=<hex>"
- */
+  constructor(private readonly _app: Application) {
+    this._server = http.createServer(_app);
+  }
+
+  async ready(): Promise<void> {}
+
+  async close(): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      if (!this._server.listening) {
+        resolve();
+        return;
+      }
+      this._server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  async inject(opts: {
+    method: string;
+    url: string;
+    headers?: Record<string, string | string[]>;
+    payload?: unknown;
+  }): Promise<{ statusCode: number; body: string }> {
+    const method = opts.method.toLowerCase() as keyof supertest.SuperTest<supertest.Test>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let req = (supertest(this._server) as any)[method](opts.url) as supertest.Test;
+
+    if (opts.headers) {
+      for (const [key, val] of Object.entries(opts.headers)) {
+        req = req.set(key, Array.isArray(val) ? val.join(', ') : val);
+      }
+    }
+
+    if (opts.payload !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      req = req.send(opts.payload as any);
+    }
+
+    const res = await req;
+    return {
+      statusCode: res.status,
+      body: res.text,
+    };
+  }
+}
+
 export function computeJiraSignature(body: string, secret: string): string {
   const hmac = crypto.createHmac('sha256', secret).update(body).digest('hex');
   return `sha256=${hmac}`;
 }
 
-/**
- * Inngest mock for tests — simple duck-typed object.
- * The gateway accepts an InngestLike object for dependency injection.
- * Always succeeds (returns a mock event ID).
- */
 export const inngestMock = {
   send: async (_event: unknown): Promise<{ ids: string[] }> => {
     return { ids: ['mock-event-id'] };
@@ -67,28 +101,21 @@ export const inngestMock = {
 export async function createTestApp(opts?: {
   inngest?: { send(event: unknown): Promise<{ ids: string[] }> };
   adminApiKey?: string;
-}) {
+}): Promise<TestApp> {
   const { buildApp } = await import('../src/gateway/server.js');
 
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
   process.env.ADMIN_API_KEY = opts?.adminApiKey ?? ADMIN_TEST_KEY;
 
-  const app = await buildApp({
+  const { app } = await buildApp({
     inngestClient: opts?.inngest ?? inngestMock,
   });
 
-  await app.ready();
-  return app;
+  return new TestApp(app);
 }
 
-// Eagerly instantiate Prisma so .env is loaded (synchronously via new PrismaClient())
-// before any test's beforeEach runs. Without this, Prisma's lazy .env loading on the
-// first query can restore env vars that a beforeEach deleted (e.g. USE_LOCAL_DOCKER).
 getPrisma()
   .$connect()
   .catch(() => {});
 
-// After .env is loaded, clear USE_LOCAL_DOCKER so all tests default to the standard
-// Fly.io dispatch path. Tests or describe blocks that specifically exercise local-docker
-// behaviour should set process.env.USE_LOCAL_DOCKER = '1' in their own beforeEach.
 delete process.env.USE_LOCAL_DOCKER;

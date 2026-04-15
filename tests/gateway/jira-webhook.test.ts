@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, afterAll, vi, beforeEach } from 'vitest';
-import type { FastifyInstance } from 'fastify';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
+  TestApp,
   createTestApp,
   computeJiraSignature,
   inngestMock,
@@ -24,7 +24,7 @@ function validHeaders(body: string, secret = SECRET) {
   };
 }
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeEach(async () => {
   app = await createTestApp({ inngest: inngestMock });

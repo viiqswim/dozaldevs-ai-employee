@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import express from 'express';
+import { TestApp } from '../setup.js';
 import { requireAdminKey } from '../../src/gateway/middleware/admin-auth.js';
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeEach(async () => {
   process.env.ADMIN_API_KEY = 'test-admin-key-x';
-  app = Fastify({ logger: false });
-  app.get('/admin/ping', { preHandler: requireAdminKey }, async (_req, reply) => {
-    return reply.send({ success: true });
+  const expressApp = express();
+  expressApp.use(express.json());
+  expressApp.get('/admin/ping', requireAdminKey, (_req, res) => {
+    res.json({ success: true });
   });
+  app = new TestApp(expressApp);
   await app.ready();
 });
 

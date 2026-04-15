@@ -1,8 +1,7 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { createTestApp, disconnectPrisma } from '../setup.js';
+import { TestApp, createTestApp, disconnectPrisma } from '../setup.js';
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -28,7 +27,6 @@ describe('/health endpoint', () => {
       method: 'GET',
       url: '/health',
     });
-    // No auth headers needed, still 200
     expect(res.statusCode).toBe(200);
   });
 
@@ -42,9 +40,8 @@ describe('/health endpoint', () => {
 
   it('buildApp() creates isolated instances', async () => {
     const { buildApp } = await import('../../src/gateway/server.js');
-    const app2 = await buildApp();
-    await app2.ready();
-    // Different instances
+    const { app: expressApp2 } = await buildApp();
+    const app2 = new TestApp(expressApp2);
     expect(app).not.toBe(app2);
     await app2.close();
   });

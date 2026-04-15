@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, afterAll, vi, beforeEach } from 'vitest';
-import type { FastifyInstance } from 'fastify';
 import {
+  TestApp,
   createTestApp,
   computeJiraSignature,
   inngestMock,
@@ -54,7 +54,7 @@ function adminHeaders() {
   };
 }
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeEach(async () => {
   app = await createTestApp({ inngest: inngestMock, adminApiKey: ADMIN_TEST_KEY });
@@ -72,7 +72,6 @@ afterAll(async () => {
 
 describe('POST /webhooks/jira — new project registration integration', () => {
   it('happy path: register project → send webhook → task created with correct project_id', async () => {
-    // Step 1: Register a new project via POST /admin/projects
     const registerRes = await app.inject({
       method: 'POST',
       url: '/admin/projects',
@@ -89,7 +88,6 @@ describe('POST /webhooks/jira — new project registration integration', () => {
     expect(newProject.id).toBeTruthy();
     expect(newProject.jira_project_key).toBe('NEWPROJ');
 
-    // Step 2: Send a Jira webhook with the new project's jira_project_key
     const body = buildJiraPayload('NEWPROJ', 'NEWPROJ-1');
     const webhookRes = await app.inject({
       method: 'POST',
@@ -103,7 +101,6 @@ describe('POST /webhooks/jira — new project registration integration', () => {
     expect(webhookJson.action).toBe('task_created');
     expect(webhookJson.taskId).toBeTruthy();
 
-    // Step 3: Assert task was created and linked to the new project
     const task = await getPrisma().task.findUnique({ where: { id: webhookJson.taskId } });
     expect(task).not.toBeNull();
     expect(task!.project_id).toBe(newProject.id);
@@ -130,8 +127,6 @@ describe('POST /webhooks/jira — new project registration integration', () => {
   });
 
   it('regression: webhook with seed project key TEST → task created with seed project_id', async () => {
-    // The seed project (key='TEST', id='00000000-0000-0000-0000-000000000003') must
-    // continue to work exactly as before — this is a regression guard.
     const body = buildJiraPayload('TEST', 'TEST-99');
     const res = await app.inject({
       method: 'POST',

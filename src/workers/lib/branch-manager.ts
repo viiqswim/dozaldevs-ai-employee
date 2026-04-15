@@ -97,7 +97,9 @@ export async function commitAndPush(
         cwd,
         timeout: GIT_TIMEOUT_MS,
       });
-    } catch (_) {}
+    } catch (_) {
+      // ignore fetch errors — remote may not exist yet; push proceeds anyway
+    }
 
     await execFileAsync('git', ['push', '--force-with-lease', 'origin', branchName], {
       cwd,

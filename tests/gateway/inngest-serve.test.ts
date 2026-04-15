@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { createTestApp, disconnectPrisma } from '../setup.js';
+import { TestApp, createTestApp, disconnectPrisma } from '../setup.js';
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeAll(async () => {
   app = await createTestApp();

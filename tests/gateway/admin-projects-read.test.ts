@@ -1,20 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
-import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
-import { getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../setup.js';
+import express from 'express';
+import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../setup.js';
 import { adminProjectRoutes } from '../../src/gateway/routes/admin-projects.js';
 
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 const NONEXISTENT_UUID = '00000000-0000-0000-0000-999999999999';
 
-let app: FastifyInstance;
+let app: TestApp;
 
 beforeEach(async () => {
   process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
-  app = Fastify({ logger: false });
-  await app.register(adminProjectRoutes, { prisma: getPrisma() });
+  const expressApp = express();
+  expressApp.use(express.json());
+  expressApp.use(adminProjectRoutes({ prisma: getPrisma() }));
+  app = new TestApp(expressApp);
   await app.ready();
 });
 

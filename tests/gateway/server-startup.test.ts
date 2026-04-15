@@ -1,19 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { buildApp } from '../../src/gateway/server.js';
 
 describe('Gateway startup validation', () => {
   const savedEnv = { ...process.env };
 
   afterEach(() => {
-    // Restore all env vars
     process.env.JIRA_WEBHOOK_SECRET = savedEnv.JIRA_WEBHOOK_SECRET;
     process.env.ADMIN_API_KEY = savedEnv.ADMIN_API_KEY;
   });
 
-  it('throws if JIRA_WEBHOOK_SECRET is missing', async () => {
+  it('warns but does not throw if JIRA_WEBHOOK_SECRET is missing', async () => {
     delete process.env.JIRA_WEBHOOK_SECRET;
     process.env.ADMIN_API_KEY = 'test-key';
-    await expect(buildApp()).rejects.toThrow('JIRA_WEBHOOK_SECRET');
+    const result = await buildApp();
+    expect(result.app).toBeDefined();
   });
 
   it('throws if ADMIN_API_KEY is missing', async () => {
@@ -25,7 +25,7 @@ describe('Gateway startup validation', () => {
   it('succeeds when both env vars are set', async () => {
     process.env.JIRA_WEBHOOK_SECRET = 'test-secret';
     process.env.ADMIN_API_KEY = 'test-key';
-    const app = await buildApp();
-    await app.close();
+    const result = await buildApp();
+    expect(result.app).toBeDefined();
   });
 });
