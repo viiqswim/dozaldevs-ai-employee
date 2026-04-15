@@ -1732,7 +1732,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 18. Verification Gate 3 — Integration Complete
+- [x] 18. Verification Gate 3 — Integration Complete
 
   **What to do**:
   - Run full verification after Wave 3:
@@ -1763,7 +1763,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 19. Full E2E Test — Cron → Machine → Summary → Approval
+- [x] 19. Full E2E Test — Cron → Machine → Summary → Approval
 
   **What to do**:
   - Start all services: Docker Compose (Supabase), Gateway, Inngest Dev Server
@@ -1846,7 +1846,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 20. AGENTS.md + Documentation Updates
+- [x] 20. AGENTS.md + Documentation Updates
 
   **What to do**:
   - Update `AGENTS.md` with:
