@@ -4,7 +4,7 @@ import type { ToolDefinition, ToolContext } from './types.js';
 interface SlackPostMessageParams {
   channel: string;
   summary_text: string;
-  stats: {
+  stats?: {
     messages: number;
     threads: number;
     participants: number;
@@ -47,7 +47,7 @@ export const slackPostMessageTool: ToolDefinition<SlackPostMessageParams, SlackP
           elements: [
             {
               type: 'mrkdwn',
-              text: `${params.stats.messages} messages · ${params.stats.threads} threads · ${params.stats.participants} participants`,
+              text: `${params.stats?.messages ?? 0} messages · ${params.stats?.threads ?? 0} threads · ${params.stats?.participants ?? 0} participants`,
             },
           ],
         },
