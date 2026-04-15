@@ -86,6 +86,8 @@ model Deliverable {
   external_ref  String?
   risk_score    Int      @default(0)
   status        String   @default("pending")
+  content       String?  @db.Text
+  metadata      Json?
   created_at    DateTime @default(now())
 
   // Relations
