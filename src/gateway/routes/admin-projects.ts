@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyPluginOptions } from 'fastify';
+import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import {
@@ -11,26 +11,25 @@ import {
 } from '../services/project-registry.js';
 import { CreateProjectSchema, UpdateProjectSchema } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
+import pino from 'pino';
 
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export interface AdminProjectRouteOptions extends FastifyPluginOptions {
+export interface AdminProjectRouteOptions {
   prisma?: PrismaClient;
 }
 
-export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = async (
-  fastify,
-  opts,
-) => {
+export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router {
+  const router = Router();
   const prisma = opts.prisma ?? new PrismaClient();
 
-  fastify.addHook('preHandler', requireAdminKey);
-
-  fastify.post('/admin/projects', async (req, reply) => {
+  router.post('/admin/projects', requireAdminKey, async (req, res) => {
     const result = CreateProjectSchema.safeParse(req.body);
     if (!result.success) {
-      return reply.code(400).send({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      return;
     }
 
     try {
@@ -39,35 +38,36 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
         tenantId: SYSTEM_TENANT_ID,
         prisma,
       });
-      return reply.code(201).send(project);
+      res.status(201).json(project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
-        return reply.code(409).send({ error: 'CONFLICT', message: err.message });
+        res.status(409).json({ error: 'CONFLICT', message: (err as Error).message });
+        return;
       }
-      req.log.error({ err }, 'Failed to create project');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      logger.error({ err }, 'Failed to create project');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
-  fastify.get('/admin/projects', async (req, reply) => {
+  router.get('/admin/projects', requireAdminKey, async (_req, res) => {
     try {
       const projects = await listProjects({
         tenantId: SYSTEM_TENANT_ID,
         prisma,
       });
-      return reply.code(200).send({ projects });
+      res.status(200).json({ projects });
     } catch (err) {
-      req.log.error({ err }, 'Failed to list projects');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      logger.error({ err }, 'Failed to list projects');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
-  fastify.get<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
-    const { id } = req.params;
+  router.get('/admin/projects/:id', requireAdminKey, async (req, res) => {
+    const id = req.params.id as string;
 
-    // Validate UUID format
     if (!UUID_REGEX.test(id)) {
-      return reply.code(400).send({ error: 'INVALID_ID' });
+      res.status(400).json({ error: 'INVALID_ID' });
+      return;
     }
 
     try {
@@ -78,27 +78,29 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
       });
 
       if (!project) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
+        res.status(404).json({ error: 'NOT_FOUND' });
+        return;
       }
 
-      return reply.code(200).send(project);
+      res.status(200).json(project);
     } catch (err) {
-      req.log.error({ err }, 'Failed to get project');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      logger.error({ err }, 'Failed to get project');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
-  fastify.patch<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
-    const { id } = req.params;
+  router.patch('/admin/projects/:id', requireAdminKey, async (req, res) => {
+    const id = req.params.id as string;
 
-    // Validate UUID format
     if (!UUID_REGEX.test(id)) {
-      return reply.code(400).send({ error: 'INVALID_ID' });
+      res.status(400).json({ error: 'INVALID_ID' });
+      return;
     }
 
     const result = UpdateProjectSchema.safeParse(req.body);
     if (!result.success) {
-      return reply.code(400).send({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      return;
     }
 
     try {
@@ -110,24 +112,27 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
       });
 
       if (!project) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
+        res.status(404).json({ error: 'NOT_FOUND' });
+        return;
       }
 
-      return reply.code(200).send(project);
+      res.status(200).json(project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
-        return reply.code(409).send({ error: 'CONFLICT', message: err.message });
+        res.status(409).json({ error: 'CONFLICT', message: (err as Error).message });
+        return;
       }
-      req.log.error({ err }, 'Failed to update project');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      logger.error({ err }, 'Failed to update project');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
-  fastify.delete<{ Params: { id: string } }>('/admin/projects/:id', async (req, reply) => {
-    const { id } = req.params;
+  router.delete('/admin/projects/:id', requireAdminKey, async (req, res) => {
+    const id = req.params.id as string;
 
     if (!UUID_REGEX.test(id)) {
-      return reply.code(400).send({ error: 'INVALID_ID' });
+      res.status(400).json({ error: 'INVALID_ID' });
+      return;
     }
 
     try {
@@ -138,21 +143,25 @@ export const adminProjectRoutes: FastifyPluginAsync<AdminProjectRouteOptions> = 
       });
 
       if (result.deleted) {
-        return reply.code(204).send();
+        res.status(204).send();
+        return;
       }
 
       if (result.reason === 'not_found') {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
+        res.status(404).json({ error: 'NOT_FOUND' });
+        return;
       }
 
-      return reply.code(409).send({
+      res.status(409).json({
         error: 'CONFLICT',
         message: 'Project has active tasks. Wait for them to complete or cancel them first.',
         activeTaskIds: result.activeTaskIds,
       });
     } catch (err) {
-      req.log.error({ err }, 'Failed to delete project');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      logger.error({ err }, 'Failed to delete project');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
-};
+
+  return router;
+}

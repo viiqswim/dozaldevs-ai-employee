@@ -1,14 +1,18 @@
 import crypto from 'node:crypto';
-import type { preHandlerHookHandler } from 'fastify';
+import pino from 'pino';
+import type { RequestHandler } from 'express';
 
-export const requireAdminKey: preHandlerHookHandler = async (request, reply) => {
-  const provided = request.headers['x-admin-key'];
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+
+export const requireAdminKey: RequestHandler = (req, res, next) => {
+  const provided = req.headers['x-admin-key'];
   const expectedKey = process.env.ADMIN_API_KEY ?? '';
 
   // Reject if header is missing, not a string, or empty
   if (typeof provided !== 'string' || provided.length === 0) {
-    request.log.warn({ url: request.url }, 'Admin auth failed');
-    return reply.status(401).send({ error: 'Unauthorized' });
+    logger.warn({ url: req.url }, 'Admin auth failed');
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   const providedBuf = Buffer.from(provided, 'utf8');
@@ -16,13 +20,17 @@ export const requireAdminKey: preHandlerHookHandler = async (request, reply) => 
 
   // Length check FIRST — timingSafeEqual throws on unequal buffer lengths
   if (providedBuf.length !== expectedBuf.length) {
-    request.log.warn({ url: request.url }, 'Admin auth failed');
-    return reply.status(401).send({ error: 'Unauthorized' });
+    logger.warn({ url: req.url }, 'Admin auth failed');
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   // Timing-safe comparison
   if (!crypto.timingSafeEqual(providedBuf, expectedBuf)) {
-    request.log.warn({ url: request.url }, 'Admin auth failed');
-    return reply.status(401).send({ error: 'Unauthorized' });
+    logger.warn({ url: req.url }, 'Admin auth failed');
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
+
+  next();
 };

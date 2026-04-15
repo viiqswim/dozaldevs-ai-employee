@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify';
-import { serve } from 'inngest/fastify';
+import { serve } from 'inngest/express';
+import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createInngestClient } from './client.js';
 import { createLifecycleFunction } from '../../inngest/lifecycle.js';
@@ -8,7 +8,8 @@ import { createWatchdogFunction } from '../../inngest/watchdog.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
-export async function inngestServeRoutes(app: FastifyInstance): Promise<void> {
+export function inngestServeRoutes(): Router {
+  const router = Router();
   const inngest = createInngestClient();
   const prisma = new PrismaClient();
   const slackClient = createSlackClient({
@@ -27,9 +28,7 @@ export async function inngestServeRoutes(app: FastifyInstance): Promise<void> {
     functions: [lifecycleFn, redispatchFn, watchdogFn],
   });
 
-  app.route({
-    method: ['GET', 'POST', 'PUT'],
-    url: '/api/inngest',
-    handler,
-  });
+  router.use(handler);
+
+  return router;
 }
