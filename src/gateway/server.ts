@@ -8,6 +8,7 @@ import { jiraRoutes } from './routes/jira.js';
 import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { inngestServeRoutes } from './inngest/serve.js';
+import { registerSlackHandlers } from './slack/handlers.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -65,6 +66,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     });
 
     app.use(receiver.router);
+
+    if (options.inngestClient) {
+      registerSlackHandlers(boltApp, options.inngestClient);
+    }
 
     logger.info('Slack Bolt initialized — /webhooks/slack/interactions available');
   } else {
