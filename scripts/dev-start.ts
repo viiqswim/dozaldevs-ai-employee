@@ -97,7 +97,7 @@ async function waitForHttp(url: string, maxWaitMs = 30_000, intervalMs = 2_000):
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     try {
-      await $`curl -sf ${url}`;
+      await $`curl -s -o /dev/null -w "%{http_code}" ${url}`;
       return true;
     } catch {
       /* not ready yet */
