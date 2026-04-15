@@ -6,6 +6,7 @@ import { createLifecycleFunction } from '../../inngest/lifecycle.js';
 import { createRedispatchFunction } from '../../inngest/redispatch.js';
 import { createWatchdogFunction } from '../../inngest/watchdog.js';
 import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycle.js';
+import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
@@ -24,10 +25,11 @@ export function inngestServeRoutes(): Router {
   const redispatchFn = createRedispatchFunction(inngest, prisma, slackClient);
   const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient);
   const employeeLifecycleFn = createEmployeeLifecycleFunction(inngest);
+  const summarizerTriggerFn = createSummarizerTrigger(inngest);
 
   const handler = serve({
     client: inngest,
-    functions: [lifecycleFn, redispatchFn, watchdogFn, employeeLifecycleFn],
+    functions: [lifecycleFn, redispatchFn, watchdogFn, employeeLifecycleFn, summarizerTriggerFn],
   });
 
   router.use(handler);
