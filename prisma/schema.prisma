@@ -196,6 +196,10 @@ model Archetype {
   agent_version_id  String?  @db.Uuid
   tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   created_at        DateTime @default(now())
+  system_prompt     String?  @db.Text
+  steps             Json?
+  model             String?
+  deliverable_type  String?
 
   // Relations
   department     Department?     @relation(fields: [department_id], references: [id])
