@@ -59,14 +59,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           auto_destroy: true,
           cmd: ['node', '/app/dist/workers/generic-harness.mjs'],
           env: {
+            ...Object.fromEntries(
+              Object.entries(process.env)
+                .filter(
+                  ([k, v]) =>
+                    v !== undefined &&
+                    !['PATH', 'HOME', 'USER', 'SHELL', 'TERM', 'TMPDIR', 'PWD'].includes(k),
+                )
+                .map(([k, v]) => [k, v as string]),
+            ),
             TASK_ID: taskId,
             SUPABASE_URL: supabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
-            SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN ?? '',
-            DAILY_SUMMARY_CHANNELS: process.env.DAILY_SUMMARY_CHANNELS ?? '',
-            SUMMARY_TARGET_CHANNEL: process.env.SUMMARY_TARGET_CHANNEL ?? '',
-            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
-            OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4-20250514',
           },
         });
 
@@ -98,6 +102,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             body: JSON.stringify({ status: 'Failed', updated_at: new Date().toISOString() }),
           });
         });
+        await step.run('cleanup', async () => {
+          try {
+            const flyApp =
+              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            await destroyMachine(flyApp, machineId as string);
+          } catch (err) {
+            log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+          }
+        });
         return;
       }
 
@@ -108,6 +121,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             headers,
             body: JSON.stringify({ status: 'Done', updated_at: new Date().toISOString() }),
           });
+        });
+        await step.run('cleanup', async () => {
+          try {
+            const flyApp =
+              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            await destroyMachine(flyApp, machineId as string);
+          } catch (err) {
+            log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+          }
         });
         return;
       }

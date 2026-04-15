@@ -53,6 +53,8 @@ interface ArchetypeRow {
   role_name?: string | null;
   steps?: unknown;
   deliverable_type?: string | null;
+  system_prompt?: string | null;
+  model?: string | null;
 }
 
 interface TaskWithArchetype {
@@ -284,10 +286,17 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    const archetypeFields: Record<string, unknown> = {
+      system_prompt: archetype.system_prompt ?? '',
+      model: archetype.model ?? '',
+      role_name: archetype.role_name ?? '',
+      deliverable_type: archetype.deliverable_type ?? '',
+    };
     const resolvedParams = resolveParams(
       step.params,
       process.env as Record<string, string>,
       previousResult,
+      archetypeFields,
     );
 
     const ctx: ToolContext = {
