@@ -294,6 +294,85 @@ The employee itself doesn't know it's on a schedule. It gets provisioned, does i
 
 ---
 
+## Integration Map (External Systems)
+
+The platform integrates with external systems for receiving work, delivering results, and supporting execution. When adding a new employee, check this map first — if the integration already exists, you reuse it.
+
+| System     | Direction      | Mechanism              | Used By                                            | What Flows                                                         |
+| ---------- | -------------- | ---------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
+| Jira       | Input          | Webhook                | Engineering - Coder                                | Ticket payloads (created, updated)                                 |
+| GitHub     | Input + Output | Webhook + REST API     | Coder, Code Reviewer, Pull Request Summary Bot     | Webhooks in (pull request events); pull requests + comments out    |
+| Slack      | Input + Output | Events API + Web API   | All employees                                      | Feedback, @mentions, approvals in; deliverables, notifications out |
+| OpenRouter | Output         | REST API               | All employees                                      | LLM inference requests                                             |
+| Supabase   | Internal       | PostgREST              | All employees                                      | Task state, execution history, feedback, knowledge base            |
+| Fly.io     | Internal       | Machines API           | Platform (provisions on behalf of all employees)   | Machine lifecycle (create, monitor, destroy)                       |
+| Inngest    | Internal       | Event-driven functions | Platform (orchestrates on behalf of all employees) | Event routing, cron scheduling, durable execution                  |
+
+**Bidirectional systems** (Slack, GitHub) serve as both input sources and output sinks. A single integration handles both directions — no separate "read" and "write" configurations.
+
+### Tool Access Model (How Employees Use Integrations)
+
+Employees interact with external systems via **shell commands** — either existing third-party CLIs or simple platform-built scripts. All tools are pre-installed in the base Docker image so every employee has them available. Credentials are injected as environment variables at machine provisioning time.
+
+**Why shell commands, not MCP servers**: MCP (Model Context Protocol) servers inject full tool schemas into the LLM context window on every turn. A typical setup (GitHub + Slack + Jira MCP servers) consumes ~55,000 tokens — 27% of a 200K context window — before the agent reads a single line of code. Shell commands consume ~0 tokens of context. The agent calls a command, gets text output on stdout. Benchmarks show MCP uses 4-32x more tokens per task than equivalent shell operations.
+
+**Decision framework for adding a new integration**:
+
+1. **Check if a mature CLI exists** (official or well-maintained community tool). If yes → pre-install it in the Docker image. Done.
+2. **If no suitable CLI exists** → build simple scripts under `src/worker-tools/{service}/`. One script per operation — no CLI frameworks, no subcommand routing. Each script imports from the platform's existing shared client (`src/lib/`), reads arguments, calls the API, prints the result to stdout, and exits.
+
+**Current integration tool map**:
+
+| Integration | Tool                          | Type             | Rationale                                                                        |
+| ----------- | ----------------------------- | ---------------- | -------------------------------------------------------------------------------- |
+| GitHub      | `gh`                          | Existing CLI     | Official GitHub CLI — full API coverage, excellent documentation, battle-tested  |
+| Jira        | `src/worker-tools/jira/*.ts`  | Platform scripts | No official Atlassian CLI — thin scripts wrapping the platform's Jira client     |
+| Slack       | `src/worker-tools/slack/*.ts` | Platform scripts | No general-purpose Slack CLI — thin scripts wrapping the platform's Slack client |
+| Supabase    | PostgREST via REST            | Direct API calls | Workers already use `curl`/`fetch` against PostgREST — no scripts needed         |
+
+```bash
+# Existing CLI — use directly
+gh pr create --title "Fix auth bug" --body "..."
+gh issue list --state open --json number,title
+
+# Platform scripts — one per operation, minimal code
+node /tools/slack/post-message.js --channel "#engineering-ai" --text "Pull request ready for review"
+node /tools/slack/read-channels.js --channels "#general,#engineering" --since "24h"
+node /tools/jira/get-ticket.js --key "ENG-123"
+node /tools/jira/add-comment.js --key "ENG-123" --body "Pull request opened: [link]"
+```
+
+The directory structure is the discovery mechanism — the agent can list `/tools/slack/` to see available operations. Each script is a few dozen lines importing from the platform's shared client libraries.
+
+```
+src/worker-tools/
+├── slack/
+│   ├── post-message.ts
+│   └── read-channels.ts
+├── jira/
+│   ├── get-ticket.ts
+│   └── add-comment.ts
+```
+
+Scripts are compiled during Docker image build and copied to `/tools/` inside the container. The platform maintains the integration code once; employees consume it as shell commands.
+
+### Credentials & Multi-Tenancy
+
+Credentials for external systems (API tokens, OAuth tokens) are managed as **environment variables per tenant**. At machine provisioning time, the lifecycle function looks up the tenant and injects the correct set of credentials into the Fly.io machine.
+
+| What                     | MVP (1-2 known tenants)                                           | Scale Path (self-serve tenants)                                                                           |
+| ------------------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Storage**              | Environment variable sets per tenant (config, not infrastructure) | `tenant_integrations` table with application-level encryption, or a managed integration layer (see below) |
+| **Injection**            | All available credentials injected into every employee's machine  | Filtered by `execution_tools` — employee only gets what it needs                                          |
+| **Management**           | Direct config                                                     | `POST /admin/integrations` API or managed layer                                                           |
+| **Employee code change** | None — reads environment variables                                | None — still reads environment variables                                                                  |
+
+The employee never knows where credentials came from. It reads `GITHUB_TOKEN`, `SLACK_BOT_TOKEN`, `JIRA_API_TOKEN` from its environment and calls commands. The provisioning layer handles everything.
+
+**Scale path — managed integration layers**: When the number of tenants or integrations makes self-managed OAuth untenable (tenants self-serve, connect their own Slack workspaces and GitHub organizations), the platform can adopt a managed integration layer such as [Composio](https://composio.dev) or [Nango](https://nango.dev) (open-source, self-hostable). These handle credential lifecycle (OAuth flows, token refresh, per-tenant isolation) while the employee-side interface stays the same — scripts reading environment variables. The swap happens in the provisioning layer only.
+
+---
+
 ## Employee Capabilities
 
 Every employee gets these capabilities from the platform — no per-employee setup required.
@@ -785,17 +864,16 @@ Different employees need different LLM qualities. These are the dimensions that 
 
 The platform uses **two models only**: MiniMax M2.7 (primary) and Haiku 4.5 (lightweight verifier sub-role).
 
-| Employee Role            | Model        | Rationale                                                                |
-| ------------------------ | ------------ | ------------------------------------------------------------------------ |
-| Code execution (agentic) | MiniMax M2.7 | Close to Opus-level reasoning at ~17x lower cost ($0.30/$1.20 vs $5/$25) |
-| Plan verification        | MiniMax M2.7 | Instruction following is critical — plans must be 100% accurate          |
-| Summarization            | MiniMax M2.7 | Consistent model across all employees                                    |
-| Code review              | MiniMax M2.7 | Strong reasoning at fraction of Sonnet/Opus cost                         |
-| Long-context analysis    | MiniMax M2.7 | 200K context window handles most workloads                               |
-| All other roles          | MiniMax M2.7 | Default for every employee — no exceptions                               |
-| Verifier sub-role        | Haiku 4.5    | Lightweight plan judge only; never a primary employee model              |
+| Employee Role            | Model        | Rationale                                                                  |
+| ------------------------ | ------------ | -------------------------------------------------------------------------- |
+| Code execution (agentic) | MiniMax M2.7 | Close to Opus-level reasoning at ~17x lower cost ($0.30/$1.20 vs $5/$25)   |
+| Plan verification        | Haiku 4.5    | Strong instruction following ensures plans are verified with 100% accuracy |
+| Summarization            | MiniMax M2.7 | Consistent model across all employees                                      |
+| Code review              | MiniMax M2.7 | Strong reasoning at fraction of Sonnet/Opus cost                           |
+| Long-context analysis    | MiniMax M2.7 | 200K context window handles most workloads                                 |
+| All other roles          | MiniMax M2.7 | Default for every employee — no exceptions                                 |
 
-> **Cost policy**: Claude Sonnet and Opus are too expensive for production workloads. **MiniMax M2.7 is the default model for all employees** — no exceptions. Instruction following is critical (plans must be verified with 100% accuracy), and M2.7 provides the best cost-to-capability ratio across the board. Haiku 4.5 is the verifier sub-role (e.g., plan judge) only — never a primary employee model.
+> **Cost policy**: Claude Sonnet and Opus are too expensive for production workloads. **MiniMax M2.7 is the default primary model for all employees** — best cost-to-capability ratio for general reasoning across the board. **Haiku 4.5 is the plan verification model** — its strong instruction following ensures plans are verified with 100% accuracy before execution begins. Haiku is never a primary employee model; it only serves the verifier role.
 
 ### Benchmark Deep Dive: MiniMax vs Claude
 
@@ -809,7 +887,7 @@ The platform uses **two models only**: MiniMax M2.7 (primary) and Haiku 4.5 (lig
 | Cost (in/out per 1M)  | $0.30/$1.20  | **$0.15/$1.20**         | $0.40/$2.20      | $1.00/$5.00     | $3.00/$15.00 | $5.00/$25.00 |
 | Factuality (SimpleQA) | Unknown      | Unknown                 | **18.5% (weak)** | ~50%+           | ~55%+        | ~60%+        |
 
-**Key takeaway**: MiniMax M2.7 is the default model for every employee. It approaches Opus-level capability at a fraction of the cost, and instruction following is paramount — plans must be verified with 100% accuracy. The platform's `model_config` field allows per-employee overrides, but M2.7 is the starting point. Sonnet/Opus are not recommended due to cost.
+**Key takeaway**: MiniMax M2.7 is the default primary model for every employee — it approaches Opus-level general reasoning at a fraction of the cost. Haiku 4.5 handles plan verification where instruction following is paramount — plans must be verified with 100% accuracy. The platform's `model_config` field allows per-employee overrides, but this two-model split (M2.7 primary + Haiku verifier) is the starting point. Sonnet/Opus are not recommended due to cost.
 
 ### Where to Track Benchmarks
 
