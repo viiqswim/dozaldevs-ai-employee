@@ -18,15 +18,15 @@ What changes per employee: **triggers** (what starts it), **tools** (what it can
 
 ### Employee Roadmap
 
-| Employee                         | Department  | Runtime | Status                       |
-| -------------------------------- | ----------- | ------- | ---------------------------- |
-| **Engineering - Coder**          | Engineering | Fly.io  | **Active — MVP operational** |
-| Engineering - Code Reviewer      | Engineering | Fly.io  | Designed, not built          |
-| Operations - Slack Daily Digest  | Operations  | Fly.io  | Designed (recommended next)  |
-| Operations - Jira Daily Status   | Operations  | Fly.io  | Designed                     |
-| Operations - PR Summary Bot      | Operations  | Fly.io  | Designed                     |
-| Operations - Repo Health Checker | Operations  | Fly.io  | Designed                     |
-| Marketing - Campaign Optimizer   | Marketing   | Fly.io  | Planned                      |
+| Employee                              | Department  | Runtime | Status                       |
+| ------------------------------------- | ----------- | ------- | ---------------------------- |
+| **Engineering - Coder**               | Engineering | Fly.io  | **Active — MVP operational** |
+| Engineering - Code Reviewer           | Engineering | Fly.io  | Designed, not built          |
+| Operations - Slack Daily Digest       | Operations  | Fly.io  | Designed (recommended next)  |
+| Operations - Jira Daily Status        | Operations  | Fly.io  | Designed                     |
+| Operations - Pull Request Summary Bot | Operations  | Fly.io  | Designed                     |
+| Operations - Repo Health Checker      | Operations  | Fly.io  | Designed                     |
+| Marketing - Campaign Optimizer        | Marketing   | Fly.io  | Planned                      |
 
 All employees use Fly.io machines as their runtime — no exceptions. Inngest is the orchestrator and scheduler, NOT a runtime.
 
@@ -34,20 +34,24 @@ All employees use Fly.io machines as their runtime — no exceptions. Inngest is
 
 Each employee is defined by a declarative **archetype config** — the platform reads it and knows what triggers the employee, what tools it needs, what model to use, what events it emits, and how to evaluate its output:
 
-| Field              | Purpose                          | Engineering - Coder                             | Ops - Slack Summarizer                        |
-| ------------------ | -------------------------------- | ----------------------------------------------- | --------------------------------------------- |
-| `department`       | Organizational grouping          | `engineering`                                   | `operations`                                  |
-| `role_name`        | What this employee does          | `coder`                                         | `slack-summarizer`                            |
-| `trigger_sources`  | What starts this employee        | Jira webhook                                    | Cron (daily 9am)                              |
-| `input_events`     | Events from other employees      | `review.changes_requested`                      | (none)                                        |
-| `output_events`    | Events this employee emits       | `pr.created`, `execution.complete`              | `summary.posted`                              |
-| `execution_tools`  | Tools available during execution | Git, file editor, test runner                   | Slack API                                     |
-| `knowledge_base`   | Domain knowledge sources         | pgvector embeddings, task history               | Channel history, past summaries               |
-| `delivery_target`  | Where results go                 | GitHub PR                                       | Slack message                                 |
-| `risk_model`       | Approval gate config             | File-count + critical-path score                | (none — auto-deliver)                         |
-| `escalation_rules` | When to involve a human          | DB migrations, auth changes                     | (none)                                        |
-| `model_config`     | LLM selection                    | `{planner: "opus-4", executor: "sonnet-4"}`     | `{primary: "haiku-4.5"}`                      |
-| `runtime_config`   | Fly.io machine settings          | `{vm_size: "performance-2x", max_duration: 90}` | `{vm_size: "shared-cpu-1x", max_duration: 5}` |
+| Field                  | Purpose                          | Engineering - Coder                                           | Ops - Slack Summarizer                                        |
+| ---------------------- | -------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| `department`           | Organizational grouping          | `engineering`                                                 | `operations`                                                  |
+| `role_name`            | What this employee does          | `coder`                                                       | `slack-summarizer`                                            |
+| `trigger_sources`      | What starts this employee        | Jira webhook                                                  | Cron (daily 9am)                                              |
+| `input_events`         | Events from other employees      | `review.changes_requested`                                    | (none)                                                        |
+| `output_events`        | Events this employee emits       | `pull_request.created`, `execution.complete`                  | `summary.posted`                                              |
+| `execution_tools`      | Tools available during execution | Git, file editor, test runner                                 | Slack API                                                     |
+| `knowledge_base`       | Domain knowledge sources         | pgvector embeddings, task history                             | Channel history, past summaries                               |
+| `delivery_target`      | Where results go                 | GitHub pull request                                           | Slack message                                                 |
+| `risk_model`           | Review prioritization score      | File-count + critical-path score                              | (none — low-stakes, still reviewed in supervised mode)        |
+| `escalation_rules`     | When to involve a human          | database migrations, auth changes                             | (none)                                                        |
+| `model_config`         | LLM selection                    | `{primary: "minimax-m2.7", verifier: "haiku-4.5"}`            | `{primary: "minimax-m2.7"}`                                   |
+| `runtime_config`       | Fly.io machine settings          | `{vm_size: "performance-2x", max_duration: 90}`               | `{vm_size: "shared-cpu-1x", max_duration: 5}`                 |
+| `operating_mode`       | `supervised` or `autonomous`     | `supervised`                                                  | `supervised`                                                  |
+| `confidence_threshold` | Autonomous escalation threshold  | `0.8`                                                         | `0.5`                                                         |
+| `promotion_criteria`   | Graduation thresholds            | `{min_approval_rate: 0.9, min_consecutive: 10, min_weeks: 4}` | `{min_approval_rate: 0.85, min_consecutive: 5, min_weeks: 2}` |
+| `slack_channel`        | Deliverables + feedback channel  | `#engineering-ai`                                             | `#daily-digest`                                               |
 
 Employees collaborate via **event-based pub/sub** — each declares `input_events` and `output_events`, and the platform's event router automatically builds the routing table. Adding a new employee requires zero changes to existing employees.
 
@@ -101,7 +105,7 @@ flowchart TD
 
 Any state can also transition to `Cancelled`.
 
-**Engineering MVP simplification**: The gateway writes `Ready` directly (triage bypassed), PRs are reviewed manually (review agent deferred), so the active flow is: `Ready → Executing → Submitting → Done`.
+**Engineering MVP simplification**: The gateway writes `Ready` directly (triage bypassed), pull requests are reviewed manually (review agent deferred), so the active flow is: `Ready → Executing → Submitting → Done`.
 
 Full lifecycle diagram with all 15 transitions and per-employee state interpretations: `docs/2026-04-14-0104-full-system-vision.md` §"Universal Task Lifecycle"
 
@@ -109,7 +113,7 @@ Full architecture: `docs/2026-03-22-2317-ai-employee-architecture.md`
 
 ## Current Implementation (Engineering MVP)
 
-The Engineering department is live: receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode (AI coding agent), delivers a GitHub PR.
+The Engineering department is live: receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode (AI coding agent), delivers a GitHub pull request.
 
 **Stack**: TypeScript · Fastify · Inngest · Prisma · Docker · Supabase (PostgREST)
 
@@ -125,7 +129,7 @@ The Engineering department is live: receives Jira tickets via webhook, spawns a 
 ### What's Deferred
 
 - **Triage Agent** — raw Jira payload passed directly to execution (no triage step yet)
-- **Review Agent** — PRs reviewed manually by developer (no AI review yet)
+- **Review Agent** — Pull requests reviewed manually by developer (no AI review yet)
 - **Knowledge Base** — no pgvector embeddings; SQL task history + OpenCode native search only
 - **Paid Marketing Department** — archetype designed, not implemented
 - **Cross-Department Workflows** — event contract designed, wiring deferred
@@ -252,6 +256,7 @@ docs/            # Architecture vision, phase docs, troubleshooting
 - Worker containers communicate with Supabase via PostgREST REST API (not direct Prisma)
 - All `scripts/` are TypeScript, run via `tsx`
 - Employee behavior is config-driven (archetype pattern), not hardcoded orchestration logic
+- **Multi-tenancy is mandatory** — every table, registry, catalog, and query must be scoped by `tenant_id`. One tenant's employees, events, and data must never be visible to another tenant. When adding any new data structure, always ask: "Is this tenant-isolated?" If not, it's a bug. See `docs/2026-04-14-0104-full-system-vision.md` §"Multi-Tenancy" for the full design rule
 
 ## Environment Variables
 
