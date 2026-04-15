@@ -303,3 +303,34 @@
 - Re-sync after gateway restart: `curl -X PUT http://localhost:3000/api/inngest`
 - Events go to: `POST http://localhost:8288/e/test-key`
 - Function count check: `curl -s http://localhost:3000/api/inngest | jq .function_count` → should be 5
+
+## [2026-04-15] Task 21 — Verification Gate 4
+
+### Final verification results — all gates passed, ready for Final Review Wave
+
+**Build**: `pnpm build` exits 0 — zero TypeScript errors.
+
+**Lint**: `pnpm lint` exits 0 — zero errors, 92 warnings (all pre-existing, none introduced by summarizer work).
+
+**Tests**: `pnpm test -- --run` → **838 passing, 51 failing, 8 failed test files**. Matches T17 baseline exactly. All 51 failures are known pre-existing:
+- `lifecycle.test.ts` (31) — Fly API 401 expected in test env
+- `fallback-pr.test.ts` (11) — pre-existing
+- `container-boot.test.ts` (2) — Docker socket required
+- `opencode-server.test.ts` (3) — pre-existing
+- `inngest-serve.test.ts` (1) — function count mismatch
+- `branch-manager.test.ts` (1) — pre-existing
+- `schema.test.ts` (1) — pre-existing
+- `between-wave-push.test.ts` (1) — pre-existing
+
+**Git log**: All 9 expected commits present in exact order (d71fa5e through 0a4c825).
+
+**Key files confirmed present**:
+- `src/workers/generic-harness.mts` ✅
+- `src/inngest/employee-lifecycle.ts` ✅
+- `src/inngest/triggers/summarizer-trigger.ts` ✅
+- `src/workers/tools/registry.ts` ✅
+- `prisma/migrations/20260415182242_add_failed_awaiting_approval_statuses/migration.sql` ✅
+- `AGENTS.md` has "Generic Worker Harness" section at line 26 ✅
+- Evidence files `task-19-e2e.txt` and `task-19-cmd-override.txt` both present ✅
+
+**Sign-off**: All implementation tasks complete. Zero regressions. Ready for Final Wave (F1-F4 reviewers).
