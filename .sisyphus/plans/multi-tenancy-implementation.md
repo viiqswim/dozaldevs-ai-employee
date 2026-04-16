@@ -1887,7 +1887,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: `scripts/verify-multi-tenancy.ts`, `package.json`
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 21. **Tenant-aware Jira webhook handler**
+- [x] 21. **Tenant-aware Jira webhook handler**
 
   **What to do**:
   - Refactor `src/gateway/routes/jira.ts` so HMAC verification uses the **per-tenant** `JIRA_WEBHOOK_SECRET` instead of the platform-wide `process.env.JIRA_WEBHOOK_SECRET`.
@@ -2033,7 +2033,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: `src/gateway/routes/jira.ts`, `tests/gateway/routes/jira.test.ts`
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run tests/gateway/routes/jira.test.ts`
 
-- [ ] 22. **Engineering lifecycle: inject tenant-scoped env into worker**
+- [x] 22. **Engineering lifecycle: inject tenant-scoped env into worker**
 
   **What to do**:
   - Refactor `src/inngest/lifecycle.ts` (the **engineering** lifecycle, NOT `employee-lifecycle.ts`) to load tenant-scoped environment variables before dispatching the Fly.io machine.

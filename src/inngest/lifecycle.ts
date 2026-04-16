@@ -6,6 +6,9 @@ import { createMachine, destroyMachine } from '../lib/fly-client.js';
 import { getTunnelUrl } from '../lib/tunnel-client.js';
 import { pollForCompletion } from './lib/poll-completion.js';
 import { createLogger } from '../lib/logger.js';
+import { TenantRepository } from '../gateway/services/tenant-repository.js';
+import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
+import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
 
 const log = createLogger('lifecycle');
 
@@ -94,6 +97,24 @@ export function createLifecycleFunction(
       });
       if (!costCheckPassed) return;
 
+      const tenantEnv = await step.run('load-tenant-env', async () => {
+        const task = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { tenant_id: true },
+        });
+        const tenantId = task?.tenant_id;
+        if (!tenantId) {
+          throw new NonRetriableError(
+            `Cannot dispatch engineering worker: task.tenant_id is required for task ${taskId}`,
+          );
+        }
+        const tenantRepo = new TenantRepository(prisma);
+        const secretRepo = new TenantSecretRepository(prisma);
+        return loadTenantEnv(tenantId, { tenantRepo, secretRepo });
+      });
+
+      const resolvedTenantEnv = tenantEnv as Record<string, string>;
+
       if (useFlyHybrid === '1' && useLocalDocker !== '1') {
         const hybridMachine = await step.run('hybrid-spawn', async () => {
           let tunnelUrl: string;
@@ -161,8 +182,12 @@ export function createLifecycleFunction(
                     REPO_BRANCH: hybridRepoBranch ?? 'main',
                     SUPABASE_URL: tunnelUrl,
                     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
-                    GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
-                    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+                    GITHUB_TOKEN:
+                      resolvedTenantEnv['GITHUB_TOKEN'] ?? process.env.GITHUB_TOKEN ?? '',
+                    OPENROUTER_API_KEY:
+                      resolvedTenantEnv['OPENROUTER_API_KEY'] ??
+                      process.env.OPENROUTER_API_KEY ??
+                      '',
                     OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
                     PLAN_VERIFIER_MODEL: process.env.PLAN_VERIFIER_MODEL ?? '',
                   },
@@ -272,8 +297,8 @@ export function createLifecycleFunction(
             `-e EXECUTION_ID="${executionId}"`,
             `-e SUPABASE_URL="${process.env.SUPABASE_URL ?? 'http://localhost:54321'}"`,
             `-e SUPABASE_SECRET_KEY="${process.env.SUPABASE_SECRET_KEY ?? ''}"`,
-            `-e GITHUB_TOKEN="${process.env.GITHUB_TOKEN ?? ''}"`,
-            `-e OPENROUTER_API_KEY="${process.env.OPENROUTER_API_KEY ?? ''}"`,
+            `-e GITHUB_TOKEN="${resolvedTenantEnv['GITHUB_TOKEN'] ?? process.env.GITHUB_TOKEN ?? ''}"`,
+            `-e OPENROUTER_API_KEY="${resolvedTenantEnv['OPENROUTER_API_KEY'] ?? process.env.OPENROUTER_API_KEY ?? ''}"`,
             `-e OPENROUTER_MODEL="${process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7'}"`,
             `-e PLAN_VERIFIER_MODEL="${process.env.PLAN_VERIFIER_MODEL ?? ''}"`,
             `-e INNGEST_EVENT_KEY="${process.env.INNGEST_EVENT_KEY ?? 'local'}"`,
@@ -340,8 +365,9 @@ export function createLifecycleFunction(
           REPO_BRANCH: repoBranch ?? 'main',
           SUPABASE_URL: process.env.SUPABASE_URL ?? '',
           SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
-          GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? '',
-          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
+          GITHUB_TOKEN: resolvedTenantEnv['GITHUB_TOKEN'] ?? process.env.GITHUB_TOKEN ?? '',
+          OPENROUTER_API_KEY:
+            resolvedTenantEnv['OPENROUTER_API_KEY'] ?? process.env.OPENROUTER_API_KEY ?? '',
           OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? 'minimax/minimax-m2.7',
           PLAN_VERIFIER_MODEL: process.env.PLAN_VERIFIER_MODEL ?? '',
         };
