@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
-import type { InngestLike } from '../server.js';
+import type { InngestLike } from '../types.js';
 
 export interface DispatchEmployeeParams {
   tenantId: string;

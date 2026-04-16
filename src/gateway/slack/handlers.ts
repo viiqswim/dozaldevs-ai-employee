@@ -1,15 +1,8 @@
 import type { App } from '@slack/bolt';
+import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('slack-handlers');
-
-interface InngestLike {
-  send(event: {
-    name: string;
-    data: Record<string, unknown>;
-    id?: string;
-  }): Promise<{ ids: string[] }>;
-}
 
 export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void {
   boltApp.action('approve', async ({ ack, body }) => {

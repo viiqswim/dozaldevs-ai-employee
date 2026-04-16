@@ -5,7 +5,7 @@ import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TriggerEmployeeParamsSchema, TriggerEmployeeQuerySchema } from '../validation/schemas.js';
 import { dispatchEmployee } from '../services/employee-dispatcher.js';
 import { createInngestClient } from '../inngest/client.js';
-import type { InngestLike } from '../server.js';
+import type { InngestLike } from '../types.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
