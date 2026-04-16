@@ -17,9 +17,9 @@ Two employees are live:
 1. **Engineering** — receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode (AI coding agent), delivers a GitHub pull request.
 2. **Summarizer (Papi Chulo)** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
 
-**Stack**: TypeScript · Fastify · Inngest · Prisma · Docker · Supabase (PostgREST)
+**Stack**: TypeScript · Express · Inngest · Prisma · Docker · Supabase (PostgREST)
 
-**What's built**: Event Gateway (Fastify), Inngest lifecycle functions, OpenCode-based worker (Docker/Fly.io), generic worker harness, tool registry, Supabase state management, Admin API (`/admin/projects`), Slack integration (webhooks + interactive buttons).
+**What's built**: Event Gateway (Express), Inngest lifecycle functions, OpenCode-based worker (Docker/Fly.io), generic worker harness, tool registry, Supabase state management, Admin API (`/admin/projects`, tenant-scoped `/admin/tenants` trigger + status endpoints), Slack integration (webhooks + interactive buttons).
 
 **What's deferred**: Triage agent, review agent, knowledge base (pgvector).
 
@@ -75,6 +75,14 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:3000/admin/tenan
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
+## Pre-existing Test Failures
+
+Do NOT attempt to fix these — they are unrelated to any recent changes:
+
+- `container-boot.test.ts` — requires Docker socket; always fails in CI without Docker
+- `inngest-serve.test.ts` — function count check expects an old count; stale test
+- `tests/inngest/integration.test.ts` — uses Fastify-specific API (`inject`, `ready`, `close`) that no longer exists after Express migration; stale test
+
 ## Database
 
 - **Name**: `ai_employee` (NOT `postgres` — the CLI default)
@@ -98,7 +106,7 @@ For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm f
 
 ```
 src/
-├── gateway/     # Fastify HTTP server — webhook receiver + Inngest function host
+├── gateway/     # Express HTTP server — webhook receiver + Inngest function host
 ├── inngest/     # Durable workflow functions: lifecycle, watchdog, redispatch
 ├── workers/     # Docker container code — runs inside the worker machine
 └── lib/         # Shared: fly-client, github-client, slack-client, jira-client, logger, retry, errors
@@ -116,6 +124,7 @@ docs/            # Architecture vision, phase docs, troubleshooting
 - All `scripts/` are TypeScript, run via `tsx`
 - Employee behavior is config-driven (archetype pattern), not hardcoded orchestration logic
 - **Multi-tenancy is mandatory** — every table, registry, catalog, and query must be scoped by `tenant_id`. When adding any new data structure, ask: "Is this tenant-isolated?" If not, it's a bug.
+- **Zod v4 UUID validation**: `z.string().uuid()` rejects the system tenant UUID (`00000000-0000-0000-0000-000000000001`) — it enforces RFC 4122 version/variant bits. Use the loose `UUID_REGEX` in `src/gateway/validation/schemas.ts` for any route param that accepts tenant or task UUIDs.
 
 ## Environment Variables
 
@@ -162,7 +171,7 @@ Session naming: `ai-e2e`, `ai-dev`, `ai-build`. Log files: `/tmp/ai-e2e.log`, et
 
 ## Known Issues
 
-### 6. ngrok free tier doesn't work with Fly.io
+### 1. ngrok free tier doesn't work with Fly.io
 
 Cloudflare Tunnel is the permanent solution for hybrid mode.
 

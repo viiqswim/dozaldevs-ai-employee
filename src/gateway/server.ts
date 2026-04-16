@@ -15,13 +15,8 @@ import { createFilteredBoltLogger } from './slack-logger.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
-export interface InngestLike {
-  send(event: {
-    name: string;
-    data: Record<string, unknown>;
-    id?: string;
-  }): Promise<{ ids: string[] }>;
-}
+export type { InngestLike } from './types.js';
+import type { InngestLike } from './types.js';
 
 export interface BuildAppOptions {
   inngestClient?: InngestLike;

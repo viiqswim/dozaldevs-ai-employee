@@ -1,4 +1,4 @@
-import type { InngestLike } from '../server.js';
+import type { InngestLike } from '../types.js';
 
 export interface SendEventResult {
   success: boolean;
