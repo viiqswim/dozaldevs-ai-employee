@@ -5,15 +5,15 @@ import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { createLifecycleFunction } from '../../src/inngest/lifecycle.js';
 import { createMachine, destroyMachine } from '../../src/lib/fly-client.js';
 import type { SlackClient } from '../../src/lib/slack-client.js';
-import { getNgrokTunnelUrl } from '../../src/lib/ngrok-client.js';
+import { getTunnelUrl } from '../../src/lib/tunnel-client.js';
 import { pollForCompletion } from '../../src/inngest/lib/poll-completion.js';
 
 vi.mock('../../src/lib/fly-client.js', () => ({
   createMachine: vi.fn(),
   destroyMachine: vi.fn(),
 }));
-vi.mock('../../src/lib/ngrok-client.js', () => ({
-  getNgrokTunnelUrl: vi.fn(),
+vi.mock('../../src/lib/tunnel-client.js', () => ({
+  getTunnelUrl: vi.fn(),
 }));
 vi.mock('../../src/inngest/lib/poll-completion.js', () => ({
   pollForCompletion: vi.fn(),
@@ -754,7 +754,7 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
     delete process.env.USE_LOCAL_DOCKER;
     vi.mocked(createMachine).mockResolvedValue({ id: 'fly-machine-123', state: 'started' });
     vi.mocked(destroyMachine).mockResolvedValue(undefined);
-    vi.mocked(getNgrokTunnelUrl).mockResolvedValue('https://abc123.ngrok-free.app');
+    vi.mocked(getTunnelUrl).mockResolvedValue('https://abc123.trycloudflare.com');
     vi.mocked(pollForCompletion).mockResolvedValue({ completed: true, finalStatus: 'Submitting' });
   });
 
@@ -762,7 +762,6 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
     delete process.env.USE_FLY_HYBRID;
     delete process.env.USE_LOCAL_DOCKER;
     delete process.env.FLY_HYBRID_POLL_MAX;
-    delete process.env.NGROK_AGENT_URL;
     delete process.env.SUPABASE_SECRET_KEY;
   });
 
@@ -777,14 +776,14 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
     });
   }
 
-  it('happy path: calls getNgrokTunnelUrl, createMachine, pollForCompletion, destroyMachine in order', async () => {
+  it('happy path: calls getTunnelUrl, createMachine, pollForCompletion, destroyMachine in order', async () => {
     const task = await createTestTask({ status: 'Ready' });
     await createTestExecution(task.id);
 
     const { error } = await makeEngineHybrid().execute({ events: makeEvent(task.id) });
 
     expect(error).toBeUndefined();
-    expect(vi.mocked(getNgrokTunnelUrl)).toHaveBeenCalled();
+    expect(vi.mocked(getTunnelUrl)).toHaveBeenCalled();
     expect(vi.mocked(createMachine)).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ restart: { policy: 'no' } }),
@@ -809,7 +808,7 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
 
     expect(env).toMatchObject({
       TASK_ID: task.id,
-      SUPABASE_URL: 'https://abc123.ngrok-free.app',
+      SUPABASE_URL: 'https://abc123.trycloudflare.com',
       SUPABASE_SECRET_KEY: 'test-skey',
     });
     expect(env).not.toHaveProperty('INNGEST_BASE_URL');
@@ -830,8 +829,8 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
     expect(machineConfig.auto_destroy).toBeUndefined();
   });
 
-  it('pre-flight ngrok failure: does NOT call createMachine', async () => {
-    vi.mocked(getNgrokTunnelUrl).mockRejectedValueOnce(new Error('ngrok is not running'));
+  it('pre-flight tunnel failure: does NOT call createMachine', async () => {
+    vi.mocked(getTunnelUrl).mockRejectedValueOnce(new Error('TUNNEL_URL is not set'));
     const task = await createTestTask({ status: 'Ready' });
 
     await makeEngineHybrid().execute({ events: makeEvent(task.id) });
@@ -887,15 +886,14 @@ describe('dispatch mode: USE_FLY_HYBRID', () => {
     await makeEngineHybrid().execute({ events: makeEvent(task.id) });
 
     expect(vi.mocked(createMachine)).not.toHaveBeenCalled();
-    expect(vi.mocked(getNgrokTunnelUrl)).not.toHaveBeenCalled();
+    expect(vi.mocked(getTunnelUrl)).not.toHaveBeenCalled();
   });
 
-  it('custom NGROK_AGENT_URL: passed to getNgrokTunnelUrl', async () => {
-    process.env.NGROK_AGENT_URL = 'http://custom:5555';
+  it('getTunnelUrl called with no arguments in hybrid mode', async () => {
     const task = await createTestTask({ status: 'Ready' });
 
     await makeEngineHybrid().execute({ events: makeEvent(task.id) });
 
-    expect(vi.mocked(getNgrokTunnelUrl)).toHaveBeenCalledWith('http://custom:5555');
+    expect(vi.mocked(getTunnelUrl)).toHaveBeenCalledWith();
   });
 });
