@@ -1268,7 +1268,7 @@ The local-first approach means most code is identical between environments. Thes
 | Inngest               | `localhost:8288` via `inngest-cli dev` | `app.inngest.com` (SaaS)                 |
 | Event Gateway         | `localhost:3000` via `ts-node`         | `ai-employee-gateway.fly.dev` via Fly.io |
 | Worker machines       | Docker container via `docker run`      | Fly.io machine via Machines API          |
-| Webhooks              | `curl` or Smee/ngrok tunnel            | Direct Jira/GitHub → Fly.io URL          |
+| Webhooks              | `curl` or Smee/Cloudflare Tunnel       | Direct Jira/GitHub → Fly.io URL          |
 | Secrets               | `.env.local` file or inline env vars   | Fly.io Secrets (never in code)           |
 | Machine self-destruct | Container exit                         | Fly.io Machines API `DELETE` call        |
 | Volume caching        | Docker volumes (optional)              | Fly.io volume forking from seed          |

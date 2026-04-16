@@ -127,7 +127,7 @@ See `.env.example` for the full list.
 
 **NEVER** run commands expected to take >30 seconds with a blocking shell call. Launch in a detached tmux session with output piped to a log file. Poll every 30–60 seconds.
 
-Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev:start`, `docker build`, `fly logs`, `cloudflared tunnel`, `ngrok http`.
+Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev:start`, `docker build`, `fly logs`, `cloudflared tunnel`.
 
 ```bash
 # Launch
@@ -142,6 +142,14 @@ grep "EXIT_CODE:" /tmp/<name>.log && echo "DONE" || echo "RUNNING"
 ```
 
 Session naming: `ai-e2e`, `ai-dev`, `ai-build`. Log files: `/tmp/ai-e2e.log`, etc.
+
+## Known Issues
+
+### 6. ngrok free tier doesn't work with Fly.io
+
+Cloudflare Tunnel is the permanent solution for hybrid mode.
+
+Start tunnel: `cloudflared tunnel --url http://localhost:54321` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`.
 
 ## Git Rules
 

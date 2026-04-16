@@ -2,7 +2,7 @@
 
 ## What This Document Is
 
-This is a practical migration guide for moving the AI Employee Platform from fully local infrastructure to cloud-hosted services. The system currently runs entirely on your machine: Supabase in Docker Compose, Inngest Dev Server, a local Fastify gateway, and Docker containers for workers. It works, but it has real constraints — ngrok tunnels for hybrid mode, no real webhook delivery from Jira, and a polling hack in the lifecycle function because Inngest Dev Server resolves `waitForEvent` immediately.
+This is a practical migration guide for moving the AI Employee Platform from fully local infrastructure to cloud-hosted services. The system currently runs entirely on your machine: Supabase in Docker Compose, Inngest Dev Server, a local Fastify gateway, and Docker containers for workers. It works, but it has real constraints — Cloudflare Tunnel for hybrid mode, no real webhook delivery from Jira, and a polling hack in the lifecycle function because Inngest Dev Server resolves `waitForEvent` immediately.
 
 This roadmap describes four independent migration phases. Each phase is self-contained: you can stop after any one of them and have a working system. The phases are ordered by dependency, not urgency. Do Phase A before Phase B, Phase B before Phase C, and Phase C before Phase D. But you don't have to do all four.
 
@@ -12,12 +12,12 @@ For current architecture details, see [docs/2026-04-01-1726-system-overview.md](
 
 ## Phases at a Glance
 
-| Phase | Component                                 | Trigger                                                             | Removes                                  | Effort                        |
-| ----- | ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
-| A     | Supabase → Supabase Cloud                 | ngrok URL instability is annoying or production-grade tunnel needed | PostgREST tunnel requirement             | Low                           |
-| B     | Inngest → Inngest Cloud                   | Need real `step.waitForEvent` instead of polling hack               | 30s polling, hybrid mode dependency      | Low                           |
-| C     | Gateway → Fly.io app                      | Real Jira webhook delivery needed                                   | Webhook tunnel, local server requirement | Medium                        |
-| D     | Worker image → Fly.io registry as default | All other phases done, hybrid mode no longer needed                 | Local Docker dependency                  | Low (already designed for it) |
+| Phase | Component                                 | Trigger                                                                    | Removes                                  | Effort                        |
+| ----- | ----------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
+| A     | Supabase → Supabase Cloud                 | Cloudflare URL instability is annoying or production-grade database needed | PostgREST tunnel requirement             | Low                           |
+| B     | Inngest → Inngest Cloud                   | Need real `step.waitForEvent` instead of polling hack                      | 30s polling, hybrid mode dependency      | Low                           |
+| C     | Gateway → Fly.io app                      | Real Jira webhook delivery needed                                          | Webhook tunnel, local server requirement | Medium                        |
+| D     | Worker image → Fly.io registry as default | All other phases done, hybrid mode no longer needed                        | Local Docker dependency                  | Low (already designed for it) |
 
 ---
 
@@ -25,7 +25,7 @@ For current architecture details, see [docs/2026-04-01-1726-system-overview.md](
 
 ### Trigger
 
-Do this when ngrok URL instability is causing pain in hybrid mode, or when you want a persistent database that doesn't require your laptop to be running.
+Do this when Cloudflare URL instability is causing pain in hybrid mode, or when you want a persistent database that doesn't require your laptop to be running.
 
 ### Prerequisites
 
@@ -60,7 +60,7 @@ Do this when ngrok URL instability is causing pain in hybrid mode, or when you w
 ### What It Eliminates
 
 - `docker compose -f docker/docker-compose.yml up -d` from your startup sequence
-- ngrok tunnel requirement for hybrid mode (worker containers reach Supabase Cloud directly)
+- Cloudflare Tunnel requirement for hybrid mode (worker containers reach Supabase Cloud directly)
 - `POSTGRES_DB=ai_employee` and `docker/.env` configuration
 - Local PostgreSQL on port 54322 and PostgREST on port 54321
 
@@ -73,7 +73,7 @@ Do this when ngrok URL instability is causing pain in hybrid mode, or when you w
 
 ### Verification
 
-Run `pnpm trigger-task` without ngrok running. The task should complete end-to-end. Check the Supabase Cloud dashboard to confirm the task row exists with `status=Done`.
+Run `pnpm trigger-task` without Cloudflare Tunnel running. The task should complete end-to-end. Check the Supabase Cloud dashboard to confirm the task row exists with `status=Done`.
 
 ---
 
@@ -100,7 +100,7 @@ Do this when you need `step.waitForEvent` to work correctly, or when the 30-seco
    INNGEST_BASE_URL=     # remove — Inngest Cloud doesn't need this
    ```
 3. Deploy the gateway to a public URL so Inngest Cloud can reach the `/api/inngest` endpoint. Options:
-   - Use ngrok for the gateway only: `ngrok http 3000`
+   - Use Cloudflare Tunnel for the gateway only: `cloudflared tunnel --url http://localhost:3000`
    - Or complete Phase C first (Fly.io gateway) and use that URL
 4. Register the gateway URL with Inngest Cloud in the dashboard (Apps section).
 5. Restart the gateway. Inngest Cloud will sync the registered functions.
@@ -133,7 +133,7 @@ Do this when you need real Jira webhook delivery (Jira can't reach `localhost:30
 ### Prerequisites
 
 - Phase A complete (Supabase Cloud)
-- Phase B complete (Inngest Cloud), OR you're willing to keep Inngest Dev Server running locally and expose it via ngrok
+- Phase B complete (Inngest Cloud), OR you're willing to keep Inngest Dev Server running locally and expose it via Cloudflare Tunnel
 
 ### Migration Steps
 
@@ -168,7 +168,7 @@ Do this when you need real Jira webhook delivery (Jira can't reach `localhost:30
 ### What It Eliminates
 
 - Local gateway process (`pnpm dev`)
-- Webhook tunnel requirement (ngrok for Jira delivery)
+- Webhook tunnel requirement (Cloudflare Tunnel for Jira delivery)
 - Local server requirement for Inngest function registration
 - `USE_LOCAL_DOCKER=1` from your startup env (gateway on Fly.io uses Fly.io dispatch by default)
 
@@ -188,7 +188,7 @@ Create a real Jira ticket. Confirm the Fly.io gateway logs show the webhook rece
 
 ### Trigger
 
-Do this after Phases A, B, and C are complete and you want to clean up the codebase. Hybrid mode was a stepping stone — once the gateway runs on Fly.io, there's no reason to keep the local Docker and ngrok paths.
+Do this after Phases A, B, and C are complete and you want to clean up the codebase. Hybrid mode was a stepping stone — once the gateway runs on Fly.io, there's no reason to keep the local Docker and tunnel paths.
 
 ### Prerequisites
 
@@ -200,9 +200,8 @@ Do this after Phases A, B, and C are complete and you want to clean up the codeb
 1. Remove `USE_LOCAL_DOCKER` and `USE_FLY_HYBRID` from `.env` and `.env.example`. These env vars are no longer needed.
 2. In `src/inngest/lifecycle.ts`, remove the `USE_LOCAL_DOCKER` branch. The `createMachine()` path becomes the only dispatch path.
 3. Remove the hybrid mode polling loop (the 30-second Supabase poll for `status=Submitting`). The `waitForEvent` path is now the only completion detection path.
-4. Remove ngrok-related code from `scripts/trigger-task.ts` (the ngrok URL detection for hybrid mode).
-5. Update `AGENTS.md` and `README.md` to remove hybrid mode documentation.
-6. Run the full test suite to confirm nothing broke:
+4. Update `AGENTS.md` and `README.md` to remove hybrid mode documentation.
+5. Run the full test suite to confirm nothing broke:
    ```bash
    pnpm test -- --run
    ```
@@ -211,7 +210,7 @@ Do this after Phases A, B, and C are complete and you want to clean up the codeb
 
 - `USE_LOCAL_DOCKER` env var and all code paths gated on it
 - `USE_FLY_HYBRID` env var and hybrid mode dispatch logic
-- ngrok dependency for worker-to-Supabase connectivity
+- Cloudflare Tunnel dependency for worker-to-Supabase connectivity
 - Local Docker image build requirement (`docker build -t ai-employee-worker .`)
 - The polling hack in `lifecycle.ts` (already removed in Phase B, but Phase D removes the dead code)
 
