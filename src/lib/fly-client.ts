@@ -134,7 +134,7 @@ export async function createMachine(
  * Treats 404 (machine not found) as success.
  * @param appName - Fly.io app name
  * @param machineId - Machine ID to destroy
- * @throws ExternalApiError on non-2xx, non-404 responses
+ * @throws ExternalApiError on non-2xx responses (except 404, which is treated as already-gone)
  * @throws RateLimitExceededError after exhausting retries on 429
  */
 export async function destroyMachine(appName: string, machineId: string): Promise<void> {
@@ -142,8 +142,8 @@ export async function destroyMachine(appName: string, machineId: string): Promis
 
   const { status } = await makeRequestWithRetry<void>('DELETE', path);
 
-  // 204 No Content = success, 404 = already gone (also success)
-  if (status === 204 || status === 404) {
+  // Any 2xx = success, 404 = already gone (also success)
+  if ((status >= 200 && status < 300) || status === 404) {
     return;
   }
 
