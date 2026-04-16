@@ -196,3 +196,66 @@ export const GetTaskParamsSchema = z.object({
   id: uuidField(),
 });
 export type GetTaskParams = z.infer<typeof GetTaskParamsSchema>;
+
+export const CreateTenantBodySchema = z.object({
+  name: z.string().min(1).max(200),
+  slug: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens only'),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+export type CreateTenantBody = z.infer<typeof CreateTenantBodySchema>;
+
+export const UpdateTenantBodySchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+    status: z.enum(['active', 'suspended']).optional(),
+  })
+  .superRefine((obj, ctx) => {
+    if (Object.keys(obj).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field is required for update',
+      });
+    }
+  });
+export type UpdateTenantBody = z.infer<typeof UpdateTenantBodySchema>;
+
+export const TenantIdParamSchema = z.object({
+  tenantId: uuidField(),
+});
+export type TenantIdParam = z.infer<typeof TenantIdParamSchema>;
+
+export const SecretKeyParamSchema = z.object({
+  tenantId: uuidField(),
+  key: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9_]+$/, 'key must be lowercase alphanumeric with underscores only'),
+});
+export type SecretKeyParam = z.infer<typeof SecretKeyParamSchema>;
+
+export const SetSecretBodySchema = z.object({
+  value: z.string().min(1).max(10000),
+});
+export type SetSecretBody = z.infer<typeof SetSecretBodySchema>;
+
+export const TenantConfigBodySchema = z.object({
+  summary: z
+    .object({
+      channel_ids: z.array(z.string()).optional(),
+      target_channel: z.string().optional(),
+    })
+    .optional(),
+});
+export type TenantConfigBody = z.infer<typeof TenantConfigBodySchema>;
+
+export const SlackOAuthStateSchema = z.object({
+  tenant_id: uuidField(),
+  nonce: z.string().length(32),
+});
+export type SlackOAuthState = z.infer<typeof SlackOAuthStateSchema>;

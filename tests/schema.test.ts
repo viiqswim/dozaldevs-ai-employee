@@ -15,7 +15,7 @@ afterAll(async () => {
 // GROUP 1: Table existence
 // ============================================================
 describe('Table existence', () => {
-  it('all 16 application tables exist in public schema', async () => {
+  it('all 18 application tables exist in public schema', async () => {
     const prisma = getPrisma();
     const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name 
@@ -42,6 +42,8 @@ describe('Table existence', () => {
       'risk_models',
       'task_status_log',
       'tasks',
+      'tenant_secrets',
+      'tenants',
       'validation_runs',
     ].sort();
     expect(tableNames).toEqual(expected);

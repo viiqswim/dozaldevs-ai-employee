@@ -9,9 +9,17 @@ import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { adminEmployeeTriggerRoutes } from './routes/admin-employee-trigger.js';
 import { adminTasksRoutes } from './routes/admin-tasks.js';
+import { adminTenantsRoutes } from './routes/admin-tenants.js';
+import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
+import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
+import { slackOAuthRoutes } from './routes/slack-oauth.js';
+import { TenantInstallationStore } from './slack/installation-store.js';
+import { TenantRepository } from './services/tenant-repository.js';
+import { TenantSecretRepository } from './services/tenant-secret-repository.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
+import { validateEncryptionKey } from '../lib/encryption.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -28,6 +36,8 @@ export interface BuildAppResult {
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppResult> {
+  validateEncryptionKey();
+
   if (!process.env.ADMIN_API_KEY) {
     throw new Error('Missing required environment variable: ADMIN_API_KEY');
   }
@@ -43,14 +53,20 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   let boltApp: App | undefined;
 
-  if (process.env.SLACK_BOT_TOKEN) {
-    const appToken = process.env.SLACK_APP_TOKEN;
+  const signingSecret = process.env.SLACK_SIGNING_SECRET;
+  if (signingSecret) {
+    const installationStore = new TenantInstallationStore(
+      new TenantRepository(prisma),
+      new TenantSecretRepository(prisma),
+    );
 
+    const appToken = process.env.SLACK_APP_TOKEN;
     if (appToken) {
       boltApp = new App({
-        token: process.env.SLACK_BOT_TOKEN,
         appToken,
         socketMode: true,
+        signingSecret,
+        installationStore,
         logger: createFilteredBoltLogger(logger),
       });
 
@@ -63,32 +79,27 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
           logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
         });
       logger.info('Slack Bolt initialized — Socket Mode starting');
-    } else if (process.env.SLACK_SIGNING_SECRET) {
+    } else {
       const receiver = new ExpressReceiver({
-        signingSecret: process.env.SLACK_SIGNING_SECRET,
+        signingSecret,
         endpoints: '/webhooks/slack/interactions',
       });
 
       boltApp = new App({
-        authorize: async () => ({
-          botToken: process.env.SLACK_BOT_TOKEN ?? '',
-          botId: 'LOCAL',
-          botUserId: 'LOCAL',
-        }),
+        signingSecret,
+        installationStore,
         receiver,
       });
 
       app.use(receiver.router);
       logger.info('Slack Bolt initialized — /webhooks/slack/interactions available');
-    } else {
-      logger.warn('Slack not configured — ExpressReceiver requires SLACK_SIGNING_SECRET');
     }
 
     if (options.inngestClient && boltApp) {
       registerSlackHandlers(boltApp, options.inngestClient);
     }
   } else {
-    logger.warn('Slack not configured — /webhooks/slack/interactions unavailable');
+    logger.warn('Slack not configured — SLACK_SIGNING_SECRET not set');
   }
 
   app.use(
@@ -106,6 +117,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
   app.use(adminTasksRoutes({ prisma }));
+  app.use(adminTenantsRoutes({ prisma }));
+  app.use(adminTenantSecretsRoutes({ prisma }));
+  app.use(adminTenantConfigRoutes({ prisma }));
+  app.use(slackOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   app.use((_req, res) => {
