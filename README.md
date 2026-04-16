@@ -26,13 +26,15 @@ Full architecture: [docs/2026-04-01-1726-system-overview.md](docs/2026-04-01-172
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
 
-| Method   | Path                  | Description            |
-| -------- | --------------------- | ---------------------- |
-| `POST`   | `/admin/projects`     | Register a new project |
-| `GET`    | `/admin/projects`     | List all projects      |
-| `GET`    | `/admin/projects/:id` | Get a single project   |
-| `PATCH`  | `/admin/projects/:id` | Update a project       |
-| `DELETE` | `/admin/projects/:id` | Delete a project       |
+| Method   | Path                                               | Description                     |
+| -------- | -------------------------------------------------- | ------------------------------- |
+| `POST`   | `/admin/projects`                                  | Register a new project          |
+| `GET`    | `/admin/projects`                                  | List all projects               |
+| `GET`    | `/admin/projects/:id`                              | Get a single project            |
+| `PATCH`  | `/admin/projects/:id`                              | Update a project                |
+| `DELETE` | `/admin/projects/:id`                              | Delete a project                |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                 |
 
 **Create a project:**
 
