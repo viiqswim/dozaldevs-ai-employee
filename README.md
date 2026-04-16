@@ -72,7 +72,7 @@ curl -X POST http://localhost:3000/admin/projects \
 
 ```
 src/
-├── gateway/     # Fastify server — receives Jira/GitHub webhooks
+├── gateway/     # Express server — receives Jira/GitHub webhooks
 ├── inngest/     # Lifecycle, watchdog, redispatch functions
 ├── workers/     # Docker container code — AI agent execution
 └── lib/         # Shared: logger, fly-client, github-client, retry

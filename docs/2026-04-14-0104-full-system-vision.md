@@ -211,7 +211,7 @@ Every employee is started by a trigger. The platform supports five trigger types
 
 ### How Inngest Manages Crons
 
-When the gateway (Fastify) starts, it registers all Inngest functions. Functions can have a cron trigger:
+When the gateway (Express) starts, it registers all Inngest functions. Functions can have a cron trigger:
 
 ```typescript
 inngest.createFunction(
@@ -922,7 +922,7 @@ To add an employee, follow this checklist. The shared platform handles orchestra
 
 | Reused (shared platform)            | Built (per employee)                                       |
 | ----------------------------------- | ---------------------------------------------------------- |
-| Event Gateway (Fastify)             | Webhook handler for this employee's triggers               |
+| Event Gateway (Express)             | Webhook handler for this employee's triggers               |
 | Inngest orchestration + scheduling  | Lifecycle function (or reuse generic one)                  |
 | Fly.io machine provisioning         | Employee logic (what it actually does)                     |
 | Supabase state management           | Employee-specific tables/columns (if needed)               |

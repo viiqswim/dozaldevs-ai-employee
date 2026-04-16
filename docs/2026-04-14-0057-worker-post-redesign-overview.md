@@ -33,7 +33,7 @@ The worker container no longer runs custom TypeScript orchestration (phases, wav
 ```mermaid
 flowchart LR
     subgraph Gateway
-        GW["Event Gateway\n(Fastify :3000)"]:::service
+        GW["Event Gateway\n(Express :3000)"]:::service
         INN["Inngest\n(:8288)"]:::service
     end
 
@@ -211,7 +211,7 @@ On subsequent runs, the profile is loaded and passed to Prometheus so it doesn't
 ## What Didn't Change
 
 - **entrypoint.sh** — same boot sequence (clone, branch, read task, heartbeat, exec orchestrate.mts)
-- **Event Gateway** — same Fastify routes, webhook handling, Inngest function registration
+- **Event Gateway** — same Express routes, webhook handling, Inngest function registration
 - **Lifecycle function** — same structure (dispatch → poll/wait → finalize), simplified mode selection
 - **PR creation** — same `pr-manager.ts`, same `[AI] {TICKET}: {summary}` template, same idempotency guard
 - **Supabase schema** — same tables, plus `project_profile` column on `projects`
