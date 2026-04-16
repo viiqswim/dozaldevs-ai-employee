@@ -108,14 +108,15 @@ The built-in E2E uses [`viiqswim/ai-employee-test-target`](https://github.com/vi
 
 ## Documentation
 
-| Document                                                                                             | Description                                         |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| [System Overview](docs/2026-04-01-1726-system-overview.md)                                           | Complete architecture, data flow, local setup       |
-| [Project Registration & Dev Loop](docs/2026-04-08-1357-project-registration-and-development-loop.md) | Register projects, trigger AI development, get a PR |
-| [Phase 8: E2E](docs/2026-04-01-1655-phase8-e2e.md)                                                   | MVP validation and verification                     |
-| [Phase 7: Resilience](docs/2026-04-01-0114-phase7-resilience.md)                                     | Watchdog, redispatch, error handling                |
-| [All phase docs](docs/)                                                                              | Phase 1-7 implementation details                    |
-| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)                                           | Common E2E failures with symptoms and fixes         |
+| Document                                                                                             | Description                                                         |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [System Overview](docs/2026-04-01-1726-system-overview.md)                                           | Complete architecture, data flow, local setup                       |
+| [Project Registration & Dev Loop](docs/2026-04-08-1357-project-registration-and-development-loop.md) | Register projects, trigger AI development, get a PR                 |
+| [Phase 8: E2E](docs/2026-04-01-1655-phase8-e2e.md)                                                   | MVP validation and verification                                     |
+| [Phase 7: Resilience](docs/2026-04-01-0114-phase7-resilience.md)                                     | Watchdog, redispatch, error handling                                |
+| [All phase docs](docs/)                                                                              | Phase 1-7 implementation details                                    |
+| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)                                           | Common E2E failures with symptoms and fixes                         |
+| [Multi-Tenancy Guide](docs/2026-04-16-1655-multi-tenancy-guide.md)                                   | Provisioning tenants, Slack OAuth, per-tenant secrets, verification |
 
 ## Testing
 

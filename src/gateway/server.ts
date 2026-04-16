@@ -54,7 +54,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   let boltApp: App | undefined;
 
   const signingSecret = process.env.SLACK_SIGNING_SECRET;
-  if (signingSecret) {
+  const clientId = process.env.SLACK_CLIENT_ID;
+  const clientSecret = process.env.SLACK_CLIENT_SECRET;
+
+  if (signingSecret && clientId && clientSecret) {
     const installationStore = new TenantInstallationStore(
       new TenantRepository(prisma),
       new TenantSecretRepository(prisma),
@@ -82,12 +85,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     } else {
       const receiver = new ExpressReceiver({
         signingSecret,
+        clientId,
+        clientSecret,
+        installationStore,
         endpoints: '/webhooks/slack/interactions',
       });
 
       boltApp = new App({
         signingSecret,
-        installationStore,
         receiver,
       });
 
@@ -99,7 +104,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
       registerSlackHandlers(boltApp, options.inngestClient);
     }
   } else {
-    logger.warn('Slack not configured — SLACK_SIGNING_SECRET not set');
+    logger.warn(
+      'Slack not configured — SLACK_SIGNING_SECRET, SLACK_CLIENT_ID, and SLACK_CLIENT_SECRET are all required',
+    );
   }
 
   app.use(

@@ -1523,7 +1523,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: any modified tool files; otherwise no commit
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 17. **scripts/setup-two-tenants.ts — provisioning script for DozalDevs + VLRE**
+- [x] 17. **scripts/setup-two-tenants.ts — provisioning script for DozalDevs + VLRE**
 
   **What to do**:
   - Create `scripts/setup-two-tenants.ts` (run via `pnpm tsx`). This script provisions the two REAL tenants the user operates (DozalDevs and VLRE) for end-to-end multi-tenancy validation.
@@ -1682,7 +1682,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: `scripts/setup-two-tenants.ts`, `package.json`, `.env.example`
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 18. **Integration tests — multi-tenancy isolation + encryption**
+- [x] 18. **Integration tests — multi-tenancy isolation + encryption**
 
   **What to do**:
   - Create `tests/integration/multi-tenancy.test.ts`:
@@ -1743,7 +1743,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: `tests/integration/multi-tenancy.test.ts`
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 19. **Documentation — multi-tenancy admin guide**
+- [x] 19. **Documentation — multi-tenancy admin guide**
 
   **What to do**:
   - Run `date "+%Y-%m-%d-%H%M"` to get timestamp; create `docs/<timestamp>-multi-tenancy-guide.md`.
@@ -1812,7 +1812,7 @@ Max Concurrent: 8 (Wave 3)
   - Files: `docs/<timestamp>-multi-tenancy-guide.md`, `README.md`, `AGENTS.md`
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 20. **scripts/verify-multi-tenancy.ts — end-to-end runner**
+- [x] 20. **scripts/verify-multi-tenancy.ts — end-to-end runner**
 
   **What to do**:
   - Create `scripts/verify-multi-tenancy.ts` (`pnpm tsx`):

@@ -118,7 +118,7 @@ describe('POST /webhooks/jira', () => {
     expect(count).toBe(0);
   });
 
-  it('unknown project → 200 project_not_registered, no task', async () => {
+  it('unknown project → 404, no task', async () => {
     const body = loadRaw('jira-issue-created-unknown-project.json');
     const res = await app.inject({
       method: 'POST',
@@ -127,8 +127,8 @@ describe('POST /webhooks/jira', () => {
       payload: body,
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).action).toBe('project_not_registered');
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body).error).toBe('Unknown Jira project');
     const count = await getPrisma().task.count();
     expect(count).toBe(0);
   });
