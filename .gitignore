@@ -33,3 +33,6 @@ docker/volumes/db/data/
 docker/volumes/storage/
 docker/volumes/logs/
 docker/volumes/pooler/
+
+# Playwright MCP browser session artifacts
+.playwright-mcp/
