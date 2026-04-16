@@ -161,3 +161,31 @@ export function parseCreateProject(body: unknown): CreateProjectInput {
 export function parseUpdateProject(body: unknown): UpdateProjectInput {
   return UpdateProjectSchema.parse(body);
 }
+
+// URL params for POST /admin/tenants/:tenantId/employees/:slug/trigger
+export const TriggerEmployeeParamsSchema = z.object({
+  tenantId: z.string().uuid(),
+  // slug is the archetype role_name, must be lowercase alphanumeric + hyphens
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens only'),
+});
+export type TriggerEmployeeParams = z.infer<typeof TriggerEmployeeParamsSchema>;
+
+// Query params for ?dry_run=true (Express delivers query params as strings)
+export const TriggerEmployeeQuerySchema = z.object({
+  dry_run: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+});
+export type TriggerEmployeeQuery = z.infer<typeof TriggerEmployeeQuerySchema>;
+
+// URL params for GET /admin/tenants/:tenantId/tasks/:id
+export const GetTaskParamsSchema = z.object({
+  tenantId: z.string().uuid(),
+  id: z.string().uuid(),
+});
+export type GetTaskParams = z.infer<typeof GetTaskParamsSchema>;
