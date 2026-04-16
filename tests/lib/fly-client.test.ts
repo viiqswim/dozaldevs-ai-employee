@@ -118,6 +118,23 @@ describe('fly-client', () => {
       await expect(destroyMachine('my-app', 'machine-123')).resolves.toBeUndefined();
     });
 
+    it('should treat 200 as success (Fly.io real-world DELETE behavior)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        status: 200,
+        json: async () => ({ ok: true }),
+      });
+
+      await expect(destroyMachine('my-app', 'machine-123')).resolves.toBeUndefined();
+    });
+
+    it('should still treat 204 as success (backward compat)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        status: 204,
+      });
+
+      await expect(destroyMachine('my-app', 'machine-123')).resolves.toBeUndefined();
+    });
+
     it('should retry on 429 rate limit', async () => {
       mockFetch
         .mockResolvedValueOnce({
@@ -133,7 +150,7 @@ describe('fly-client', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
-    it('should throw ExternalApiError on non-2xx, non-404 response', async () => {
+    it('should throw ExternalApiError on 5xx responses', async () => {
       mockFetch.mockResolvedValueOnce({
         status: 500,
         json: async () => ({ error: 'Internal server error' }),
