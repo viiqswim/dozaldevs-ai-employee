@@ -3,7 +3,7 @@ import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import type { SlackClient } from '../lib/slack-client.js';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
-import { getNgrokTunnelUrl } from '../lib/ngrok-client.js';
+import { getTunnelUrl } from '../lib/tunnel-client.js';
 import { pollForCompletion } from './lib/poll-completion.js';
 import { createLogger } from '../lib/logger.js';
 
@@ -98,7 +98,7 @@ export function createLifecycleFunction(
         const hybridMachine = await step.run('hybrid-spawn', async () => {
           let tunnelUrl: string;
           try {
-            tunnelUrl = await getNgrokTunnelUrl(process.env.NGROK_AGENT_URL);
+            tunnelUrl = await getTunnelUrl();
           } catch (err) {
             await prisma.task.updateMany({
               where: { id: taskId },
