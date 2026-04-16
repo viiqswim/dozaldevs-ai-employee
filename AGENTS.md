@@ -185,3 +185,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)     |
 | `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                          |
 | `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                     |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works               |
