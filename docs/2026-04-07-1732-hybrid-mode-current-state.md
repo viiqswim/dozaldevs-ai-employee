@@ -145,7 +145,7 @@ If both flags are set (`USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER=1`), neither pat
 1. **Fly.io account with `FLY_API_TOKEN`** in `.env`
 2. **Worker app created** on Fly.io: `pnpm fly:setup` (one time)
 3. **Worker image pushed** to Fly registry: `pnpm fly:image` (rebuild after every worker code change)
-4. **Tunnel tool installed**: `brew install cloudflared` (recommended) or `brew install ngrok` (paid plans only — see below)
+4. **Tunnel tool installed**: `brew install cloudflared`
 
 ### Step-by-Step Workflow
 
@@ -169,43 +169,22 @@ USE_FLY_HYBRID=1 pnpm trigger-task
 
 ngrok's free tier blocks Fly.io egress IPs at the infrastructure level. When the worker container running on a Fly machine tries to reach an `https://*.ngrok-free.app` URL, the request never arrives at the ngrok agent on your laptop — ngrok's edge drops it. This was discovered during T9 of the plan and documented in `.sisyphus/notepads/hybrid-local-flyio-workers/issues.md`.
 
-Cloudflare Tunnel does not have this restriction. It's free, requires no account for quick tunnels, and its edge accepts traffic from Fly.io. For paid ngrok plans (Pro or higher), the IP block is also lifted, so option B in `AGENTS.md` covers that path.
+Cloudflare Tunnel does not have this restriction. It's free, requires no account for quick tunnels, and its edge accepts traffic from Fly.io.
 
-### How `TUNNEL_URL` Bypasses ngrok Agent API
+### How `TUNNEL_URL` Works
 
-The Lifecycle function calls `getNgrokTunnelUrl()` from `src/lib/ngrok-client.ts`. The first thing that function does is check for a `TUNNEL_URL` env var:
+The Lifecycle function calls `getTunnelUrl()` from `src/lib/tunnel-client.ts`. The function reads the `TUNNEL_URL` environment variable and returns it directly. If `TUNNEL_URL` is not set, the function throws an error with Cloudflare Tunnel setup instructions.
 
-```typescript
-// getNgrokTunnelUrl() — TUNNEL_URL override
-const tunnelUrlOverride = process.env.TUNNEL_URL;
-if (tunnelUrlOverride && tunnelUrlOverride.trim().length > 0) {
-  return tunnelUrlOverride.trim();
-}
+Set `TUNNEL_URL` to the URL printed by `cloudflared`:
+
+```bash
+cloudflared tunnel --url http://localhost:54321
+# Prints: https://xyz.trycloudflare.com
 ```
-
-If `TUNNEL_URL` is set (which is what you do for Cloudflare), the function returns immediately without contacting the ngrok agent at `http://localhost:4040/api/tunnels`. If `TUNNEL_URL` is unset, it falls through to the ngrok agent path, which queries the local ngrok daemon's REST API and looks for the first HTTPS tunnel.
 
 ### Pre-Flight Tunnel Check (Hybrid Mode Only)
 
-Before creating the Fly machine, the Lifecycle function attempts to resolve the tunnel URL. If this fails (no `TUNNEL_URL` env var AND no ngrok agent reachable), the task transitions to `AwaitingInput` with a `failure_reason` like `Hybrid mode pre-flight failed: ngrok agent not reachable at ...`. This is a fail-fast safeguard so you don't end up with a Fly machine that can't reach Supabase.
-
-```typescript
-// hybridFlyDispatch — pre-flight tunnel check
-let tunnelUrl: string;
-try {
-  tunnelUrl = await getNgrokTunnelUrl(process.env.NGROK_AGENT_URL);
-} catch (err) {
-  await prisma.task.updateMany({
-    where: { id: taskId },
-    data: {
-      status: 'AwaitingInput',
-      failure_reason: `Hybrid mode pre-flight failed: ${err instanceof Error ? err.message : String(err)}`,
-      updated_at: new Date(),
-    },
-  });
-  return null;
-}
-```
+Before creating the Fly machine, the Lifecycle function attempts to resolve the tunnel URL. If this fails (`TUNNEL_URL` not set), the task transitions to `AwaitingInput` with a `failure_reason` describing the missing env var. This is a fail-fast safeguard so you don't end up with a Fly machine that can't reach Supabase.
 
 ---
 
@@ -577,13 +556,12 @@ Below is the full set of env vars relevant to running the system, grouped by pur
 
 ### Worker Mode Selection
 
-| Var                   | Required | Default                 | Purpose                                                                            |
-| --------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------------- |
-| `USE_LOCAL_DOCKER`    | No       | unset                   | Set to `1` for local Docker dispatch                                               |
-| `USE_FLY_HYBRID`      | No       | unset                   | Set to `1` for hybrid Fly.io dispatch (mutually exclusive with `USE_LOCAL_DOCKER`) |
-| `FLY_HYBRID_POLL_MAX` | No       | `120`                   | Max 30s polls before timeout (default = 60 min ceiling)                            |
-| `NGROK_AGENT_URL`     | No       | `http://localhost:4040` | URL of local ngrok daemon's REST API                                               |
-| `TUNNEL_URL`          | No       | unset                   | Direct tunnel URL override (recommended for Cloudflare Tunnel)                     |
+| Var                   | Required | Default | Purpose                                                                            |
+| --------------------- | -------- | ------- | ---------------------------------------------------------------------------------- |
+| `USE_LOCAL_DOCKER`    | No       | unset   | Set to `1` for local Docker dispatch                                               |
+| `USE_FLY_HYBRID`      | No       | unset   | Set to `1` for hybrid Fly.io dispatch (mutually exclusive with `USE_LOCAL_DOCKER`) |
+| `FLY_HYBRID_POLL_MAX` | No       | `120`   | Max 30s polls before timeout (default = 60 min ceiling)                            |
+| `TUNNEL_URL`          | No       | unset   | Cloudflare Tunnel URL (required for hybrid mode)                                   |
 
 ### Worker Secrets (Passed to Container)
 
@@ -683,8 +661,7 @@ These are real, in-the-code constraints — not pessimism. They're documented so
 
 ### Hybrid Mode Specific
 
-- **Tunnel must be running locally**. If `cloudflared` (or `ngrok`) isn't reachable when a task fires, the pre-flight check sets the task to `AwaitingInput`. There's no graceful retry; you must restart the tunnel and re-trigger the task.
-- **ngrok free tier is incompatible**. Fly.io egress IPs are blocked by ngrok's free infrastructure. Use Cloudflare Tunnel (free) or a paid ngrok plan.
+- **Tunnel must be running locally**. If `cloudflared` isn't reachable when a task fires, the pre-flight check sets the task to `AwaitingInput`. There's no graceful retry; you must restart the tunnel and re-trigger the task.
 - **Polling ceiling is 60 minutes**. Configurable via `FLY_HYBRID_POLL_MAX`, but the default rejects tasks that take longer than 60 min.
 - **Worker's Inngest completion event will fail silently**. The hybrid env block does not pass `INNGEST_BASE_URL`. The worker tries to send `engineering/task.completed` and silently fails. This is intentional — completion is detected via Supabase polling.
 - **Tunnel URL changes on every `cloudflared` restart**. You must update `TUNNEL_URL` between sessions.
@@ -718,13 +695,13 @@ The plan added or modified these files (other files in the codebase remain untou
 
 ### New Files
 
-| File                                              | Purpose                                                         |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| `src/inngest/lib/poll-completion.ts`              | Extracted polling helper, used by hybrid and local Docker modes |
-| `src/lib/ngrok-client.ts`                         | Tunnel URL resolver with `TUNNEL_URL` override                  |
-| `tests/inngest/lib/poll-completion.test.ts`       | Unit tests for polling logic                                    |
-| `tests/lib/ngrok-client.test.ts`                  | Unit tests for tunnel resolution                                |
-| `docs/2026-04-06-2205-cloud-migration-roadmap.md` | Phase A→D migration roadmap                                     |
+| File                                              | Purpose                                                              |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| `src/inngest/lib/poll-completion.ts`              | Extracted polling helper, used by hybrid and local Docker modes      |
+| `src/lib/tunnel-client.ts`                        | Tunnel URL resolver — reads `TUNNEL_URL` env var (Cloudflare Tunnel) |
+| `tests/inngest/lib/poll-completion.test.ts`       | Unit tests for polling logic                                         |
+| `tests/lib/tunnel-client.test.ts`                 | Unit tests for tunnel URL resolution                                 |
+| `docs/2026-04-06-2205-cloud-migration-roadmap.md` | Phase A→D migration roadmap                                          |
 
 ### Modified Files
 
@@ -816,7 +793,7 @@ The next step is to gradually migrate components to the cloud. The roadmap (`doc
 
 | Phase | Component                  | Trigger                                                                      | Effort |
 | ----- | -------------------------- | ---------------------------------------------------------------------------- | ------ |
-| **A** | Supabase → Supabase Cloud  | When ngrok/Cloudflare URL instability becomes annoying                       | Low    |
+| **A** | Supabase → Supabase Cloud  | When Cloudflare URL instability becomes annoying                             | Low    |
 | **B** | Inngest → Inngest Cloud    | When you want real `waitForEvent` instead of the polling hack                | Low    |
 | **C** | Gateway → Fly.io app       | When you need real Jira webhook delivery (Jira can't reach `localhost:3000`) | Medium |
 | **D** | Worker → Fly.io as default | After A, B, C are done — removes hybrid mode and `USE_LOCAL_DOCKER`          | Low    |

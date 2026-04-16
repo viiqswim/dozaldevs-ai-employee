@@ -2798,11 +2798,11 @@ To receive real Jira/GitHub webhooks locally:
 # Option A: Smee (free, no account needed)
 npx smee-client --url https://smee.io/<your-channel> --target http://localhost:3000/webhooks/jira
 
-# Option B: ngrok (requires account for persistent URLs)
-ngrok http 3000
+# Option B: Cloudflare Tunnel (free, no account needed for quick tunnels)
+cloudflared tunnel --url http://localhost:3000
 ```
 
-Configure your Jira webhook to point to the Smee/ngrok URL. GitHub webhooks: same pattern.
+Configure your Jira webhook to point to the Smee/Cloudflare Tunnel URL. GitHub webhooks: same pattern.
 
 #### 5. Mock Fly.io Machine (Local Testing)
 
