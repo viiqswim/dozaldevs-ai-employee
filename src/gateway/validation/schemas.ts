@@ -162,9 +162,16 @@ export function parseUpdateProject(body: unknown): UpdateProjectInput {
   return UpdateProjectSchema.parse(body);
 }
 
+// Loose UUID regex — accepts any 8-4-4-4-12 hex pattern including system tenant IDs
+// (Zod's z.string().uuid() enforces strict RFC 4122 version/variant bits which rejects
+// the system tenant ID '00000000-0000-0000-0000-000000000001')
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidField = () =>
+  z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
+
 // URL params for POST /admin/tenants/:tenantId/employees/:slug/trigger
 export const TriggerEmployeeParamsSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: uuidField(),
   // slug is the archetype role_name, must be lowercase alphanumeric + hyphens
   slug: z
     .string()
@@ -185,7 +192,7 @@ export type TriggerEmployeeQuery = z.infer<typeof TriggerEmployeeQuerySchema>;
 
 // URL params for GET /admin/tenants/:tenantId/tasks/:id
 export const GetTaskParamsSchema = z.object({
-  tenantId: z.string().uuid(),
-  id: z.string().uuid(),
+  tenantId: uuidField(),
+  id: uuidField(),
 });
 export type GetTaskParams = z.infer<typeof GetTaskParamsSchema>;
