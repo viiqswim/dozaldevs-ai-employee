@@ -9,6 +9,7 @@ import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
+import { createFilteredBoltLogger } from './slack-logger.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -45,28 +46,48 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   let boltApp: App | undefined;
 
-  if (process.env.SLACK_SIGNING_SECRET && process.env.SLACK_BOT_TOKEN) {
-    const receiver = new ExpressReceiver({
-      signingSecret: process.env.SLACK_SIGNING_SECRET,
-      endpoints: '/webhooks/slack/interactions',
-    });
+  if (process.env.SLACK_BOT_TOKEN) {
+    const appToken = process.env.SLACK_APP_TOKEN;
 
-    boltApp = new App({
-      authorize: async () => ({
-        botToken: process.env.SLACK_BOT_TOKEN ?? '',
-        botId: 'LOCAL',
-        botUserId: 'LOCAL',
-      }),
-      receiver,
-    });
+    if (appToken) {
+      boltApp = new App({
+        token: process.env.SLACK_BOT_TOKEN,
+        appToken,
+        socketMode: true,
+        logger: createFilteredBoltLogger(logger),
+      });
 
-    app.use(receiver.router);
+      void boltApp
+        .start()
+        .then(() => {
+          logger.info('Slack Bolt — Socket Mode connected');
+        })
+        .catch((err: unknown) => {
+          logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
+        });
+      logger.info('Slack Bolt initialized — Socket Mode starting');
+    } else {
+      const receiver = new ExpressReceiver({
+        signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+        endpoints: '/webhooks/slack/interactions',
+      });
+
+      boltApp = new App({
+        authorize: async () => ({
+          botToken: process.env.SLACK_BOT_TOKEN ?? '',
+          botId: 'LOCAL',
+          botUserId: 'LOCAL',
+        }),
+        receiver,
+      });
+
+      app.use(receiver.router);
+      logger.info('Slack Bolt initialized — /webhooks/slack/interactions available');
+    }
 
     if (options.inngestClient) {
       registerSlackHandlers(boltApp, options.inngestClient);
     }
-
-    logger.info('Slack Bolt initialized — /webhooks/slack/interactions available');
   } else {
     logger.warn('Slack not configured — /webhooks/slack/interactions unavailable');
   }
