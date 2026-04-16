@@ -66,9 +66,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
           logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
         });
       logger.info('Slack Bolt initialized — Socket Mode starting');
-    } else {
+    } else if (process.env.SLACK_SIGNING_SECRET) {
       const receiver = new ExpressReceiver({
-        signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+        signingSecret: process.env.SLACK_SIGNING_SECRET,
         endpoints: '/webhooks/slack/interactions',
       });
 
@@ -83,9 +83,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
       app.use(receiver.router);
       logger.info('Slack Bolt initialized — /webhooks/slack/interactions available');
+    } else {
+      logger.warn('Slack not configured — ExpressReceiver requires SLACK_SIGNING_SECRET');
     }
 
-    if (options.inngestClient) {
+    if (options.inngestClient && boltApp) {
       registerSlackHandlers(boltApp, options.inngestClient);
     }
   } else {
