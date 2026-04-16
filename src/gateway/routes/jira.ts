@@ -6,12 +6,11 @@ import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
 import { verifyJiraSignature } from '../validation/signature.js';
 import { parseJiraWebhook, parseJiraIssueDeletion } from '../validation/schemas.js';
-import { lookupProjectByJiraKey } from '../services/project-lookup.js';
 import { createTaskFromJiraWebhook, cancelTaskByExternalId } from '../services/task-creation.js';
 import { sendTaskReceivedEvent } from '../inngest/send.js';
+import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 export interface JiraRouteOptions {
   inngestClient?: InngestLike;
@@ -22,23 +21,11 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
   const router = Router();
   const prisma = opts.prisma ?? new PrismaClient();
   const inngest = opts.inngestClient;
+  const secretRepo = new TenantSecretRepository(prisma);
 
   router.post('/webhooks/jira', async (req: Request, res: Response) => {
     const signatureHeader = req.headers['x-hub-signature'] as string | undefined;
     const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body);
-    const secret = process.env.JIRA_WEBHOOK_SECRET;
-
-    if (!secret) {
-      logger.warn('JIRA_WEBHOOK_SECRET not set — skipping signature verification');
-      res.status(401).json({ error: 'Webhook signing not configured' });
-      return;
-    }
-
-    if (!verifyJiraSignature(rawBody, signatureHeader, secret)) {
-      logger.warn({ url: '/webhooks/jira' }, 'Invalid Jira webhook signature');
-      res.status(401).json({ error: 'Invalid signature' });
-      return;
-    }
 
     let payload: ReturnType<typeof parseJiraWebhook>;
     try {
@@ -60,6 +47,77 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
       return;
     }
 
+    if (webhookEvent !== 'jira:issue_created' && webhookEvent !== 'jira:issue_deleted') {
+      logger.info({ webhookEvent }, 'Unknown Jira webhook event type — ignoring');
+      res.json({ received: true, action: 'ignored' });
+      return;
+    }
+
+    let jiraProjectKey: string | undefined;
+    if (webhookEvent === 'jira:issue_deleted') {
+      try {
+        const deletionPayload = parseJiraIssueDeletion(req.body);
+        jiraProjectKey = deletionPayload.issue.fields?.project?.key as string | undefined;
+      } catch {
+        /* deletion payload missing project key — proceed without tenant resolution */
+      }
+    } else {
+      jiraProjectKey = payload.issue.fields.project.key;
+    }
+
+    let tenantId: string | undefined;
+    let project: {
+      id: string;
+      tenant_id: string;
+      repo_url: string | null;
+      default_branch: string | null;
+    } | null = null;
+
+    if (jiraProjectKey) {
+      project = await prisma.project.findFirst({
+        where: { jira_project_key: jiraProjectKey },
+        select: { id: true, tenant_id: true, repo_url: true, default_branch: true },
+      });
+
+      if (!project) {
+        logger.warn({ jiraProjectKey }, 'Jira webhook for unknown project');
+        res.status(404).json({ error: 'Unknown Jira project' });
+        return;
+      }
+
+      tenantId = project.tenant_id;
+    }
+
+    let secret: string | undefined;
+    if (tenantId) {
+      const tenantSecret = await secretRepo.get(tenantId, 'jira_webhook_secret');
+      if (tenantSecret) {
+        secret = tenantSecret;
+      } else {
+        secret = process.env.JIRA_WEBHOOK_SECRET;
+        if (secret) {
+          logger.warn(
+            { tenant_id: tenantId, project_key: jiraProjectKey, fallback: 'platform_env' },
+            'No tenant jira_webhook_secret — falling back to platform JIRA_WEBHOOK_SECRET',
+          );
+        }
+      }
+    } else {
+      secret = process.env.JIRA_WEBHOOK_SECRET;
+    }
+
+    if (!secret) {
+      logger.warn('No JIRA_WEBHOOK_SECRET available — rejecting webhook');
+      res.status(401).json({ error: 'Webhook signing not configured' });
+      return;
+    }
+
+    if (!verifyJiraSignature(rawBody, signatureHeader, secret)) {
+      logger.warn({ url: '/webhooks/jira', tenant_id: tenantId }, 'Invalid Jira webhook signature');
+      res.status(401).json({ error: 'Invalid webhook signature' });
+      return;
+    }
+
     if (webhookEvent === 'jira:issue_deleted') {
       let deletionPayload: ReturnType<typeof parseJiraIssueDeletion>;
       try {
@@ -72,7 +130,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
       const cancelled = await cancelTaskByExternalId({
         externalId: deletionPayload.issue.key,
         sourceSystem: 'jira',
-        tenantId: SYSTEM_TENANT_ID,
+        tenantId: tenantId ?? '00000000-0000-0000-0000-000000000001',
         prisma,
       });
 
@@ -83,25 +141,15 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
       return;
     }
 
-    if (webhookEvent !== 'jira:issue_created') {
-      logger.info({ webhookEvent }, 'Unknown Jira webhook event type — ignoring');
-      res.json({ received: true, action: 'ignored' });
-      return;
-    }
-
-    const jiraProjectKey = payload.issue.fields.project.key;
-    const project = await lookupProjectByJiraKey(jiraProjectKey, SYSTEM_TENANT_ID, prisma);
-
     if (!project) {
-      logger.info({ jiraProjectKey }, 'Project not registered — ignoring webhook');
-      res.json({ received: true, action: 'project_not_registered' });
+      res.status(404).json({ error: 'Unknown Jira project' });
       return;
     }
 
     const { task, created } = await createTaskFromJiraWebhook({
       payload,
       projectId: project.id,
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: project.tenant_id,
       prisma,
     });
 
