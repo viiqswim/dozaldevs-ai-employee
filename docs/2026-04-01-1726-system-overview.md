@@ -11,7 +11,7 @@ This is a system-level reference for the AI Employee platform as it runs locally
 ```mermaid
 flowchart LR
     JIRA["Jira\n(external)"]:::external
-    GW["Gateway\nFastify :3000"]:::service
+    GW["Gateway\nExpress :3000"]:::service
     DB["PostgreSQL\nSupabase :54322"]:::storage
     INN["Inngest Dev\n:8288"]:::service
     LC["Lifecycle Fn\nengineering/task-lifecycle"]:::service
@@ -63,7 +63,7 @@ flowchart LR
 | Phase | Name                     | What It Added                                                                                                           | Key Files                                                                                                                                                                           |
 | ----- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                                  | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                                                                       |
-| 2     | Event Gateway            | Fastify server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                      |
+| 2     | Event Gateway            | Express server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                      |
 | 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                                 | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                                                           |
 | 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/inngest/lifecycle.ts`                                                                                          |
 | 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                                 | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`                                              |
@@ -145,7 +145,7 @@ The self-hosted [Supabase Docker Compose](../docker/docker-compose.yml) uses `${
 | Supabase (PostgREST + Auth) | 54321 | `docker compose -f docker/docker-compose.yml up -d`               |
 | Supabase PostgreSQL         | 54322 | started by Docker Compose                                         |
 | Inngest Dev Server          | 8288  | `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest` |
-| Gateway (Fastify)           | 3000  | `USE_LOCAL_DOCKER=1 pnpm dev`                                     |
+| Gateway (Express)           | 3000  | `USE_LOCAL_DOCKER=1 pnpm dev`                                     |
 
 ### Start Everything at Once
 
@@ -294,7 +294,7 @@ The 9 forward-compatibility tables (`departments`, `archetypes`, `knowledge_base
 
 ```
 src/
-├── gateway/                    # Fastify HTTP server
+├── gateway/                    # Express HTTP server
 │   ├── server.ts               # Plugin registration, Inngest wiring
 │   ├── routes/
 │   │   ├── health.ts           # GET /health → {"status":"ok"}

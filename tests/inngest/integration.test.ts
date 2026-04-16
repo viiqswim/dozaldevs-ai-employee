@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, afterAll } from 'vitest';
 import fs from 'fs';
+import request from 'supertest';
 import { getPrisma, cleanupTestData, disconnectPrisma, computeJiraSignature } from '../setup.js';
 import { createInngestClient } from '../../src/gateway/inngest/client.js';
 import { buildApp } from '../../src/gateway/server.js';
@@ -36,21 +37,17 @@ describe.skipIf(!INNGEST_DEV_URL)('Integration Tests: Gateway → Inngest → Li
     }, timeoutMs);
   }
 
-  async function sendJiraWebhook(app: Awaited<ReturnType<typeof buildApp>>) {
+  async function sendJiraWebhook(result: Awaited<ReturnType<typeof buildApp>>) {
     const rawBody = fs.readFileSync('test-payloads/jira-issue-created.json', 'utf8');
     const signature = computeJiraSignature(rawBody, SECRET);
 
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/jira',
-      headers: {
-        'content-type': 'application/json',
-        'x-hub-signature': signature,
-      },
-      payload: rawBody,
-    });
+    const res = await request(result.app)
+      .post('/webhooks/jira')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature', signature)
+      .send(rawBody);
 
-    return { res, body: JSON.parse(res.body) };
+    return { res, body: res.body as Record<string, unknown> };
   }
 
   beforeEach(async () => {
@@ -67,126 +64,106 @@ describe.skipIf(!INNGEST_DEV_URL)('Integration Tests: Gateway → Inngest → Li
 
   it('valid Jira webhook sends engineering/task.received event to Inngest', async () => {
     const inngest = createInngestClient();
-    const app = await buildApp({ inngestClient: inngest });
-    await app.ready();
+    const result = await buildApp({ inngestClient: inngest });
 
-    try {
-      const { res, body } = await sendJiraWebhook(app);
-      expect([200, 202]).toContain(res.statusCode);
-      expect(body.taskId).toBeTruthy();
+    const { res, body } = await sendJiraWebhook(result);
+    expect([200, 202]).toContain(res.status);
+    expect(body.taskId).toBeTruthy();
 
-      const eventRes = await fetch(`${INNGEST_DEV_URL}/v1/events?name=engineering/task.received`);
-      expect(eventRes.ok).toBe(true);
+    const eventRes = await fetch(`${INNGEST_DEV_URL}/v1/events?name=engineering/task.received`);
+    expect(eventRes.ok).toBe(true);
 
-      const eventData = (await eventRes.json()) as {
-        data?: Array<{ name: string; data?: { taskId?: string } }>;
-      };
-      const events = eventData.data ?? [];
-      expect(events.length).toBeGreaterThan(0);
+    const eventData = (await eventRes.json()) as {
+      data?: Array<{ name: string; data?: { taskId?: string } }>;
+    };
+    const events = eventData.data ?? [];
+    expect(events.length).toBeGreaterThan(0);
 
-      const matchingEvent = events.find(
-        (e) => e.name === 'engineering/task.received' && e.data?.taskId === body.taskId,
-      );
-      expect(matchingEvent).toBeDefined();
-    } finally {
-      await app.close();
-    }
+    const matchingEvent = events.find(
+      (e) => e.name === 'engineering/task.received' && e.data?.taskId === body.taskId,
+    );
+    expect(matchingEvent).toBeDefined();
   });
 
   it('lifecycle function transitions task Ready → Executing within 10s', async () => {
     const inngest = createInngestClient();
-    const app = await buildApp({ inngestClient: inngest });
-    await app.ready();
+    const result = await buildApp({ inngestClient: inngest });
 
-    try {
-      const { res, body } = await sendJiraWebhook(app);
-      expect([200, 202]).toContain(res.statusCode);
-      expect(body.taskId).toBeTruthy();
+    const { res, body } = await sendJiraWebhook(result);
+    expect([200, 202]).toContain(res.status);
+    expect(body.taskId).toBeTruthy();
 
-      const taskId: string = body.taskId;
-      const readyTask = await getPrisma().task.findUnique({ where: { id: taskId } });
-      expect(readyTask).not.toBeNull();
-      expect(readyTask!.status).toBe('Ready');
+    const taskId = body.taskId as string;
+    const readyTask = await getPrisma().task.findUnique({ where: { id: taskId } });
+    expect(readyTask).not.toBeNull();
+    expect(readyTask!.status).toBe('Ready');
 
-      const executingTask = await pollForStatus(taskId, 'Executing', 10000);
-      expect(executingTask.status).toBe('Executing');
-    } finally {
-      await app.close();
-    }
+    const executingTask = await pollForStatus(taskId, 'Executing', 10000);
+    expect(executingTask.status).toBe('Executing');
   });
 
   it('task_status_log has NULL→Ready (gateway) and Ready→Executing (lifecycle_fn) entries', async () => {
     const inngest = createInngestClient();
-    const app = await buildApp({ inngestClient: inngest });
-    await app.ready();
+    const result = await buildApp({ inngestClient: inngest });
 
-    try {
-      const { res, body } = await sendJiraWebhook(app);
-      expect([200, 202]).toContain(res.statusCode);
-      const taskId: string = body.taskId;
+    const { res, body } = await sendJiraWebhook(result);
+    expect([200, 202]).toContain(res.status);
+    const taskId = body.taskId as string;
 
-      await pollForStatus(taskId, 'Executing', 10000);
+    await pollForStatus(taskId, 'Executing', 10000);
 
-      const logs = await getPrisma().taskStatusLog.findMany({
-        where: { task_id: taskId },
-        orderBy: { created_at: 'asc' },
-      });
-      expect(logs.length).toBeGreaterThanOrEqual(2);
+    const logs = await getPrisma().taskStatusLog.findMany({
+      where: { task_id: taskId },
+      orderBy: { created_at: 'asc' },
+    });
+    expect(logs.length).toBeGreaterThanOrEqual(2);
 
-      const gatewayEntry = logs.find((l) => l.from_status === null && l.to_status === 'Ready');
-      expect(gatewayEntry).toBeDefined();
-      expect(gatewayEntry!.actor).toBe('gateway');
+    const gatewayEntry = logs.find((l) => l.from_status === null && l.to_status === 'Ready');
+    expect(gatewayEntry).toBeDefined();
+    expect(gatewayEntry!.actor).toBe('gateway');
 
-      const lifecycleEntry = logs.find(
-        (l) => l.from_status === 'Ready' && l.to_status === 'Executing',
-      );
-      expect(lifecycleEntry).toBeDefined();
-      expect(lifecycleEntry!.actor).toBe('lifecycle_fn');
-    } finally {
-      await app.close();
-    }
+    const lifecycleEntry = logs.find(
+      (l) => l.from_status === 'Ready' && l.to_status === 'Executing',
+    );
+    expect(lifecycleEntry).toBeDefined();
+    expect(lifecycleEntry!.actor).toBe('lifecycle_fn');
   });
 
   it('sending same webhook twice creates only one task and one lifecycle run', async () => {
     const inngest = createInngestClient();
-    const app = await buildApp({ inngestClient: inngest });
-    await app.ready();
+    const result = await buildApp({ inngestClient: inngest });
 
-    try {
-      const rawBody = fs.readFileSync('test-payloads/jira-issue-created.json', 'utf8');
-      const signature = computeJiraSignature(rawBody, SECRET);
-      const headers = { 'content-type': 'application/json', 'x-hub-signature': signature };
+    const rawBody = fs.readFileSync('test-payloads/jira-issue-created.json', 'utf8');
+    const signature = computeJiraSignature(rawBody, SECRET);
+    const headers = { 'content-type': 'application/json', 'x-hub-signature': signature };
 
-      const [res1, res2] = await Promise.all([
-        app.inject({ method: 'POST', url: '/webhooks/jira', headers, payload: rawBody }),
-        app.inject({ method: 'POST', url: '/webhooks/jira', headers, payload: rawBody }),
-      ]);
-      expect([200, 202]).toContain(res1.statusCode);
-      expect([200, 202]).toContain(res2.statusCode);
+    const [res1, res2] = await Promise.all([
+      request(result.app).post('/webhooks/jira').set(headers).send(rawBody),
+      request(result.app).post('/webhooks/jira').set(headers).send(rawBody),
+    ]);
+    expect([200, 202]).toContain(res1.status);
+    expect([200, 202]).toContain(res2.status);
 
-      const taskCount = await getPrisma().task.count({
-        where: { external_id: 'TEST-1', source_system: 'jira' },
-      });
-      expect(taskCount).toBe(1);
+    const taskCount = await getPrisma().task.count({
+      where: { external_id: 'TEST-1', source_system: 'jira' },
+    });
+    expect(taskCount).toBe(1);
 
-      const task = await getPrisma().task.findFirst({
-        where: { external_id: 'TEST-1', source_system: 'jira' },
-      });
-      expect(task).not.toBeNull();
+    const task = await getPrisma().task.findFirst({
+      where: { external_id: 'TEST-1', source_system: 'jira' },
+    });
+    expect(task).not.toBeNull();
 
-      await pollForStatus(task!.id, 'Executing', 10000);
+    await pollForStatus(task!.id, 'Executing', 10000);
 
-      const lifecycleLogs = await getPrisma().taskStatusLog.findMany({
-        where: {
-          task_id: task!.id,
-          from_status: 'Ready',
-          to_status: 'Executing',
-          actor: 'lifecycle_fn',
-        },
-      });
-      expect(lifecycleLogs.length).toBe(1);
-    } finally {
-      await app.close();
-    }
+    const lifecycleLogs = await getPrisma().taskStatusLog.findMany({
+      where: {
+        task_id: task!.id,
+        from_status: 'Ready',
+        to_status: 'Executing',
+        actor: 'lifecycle_fn',
+      },
+    });
+    expect(lifecycleLogs.length).toBe(1);
   });
 });

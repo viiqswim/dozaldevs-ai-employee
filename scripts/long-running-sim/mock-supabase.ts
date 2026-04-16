@@ -1,13 +1,15 @@
-import Fastify from 'fastify';
+import express from 'express';
+import type { Request, Response } from 'express';
 
-const app = Fastify({ logger: false });
+const app = express();
+app.use(express.json());
+
 const state = {
   tasks: new Map<string, Record<string, unknown>>(),
   executions: new Map<string, Record<string, unknown>>(),
 };
 
-// GET /rest/v1/tasks
-app.get('/rest/v1/tasks', async (req, reply) => {
+app.get('/rest/v1/tasks', (req: Request, res: Response) => {
   const id = ((req.query as Record<string, string>).id ?? '').replace('eq.', '');
   const task = state.tasks.get(id) ?? {
     id,
@@ -21,48 +23,40 @@ app.get('/rest/v1/tasks', async (req, reply) => {
     repo_url: 'https://github.com/test/repo',
     tooling_config: { install: 'echo install' },
   };
-  return reply.send([task]);
+  res.json([task]);
 });
 
-// PATCH /rest/v1/tasks
-app.patch('/rest/v1/tasks', async (req, reply) => {
+app.patch('/rest/v1/tasks', (req: Request, res: Response) => {
   const id = ((req.query as Record<string, string>).id ?? '').replace('eq.', '');
   const existing = state.tasks.get(id) ?? {};
   state.tasks.set(id, { ...existing, ...(req.body as Record<string, unknown>) });
   console.log(`[mock-supabase] PATCH tasks/${id}:`, req.body);
-  return reply.send([state.tasks.get(id)]);
+  res.json([state.tasks.get(id)]);
 });
 
-// POST /rest/v1/executions
-app.post('/rest/v1/executions', async (req, reply) => {
+app.post('/rest/v1/executions', (req: Request, res: Response) => {
   const id = `exec-${Date.now()}`;
   const execution = { id, ...(req.body as Record<string, unknown>) };
   state.executions.set(id, execution);
   console.log(`[mock-supabase] POST executions:`, req.body);
-  return reply.status(201).send([execution]);
+  res.status(201).json([execution]);
 });
 
-// PATCH /rest/v1/executions
-app.patch('/rest/v1/executions', async (req, reply) => {
+app.patch('/rest/v1/executions', (req: Request, res: Response) => {
   const id = ((req.query as Record<string, string>).id ?? '').replace('eq.', '');
   const existing = state.executions.get(id) ?? {};
   state.executions.set(id, { ...existing, ...(req.body as Record<string, unknown>) });
   console.log(`[mock-supabase] PATCH executions/${id}:`, req.body);
-  return reply.send([state.executions.get(id)]);
+  res.json([state.executions.get(id)]);
 });
 
-// GET /rest/v1/executions
-app.get('/rest/v1/executions', async (req, reply) => {
+app.get('/rest/v1/executions', (req: Request, res: Response) => {
   const taskId = ((req.query as Record<string, string>).task_id ?? '').replace('eq.', '');
   const execs = [...state.executions.values()].filter((e) => e['task_id'] === taskId);
-  return reply.send(execs);
+  res.json(execs);
 });
 
 const port = parseInt(process.env.MOCK_SUPABASE_PORT ?? '54399', 10);
-app.listen({ port, host: '0.0.0.0' }, (err) => {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-  }
+app.listen(port, '0.0.0.0', () => {
   console.log(`[mock-supabase] Listening on port ${port}`);
 });

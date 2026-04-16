@@ -41,7 +41,7 @@
  *   }
  *
  * How HMAC signing works (matches src/gateway/validation/signature.ts):
- *   The gateway reads the raw request body bytes via fastify-raw-body and computes:
+ *   The gateway reads the raw request body bytes via express.json verify callback and computes:
  *     HMAC-SHA256(rawBody, JIRA_WEBHOOK_SECRET) → hex → "sha256=<hex>"
  *   We must sign the EXACT bytes we send — no re-serialization after signing.
  *
@@ -355,7 +355,7 @@ async function main(): Promise<void> {
 
   // ── 2. Build rawBody (exact bytes to sign AND send) ───────────────────────
   //
-  // CRITICAL: The gateway uses fastify-raw-body to capture the exact request
+  // CRITICAL: The gateway uses express.json's verify callback to capture the exact request
   // bytes, then computes HMAC over those bytes. We must:
   //   a) Decide on rawBody first (with any --key mutation applied)
   //   b) Compute HMAC over rawBody
