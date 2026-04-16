@@ -1,9 +1,13 @@
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
+import { PrismaClient } from '@prisma/client';
 import { createMachine, destroyMachine } from '../lib/fly-client.js';
 import { createSlackClient } from '../lib/slack-client.js';
 import { createLogger } from '../lib/logger.js';
 import { getTunnelUrl } from '../lib/tunnel-client.js';
+import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
+import { TenantRepository } from '../gateway/services/tenant-repository.js';
+import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -54,11 +58,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const flyApp =
           process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
 
-        // In hybrid mode the machine runs on Fly.io but Supabase is local — resolve
-        // the public tunnel URL (TUNNEL_URL env var) so the machine can reach it.
-        // Set TUNNEL_URL to the Cloudflare Tunnel URL before dispatching tasks.
         const effectiveSupabaseUrl =
           process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+
+        const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
+        const prismaClient = new PrismaClient();
+        const tenantEnv = await loadTenantEnv(tenantId, {
+          tenantRepo: new TenantRepository(prismaClient),
+          secretRepo: new TenantSecretRepository(prismaClient),
+        });
+        await prismaClient.$disconnect();
 
         const machine = await createMachine(flyApp, {
           image,
@@ -66,25 +75,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           auto_destroy: true,
           cmd: ['node', '/app/dist/workers/generic-harness.mjs'],
           env: {
-            ...Object.fromEntries(
-              Object.entries(process.env)
-                .filter(
-                  ([k, v]) =>
-                    v !== undefined &&
-                    ![
-                      'PATH',
-                      'HOME',
-                      'USER',
-                      'SHELL',
-                      'TERM',
-                      'TMPDIR',
-                      'PWD',
-                      'DATABASE_URL',
-                      'DATABASE_URL_DIRECT',
-                    ].includes(k),
-                )
-                .map(([k, v]) => [k, v as string]),
-            ),
+            ...tenantEnv,
             TASK_ID: taskId,
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
