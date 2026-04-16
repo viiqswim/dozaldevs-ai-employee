@@ -26,7 +26,44 @@ REGLAS DE FORMATO (obligatorias — no las ignores):
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Wrap both upserts in a transaction for atomicity
+  const platformTenant = await prisma.tenant.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000001' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'Platform',
+      slug: 'platform',
+      status: 'active',
+    },
+    update: { name: 'Platform', status: 'active' },
+  });
+  console.log(`✅ Tenant upserted: ${platformTenant.id} (slug: ${platformTenant.slug})`);
+
+  const dozalDevsTenant = await prisma.tenant.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000002' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000002',
+      name: 'DozalDevs',
+      slug: 'dozaldevs',
+      status: 'active',
+      config: { summary: { channel_ids: [], target_channel: null } },
+    },
+    update: { name: 'DozalDevs', status: 'active' },
+  });
+  console.log(`✅ Tenant upserted: ${dozalDevsTenant.id} (slug: ${dozalDevsTenant.slug})`);
+
+  const vlreTenant = await prisma.tenant.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000003' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000003',
+      name: 'VLRE',
+      slug: 'vlre',
+      status: 'active',
+      config: { summary: { channel_ids: [], target_channel: null } },
+    },
+    update: { name: 'VLRE', status: 'active' },
+  });
+  console.log(`✅ Tenant upserted: ${vlreTenant.id} (slug: ${vlreTenant.slug})`);
+
   const [agentVersion, project] = await prisma.$transaction([
     prisma.agentVersion.upsert({
       where: { id: '00000000-0000-0000-0000-000000000002' },
@@ -162,6 +199,9 @@ async function main() {
   );
 
   console.log('✅ Seeding complete.');
+  console.log(
+    `Tenants seeded: Platform, DozalDevs, VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
+  );
 }
 
 main()

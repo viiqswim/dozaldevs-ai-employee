@@ -9,6 +9,13 @@ import {
   parseJiraWebhook,
   parseJiraIssueDeletion,
   type JiraWebhookPayload,
+  CreateTenantBodySchema,
+  UpdateTenantBodySchema,
+  TenantIdParamSchema,
+  SecretKeyParamSchema,
+  SetSecretBodySchema,
+  TenantConfigBodySchema,
+  SlackOAuthStateSchema,
 } from '../../src/gateway/validation/schemas.js';
 
 function loadFixture(name: string): unknown {
@@ -115,5 +122,113 @@ describe('GitHubPRWebhookSchema', () => {
       repository: { full_name: 'org/repo' },
     };
     expect(() => GitHubPRWebhookSchema.parse(payload)).toThrow(ZodError);
+  });
+});
+
+describe('CreateTenantBodySchema', () => {
+  it('accepts valid input', () => {
+    expect(() =>
+      CreateTenantBodySchema.parse({ name: 'DozalDevs', slug: 'dozal-devs' }),
+    ).not.toThrow();
+  });
+
+  it('rejects invalid slug with uppercase', () => {
+    expect(() => CreateTenantBodySchema.parse({ name: 'Test', slug: 'MyTenant' })).toThrow(
+      ZodError,
+    );
+  });
+
+  it('rejects slug with spaces', () => {
+    expect(() => CreateTenantBodySchema.parse({ name: 'Test', slug: 'my tenant' })).toThrow(
+      ZodError,
+    );
+  });
+
+  it('rejects empty name', () => {
+    expect(() => CreateTenantBodySchema.parse({ name: '', slug: 'test' })).toThrow(ZodError);
+  });
+});
+
+describe('UpdateTenantBodySchema', () => {
+  it('accepts valid partial update', () => {
+    expect(() => UpdateTenantBodySchema.parse({ name: 'New Name' })).not.toThrow();
+  });
+
+  it('accepts status update', () => {
+    expect(() => UpdateTenantBodySchema.parse({ status: 'suspended' })).not.toThrow();
+  });
+
+  it('rejects empty object', () => {
+    expect(() => UpdateTenantBodySchema.parse({})).toThrow(ZodError);
+  });
+
+  it('rejects invalid status value', () => {
+    expect(() => UpdateTenantBodySchema.parse({ status: 'deleted' })).toThrow(ZodError);
+  });
+});
+
+describe('TenantIdParamSchema', () => {
+  it('accepts system tenant UUID', () => {
+    expect(() =>
+      TenantIdParamSchema.parse({ tenantId: '00000000-0000-0000-0000-000000000001' }),
+    ).not.toThrow();
+  });
+
+  it('rejects non-UUID string', () => {
+    expect(() => TenantIdParamSchema.parse({ tenantId: 'not-a-uuid' })).toThrow(ZodError);
+  });
+});
+
+describe('SecretKeyParamSchema', () => {
+  it('accepts valid key', () => {
+    expect(() =>
+      SecretKeyParamSchema.parse({
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        key: 'slack_bot_token',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects key with hyphens', () => {
+    expect(() =>
+      SecretKeyParamSchema.parse({
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        key: 'slack-bot-token',
+      }),
+    ).toThrow(ZodError);
+  });
+});
+
+describe('SetSecretBodySchema', () => {
+  it('accepts valid value', () => {
+    expect(() => SetSecretBodySchema.parse({ value: 'xoxb-token' })).not.toThrow();
+  });
+
+  it('rejects empty value', () => {
+    expect(() => SetSecretBodySchema.parse({ value: '' })).toThrow(ZodError);
+  });
+
+  it('rejects oversized value', () => {
+    expect(() => SetSecretBodySchema.parse({ value: 'x'.repeat(10001) })).toThrow(ZodError);
+  });
+});
+
+describe('SlackOAuthStateSchema', () => {
+  it('accepts valid state', () => {
+    expect(() =>
+      SlackOAuthStateSchema.parse({
+        tenant_id: '00000000-0000-0000-0000-000000000001',
+        nonce: 'a'.repeat(32),
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects nonce of wrong length', () => {
+    expect(() =>
+      SlackOAuthStateSchema.parse({
+        tenant_id: '00000000-0000-0000-0000-000000000001',
+        nonce: 'short',
+      }),
+    ).toThrow(ZodError);
   });
 });

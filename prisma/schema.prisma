@@ -39,6 +39,7 @@ model Task {
   updated_at         DateTime @updatedAt
 
   // Relations
+  tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   archetype         Archetype?         @relation(fields: [archetype_id], references: [id])
   project           Project?           @relation(fields: [project_id], references: [id])
   executions        Execution[]
@@ -128,6 +129,7 @@ model Project {
   updated_at        DateTime @updatedAt
 
   // Relations
+  tenant     Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   department Department? @relation(fields: [department_id], references: [id])
   tasks      Task[]
 
@@ -148,6 +150,7 @@ model Feedback {
   tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
 
   // Relations
+  tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   task         Task?         @relation(fields: [task_id], references: [id])
   agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
 
@@ -181,6 +184,7 @@ model Department {
   created_at    DateTime @default(now())
 
   // Relations
+  tenant     Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   archetypes Archetype[]
   projects   Project[]
 
@@ -205,6 +209,7 @@ model Archetype {
   deliverable_type  String?
 
   // Relations
+  tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   department     Department?     @relation(fields: [department_id], references: [id])
   agentVersion   AgentVersion?   @relation("CurrentArchetypeVersion", fields: [agent_version_id], references: [id])
   tasks          Task[]
@@ -226,6 +231,7 @@ model KnowledgeBase {
   created_at    DateTime  @default(now())
 
   // Relations
+  tenant    Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   archetype Archetype? @relation(fields: [archetype_id], references: [id])
 
   @@map("knowledge_bases")
@@ -327,4 +333,46 @@ model AuditLog {
   agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
 
   @@map("audit_log")
+}
+
+// ============================================================
+// Multi-Tenancy Tables
+// ============================================================
+
+model Tenant {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String
+  slack_team_id String?   @unique
+  config        Json?
+  status        String    @default("active")
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  deleted_at    DateTime?
+
+  secrets       TenantSecret[]
+  tasks         Task[]
+  projects      Project[]
+  feedback      Feedback[]
+  departments   Department[]
+  archetypes    Archetype[]
+  knowledgeBases KnowledgeBase[]
+
+  @@map("tenants")
+}
+
+model TenantSecret {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenant_id  String   @db.Uuid
+  key        String
+  ciphertext String
+  iv         String
+  auth_tag   String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, key])
+  @@map("tenant_secrets")
 }
