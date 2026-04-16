@@ -24,7 +24,9 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "setup:two-tenants": "tsx scripts/setup-two-tenants.ts",
+    "verify:multi-tenancy": "tsx scripts/verify-multi-tenancy.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
