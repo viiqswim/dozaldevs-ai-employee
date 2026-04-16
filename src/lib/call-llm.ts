@@ -57,6 +57,9 @@ export function _resetAlertState(): void {
 type CostRow = { total: number | string | null };
 
 async function checkCostCircuitBreaker(): Promise<void> {
+  // Skip cost check when running in a context without direct DB access (e.g. Fly.io generic harness)
+  if (!process.env.DATABASE_URL) return;
+
   const limitUsd =
     parseFloat(process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY ?? '') || DEFAULT_COST_LIMIT_USD;
 

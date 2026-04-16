@@ -239,10 +239,13 @@ async function main(): Promise<void> {
   );
 
   // ── Step 3: Create execution record ───────────────────────────────────
+  const executionId_seed = crypto.randomUUID();
   const executionRecord = await db.post('executions', {
+    id: executionId_seed,
     task_id: TASK_ID,
     runtime_type: 'generic-harness',
     status: 'running',
+    updated_at: new Date().toISOString(),
   });
   const executionId: string | null =
     executionRecord && typeof (executionRecord as ExecutionRow).id === 'string'
