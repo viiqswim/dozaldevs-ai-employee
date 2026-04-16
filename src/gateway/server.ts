@@ -7,6 +7,8 @@ import { healthRoutes } from './routes/health.js';
 import { jiraRoutes } from './routes/jira.js';
 import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
+import { adminEmployeeTriggerRoutes } from './routes/admin-employee-trigger.js';
+import { adminTasksRoutes } from './routes/admin-tasks.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
@@ -107,6 +109,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(jiraRoutes({ inngestClient: options.inngestClient, prisma }));
   app.use(githubRoutes());
   app.use(adminProjectRoutes({ prisma }));
+  app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
+  app.use(adminTasksRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   app.use((_req, res) => {
