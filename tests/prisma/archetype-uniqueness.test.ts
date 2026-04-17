@@ -1,13 +1,38 @@
-import { describe, it, expect, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../setup.js';
 
-const TENANT_A = '00000000-0000-0000-0000-000000000001';
-const TENANT_B = '00000000-0000-0000-0000-000000000002';
+// Use unique UUIDs per test run to avoid conflicts with other tests that delete tenants
+const TENANT_A = '00000000-0000-0000-0000-aaaaaaaaaaaa';
+const TENANT_B = '00000000-0000-0000-0000-bbbbbbbbbbbb';
 
 // Use a unique suffix per test run to avoid conflicts with leftover data
 const RUN_ID = Date.now().toString(36);
 
 const createdIds: string[] = [];
+
+beforeAll(async () => {
+  const prisma = getPrisma();
+  await prisma.tenant.upsert({
+    where: { id: TENANT_A },
+    create: {
+      id: TENANT_A,
+      name: 'ArchetypeTest-A',
+      slug: `archetype-test-a-${RUN_ID}`,
+      status: 'active',
+    },
+    update: {},
+  });
+  await prisma.tenant.upsert({
+    where: { id: TENANT_B },
+    create: {
+      id: TENANT_B,
+      name: 'ArchetypeTest-B',
+      slug: `archetype-test-b-${RUN_ID}`,
+      status: 'active',
+    },
+    update: {},
+  });
+});
 
 afterEach(async () => {
   const prisma = getPrisma();
@@ -18,6 +43,9 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  const prisma = getPrisma();
+  await prisma.archetype.deleteMany({ where: { tenant_id: { in: [TENANT_A, TENANT_B] } } });
+  await prisma.tenant.deleteMany({ where: { id: { in: [TENANT_A, TENANT_B] } } });
   await disconnectPrisma();
 });
 

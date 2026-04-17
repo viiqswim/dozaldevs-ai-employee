@@ -10,7 +10,7 @@ export interface Message {
 }
 
 export interface CallLLMOptions {
-  model: string; // OpenRouter model ID e.g. "anthropic/claude-sonnet-4-6"
+  model: string; // OpenRouter model ID — ONLY approved models: "minimax/minimax-m2.7" or "anthropic/claude-haiku-4-5"
   messages: Message[];
   taskType: 'triage' | 'execution' | 'review';
   taskId?: string;
@@ -29,10 +29,8 @@ export interface CallLLMResult {
 }
 
 const PRICING_PER_1M_TOKENS: Record<string, { prompt: number; completion: number }> = {
-  'anthropic/claude-sonnet-4-6': { prompt: 3.0, completion: 15.0 },
-  'anthropic/claude-opus-4-6': { prompt: 15.0, completion: 75.0 },
-  'openai/gpt-4o': { prompt: 2.5, completion: 10.0 },
-  'openai/gpt-4o-mini': { prompt: 0.15, completion: 0.6 },
+  'minimax/minimax-m2.7': { prompt: 0.3, completion: 1.1 },
+  'anthropic/claude-haiku-4-5': { prompt: 0.8, completion: 4.0 },
 };
 
 let _prisma: PrismaClient | null = null;

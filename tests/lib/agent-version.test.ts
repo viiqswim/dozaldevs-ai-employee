@@ -7,7 +7,7 @@ describe('agent-version', () => {
     it('produces deterministic hashes for identical inputs', () => {
       const input = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 5000, retries: 3 },
       };
 
@@ -22,13 +22,13 @@ describe('agent-version', () => {
     it('produces identical hashes regardless of toolConfig key order', () => {
       const input1 = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { b: 1, a: 2 },
       };
 
       const input2 = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { a: 2, b: 1 },
       };
 
@@ -41,13 +41,13 @@ describe('agent-version', () => {
     it('produces different hashes for different promptTemplate', () => {
       const input1 = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 5000 },
       };
 
       const input2 = {
         promptTemplate: 'You are a harmful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 5000 },
       };
 
@@ -60,13 +60,13 @@ describe('agent-version', () => {
     it('produces different hashes for different toolConfig', () => {
       const input1 = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 5000 },
       };
 
       const input2 = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 10000 },
       };
 
@@ -79,13 +79,13 @@ describe('agent-version', () => {
     it('passes through modelId without hashing', () => {
       const input = {
         promptTemplate: 'You are a helpful assistant.',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfig: { timeout: 5000 },
       };
 
       const hash = computeVersionHash(input);
 
-      expect(hash.modelId).toBe('claude-sonnet-4-6');
+      expect(hash.modelId).toBe('minimax-m2.7');
     });
   });
 
@@ -106,13 +106,13 @@ describe('agent-version', () => {
       (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue({
         id: existingId,
         prompt_hash: 'abc123',
-        model_id: 'claude-sonnet-4-6',
+        model_id: 'minimax-m2.7',
         tool_config_hash: 'def456',
       });
 
       const result = await ensureAgentVersion(mockPrisma, {
         promptHash: 'abc123',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfigHash: 'def456',
       });
 
@@ -126,14 +126,14 @@ describe('agent-version', () => {
       (mockPrisma.agentVersion!.create as any).mockResolvedValue({
         id: newId,
         prompt_hash: 'abc123',
-        model_id: 'claude-sonnet-4-6',
+        model_id: 'minimax-m2.7',
         tool_config_hash: 'def456',
         is_active: true,
       });
 
       const result = await ensureAgentVersion(mockPrisma, {
         promptHash: 'abc123',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfigHash: 'def456',
       });
 
@@ -141,7 +141,7 @@ describe('agent-version', () => {
       expect(mockPrisma.agentVersion!.create).toHaveBeenCalledWith({
         data: {
           prompt_hash: 'abc123',
-          model_id: 'claude-sonnet-4-6',
+          model_id: 'minimax-m2.7',
           tool_config_hash: 'def456',
           changelog_note: undefined,
           is_active: true,
@@ -155,7 +155,7 @@ describe('agent-version', () => {
       (mockPrisma.agentVersion!.create as any).mockResolvedValue({
         id: newId,
         prompt_hash: 'abc123',
-        model_id: 'claude-sonnet-4-6',
+        model_id: 'minimax-m2.7',
         tool_config_hash: 'def456',
         changelog_note: 'Updated prompt for better accuracy',
         is_active: true,
@@ -163,7 +163,7 @@ describe('agent-version', () => {
 
       await ensureAgentVersion(mockPrisma as PrismaClient, {
         promptHash: 'abc123',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfigHash: 'def456',
         changelogNote: 'Updated prompt for better accuracy',
       });
@@ -171,7 +171,7 @@ describe('agent-version', () => {
       expect(mockPrisma.agentVersion!.create).toHaveBeenCalledWith({
         data: {
           prompt_hash: 'abc123',
-          model_id: 'claude-sonnet-4-6',
+          model_id: 'minimax-m2.7',
           tool_config_hash: 'def456',
           changelog_note: 'Updated prompt for better accuracy',
           is_active: true,
@@ -187,13 +187,13 @@ describe('agent-version', () => {
       (mockPrisma.agentVersion!.create as any).mockResolvedValueOnce({
         id: existingId,
         prompt_hash: 'abc123',
-        model_id: 'claude-sonnet-4-6',
+        model_id: 'minimax-m2.7',
         tool_config_hash: 'def456',
       });
 
       const result1 = await ensureAgentVersion(mockPrisma as PrismaClient, {
         promptHash: 'abc123',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfigHash: 'def456',
       });
 
@@ -201,13 +201,13 @@ describe('agent-version', () => {
       (mockPrisma.agentVersion!.findFirst as any).mockResolvedValueOnce({
         id: existingId,
         prompt_hash: 'abc123',
-        model_id: 'claude-sonnet-4-6',
+        model_id: 'minimax-m2.7',
         tool_config_hash: 'def456',
       });
 
       const result2 = await ensureAgentVersion(mockPrisma as PrismaClient, {
         promptHash: 'abc123',
-        modelId: 'claude-sonnet-4-6',
+        modelId: 'minimax-m2.7',
         toolConfigHash: 'def456',
       });
 

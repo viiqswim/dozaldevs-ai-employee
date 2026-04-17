@@ -352,7 +352,7 @@ function applyDefaultMockValues() {
 
   mockComputeVersionHash.mockReturnValue({
     promptHash: 'mock-prompt-hash',
-    modelId: 'anthropic/claude-sonnet-4-6',
+    modelId: 'minimax/minimax-m2.7',
     toolConfigHash: 'mock-tool-config-hash',
   });
   mockEnsureAgentVersion.mockResolvedValue(undefined);
@@ -562,7 +562,7 @@ function setupHappyPath() {
 
   vi.mocked(computeVersionHash).mockReturnValue({
     promptHash: 'mock-prompt-hash',
-    modelId: 'anthropic/claude-sonnet-4-6',
+    modelId: 'minimax/minimax-m2.7',
     toolConfigHash: 'mock-tool-config-hash',
   });
 
@@ -927,7 +927,7 @@ describe('orchestrate.mts', () => {
       promptTokens: 100,
       completionTokens: 50,
       estimatedCostUsd: 0.01,
-      primaryModelId: 'anthropic/claude-sonnet-4-6',
+      primaryModelId: 'minimax/minimax-m2.7',
     });
     await main().catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -967,7 +967,7 @@ describe('orchestrate.mts', () => {
       promptTokens: 50,
       completionTokens: 25,
       estimatedCostUsd: 0.005,
-      primaryModelId: 'anthropic/claude-sonnet-4-6',
+      primaryModelId: 'minimax/minimax-m2.7',
     });
     await main().catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 50));

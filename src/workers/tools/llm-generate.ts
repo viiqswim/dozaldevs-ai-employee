@@ -19,8 +19,7 @@ interface LlmGenerateResult {
 export const llmGenerateTool: ToolDefinition<LlmGenerateParams, LlmGenerateResult> = {
   name: 'llm.generate',
   async execute(params, ctx: ToolContext): Promise<LlmGenerateResult> {
-    const model =
-      params.model ?? ctx.env['OPENROUTER_MODEL'] ?? 'anthropic/claude-sonnet-4-20250514';
+    const model = params.model ?? ctx.env['OPENROUTER_MODEL'] ?? 'minimax/minimax-m2.7';
 
     const result = await callLLM({
       model,

@@ -15,7 +15,7 @@ afterAll(async () => {
 // GROUP 1: Table existence
 // ============================================================
 describe('Table existence', () => {
-  it('all 18 application tables exist in public schema', async () => {
+  it('all 19 application tables exist in public schema', async () => {
     const prisma = getPrisma();
     const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name 
@@ -42,6 +42,7 @@ describe('Table existence', () => {
       'risk_models',
       'task_status_log',
       'tasks',
+      'tenant_integrations',
       'tenant_secrets',
       'tenants',
       'validation_runs',
@@ -100,8 +101,8 @@ describe('CHECK constraints', () => {
     `;
     await expect(
       prisma.$executeRaw`
-        INSERT INTO task_status_log (id, task_id, to_status, actor)
-        VALUES (gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 'Ready', 'robot')
+        INSERT INTO task_status_log (id, task_id, to_status, actor, updated_at)
+        VALUES (gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 'Ready', 'robot', NOW())
       `,
     ).rejects.toThrow();
   });
@@ -117,8 +118,8 @@ describe('CHECK constraints', () => {
     for (const actor of validActors) {
       await expect(
         prisma.$executeRaw`
-          INSERT INTO task_status_log (id, task_id, to_status, actor)
-          VALUES (gen_random_uuid(), ${taskId}::uuid, 'Ready', ${actor})
+          INSERT INTO task_status_log (id, task_id, to_status, actor, updated_at)
+          VALUES (gen_random_uuid(), ${taskId}::uuid, 'Ready', ${actor}, NOW())
         `,
       ).resolves.toBeDefined();
     }
@@ -198,7 +199,7 @@ describe('Seed data verification', () => {
       where: { is_active: true },
     });
     expect(agentVersion).not.toBeNull();
-    expect(agentVersion!.model_id).toBe('anthropic/claude-sonnet-4-6');
+    expect(agentVersion!.model_id).toBe('minimax/minimax-m2.7');
   });
 
   it('project has correct default tenant_id', async () => {

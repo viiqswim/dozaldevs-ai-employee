@@ -70,14 +70,14 @@ async function main() {
       create: {
         id: '00000000-0000-0000-0000-000000000002',
         prompt_hash: 'initial-v1',
-        model_id: 'anthropic/claude-sonnet-4-6',
+        model_id: 'minimax/minimax-m2.7',
         tool_config_hash: 'initial-v1',
         changelog_note: 'Initial agent version for MVP testing',
         is_active: true,
       },
       update: {
         prompt_hash: 'initial-v1',
-        model_id: 'anthropic/claude-sonnet-4-6',
+        model_id: 'minimax/minimax-m2.7',
         tool_config_hash: 'initial-v1',
         changelog_note: 'Initial agent version for MVP testing',
         is_active: true,
@@ -120,16 +120,26 @@ async function main() {
 
   console.log(`✅ Department upserted: ${operationsDept.id} (name: ${operationsDept.name})`);
 
+  const SUMMARIZER_INSTRUCTIONS =
+    'Read the last 24 hours of messages from the configured Slack channels (channel IDs are in the DAILY_SUMMARY_CHANNELS environment variable, comma-separated). ' +
+    'Use the /tools/slack/read-channels.js shell tool to fetch messages. ' +
+    'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
+    'Use the /tools/slack/post-message.js shell tool to post the summary to the approval channel (SUMMARY_TARGET_CHANNEL environment variable) for human review. ' +
+    'Include approve/reject buttons in the message by passing --task-id to the post-message tool. ' +
+    'The task ID is available in the TASK_ID environment variable — include it in the button values for approval routing. ' +
+    'When in delivery mode (DELIVERY_MODE=true), publish the approved content to the publish channel (SUMMARY_PUBLISH_CHANNEL environment variable).';
+
   const dailySummarizerArchetype = await prisma.archetype.upsert({
     where: { id: '00000000-0000-0000-0000-000000000011' },
     create: {
       id: '00000000-0000-0000-0000-000000000011',
       role_name: 'daily-summarizer',
-      runtime: 'generic-harness',
+      runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      model: 'anthropic/claude-sonnet-4-6',
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['slack.readChannels', 'llm.generate', 'slack.postMessage'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       steps: [
         {
           tool: 'slack.readChannels',
@@ -161,11 +171,12 @@ async function main() {
     },
     update: {
       role_name: 'daily-summarizer',
-      runtime: 'generic-harness',
+      runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      model: 'anthropic/claude-sonnet-4-6',
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['slack.readChannels', 'llm.generate', 'slack.postMessage'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       steps: [
         {
           tool: 'slack.readChannels',
