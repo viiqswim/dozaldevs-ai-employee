@@ -1229,7 +1229,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/inngest/employee-lifecycle.ts`, `src/workers/opencode-harness.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 18. Register Bolt message event listener for thread replies
+- [x] 18. Register Bolt message event listener for thread replies
 
   **What to do**:
   - In `src/gateway/slack/handlers.ts`, register a new event handler: `boltApp.event('message', ...)`
@@ -1286,7 +1286,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/gateway/slack/handlers.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 19. Create feedback ingestion service
+- [x] 19. Create feedback ingestion service
 
   **What to do**:
   - Create `src/gateway/services/feedback-service.ts`:
@@ -1348,7 +1348,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/gateway/services/feedback-service.ts`, `src/inngest/feedback-handler.ts`, `tests/**`
   - Pre-commit: `pnpm build`
 
-- [ ] 20. Register Bolt app_mention event listener
+- [x] 20. Register Bolt app_mention event listener
 
   **What to do**:
   - In `src/gateway/slack/handlers.ts`, register: `boltApp.event('app_mention', ...)`
@@ -1402,7 +1402,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/gateway/slack/handlers.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 21. Create @mention intent classifier and handler
+- [x] 21. Create @mention intent classifier and handler
 
   **What to do**:
   - Create `src/gateway/services/mention-handler.ts`:
@@ -1464,7 +1464,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/gateway/services/mention-handler.ts`, `src/inngest/mention-handler.ts`, `tests/**`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 22. Create feedback response function (inline Haiku call)
+- [x] 22. Create feedback response function (inline Haiku call)
 
   **What to do**:
   - Create `src/inngest/feedback-responder.ts` — Inngest function triggered by `employee/feedback.stored`
@@ -1524,7 +1524,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/inngest/feedback-responder.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 23. Create periodic feedback summarization cron
+- [x] 23. Create periodic feedback summarization cron
 
   **What to do**:
   - Create `src/inngest/triggers/feedback-summarizer.ts` — Inngest cron function
@@ -1581,7 +1581,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/inngest/triggers/feedback-summarizer.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 24. Create feedback injection at task start
+- [x] 24. Create feedback injection at task start
 
   **What to do**:
   - Modify the unified lifecycle (`src/inngest/employee-lifecycle.ts`) at the Executing state:
@@ -1720,7 +1720,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
 
   **Commit**: NO (verification only, no code changes)
 
-- [ ] 26. Cleanup: drop slack_team_id, delete generic harness + tools
+- [x] 26. Cleanup: drop slack_team_id, delete generic harness + tools
 
   **What to do**:
   - Remove `slack_team_id` from the Tenant model in `prisma/schema.prisma`
@@ -1791,7 +1791,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `prisma/schema.prisma`, `prisma/migrations/*`, deleted files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 27. Tests for all new components
+- [x] 27. Tests for all new components
 
   **What to do**:
   - Write/verify tests exist for ALL new components:
