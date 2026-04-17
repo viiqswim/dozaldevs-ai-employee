@@ -25,7 +25,7 @@ vi.mock('../../src/lib/slack-client.js', () => ({
 
 const mockOpenRouterResponse = {
   choices: [{ message: { content: 'Hello!' } }],
-  model: 'anthropic/claude-sonnet-4-6',
+  model: 'minimax/minimax-m2.7',
   usage: { prompt_tokens: 100, completion_tokens: 50 },
 };
 
@@ -71,13 +71,13 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [{ role: 'user', content: 'Hello' }],
       taskType: 'execution',
     });
 
     expect(result.content).toBe('Hello!');
-    expect(result.model).toBe('anthropic/claude-sonnet-4-6');
+    expect(result.model).toBe('minimax/minimax-m2.7');
     expect(result.promptTokens).toBe(100);
     expect(result.completionTokens).toBe(50);
     expect(result.estimatedCostUsd).toBeGreaterThan(0);
@@ -89,7 +89,7 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(resp));
 
     const result = await callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
     });
@@ -102,7 +102,7 @@ describe('callLLM', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
-    await callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' });
+    await callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' });
 
     const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
     expect(body.temperature).toBe(0);
@@ -114,7 +114,7 @@ describe('callLLM', () => {
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     await callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
       maxTokens: 512,
@@ -129,7 +129,7 @@ describe('callLLM', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
-    await callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' });
+    await callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' });
 
     const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
     expect(body).not.toHaveProperty('max_tokens');
@@ -140,7 +140,7 @@ describe('callLLM', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
-    await callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' });
+    await callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' });
 
     const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer test-key');
@@ -151,7 +151,7 @@ describe('callLLM', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
-    await callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' });
+    await callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' });
 
     const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
     expect(headers['HTTP-Referer']).toBe('https://ai-employee-platform');
@@ -166,7 +166,7 @@ describe('callLLM', () => {
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const promise = callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
     });
@@ -182,7 +182,7 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({}, 429));
 
     const promise = callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
     });
@@ -196,7 +196,7 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(makeAbortAwareFetch());
 
     const promise = callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
       timeoutMs: 100,
@@ -212,7 +212,7 @@ describe('callLLM', () => {
       .mockResolvedValue(makeFetchResponse({ error: 'server error' }, 500));
 
     await expect(
-      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+      callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
     ).rejects.toThrow('OpenRouter returned 500');
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -225,22 +225,23 @@ describe('callLLM', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
-    await callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' });
+    await callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' });
 
     const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer ');
   });
 
-  it('calculates estimatedCostUsd correctly for claude-sonnet-4-6', async () => {
+  it('calculates estimatedCostUsd correctly for minimax-m2.7', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
     });
 
-    expect(result.estimatedCostUsd).toBeCloseTo(0.00105, 8);
+    // 100 prompt tokens × $0.30/M + 50 completion tokens × $1.10/M = $0.000085
+    expect(result.estimatedCostUsd).toBeCloseTo(0.000085, 8);
   });
 
   it('throws CostCircuitBreakerError when daily spend exceeds the configured limit', async () => {
@@ -253,7 +254,7 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     await expect(
-      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+      callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
     ).rejects.toThrow(CostCircuitBreakerError);
   });
 
@@ -275,7 +276,7 @@ describe('callLLM', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
     const result = await callLLM({
-      model: 'anthropic/claude-sonnet-4-6',
+      model: 'minimax/minimax-m2.7',
       messages: [],
       taskType: 'execution',
     });
@@ -293,7 +294,7 @@ describe('callLLM', () => {
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
 
     await expect(
-      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+      callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
     ).rejects.toThrow(CostCircuitBreakerError);
 
     expect(mockPostMessage).toHaveBeenCalledTimes(1);
@@ -316,13 +317,13 @@ describe('callLLM', () => {
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
 
     await expect(
-      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+      callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
     ).rejects.toThrow(CostCircuitBreakerError);
 
     vi.setSystemTime(new Date('2099-01-01T09:30:00Z'));
 
     await expect(
-      callLLM({ model: 'anthropic/claude-sonnet-4-6', messages: [], taskType: 'execution' }),
+      callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
     ).rejects.toThrow(CostCircuitBreakerError);
 
     expect(mockPostMessage).toHaveBeenCalledTimes(1);
