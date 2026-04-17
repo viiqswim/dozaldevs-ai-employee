@@ -131,6 +131,66 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             ? ['node', '/app/dist/workers/opencode-harness.mjs']
             : ['node', '/app/dist/workers/generic-harness.mjs'];
 
+        let feedbackContext = '';
+        try {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const kbRes = await fetch(
+            `${supabaseUrl}/rest/v1/knowledge_bases?archetype_id=eq.${archetypeId}&created_at=gte.${thirtyDaysAgo}&select=source_config&order=created_at.desc&limit=3`,
+            { headers },
+          );
+          const kbRows = (await kbRes.json()) as Array<{ source_config: unknown }>;
+
+          const fbRes = await fetch(
+            `${supabaseUrl}/rest/v1/feedback?created_at=gte.${thirtyDaysAgo}&select=correction_reason,feedback_type,created_at&order=created_at.desc&limit=10`,
+            { headers },
+          );
+          const fbRows = (await fbRes.json()) as Array<{
+            correction_reason: string | null;
+            feedback_type: string;
+            created_at: string;
+          }>;
+
+          const parts: string[] = [];
+
+          if (kbRows.length > 0) {
+            const themes = kbRows
+              .flatMap((kb) => {
+                const cfg = kb.source_config as {
+                  themes?: Array<{
+                    theme: string;
+                    representative_quote: string;
+                    frequency: number;
+                  }>;
+                } | null;
+                return cfg?.themes ?? [];
+              })
+              .slice(0, 5);
+            if (themes.length > 0) {
+              parts.push('Your recent feedback themes (last 30 days):');
+              for (const t of themes) {
+                parts.push(
+                  `- ${t.theme}: "${t.representative_quote}" (${t.frequency} occurrences)`,
+                );
+              }
+            }
+          }
+
+          if (fbRows.length > 0) {
+            const recent = fbRows.filter((f) => f.correction_reason).slice(0, 5);
+            if (recent.length > 0) {
+              parts.push('Recent specific feedback:');
+              for (const f of recent) {
+                const date = new Date(f.created_at).toLocaleDateString();
+                parts.push(`- [${f.feedback_type}] "${f.correction_reason}" (${date})`);
+              }
+            }
+          }
+
+          feedbackContext = parts.join('\n');
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to load feedback context — proceeding without it');
+        }
+
         log.info({ taskId, runtime }, 'Dispatching worker machine');
 
         const machine = await createMachine(flyApp, {
@@ -143,6 +203,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             TASK_ID: taskId,
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
+            ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
           },
         });
 
