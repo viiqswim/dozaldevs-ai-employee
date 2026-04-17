@@ -1650,7 +1650,7 @@ Task 1 → Task 4 → Task 14 → Task 16 → Task 17 → Task 25 → F1-F4 → 
   - Files: `src/inngest/employee-lifecycle.ts`, `src/workers/opencode-harness.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 25. End-to-end: OpenCode summarizer full flow
+- [x] 25. End-to-end: OpenCode summarizer full flow
 
   **What to do**:
   - Rebuild Docker image: `docker build -t ai-employee-worker:latest .`
