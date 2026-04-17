@@ -1,8 +1,36 @@
 import type { App } from '@slack/bolt';
 import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
+import { PrismaClient } from '@prisma/client';
+import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 
 const log = createLogger('slack-handlers');
+
+const SUPABASE_URL = () => process.env.SUPABASE_URL ?? '';
+const SUPABASE_KEY = () => process.env.SUPABASE_SECRET_KEY ?? '';
+const supabaseHeaders = () => ({
+  apikey: SUPABASE_KEY(),
+  Authorization: `Bearer ${SUPABASE_KEY()}`,
+  'Content-Type': 'application/json',
+  Prefer: 'return=representation',
+});
+
+async function findTaskIdByThreadTs(threadTs: string): Promise<string | null> {
+  const url = SUPABASE_URL();
+  const key = SUPABASE_KEY();
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/deliverables?metadata->>approval_message_ts=eq.${threadTs}&select=external_ref&limit=1`,
+      { headers: supabaseHeaders() },
+    );
+    const rows = (await res.json()) as Array<{ external_ref: string }>;
+    return rows[0]?.external_ref ?? null;
+  } catch (err) {
+    log.warn({ threadTs, err }, 'Failed to look up deliverable by thread_ts');
+    return null;
+  }
+}
 
 interface ActionBody {
   actions: Array<{ value: string }>;
@@ -61,6 +89,84 @@ const BUTTON_BLOCKS = (taskId: string) => [
 ];
 
 export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void {
+  boltApp.event('message', async ({ event }) => {
+    const msg = event as {
+      subtype?: string;
+      bot_id?: string;
+      thread_ts?: string;
+      ts: string;
+      text?: string;
+      user?: string;
+      channel: string;
+      team?: string;
+    };
+
+    if (!msg.thread_ts || msg.thread_ts === msg.ts) return;
+    if (msg.subtype === 'bot_message' || msg.bot_id) return;
+    if (!msg.user || !msg.text) return;
+
+    const taskId = await findTaskIdByThreadTs(msg.thread_ts);
+    if (!taskId) return;
+
+    try {
+      await inngest.send({
+        name: 'employee/feedback.received',
+        data: {
+          taskId,
+          feedbackText: msg.text,
+          userId: msg.user,
+          threadTs: msg.thread_ts,
+          channelId: msg.channel,
+        },
+      });
+      log.info({ taskId, userId: msg.user }, 'Feedback event sent from thread reply');
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to send feedback event');
+    }
+  });
+
+  boltApp.event('app_mention', async ({ event }) => {
+    const mention = event as {
+      text: string;
+      user: string;
+      channel: string;
+      thread_ts?: string;
+      ts: string;
+      team?: string;
+    };
+
+    const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+
+    let tenantId: string | null = null;
+    if (mention.team) {
+      try {
+        const prisma = new PrismaClient();
+        const integrationRepo = new TenantIntegrationRepository(prisma);
+        const integration = await integrationRepo.findByExternalId('slack', mention.team);
+        tenantId = integration?.tenant_id ?? null;
+        await prisma.$disconnect();
+      } catch (err) {
+        log.warn({ team: mention.team, err }, 'Failed to resolve tenant from Slack team ID');
+      }
+    }
+
+    try {
+      await inngest.send({
+        name: 'employee/mention.received',
+        data: {
+          text,
+          userId: mention.user,
+          channelId: mention.channel,
+          threadTs: mention.thread_ts,
+          tenantId,
+        },
+      });
+      log.info({ userId: mention.user, tenantId }, 'Mention event sent');
+    } catch (err) {
+      log.error({ err }, 'Failed to send mention event');
+    }
+  });
+
   boltApp.action('approve', async ({ ack, body, client }) => {
     await ack();
 

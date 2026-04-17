@@ -7,6 +7,10 @@ import { createRedispatchFunction } from '../../inngest/redispatch.js';
 import { createWatchdogFunction } from '../../inngest/watchdog.js';
 import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycle.js';
 import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js';
+import { createFeedbackHandlerFunction } from '../../inngest/feedback-handler.js';
+import { createMentionHandlerFunction } from '../../inngest/mention-handler.js';
+import { createFeedbackResponderFunction } from '../../inngest/feedback-responder.js';
+import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
@@ -26,10 +30,24 @@ export function inngestServeRoutes(): Router {
   const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient);
   const employeeLifecycleFn = createEmployeeLifecycleFunction(inngest);
   const summarizerTriggerFn = createSummarizerTrigger(inngest);
+  const feedbackHandlerFn = createFeedbackHandlerFunction(inngest);
+  const mentionHandlerFn = createMentionHandlerFunction(inngest);
+  const feedbackResponderFn = createFeedbackResponderFunction(inngest);
+  const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
 
   const handler = serve({
     client: inngest,
-    functions: [lifecycleFn, redispatchFn, watchdogFn, employeeLifecycleFn, summarizerTriggerFn],
+    functions: [
+      lifecycleFn,
+      redispatchFn,
+      watchdogFn,
+      employeeLifecycleFn,
+      summarizerTriggerFn,
+      feedbackHandlerFn,
+      mentionHandlerFn,
+      feedbackResponderFn,
+      feedbackSummarizerFn,
+    ],
   });
 
   router.use(handler);

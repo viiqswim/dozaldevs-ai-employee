@@ -1,23 +1,3 @@
-/**
- * OpenCode worker harness entry point for non-engineering AI employees.
- *
- * Runs inside the Docker container via CMD override:
- *   ["node", "/app/dist/workers/opencode-harness.mjs"]
- *
- * Behavior is fully driven by the archetype config in the DB.
- * Zero hardcoded employee-specific logic — every decision comes from
- * the archetype's system_prompt, instructions, model, and deliverable_type.
- *
- * Boot sequence:
- *   1. Read TASK_ID from env
- *   2. Fetch task + archetype from PostgREST
- *   3. Create execution record
- *   4. Update task → Executing
- *   5. Start OpenCode session with system_prompt + instructions
- *   6. Monitor OpenCode session until completion
- *   7. Write deliverable record, fire Inngest event, update task → Submitting
- */
-
 import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
 
@@ -202,7 +182,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const systemPrompt = archetype.system_prompt ?? '';
+  const feedbackContext = process.env.FEEDBACK_CONTEXT ?? '';
+  const baseSystemPrompt = archetype.system_prompt ?? '';
+  const systemPrompt = feedbackContext
+    ? `${baseSystemPrompt}\n\n${feedbackContext}`
+    : baseSystemPrompt;
   const instructions = archetype.instructions ?? '';
   const model = archetype.model ?? 'minimax/minimax-m2.7';
 
