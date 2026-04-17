@@ -91,6 +91,7 @@ model Deliverable {
   content       String?  @db.Text
   metadata      Json?
   created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
   // Relations
   execution Execution @relation(fields: [execution_id], references: [id])
@@ -108,6 +109,7 @@ model ValidationRun {
   error_output String?
   duration_ms  Int?
   created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
   // Relations
   execution Execution @relation(fields: [execution_id], references: [id])
@@ -147,6 +149,7 @@ model Feedback {
   correction_reason  String?
   created_by         String?
   created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
   tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
 
   // Relations
@@ -164,6 +167,7 @@ model TaskStatusLog {
   to_status   String
   actor       String
   created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   // Relations — CHECK constraint enforced via raw SQL migration (Task 5)
   task Task @relation(fields: [task_id], references: [id])
@@ -182,6 +186,7 @@ model Department {
   slack_channel String?
   tenant_id     String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
   // Relations
   tenant     Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -203,7 +208,9 @@ model Archetype {
   agent_version_id  String?  @db.Uuid
   tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
   system_prompt     String?  @db.Text
+  instructions      String?  @db.Text
   steps             Json?
   model             String?
   deliverable_type  String?
@@ -229,6 +236,7 @@ model KnowledgeBase {
   source_config Json?
   tenant_id     String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
   created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
 
   // Relations
   tenant    Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -243,6 +251,7 @@ model RiskModel {
   factors                Json?
   auto_approve_threshold Int      @default(70)
   created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
 
   // Relations
   archetype Archetype? @relation(fields: [archetype_id], references: [id])
@@ -258,6 +267,7 @@ model CrossDeptTrigger {
   payload             Json?
   status              String   @default("pending")
   created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
   // Relations
   sourceTask Task? @relation(fields: [source_task_id], references: [id])
@@ -273,6 +283,7 @@ model AgentVersion {
   tool_config_hash String?
   changelog_note   String?
   created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
   is_active        Boolean  @default(true)
 
   // Relations
@@ -295,6 +306,8 @@ model Clarification {
   external_ref  String?
   asked_at      DateTime?
   answered_at   DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
 
   // Relations
   task Task? @relation(fields: [task_id], references: [id])
@@ -311,6 +324,7 @@ model Review {
   verdict          String?
   comments         String?
   created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   // Relations
   deliverable  Deliverable?  @relation(fields: [deliverable_id], references: [id])
@@ -327,6 +341,7 @@ model AuditLog {
   http_method      String?
   response_status  Int?
   created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   // Relations
   task         Task?         @relation(fields: [task_id], references: [id])
@@ -350,15 +365,33 @@ model Tenant {
   updated_at    DateTime  @updatedAt
   deleted_at    DateTime?
 
-  secrets       TenantSecret[]
-  tasks         Task[]
-  projects      Project[]
-  feedback      Feedback[]
-  departments   Department[]
-  archetypes    Archetype[]
+  secrets        TenantSecret[]
+  tasks          Task[]
+  projects       Project[]
+  feedback       Feedback[]
+  departments    Department[]
+  archetypes     Archetype[]
   knowledgeBases KnowledgeBase[]
+  integrations   TenantIntegration[]
 
   @@map("tenants")
+}
+
+model TenantIntegration {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenant_id   String    @db.Uuid
+  provider    String
+  external_id String
+  config      Json?
+  status      String    @default("active")
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@unique([tenant_id, provider])
+  @@map("tenant_integrations")
 }
 
 model TenantSecret {
