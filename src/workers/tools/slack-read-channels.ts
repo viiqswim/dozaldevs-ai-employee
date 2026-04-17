@@ -8,6 +8,7 @@ export type SlackMessage = {
   subtype?: string;
   reply_count?: number;
   thread_ts?: string;
+  isSummaryPost?: boolean;
 };
 
 export interface ChannelActivity {
@@ -38,6 +39,14 @@ function truncateText(text: string | undefined): string | undefined {
 
 function extractSubtype(raw: unknown): string | undefined {
   return (raw as Record<string, unknown>)['subtype'] as string | undefined;
+}
+
+function isSummaryPost(raw: unknown): boolean {
+  const blocks = (raw as Record<string, unknown>)['blocks'];
+  if (!Array.isArray(blocks)) return false;
+  return blocks.some(
+    (b: unknown) => (b as Record<string, unknown>)['block_id'] === 'papi-chulo-daily-summary',
+  );
 }
 
 async function fetchChannelActivity(
@@ -81,13 +90,14 @@ async function fetchChannelActivity(
         subtype: msg.subtype,
         reply_count: msg.reply_count,
         thread_ts: msg.thread_ts,
+        isSummaryPost: isSummaryPost(msg),
       });
     }
 
     cursor = response.response_metadata?.next_cursor;
   } while (cursor);
 
-  const userMessages = rawMessages.filter((msg) => msg.subtype === undefined);
+  const userMessages = rawMessages.filter((msg) => msg.subtype === undefined && !msg.isSummaryPost);
   const messages = [...userMessages].reverse();
 
   const threadReplies: Record<string, SlackMessage[]> = {};
@@ -174,7 +184,7 @@ export const slackReadChannelsTool: ToolDefinition<
         const activity = await fetchChannelActivity(client, channelId, { oldest });
         results.push({
           channelId,
-          messages: activity.messages,
+          messages: activity.messages.map(({ isSummaryPost: _, ...msg }) => msg),
           threadReplies: activity.threadReplies,
         });
       } catch (err) {

@@ -35,6 +35,7 @@ export const slackPostMessageTool: ToolDefinition<SlackPostMessageParams, SlackP
       const blocks = [
         {
           type: 'header',
+          block_id: 'papi-chulo-daily-summary',
           text: { type: 'plain_text', text: `📰 Daily Summary — ${date}`, emoji: true },
         },
         {
