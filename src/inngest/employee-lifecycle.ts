@@ -11,10 +11,43 @@ import { TenantSecretRepository } from '../gateway/services/tenant-secret-reposi
 
 const log = createLogger('employee-lifecycle');
 
+async function patchTask(
+  supabaseUrl: string,
+  headers: Record<string, string>,
+  taskId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
+  });
+}
+
+async function logStatusTransition(
+  supabaseUrl: string,
+  headers: Record<string, string>,
+  taskId: string,
+  toStatus: string,
+  fromStatus?: string,
+): Promise<void> {
+  await fetch(`${supabaseUrl}/rest/v1/task_status_log`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      task_id: taskId,
+      from_status: fromStatus ?? null,
+      to_status: toStatus,
+      actor: 'lifecycle_fn',
+      updated_at: new Date().toISOString(),
+    }),
+  });
+}
+
 export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     {
-      id: 'employee/task-lifecycle',
+      id: 'employee/universal-lifecycle',
       triggers: [{ event: 'employee/task.dispatched' }],
     },
     async ({ event, step }) => {
@@ -22,13 +55,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       const supabaseUrl = process.env.SUPABASE_URL!;
       const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
-      const headers = {
+      const headers: Record<string, string> = {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
       };
 
+      void archetypeId;
+
+      // ── State: Received ──────────────────────────────────────────────────────
       const taskData = await step.run('load-task', async () => {
         const res = await fetch(
           `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=*,archetypes(*)`,
@@ -39,19 +75,40 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         return rows[0];
       });
 
-      void archetypeId;
-
       const archetype = (taskData.archetypes as Record<string, unknown>) ?? {};
       const riskModel = (archetype.risk_model as Record<string, unknown>) ?? {};
       const approvalRequired = riskModel.approval_required === true;
       const timeoutHours = (riskModel.timeout_hours as number) ?? 24;
+      const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
 
-      const machineId = await step.run('dispatch-machine', async () => {
-        await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ status: 'Executing', updated_at: new Date().toISOString() }),
-        });
+      // ── State: Triaging ──────────────────────────────────────────────────────
+      // Auto-passes: no triage logic implemented yet — all tasks are unambiguous
+      await step.run('triaging', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Triaging' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Triaging', 'Received');
+        log.info({ taskId }, 'State: Triaging (auto-pass)');
+      });
+
+      // ── State: AwaitingInput ─────────────────────────────────────────────────
+      // Auto-passes: triage found no ambiguity
+      await step.run('awaiting-input', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'AwaitingInput' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'AwaitingInput', 'Triaging');
+        log.info({ taskId }, 'State: AwaitingInput (auto-pass)');
+      });
+
+      // ── State: Ready ─────────────────────────────────────────────────────────
+      await step.run('ready', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Ready' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Ready', 'AwaitingInput');
+        log.info({ taskId }, 'State: Ready');
+      });
+
+      // ── State: Executing ─────────────────────────────────────────────────────
+      const machineId = await step.run('executing', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Executing' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Executing', 'Ready');
+        log.info({ taskId }, 'State: Executing — provisioning machine');
 
         const vmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
         const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
@@ -61,7 +118,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const effectiveSupabaseUrl =
           process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
 
-        const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
         const prismaClient = new PrismaClient();
         const tenantEnv = await loadTenantEnv(tenantId, {
           tenantRepo: new TenantRepository(prismaClient),
@@ -69,11 +125,19 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
         await prismaClient.$disconnect();
 
+        const runtime = (archetype.runtime as string | null) ?? 'generic-harness';
+        const cmd =
+          runtime === 'opencode'
+            ? ['node', '/app/dist/workers/opencode-harness.mjs']
+            : ['node', '/app/dist/workers/generic-harness.mjs'];
+
+        log.info({ taskId, runtime }, 'Dispatching worker machine');
+
         const machine = await createMachine(flyApp, {
           image,
           vm_size: vmSize,
           auto_destroy: true,
-          cmd: ['node', '/app/dist/workers/generic-harness.mjs'],
+          cmd,
           env: {
             ...tenantEnv,
             TASK_ID: taskId,
@@ -85,6 +149,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         return machine.id;
       });
 
+      // ── Poll for machine completion (Submitting or Failed) ───────────────────
       const finalStatus = await step.run('poll-completion', async () => {
         const maxPolls = 20;
         const intervalMs = 15_000;
@@ -104,13 +169,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       if (finalStatus === 'Failed') {
         log.error({ taskId }, 'Task failed in machine');
         await step.run('mark-failed', async () => {
-          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'Failed', updated_at: new Date().toISOString() }),
-          });
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Failed' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Executing');
         });
-        await step.run('cleanup', async () => {
+        await step.run('cleanup-on-failure', async () => {
           try {
             const flyApp =
               process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
@@ -121,16 +183,30 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
         return;
       }
+
+      // ── State: Validating ────────────────────────────────────────────────────
+      // Auto-passes: no validation stages configured
+      await step.run('validating', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Validating' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Validating', 'Submitting');
+        log.info({ taskId }, 'State: Validating (auto-pass)');
+      });
+
+      // ── State: Submitting ────────────────────────────────────────────────────
+      await step.run('submitting', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Submitting' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Submitting', 'Validating');
+        log.info({ taskId }, 'State: Submitting');
+      });
 
       if (!approvalRequired) {
+        // ── State: Done (no approval needed) ────────────────────────────────────
         await step.run('complete', async () => {
-          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'Done', updated_at: new Date().toISOString() }),
-          });
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+          log.info({ taskId }, 'State: Done (no approval required)');
         });
-        await step.run('cleanup', async () => {
+        await step.run('cleanup-no-approval', async () => {
           try {
             const flyApp =
               process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
@@ -142,15 +218,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         return;
       }
 
-      await step.run('set-awaiting', async () => {
-        await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-            status: 'AwaitingApproval',
-            updated_at: new Date().toISOString(),
-          }),
-        });
+      // ── State: Reviewing ─────────────────────────────────────────────────────
+      await step.run('set-reviewing', async () => {
+        await patchTask(supabaseUrl, headers, taskId, { status: 'Reviewing' });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Reviewing', 'Submitting');
+        log.info({ taskId }, 'State: Reviewing — awaiting human approval');
       });
 
       const approvalEvent = await step.waitForEvent('wait-for-approval', {
@@ -159,8 +231,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         timeout: `${timeoutHours}h`,
       });
 
-      await step.run('handle-result', async () => {
-        const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
+      // ── State: Approved or Cancelled ─────────────────────────────────────────
+      await step.run('handle-approval-result', async () => {
         const prismaForApproval = new PrismaClient();
         const tenantEnvForApproval = await loadTenantEnv(tenantId, {
           tenantRepo: new TenantRepository(prismaForApproval),
@@ -195,11 +267,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               '⏰ Daily summary expired — no action taken.',
             );
           }
-          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'Cancelled', updated_at: new Date().toISOString() }),
-          });
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
           return;
         }
 
@@ -209,26 +278,81 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         };
 
         if (action === 'approve') {
-          const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
-          if (publishChannel && summaryContent) {
-            await slackClient.postMessage({
-              channel: publishChannel,
-              text: summaryContent,
-              blocks: summaryBlocks,
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Approved' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Approved', 'Reviewing');
+          log.info({ taskId }, 'State: Approved');
+
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Delivering', 'Approved');
+          log.info({ taskId }, 'State: Delivering');
+
+          if (process.env.DELIVERY_MACHINE_ENABLED === 'true') {
+            const deliveryVmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
+            const deliveryImage =
+              process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+            const deliveryFlyApp =
+              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            const effectiveSupabaseUrlForDelivery =
+              process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+
+            const deliveryMachine = await createMachine(deliveryFlyApp, {
+              image: deliveryImage,
+              vm_size: deliveryVmSize,
+              auto_destroy: true,
+              cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+              env: {
+                ...tenantEnvForApproval,
+                TASK_ID: taskId,
+                DELIVERY_MODE: 'true',
+                SUPABASE_URL: effectiveSupabaseUrlForDelivery,
+                SUPABASE_SECRET_KEY: supabaseKey,
+              },
             });
+
+            log.info({ taskId, deliveryMachineId: deliveryMachine.id }, 'Delivery machine spawned');
+
+            const maxDeliveryPolls = 20;
+            const deliveryIntervalMs = 15_000;
+            for (let i = 0; i < maxDeliveryPolls; i++) {
+              await new Promise<void>((resolve) => setTimeout(resolve, deliveryIntervalMs));
+              const res = await fetch(
+                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+                { headers },
+              );
+              const rows = (await res.json()) as Array<{ status: string }>;
+              const status = rows[0]?.status;
+              if (status === 'Done' || status === 'Failed') break;
+            }
+
+            try {
+              await destroyMachine(deliveryFlyApp, deliveryMachine.id);
+            } catch (err) {
+              log.warn(
+                { taskId, deliveryMachineId: deliveryMachine.id, err },
+                'Failed to destroy delivery machine',
+              );
+            }
+          } else {
+            const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
+            if (publishChannel && summaryContent) {
+              await slackClient.postMessage({
+                channel: publishChannel,
+                text: summaryContent,
+                blocks: summaryBlocks,
+              });
+            }
+            if (approvalMsgTs && targetChannel) {
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                `✅ Approved by ${userName} — summary posted.`,
+              );
+            }
+
+            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Delivering');
+            log.info({ taskId }, 'State: Done');
           }
-          if (approvalMsgTs && targetChannel) {
-            await slackClient.updateMessage(
-              targetChannel,
-              approvalMsgTs,
-              `✅ Approved by ${userName} — summary posted.`,
-            );
-          }
-          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'Done', updated_at: new Date().toISOString() }),
-          });
         } else {
           if (approvalMsgTs && targetChannel) {
             await slackClient.updateMessage(
@@ -237,11 +361,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               `❌ Rejected by ${userName}.`,
             );
           }
-          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'Cancelled', updated_at: new Date().toISOString() }),
-          });
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
+          log.info({ taskId }, 'State: Cancelled (rejected)');
         }
       });
 
