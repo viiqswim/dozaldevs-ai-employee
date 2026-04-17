@@ -120,6 +120,34 @@ async function main() {
 
   console.log(`✅ Department upserted: ${operationsDept.id} (name: ${operationsDept.name})`);
 
+  const dozalDevsDept = await prisma.department.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000020' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000020',
+      name: 'Operations',
+      tenant_id: '00000000-0000-0000-0000-000000000002',
+    },
+    update: {
+      name: 'Operations',
+    },
+  });
+
+  console.log(`✅ Department upserted: ${dozalDevsDept.id} (name: ${dozalDevsDept.name})`);
+
+  const vlreDept = await prisma.department.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000021' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000021',
+      name: 'Operations',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+    },
+    update: {
+      name: 'Operations',
+    },
+  });
+
+  console.log(`✅ Department upserted: ${vlreDept.id} (name: ${vlreDept.name})`);
+
   const SUMMARIZER_INSTRUCTIONS =
     'Read the last 24 hours of messages from the configured Slack channels (channel IDs are in the DAILY_SUMMARY_CHANNELS environment variable, comma-separated). ' +
     'Use the /tools/slack/read-channels.js shell tool to fetch messages. ' +
@@ -165,9 +193,83 @@ async function main() {
     `✅ Archetype upserted: ${dailySummarizerArchetype.id} (role: ${dailySummarizerArchetype.role_name}, model: ${dailySummarizerArchetype.model})`,
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0000-000000000012' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000012',
+      role_name: 'daily-summarizer',
+      runtime: 'opencode',
+      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 1,
+      tenant_id: '00000000-0000-0000-0000-000000000002',
+      department_id: '00000000-0000-0000-0000-000000000020',
+    },
+    update: {
+      role_name: 'daily-summarizer',
+      runtime: 'opencode',
+      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 1,
+      department_id: '00000000-0000-0000-0000-000000000020',
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${dozalDevsSummarizerArchetype.id} (role: ${dozalDevsSummarizerArchetype.role_name}, model: ${dozalDevsSummarizerArchetype.model})`,
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vlreSummarizerArchetype = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0000-000000000013' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000013',
+      role_name: 'daily-summarizer',
+      runtime: 'opencode',
+      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 1,
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      department_id: '00000000-0000-0000-0000-000000000021',
+    },
+    update: {
+      role_name: 'daily-summarizer',
+      runtime: 'opencode',
+      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
+      instructions: SUMMARIZER_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 1,
+      department_id: '00000000-0000-0000-0000-000000000021',
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${vlreSummarizerArchetype.id} (role: ${vlreSummarizerArchetype.role_name}, model: ${vlreSummarizerArchetype.model})`,
+  );
+
   console.log('✅ Seeding complete.');
   console.log(
-    `Tenants seeded: Platform, DozalDevs, VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
+    `Tenants seeded: Platform, DozalDevs, VLRE — all three have daily-summarizer archetypes. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
   );
 }
 
