@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { TenantRepository } from '../services/tenant-repository.js';
+import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { encrypt } from '../../lib/encryption.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 
@@ -38,6 +39,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
   const tenantRepo = new TenantRepository(prisma);
+  const integrationRepo = new TenantIntegrationRepository(prisma);
 
   router.get('/slack/install', async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse({ tenantId: req.query['tenant'] });
@@ -124,6 +126,14 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const teamId = tokenData.team.id;
       const teamName = tokenData.team.name;
       const accessToken = tokenData.access_token;
+      const existingIntegration = await integrationRepo.findByExternalId('slack', teamId);
+      if (existingIntegration && existingIntegration.tenant_id !== tenantId) {
+        res.status(409).json({
+          error: 'CONFLICT',
+          message: 'Slack workspace already attached to a different tenant',
+        });
+        return;
+      }
       await prisma.$transaction(async (tx) => {
         const existing = await tx.tenant.findFirst({
           where: { slack_team_id: teamId, deleted_at: null },
@@ -152,6 +162,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
           },
         });
       });
+      await integrationRepo.upsert(tenantId, 'slack', { external_id: teamId });
       res
         .status(200)
         .send(

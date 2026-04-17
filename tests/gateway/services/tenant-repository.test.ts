@@ -55,14 +55,6 @@ describe('TenantRepository', () => {
     expect(found!.slug).toBe('slug-test');
   });
 
-  it('findBySlackTeamId: returns tenant by slack_team_id', async () => {
-    const created = await repo.create({ name: 'Slack Org', slug: 'slack-org' });
-    await repo.update(created.id, { slack_team_id: 'T12345TEST' });
-    const found = await repo.findBySlackTeamId('T12345TEST');
-    expect(found).not.toBeNull();
-    expect(found!.slug).toBe('slack-org');
-  });
-
   it('update: updates allowed fields', async () => {
     const created = await repo.create({ name: 'Old Name', slug: 'update-test' });
     const updated = await repo.update(created.id, { name: 'New Name', status: 'suspended' });

@@ -16,6 +16,7 @@ import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
 import { TenantSecretRepository } from './services/tenant-secret-repository.js';
+import { TenantIntegrationRepository } from './services/tenant-integration-repository.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
@@ -61,6 +62,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     const installationStore = new TenantInstallationStore(
       new TenantRepository(prisma),
       new TenantSecretRepository(prisma),
+      new TenantIntegrationRepository(prisma),
     );
 
     const appToken = process.env.SLACK_APP_TOKEN;

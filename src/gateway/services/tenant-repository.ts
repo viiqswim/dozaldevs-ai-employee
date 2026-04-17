@@ -36,12 +36,6 @@ export class TenantRepository {
     });
   }
 
-  async findBySlackTeamId(teamId: string): Promise<Tenant | null> {
-    return this.prisma.tenant.findFirst({
-      where: { slack_team_id: teamId, deleted_at: null },
-    });
-  }
-
   async list(opts?: { includeDeleted?: boolean }): Promise<Tenant[]> {
     return this.prisma.tenant.findMany({
       where: opts?.includeDeleted ? {} : { deleted_at: null },
