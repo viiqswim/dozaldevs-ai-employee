@@ -133,7 +133,7 @@ describe('Multi-tenancy integration', () => {
 
   describe('4. OAuth callback atomicity (InstallationStore)', () => {
     it('storeInstallation is a no-op (token stored via OAuth callback, not here)', async () => {
-      const store = new TenantInstallationStore({} as never, {} as never);
+      const store = new TenantInstallationStore({} as never, {} as never, {} as never);
       await expect(
         store.storeInstallation({ team: { id: TEAM_A_ID }, isEnterpriseInstall: false } as never),
       ).resolves.toBeUndefined();
@@ -142,13 +142,15 @@ describe('Multi-tenancy integration', () => {
 
   describe('5. InstallationStore: correct token per team_id', () => {
     it('fetchInstallation returns correct token for team A', async () => {
-      const tenantRepo = {
-        findBySlackTeamId: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, TEAM_A_ID)),
+      const integrationRepo = {
+        findByExternalId: vi
+          .fn()
+          .mockResolvedValue({ tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID }),
       } as never;
       const secretRepo = {
         get: vi.fn().mockResolvedValue(TOKEN_A),
       } as never;
-      const store = new TenantInstallationStore(tenantRepo, secretRepo);
+      const store = new TenantInstallationStore({} as never, secretRepo, integrationRepo);
       const installation = await store.fetchInstallation({
         teamId: TEAM_A_ID,
         enterpriseId: undefined,
@@ -158,17 +160,21 @@ describe('Multi-tenancy integration', () => {
     });
 
     it('fetchInstallation returns different tokens for different teams', async () => {
-      const findBySlackTeamId = vi
+      const findByExternalId = vi
         .fn()
-        .mockImplementation((teamId: string) =>
+        .mockImplementation((_provider: string, teamId: string) =>
           teamId === TEAM_A_ID
-            ? makeTenant(TENANT_A_ID, TEAM_A_ID)
-            : makeTenant(TENANT_B_ID, TEAM_B_ID),
+            ? { tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID }
+            : { tenant_id: TENANT_B_ID, provider: 'slack', external_id: TEAM_B_ID },
         );
       const get = vi
         .fn()
         .mockImplementation((tenantId: string) => (tenantId === TENANT_A_ID ? TOKEN_A : TOKEN_B));
-      const store = new TenantInstallationStore({ findBySlackTeamId } as never, { get } as never);
+      const store = new TenantInstallationStore(
+        {} as never,
+        { get } as never,
+        { findByExternalId } as never,
+      );
       const instA = await store.fetchInstallation({
         teamId: TEAM_A_ID,
         enterpriseId: undefined,
