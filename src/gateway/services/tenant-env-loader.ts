@@ -55,6 +55,10 @@ export async function loadTenantEnv(
     if (typeof targetChannel === 'string' && targetChannel) {
       env['SUMMARY_TARGET_CHANNEL'] = targetChannel;
     }
+    const publishChannel = summary['publish_channel'];
+    if (typeof publishChannel === 'string' && publishChannel) {
+      env['SUMMARY_PUBLISH_CHANNEL'] = publishChannel;
+    }
   }
 
   return env;

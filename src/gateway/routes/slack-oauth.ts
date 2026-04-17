@@ -11,8 +11,9 @@ export interface SlackOAuthRouteOptions {
 }
 
 function signState(payload: string, key: string): string {
-  const sig = crypto.createHmac('sha256', key).update(payload).digest('hex');
-  return `${Buffer.from(payload).toString('base64url')}.${sig}`;
+  const b64 = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', key).update(b64).digest('hex');
+  return `${b64}.${sig}`;
 }
 
 function verifyState(signed: string, key: string): { tenant_id: string; nonce: string } | null {
@@ -62,7 +63,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const state = signState(payload, signingKey);
       const redirectBase = process.env.SLACK_REDIRECT_BASE_URL ?? 'http://localhost:3000';
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
-      const scopes = 'channels:history,chat:write,chat:write.public';
+      const scopes = 'channels:history,groups:history,groups:read,chat:write,chat:write.public';
       const url =
         `https://slack.com/oauth/v2/authorize` +
         `?client_id=${encodeURIComponent(clientId)}` +

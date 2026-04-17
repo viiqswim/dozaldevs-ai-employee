@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
+import { createLogger } from './logger.js';
 import { withRetry } from './retry.js';
 import { createSlackClient } from './slack-client.js';
 
@@ -57,7 +58,6 @@ export function _resetAlertState(): void {
 type CostRow = { total: number | string | null };
 
 async function checkCostCircuitBreaker(): Promise<void> {
-  // Skip cost check when running in a context without direct DB access (e.g. Fly.io generic harness)
   if (!process.env.DATABASE_URL) return;
 
   const limitUsd =
@@ -109,9 +109,6 @@ async function checkCostCircuitBreaker(): Promise<void> {
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-/**
- * Wraps fetch to throw RateLimitExceededError on 429 so withRetry can act on it.
- */
 async function fetchWithRateLimitCheck(url: string, options: RequestInit): Promise<Response> {
   const response = await fetch(url, options);
   if (response.status === 429) {
@@ -135,10 +132,18 @@ interface OpenRouterResponse {
 export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   const { model, messages, temperature, maxTokens, timeoutMs = 120_000 } = options;
 
-  // 1. Check cost circuit breaker (throws CostCircuitBreakerError if over limit)
-  await checkCostCircuitBreaker();
+  try {
+    await checkCostCircuitBreaker();
+  } catch (err) {
+    if (err instanceof CostCircuitBreakerError) {
+      throw err;
+    }
+    createLogger('call-llm').warn(
+      { err },
+      'Cost circuit breaker DB check skipped — DB unreachable',
+    );
+  }
 
-  // 2. Build AbortController with timeout
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -165,19 +170,16 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   let response: Response;
 
   try {
-    // 3. Fetch with retry-on-429
     response = await withRetry(() => fetchWithRateLimitCheck(OPENROUTER_URL, fetchOptions), {
       retryOn: (e) => e instanceof RateLimitExceededError,
     });
   } catch (err) {
-    // 4. Timeout → LLMTimeoutError
     if (err instanceof Error && err.name === 'AbortError') {
       throw new LLMTimeoutError(`LLM call timed out after ${timeoutMs}ms`, {
         timeoutMs,
         model,
       });
     }
-    // 5. RateLimitExceededError after retry exhaustion (or any other error) — re-throw as-is
     throw err;
   } finally {
     clearTimeout(timeoutHandle);
@@ -195,7 +197,6 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   const promptTokens = data.usage.prompt_tokens;
   const completionTokens = data.usage.completion_tokens;
 
-  // 6. Calculate cost (0 if model not in pricing map)
   const pricing = PRICING_PER_1M_TOKENS[model];
   const estimatedCostUsd = pricing
     ? (promptTokens * pricing.prompt + completionTokens * pricing.completion) / 1_000_000

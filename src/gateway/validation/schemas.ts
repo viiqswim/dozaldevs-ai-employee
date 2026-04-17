@@ -249,6 +249,7 @@ export const TenantConfigBodySchema = z.object({
     .object({
       channel_ids: z.array(z.string()).optional(),
       target_channel: z.string().optional(),
+      publish_channel: z.string().optional(),
     })
     .optional(),
 });

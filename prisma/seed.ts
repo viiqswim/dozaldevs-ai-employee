@@ -127,7 +127,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'generic-harness',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-sonnet-4-6',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['slack.readChannels', 'llm.generate', 'slack.postMessage'] },
       steps: [
@@ -138,6 +138,7 @@ async function main() {
         {
           tool: 'llm.generate',
           params: {
+            model: '$archetype.model',
             system_prompt: '$archetype.system_prompt',
             user_prompt:
               'Generate a dramatic Spanish news-style summary of these Slack messages:\n\n$prev_result',
@@ -162,7 +163,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'generic-harness',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-sonnet-4-6',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['slack.readChannels', 'llm.generate', 'slack.postMessage'] },
       steps: [
@@ -173,6 +174,7 @@ async function main() {
         {
           tool: 'llm.generate',
           params: {
+            model: '$archetype.model',
             system_prompt: '$archetype.system_prompt',
             user_prompt:
               'Generate a dramatic Spanish news-style summary of these Slack messages:\n\n$prev_result',

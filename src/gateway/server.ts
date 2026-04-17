@@ -69,7 +69,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         appToken,
         socketMode: true,
         signingSecret,
-        installationStore,
+        authorize: async ({ teamId }) => {
+          const installation = await installationStore.fetchInstallation({
+            teamId,
+            enterpriseId: undefined,
+            isEnterpriseInstall: false,
+          });
+          return { botToken: installation.bot?.token, botId: installation.bot?.id };
+        },
         logger: createFilteredBoltLogger(logger),
       });
 
