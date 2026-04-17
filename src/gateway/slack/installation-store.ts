@@ -54,6 +54,5 @@ export class TenantInstallationStore implements InstallationStore {
     if (!integration) return;
     await this.secretRepo.delete(integration.tenant_id, 'slack_bot_token');
     await this.integrationRepo.delete(integration.tenant_id, 'slack');
-    await this.tenantRepo.update(integration.tenant_id, { slack_team_id: null });
   }
 }
