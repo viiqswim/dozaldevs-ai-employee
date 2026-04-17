@@ -160,9 +160,17 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       });
 
       await step.run('handle-result', async () => {
+        const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
+        const prismaForApproval = new PrismaClient();
+        const tenantEnvForApproval = await loadTenantEnv(tenantId, {
+          tenantRepo: new TenantRepository(prismaForApproval),
+          secretRepo: new TenantSecretRepository(prismaForApproval),
+        });
+        await prismaForApproval.$disconnect();
+
         const slackClient = createSlackClient({
-          botToken: process.env.SLACK_BOT_TOKEN ?? '',
-          defaultChannel: process.env.SUMMARY_TARGET_CHANNEL ?? '',
+          botToken: tenantEnvForApproval.SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN ?? '',
+          defaultChannel: '',
         });
 
         const delivRes = await fetch(
@@ -201,9 +209,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         };
 
         if (action === 'approve') {
-          if (targetChannel && summaryContent) {
+          const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
+          if (publishChannel && summaryContent) {
             await slackClient.postMessage({
-              channel: targetChannel,
+              channel: publishChannel,
               text: summaryContent,
               blocks: summaryBlocks,
             });

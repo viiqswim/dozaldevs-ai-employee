@@ -12,6 +12,7 @@ Thumbs.db
 .sisyphus/boulder.json
 .sisyphus/evidence/
 .sisyphus/drafts/
+.sisyphus/run-continuation/
 
 # Dependencies
 node_modules/

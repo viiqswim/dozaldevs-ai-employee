@@ -2206,11 +2206,11 @@ Max Concurrent: 8 (Wave 3)
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback → fix → re-run → present again → wait for okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read this plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found (e.g., `grep "X-Tenant-Key" src/` must be empty). Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` (tsc --noEmit) + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, `console.log` in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp). Check for NEW pre-existing LSP errors beyond documented ones (`lifecycle.ts`, `redispatch.ts`, `seed.ts`, `employee-lifecycle.ts`, `lifecycle.test.ts`).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
@@ -2228,7 +2228,7 @@ Max Concurrent: 8 (Wave 3)
   10. Save evidence to `.sisyphus/evidence/final-qa/` (screenshots, psql output, curl responses)
       Output: `Scenarios [N/N pass] | Integration [N/N] | Encryption Verified [YES/NO] | Slack Workspaces [DozalDevs ✓ / VLRE ✓] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git log`/`git diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance: search for `RLS`, `X-Tenant-Key`, user auth patterns, tenant_id on executions/deliverables/etc. **CRITICAL — verify NO hard-delete of tenants anywhere**: `grep -rn "prisma\.tenant\.delete\|DELETE FROM tenants\|hardDelete" src/ --include="*.ts" scripts/ --include="*.ts"` MUST return empty. Verify Jira flow untouched (`git diff src/gateway/routes/jira.ts` should be empty). Detect cross-task contamination (Task N touching Task M's files). Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | Scope Creep [CLEAN/N forbidden patterns] | Hard-Delete Audit [CLEAN/N occurrences] | VERDICT`
 
