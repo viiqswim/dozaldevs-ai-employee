@@ -140,29 +140,6 @@ async function main() {
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
-      steps: [
-        {
-          tool: 'slack.readChannels',
-          params: { channels: '$DAILY_SUMMARY_CHANNELS', lookback_hours: 24 },
-        },
-        {
-          tool: 'llm.generate',
-          params: {
-            model: '$archetype.model',
-            system_prompt: '$archetype.system_prompt',
-            user_prompt:
-              'Generate a dramatic Spanish news-style summary of these Slack messages:\n\n$prev_result',
-          },
-        },
-        {
-          tool: 'slack.postMessage',
-          params: {
-            channel: '$SUMMARY_TARGET_CHANNEL',
-            summary_text: '$prev_result',
-            task_id: '$TASK_ID',
-          },
-        },
-      ],
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
@@ -177,29 +154,6 @@ async function main() {
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
-      steps: [
-        {
-          tool: 'slack.readChannels',
-          params: { channels: '$DAILY_SUMMARY_CHANNELS', lookback_hours: 24 },
-        },
-        {
-          tool: 'llm.generate',
-          params: {
-            model: '$archetype.model',
-            system_prompt: '$archetype.system_prompt',
-            user_prompt:
-              'Generate a dramatic Spanish news-style summary of these Slack messages:\n\n$prev_result',
-          },
-        },
-        {
-          tool: 'slack.postMessage',
-          params: {
-            channel: '$SUMMARY_TARGET_CHANNEL',
-            summary_text: '$prev_result',
-            task_id: '$TASK_ID',
-          },
-        },
-      ],
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,

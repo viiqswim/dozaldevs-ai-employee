@@ -4,7 +4,6 @@ export type TenantPatch = {
   name?: string;
   config?: Prisma.InputJsonValue;
   status?: string;
-  slack_team_id?: string | null;
 };
 
 export class TenantRepository {
@@ -50,7 +49,6 @@ export class TenantRepository {
         ...(patch.name !== undefined && { name: patch.name }),
         ...(patch.config !== undefined && { config: patch.config }),
         ...(patch.status !== undefined && { status: patch.status }),
-        ...(patch.slack_team_id !== undefined && { slack_team_id: patch.slack_team_id }),
       },
     });
   }

@@ -211,7 +211,6 @@ model Archetype {
   updated_at        DateTime @updatedAt
   system_prompt     String?  @db.Text
   instructions      String?  @db.Text
-  steps             Json?
   model             String?
   deliverable_type  String?
 
@@ -355,15 +354,14 @@ model AuditLog {
 // ============================================================
 
 model Tenant {
-  id            String    @id @default(uuid()) @db.Uuid
-  name          String
-  slug          String
-  slack_team_id String?   @unique
-  config        Json?
-  status        String    @default("active")
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
-  deleted_at    DateTime?
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  slug       String
+  config     Json?
+  status     String    @default("active")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
 
   secrets        TenantSecret[]
   tasks          Task[]

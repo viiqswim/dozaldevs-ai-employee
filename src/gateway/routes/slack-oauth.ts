@@ -135,16 +135,6 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
         return;
       }
       await prisma.$transaction(async (tx) => {
-        const existing = await tx.tenant.findFirst({
-          where: { slack_team_id: teamId, deleted_at: null },
-        });
-        if (existing && existing.id !== tenantId) {
-          throw Object.assign(new Error('DUPLICATE_TEAM'), { code: 'DUPLICATE_TEAM' });
-        }
-        await tx.tenant.update({
-          where: { id: tenantId },
-          data: { slack_team_id: teamId },
-        });
         const payload = encrypt(accessToken);
         await tx.tenantSecret.upsert({
           where: { tenant_id_key: { tenant_id: tenantId, key: 'slack_bot_token' } },
