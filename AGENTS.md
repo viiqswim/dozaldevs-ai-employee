@@ -2,6 +2,32 @@
 
 > Keep this file concise and current. Only include information that helps agents make correct decisions. For architectural details, read the vision doc on demand — don't duplicate it here. This file is loaded into every LLM call — every token here costs tokens on every turn.
 
+## Approved LLM Models
+
+**CRITICAL CONSTRAINT — NEVER VIOLATE:**
+
+Only TWO LLM models are approved for use in this codebase. Using any other model is a bug.
+
+| Model            | ID                           | Purpose                                                                                     |
+| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| MiniMax M2.7     | `minimax/minimax-m2.7`       | Primary execution model — all employee work, code generation, summaries                     |
+| Claude Haiku 4.5 | `anthropic/claude-haiku-4-5` | Verification/judge only — plan verification, intent classification, feedback acknowledgment |
+
+**Forbidden models (any reference = bug):** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`, or any other model not listed above.
+
+This applies to: production code, seed data, default fallbacks, environment variable examples, and test fixtures. No exceptions.
+
+## Deprecated Components
+
+The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
+
+| Component                   | File                              | Reason                                                                                                                                 |
+| --------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Engineering task lifecycle  | `src/inngest/lifecycle.ts`        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`. |
+| Engineering task redispatch | `src/inngest/redispatch.ts`       | Paired with the deprecated engineering lifecycle.                                                                                      |
+| Generic worker harness      | `src/workers/generic-harness.mts` | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Will be deleted once migration is complete.               |
+| Tool registry               | `src/workers/tools/registry.ts`   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                         |
+
 ## Platform Vision
 
 A single-responsibility AI Employee Platform — deploys autonomous AI agents ("digital employees"), each with one job. Every employee follows the same lifecycle, uses the same infrastructure (Inngest orchestration, Supabase state, Fly.io runtime), and is defined by a declarative archetype config.
@@ -23,25 +49,24 @@ Two employees are live:
 
 **What's deferred**: Triage agent, review agent, knowledge base (pgvector).
 
-## Generic Worker Harness
+## OpenCode Worker (All Employees)
 
-Non-engineering employees use a config-driven harness instead of OpenCode:
+All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
-- **Harness**: `src/workers/generic-harness.mts` — reads archetype from DB, executes tools in order, writes result to task
-- **Tool registry**: `src/workers/tools/registry.ts` — 3 tools: `slack.readChannels`, `llm.generate`, `slack.postMessage`
-- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — generic `employee/task-lifecycle` function (handles approval gates via Slack interactive buttons)
-- **Inngest functions**: now 5 total — `engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`, `employee/task-lifecycle`, `trigger/daily-summarizer`
+- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects natural language `instructions` + available tools, monitors until completion
+- **Shell tools**: `src/worker-tools/slack/` — pre-installed in Docker image, available to OpenCode as shell commands
+- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous.
+- **Inngest functions**: `employee/task-lifecycle`, `employee/feedback-handler`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
 
-**Adding a new employee** (no code changes if tools exist):
+**Adding a new employee**:
 
-1. Seed a new `employee_archetypes` record with `role_name`, `system_prompt`, `steps`, `model`, `deliverable_type`
-2. If all required tools are already in `TOOL_REGISTRY`, no code changes needed
-3. If new tools are needed, add them to `src/workers/tools/` and register in `registry.ts`
-4. Add a trigger (cron or webhook) in `src/inngest/triggers/`
+1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`
+2. If shell tools needed, add scripts to `src/worker-tools/{service}/` (compiled into Docker image at `/tools/{service}/`)
+3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 
-**Generic harness CMD** (Fly.io dispatch): `["node", "/app/dist/workers/generic-harness.mjs"]`
+**OpenCode harness CMD** (Fly.io dispatch): `["node", "/app/dist/workers/opencode-harness.mjs"]`
 
 ## Manual Trigger (Admin API)
 
