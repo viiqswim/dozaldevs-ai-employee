@@ -40,7 +40,8 @@ export async function dispatchEmployee(
     };
   }
 
-  if (archetype.runtime !== 'generic-harness') {
+  const supportedRuntimes = ['generic-harness', 'opencode'];
+  if (!supportedRuntimes.includes(archetype.runtime ?? '')) {
     return {
       kind: 'error',
       code: 'UNSUPPORTED_RUNTIME',
