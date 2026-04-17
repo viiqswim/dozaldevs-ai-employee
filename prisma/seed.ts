@@ -47,7 +47,16 @@ async function main() {
       status: 'active',
       config: { summary: { channel_ids: [], target_channel: null } },
     },
-    update: { name: 'DozalDevs', status: 'active' },
+    update: {
+      name: 'DozalDevs',
+      status: 'active',
+      config: {
+        summary: {
+          channel_ids: ['C092BJ04HUG'],
+          target_channel: 'C092BJ04HUG',
+        },
+      },
+    },
   });
   console.log(`✅ Tenant upserted: ${dozalDevsTenant.id} (slug: ${dozalDevsTenant.slug})`);
 
@@ -193,6 +202,18 @@ async function main() {
     `✅ Archetype upserted: ${dailySummarizerArchetype.id} (role: ${dailySummarizerArchetype.role_name}, model: ${dailySummarizerArchetype.model})`,
   );
 
+  const DOZALDEVS_SUMMARIZER_INSTRUCTIONS =
+    'Read the last 24 hours of messages from the project-lighthouse Slack channel (channel ID: C092BJ04HUG). ' +
+    'Run the read-channels tool: /tools/slack/read-channels.js --channels "C092BJ04HUG" ' +
+    'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
+    'Post the summary with approve/reject buttons to project-lighthouse (C092BJ04HUG) for team review — ' +
+    'pass --task-id with the Task ID shown at the end of this prompt: ' +
+    '/tools/slack/post-message.js --channel "C092BJ04HUG" --text "<your summary here>" --task-id <task-id> ' +
+    'Then post a brief confirmation to the victor-tests channel (C0AUBMXKVNU) to signal the bot ran: ' +
+    '/tools/slack/post-message.js --channel "C0AUBMXKVNU" --text "📋 Daily DozalDevs summary posted to #project-lighthouse — awaiting team review." ' +
+    'When the DELIVERY_MODE environment variable equals "true", the summary was approved — ' +
+    'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons.';
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0000-000000000012' },
@@ -201,7 +222,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
+      instructions: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -215,7 +236,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
+      instructions: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
