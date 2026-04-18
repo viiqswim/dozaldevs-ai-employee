@@ -68,6 +68,84 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 **OpenCode harness CMD** (Fly.io dispatch): `["node", "/app/dist/workers/opencode-harness.mjs"]`
 
+## Tenants
+
+Three tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth connection to operate:
+
+| ID                                     | Name      | Slug      | Slack Workspace                                 |
+| -------------------------------------- | --------- | --------- | ----------------------------------------------- |
+| `00000000-0000-0000-0000-000000000001` | Platform  | platform  | — (no Slack)                                    |
+| `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | Separate workspace — must OAuth separately      |
+| `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`) |
+
+**`SLACK_BOT_TOKEN` in `.env` is the VLRE workspace bot token only.** It cannot access DozalDevs channels. Never store it as the DozalDevs tenant secret.
+
+## Slack OAuth — Per-Tenant Installation
+
+Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenant_integrations` (provider: `slack`, external_id: Slack team ID). The `TenantInstallationStore` (`src/gateway/slack/installation-store.ts`) looks them up by team ID for Bolt authorization.
+
+**⚠️ DB wipe/reset destroys OAuth connections.** `pnpm prisma db seed` restores tenants and archetypes but NOT OAuth tokens — those only come from completing the OAuth flow. After any DB reset, both DozalDevs and VLRE must re-authorize.
+
+### Re-connecting a tenant's Slack workspace
+
+1. Confirm gateway is running and Cloudflare tunnel is alive (`curl $SLACK_REDIRECT_BASE_URL/health` → 200)
+2. Open in browser: `http://localhost:3000/slack/install?tenant=<tenantId>`
+3. Complete OAuth — select the correct workspace
+4. Callback stores encrypted token in `tenant_secrets` + upserts `tenant_integrations`
+5. Verify: `SELECT tenant_id, key FROM tenant_secrets; SELECT tenant_id, provider, external_id FROM tenant_integrations;`
+
+| Tenant    | Install URL                                                                       |
+| --------- | --------------------------------------------------------------------------------- |
+| DozalDevs | `http://localhost:3000/slack/install?tenant=00000000-0000-0000-0000-000000000002` |
+| VLRE      | `http://localhost:3000/slack/install?tenant=00000000-0000-0000-0000-000000000003` |
+
+VLRE alternative: run `pnpm tsx scripts/setup-two-tenants.ts` to migrate the legacy `SLACK_BOT_TOKEN` env var into VLRE's tenant secret without OAuth.
+
+## Per-Tenant Slack Token Architecture
+
+`loadTenantEnv()` (`src/gateway/services/tenant-env-loader.ts`) builds the Fly.io machine environment:
+
+- `tenant_secrets.slack_bot_token` → `SLACK_BOT_TOKEN` in machine env
+- `tenant.config.summary.channel_ids` → `DAILY_SUMMARY_CHANNELS`
+- `tenant.config.summary.target_channel` → `SUMMARY_TARGET_CHANNEL`
+- `tenant.config.summary.publish_channel` → `SUMMARY_PUBLISH_CHANNEL`
+
+**Fly.io app-level secrets are NOT inherited by spawned machines.** Only what `loadTenantEnv` returns (+ explicit `TASK_ID`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`) reaches the worker.
+
+### Summarizer failure diagnostic
+
+| Symptom                                                 | Cause                                                       | Fix                                                     |
+| ------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
+| Task → Reviewing in <30s, deliverable content empty     | `SLACK_BOT_TOKEN` missing from machine env                  | Re-run OAuth for that tenant                            |
+| `No installation for team: T...` in gateway logs        | `tenant_integrations` row missing for that Slack workspace  | Re-run OAuth for that tenant                            |
+| `Out of memory: Killed process (.opencode)` in Fly logs | OpenCode OOM on small VM                                    | Increase `SUMMARIZER_VM_SIZE`                           |
+| `channel_not_found` from Slack API                      | Bot token belongs to a different workspace than the channel | Wrong token stored — re-run OAuth for correct workspace |
+
+Fly.io worker logs: `fly logs -a ai-employee-workers` (NOT `ai-employee-summarizer` — that app does not exist).
+
+## Summarizer — Per-Tenant Channel Configuration
+
+Channel config lives in two places — both must be consistent:
+
+1. **`tenants.config.summary`** (DB) — read by `loadTenantEnv` to inject env vars into machine; also read by the lifecycle after approval to know which Slack message to update.
+2. **Archetype `instructions`** (DB) — natural language telling OpenCode which shell tools to call and with which channel IDs. Tenant-specific archetypes can hardcode channels directly, bypassing env vars.
+
+### DozalDevs (`00000000-0000-0000-0000-000000000002`)
+
+- **Archetype ID**: `00000000-0000-0000-0000-000000000012`
+- **Pattern**: Hardcoded channel IDs in archetype instructions (not env vars)
+- Read from: `C092BJ04HUG` (`#project-lighthouse`)
+- Post approval summary + buttons to: `C092BJ04HUG` (`#project-lighthouse`)
+- Post confirmation to: `C0AUBMXKVNU` (`#victor-tests`)
+- `tenant.config.summary.target_channel`: `C092BJ04HUG` (needed for lifecycle approval update)
+
+### VLRE (`00000000-0000-0000-0000-000000000003`)
+
+- **Archetype ID**: `00000000-0000-0000-0000-000000000013`
+- **Pattern**: Generic instructions reading from env vars (`DAILY_SUMMARY_CHANNELS`, `SUMMARY_TARGET_CHANNEL`)
+- Channels configured via `DAILY_SUMMARY_CHANNELS` / `SUMMARY_TARGET_CHANNEL` env vars in `.env`
+- Current channels: `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL` (target: `C0960S2Q8RL`)
+
 ## Manual Trigger (Admin API)
 
 Two endpoints for manually triggering AI employees:
@@ -166,10 +244,10 @@ Summarizer-specific vars (required for Papi Chulo):
 
 ```
 SLACK_SIGNING_SECRET       # Verifies Slack interaction webhooks (HMAC-SHA256)
-DAILY_SUMMARY_CHANNELS     # Comma-separated channel IDs to read (bot needs channels:history)
-SUMMARY_TARGET_CHANNEL     # Channel ID where digest is posted for approval
-FLY_SUMMARIZER_APP         # Fly.io app name for summarizer machines (default: ai-employee-summarizer)
-SUMMARIZER_VM_SIZE         # VM size for summarizer (default: shared-cpu-1x)
+DAILY_SUMMARY_CHANNELS     # Comma-separated channel IDs to read — used by VLRE archetype (env-var pattern)
+SUMMARY_TARGET_CHANNEL     # Channel ID where VLRE digest is posted for approval
+FLY_WORKER_APP             # Fly.io app for all worker machines (currently: ai-employee-workers)
+SUMMARIZER_VM_SIZE         # VM size for summarizer machines (default: shared-cpu-1x)
 ```
 
 See `.env.example` for the full list.
