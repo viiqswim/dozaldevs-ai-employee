@@ -94,6 +94,30 @@ async function makeRequestWithRetry<T>(
 }
 
 /**
+ * Parse a Fly.io vm_size string (e.g. "performance-1x") into the guest object
+ * required by the Machines API: { cpu_kind, cpus, memory_mb }.
+ */
+function parseVmSize(vmSize: string): { cpu_kind: string; cpus: number; memory_mb: number } {
+  const shared: Record<string, { cpus: number; memory_mb: number }> = {
+    'shared-cpu-1x': { cpus: 1, memory_mb: 256 },
+    'shared-cpu-2x': { cpus: 2, memory_mb: 512 },
+    'shared-cpu-4x': { cpus: 4, memory_mb: 1024 },
+    'shared-cpu-6x': { cpus: 6, memory_mb: 1536 },
+    'shared-cpu-8x': { cpus: 8, memory_mb: 2048 },
+  };
+  const performance: Record<string, { cpus: number; memory_mb: number }> = {
+    'performance-1x': { cpus: 1, memory_mb: 2048 },
+    'performance-2x': { cpus: 2, memory_mb: 4096 },
+    'performance-4x': { cpus: 4, memory_mb: 8192 },
+    'performance-8x': { cpus: 8, memory_mb: 16384 },
+  };
+  if (shared[vmSize]) return { cpu_kind: 'shared', ...shared[vmSize] };
+  if (performance[vmSize]) return { cpu_kind: 'performance', ...performance[vmSize] };
+  // Fallback: shared-cpu-1x
+  return { cpu_kind: 'shared', cpus: 1, memory_mb: 256 };
+}
+
+/**
  * Create a new machine on Fly.io.
  * @param appName - Fly.io app name
  * @param config - Machine configuration
@@ -109,7 +133,7 @@ export async function createMachine(
   const body = {
     config: {
       image: config.image,
-      vm_size: config.vm_size,
+      ...(config.vm_size ? { guest: parseVmSize(config.vm_size) } : {}),
       env: config.env,
       auto_destroy: config.auto_destroy,
       ...(config.cmd ? { init: { cmd: config.cmd } } : {}),

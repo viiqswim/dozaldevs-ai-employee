@@ -1,5 +1,7 @@
 import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
+import { startOpencodeServer } from './lib/opencode-server.js';
+import { createSessionManager } from './lib/session-manager.js';
 
 const log = createLogger('opencode-harness');
 
@@ -39,8 +41,12 @@ interface ExecutionRow {
 
 const db: PostgRESTClient = createPostgRESTClient();
 
+// Module-level server handle so SIGTERM handler can kill it
+let serverHandleGlobal: { kill: () => Promise<void> } | null = null;
+
 process.on('SIGTERM', () => {
   log.warn({ taskId: TASK_ID }, '[opencode-harness] SIGTERM received — marking task Failed');
+  void serverHandleGlobal?.kill();
   void db
     .patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Failed',
@@ -109,60 +115,112 @@ async function fireCompletionEvent(taskId: string): Promise<void> {
   }
 }
 
+async function writeOpencodeAuth(): Promise<void> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    log.warn('[opencode-harness] OPENROUTER_API_KEY not set — OpenCode may fail to authenticate');
+    return;
+  }
+  const { mkdir, writeFile } = await import('fs/promises');
+  const { homedir } = await import('os');
+  const { join } = await import('path');
+  const authDir = join(homedir(), '.local', 'share', 'opencode');
+  await mkdir(authDir, { recursive: true });
+  const authJson = JSON.stringify({ openrouter: { type: 'api', key: apiKey } }, null, 2);
+  await writeFile(join(authDir, 'auth.json'), authJson, 'utf8');
+  log.info('[opencode-harness] OpenRouter auth.json written');
+
+  const configDir = join(process.cwd(), '.opencode');
+  await mkdir(configDir, { recursive: true });
+  const configJson = JSON.stringify({ permission: { '*': 'allow', question: 'deny' } }, null, 2);
+  await writeFile(join(configDir, 'opencode.json'), configJson, 'utf8');
+  log.info('[opencode-harness] opencode.json permission config written');
+}
+
 async function runOpencodeSession(
   systemPrompt: string,
   instructions: string,
-  model: string,
+  _model: string,
 ): Promise<{ content: string; metadata: Record<string, unknown> }> {
-  const { spawn } = await import('child_process');
+  const fullPrompt = systemPrompt
+    ? `${systemPrompt}\n\n${instructions}\n\nTask ID: ${TASK_ID}`
+    : `${instructions}\n\nTask ID: ${TASK_ID}`;
 
-  return new Promise((resolve, reject) => {
-    const fullPrompt = `${instructions}\n\nTask ID: ${TASK_ID}`;
+  // Start OpenCode server (same pattern as engineering employee in orchestrate.mts)
+  const serverHandle = await startOpencodeServer({
+    port: 4096,
+    cwd: '/app',
+    healthTimeoutMs: 60000,
+  });
 
-    const child = spawn(
-      'opencode',
-      ['run', '--model', model, '--system', systemPrompt, '--non-interactive', fullPrompt],
-      {
-        env: { ...process.env },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
+  if (serverHandle === null) {
+    throw new Error('[opencode-harness] Failed to start OpenCode server');
+  }
+
+  serverHandleGlobal = serverHandle;
+
+  try {
+    // Configure OpenRouter via REST API (belt-and-suspenders alongside auth.json)
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        await fetch(`${serverHandle.url}/auth/openrouter`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'api', key: process.env.OPENROUTER_API_KEY }),
+        });
+        log.info('[opencode-harness] OpenRouter provider configured via REST API');
+      } catch (err) {
+        log.warn(
+          { err },
+          '[opencode-harness] Failed to configure OpenRouter via REST API — auth.json fallback',
+        );
+      }
+    }
+
+    const sessionManager = createSessionManager(serverHandle.url);
+
+    const sessionId = await sessionManager.createSession('daily-summarizer');
+    if (sessionId === null) {
+      throw new Error('[opencode-harness] Failed to create OpenCode session');
+    }
+
+    log.info({ taskId: TASK_ID, sessionId }, 'OpenCode session created — injecting prompt');
+
+    await sessionManager.injectTaskPrompt(sessionId, fullPrompt);
+
+    log.info({ taskId: TASK_ID, sessionId }, 'Prompt injected — monitoring for completion');
+
+    const monitorResult = await sessionManager.monitorSession(sessionId, {
+      timeoutMs: 10 * 60 * 1000, // 10 minutes — summarizer is quick
+      minElapsedMs: 60000, // 60s minimum — give model time to use bash tools
+    });
+
+    if (!monitorResult.completed) {
+      throw new Error(
+        `[opencode-harness] OpenCode session did not complete: ${monitorResult.reason ?? 'unknown'}`,
+      );
+    }
+
+    log.info(
+      { taskId: TASK_ID, sessionId, reason: monitorResult.reason },
+      'OpenCode session completed successfully',
     );
 
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    child.on('close', (code) => {
-      if (code !== 0) {
-        log.error(
-          { code, stderr: stderr.slice(-2000) },
-          '[opencode-harness] OpenCode exited with error',
-        );
-        reject(new Error(`OpenCode exited with code ${code}: ${stderr.slice(-500)}`));
-        return;
-      }
-
-      log.info({ taskId: TASK_ID }, 'OpenCode session completed');
-      resolve({
-        content: stdout.trim(),
-        metadata: {},
-      });
-    });
-
-    child.on('error', (err) => {
-      reject(err);
-    });
-  });
+    return {
+      content: monitorResult.reason ?? 'completed',
+      metadata: { sessionId },
+    };
+  } finally {
+    serverHandleGlobal = null;
+    await serverHandle.kill();
+    log.info('[opencode-harness] OpenCode server stopped');
+  }
 }
 
 async function main(): Promise<void> {
+  // Set bash tool timeout (same as entrypoint.sh) — prevents tool calls from timing out
+  process.env.OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS ??= '1200000';
+
   log.info({ taskId: TASK_ID }, 'OpenCode harness starting');
 
   const rows = await db.get('tasks', `id=eq.${TASK_ID}&select=*,archetypes(*)`);
@@ -236,6 +294,8 @@ async function main(): Promise<void> {
   });
   log.info({ taskId: TASK_ID }, 'Task status → Executing');
 
+  await writeOpencodeAuth();
+
   let content = '';
   let metadata: Record<string, unknown> = {};
 
@@ -271,6 +331,8 @@ async function main(): Promise<void> {
   await fireCompletionEvent(TASK_ID);
 
   log.info({ taskId: TASK_ID }, 'OpenCode harness complete');
+  // Force exit — the SSE stream from session-manager keeps the event loop alive
+  process.exit(0);
 }
 
 main().catch((err) => {
