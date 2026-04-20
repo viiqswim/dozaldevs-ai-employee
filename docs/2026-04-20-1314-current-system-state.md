@@ -97,6 +97,29 @@ Received → Triaging* → AwaitingInput* → Ready → Executing → Validating
 
 \* auto-pass (no blocking)
 
+```mermaid
+stateDiagram-v2
+    [*] --> Received
+
+    Received --> Triaging : auto
+    Triaging --> AwaitingInput : auto
+    AwaitingInput --> Ready : auto
+    Ready --> Executing : provision machine
+    Executing --> Validating : worker completes
+    Validating --> Submitting : auto
+    Submitting --> Reviewing : auto
+    Reviewing --> Approved : human approves
+    Approved --> Delivering : post to channel
+    Delivering --> Done : mark complete
+
+    Executing --> Failed : timeout or error
+    Reviewing --> Cancelled : reject or 24h timeout
+
+    Done --> [*]
+    Failed --> [*]
+    Cancelled --> [*]
+```
+
 Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or approval timeout).
 
 Approval gate is controlled per-archetype via `risk_model.approval_required`.
@@ -115,6 +138,31 @@ Both employees run the same entrypoint — `opencode-harness.mjs`. What changes 
 | Models            | `anthropic/claude-sonnet-4-6`           | `minimax/minimax-m2.7` (primary) / `anthropic/claude-haiku-4-5` (verifier) |
 
 ### Harness Execution Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as Harness
+    participant S as Supabase
+    participant FS as Filesystem
+    participant OC as OpenCode
+
+    Note over H: Validate TASK_ID, register SIGTERM handler
+    H->>S: GET task + archetype
+    S-->>H: system_prompt, instructions, model, deliverable_type
+    H->>S: POST execution record
+    H->>S: PATCH task → Executing
+    H->>FS: Write auth.json + opencode.json
+    H->>OC: Spawn opencode run (model, instructions)
+    Note over OC: AI agent runs with minimax/minimax-m2.7
+    OC->>FS: Write /tmp/summary.txt
+    OC->>FS: Write /tmp/approval-message.json
+    OC-->>H: Process exits
+    H->>FS: Read /tmp/summary.txt + /tmp/approval-message.json
+    H->>S: POST deliverable (content + metadata, external_ref)
+    H->>S: PATCH task → Submitting
+    Note over H: Fire employee/task.completed, exit 0
+```
 
 | Step | What the harness does                                                                                   |
 | ---- | ------------------------------------------------------------------------------------------------------- |
@@ -149,9 +197,50 @@ Both employees run the same entrypoint — `opencode-harness.mjs`. What changes 
 
 Thread replies and @mentions are captured bidirectionally:
 
-- **Thread reply** on a summary → stored in `feedback` table → `anthropic/claude-haiku-4-5` acknowledges in-thread
-- **@mention** to the bot → classified (feedback / teaching / question / task) → responded to in-thread
-- **Weekly cron** (Sunday midnight) → summarizes feedback patterns → writes to `knowledge_bases` table for future context injection
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SL as Slack
+    participant BT as Bolt
+    participant IG as Inngest
+    participant DB as Supabase
+    participant LLM as Haiku 4.5
+
+    rect rgb(230, 243, 255)
+    Note over SL,LLM: Thread Reply Flow
+    SL->>BT: Thread reply on summary
+    BT->>IG: employee/feedback.received
+    IG->>DB: Store in feedback table
+    IG->>IG: Emit employee/feedback.stored
+    IG->>LLM: Generate acknowledgment
+    LLM-->>IG: Response text
+    IG->>SL: Post ack in thread
+    end
+
+    rect rgb(255, 243, 230)
+    Note over SL,LLM: @Mention Flow
+    SL->>BT: @mention to bot
+    BT->>IG: employee/mention.received
+    IG->>LLM: Classify intent
+    LLM-->>IG: feedback / teaching / question / task
+    IG->>DB: Store if relevant
+    IG->>SL: Respond in thread
+    end
+
+    rect rgb(230, 255, 243)
+    Note over SL,LLM: Weekly Summary (Sunday midnight cron)
+    IG->>DB: Read recent feedback
+    IG->>LLM: Summarize patterns
+    LLM-->>IG: Digest
+    IG->>DB: Write to knowledge_bases
+    end
+```
+
+| #     | What happens          | Details                                                                     |
+| ----- | --------------------- | --------------------------------------------------------------------------- |
+| 1–7   | **Thread Reply Flow** | Reply in Slack thread → store in `feedback` → Haiku ack posted in thread    |
+| 8–13  | **@Mention Flow**     | @mention → classify intent → store if relevant → respond in thread          |
+| 14–17 | **Weekly Summary**    | Cron reads recent feedback → Haiku summarizes → writes to `knowledge_bases` |
 
 ---
 
