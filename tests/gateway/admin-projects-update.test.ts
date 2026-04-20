@@ -29,11 +29,11 @@ afterAll(async () => {
   await disconnectPrisma();
 });
 
-describe('PATCH /admin/projects/:id', () => {
+describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
   it('missing X-Admin-Key header → 401', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: '/admin/projects/00000000-0000-0000-0000-000000000003',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000003`,
       headers: { 'content-type': 'application/json' },
       payload: { name: 'Updated Name' },
     });
@@ -44,7 +44,7 @@ describe('PATCH /admin/projects/:id', () => {
   it('PATCH non-existent id → 404', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: '/admin/projects/00000000-0000-0000-0000-000000000099',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -69,7 +69,7 @@ describe('PATCH /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -97,7 +97,7 @@ describe('PATCH /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -125,7 +125,7 @@ describe('PATCH /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -153,7 +153,7 @@ describe('PATCH /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -169,7 +169,7 @@ describe('PATCH /admin/projects/:id', () => {
   it('PATCH with malformed id → 400', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: '/admin/projects/not-a-valid-uuid',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/not-a-valid-uuid`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -194,7 +194,7 @@ describe('PATCH /admin/projects/:id', () => {
 
     await app.inject({
       method: 'PATCH',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,

@@ -28,11 +28,11 @@ afterAll(async () => {
   await disconnectPrisma();
 });
 
-describe('DELETE /admin/projects/:id', () => {
+describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
   it('missing X-Admin-Key header → 401', async () => {
     const res = await app.inject({
       method: 'DELETE',
-      url: '/admin/projects/00000000-0000-0000-0000-000000000099',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
     });
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body).error).toBe('Unauthorized');
@@ -41,7 +41,7 @@ describe('DELETE /admin/projects/:id', () => {
   it('invalid UUID format → 400 INVALID_ID', async () => {
     const res = await app.inject({
       method: 'DELETE',
-      url: '/admin/projects/not-a-valid-uuid',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/not-a-valid-uuid`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
     expect(res.statusCode).toBe(400);
@@ -51,7 +51,7 @@ describe('DELETE /admin/projects/:id', () => {
   it('non-existent project id → 404 NOT_FOUND', async () => {
     const res = await app.inject({
       method: 'DELETE',
-      url: '/admin/projects/00000000-0000-0000-0000-000000000099',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
     expect(res.statusCode).toBe(404);
@@ -82,7 +82,7 @@ describe('DELETE /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
 
@@ -108,7 +108,7 @@ describe('DELETE /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
 
@@ -143,7 +143,7 @@ describe('DELETE /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
 
@@ -177,7 +177,7 @@ describe('DELETE /admin/projects/:id', () => {
 
     const res = await app.inject({
       method: 'DELETE',
-      url: `/admin/projects/${project.id}`,
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: { 'x-admin-key': ADMIN_TEST_KEY },
     });
 

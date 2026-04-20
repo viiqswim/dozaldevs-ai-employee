@@ -28,18 +28,18 @@ Projects can be registered at runtime via the admin REST API. All endpoints requ
 
 | Method   | Path                                               | Description                     |
 | -------- | -------------------------------------------------- | ------------------------------- |
-| `POST`   | `/admin/projects`                                  | Register a new project          |
-| `GET`    | `/admin/projects`                                  | List all projects               |
-| `GET`    | `/admin/projects/:id`                              | Get a single project            |
-| `PATCH`  | `/admin/projects/:id`                              | Update a project                |
-| `DELETE` | `/admin/projects/:id`                              | Delete a project                |
+| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project          |
+| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects               |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project            |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                |
 | `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee |
 | `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                 |
 
 **Create a project:**
 
 ```bash
-curl -X POST http://localhost:3000/admin/projects \
+curl -X POST http://localhost:3000/admin/tenants/$TENANT_ID/projects \
   -H "Content-Type: application/json" \
   -H "X-Admin-Key: $ADMIN_API_KEY" \
   -d '{
@@ -56,7 +56,7 @@ curl -X POST http://localhost:3000/admin/projects \
 
 `GITHUB_TOKEN` must have push access to every registered repo. It's a single global token shared across all projects.
 
-`DELETE /admin/projects/:id` returns `409 Conflict` if the project has tasks in `Ready`, `Executing`, or `Submitting` state.
+`DELETE /admin/tenants/:tenantId/projects/:id` returns `409 Conflict` if the project has tasks in `Ready`, `Executing`, or `Submitting` state.
 
 ## Scripts
 

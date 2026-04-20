@@ -197,6 +197,13 @@ export const GetTaskParamsSchema = z.object({
 });
 export type GetTaskParams = z.infer<typeof GetTaskParamsSchema>;
 
+// URL params for /admin/tenants/:tenantId/projects/:id
+export const TenantProjectParamSchema = z.object({
+  tenantId: uuidField(),
+  id: uuidField(),
+});
+export type TenantProjectParam = z.infer<typeof TenantProjectParamSchema>;
+
 export const CreateTenantBodySchema = z.object({
   name: z.string().min(1).max(200),
   slug: z

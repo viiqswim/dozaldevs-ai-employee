@@ -3,6 +3,8 @@ import express from 'express';
 import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../setup.js';
 import { adminProjectRoutes } from '../../src/gateway/routes/admin-projects.js';
 
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+
 const VALID_PAYLOAD = {
   name: 'Admin Test Project',
   jira_project_key: 'ADMINTEST',
@@ -31,11 +33,11 @@ afterAll(async () => {
   await disconnectPrisma();
 });
 
-describe('POST /admin/projects', () => {
+describe('POST /admin/tenants/:tenantId/projects', () => {
   it('missing X-Admin-Key header → 401', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: { 'content-type': 'application/json' },
       payload: VALID_PAYLOAD,
     });
@@ -46,7 +48,7 @@ describe('POST /admin/projects', () => {
   it('wrong X-Admin-Key value → 401', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': 'totally-wrong-key',
@@ -60,7 +62,7 @@ describe('POST /admin/projects', () => {
   it('valid key + invalid body (missing repo_url) → 400 with Zod issues', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -77,7 +79,7 @@ describe('POST /admin/projects', () => {
   it('valid key + valid body → 201 with project payload', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -94,7 +96,7 @@ describe('POST /admin/projects', () => {
   it("valid key + duplicate jira_project_key (seed 'TEST') → 409", async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -114,7 +116,7 @@ describe('POST /admin/projects', () => {
   it('valid key + valid body → project persisted in DB', async () => {
     await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
