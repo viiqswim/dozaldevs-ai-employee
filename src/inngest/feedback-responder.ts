@@ -90,7 +90,7 @@ export function createFeedbackResponderFunction(inngest: Inngest): InngestFuncti
           temperature: 0.3,
         });
 
-        const botToken = tenantEnv.SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN ?? '';
+        const botToken = tenantEnv.SLACK_BOT_TOKEN ?? '';
         if (!botToken) {
           log.warn({ taskId }, 'No Slack bot token available — skipping feedback acknowledgment');
           return;

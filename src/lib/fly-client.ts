@@ -11,6 +11,7 @@ export interface FlyMachineConfig {
   env?: Record<string, string>; // env vars injected at launch
   auto_destroy?: boolean;
   cmd?: string[]; // Optional CMD override — runs instead of Dockerfile CMD
+  kill_timeout?: number; // Seconds before Fly.io force-kills the machine (default: ~900s)
 }
 
 export interface FlyMachine {
@@ -137,6 +138,7 @@ export async function createMachine(
       env: config.env,
       auto_destroy: config.auto_destroy,
       ...(config.cmd ? { init: { cmd: config.cmd } } : {}),
+      ...(config.kill_timeout !== undefined ? { kill_timeout: config.kill_timeout } : {}),
     },
   };
 

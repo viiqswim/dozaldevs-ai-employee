@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { TenantRepository } from '../services/tenant-repository.js';
+import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { encrypt } from '../../lib/encryption.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 
 export interface SlackOAuthRouteOptions {
@@ -39,6 +39,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
   const tenantRepo = new TenantRepository(prisma);
+  const secretRepo = new TenantSecretRepository(prisma);
   const integrationRepo = new TenantIntegrationRepository(prisma);
 
   router.get('/slack/install', async (req, res) => {
@@ -134,25 +135,9 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
         });
         return;
       }
-      await prisma.$transaction(async (tx) => {
-        const payload = encrypt(accessToken);
-        await tx.tenantSecret.upsert({
-          where: { tenant_id_key: { tenant_id: tenantId, key: 'slack_bot_token' } },
-          create: {
-            tenant_id: tenantId,
-            key: 'slack_bot_token',
-            ciphertext: payload.ciphertext,
-            iv: payload.iv,
-            auth_tag: payload.auth_tag,
-          },
-          update: {
-            ciphertext: payload.ciphertext,
-            iv: payload.iv,
-            auth_tag: payload.auth_tag,
-          },
-        });
-      });
+      await secretRepo.set(tenantId, 'slack_bot_token', accessToken);
       await integrationRepo.upsert(tenantId, 'slack', { external_id: teamId });
+      logger.info({ tenantId, teamId }, 'Slack OAuth completed — secret and integration stored');
       res
         .status(200)
         .send(

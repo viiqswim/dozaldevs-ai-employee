@@ -197,6 +197,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           image,
           vm_size: vmSize,
           auto_destroy: true,
+          kill_timeout: 1800,
           cmd,
           env: {
             ...tenantEnv,
@@ -212,7 +213,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       // ── Poll for machine completion (Submitting or Failed) ───────────────────
       const finalStatus = await step.run('poll-completion', async () => {
-        const maxPolls = 20;
+        const maxPolls = 60;
         const intervalMs = 15_000;
 
         for (let i = 0; i < maxPolls; i++) {
@@ -302,7 +303,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await prismaForApproval.$disconnect();
 
         const slackClient = createSlackClient({
-          botToken: tenantEnvForApproval.SLACK_BOT_TOKEN ?? process.env.SLACK_BOT_TOKEN ?? '',
+          botToken: tenantEnvForApproval.SLACK_BOT_TOKEN ?? '',
           defaultChannel: '',
         });
 
@@ -316,7 +317,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const metadata = (deliverable?.metadata as Record<string, unknown>) ?? {};
         const approvalMsgTs = metadata.approval_message_ts as string | undefined;
         const targetChannel =
-          (metadata.target_channel as string) ?? process.env.SUMMARY_TARGET_CHANNEL ?? '';
+          (metadata.target_channel as string) ??
+          tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
+          '';
         const summaryBlocks = metadata.blocks as unknown[] | undefined;
         const summaryContent = (deliverable?.content as string) ?? '';
 
@@ -360,6 +363,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               image: deliveryImage,
               vm_size: deliveryVmSize,
               auto_destroy: true,
+              kill_timeout: 1800,
               cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
               env: {
                 ...tenantEnvForApproval,
