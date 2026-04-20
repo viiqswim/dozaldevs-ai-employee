@@ -162,9 +162,9 @@ export function parseUpdateProject(body: unknown): UpdateProjectInput {
   return UpdateProjectSchema.parse(body);
 }
 
-// Loose UUID regex — accepts any 8-4-4-4-12 hex pattern including system tenant IDs
+// Loose UUID regex — accepts any 8-4-4-4-12 hex pattern including all-zero test UUIDs
 // (Zod's z.string().uuid() enforces strict RFC 4122 version/variant bits which rejects
-// the system tenant ID '00000000-0000-0000-0000-000000000001')
+// all-zero UUIDs used in seed data and tests)
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const uuidField = () =>
   z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
