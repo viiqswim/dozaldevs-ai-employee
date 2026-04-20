@@ -218,7 +218,7 @@ async function main() {
     '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
     'Post the summary with approve/reject buttons to the victor-tests channel (C0AUBMXKVNU) for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
-    'node /tools/slack/post-message.js --channel "C0AUBMXKVNU" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C0AUBMXKVNU" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them. ' +
     'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
     'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons: ' +
