@@ -54,7 +54,7 @@ function loadEnv() {
 loadEnv();
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY ?? '';
-const BASE_URL = process.env.GATEWAY_BASE ?? 'http://localhost:3000';
+const BASE_URL = process.env.GATEWAY_BASE ?? `http://localhost:${process.env.PORT ?? '7700'}`;
 
 if (!ADMIN_API_KEY) {
   fail('ADMIN_API_KEY not set. Run pnpm setup first or set it in .env.');

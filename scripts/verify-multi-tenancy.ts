@@ -117,7 +117,7 @@ async function main() {
 
     section('Check 4: Cross-tenant API isolation');
     const ADMIN_API_KEY = process.env.ADMIN_API_KEY ?? '';
-    const BASE_URL = process.env.GATEWAY_BASE ?? 'http://localhost:3000';
+    const BASE_URL = process.env.GATEWAY_BASE ?? `http://localhost:${process.env.PORT ?? '7700'}`;
     if (!ADMIN_API_KEY) {
       fail('Cross-tenant isolation', 'ADMIN_API_KEY not set — skipping');
     } else {

@@ -18,7 +18,7 @@
  *                      (default: test-payloads/jira-realistic-task.json)
  *   --key <key>        Override Jira issue key to avoid branch conflicts
  *                      Tip: use a unique key, e.g. --key TEST-$(date +%s)
- *   --gateway <url>    Gateway base URL (default: http://localhost:3000)
+ *   --gateway <url>    Gateway base URL (default: http://localhost:<PORT>)
  *   --help             Show this help
  *
  * Examples:
@@ -118,7 +118,7 @@ ${C.bold}Options:${C.reset}
   ${C.cyan}--key <key>${C.reset}       Override Jira issue key (e.g. TEST-200)
                     Use a unique key to avoid duplicate-task skips
                     Tip: --key TEST-$(date +%s)
-   ${C.cyan}--gateway <url>${C.reset}   Gateway base URL (default: http://localhost:3000)
+   ${C.cyan}--gateway <url>${C.reset}   Gateway base URL (default: http://localhost:<PORT>)
    ${C.cyan}--help${C.reset}            Show this help
 
 ${C.bold}Examples:${C.reset}
@@ -170,7 +170,7 @@ function getEnv(key: string): string {
 
 const PAYLOAD_PATH = getArg('--payload') ?? 'test-payloads/jira-realistic-task.json';
 const ISSUE_KEY_OVERRIDE = getArg('--key');
-const GATEWAY_BASE = getArg('--gateway') ?? 'http://localhost:3000';
+const GATEWAY_BASE = getArg('--gateway') ?? `http://localhost:${process.env.PORT ?? '7700'}`;
 const WEBHOOK_ENDPOINT = `${GATEWAY_BASE}/webhooks/jira`;
 
 const JIRA_SECRET = getEnv('JIRA_WEBHOOK_SECRET');
