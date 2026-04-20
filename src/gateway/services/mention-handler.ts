@@ -20,8 +20,6 @@ export interface MentionResult {
   stored: boolean;
 }
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-
 export class MentionHandler {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -50,7 +48,13 @@ export class MentionHandler {
 
   async handle(data: MentionInput): Promise<MentionResult> {
     const { text, userId, tenantId } = data;
-    const resolvedTenantId = tenantId ?? SYSTEM_TENANT_ID;
+
+    if (!tenantId) {
+      log.warn({ userId }, 'Mention received with no resolved tenantId — skipping feedback event');
+      return { intent: 'question', stored: false };
+    }
+
+    const resolvedTenantId = tenantId;
 
     const intent = await this.classifyIntent(text);
     log.info({ intent, userId }, 'Mention classified');

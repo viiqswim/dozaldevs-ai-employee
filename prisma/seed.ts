@@ -26,18 +26,6 @@ REGLAS DE FORMATO (obligatorias — no las ignores):
 async function main() {
   console.log('🌱 Seeding database...');
 
-  const platformTenant = await prisma.tenant.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000001' },
-    create: {
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Platform',
-      slug: 'platform',
-      status: 'active',
-    },
-    update: { name: 'Platform', status: 'active' },
-  });
-  console.log(`✅ Tenant upserted: ${platformTenant.id} (slug: ${platformTenant.slug})`);
-
   const dozalDevsTenant = await prisma.tenant.upsert({
     where: { id: '00000000-0000-0000-0000-000000000002' },
     create: {
@@ -122,20 +110,6 @@ async function main() {
   console.log(`✅ AgentVersion upserted: ${agentVersion.id} (model: ${agentVersion.model_id})`);
   console.log(`✅ Project upserted: ${project.id} (repo: ${project.repo_url})`);
 
-  const operationsDept = await prisma.department.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000010' },
-    create: {
-      id: '00000000-0000-0000-0000-000000000010',
-      name: 'Operations',
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-    },
-    update: {
-      name: 'Operations',
-    },
-  });
-
-  console.log(`✅ Department upserted: ${operationsDept.id} (name: ${operationsDept.name})`);
-
   const dozalDevsDept = await prisma.department.upsert({
     where: { id: '00000000-0000-0000-0000-000000000020' },
     create: {
@@ -172,42 +146,6 @@ async function main() {
     'Include approve/reject buttons in the message by passing --task-id to the post-message tool. ' +
     'The task ID is available in the TASK_ID environment variable — include it in the button values for approval routing. ' +
     'When in delivery mode (DELIVERY_MODE=true), publish the approved content to the publish channel (SUMMARY_PUBLISH_CHANNEL environment variable).';
-
-  const dailySummarizerArchetype = await prisma.archetype.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000011' },
-    create: {
-      id: '00000000-0000-0000-0000-000000000011',
-      role_name: 'daily-summarizer',
-      runtime: 'opencode',
-      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
-      deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
-      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
-      risk_model: { approval_required: true, timeout_hours: 24 },
-      concurrency_limit: 1,
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-      department_id: '00000000-0000-0000-0000-000000000010',
-    },
-    update: {
-      role_name: 'daily-summarizer',
-      runtime: 'opencode',
-      system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
-      deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
-      trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
-      risk_model: { approval_required: true, timeout_hours: 24 },
-      concurrency_limit: 1,
-      department_id: '00000000-0000-0000-0000-000000000010',
-    },
-  });
-
-  console.log(
-    `✅ Archetype upserted: ${dailySummarizerArchetype.id} (role: ${dailySummarizerArchetype.role_name}, model: ${dailySummarizerArchetype.model})`,
-  );
 
   const DOZALDEVS_SUMMARIZER_INSTRUCTIONS =
     'Read the last 24 hours of messages from the project-lighthouse Slack channel (channel ID: C092BJ04HUG). ' +
@@ -300,7 +238,7 @@ async function main() {
 
   console.log('✅ Seeding complete.');
   console.log(
-    `Tenants seeded: Platform, DozalDevs, VLRE — all three have daily-summarizer archetypes. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
+    `Tenants seeded: DozalDevs, VLRE — both have daily-summarizer archetypes. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
   );
 }
 

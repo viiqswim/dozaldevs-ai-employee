@@ -27,7 +27,7 @@ model Task {
   requirements       Json?
   scope_estimate     Int?
   affected_resources Json?
-  tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id          String   @db.Uuid
   raw_event          Json?
   dispatch_attempts  Int      @default(0)
   failure_reason     String?
@@ -126,7 +126,7 @@ model Project {
   concurrency_limit Int      @default(3)
   tooling_config    Json?
   jira_project_key  String?
-  tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id         String   @db.Uuid
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
@@ -150,7 +150,7 @@ model Feedback {
   created_by         String?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
-  tenant_id          String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id          String   @db.Uuid
 
   // Relations
   tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -184,7 +184,7 @@ model Department {
   id            String   @id @default(uuid()) @db.Uuid
   name          String
   slack_channel String?
-  tenant_id     String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id     String   @db.Uuid
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -206,7 +206,7 @@ model Archetype {
   risk_model        Json?
   concurrency_limit Int      @default(3)
   agent_version_id  String?  @db.Uuid
-  tenant_id         String   @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id         String   @db.Uuid
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   system_prompt     String?  @db.Text
@@ -233,7 +233,7 @@ model KnowledgeBase {
   last_indexed  DateTime?
   chunk_count   Int       @default(0)
   source_config Json?
-  tenant_id     String    @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  tenant_id     String    @db.Uuid
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
 

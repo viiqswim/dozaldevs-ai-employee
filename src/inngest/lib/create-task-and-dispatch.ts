@@ -4,6 +4,7 @@ export interface CreateTaskAndDispatchParams {
   inngest: Inngest;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   step: any;
+  tenantId: string;
   archetypeSlug: string;
   externalId: string;
   sourceSystem: string;
@@ -17,12 +18,11 @@ export interface CreateTaskAndDispatchResult {
 export async function createTaskAndDispatch(
   params: CreateTaskAndDispatchParams,
 ): Promise<CreateTaskAndDispatchResult> {
-  const { inngest, step, archetypeSlug, externalId, sourceSystem } = params;
+  const { inngest, step, tenantId, archetypeSlug, externalId, sourceSystem } = params;
 
   return step.run('create-task-and-dispatch', async () => {
     const supabaseUrl = process.env.SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
-    const tenantId = '00000000-0000-0000-0000-000000000001';
 
     const headers = {
       apikey: supabaseKey,

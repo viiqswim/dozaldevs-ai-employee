@@ -2,8 +2,6 @@ import type { PrismaClient, Task, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library.js';
 import type { JiraWebhookPayload } from '../validation/schemas.js';
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-
 export interface CreateTaskResult {
   task: Task;
   created: boolean; // false if task already existed (idempotent duplicate)
