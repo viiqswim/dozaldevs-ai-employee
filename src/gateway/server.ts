@@ -158,7 +158,7 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       expressApp = app;
       boltApp = bolt;
 
-      const port = parseInt(process.env.PORT ?? '3000', 10);
+      const port = parseInt(process.env.PORT ?? '7700', 10);
       app.listen(port, '0.0.0.0', () => {
         logger.info(`Gateway listening on port ${port}`);
       });

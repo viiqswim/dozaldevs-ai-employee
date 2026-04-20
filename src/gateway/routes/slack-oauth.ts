@@ -64,7 +64,8 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenantId, nonce });
       const state = signState(payload, signingKey);
-      const redirectBase = process.env.SLACK_REDIRECT_BASE_URL ?? 'http://localhost:3000';
+      const redirectBase =
+        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
       const scopes = 'channels:history,groups:history,groups:read,chat:write,chat:write.public';
       const url =
@@ -100,7 +101,8 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
         res.status(500).json({ error: 'Slack OAuth not configured' });
         return;
       }
-      const redirectBase = process.env.SLACK_REDIRECT_BASE_URL ?? 'http://localhost:3000';
+      const redirectBase =
+        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
       const tokenRes = await fetch('https://slack.com/api/oauth.v2.access', {
         method: 'POST',
