@@ -80,6 +80,29 @@ Three tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth 
 
 **`SLACK_BOT_TOKEN` in `.env` is the VLRE workspace bot token only.** It cannot access DozalDevs channels. Never store it as the DozalDevs tenant secret.
 
+## Slack Interactive Buttons — Socket Mode (CRITICAL — READ BEFORE DEBUGGING)
+
+**The Papi chulo Slack app uses Socket Mode. This has been confirmed multiple times.**
+
+- **NEVER ask the user to configure an Interactivity Request URL** in the Slack API dashboard. Socket Mode is enabled on the app, which means "You won't need to specify a Request URL" — Slack says this explicitly in the UI.
+- `SLACK_APP_TOKEN=xapp-...` is already set in `.env`. The gateway (`src/gateway/server.ts` lines 68–93) detects this and automatically starts Bolt in Socket Mode with a WebSocket connection to Slack.
+- Confirmed working: gateway logs show `"Slack Bolt — Socket Mode connected"` on every startup.
+- If a button click does not reach the gateway, it is a **transient WebSocket drop**, NOT a URL configuration problem. Do NOT ask the user to change any Slack app settings.
+
+**Manual approval fallback** (use when button click doesn't work):
+
+```bash
+curl -X POST "http://localhost:8288/e/local" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"employee/approval.received","data":{"taskId":"<TASK_ID>","action":"approve","userName":"Victor"}}'
+```
+
+**Debugging button click failures:**
+
+1. Check gateway logs for `"Slack Bolt — Socket Mode connected"` — if missing, `SLACK_APP_TOKEN` is unset or invalid
+2. Check for `slack_bolt_authorization_error` — if present with a team ID, that team's `tenant_integrations` row is missing (run OAuth)
+3. If Socket Mode is connected and no error appears, it was a transient drop — retry by clicking again or use the manual fallback above
+
 ## Slack OAuth — Per-Tenant Installation
 
 Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenant_integrations` (provider: `slack`, external_id: Slack team ID). The `TenantInstallationStore` (`src/gateway/slack/installation-store.ts`) looks them up by team ID for Bolt authorization.
