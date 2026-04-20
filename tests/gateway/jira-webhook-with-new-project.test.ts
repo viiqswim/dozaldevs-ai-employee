@@ -11,6 +11,7 @@ import {
 } from '../setup.js';
 
 const SECRET = 'test-secret';
+const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 
 function buildJiraPayload(projectKey: string, issueKey: string): string {
@@ -74,7 +75,7 @@ describe('POST /webhooks/jira — new project registration integration', () => {
   it('happy path: register project → send webhook → task created with correct project_id', async () => {
     const registerRes = await app.inject({
       method: 'POST',
-      url: '/admin/projects',
+      url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects`,
       headers: adminHeaders(),
       payload: JSON.stringify({
         name: 'New Integration Test Project',

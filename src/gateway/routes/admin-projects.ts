@@ -9,13 +9,16 @@ import {
   deleteProject,
   type DeleteProjectResult,
 } from '../services/project-registry.js';
-import { CreateProjectSchema, UpdateProjectSchema } from '../validation/schemas.js';
+import {
+  CreateProjectSchema,
+  UpdateProjectSchema,
+  TenantIdParamSchema,
+  TenantProjectParamSchema,
+} from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
 import pino from 'pino';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AdminProjectRouteOptions {
   prisma?: PrismaClient;
@@ -25,7 +28,13 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
   const router = Router();
   const prisma = opts.prisma ?? new PrismaClient();
 
-  router.post('/admin/projects', requireAdminKey, async (req, res) => {
+  router.post('/admin/tenants/:tenantId/projects', requireAdminKey, async (req, res) => {
+    const paramResult = TenantIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      res.status(400).json({ error: 'INVALID_ID' });
+      return;
+    }
+
     const result = CreateProjectSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
@@ -35,7 +44,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
     try {
       const project = await createProject({
         input: result.data,
-        tenantId: SYSTEM_TENANT_ID,
+        tenantId: paramResult.data.tenantId,
         prisma,
       });
       res.status(201).json(project);
@@ -49,10 +58,16 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
     }
   });
 
-  router.get('/admin/projects', requireAdminKey, async (_req, res) => {
+  router.get('/admin/tenants/:tenantId/projects', requireAdminKey, async (req, res) => {
+    const paramResult = TenantIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      res.status(400).json({ error: 'INVALID_ID' });
+      return;
+    }
+
     try {
       const projects = await listProjects({
-        tenantId: SYSTEM_TENANT_ID,
+        tenantId: paramResult.data.tenantId,
         prisma,
       });
       res.status(200).json({ projects });
@@ -62,18 +77,17 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
     }
   });
 
-  router.get('/admin/projects/:id', requireAdminKey, async (req, res) => {
-    const id = req.params.id as string;
-
-    if (!UUID_REGEX.test(id)) {
+  router.get('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
+    const paramResult = TenantProjectParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID' });
       return;
     }
 
     try {
       const project = await getProjectById({
-        id,
-        tenantId: SYSTEM_TENANT_ID,
+        id: paramResult.data.id,
+        tenantId: paramResult.data.tenantId,
         prisma,
       });
 
@@ -89,10 +103,9 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
     }
   });
 
-  router.patch('/admin/projects/:id', requireAdminKey, async (req, res) => {
-    const id = req.params.id as string;
-
-    if (!UUID_REGEX.test(id)) {
+  router.patch('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
+    const paramResult = TenantProjectParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID' });
       return;
     }
@@ -105,9 +118,9 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
 
     try {
       const project = await updateProject({
-        id,
+        id: paramResult.data.id,
         input: result.data,
-        tenantId: SYSTEM_TENANT_ID,
+        tenantId: paramResult.data.tenantId,
         prisma,
       });
 
@@ -127,18 +140,17 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
     }
   });
 
-  router.delete('/admin/projects/:id', requireAdminKey, async (req, res) => {
-    const id = req.params.id as string;
-
-    if (!UUID_REGEX.test(id)) {
+  router.delete('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
+    const paramResult = TenantProjectParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID' });
       return;
     }
 
     try {
       const result: DeleteProjectResult = await deleteProject({
-        id,
-        tenantId: SYSTEM_TENANT_ID,
+        id: paramResult.data.id,
+        tenantId: paramResult.data.tenantId,
         prisma,
       });
 

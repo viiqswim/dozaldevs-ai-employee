@@ -3,6 +3,7 @@ import express from 'express';
 import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../setup.js';
 import { adminProjectRoutes } from '../../src/gateway/routes/admin-projects.js';
 
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 const NONEXISTENT_UUID = '00000000-0000-0000-0000-999999999999';
 
@@ -28,11 +29,11 @@ afterAll(async () => {
   await disconnectPrisma();
 });
 
-describe('GET /admin/projects', () => {
+describe('GET /admin/tenants/:tenantId/projects', () => {
   it('missing X-Admin-Key header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: { 'content-type': 'application/json' },
     });
     expect(res.statusCode).toBe(401);
@@ -42,7 +43,7 @@ describe('GET /admin/projects', () => {
   it('valid key → 200 with projects array', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -56,7 +57,7 @@ describe('GET /admin/projects', () => {
   it('valid key → returns seed project in list', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/projects',
+      url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -70,11 +71,11 @@ describe('GET /admin/projects', () => {
   });
 });
 
-describe('GET /admin/projects/:id', () => {
+describe('GET /admin/tenants/:tenantId/projects/:id', () => {
   it('missing X-Admin-Key header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: `/admin/projects/${SEED_PROJECT_ID}`,
+      url: `/admin/tenants/${TENANT_ID}/projects/${SEED_PROJECT_ID}`,
       headers: { 'content-type': 'application/json' },
     });
     expect(res.statusCode).toBe(401);
@@ -84,7 +85,7 @@ describe('GET /admin/projects/:id', () => {
   it('valid key + seed project id → 200 with project payload', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: `/admin/projects/${SEED_PROJECT_ID}`,
+      url: `/admin/tenants/${TENANT_ID}/projects/${SEED_PROJECT_ID}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -99,7 +100,7 @@ describe('GET /admin/projects/:id', () => {
   it('valid key + nonexistent uuid → 404', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: `/admin/projects/${NONEXISTENT_UUID}`,
+      url: `/admin/tenants/${TENANT_ID}/projects/${NONEXISTENT_UUID}`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
@@ -112,7 +113,7 @@ describe('GET /admin/projects/:id', () => {
   it('valid key + malformed id (not-a-uuid) → 400', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/admin/projects/not-a-uuid',
+      url: `/admin/tenants/${TENANT_ID}/projects/not-a-uuid`,
       headers: {
         'content-type': 'application/json',
         'x-admin-key': ADMIN_TEST_KEY,
