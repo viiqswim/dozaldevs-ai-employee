@@ -141,7 +141,7 @@ describe('MentionHandler', () => {
       await handler.handle({ ...baseInput, tenantId: null });
 
       const call = vi.mocked(prisma.feedback.create).mock.calls[0][0];
-      expect(call.data.tenant_id).toBe('00000000-0000-0000-0000-000000000001');
+      expect(call.data.tenant_id).toBe('00000000-0000-0000-0000-000000000002');
     });
 
     it('sets original_decision and corrected_decision to JsonNull', async () => {

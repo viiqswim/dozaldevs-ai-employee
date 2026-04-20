@@ -86,7 +86,7 @@ fi
 # ─────────────────────────────────────────────────────
 echo "── Check 6: CHECK constraint on tasks.status ──"
 CONSTRAINT_RESULT=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \
-  "INSERT INTO tasks (id, status, tenant_id, updated_at) VALUES (gen_random_uuid(), 'InvalidStatus', '00000000-0000-0000-0000-000000000001', NOW());" 2>&1)
+  "INSERT INTO tasks (id, status, tenant_id, updated_at) VALUES (gen_random_uuid(), 'InvalidStatus', '00000000-0000-0000-0000-000000000002', NOW());" 2>&1)
 if echo "$CONSTRAINT_RESULT" | grep -qiE "check constraint|violates|error"; then
   check_pass "CHECK constraint correctly rejects 'InvalidStatus'"
 else

@@ -8,7 +8,7 @@ function makeInngest(): InngestLike {
   };
 }
 
-const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const ARCHETYPE_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
 function makeArchetype(runtime: string) {

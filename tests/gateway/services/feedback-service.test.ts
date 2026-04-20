@@ -25,7 +25,7 @@ describe('FeedbackService', () => {
     userId: 'U123456',
     threadTs: '1234567890.000100',
     channelId: 'C123456',
-    tenantId: '00000000-0000-0000-0000-000000000001',
+    tenantId: '00000000-0000-0000-0000-000000000002',
   };
 
   beforeEach(() => {
@@ -47,7 +47,7 @@ describe('FeedbackService', () => {
           corrected_decision: Prisma.JsonNull,
           correction_reason: 'Great work on the summary!',
           created_by: 'U123456',
-          tenant_id: '00000000-0000-0000-0000-000000000001',
+          tenant_id: '00000000-0000-0000-0000-000000000002',
         },
       });
     });

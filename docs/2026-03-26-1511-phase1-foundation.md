@@ -362,6 +362,8 @@ Each test cleans up its own data via `afterEach` — no test leaves rows that co
 
 Every table that will need multi-tenant isolation carries a `tenant_id UUID` column with a default of `00000000-0000-0000-0000-000000000001` (the "system" tenant). V1 has one tenant, so no application code enforces isolation yet. But the column is there from day one so that Supabase Row-Level Security policies can be added later without any schema migration. Multi-tenancy is a schema commitment, not an afterthought.
 
+> **Note (April 2026)**: The Platform tenant has been removed. All entities now belong to real organization tenants.
+
 ### JSONB for Flexible Payloads
 
 `raw_event`, `requirements`, `triage_result`, `affected_resources`, and several config fields use `JSONB`. This deliberately avoids over-specifying these shapes before the application behavior is proven. The webhook payload from Jira looks different than from GitHub; the triage agent's output format will evolve. JSONB absorbs that evolution without migrations.

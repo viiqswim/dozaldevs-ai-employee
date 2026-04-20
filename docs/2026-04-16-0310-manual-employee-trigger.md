@@ -31,7 +31,7 @@ All requests require the `X-Admin-Key` header. The downstream flow is identical 
 ### Trigger an employee
 
 ```bash
-TENANT=00000000-0000-0000-0000-000000000001
+TENANT=00000000-0000-0000-0000-000000000002
 
 curl -s -X POST \
   -H "X-Admin-Key: $ADMIN_API_KEY" \

@@ -325,22 +325,22 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 
 ## Tenant Configuration
 
-Three tenants are seeded. Each requires its own Slack OAuth connection to operate.
+Two tenants are seeded. Each requires its own Slack OAuth connection to operate.
 
-| Field                | Platform                       | DozalDevs                                     | VLRE                           |
-| -------------------- | ------------------------------ | --------------------------------------------- | ------------------------------ |
-| ID                   | `...000000000001`              | `...000000000002`                             | `...000000000003`              |
-| Slug                 | `platform`                     | `dozaldevs`                                   | `vlre`                         |
-| Slack Workspace      | — (none)                       | `T0601SMSVEU` (Dozal Inc.)                    | `T06KFDGLHS6`                  |
-| Archetype ID         | `...0011`                      | `...0012`                                     | `...0013`                      |
-| Read Channels        | env: `DAILY_SUMMARY_CHANNELS`  | `C092BJ04HUG` (`#project-lighthouse`)         | env: `DAILY_SUMMARY_CHANNELS`  |
-| Approval Channel     | env: `SUMMARY_TARGET_CHANNEL`  | `C0AUBMXKVNU` (`#victor-tests`)               | env: `SUMMARY_TARGET_CHANNEL`  |
-| Publish Channel      | env: `SUMMARY_PUBLISH_CHANNEL` | `C092BJ04HUG` (`#project-lighthouse`)         | env: `SUMMARY_PUBLISH_CHANNEL` |
-| Instructions Pattern | Generic (env vars)             | Hardcoded channel IDs + mandatory file output | Generic (env vars)             |
+| Field                | DozalDevs                                     | VLRE                           |
+| -------------------- | --------------------------------------------- | ------------------------------ |
+| ID                   | `...000000000002`                             | `...000000000003`              |
+| Slug                 | `dozaldevs`                                   | `vlre`                         |
+| Slack Workspace      | `T0601SMSVEU` (Dozal Inc.)                    | `T06KFDGLHS6`                  |
+| Archetype ID         | `...0012`                                     | `...0013`                      |
+| Read Channels        | `C092BJ04HUG` (`#project-lighthouse`)         | env: `DAILY_SUMMARY_CHANNELS`  |
+| Approval Channel     | `C0AUBMXKVNU` (`#victor-tests`)               | env: `SUMMARY_TARGET_CHANNEL`  |
+| Publish Channel      | `C092BJ04HUG` (`#project-lighthouse`)         | env: `SUMMARY_PUBLISH_CHANNEL` |
+| Instructions Pattern | Hardcoded channel IDs + mandatory file output | Generic (env vars)             |
 
 DozalDevs archetype instructions hardcode channel IDs and require the worker to write `/tmp/summary.txt` and `/tmp/approval-message.json` with the `NODE_NO_WARNINGS=1` prefix on the post-message call.
 
-All three archetypes share the same Papi Chulo system prompt (dramatic Spanish TV news correspondent persona), model (`minimax/minimax-m2.7`), runtime (`opencode`), and risk model (`approval_required: true`, `timeout_hours: 24`).
+Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV news correspondent persona), model (`minimax/minimax-m2.7`), runtime (`opencode`), and risk model (`approval_required: true`, `timeout_hours: 24`).
 
 ---
 

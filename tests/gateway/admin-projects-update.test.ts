@@ -4,7 +4,7 @@ import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY }
 import { adminProjectRoutes } from '../../src/gateway/routes/admin-projects.js';
 import { createProject } from '../../src/gateway/services/project-registry.js';
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_KEY = 'TEST';
 
 let app: TestApp;

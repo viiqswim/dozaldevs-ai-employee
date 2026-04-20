@@ -96,6 +96,7 @@ async function main() {
         default_branch: 'main',
         concurrency_limit: 3,
         jira_project_key: 'TEST',
+        tenant_id: '00000000-0000-0000-0000-000000000002',
       },
       update: {
         name: 'test-project',
@@ -103,6 +104,7 @@ async function main() {
         default_branch: 'main',
         concurrency_limit: 3,
         jira_project_key: 'TEST',
+        tenant_id: '00000000-0000-0000-0000-000000000002',
       },
     }),
   ]);

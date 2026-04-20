@@ -18,7 +18,7 @@ describe('setup helpers', () => {
           name: 'Temp project',
           repo_url: 'https://github.com/test/temp',
           jira_project_key: 'TMPCLEAN',
-          tenant_id: '00000000-0000-0000-0000-000000000001',
+          tenant_id: '00000000-0000-0000-0000-000000000002',
         },
       });
 

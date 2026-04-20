@@ -6,7 +6,7 @@ import { createRedispatchFunction } from '../../src/inngest/redispatch.js';
 import type { SlackClient } from '../../src/lib/slack-client.js';
 
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
-const SEED_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SEED_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 const inngest = new Inngest({ id: 'ai-employee-test' });
 

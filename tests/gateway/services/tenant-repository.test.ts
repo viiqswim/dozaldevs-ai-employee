@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../setup.js';
 import { TenantRepository } from '../../../src/gateway/services/tenant-repository.js';
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 let repo: TenantRepository;
 
@@ -12,8 +12,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   const prisma = getPrisma();
-  await prisma.tenantSecret.deleteMany({ where: { tenant_id: { not: SYSTEM_TENANT_ID } } });
-  await prisma.tenant.deleteMany({ where: { id: { not: SYSTEM_TENANT_ID } } });
+  await prisma.tenantSecret.deleteMany({ where: { tenant_id: { not: DOZALDEVS_TENANT_ID } } });
+  await prisma.tenant.deleteMany({ where: { id: { not: DOZALDEVS_TENANT_ID } } });
 });
 
 afterAll(async () => {

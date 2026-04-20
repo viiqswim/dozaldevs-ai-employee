@@ -3,14 +3,14 @@ import { PrismaClient } from '@prisma/client';
 import { dispatchEmployee } from '../../../src/gateway/services/employee-dispatcher.js';
 import type { InngestLike } from '../../../src/gateway/server.js';
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 let prisma: PrismaClient;
 
 beforeAll(async () => {
   prisma = new PrismaClient();
   const archetype = await prisma.archetype.findFirst({
-    where: { tenant_id: SYSTEM_TENANT_ID, role_name: 'daily-summarizer' },
+    where: { tenant_id: DOZALDEVS_TENANT_ID, role_name: 'daily-summarizer' },
   });
   if (!archetype) {
     throw new Error(
@@ -37,7 +37,7 @@ describe('manual employee trigger — integration', () => {
   it('dispatches task: creates DB row with source_system=manual and fires Inngest event', async () => {
     const spy = makeInngestSpy();
     const result = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
       prisma,
@@ -52,7 +52,7 @@ describe('manual employee trigger — integration', () => {
     expect(task!.source_system).toBe('manual');
     expect(task!.status).toBe('Ready');
     expect(task!.external_id).toMatch(/^manual-/);
-    expect(task!.tenant_id).toBe(SYSTEM_TENANT_ID);
+    expect(task!.tenant_id).toBe(DOZALDEVS_TENANT_ID);
 
     expect(spy.send).toHaveBeenCalledOnce();
     const sendArg = (spy.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -66,7 +66,7 @@ describe('manual employee trigger — integration', () => {
     const countBefore = await prisma.task.count({ where: { source_system: 'manual' } });
 
     const result = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: true,
       prisma,
@@ -84,14 +84,14 @@ describe('manual employee trigger — integration', () => {
     const spy2 = makeInngestSpy();
 
     const r1 = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
       prisma,
       inngest: spy1,
     });
     const r2 = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
       prisma,
@@ -114,7 +114,7 @@ describe('manual employee trigger — integration', () => {
   it('status query returns the created task for correct tenant', async () => {
     const spy = makeInngestSpy();
     const result = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
       prisma,
@@ -124,7 +124,7 @@ describe('manual employee trigger — integration', () => {
     if (result.kind !== 'dispatched') return;
 
     const task = await prisma.task.findFirst({
-      where: { id: result.taskId, tenant_id: SYSTEM_TENANT_ID },
+      where: { id: result.taskId, tenant_id: DOZALDEVS_TENANT_ID },
       select: {
         id: true,
         status: true,
@@ -142,7 +142,7 @@ describe('manual employee trigger — integration', () => {
   it('cross-tenant status query returns null (tenant isolation enforced)', async () => {
     const spy = makeInngestSpy();
     const result = await dispatchEmployee({
-      tenantId: SYSTEM_TENANT_ID,
+      tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
       prisma,

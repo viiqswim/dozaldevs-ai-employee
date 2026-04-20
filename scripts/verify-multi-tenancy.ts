@@ -8,7 +8,6 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const DOZALDEVS_ID = '00000000-0000-0000-0000-000000000002';
 const VLRE_ID = '00000000-0000-0000-0000-000000000003';
-const PLATFORM_ID = '00000000-0000-0000-0000-000000000001';
 
 const C = {
   green: '\x1b[32m',
@@ -81,7 +80,6 @@ async function main() {
 
     section('Check 2: Tenant existence');
     for (const [id, slug] of [
-      [PLATFORM_ID, 'platform'],
       [DOZALDEVS_ID, 'dozaldevs'],
       [VLRE_ID, 'vlre'],
     ] as const) {
@@ -96,9 +94,9 @@ async function main() {
     section('Check 3: Encryption sanity');
     const probeKey = `probe_verify_${Date.now()}`;
     try {
-      await secretRepo.set(PLATFORM_ID, probeKey, 'probe-plaintext-value');
+      await secretRepo.set(DOZALDEVS_ID, probeKey, 'probe-plaintext-value');
       const raw = await prisma.tenantSecret.findUnique({
-        where: { tenant_id_key: { tenant_id: PLATFORM_ID, key: probeKey } },
+        where: { tenant_id_key: { tenant_id: DOZALDEVS_ID, key: probeKey } },
       });
       if (!raw) {
         fail('Encryption sanity', 'probe secret not found in DB');
@@ -106,7 +104,7 @@ async function main() {
         fail('Encryption sanity', 'ciphertext equals plaintext — encryption not working');
       } else {
         pass('Ciphertext differs from plaintext');
-        const decrypted = await secretRepo.get(PLATFORM_ID, probeKey);
+        const decrypted = await secretRepo.get(DOZALDEVS_ID, probeKey);
         if (decrypted === 'probe-plaintext-value') {
           pass('Roundtrip decrypt returns correct plaintext');
         } else {
@@ -114,7 +112,7 @@ async function main() {
         }
       }
     } finally {
-      await secretRepo.delete(PLATFORM_ID, probeKey).catch(() => {});
+      await secretRepo.delete(DOZALDEVS_ID, probeKey).catch(() => {});
     }
 
     section('Check 4: Cross-tenant API isolation');

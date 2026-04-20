@@ -24,6 +24,8 @@ Every data structure in the platform is tenant-scoped. Archetypes, events, routi
 
 **Current state**: The Prisma schema has `tenant_id` on core tables (Task, Project, Feedback, Department, Archetype, KnowledgeBase) with a default system tenant (`00000000-0000-0000-0000-000000000001`). All gateway queries already filter by `tenant_id`. Child tables (Execution, Deliverable, ValidationRun, etc.) inherit tenant scope through their parent Task/Project. Multi-tenancy is designed into the schema but not yet activated — a single hardcoded UUID is used everywhere.
 
+> **Note (April 2026)**: The Platform tenant has been removed. All entities now belong to real organization tenants (DozalDevs or VLRE).
+
 ### The Archetype (Employee Definition)
 
 Every employee is defined by a declarative **archetype config**. The platform reads this config and knows: what triggers the employee, what tools it needs, what model to use, what events it emits, and how to evaluate its output.

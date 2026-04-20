@@ -88,7 +88,7 @@ psql "${SUPABASE_DB_URL}" -q -c "
     repo_url    TEXT NOT NULL DEFAULT '',
     default_branch TEXT NOT NULL DEFAULT 'main',
     concurrency_limit INT NOT NULL DEFAULT 3,
-    tenant_id   UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
+    tenant_id   UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000002',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -98,7 +98,7 @@ psql "${SUPABASE_DB_URL}" -q -c "
     external_id     TEXT,
     source_system   TEXT,
     status          TEXT NOT NULL DEFAULT 'Received',
-    tenant_id       UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
+    tenant_id       UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000002',
     triage_result   JSONB,
     project_id      UUID REFERENCES projects(id),
     archetype_id    UUID,
@@ -159,7 +159,7 @@ psql "${SUPABASE_DB_URL}" -q -c "
     'BOOT-TEST-001',
     'jira',
     'Executing',
-    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000002',
     '{\"ticket_id\": \"BOOT-TEST-001\", \"title\": \"Boot test task\", \"description\": \"Integration test\"}',
     '00000000-0000-0000-0000-000000000003',
     NOW(),
