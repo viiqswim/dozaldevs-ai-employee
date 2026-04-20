@@ -219,7 +219,7 @@ echo ""
 echo "── Step 8: Waiting for Gateway health (up to 30s) ──"
 GATEWAY_TIMEOUT=30
 GATEWAY_ELAPSED=0
-until curl -sf http://localhost:3000/health > /dev/null 2>&1; do
+until curl -sf "http://localhost:${PORT:-7700}/health" > /dev/null 2>&1; do
   if [ "$GATEWAY_ELAPSED" -ge "$GATEWAY_TIMEOUT" ]; then
     echo "  ✗ Event Gateway did not become healthy after ${GATEWAY_TIMEOUT}s"
     echo "  Check logs: tail /tmp/gateway.log"
@@ -230,7 +230,7 @@ until curl -sf http://localhost:3000/health > /dev/null 2>&1; do
   GATEWAY_ELAPSED=$((GATEWAY_ELAPSED + 2))
   echo "  ... waiting (${GATEWAY_ELAPSED}s)"
 done
-echo "  ✓ Event Gateway is healthy at http://localhost:3000"
+echo "  ✓ Event Gateway is healthy at http://localhost:${PORT:-7700}"
 echo ""
 
 # ─────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ echo "╚═══════════════════════�
 echo "  Supabase:   http://localhost:54321"
 echo "  Studio:     http://localhost:54323"
 echo "  Inngest:    http://localhost:8288"
-echo "  Gateway:    http://localhost:3000"
+echo "  Gateway:    http://localhost:${PORT:-7700}"
 echo ""
 echo "  Press Ctrl+C to stop all services."
 echo ""
