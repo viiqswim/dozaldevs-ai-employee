@@ -581,7 +581,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/triggers/summarizer-trigger.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 8. Update Admin Projects Tests — Tenant-Scoped URL
+- [x] 8. Update Admin Projects Tests — Tenant-Scoped URL
 
   **What to do**:
   - Update 3 test files to use new `/admin/tenants/:tenantId/projects` URL pattern:
@@ -635,7 +635,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `tests/gateway/admin-projects-*.test.ts`, `tests/gateway/integration/manual-trigger.integration.test.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 9. Update All Other Test Files — DozalDevs UUID
+- [x] 9. Update All Other Test Files — DozalDevs UUID
 
   **What to do**:
   - Replace `'00000000-0000-0000-0000-000000000001'` with `'00000000-0000-0000-0000-000000000002'` in these files:
@@ -692,7 +692,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: all 13 test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 10. Update Scripts — Remove Platform References
+- [x] 10. Update Scripts — Remove Platform References
 
   **What to do**:
   - **`scripts/verify-multi-tenancy.ts`**:
@@ -739,7 +739,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `chore(scripts): replace Platform tenant with DozalDevs in verification scripts`
   - Files: `scripts/verify-multi-tenancy.ts`, `scripts/verify-container-boot.sh`, `scripts/verify-phase1.sh`
 
-- [ ] 11. Update Documentation — Remove Platform Tenant References
+- [x] 11. Update Documentation — Remove Platform Tenant References
 
   **What to do**:
   - **`AGENTS.md`**:
@@ -806,19 +806,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns. Check `grep -r "00000000-0000-0000-0000-000000000001" src/ prisma/seed.ts` returns 0. Verify migration file exists and contains DROP DEFAULT + DELETE statements.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build && pnpm lint && pnpm test -- --run`. Review all changed files for: leftover SYSTEM_TENANT_ID references, any new fallback patterns, type errors. Check no test uses Platform UUID.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start fresh: `npx prisma migrate reset --force`. Verify: Platform tenant NOT in DB (`SELECT * FROM tenants WHERE id = '...0001'` → 0 rows). Verify DozalDevs and VLRE tenants exist. Verify admin projects API responds at new URL. Verify seed creates only 2 tenants.
       Output: `DB clean [YES/NO] | API works [YES/NO] | Seed correct [YES/NO] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: verify the actual changes match the spec (nothing missing, nothing extra). Check no historical migration files were modified. Verify the new migration is the only schema change. Check tests pass without the Platform tenant existing.
       Output: `Tasks [N/N compliant] | Migrations untouched [YES/NO] | VERDICT`
 
