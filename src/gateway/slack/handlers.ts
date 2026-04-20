@@ -59,7 +59,7 @@ async function isTaskAwaitingApproval(taskId: string): Promise<boolean> {
       log.warn({ taskId }, 'Task not found during idempotency check');
       return false;
     }
-    return rows[0].status === 'AwaitingApproval';
+    return rows[0].status === 'Reviewing';
   } catch (err) {
     log.error({ taskId, err }, 'Failed to check task status — proceeding optimistically');
     return true;
