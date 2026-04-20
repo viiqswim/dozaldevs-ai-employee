@@ -11,7 +11,7 @@ import {
 } from '../setup.js';
 
 const SECRET = 'test-secret';
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 
 function buildJiraPayload(projectKey: string, issueKey: string): string {

@@ -35,6 +35,7 @@ describe('jira_project_key migration', () => {
         name: 'no-key-project',
         repo_url: 'https://github.com/test/no-key',
         default_branch: 'main',
+        tenant_id: '00000000-0000-0000-0000-000000000002',
         // jira_project_key intentionally omitted
       },
     });

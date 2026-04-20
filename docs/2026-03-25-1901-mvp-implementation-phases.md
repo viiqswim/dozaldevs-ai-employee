@@ -103,6 +103,8 @@ Phase 9 (Cloud Deploy) → Phase 10 (Production)
    - UNIQUE constraint on `tasks(external_id, source_system, tenant_id)` for idempotency
    - Default `tenant_id` constant UUID (`00000000-0000-0000-0000-000000000001`)
 
+> **Note (April 2026)**: The Platform tenant has been removed. All entities now belong to real organization tenants.
+
 3. **Local Supabase**
    - `supabase init` + `supabase start`
    - Migrations applied via `npx prisma migrate dev`

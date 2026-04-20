@@ -102,7 +102,7 @@ describe('agent-version', () => {
     });
 
     it('returns existing record ID when found', async () => {
-      const existingId = '00000000-0000-0000-0000-000000000001';
+      const existingId = '00000000-0000-0000-0000-000000000002';
       (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue({
         id: existingId,
         prompt_hash: 'abc123',
@@ -180,7 +180,7 @@ describe('agent-version', () => {
     });
 
     it('does not create duplicate on repeated calls with same params', async () => {
-      const existingId = '00000000-0000-0000-0000-000000000001';
+      const existingId = '00000000-0000-0000-0000-000000000002';
 
       // First call: not found, creates new
       (mockPrisma.agentVersion!.findFirst as any).mockResolvedValueOnce(null);

@@ -1760,6 +1760,8 @@ If no row is returned, another writer changed the status concurrently — the ca
 
 For MVP, `tenant_id` uses a default constant UUID (`00000000-0000-0000-0000-000000000001`) across all tables. The column is NOT NULL with this default, so insert statements don't need to specify it. When multi-tenancy is added, the default is removed and application logic populates `tenant_id` per request.
 
+> **Note (April 2026)**: The Platform tenant has been removed. All entities now belong to real organization tenants.
+
 ---
 
 ## 14. Platform Shared Infrastructure

@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import type { JiraWebhookPayload } from '../../src/gateway/validation/schemas.js';
 
-const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 
 function loadFixture(name: string): JiraWebhookPayload {

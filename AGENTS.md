@@ -70,11 +70,10 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 ## Tenants
 
-Three tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth connection to operate:
+Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth connection to operate:
 
 | ID                                     | Name      | Slug      | Slack Workspace                                 |
 | -------------------------------------- | --------- | --------- | ----------------------------------------------- |
-| `00000000-0000-0000-0000-000000000001` | Platform  | platform  | — (no Slack)                                    |
 | `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | Separate workspace — must OAuth separately      |
 | `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`) |
 
@@ -179,7 +178,7 @@ Two endpoints for manually triggering AI employees:
 Auth: `X-Admin-Key: $ADMIN_API_KEY` header on both endpoints. `source_system` for manual tasks: `'manual'` (existing values: `'jira'`, `'cron'`).
 
 ```bash
-TENANT=00000000-0000-0000-0000-000000000001
+TENANT=00000000-0000-0000-0000-000000000002
 # Trigger
 curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger" -H "Content-Type: application/json" -d '{}'
 # Dry-run
@@ -250,7 +249,7 @@ docs/            # Architecture vision, phase docs, troubleshooting
 - All `scripts/` are TypeScript, run via `tsx`
 - Employee behavior is config-driven (archetype pattern), not hardcoded orchestration logic
 - **Multi-tenancy is mandatory** — every table, registry, catalog, and query must be scoped by `tenant_id`. When adding any new data structure, ask: "Is this tenant-isolated?" If not, it's a bug.
-- **Zod v4 UUID validation**: `z.string().uuid()` rejects the system tenant UUID (`00000000-0000-0000-0000-000000000001`) — it enforces RFC 4122 version/variant bits. Use the loose `UUID_REGEX` in `src/gateway/validation/schemas.ts` for any route param that accepts tenant or task UUIDs.
+- **Zod v4 UUID validation**: `z.string().uuid()` enforces RFC 4122 version/variant bits and may reject certain UUIDs. Use the loose `UUID_REGEX` in `src/gateway/validation/schemas.ts` for any route param that accepts tenant or task UUIDs.
 
 ## Environment Variables
 

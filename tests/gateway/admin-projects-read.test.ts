@@ -3,7 +3,7 @@ import express from 'express';
 import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../setup.js';
 import { adminProjectRoutes } from '../../src/gateway/routes/admin-projects.js';
 
-const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
 const NONEXISTENT_UUID = '00000000-0000-0000-0000-999999999999';
 

@@ -170,7 +170,7 @@ describe('UpdateTenantBodySchema', () => {
 describe('TenantIdParamSchema', () => {
   it('accepts system tenant UUID', () => {
     expect(() =>
-      TenantIdParamSchema.parse({ tenantId: '00000000-0000-0000-0000-000000000001' }),
+      TenantIdParamSchema.parse({ tenantId: '00000000-0000-0000-0000-000000000002' }),
     ).not.toThrow();
   });
 
@@ -183,7 +183,7 @@ describe('SecretKeyParamSchema', () => {
   it('accepts valid key', () => {
     expect(() =>
       SecretKeyParamSchema.parse({
-        tenantId: '00000000-0000-0000-0000-000000000001',
+        tenantId: '00000000-0000-0000-0000-000000000002',
         key: 'slack_bot_token',
       }),
     ).not.toThrow();
@@ -192,7 +192,7 @@ describe('SecretKeyParamSchema', () => {
   it('rejects key with hyphens', () => {
     expect(() =>
       SecretKeyParamSchema.parse({
-        tenantId: '00000000-0000-0000-0000-000000000001',
+        tenantId: '00000000-0000-0000-0000-000000000002',
         key: 'slack-bot-token',
       }),
     ).toThrow(ZodError);
@@ -217,7 +217,7 @@ describe('SlackOAuthStateSchema', () => {
   it('accepts valid state', () => {
     expect(() =>
       SlackOAuthStateSchema.parse({
-        tenant_id: '00000000-0000-0000-0000-000000000001',
+        tenant_id: '00000000-0000-0000-0000-000000000002',
         nonce: 'a'.repeat(32),
       }),
     ).not.toThrow();
@@ -226,7 +226,7 @@ describe('SlackOAuthStateSchema', () => {
   it('rejects nonce of wrong length', () => {
     expect(() =>
       SlackOAuthStateSchema.parse({
-        tenant_id: '00000000-0000-0000-0000-000000000001',
+        tenant_id: '00000000-0000-0000-0000-000000000002',
         nonce: 'short',
       }),
     ).toThrow(ZodError);

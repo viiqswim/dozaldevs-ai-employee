@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import { lookupProjectByJiraKey } from '../../src/gateway/services/project-lookup.js';
 import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 
-const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 afterEach(async () => {
   await cleanupTestData();
