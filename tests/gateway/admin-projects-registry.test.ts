@@ -10,7 +10,7 @@ import {
   ProjectRegistryConflictError,
 } from '../../src/gateway/services/project-registry.js';
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_KEY = 'TEST'; // Seed project jira_project_key
 
 let prisma: PrismaClient;
