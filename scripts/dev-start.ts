@@ -60,6 +60,8 @@ if (existsSync('.env')) {
   }
 }
 
+const GATEWAY_PORT = process.env.PORT ?? '7700';
+
 // ─────────────────────────────────────────────────────
 // Track child processes for cleanup
 // ─────────────────────────────────────────────────────
@@ -280,7 +282,14 @@ log('── Step 5: Starting Inngest Dev Server ──');
 
 const inngestProc = spawn(
   'npx',
-  ['inngest-cli@latest', 'dev', '-u', 'http://localhost:3000/api/inngest', '--port', '8288'],
+  [
+    'inngest-cli@latest',
+    'dev',
+    '-u',
+    `http://localhost:${GATEWAY_PORT}/api/inngest`,
+    '--port',
+    '8288',
+  ],
   { stdio: 'pipe', detached: false },
 );
 children.push(inngestProc);
@@ -343,13 +352,13 @@ log('');
 // Step 8: Wait for Gateway health (up to 30s)
 // ─────────────────────────────────────────────────────
 log('── Step 8: Waiting for Gateway health (up to 30s) ──');
-const gatewayReady = await waitForHttp('http://localhost:3000/health', 30_000);
+const gatewayReady = await waitForHttp(`http://localhost:${GATEWAY_PORT}/health`, 30_000);
 if (!gatewayReady) {
   fail('Event Gateway did not become healthy after 30s');
   await cleanup();
   process.exit(1);
 }
-ok('Event Gateway is healthy at http://localhost:3000');
+ok(`Event Gateway is healthy at http://localhost:${GATEWAY_PORT}`);
 log('');
 
 // ─────────────────────────────────────────────────────
@@ -361,7 +370,7 @@ log('╚════════════════════════
 log('  Supabase:   http://localhost:54321');
 log('  Studio:     http://localhost:54323');
 log('  Inngest:    http://localhost:8288');
-log('  Gateway:    http://localhost:3000');
+log(`  Gateway:    http://localhost:${GATEWAY_PORT}`);
 log('');
 log('  Press Ctrl+C to stop all services.');
 log('');
