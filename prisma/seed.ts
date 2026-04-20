@@ -45,7 +45,13 @@ async function main() {
       name: 'DozalDevs',
       slug: 'dozaldevs',
       status: 'active',
-      config: { summary: { channel_ids: [], target_channel: null } },
+      config: {
+        summary: {
+          channel_ids: ['C092BJ04HUG'],
+          target_channel: 'C0AUBMXKVNU',
+          publish_channel: 'C092BJ04HUG',
+        },
+      },
     },
     update: {
       name: 'DozalDevs',
@@ -53,7 +59,8 @@ async function main() {
       config: {
         summary: {
           channel_ids: ['C092BJ04HUG'],
-          target_channel: 'C092BJ04HUG',
+          target_channel: 'C0AUBMXKVNU',
+          publish_channel: 'C092BJ04HUG',
         },
       },
     },
@@ -204,15 +211,18 @@ async function main() {
 
   const DOZALDEVS_SUMMARIZER_INSTRUCTIONS =
     'Read the last 24 hours of messages from the project-lighthouse Slack channel (channel ID: C092BJ04HUG). ' +
-    'Run the read-channels tool: /tools/slack/read-channels.js --channels "C092BJ04HUG" ' +
+    'Run: node /tools/slack/read-channels.js --channels "C092BJ04HUG" ' +
     'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
-    'Post the summary with approve/reject buttons to project-lighthouse (C092BJ04HUG) for team review — ' +
-    'pass --task-id with the Task ID shown at the end of this prompt: ' +
-    '/tools/slack/post-message.js --channel "C092BJ04HUG" --text "<your summary here>" --task-id <task-id> ' +
-    'Then post a brief confirmation to the victor-tests channel (C0AUBMXKVNU) to signal the bot ran: ' +
-    '/tools/slack/post-message.js --channel "C0AUBMXKVNU" --text "📋 Daily DozalDevs summary posted to #project-lighthouse — awaiting team review." ' +
-    'When the DELIVERY_MODE environment variable equals "true", the summary was approved — ' +
-    'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons.';
+    'If no messages are found, use "Sin actividad en #project-lighthouse en las últimas 24 horas. Su corresponsal descansa... por ahora. 🎭" as the summary. ' +
+    'CRITICAL — You MUST write the summary content to a file: write the full summary text to /tmp/summary.txt ' +
+    '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
+    'Post the summary with approve/reject buttons to the victor-tests channel (C0AUBMXKVNU) for review. ' +
+    'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
+    'node /tools/slack/post-message.js --channel "C0AUBMXKVNU" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them. ' +
+    'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
+    'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons: ' +
+    'node /tools/slack/post-message.js --channel "C092BJ04HUG" --text "<approved summary>"';
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
