@@ -1,7 +1,5 @@
 import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
-import { startOpencodeServer } from './lib/opencode-server.js';
-import { createSessionManager } from './lib/session-manager.js';
 
 const log = createLogger('opencode-harness');
 
@@ -41,12 +39,8 @@ interface ExecutionRow {
 
 const db: PostgRESTClient = createPostgRESTClient();
 
-// Module-level server handle so SIGTERM handler can kill it
-let serverHandleGlobal: { kill: () => Promise<void> } | null = null;
-
 process.on('SIGTERM', () => {
   log.warn({ taskId: TASK_ID }, '[opencode-harness] SIGTERM received — marking task Failed');
-  void serverHandleGlobal?.kill();
   void db
     .patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Failed',
@@ -140,81 +134,105 @@ async function writeOpencodeAuth(): Promise<void> {
 async function runOpencodeSession(
   systemPrompt: string,
   instructions: string,
-  _model: string,
+  model: string,
 ): Promise<{ content: string; metadata: Record<string, unknown> }> {
   const fullPrompt = systemPrompt
     ? `${systemPrompt}\n\n${instructions}\n\nTask ID: ${TASK_ID}`
     : `${instructions}\n\nTask ID: ${TASK_ID}`;
 
-  // Start OpenCode server (same pattern as engineering employee in orchestrate.mts)
-  const serverHandle = await startOpencodeServer({
-    port: 4096,
-    cwd: '/app',
-    healthTimeoutMs: 60000,
-  });
+  // Map model ID to OpenRouter provider format: "minimax/minimax-m2.7" → "openrouter/minimax/minimax-m2.7"
+  const opencodeModel = model.startsWith('openrouter/') ? model : `openrouter/${model}`;
 
-  if (serverHandle === null) {
-    throw new Error('[opencode-harness] Failed to start OpenCode server');
-  }
+  log.info(
+    { taskId: TASK_ID, model: opencodeModel },
+    '[opencode-harness] Starting opencode run subprocess',
+  );
 
-  serverHandleGlobal = serverHandle;
+  const { spawn } = await import('child_process');
 
-  try {
-    // Configure OpenRouter via REST API (belt-and-suspenders alongside auth.json)
-    if (process.env.OPENROUTER_API_KEY) {
-      try {
-        await fetch(`${serverHandle.url}/auth/openrouter`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'api', key: process.env.OPENROUTER_API_KEY }),
-        });
-        log.info('[opencode-harness] OpenRouter provider configured via REST API');
-      } catch (err) {
-        log.warn(
-          { err },
-          '[opencode-harness] Failed to configure OpenRouter via REST API — auth.json fallback',
-        );
-      }
-    }
-
-    const sessionManager = createSessionManager(serverHandle.url);
-
-    const sessionId = await sessionManager.createSession('daily-summarizer');
-    if (sessionId === null) {
-      throw new Error('[opencode-harness] Failed to create OpenCode session');
-    }
-
-    log.info({ taskId: TASK_ID, sessionId }, 'OpenCode session created — injecting prompt');
-
-    await sessionManager.injectTaskPrompt(sessionId, fullPrompt);
-
-    log.info({ taskId: TASK_ID, sessionId }, 'Prompt injected — monitoring for completion');
-
-    const monitorResult = await sessionManager.monitorSession(sessionId, {
-      timeoutMs: 10 * 60 * 1000, // 10 minutes — summarizer is quick
-      minElapsedMs: 60000, // 60s minimum — give model time to use bash tools
+  await new Promise<void>((resolve, reject) => {
+    const args = ['run', '--model', opencodeModel, fullPrompt];
+    const child = spawn('opencode', args, {
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: '/app',
     });
 
-    if (!monitorResult.completed) {
-      throw new Error(
-        `[opencode-harness] OpenCode session did not complete: ${monitorResult.reason ?? 'unknown'}`,
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString().split('\n').filter(Boolean);
+      for (const line of lines) {
+        log.info({ taskId: TASK_ID }, `[opencode] ${line}`);
+      }
+    });
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString().split('\n').filter(Boolean);
+      for (const line of lines) {
+        log.warn({ taskId: TASK_ID }, `[opencode:stderr] ${line}`);
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        log.info({ taskId: TASK_ID }, '[opencode-harness] opencode run exited successfully');
+        resolve();
+      } else {
+        reject(new Error(`[opencode-harness] opencode run exited with code ${code}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`[opencode-harness] Failed to spawn opencode: ${err.message}`));
+    });
+  });
+
+  // Read summary content and approval metadata written by the model
+  let content = 'completed';
+  let extraMetadata: Record<string, unknown> = {};
+
+  try {
+    const { readFile } = await import('fs/promises');
+    const summaryText = await readFile('/tmp/summary.txt', 'utf8');
+    if (summaryText.trim()) {
+      content = summaryText.trim();
+      log.info(
+        { taskId: TASK_ID },
+        '[opencode-harness] Read summary content from /tmp/summary.txt',
       );
     }
-
-    log.info(
-      { taskId: TASK_ID, sessionId, reason: monitorResult.reason },
-      'OpenCode session completed successfully',
-    );
-
-    return {
-      content: monitorResult.reason ?? 'completed',
-      metadata: { sessionId },
-    };
-  } finally {
-    serverHandleGlobal = null;
-    await serverHandle.kill();
-    log.info('[opencode-harness] OpenCode server stopped');
+  } catch {
+    // File not written — use default content
   }
+
+  try {
+    const { readFile } = await import('fs/promises');
+    const approvalJson = await readFile('/tmp/approval-message.json', 'utf8');
+    const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
+    // Map post-message.js output keys to lifecycle-expected metadata keys
+    extraMetadata = {
+      ...approvalData,
+      approval_message_ts: approvalData.ts,
+      target_channel: approvalData.channel,
+    };
+    log.info(
+      { taskId: TASK_ID },
+      '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
+    );
+  } catch {
+    // File not written — no approval metadata
+  }
+
+  // Validate that the model actually produced content
+  if (content === 'completed' && Object.keys(extraMetadata).length === 0) {
+    throw new Error(
+      '[opencode-harness] Model did not produce content — /tmp/summary.txt and /tmp/approval-message.json were not written. This is a model reliability issue; retry the task.',
+    );
+  }
+
+  return {
+    content,
+    metadata: { ...extraMetadata },
+  };
 }
 
 async function main(): Promise<void> {
@@ -313,6 +331,7 @@ async function main(): Promise<void> {
   await db.post('deliverables', {
     id: deliverableId,
     execution_id: executionId ?? executionId_seed,
+    external_ref: TASK_ID,
     delivery_type: archetype.deliverable_type ?? 'text',
     status: 'pending',
     content,
@@ -331,7 +350,6 @@ async function main(): Promise<void> {
   await fireCompletionEvent(TASK_ID);
 
   log.info({ taskId: TASK_ID }, 'OpenCode harness complete');
-  // Force exit — the SSE stream from session-manager keeps the event loop alive
   process.exit(0);
 }
 
