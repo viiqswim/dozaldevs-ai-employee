@@ -127,10 +127,19 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
         return;
       }
 
+      if (!tenantId) {
+        logger.warn(
+          { issueKey: deletionPayload.issue.key },
+          'Jira issue_deleted with no resolved tenantId — skipping cancellation',
+        );
+        res.json({ received: true, action: 'tenant_not_resolved' });
+        return;
+      }
+
       const cancelled = await cancelTaskByExternalId({
         externalId: deletionPayload.issue.key,
         sourceSystem: 'jira',
-        tenantId: tenantId ?? '00000000-0000-0000-0000-000000000001',
+        tenantId,
         prisma,
       });
 

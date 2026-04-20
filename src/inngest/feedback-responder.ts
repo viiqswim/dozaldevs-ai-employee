@@ -27,7 +27,7 @@ export function createFeedbackResponderFunction(inngest: Inngest): InngestFuncti
         const supabaseUrl = process.env.SUPABASE_URL ?? '';
         const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
-        let tenantId = '00000000-0000-0000-0000-000000000001';
+        let tenantId: string | undefined = undefined;
         let roleDescription = 'AI Employee';
 
         if (supabaseUrl && supabaseKey) {
@@ -64,6 +64,10 @@ export function createFeedbackResponderFunction(inngest: Inngest): InngestFuncti
           } catch (err) {
             log.warn({ taskId, err }, 'Failed to load task/archetype for feedback response');
           }
+        }
+
+        if (!tenantId) {
+          throw new Error(`Could not resolve tenant_id for task ${taskId}`);
         }
 
         const prisma = new PrismaClient();

@@ -6,8 +6,6 @@ import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('feedback-handler');
 
-const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-
 export function createFeedbackHandlerFunction(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     { id: 'employee/feedback-handler', triggers: [{ event: 'employee/feedback.received' }] },
@@ -28,7 +26,7 @@ export function createFeedbackHandlerFunction(inngest: Inngest): InngestFunction
         const supabaseUrl = process.env.SUPABASE_URL ?? '';
         const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
-        let tenantId = SYSTEM_TENANT_ID;
+        let tenantId: string | undefined = undefined;
         if (supabaseUrl && supabaseKey) {
           try {
             const res = await fetch(
@@ -43,8 +41,12 @@ export function createFeedbackHandlerFunction(inngest: Inngest): InngestFunction
             const rows = (await res.json()) as Array<{ tenant_id: string }>;
             if (rows[0]?.tenant_id) tenantId = rows[0].tenant_id;
           } catch (err) {
-            log.warn({ taskId, err }, 'Failed to resolve tenant_id for feedback — using default');
+            log.warn({ taskId, err }, 'Failed to resolve tenant_id for feedback');
           }
+        }
+
+        if (!tenantId) {
+          throw new Error(`Could not resolve tenant_id for task ${taskId}`);
         }
 
         await feedbackService.ingestThreadReply({

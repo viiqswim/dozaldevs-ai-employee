@@ -79,7 +79,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const riskModel = (archetype.risk_model as Record<string, unknown>) ?? {};
       const approvalRequired = riskModel.approval_required === true;
       const timeoutHours = (riskModel.timeout_hours as number) ?? 24;
-      const tenantId = (taskData.tenant_id as string) ?? '00000000-0000-0000-0000-000000000001';
+      const tenantId = taskData.tenant_id as string | undefined;
+      if (!tenantId) {
+        throw new Error('Task is missing tenant_id — cannot proceed with lifecycle');
+      }
 
       // ── State: Triaging ──────────────────────────────────────────────────────
       // Auto-passes: no triage logic implemented yet — all tasks are unambiguous
