@@ -50,6 +50,10 @@ function buildApprovalBlocks(text: string, taskId: string, date: string): unknow
     },
     { type: 'divider' },
     {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+    },
+    {
       type: 'actions',
       elements: [
         {
