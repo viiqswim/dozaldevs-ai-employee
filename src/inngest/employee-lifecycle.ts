@@ -359,11 +359,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
-            await slackClient.updateMessage(
-              targetChannel,
-              approvalMsgTs,
-              '⏰ Daily summary expired — no action taken.',
-            );
+            try {
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                '⏰ Daily summary expired — no action taken.',
+              );
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                '[lifecycle] expiry message update failed (non-fatal)',
+              );
+            }
           }
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
@@ -468,10 +475,17 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             );
             if (approvalMsgTs && targetChannel) {
               const approvedText = `✅ Approved by ${userName} — summary posted.`;
-              await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
-                { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
-              ]);
-              log.info({ taskId }, '[lifecycle] approval message updated successfully');
+              try {
+                await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
+                  { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
+                ]);
+                log.info({ taskId }, '[lifecycle] approval message updated successfully');
+              } catch (err) {
+                log.warn(
+                  { taskId, approvalMsgTs, targetChannel, err },
+                  '[lifecycle] approval message update failed (non-fatal) — message may have been deleted',
+                );
+              }
             } else {
               log.warn(
                 {
@@ -490,9 +504,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         } else {
           if (approvalMsgTs && targetChannel) {
             const rejectedText = `❌ Rejected by ${userName}.`;
-            await slackClient.updateMessage(targetChannel, approvalMsgTs, rejectedText, [
-              { type: 'section', text: { type: 'mrkdwn', text: rejectedText } },
-            ]);
+            try {
+              await slackClient.updateMessage(targetChannel, approvalMsgTs, rejectedText, [
+                { type: 'section', text: { type: 'mrkdwn', text: rejectedText } },
+              ]);
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                '[lifecycle] rejection message update failed (non-fatal)',
+              );
+            }
           }
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
