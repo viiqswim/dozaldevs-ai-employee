@@ -12,6 +12,41 @@ Automated engineering workflow: receives Jira tickets via webhook and delivers p
 4. `pnpm trigger-task` — sends a mock Jira webhook and monitors to completion
 5. `pnpm verify:e2e --task-id <uuid>` — verify all 12 integration checks pass
 
+## Local Development (Docker)
+
+All projects in this workspace share a single PostgreSQL container, so you can run multiple projects simultaneously without port conflicts or database collisions.
+
+### First-Time Setup
+
+```bash
+pnpm docker:start
+```
+
+This runs `scripts/ensure-infra.sh` under the hood, which is 3-state idempotent: safe to run any number of times.
+
+### Docker Commands
+
+| Command              | Description                                                     |
+| -------------------- | --------------------------------------------------------------- |
+| `pnpm docker:start`  | Start shared infra + this project's Auth and Kong containers    |
+| `pnpm docker:stop`   | Stop this project's Auth/Kong (shared PostgreSQL keeps running) |
+| `pnpm docker:reset`  | Destroy and recreate this project's database only               |
+| `pnpm docker:status` | Show all containers on the `supabase-shared` network            |
+
+### Port Assignments (ai-employee)
+
+| Service       | Port  | URL                      |
+| ------------- | ----- | ------------------------ |
+| Kong (API)    | 54331 | `http://localhost:54331` |
+| Auth (GoTrue) | 9002  | internal only            |
+| PostgreSQL    | 54322 | shared with all projects |
+| Mailpit SMTP  | 54324 | shared with all projects |
+| Mailpit UI    | 54325 | `http://localhost:54325` |
+
+Database name: `ai_employee`
+
+Full port registry for all projects: [PORT_REGISTRY.md](https://github.com/victordozal/nexus-stack/blob/main/PORT_REGISTRY.md) in nexus-stack
+
 ## How It Works
 
 1. **Jira webhook** arrives at `POST /webhooks/jira` (Gateway, port 3000)
