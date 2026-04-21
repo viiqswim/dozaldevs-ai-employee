@@ -1,0 +1,98 @@
+# Shared local Supabase infrastructure — PostgreSQL, Mailpit, Redis
+# Run once, shared by all projects via the 'supabase-shared' external network.
+#
+# Usage:
+#   Start:  docker compose -f docker/shared-infra.yml up -d
+#   Stop:   docker compose -f docker/shared-infra.yml down
+#   Status: docker ps --filter network=supabase-shared
+#
+# This file is IDENTICAL across all projects — do not add project-specific config here.
+# Project-specific services (Auth, Kong) go in docker/supabase-services.yml
+
+name: supabase-shared
+
+services:
+  db:
+    image: public.ecr.aws/supabase/postgres:17.6.1.064
+    container_name: shared-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_HOST_PORT:-54322}:5432"
+    volumes:
+      - shared-postgres-data:/var/lib/postgresql/data:Z
+      - ./init:/docker-entrypoint-initdb.d/init-scripts:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
+    networks:
+      - supabase-shared
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: shared-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_WEB_PORT:-54325}:8025"
+      - "${MAILPIT_SMTP_PORT:-54324}:1025"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8025",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - supabase-shared
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  redis:
+    image: redis:7-alpine
+    container_name: shared-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - supabase-shared
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  shared-postgres-data:
+    name: shared-postgres-data
+
+networks:
+  supabase-shared:
+    name: supabase-shared
+    driver: bridge
