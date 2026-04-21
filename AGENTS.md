@@ -30,7 +30,7 @@ The following components are deprecated. Do NOT modify, do NOT add features, do 
 | Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                           |
 | Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify.                                                                           |
 | Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                           |
-| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 29 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. |
+| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. |
 
 ## Platform Vision
 
@@ -58,9 +58,14 @@ One employee is active; one is deprecated and on hold:
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 - **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects natural language `instructions` + available tools, monitors until completion
-- **Shell tools**: `src/worker-tools/slack/` — pre-installed in Docker image, available to OpenCode as shell commands
-- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous.
+- **Shell tools**: `src/worker-tools/slack/` — pre-installed in Docker image at `/tools/slack/`. Usage:
+  - `NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C123" --text "msg" --task-id "uuid" > /tmp/approval-message.json`
+  - `node /tools/slack/read-channels.js --channels "C123,C456" --lookback-hours 24`
+- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
 - **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
+- **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
+- **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
+- **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
 
 **Cron timezone — CRITICAL**: The daily-summarizer cron `0 8 * * 1-5` fires at **8am UTC**, not 8am local time. Inngest has no timezone config on this function. The archetype's `trigger_sources.timezone: "America/Chicago"` is stored as documentation metadata only — the Inngest runtime never reads it. Do not use it to infer the actual trigger time.
 
@@ -70,7 +75,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 2. If shell tools needed, add scripts to `src/worker-tools/{service}/` (compiled into Docker image at `/tools/{service}/`)
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
-**Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely.
+**Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
 
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 
@@ -104,6 +109,7 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 - Confirmed working: gateway logs show `"Slack Bolt — Socket Mode connected"` on every startup.
 - If a button click does not reach the gateway, it is a **transient WebSocket drop**, NOT a URL configuration problem. Do NOT ask the user to change any Slack app settings.
 - **Processing state**: approve/reject handlers call `(ack as any)({ replace_original: true, blocks: [...] })` — embeds `⏳ Processing approval...` / `⏳ Processing rejection...` directly in the Socket Mode ack envelope, eliminating any ⚠️ flash. Do not remove this ack pattern.
+- **Idempotency**: Before firing `employee/approval.received`, handlers check task status === `'Reviewing'` via PostgREST. If already processed, updates the Slack message to "already processed" instead. Events are deduped by Inngest ID `employee-approval-{taskId}`.
 
 **Manual approval fallback** (use when button click doesn't work):
 
@@ -197,14 +203,18 @@ Channel config lives in two places — both must be consistent:
 - Channels configured via `DAILY_SUMMARY_CHANNELS` / `SUMMARY_TARGET_CHANNEL` env vars in `.env`
 - Current channels: `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL` (target: `C0960S2Q8RL`)
 
-## Manual Trigger (Admin API)
+Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV news correspondent persona), model (`minimax/minimax-m2.7`), runtime (`opencode`), and risk model (`approval_required: true`, `timeout_hours: 24`).
 
-Two endpoints for manually triggering AI employees:
+## Admin API
+
+Two commonly used endpoints for triggering employees and checking status:
 
 - `POST /admin/tenants/:tenantId/employees/:slug/trigger` — creates task, returns 202 + `{ task_id, status_url }`. Add `?dry_run=true` to validate without creating a task.
 - `GET /admin/tenants/:tenantId/tasks/:id` — check task status (tenant-scoped, 404 on cross-tenant access)
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY` header on both endpoints. `source_system` for manual tasks: `'manual'` (existing values: `'jira'`, `'cron'`).
+
+The admin API has 16 total routes covering tenant CRUD (create, list, get, update, soft-delete, restore), per-tenant secrets management (list keys, set, delete), tenant config (get, deep-merge update), project CRUD, employee trigger, and task status. Full route table: `docs/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
@@ -264,8 +274,8 @@ src/
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell scripts compiled into Docker image (Slack tools, etc.)
-└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, logger, retry, errors
-prisma/           # Schema, migrations, seed
+└── lib/          # Shared (12 files): fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version
+prisma/           # Schema (19 models), 18 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 docker/           # Supabase self-hosted Docker Compose
 docs/             # Architecture vision, phase docs, troubleshooting
@@ -361,12 +371,12 @@ Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                | When to Read                                                                                                          |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                    |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)                                        |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                                                             |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                        |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                  |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                    |
-| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow, gateway routes, DB schema, shell tools, Docker services |
+| Document                                                | When to Read                                                                                                                                                                                               |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                         |
+| `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                             |
+| `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                                                                                                                                                  |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
+| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (16 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
