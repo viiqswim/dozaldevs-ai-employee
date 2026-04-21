@@ -300,7 +300,25 @@ Session naming: `ai-e2e`, `ai-dev`, `ai-build`. Log files: `/tmp/ai-e2e.log`, et
 
 Cloudflare Tunnel is the permanent solution for hybrid mode.
 
-Start tunnel: `cloudflared tunnel --url http://localhost:54321` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`.
+**PostgREST tunnel** (for Fly.io workers → local Supabase): `cloudflared tunnel --url http://localhost:54321` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`. This tunnel can be a quick (random-URL) tunnel since `TUNNEL_URL` is set at dispatch time.
+
+### 2. Slack OAuth redirect URI requires a stable public URL
+
+The Slack app's redirect URI must be pre-registered and cannot be a `localhost` URL. Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — it never changes on restart.
+
+**Named tunnel is already configured** at `~/.cloudflared/ai-employee-local.yml` → `tunnel: e160ac6d-2d7d-47c4-a552-b13700947d29`.
+
+Start it: `cloudflared tunnel --config ~/.cloudflared/ai-employee-local.yml run`
+
+**For new contributors**: create your own subdomain (e.g. `local-ai-employee-yourname.dozaldevs.com`):
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create ai-employee-yourname
+cloudflared tunnel route dns ai-employee-yourname local-ai-employee-yourname.dozaldevs.com
+```
+
+Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com/slack/oauth_callback` to the Slack app's Redirect URLs. Set `SLACK_REDIRECT_BASE_URL=https://local-ai-employee-yourname.dozaldevs.com` in your `.env`.
 
 ## Git Rules
 
