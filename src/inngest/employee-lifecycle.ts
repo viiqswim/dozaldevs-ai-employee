@@ -314,16 +314,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await prismaForApproval.$disconnect();
 
         const botToken = tenantEnvForApproval.SLACK_BOT_TOKEN ?? '';
-        log.info(
-          {
-            taskId,
-            hasToken: botToken.length > 0,
-            tokenPrefix: botToken.slice(0, 10) || '(empty)',
-            publishChannel: tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? '(not set)',
-            targetChannelEnv: tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ?? '(not set)',
-          },
-          '[lifecycle] handle-approval-result: env loaded',
-        );
 
         const slackClient = createSlackClient({
           botToken,
@@ -346,17 +336,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const summaryBlocks = metadata.blocks as unknown[] | undefined;
         const summaryContent = (deliverable?.content as string) ?? '';
 
-        log.info(
-          {
-            taskId,
-            approvalMsgTs: approvalMsgTs ?? '(not set)',
-            targetChannel: targetChannel || '(empty)',
-            summaryContentLen: summaryContent.length,
-            hasSummaryBlocks: !!summaryBlocks,
-          },
-          '[lifecycle] handle-approval-result: deliverable loaded',
-        );
-
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
             try {
@@ -368,7 +347,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
-                '[lifecycle] expiry message update failed (non-fatal)',
+                'Expiry message update failed (non-fatal)',
               );
             }
           }
@@ -440,21 +419,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           } else {
             const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
-            log.info(
-              {
-                taskId,
-                publishChannel: publishChannel || '(empty)',
-                summaryContentLen: summaryContent.length,
-              },
-              '[lifecycle] posting summary to publishChannel',
-            );
             if (publishChannel && summaryContent) {
               await slackClient.postMessage({
                 channel: publishChannel,
                 text: summaryContent,
                 blocks: summaryBlocks,
               });
-              log.info({ taskId, publishChannel }, '[lifecycle] summary posted successfully');
+              log.info({ taskId, publishChannel }, 'Summary posted successfully');
             } else {
               log.warn(
                 {
@@ -462,28 +433,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   publishChannel: publishChannel || '(empty)',
                   summaryContentLen: summaryContent.length,
                 },
-                '[lifecycle] skipping postMessage — publishChannel or summaryContent empty',
+                'Skipping postMessage — publishChannel or summaryContent empty',
               );
             }
-            log.info(
-              {
-                taskId,
-                approvalMsgTs: approvalMsgTs ?? '(not set)',
-                targetChannel: targetChannel || '(empty)',
-              },
-              '[lifecycle] updating approval message',
-            );
             if (approvalMsgTs && targetChannel) {
               const approvedText = `✅ Approved by ${userName} — summary posted.`;
               try {
                 await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
                   { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
                 ]);
-                log.info({ taskId }, '[lifecycle] approval message updated successfully');
+                log.info({ taskId }, 'Approval message updated');
               } catch (err) {
                 log.warn(
                   { taskId, approvalMsgTs, targetChannel, err },
-                  '[lifecycle] approval message update failed (non-fatal) — message may have been deleted',
+                  'Approval message update failed (non-fatal) — message may have been deleted',
                 );
               }
             } else {
@@ -493,7 +456,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   approvalMsgTs: approvalMsgTs ?? '(not set)',
                   targetChannel: targetChannel || '(empty)',
                 },
-                '[lifecycle] skipping updateMessage — approvalMsgTs or targetChannel empty',
+                'Skipping updateMessage — approvalMsgTs or targetChannel empty',
               );
             }
 
@@ -511,7 +474,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
-                '[lifecycle] rejection message update failed (non-fatal)',
+                'Rejection message update failed (non-fatal)',
               );
             }
           }

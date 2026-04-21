@@ -167,9 +167,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('approve', async ({ ack, body, client }) => {
-    await ack();
-
+  boltApp.action('approve', async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -177,18 +175,35 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const messageTs = actionBody.message?.ts;
 
     if (!taskId) {
+      await ack();
       log.warn('approve action received without task_id');
       return;
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: `⏳ Processing approval... (task: ${taskId})`,
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `⏳ Processing approval...\n\`${taskId}\`` },
+        },
+      ],
+    });
+
+    log.info(
+      { taskId, channelId, messageTs, userId: user.id },
+      'approve action received — processing state sent inline with ack',
+    );
 
     try {
       const stillAwaiting = await isTaskAwaitingApproval(taskId);
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate approve');
-        if (channelId && messageTs) {
-          await client.chat.update({
-            channel: channelId,
-            ts: messageTs,
+        try {
+          await respond({
+            replace_original: true,
             text: '⚠️ This summary has already been processed.',
             blocks: [
               {
@@ -197,6 +212,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               },
             ],
           });
+        } catch (respondErr) {
+          log.warn({ taskId, respondErr }, 'Failed to update already-processed message');
         }
         return;
       }
@@ -207,35 +224,27 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         id: `employee-approval-${taskId}`,
       });
       log.info({ taskId, userId: user.id }, 'Approval event sent — lifecycle will update message');
-      // Message update delegated entirely to the lifecycle handle-approval-result step.
-      // Doing a competing chat.update here races with the lifecycle and can restore buttons
-      // via the catch block if timing is wrong.
     } catch (err) {
       log.error({ taskId, err }, 'Failed to process approve action');
-      if (channelId && messageTs) {
-        try {
-          await client.chat.update({
-            channel: channelId,
-            ts: messageTs,
-            text: '⚠️ Failed to process approval. Please try again.',
-            blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
-              },
-              ...BUTTON_BLOCKS(taskId),
-            ],
-          });
-        } catch (restoreErr) {
-          log.warn({ taskId, err: restoreErr }, 'Failed to restore buttons after approve failure');
-        }
+      try {
+        await respond({
+          replace_original: true,
+          text: '⚠️ Failed to process approval. Please try again.',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
+            },
+            ...BUTTON_BLOCKS(taskId),
+          ],
+        });
+      } catch (restoreErr) {
+        log.warn({ taskId, err: restoreErr }, 'Failed to restore buttons after approve failure');
       }
     }
   });
 
-  boltApp.action('reject', async ({ ack, body, client }) => {
-    await ack();
-
+  boltApp.action('reject', async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -243,18 +252,35 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const messageTs = actionBody.message?.ts;
 
     if (!taskId) {
+      await ack();
       log.warn('reject action received without task_id');
       return;
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: `⏳ Processing rejection... (task: ${taskId})`,
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `⏳ Processing rejection...\n\`${taskId}\`` },
+        },
+      ],
+    });
+
+    log.info(
+      { taskId, channelId, messageTs, userId: user.id },
+      'reject action received — processing state sent inline with ack',
+    );
 
     try {
       const stillAwaiting = await isTaskAwaitingApproval(taskId);
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject');
-        if (channelId && messageTs) {
-          await client.chat.update({
-            channel: channelId,
-            ts: messageTs,
+        try {
+          await respond({
+            replace_original: true,
             text: '⚠️ This summary has already been processed.',
             blocks: [
               {
@@ -263,6 +289,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               },
             ],
           });
+        } catch (respondErr) {
+          log.warn({ taskId, respondErr }, 'Failed to update already-processed message');
         }
         return;
       }
@@ -273,26 +301,22 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         id: `employee-approval-${taskId}`,
       });
       log.info({ taskId, userId: user.id }, 'Rejection event sent — lifecycle will update message');
-      // Message update delegated entirely to the lifecycle handle-approval-result step.
     } catch (err) {
       log.error({ taskId, err }, 'Failed to process reject action');
-      if (channelId && messageTs) {
-        try {
-          await client.chat.update({
-            channel: channelId,
-            ts: messageTs,
-            text: '⚠️ Failed to process rejection. Please try again.',
-            blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
-              },
-              ...BUTTON_BLOCKS(taskId),
-            ],
-          });
-        } catch (restoreErr) {
-          log.warn({ taskId, err: restoreErr }, 'Failed to restore buttons after reject failure');
-        }
+      try {
+        await respond({
+          replace_original: true,
+          text: '⚠️ Failed to process rejection. Please try again.',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
+            },
+            ...BUTTON_BLOCKS(taskId),
+          ],
+        });
+      } catch (restoreErr) {
+        log.warn({ taskId, err: restoreErr }, 'Failed to restore buttons after reject failure');
       }
     }
   });
