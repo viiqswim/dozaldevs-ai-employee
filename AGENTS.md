@@ -102,6 +102,18 @@ curl -X POST "http://localhost:8288/e/local" \
 2. Check for `slack_bolt_authorization_error` — if present with a team ID, that team's `tenant_integrations` row is missing (run OAuth)
 3. If Socket Mode is connected and no error appears, it was a transient drop — retry by clicking again or use the manual fallback above
 
+## Slack Message Standards
+
+**REQUIRED on every message sent to Slack — no exceptions:**
+
+1. **Task ID context block** — every message must include a trailing `context` block with the task ID as small gray metadata:
+   ```json
+   { "type": "context", "elements": [{ "type": "mrkdwn", "text": "Task `<taskId>`" }] }
+   ```
+2. **User mention for actions** — whenever a human takes an action (approve, reject, or any future action state), display the actor using the Slack `<@userId>` mrkdwn syntax so it renders as `@Victor Dozal`. Never use the raw Slack username string (e.g. `victor192`). The `userId` (e.g. `U05V0CTJLF6`) is available from `actionBody.user.id` in handlers and from `approvalEvent.data.userId` in the lifecycle.
+
+**Reference implementation**: `src/inngest/employee-lifecycle.ts` (`handle-approval-result` step) and `src/worker-tools/slack/post-message.ts` (`buildApprovalBlocks`).
+
 ## Slack OAuth — Per-Tenant Installation
 
 Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenant_integrations` (provider: `slack`, external_id: Slack team ID). The `TenantInstallationStore` (`src/gateway/slack/installation-store.ts`) looks them up by team ID for Bolt authorization.
