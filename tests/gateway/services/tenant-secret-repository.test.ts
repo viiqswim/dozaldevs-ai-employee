@@ -4,9 +4,9 @@ import { getPrisma, disconnectPrisma } from '../../setup.js';
 import { TenantSecretRepository } from '../../../src/gateway/services/tenant-secret-repository.js';
 
 const VALID_KEY = 'a'.repeat(64);
-const TENANT_A = '00000000-0000-0000-0000-000000000002';
-const TENANT_B = '00000000-0000-0000-0000-000000000003';
-const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
+// Use test-only UUIDs to avoid colliding with production-seeded tenants
+const TENANT_A = '00000000-0000-0000-0000-000000000aa1';
+const TENANT_B = '00000000-0000-0000-0000-000000000bb2';
 
 let repo: TenantSecretRepository;
 
