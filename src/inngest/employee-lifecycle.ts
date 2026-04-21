@@ -418,11 +418,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               });
             }
             if (approvalMsgTs && targetChannel) {
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                `✅ Approved by ${userName} — summary posted.`,
-              );
+              const approvedText = `✅ Approved by ${userName} — summary posted.`;
+              await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
+                { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
+              ]);
             }
 
             await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
@@ -431,11 +430,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
         } else {
           if (approvalMsgTs && targetChannel) {
-            await slackClient.updateMessage(
-              targetChannel,
-              approvalMsgTs,
-              `❌ Rejected by ${userName}.`,
-            );
+            const rejectedText = `❌ Rejected by ${userName}.`;
+            await slackClient.updateMessage(targetChannel, approvalMsgTs, rejectedText, [
+              { type: 'section', text: { type: 'mrkdwn', text: rejectedText } },
+            ]);
           }
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
