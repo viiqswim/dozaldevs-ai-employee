@@ -21,12 +21,16 @@ This applies to: production code, seed data, default fallbacks, environment vari
 
 The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
 
-| Component                   | File                              | Reason                                                                                                                                 |
-| --------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Engineering task lifecycle  | `src/inngest/lifecycle.ts`        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`. |
-| Engineering task redispatch | `src/inngest/redispatch.ts`       | Paired with the deprecated engineering lifecycle.                                                                                      |
-| Generic worker harness      | `src/workers/generic-harness.mts` | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Will be deleted once migration is complete.               |
-| Tool registry               | `src/workers/tools/registry.ts`   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                         |
+| Component                       | File                                              | Reason                                                                                                                                                                                                        |
+| ------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                        |
+| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                             |
+| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                    |
+| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                |
+| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                           |
+| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify.                                                                           |
+| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                           |
+| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 29 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. |
 
 ## Platform Vision
 
@@ -38,14 +42,14 @@ Full architecture, employee roadmap, archetype schema, lifecycle states, event r
 
 ## Current Implementation
 
-Two employees are live:
+One employee is active; one is deprecated and on hold:
 
-1. **Engineering** — receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode (AI coding agent), delivers a GitHub pull request.
+1. **Engineering** ⚠️ **DEPRECATED — ON HOLD** — receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode, delivers a GitHub pull request. Do not add features or fix bugs in engineering-specific files. See Deprecated Components table.
 2. **Summarizer (Papi Chulo)** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
 
 **Stack**: TypeScript · Express · Inngest · Prisma · Docker · Supabase (PostgREST)
 
-**What's built**: Event Gateway (Express), Inngest lifecycle functions, OpenCode-based worker (Docker/Fly.io), generic worker harness, tool registry, Supabase state management, Admin API (`/admin/projects`, tenant-scoped `/admin/tenants` trigger + status endpoints), Slack integration (webhooks + interactive buttons).
+**What's built**: Event Gateway (Express), Inngest lifecycle functions, OpenCode-based worker (Docker/Fly.io), Supabase state management, Admin API (tenant-scoped `/admin/tenants` projects, trigger + status endpoints), Slack integration (Socket Mode + interactive buttons).
 
 **What's deferred**: Triage agent, review agent, knowledge base (pgvector).
 
@@ -56,7 +60,9 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects natural language `instructions` + available tools, monitors until completion
 - **Shell tools**: `src/worker-tools/slack/` — pre-installed in Docker image, available to OpenCode as shell commands
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous.
-- **Inngest functions**: `employee/task-lifecycle`, `employee/feedback-handler`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
+- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
+
+**Cron timezone — CRITICAL**: The daily-summarizer cron `0 8 * * 1-5` fires at **8am UTC**, not 8am local time. Inngest has no timezone config on this function. The archetype's `trigger_sources.timezone: "America/Chicago"` is stored as documentation metadata only — the Inngest runtime never reads it. Do not use it to infer the actual trigger time.
 
 **Adding a new employee**:
 
@@ -64,18 +70,28 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 2. If shell tools needed, add scripts to `src/worker-tools/{service}/` (compiled into Docker image at `/tools/{service}/`)
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
+**Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely.
+
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 
 **OpenCode harness CMD** (Fly.io dispatch): `["node", "/app/dist/workers/opencode-harness.mjs"]`
+
+## Feedback Pipeline
+
+Thread replies and @mentions on summary messages are captured and acknowledged:
+
+- **Thread reply** → Slack Bolt fires `employee/feedback.received` → stored in `feedback` table → `employee/feedback.stored` emitted → `feedback-responder` generates a Haiku acknowledgment and posts it in-thread.
+- **@mention** → Slack Bolt fires `employee/mention.received` → `mention-handler` classifies intent (feedback / teaching / question / task) → stores if relevant → responds in thread.
+- **Weekly cron** (`0 0 * * 0`, Sunday midnight UTC) → `feedback-summarizer` reads recent feedback, generates a digest with Haiku, writes to `knowledge_bases`.
 
 ## Tenants
 
 Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth connection to operate:
 
-| ID                                     | Name      | Slug      | Slack Workspace                                 |
-| -------------------------------------- | --------- | --------- | ----------------------------------------------- |
-| `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | Separate workspace — must OAuth separately      |
-| `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`) |
+| ID                                     | Name      | Slug      | Slack Workspace                                    |
+| -------------------------------------- | --------- | --------- | -------------------------------------------------- |
+| `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | `T0601SMSVEU` (Dozal Inc.) — must OAuth separately |
+| `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`)    |
 
 **`SLACK_BOT_TOKEN` in `.env` is the VLRE workspace bot token only.** It cannot access DozalDevs channels. Never store it as the DozalDevs tenant secret.
 
@@ -87,13 +103,14 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 - `SLACK_APP_TOKEN=xapp-...` is already set in `.env`. The gateway (`src/gateway/server.ts` lines 68–93) detects this and automatically starts Bolt in Socket Mode with a WebSocket connection to Slack.
 - Confirmed working: gateway logs show `"Slack Bolt — Socket Mode connected"` on every startup.
 - If a button click does not reach the gateway, it is a **transient WebSocket drop**, NOT a URL configuration problem. Do NOT ask the user to change any Slack app settings.
+- **Processing state**: approve/reject handlers call `(ack as any)({ replace_original: true, blocks: [...] })` — embeds `⏳ Processing approval...` / `⏳ Processing rejection...` directly in the Socket Mode ack envelope, eliminating any ⚠️ flash. Do not remove this ack pattern.
 
 **Manual approval fallback** (use when button click doesn't work):
 
 ```bash
 curl -X POST "http://localhost:8288/e/local" \
   -H "Content-Type: application/json" \
-  -d '{"name":"employee/approval.received","data":{"taskId":"<TASK_ID>","action":"approve","userName":"Victor"}}'
+  -d '{"name":"employee/approval.received","data":{"taskId":"<TASK_ID>","action":"approve","userId":"<SLACK_USER_ID>","userName":"Victor"}}'
 ```
 
 **Debugging button click failures:**
@@ -123,15 +140,15 @@ Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenan
 ### Re-connecting a tenant's Slack workspace
 
 1. Confirm gateway is running and Cloudflare tunnel is alive (`curl $SLACK_REDIRECT_BASE_URL/health` → 200)
-2. Open in browser: `http://localhost:3000/slack/install?tenant=<tenantId>`
+2. Open in browser: `http://localhost:7700/slack/install?tenant=<tenantId>`
 3. Complete OAuth — select the correct workspace
 4. Callback stores encrypted token in `tenant_secrets` + upserts `tenant_integrations`
 5. Verify: `SELECT tenant_id, key FROM tenant_secrets; SELECT tenant_id, provider, external_id FROM tenant_integrations;`
 
 | Tenant    | Install URL                                                                       |
 | --------- | --------------------------------------------------------------------------------- |
-| DozalDevs | `http://localhost:3000/slack/install?tenant=00000000-0000-0000-0000-000000000002` |
-| VLRE      | `http://localhost:3000/slack/install?tenant=00000000-0000-0000-0000-000000000003` |
+| DozalDevs | `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000002` |
+| VLRE      | `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000003` |
 
 VLRE alternative: run `pnpm tsx scripts/setup-two-tenants.ts` to migrate the legacy `SLACK_BOT_TOKEN` env var into VLRE's tenant secret without OAuth.
 
@@ -169,9 +186,9 @@ Channel config lives in two places — both must be consistent:
 - **Archetype ID**: `00000000-0000-0000-0000-000000000012`
 - **Pattern**: Hardcoded channel IDs in archetype instructions (not env vars)
 - Read from: `C092BJ04HUG` (`#project-lighthouse`)
-- Post approval summary + buttons to: `C092BJ04HUG` (`#project-lighthouse`)
-- Post confirmation to: `C0AUBMXKVNU` (`#victor-tests`)
-- `tenant.config.summary.target_channel`: `C092BJ04HUG` (needed for lifecycle approval update)
+- Post approval summary + buttons to: `C0AUBMXKVNU` (`#victor-tests`)
+- Post confirmation (publish) to: `C092BJ04HUG` (`#project-lighthouse`)
+- `tenant.config.summary.target_channel`: `C0AUBMXKVNU` (needed for lifecycle approval update)
 
 ### VLRE (`00000000-0000-0000-0000-000000000003`)
 
@@ -192,23 +209,23 @@ Auth: `X-Admin-Key: $ADMIN_API_KEY` header on both endpoints. `source_system` fo
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
 # Trigger
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger" -H "Content-Type: application/json" -d '{}'
+curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" -H "Content-Type: application/json" -d '{}'
 # Dry-run
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" -H "Content-Type: application/json" -d '{}'
+curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" -H "Content-Type: application/json" -d '{}'
 ```
 
 ## Commands
 
-| Action           | Command                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------- |
-| First-time setup | `pnpm setup`                                                                              |
-| Start services   | `pnpm dev:start`                                                                          |
-| Run tests        | `pnpm test -- --run`                                                                      |
-| Lint             | `pnpm lint`                                                                               |
-| Build            | `pnpm build`                                                                              |
-| Trigger E2E task | `pnpm trigger-task`                                                                       |
-| Verify E2E       | `pnpm verify:e2e --task-id <uuid>`                                                        |
-| Register project | `curl -X POST http://localhost:3000/admin/projects -H "X-Admin-Key: $ADMIN_API_KEY" -d …` |
+| Action           | Command                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| First-time setup | `pnpm setup`                                                                                                |
+| Start services   | `pnpm dev:start`                                                                                            |
+| Run tests        | `pnpm test -- --run`                                                                                        |
+| Lint             | `pnpm lint`                                                                                                 |
+| Build            | `pnpm build`                                                                                                |
+| Trigger E2E task | `pnpm trigger-task`                                                                                         |
+| Verify E2E       | `pnpm verify:e2e --task-id <uuid>`                                                                          |
+| Register project | `curl -X POST http://localhost:7700/admin/tenants/:tenantId/projects -H "X-Admin-Key: $ADMIN_API_KEY" -d …` |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -243,14 +260,15 @@ For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm f
 
 ```
 src/
-├── gateway/     # Express HTTP server — webhook receiver + Inngest function host
-├── inngest/     # Durable workflow functions: lifecycle, watchdog, redispatch
-├── workers/     # Docker container code — runs inside the worker machine
-└── lib/         # Shared: fly-client, github-client, slack-client, jira-client, logger, retry, errors
-prisma/          # Schema, migrations, seed
-scripts/         # TypeScript scripts run via tsx (setup, trigger, verify)
-docker/          # Supabase self-hosted Docker Compose
-docs/            # Architecture vision, phase docs, troubleshooting
+├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
+├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
+├── workers/      # Docker container code — runs inside the worker machine
+├── worker-tools/ # Shell scripts compiled into Docker image (Slack tools, etc.)
+└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, logger, retry, errors
+prisma/           # Schema, migrations, seed
+scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
+docker/           # Supabase self-hosted Docker Compose
+docs/             # Architecture vision, phase docs, troubleshooting
 ```
 
 ## Key Conventions
@@ -343,11 +361,12 @@ Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                | When to Read                                                                       |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)     |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                          |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                     |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works               |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification |
+| Document                                                | When to Read                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `docs/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                    |
+| `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)                                        |
+| `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                                                             |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                        |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                  |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                    |
+| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow, gateway routes, DB schema, shell tools, Docker services |
