@@ -229,6 +229,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         id: `employee-approval-${taskId}`,
       });
       log.info({ taskId, userId: user.id }, 'Approval event sent');
+      if (channelId && messageTs) {
+        try {
+          await client.chat.update({
+            channel: channelId,
+            ts: messageTs,
+            text: `✅ Approved by ${user.name} — summary posted.`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `✅ Approved by ${user.name} — summary posted.`,
+                },
+              },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn({ taskId, err: updateErr }, 'Failed to update message after approval send');
+        }
+      }
     } catch (err) {
       log.error({ taskId, err }, 'Failed to send approval event');
       if (channelId && messageTs) {
@@ -314,6 +334,23 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         id: `employee-approval-${taskId}`,
       });
       log.info({ taskId, userId: user.id }, 'Rejection event sent');
+      if (channelId && messageTs) {
+        try {
+          await client.chat.update({
+            channel: channelId,
+            ts: messageTs,
+            text: `❌ Rejected by ${user.name}.`,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: `❌ Rejected by ${user.name}.` },
+              },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn({ taskId, err: updateErr }, 'Failed to update message after rejection send');
+        }
+      }
     } catch (err) {
       log.error({ taskId, err }, 'Failed to send rejection event');
       if (channelId && messageTs) {
