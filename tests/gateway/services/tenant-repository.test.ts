@@ -3,6 +3,8 @@ import { getPrisma, disconnectPrisma } from '../../setup.js';
 import { TenantRepository } from '../../../src/gateway/services/tenant-repository.js';
 
 const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
+const VLRE_TENANT_ID = '00000000-0000-0000-0000-000000000003';
+const SEEDED_TENANT_IDS = [DOZALDEVS_TENANT_ID, VLRE_TENANT_ID];
 
 let repo: TenantRepository;
 
@@ -12,8 +14,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   const prisma = getPrisma();
-  await prisma.tenantSecret.deleteMany({ where: { tenant_id: { not: DOZALDEVS_TENANT_ID } } });
-  await prisma.tenant.deleteMany({ where: { id: { not: DOZALDEVS_TENANT_ID } } });
+  await prisma.tenantSecret.deleteMany({ where: { tenant_id: { notIn: SEEDED_TENANT_IDS } } });
+  await prisma.tenant.deleteMany({ where: { id: { notIn: SEEDED_TENANT_IDS } } });
 });
 
 afterAll(async () => {
