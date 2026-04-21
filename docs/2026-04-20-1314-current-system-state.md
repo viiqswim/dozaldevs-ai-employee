@@ -354,7 +354,7 @@ Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV new
 
 ## Database Schema
 
-19 models across 3 groups. 18 migrations total.
+19 models across 4 groups. 18 migrations total.
 
 ### Group A: MVP-Active (7 tables)
 
