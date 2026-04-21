@@ -26,7 +26,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "setup:two-tenants": "tsx scripts/setup-two-tenants.ts",
-    "verify:multi-tenancy": "tsx scripts/verify-multi-tenancy.ts"
+    "verify:multi-tenancy": "tsx scripts/verify-multi-tenancy.ts",
+    "docker:start": "bash scripts/ensure-infra.sh",
+    "docker:stop": "docker compose -f docker/supabase-services.yml down",
+    "docker:reset": "bash scripts/docker-reset.sh",
+    "docker:status": "docker ps --filter network=supabase-shared --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
