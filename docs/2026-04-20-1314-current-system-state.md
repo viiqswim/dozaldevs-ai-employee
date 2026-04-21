@@ -1,6 +1,6 @@
 # AI Employee Platform — Current System State
 
-> As of April 20, 2026. After the summarizer end-to-end fix.
+> As of April 21, 2026. After the summarizer end-to-end fix and Slack UX improvements (ack-envelope processing state, user tagging, task ID context blocks).
 
 ---
 
@@ -16,7 +16,7 @@ flowchart LR
         JIRA["Jira Webhook"]:::external
     end
 
-    subgraph Gateway [:3000]
+    subgraph Gateway [:7700]
         DISPATCH["employee/task.dispatched"]:::event
         BOLT["Slack Bolt — Socket Mode"]:::service
     end
@@ -186,10 +186,10 @@ sequenceDiagram
 
 ### Shell Tools
 
-| Tool                            | Usage                                                                                                                              | Output                                                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/tools/slack/post-message.js`  | `NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C123" --text "msg" --task-id "uuid" > /tmp/approval-message.json` | JSON `{"ts":"...","channel":"..."}`. If `--task-id` provided, auto-generates Approve/Reject buttons. |
-| `/tools/slack/read-channels.js` | `node /tools/slack/read-channels.js --channels "C123,C456" --lookback-hours 24`                                                    | JSON `{"channels":[...]}`. Reads channel history with thread replies; filters out bot summary posts. |
+| Tool                            | Usage                                                                                                                              | Output                                                                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/tools/slack/post-message.js`  | `NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C123" --text "msg" --task-id "uuid" > /tmp/approval-message.json` | JSON `{"ts":"...","channel":"..."}`. If `--task-id` provided, auto-generates blocks: header, summary text, divider, task ID context block, Approve/Reject buttons. |
+| `/tools/slack/read-channels.js` | `node /tools/slack/read-channels.js --channels "C123,C456" --lookback-hours 24`                                                    | JSON `{"channels":[...]}`. Reads channel history with thread replies; filters out bot summary posts.                                                               |
 
 ---
 
@@ -248,14 +248,14 @@ sequenceDiagram
 
 ### Active (6)
 
-| Function ID                   | Trigger                              | File                                          | Purpose                                                                            |
-| ----------------------------- | ------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `employee/task-lifecycle`     | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`           | Universal lifecycle for all employees                                              |
-| `trigger/daily-summarizer`    | cron: `0 8 * * 1-5` (Mon-Fri 8am CT) | `src/inngest/triggers/summarizer-trigger.ts`  | Creates daily-summarizer task; deduplicates by `external_id: summary-{YYYY-MM-DD}` |
-| `employee/feedback-handler`   | `employee/feedback.received`         | `src/inngest/feedback-handler.ts`             | Ingests thread reply into feedback table, emits `employee/feedback.stored`         |
-| `employee/feedback-responder` | `employee/feedback.stored`           | `src/inngest/feedback-responder.ts`           | LLM acknowledgment (`claude-haiku-4-5`) in Slack thread                            |
-| `employee/mention-handler`    | `employee/mention.received`          | `src/inngest/mention-handler.ts`              | Classifies @mention intent, stores if relevant                                     |
-| `trigger/feedback-summarizer` | cron: `0 0 * * 0` (Sunday midnight)  | `src/inngest/triggers/feedback-summarizer.ts` | Weekly feedback digest → `knowledge_bases`                                         |
+| Function ID                    | Trigger                              | File                                          | Purpose                                                                            |
+| ------------------------------ | ------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `employee/universal-lifecycle` | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`           | Universal lifecycle for all employees                                              |
+| `trigger/daily-summarizer`     | cron: `0 8 * * 1-5` (Mon-Fri 8am CT) | `src/inngest/triggers/summarizer-trigger.ts`  | Creates daily-summarizer task; deduplicates by `external_id: summary-{YYYY-MM-DD}` |
+| `employee/feedback-handler`    | `employee/feedback.received`         | `src/inngest/feedback-handler.ts`             | Ingests thread reply into feedback table, emits `employee/feedback.stored`         |
+| `employee/feedback-responder`  | `employee/feedback.stored`           | `src/inngest/feedback-responder.ts`           | LLM acknowledgment (`claude-haiku-4-5`) in Slack thread                            |
+| `employee/mention-handler`     | `employee/mention.received`          | `src/inngest/mention-handler.ts`              | Classifies @mention intent, stores if relevant                                     |
+| `trigger/feedback-summarizer`  | cron: `0 0 * * 0` (Sunday midnight)  | `src/inngest/triggers/feedback-summarizer.ts` | Weekly feedback digest → `knowledge_bases`                                         |
 
 ### Deprecated (3) — still registered, do not modify
 
@@ -269,7 +269,7 @@ sequenceDiagram
 
 ## Gateway and Routes
 
-Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set, HTTP fallback otherwise), registers all routes, listens on `PORT` (default 3000).
+Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set, HTTP fallback otherwise), registers all routes, listens on `PORT` (default 7700).
 
 ### Webhook Routes (no auth)
 
@@ -288,26 +288,26 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 
 ### Admin Routes (`X-Admin-Key` header required)
 
-| Method   | Path                                         | Description                          |
-| -------- | -------------------------------------------- | ------------------------------------ |
-| `POST`   | `/admin/projects`                            | Create project                       |
-| `GET`    | `/admin/projects`                            | List all projects                    |
-| `GET`    | `/admin/projects/:id`                        | Get project                          |
-| `PATCH`  | `/admin/projects/:id`                        | Update project                       |
-| `DELETE` | `/admin/projects/:id`                        | Delete project (409 if active tasks) |
-| `POST`   | `/admin/tenants`                             | Create tenant                        |
-| `GET`    | `/admin/tenants`                             | List tenants                         |
-| `GET`    | `/admin/tenants/:id`                         | Get tenant                           |
-| `PATCH`  | `/admin/tenants/:id`                         | Update tenant                        |
-| `DELETE` | `/admin/tenants/:id`                         | Soft-delete tenant                   |
-| `POST`   | `/admin/tenants/:id/restore`                 | Restore soft-deleted tenant          |
-| `GET`    | `/admin/tenants/:id/secrets`                 | List secret key names (not values)   |
-| `PUT`    | `/admin/tenants/:id/secrets/:key`            | Set/overwrite secret (encrypted)     |
-| `DELETE` | `/admin/tenants/:id/secrets/:key`            | Delete secret                        |
-| `GET`    | `/admin/tenants/:id/config`                  | Get tenant config                    |
-| `PATCH`  | `/admin/tenants/:id/config`                  | Deep-merge update tenant config      |
-| `POST`   | `/admin/tenants/:id/employees/:slug/trigger` | Manually trigger employee            |
-| `GET`    | `/admin/tenants/:id/tasks/:taskId`           | Get task status (tenant-scoped)      |
+| Method   | Path                                               | Description                                     |
+| -------- | -------------------------------------------------- | ----------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                | Create project                                  |
+| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                               |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get project                                     |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update project                                  |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete project (409 if active tasks)            |
+| `POST`   | `/admin/tenants`                                   | Create tenant                                   |
+| `GET`    | `/admin/tenants`                                   | List tenants (`?include_deleted=true` opt)      |
+| `GET`    | `/admin/tenants/:tenantId`                         | Get tenant                                      |
+| `PATCH`  | `/admin/tenants/:tenantId`                         | Update tenant                                   |
+| `DELETE` | `/admin/tenants/:tenantId`                         | Soft-delete tenant                              |
+| `POST`   | `/admin/tenants/:tenantId/restore`                 | Restore soft-deleted tenant                     |
+| `GET`    | `/admin/tenants/:tenantId/secrets`                 | List secret key names (not values)              |
+| `PUT`    | `/admin/tenants/:tenantId/secrets/:key`            | Set/overwrite secret (encrypted)                |
+| `DELETE` | `/admin/tenants/:tenantId/secrets/:key`            | Delete secret                                   |
+| `GET`    | `/admin/tenants/:tenantId/config`                  | Get tenant config                               |
+| `PATCH`  | `/admin/tenants/:tenantId/config`                  | Deep-merge update tenant config                 |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger employee (`?dry_run=true` opt) |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:taskId`           | Get task status (tenant-scoped)                 |
 
 ### Inngest
 
@@ -318,8 +318,11 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 ### Slack Bolt Handlers (Socket Mode)
 
 - **Events**: `message` (thread replies → feedback handler), `app_mention` (→ mention handler)
-- **Actions**: `approve` (fires `employee/approval.received`), `reject` (fires same with `action: 'reject'`)
-- **Idempotency**: checks task status === `'Reviewing'` before firing; dedupes by Inngest ID `employee-approval-{taskId}`
+- **Actions**: `approve` and `reject` both fire `employee/approval.received` with `{ taskId, action, userId, userName }`; deduped by Inngest ID `employee-approval-{taskId}`
+- **Idempotency**: checks task status === `'Reviewing'` via PostgREST before firing; if already processed, updates message to "already processed" instead
+- **Processing state**: handlers call `(ack as any)({ replace_original: true, blocks: [...] })` — embeds the `⏳ Processing...` message directly in the Socket Mode ack envelope, eliminating any ⚠️ flash
+- **User display**: lifecycle updates use `<@userId>` mrkdwn so Slack renders the actor's display name as a mention (e.g. `@Victor Dozal`)
+- **Task ID**: every Slack message includes a trailing `context` block — `{ type: 'context', elements: [{ type: 'mrkdwn', text: 'Task \`{taskId}\`' }] }` — for traceability
 
 ---
 
@@ -346,7 +349,7 @@ Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV new
 
 ## Database Schema
 
-16 models across 3 groups. 17 migrations total.
+19 models across 3 groups. 18 migrations total.
 
 ### Group A: MVP-Active (7 tables)
 
@@ -445,18 +448,19 @@ pnpm fly:image
 ```bash
 # Trigger the DozalDevs summarizer
 curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
-  "http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger"
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger"
 
 # Check task status
 curl -H "X-Admin-Key: $ADMIN_API_KEY" \
-  "http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/tasks/<task-id>"
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/tasks/<task-id>"
 
 # Manual approval (fallback when Slack button doesn't reach gateway)
+# userId is the Slack user ID (e.g. U05V0CTJLF6) — required for <@userId> tagging in lifecycle
 curl -X POST "http://localhost:8288/e/local" \
   -H "Content-Type: application/json" \
-  -d '{"name":"employee/approval.received","data":{"taskId":"<TASK_ID>","action":"approve","userName":"Victor"}}'
+  -d '{"name":"employee/approval.received","data":{"taskId":"<TASK_ID>","action":"approve","userId":"<SLACK_USER_ID>","userName":"Victor"}}'
 
-# Rebuild worker image after any src/workers/ change
+# Rebuild worker image after any src/workers/ or src/worker-tools/ change
 docker build -t ai-employee-worker:latest . && pnpm fly:image
 ```
 
@@ -510,14 +514,14 @@ src/
 │   └── inngest/      # Inngest client factory + serve registration
 ├── inngest/          # Durable workflow functions
 │   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
-│   └── lib/          # Shared: create-task-and-dispatch helper
+│   └── lib/          # Shared: create-task-and-dispatch, poll-completion
 ├── workers/          # Docker container code — runs on Fly.io
 │   ├── lib/          # 30 worker utilities (session mgr, wave executor, PR manager, etc.)
 │   └── config/       # OpenCode permission config
 ├── worker-tools/     # Shell tools compiled into Docker image
 │   └── slack/        # post-message.ts, read-channels.ts
 └── lib/              # Shared: fly-client, slack-client, github-client, logger, etc.
-prisma/               # Schema (16 tables), 17 migrations, seed
+prisma/               # Schema (19 models), 18 migrations, seed
 scripts/              # TypeScript scripts run via tsx
 docker/               # Supabase self-hosted Docker Compose
 docs/                 # Architecture docs
