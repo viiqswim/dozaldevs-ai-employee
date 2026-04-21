@@ -17,11 +17,15 @@ async function patchTask(
   taskId: string,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+  const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '(unreadable)');
+    throw new Error(`patchTask failed: HTTP ${res.status} — ${body}`);
+  }
 }
 
 async function logStatusTransition(
@@ -31,7 +35,7 @@ async function logStatusTransition(
   toStatus: string,
   fromStatus?: string,
 ): Promise<void> {
-  await fetch(`${supabaseUrl}/rest/v1/task_status_log`, {
+  const res = await fetch(`${supabaseUrl}/rest/v1/task_status_log`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -42,6 +46,10 @@ async function logStatusTransition(
       updated_at: new Date().toISOString(),
     }),
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '(unreadable)');
+    throw new Error(`logStatusTransition failed: HTTP ${res.status} — ${body}`);
+  }
 }
 
 export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFunction.Any {
