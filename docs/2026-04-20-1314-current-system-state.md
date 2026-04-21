@@ -12,7 +12,7 @@ Every employee follows the same path: trigger → universal lifecycle → OpenCo
 flowchart LR
     subgraph Triggers
         ADMIN["Admin API — manual"]:::service
-        CRON["Cron — daily 8am CT"]:::service
+        CRON["Cron — daily 8am UTC"]:::service
         JIRA["Jira Webhook"]:::external
     end
 
@@ -108,6 +108,7 @@ stateDiagram-v2
     Executing --> Validating : worker completes
     Validating --> Submitting : auto
     Submitting --> Reviewing : auto
+    Submitting --> Done : auto (no approval required)
     Reviewing --> Approved : human approves
     Approved --> Delivering : post to channel
     Delivering --> Done : mark complete
@@ -124,11 +125,13 @@ Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled`
 
 Approval gate is controlled per-archetype via `risk_model.approval_required`.
 
+When `approval_required: false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping the `Reviewing → Approved → Delivering` states entirely.
+
 ---
 
 ## Workers: OpenCode Harness
 
-Both employees run the same entrypoint — `opencode-harness.mjs`. What changes per employee is the archetype config in the DB. The old `generic-harness.mts` has been fully deleted from the codebase.
+The two workers use different entrypoints. The **summarizer** runs `opencode-harness.mjs` directly (Fly.io CMD override at dispatch time). The **engineering employee** (on hold) uses the default Dockerfile CMD `bash entrypoint.sh`, which calls `orchestrate.mts` — a ~1100-line orchestrator handling planning, wave execution, fix loops, and PR creation. What changes per employee is the archetype config in the DB. The old `generic-harness.mts` source has been deleted; stale compiled artifacts remain in `dist/` from a prior build.
 
 | What              | Before                                  | Now                                                                        |
 | ----------------- | --------------------------------------- | -------------------------------------------------------------------------- |
@@ -182,7 +185,7 @@ sequenceDiagram
 | 14   | PATCH task to `Submitting`                                                                              |
 | 15   | Fire Inngest event `employee/task.completed`, exit 0                                                    |
 
-**Output contract**: OpenCode MUST write `/tmp/summary.txt` AND `/tmp/approval-message.json`. Absence of either is a hard failure.
+**Output contract**: OpenCode SHOULD write `/tmp/summary.txt` AND `/tmp/approval-message.json`. Absence of **both** is the hard failure condition — writing either file alone is sufficient to proceed. If `/tmp/summary.txt` is absent, content defaults to `'completed'`. If `/tmp/approval-message.json` is absent, metadata is empty.
 
 ### Shell Tools
 
@@ -228,7 +231,7 @@ sequenceDiagram
     end
 
     rect rgb(230, 255, 243)
-    Note over SL,LLM: Weekly Summary (Sunday midnight cron)
+    Note over SL,LLM: Weekly Summary (Sunday midnight UTC cron)
     IG->>DB: Read recent feedback
     IG->>LLM: Summarize patterns
     LLM-->>IG: Digest
@@ -248,14 +251,16 @@ sequenceDiagram
 
 ### Active (6)
 
-| Function ID                    | Trigger                              | File                                          | Purpose                                                                            |
-| ------------------------------ | ------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `employee/universal-lifecycle` | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`           | Universal lifecycle for all employees                                              |
-| `trigger/daily-summarizer`     | cron: `0 8 * * 1-5` (Mon-Fri 8am CT) | `src/inngest/triggers/summarizer-trigger.ts`  | Creates daily-summarizer task; deduplicates by `external_id: summary-{YYYY-MM-DD}` |
-| `employee/feedback-handler`    | `employee/feedback.received`         | `src/inngest/feedback-handler.ts`             | Ingests thread reply into feedback table, emits `employee/feedback.stored`         |
-| `employee/feedback-responder`  | `employee/feedback.stored`           | `src/inngest/feedback-responder.ts`           | LLM acknowledgment (`claude-haiku-4-5`) in Slack thread                            |
-| `employee/mention-handler`     | `employee/mention.received`          | `src/inngest/mention-handler.ts`              | Classifies @mention intent, stores if relevant                                     |
-| `trigger/feedback-summarizer`  | cron: `0 0 * * 0` (Sunday midnight)  | `src/inngest/triggers/feedback-summarizer.ts` | Weekly feedback digest → `knowledge_bases`                                         |
+| Function ID                    | Trigger                               | File                                          | Purpose                                                                            |
+| ------------------------------ | ------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `employee/universal-lifecycle` | `employee/task.dispatched`            | `src/inngest/employee-lifecycle.ts`           | Universal lifecycle for all employees                                              |
+| `trigger/daily-summarizer`     | cron: `0 8 * * 1-5` (Mon-Fri 8am UTC) | `src/inngest/triggers/summarizer-trigger.ts`  | Creates daily-summarizer task; deduplicates by `external_id: summary-{YYYY-MM-DD}` |
+| `employee/feedback-handler`    | `employee/feedback.received`          | `src/inngest/feedback-handler.ts`             | Ingests thread reply into feedback table, emits `employee/feedback.stored`         |
+| `employee/feedback-responder`  | `employee/feedback.stored`            | `src/inngest/feedback-responder.ts`           | LLM acknowledgment (`claude-haiku-4-5`) in Slack thread                            |
+| `employee/mention-handler`     | `employee/mention.received`           | `src/inngest/mention-handler.ts`              | Classifies @mention intent, stores if relevant                                     |
+| `trigger/feedback-summarizer`  | cron: `0 0 * * 0` (Sunday midnight)   | `src/inngest/triggers/feedback-summarizer.ts` | Weekly feedback digest → `knowledge_bases`                                         |
+
+> **Cron timezone — CRITICAL for agents**: The Inngest cron `0 8 * * 1-5` fires at **8am UTC**, not 8am CT. Inngest has no timezone config on this function. The archetype seed record has `trigger_sources: { timezone: "America/Chicago" }` but that field is **archetype metadata only** — it is stored in the DB as documentation and is never read by the Inngest runtime. Do not use the archetype's `trigger_sources.timezone` to infer the actual trigger time.
 
 ### Deprecated (3) — still registered, do not modify
 
@@ -307,7 +312,7 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 | `GET`    | `/admin/tenants/:tenantId/config`                  | Get tenant config                               |
 | `PATCH`  | `/admin/tenants/:tenantId/config`                  | Deep-merge update tenant config                 |
 | `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger employee (`?dry_run=true` opt) |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:taskId`           | Get task status (tenant-scoped)                 |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status (tenant-scoped)                 |
 
 ### Inngest
 
@@ -320,7 +325,7 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 - **Events**: `message` (thread replies → feedback handler), `app_mention` (→ mention handler)
 - **Actions**: `approve` and `reject` both fire `employee/approval.received` with `{ taskId, action, userId, userName }`; deduped by Inngest ID `employee-approval-{taskId}`
 - **Idempotency**: checks task status === `'Reviewing'` via PostgREST before firing; if already processed, updates message to "already processed" instead
-- **Processing state**: handlers call `(ack as any)({ replace_original: true, blocks: [...] })` — embeds the `⏳ Processing...` message directly in the Socket Mode ack envelope, eliminating any ⚠️ flash
+- **Processing state**: handlers call `(ack as any)({ replace_original: true, blocks: [...] })` — embeds action-specific text (`⏳ Processing approval...` / `⏳ Processing rejection...`) directly in the Socket Mode ack envelope, eliminating any ⚠️ flash
 - **User display**: lifecycle updates use `<@userId>` mrkdwn so Slack renders the actor's display name as a mention (e.g. `@Victor Dozal`)
 - **Task ID**: every Slack message includes a trailing `context` block — `{ type: 'context', elements: [{ type: 'mrkdwn', text: 'Task \`{taskId}\`' }] }` — for traceability
 
@@ -372,10 +377,6 @@ Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV new
 | `agent_versions`  | `id`, `archetype_id`, `model_id`, `prompt_hash`, `is_active`                        | Versioned snapshots of archetype config   |
 | `knowledge_bases` | `id`, `archetype_id`, `source_config`, `tenant_id`                                  | Feedback-derived knowledge (pgvector)     |
 
-### Group D: Forward-Compatibility (schema-ready, not yet active)
-
-`risk_models`, `cross_dept_triggers`, `clarifications`, `reviews`, `audit_log`
-
 ### Group C: Multi-Tenancy (3 tables)
 
 | Table                 | Key Columns                                              | Purpose                                    |
@@ -384,9 +385,14 @@ Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV new
 | `tenant_integrations` | `id`, `tenant_id`, `provider`, `external_id`, `status`   | External service connections (Slack OAuth) |
 | `tenant_secrets`      | `id`, `tenant_id`, `key`, `ciphertext`, `iv`, `auth_tag` | Encrypted per-tenant credentials           |
 
+### Group D: Forward-Compatibility (schema-ready, not yet active)
+
+`risk_models`, `cross_dept_triggers`, `clarifications`, `reviews`, `audit_log`
+
 ### Key Constraints
 
 - `tasks`: unique `(external_id, source_system, tenant_id)` — prevents duplicate task creation
+- `projects`: unique `(jira_project_key, tenant_id)` — one project per Jira key per tenant
 - `archetypes`: unique `(tenant_id, role_name)` — one archetype per role per tenant
 - `tenant_integrations`: unique `(tenant_id, provider)` — one per provider per tenant
 - `tenant_secrets`: unique `(tenant_id, key)`
@@ -408,20 +414,20 @@ Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV new
 
 ### Docker Compose Services (6)
 
-| Service  | Image                            | Host Port           | Purpose                           |
-| -------- | -------------------------------- | ------------------- | --------------------------------- |
-| `studio` | `supabase/studio:2026.03.16`     | 54323               | Supabase Dashboard UI             |
-| `kong`   | `kong/kong:3.9.1`                | 54321               | API Gateway (routes to auth/rest) |
-| `auth`   | `supabase/gotrue:v2.186.0`       | internal            | Authentication (GoTrue)           |
-| `rest`   | `postgrest/postgrest:v14.6`      | internal (via Kong) | REST API over PostgreSQL          |
-| `meta`   | `supabase/postgres-meta:v0.95.2` | internal            | Postgres metadata (for Studio)    |
-| `db`     | `supabase/postgres:17.6.1`       | 54322               | PostgreSQL 17                     |
+| Service  | Image                                         | Host Port           | Purpose                           |
+| -------- | --------------------------------------------- | ------------------- | --------------------------------- |
+| `studio` | `supabase/studio:2026.03.16-sha-5528817`      | 54323               | Supabase Dashboard UI             |
+| `kong`   | `kong/kong:3.9.1`                             | 54321               | API Gateway (routes to auth/rest) |
+| `auth`   | `supabase/gotrue:v2.186.0`                    | internal            | Authentication (GoTrue)           |
+| `rest`   | `postgrest/postgrest:v14.6`                   | internal (via Kong) | REST API over PostgreSQL          |
+| `meta`   | `supabase/postgres-meta:v0.95.2`              | internal            | Postgres metadata (for Studio)    |
+| `db`     | `public.ecr.aws/supabase/postgres:17.6.1.064` | 54322               | PostgreSQL 17                     |
 
 Database name: `ai_employee` (not `postgres` — Docker Compose uses `POSTGRES_DB=ai_employee`).
 
 ### Dockerfile
 
-Two-stage build (`node:20-slim`). Builder stage: `pnpm install` → `prisma generate` → `tsc` → prod install. Runtime stage installs: `git`, `curl`, `bash`, `jq`, `gh` CLI v2.45.0, `opencode-ai@1.3.3` (global).
+Two-stage build (`node:20-slim`). Builder stage: `pnpm install` → `prisma generate` → `tsc` → prod install. Runtime stage installs: `git`, `curl`, `bash`, `jq`, `ca-certificates`, `fuse-overlayfs`, `uidmap` (rootless Docker on Fly.io), `gh` CLI v2.45.0, `opencode-ai@1.3.3` (global).
 
 Default CMD: `bash entrypoint.sh` (engineering worker). Summarizer overrides this at dispatch.
 
@@ -468,36 +474,37 @@ docker build -t ai-employee-worker:latest . && pnpm fly:image
 
 ## Shared Libraries (`src/lib/`)
 
-| File               | Purpose                                                                                                   |
-| ------------------ | --------------------------------------------------------------------------------------------------------- |
-| `fly-client.ts`    | Fly.io Machines API — create/destroy/query VMs, retries on 429                                            |
-| `github-client.ts` | GitHub REST API — create/list/get PRs                                                                     |
-| `slack-client.ts`  | Slack Web API — `postMessage`, `updateMessage`                                                            |
-| `jira-client.ts`   | Jira Cloud REST API v3 — `getIssue`, `addComment`, `transitionIssue`                                      |
-| `call-llm.ts`      | OpenRouter LLM caller — enforces approved models, cost circuit breaker ($50/day default)                  |
-| `logger.ts`        | Pino structured logger — auto-redacts secrets                                                             |
-| `retry.ts`         | Exponential backoff — 3 attempts, 1s base delay                                                           |
-| `errors.ts`        | Custom errors: `LLMTimeoutError`, `CostCircuitBreakerError`, `RateLimitExceededError`, `ExternalApiError` |
-| `encryption.ts`    | AES-256-GCM encrypt/decrypt for tenant secrets                                                            |
-| `tunnel-client.ts` | Cloudflare tunnel URL resolver for hybrid mode                                                            |
-| `repo-url.ts`      | GitHub repo URL parser                                                                                    |
-| `agent-version.ts` | Agent version hash (SHA-256 of prompt + model + tools) and upsert                                         |
+| File               | Purpose                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `fly-client.ts`    | Fly.io Machines API — create/destroy/query VMs, retries on 429                                                                            |
+| `github-client.ts` | GitHub REST API — create/list/get PRs                                                                                                     |
+| `slack-client.ts`  | Slack Web API — `postMessage`, `updateMessage`                                                                                            |
+| `jira-client.ts`   | Jira Cloud REST API v3 — `getIssue`, `addComment`, `transitionIssue`                                                                      |
+| `call-llm.ts`      | OpenRouter LLM caller — enforces approved models, cost circuit breaker ($50/day default)                                                  |
+| `logger.ts`        | Pino structured logger — auto-redacts secrets                                                                                             |
+| `retry.ts`         | Exponential backoff — 3 attempts, 1s base delay                                                                                           |
+| `errors.ts`        | Custom errors: `LLMTimeoutError`, `CostCircuitBreakerError`, `RateLimitExceededError`, `ExternalApiError`, `ProjectRegistryConflictError` |
+| `encryption.ts`    | AES-256-GCM encrypt/decrypt for tenant secrets                                                                                            |
+| `tunnel-client.ts` | Cloudflare tunnel URL resolver for hybrid mode                                                                                            |
+| `repo-url.ts`      | GitHub repo URL parser                                                                                                                    |
+| `agent-version.ts` | Agent version hash (SHA-256 of prompt + model + tools) and upsert                                                                         |
 
 ---
 
 ## Scripts
 
-| Script                    | Command                          | Purpose                                                        |
-| ------------------------- | -------------------------------- | -------------------------------------------------------------- |
-| `setup.ts`                | `pnpm setup`                     | One-time setup: Docker Compose, migrations, seed, Docker image |
-| `dev-start.ts`            | `pnpm dev:start`                 | Start all services with health checks                          |
-| `trigger-task.ts`         | `pnpm trigger-task`              | Send mock Jira webhook, monitor execution                      |
-| `verify-e2e.ts`           | `pnpm verify:e2e --task-id uuid` | 12-point E2E verification                                      |
-| `register-project.ts`     | `pnpm register-project`          | Interactive project registration wizard                        |
-| `setup-two-tenants.ts`    | `pnpm setup:two-tenants`         | Migrate legacy `SLACK_BOT_TOKEN` to per-tenant secrets         |
-| `fly-setup.ts`            | `pnpm fly:setup`                 | Create Fly.io app (idempotent)                                 |
-| `verify-supabase.ts`      | —                                | Verify Docker Compose stack health                             |
-| `verify-multi-tenancy.ts` | `pnpm verify:multi-tenancy`      | Verify per-tenant Slack tokens and config                      |
+| Script                              | Command                          | Purpose                                                        |
+| ----------------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| `setup.ts`                          | `pnpm setup`                     | One-time setup: Docker Compose, migrations, seed, Docker image |
+| `dev-start.ts`                      | `pnpm dev:start`                 | Start all services with health checks                          |
+| `trigger-task.ts`                   | `pnpm trigger-task`              | Send mock Jira webhook, monitor execution                      |
+| `verify-e2e.ts`                     | `pnpm verify:e2e --task-id uuid` | 12-point E2E verification                                      |
+| `register-project.ts`               | `pnpm register-project`          | Interactive project registration wizard                        |
+| `setup-two-tenants.ts`              | `pnpm setup:two-tenants`         | Migrate legacy `SLACK_BOT_TOKEN` to per-tenant secrets         |
+| `fly-setup.ts`                      | `pnpm fly:setup`                 | Create Fly.io app (idempotent)                                 |
+| `verify-supabase.ts`                | —                                | Verify Docker Compose stack health                             |
+| `verify-multi-tenancy.ts`           | `pnpm verify:multi-tenancy`      | Verify per-tenant Slack tokens and config                      |
+| `long-running-sim/mock-supabase.ts` | —                                | Local mock Supabase server for long-running task simulation    |
 
 ---
 
@@ -510,13 +517,16 @@ src/
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
-│   ├── services/     # Tenant env loader
-│   └── inngest/      # Inngest client factory + serve registration
+│   ├── services/     # Business logic (10 files): dispatcher, task creation, project registry, tenant/secret repos
+│   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/          # Durable workflow functions
 │   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion
 ├── workers/          # Docker container code — runs on Fly.io
-│   ├── lib/          # 30 worker utilities (session mgr, wave executor, PR manager, etc.)
+│   ├── opencode-harness.mts  # Summarizer entrypoint — fetch archetype, run OpenCode, write deliverable
+│   ├── orchestrate.mts       # Engineering entrypoint (on hold) — ~1100-line plan + wave execution + PR creation
+│   ├── entrypoint.sh         # Default Dockerfile CMD — launches orchestrate.mts for engineering worker
+│   ├── lib/          # Worker utilities (30 files): session mgr, wave executor, PR manager, etc.
 │   └── config/       # OpenCode permission config
 ├── worker-tools/     # Shell tools compiled into Docker image
 │   └── slack/        # post-message.ts, read-channels.ts
