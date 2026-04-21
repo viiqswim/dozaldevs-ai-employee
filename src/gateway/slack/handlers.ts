@@ -183,12 +183,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: `⏳ Processing approval... (task: ${taskId})`,
+      text: '⏳ Processing approval...',
       blocks: [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `⏳ Processing approval...\n\`${taskId}\`` },
-        },
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing approval...' } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
 
@@ -210,6 +208,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
                 type: 'section',
                 text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
               },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
         } catch (respondErr) {
@@ -235,6 +234,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               type: 'section',
               text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
             },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
           ],
         });
@@ -260,12 +260,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: `⏳ Processing rejection... (task: ${taskId})`,
+      text: '⏳ Processing rejection...',
       blocks: [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `⏳ Processing rejection...\n\`${taskId}\`` },
-        },
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
 
@@ -287,6 +285,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
                 type: 'section',
                 text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
               },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
         } catch (respondErr) {
@@ -312,6 +311,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               type: 'section',
               text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
             },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
           ],
         });

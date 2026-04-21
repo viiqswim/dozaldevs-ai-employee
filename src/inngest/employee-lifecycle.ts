@@ -339,11 +339,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
             try {
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                '⏰ Daily summary expired — no action taken.',
-              );
+              const expiryText = '⏰ Daily summary expired — no action taken.';
+              await slackClient.updateMessage(targetChannel, approvalMsgTs, expiryText, [
+                { type: 'section', text: { type: 'mrkdwn', text: expiryText } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ]);
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
@@ -356,9 +356,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return;
         }
 
-        const { action, userName } = approvalEvent.data as {
+        const { action, userId: actorUserId } = approvalEvent.data as {
           action: string;
-          userName: string;
+          userId: string;
         };
 
         if (action === 'approve') {
@@ -437,10 +437,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
             if (approvalMsgTs && targetChannel) {
-              const approvedText = `✅ Approved by ${userName} — summary posted.`;
+              const approvedText = `✅ Approved by <@${actorUserId}> — summary posted.`;
               try {
                 await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
                   { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
                 ]);
                 log.info({ taskId }, 'Approval message updated');
               } catch (err) {
@@ -466,10 +467,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
         } else {
           if (approvalMsgTs && targetChannel) {
-            const rejectedText = `❌ Rejected by ${userName}.`;
+            const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
             try {
               await slackClient.updateMessage(targetChannel, approvalMsgTs, rejectedText, [
                 { type: 'section', text: { type: 'mrkdwn', text: rejectedText } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
               ]);
             } catch (err) {
               log.warn(
