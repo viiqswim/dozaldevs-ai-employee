@@ -1,5 +1,5 @@
 import express from 'express';
-import { App, ExpressReceiver } from '@slack/bolt';
+import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { createInngestClient } from './inngest/client.js';
@@ -86,6 +86,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         .start()
         .then(() => {
           logger.info('Slack Bolt — Socket Mode connected');
+          const smClient = (boltApp as unknown as { receiver: SocketModeReceiver }).receiver.client;
+          smClient.on('disconnected', () => {
+            logger.warn('Slack Bolt — Socket Mode disconnected');
+          });
+          smClient.on('reconnecting', () => {
+            logger.info('Slack Bolt — Socket Mode reconnecting');
+          });
+          smClient.on('connected', () => {
+            logger.info('Slack Bolt — Socket Mode reconnected');
+          });
         })
         .catch((err: unknown) => {
           logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
