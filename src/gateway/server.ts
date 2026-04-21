@@ -90,6 +90,18 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         .catch((err: unknown) => {
           logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
         });
+
+      boltApp.error(async (err) => {
+        if (err.code === 'slack_bolt_authorization_error') {
+          logger.warn(
+            { code: err.code },
+            'Slack authorization failed — check tenant_secrets table has slack_bot_token for this team',
+          );
+        } else {
+          logger.error({ err, code: err.code }, 'Slack Bolt unhandled error');
+        }
+      });
+
       logger.info('Slack Bolt initialized — Socket Mode starting');
     } else {
       const receiver = new ExpressReceiver({
