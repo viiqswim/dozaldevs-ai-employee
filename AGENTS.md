@@ -60,7 +60,9 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects natural language `instructions` + available tools, monitors until completion
 - **Shell tools**: `src/worker-tools/slack/` — pre-installed in Docker image at `/tools/slack/`. Usage:
   - `NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C123" --text "msg" --task-id "uuid" > /tmp/approval-message.json`
+    Output: JSON `{"ts":"...","channel":"..."}`. When `--task-id` is provided, auto-generates blocks: header, summary text, divider, task ID context block, Approve/Reject buttons.
   - `node /tools/slack/read-channels.js --channels "C123,C456" --lookback-hours 24`
+    Output: JSON `{"channels":[...]}`. Reads channel history with thread replies; filters out bot summary posts.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
 - **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
@@ -214,7 +216,7 @@ Two commonly used endpoints for triggering employees and checking status:
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY` header on both endpoints. `source_system` for manual tasks: `'manual'` (existing values: `'jira'`, `'cron'`).
 
-The admin API has 16 total routes covering tenant CRUD (create, list, get, update, soft-delete, restore), per-tenant secrets management (list keys, set, delete), tenant config (get, deep-merge update), project CRUD, employee trigger, and task status. Full route table: `docs/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
+The admin API has 18 total routes covering tenant CRUD (create, list, get, update, soft-delete, restore), per-tenant secrets management (list keys, set, delete), tenant config (get, deep-merge update), project CRUD, employee trigger, and task status. Full route table: `docs/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
@@ -258,7 +260,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 
 Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start`. The Supabase CLI hardcodes `database: postgres` in its Go source — PostgREST would connect to the wrong database. Docker Compose uses `${POSTGRES_DB}` throughout, so `POSTGRES_DB=ai_employee` in `docker/.env` makes all services use the right database.
 
-**CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` requires rebuilding the Docker image before the fix takes effect. Gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild.
+**CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` or `src/worker-tools/` requires rebuilding the Docker image before the fix takes effect. Gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild.
 
 ```bash
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
@@ -271,7 +273,15 @@ For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm f
 ```
 src/
 ├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
+│   ├── routes/       # All HTTP route handlers (10 files)
+│   ├── slack/        # Bolt event/action handlers + OAuth installation store
+│   ├── middleware/   # Admin auth middleware
+│   ├── validation/   # Zod schemas + HMAC signature verification
+│   ├── services/     # Business logic (10 files): dispatcher, task creation, project registry, tenant/secret repos
+│   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
+│   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
+│   └── lib/          # Shared: create-task-and-dispatch, poll-completion
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell scripts compiled into Docker image (Slack tools, etc.)
 └── lib/          # Shared (12 files): fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version
@@ -279,6 +289,7 @@ prisma/           # Schema (19 models), 18 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 docker/           # Supabase self-hosted Docker Compose
 docs/             # Architecture vision, phase docs, troubleshooting
+tests/            # 102 test files (Vitest)
 ```
 
 ## Key Conventions
@@ -300,6 +311,7 @@ OPENROUTER_API_KEY   # AI code generation (OpenCode via OpenRouter)
 GITHUB_TOKEN         # git push + gh pr create (must have push access to all registered repos)
 JIRA_WEBHOOK_SECRET  # HMAC-SHA256 validation (use "test-secret" locally)
 ADMIN_API_KEY        # Admin API key for all /admin/* endpoints (auto-generated by pnpm setup)
+ENCRYPTION_KEY       # AES-256-GCM key for tenant secrets (validated at gateway startup)
 ```
 
 Summarizer-specific vars (required for Papi Chulo):
@@ -379,4 +391,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
 | `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
 | `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
-| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (16 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
+| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
