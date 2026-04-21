@@ -206,31 +206,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         data: { taskId, action: 'approve', userId: user.id, userName: user.name },
         id: `employee-approval-${taskId}`,
       });
-      log.info({ taskId, userId: user.id }, 'Approval event sent');
-
-      log.info({ taskId, channelId, messageTs }, 'Attempting chat.update after approve');
-      if (channelId && messageTs) {
-        const updateResult = await client.chat.update({
-          channel: channelId,
-          ts: messageTs,
-          text: `✅ Approved by ${user.name} — summary posted.`,
-          blocks: [
-            {
-              type: 'section',
-              text: { type: 'mrkdwn', text: `✅ Approved by ${user.name} — summary posted.` },
-            },
-          ],
-        });
-        log.info(
-          { taskId, ok: updateResult.ok, ts: updateResult.ts },
-          'chat.update result after approve',
-        );
-      } else {
-        log.warn(
-          { taskId, channelId, messageTs },
-          'Skipping chat.update — channelId or messageTs missing',
-        );
-      }
+      log.info({ taskId, userId: user.id }, 'Approval event sent — lifecycle will update message');
+      // Message update delegated entirely to the lifecycle handle-approval-result step.
+      // Doing a competing chat.update here races with the lifecycle and can restore buttons
+      // via the catch block if timing is wrong.
     } catch (err) {
       log.error({ taskId, err }, 'Failed to process approve action');
       if (channelId && messageTs) {
@@ -293,21 +272,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         data: { taskId, action: 'reject', userId: user.id, userName: user.name },
         id: `employee-approval-${taskId}`,
       });
-      log.info({ taskId, userId: user.id }, 'Rejection event sent');
-
-      if (channelId && messageTs) {
-        await client.chat.update({
-          channel: channelId,
-          ts: messageTs,
-          text: `❌ Rejected by ${user.name}.`,
-          blocks: [
-            {
-              type: 'section',
-              text: { type: 'mrkdwn', text: `❌ Rejected by ${user.name}.` },
-            },
-          ],
-        });
-      }
+      log.info({ taskId, userId: user.id }, 'Rejection event sent — lifecycle will update message');
+      // Message update delegated entirely to the lifecycle handle-approval-result step.
     } catch (err) {
       log.error({ taskId, err }, 'Failed to process reject action');
       if (channelId && messageTs) {
