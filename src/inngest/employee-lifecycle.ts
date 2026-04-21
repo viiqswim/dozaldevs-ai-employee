@@ -313,8 +313,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
         await prismaForApproval.$disconnect();
 
+        const botToken = tenantEnvForApproval.SLACK_BOT_TOKEN ?? '';
+        log.info(
+          {
+            taskId,
+            hasToken: botToken.length > 0,
+            tokenPrefix: botToken.slice(0, 10) || '(empty)',
+            publishChannel: tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? '(not set)',
+            targetChannelEnv: tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ?? '(not set)',
+          },
+          '[lifecycle] handle-approval-result: env loaded',
+        );
+
         const slackClient = createSlackClient({
-          botToken: tenantEnvForApproval.SLACK_BOT_TOKEN ?? '',
+          botToken,
           defaultChannel: '',
         });
 
@@ -333,6 +345,17 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           '';
         const summaryBlocks = metadata.blocks as unknown[] | undefined;
         const summaryContent = (deliverable?.content as string) ?? '';
+
+        log.info(
+          {
+            taskId,
+            approvalMsgTs: approvalMsgTs ?? '(not set)',
+            targetChannel: targetChannel || '(empty)',
+            summaryContentLen: summaryContent.length,
+            hasSummaryBlocks: !!summaryBlocks,
+          },
+          '[lifecycle] handle-approval-result: deliverable loaded',
+        );
 
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
@@ -410,18 +433,54 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           } else {
             const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
+            log.info(
+              {
+                taskId,
+                publishChannel: publishChannel || '(empty)',
+                summaryContentLen: summaryContent.length,
+              },
+              '[lifecycle] posting summary to publishChannel',
+            );
             if (publishChannel && summaryContent) {
               await slackClient.postMessage({
                 channel: publishChannel,
                 text: summaryContent,
                 blocks: summaryBlocks,
               });
+              log.info({ taskId, publishChannel }, '[lifecycle] summary posted successfully');
+            } else {
+              log.warn(
+                {
+                  taskId,
+                  publishChannel: publishChannel || '(empty)',
+                  summaryContentLen: summaryContent.length,
+                },
+                '[lifecycle] skipping postMessage — publishChannel or summaryContent empty',
+              );
             }
+            log.info(
+              {
+                taskId,
+                approvalMsgTs: approvalMsgTs ?? '(not set)',
+                targetChannel: targetChannel || '(empty)',
+              },
+              '[lifecycle] updating approval message',
+            );
             if (approvalMsgTs && targetChannel) {
               const approvedText = `✅ Approved by ${userName} — summary posted.`;
               await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
                 { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
               ]);
+              log.info({ taskId }, '[lifecycle] approval message updated successfully');
+            } else {
+              log.warn(
+                {
+                  taskId,
+                  approvalMsgTs: approvalMsgTs ?? '(not set)',
+                  targetChannel: targetChannel || '(empty)',
+                },
+                '[lifecycle] skipping updateMessage — approvalMsgTs or targetChannel empty',
+              );
             }
 
             await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });

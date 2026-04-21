@@ -208,8 +208,9 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       });
       log.info({ taskId, userId: user.id }, 'Approval event sent');
 
+      log.info({ taskId, channelId, messageTs }, 'Attempting chat.update after approve');
       if (channelId && messageTs) {
-        await client.chat.update({
+        const updateResult = await client.chat.update({
           channel: channelId,
           ts: messageTs,
           text: `✅ Approved by ${user.name} — summary posted.`,
@@ -220,6 +221,15 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             },
           ],
         });
+        log.info(
+          { taskId, ok: updateResult.ok, ts: updateResult.ts },
+          'chat.update result after approve',
+        );
+      } else {
+        log.warn(
+          { taskId, channelId, messageTs },
+          'Skipping chat.update — channelId or messageTs missing',
+        );
       }
     } catch (err) {
       log.error({ taskId, err }, 'Failed to process approve action');
