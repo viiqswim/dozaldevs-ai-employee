@@ -60,6 +60,9 @@ COPY --from=builder /build/dist/worker-tools/slack/read-channels.js /tools/slack
 COPY --from=builder /build/dist/worker-tools/slack/post-message.js /tools/slack/post-message.js
 RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
 
+RUN mkdir -p /tools/hostfully
+COPY --from=builder /build/dist/worker-tools/hostfully/validate-env.js /tools/hostfully/validate-env.js
+
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
 
