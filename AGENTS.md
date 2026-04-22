@@ -201,9 +201,11 @@ Channel config lives in two places — both must be consistent:
 ### VLRE (`00000000-0000-0000-0000-000000000003`)
 
 - **Archetype ID**: `00000000-0000-0000-0000-000000000013`
-- **Pattern**: Generic instructions reading from env vars (`DAILY_SUMMARY_CHANNELS`, `SUMMARY_TARGET_CHANNEL`)
-- Channels configured via `DAILY_SUMMARY_CHANNELS` / `SUMMARY_TARGET_CHANNEL` env vars in `.env`
-- Current channels: `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL` (target: `C0960S2Q8RL`)
+- **Pattern**: Hardcoded channel IDs in archetype instructions (not env vars)
+- Read from: `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL`
+- Post approval summary + buttons to: `C0960S2Q8RL`
+- Post confirmation (publish) to: `C0960S2Q8RL`
+- `tenant.config.summary.target_channel`: `C0960S2Q8RL` (needed for lifecycle approval update)
 
 Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV news correspondent persona), model (`minimax/minimax-m2.7`), runtime (`opencode`), and risk model (`approval_required: true`, `timeout_hours: 24`).
 
@@ -318,8 +320,6 @@ Summarizer-specific vars (required for Papi Chulo):
 
 ```
 SLACK_SIGNING_SECRET       # Verifies Slack interaction webhooks (HMAC-SHA256)
-DAILY_SUMMARY_CHANNELS     # Comma-separated channel IDs to read — used by VLRE archetype (env-var pattern)
-SUMMARY_TARGET_CHANNEL     # Channel ID where VLRE digest is posted for approval
 FLY_WORKER_APP             # Fly.io app for all worker machines (currently: ai-employee-workers)
 SUMMARIZER_VM_SIZE         # VM size for summarizer machines (default: shared-cpu-1x)
 ```

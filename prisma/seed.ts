@@ -62,9 +62,25 @@ async function main() {
       name: 'VLRE',
       slug: 'vlre',
       status: 'active',
-      config: { summary: { channel_ids: [], target_channel: null } },
+      config: {
+        summary: {
+          channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
+          target_channel: 'C0960S2Q8RL',
+          publish_channel: 'C0960S2Q8RL',
+        },
+      },
     },
-    update: { name: 'VLRE', status: 'active' },
+    update: {
+      name: 'VLRE',
+      status: 'active',
+      config: {
+        summary: {
+          channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
+          target_channel: 'C0960S2Q8RL',
+          publish_channel: 'C0960S2Q8RL',
+        },
+      },
+    },
   });
   console.log(`✅ Tenant upserted: ${vlreTenant.id} (slug: ${vlreTenant.slug})`);
 
@@ -140,15 +156,6 @@ async function main() {
 
   console.log(`✅ Department upserted: ${vlreDept.id} (name: ${vlreDept.name})`);
 
-  const SUMMARIZER_INSTRUCTIONS =
-    'Read the last 24 hours of messages from the configured Slack channels (channel IDs are in the DAILY_SUMMARY_CHANNELS environment variable, comma-separated). ' +
-    'Use the /tools/slack/read-channels.js shell tool to fetch messages. ' +
-    'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
-    'Use the /tools/slack/post-message.js shell tool to post the summary to the approval channel (SUMMARY_TARGET_CHANNEL environment variable) for human review. ' +
-    'Include approve/reject buttons in the message by passing --task-id to the post-message tool. ' +
-    'The task ID is available in the TASK_ID environment variable — include it in the button values for approval routing. ' +
-    'When in delivery mode (DELIVERY_MODE=true), publish the approved content to the publish channel (SUMMARY_PUBLISH_CHANNEL environment variable).';
-
   const DOZALDEVS_SUMMARIZER_INSTRUCTIONS =
     'Read the last 24 hours of messages from the project-lighthouse Slack channel (channel ID: C092BJ04HUG). ' +
     'Run: node /tools/slack/read-channels.js --channels "C092BJ04HUG" ' +
@@ -163,6 +170,21 @@ async function main() {
     'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
     'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons: ' +
     'node /tools/slack/post-message.js --channel "C092BJ04HUG" --text "<approved summary>"';
+
+  const VLRE_SUMMARIZER_INSTRUCTIONS =
+    'Read the last 24 hours of messages from the VLRE Slack channels (channel IDs: C0AMGJQN05S, C0ANH9J91NC, C0960S2Q8RL). ' +
+    'Run: node /tools/slack/read-channels.js --channels "C0AMGJQN05S,C0ANH9J91NC,C0960S2Q8RL" ' +
+    'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
+    'If no messages are found, use "Sin actividad en los canales de VLRE en las últimas 24 horas. Su corresponsal descansa... por ahora. 🎭" as the summary. ' +
+    'CRITICAL — You MUST write the summary content to a file: write the full summary text to /tmp/summary.txt ' +
+    '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
+    'Post the summary with approve/reject buttons to the VLRE review channel (C0960S2Q8RL) for review. ' +
+    'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
+    'NODE_NO_WARNINGS=1 node /tools/slack/post-message.js --channel "C0960S2Q8RL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them. ' +
+    'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
+    'post the approved summary to the VLRE publish channel (C0960S2Q8RL) as a final clean published message without buttons: ' +
+    'node /tools/slack/post-message.js --channel "C0960S2Q8RL" --text "<approved summary>"';
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
@@ -209,7 +231,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
+      instructions: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -223,7 +245,7 @@ async function main() {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
       system_prompt: PAPI_CHULO_SYSTEM_PROMPT,
-      instructions: SUMMARIZER_INSTRUCTIONS,
+      instructions: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
