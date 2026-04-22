@@ -64,6 +64,8 @@ RUN mkdir -p /tools/hostfully
 COPY --from=builder /build/dist/worker-tools/hostfully/validate-env.js /tools/hostfully/validate-env.js
 COPY --from=builder /build/dist/worker-tools/hostfully/get-property.js /tools/hostfully/get-property.js
 COPY --from=builder /build/dist/worker-tools/hostfully/get-properties.js /tools/hostfully/get-properties.js
+COPY --from=builder /build/dist/worker-tools/hostfully/get-reservations.js /tools/hostfully/get-reservations.js
+COPY --from=builder /build/dist/worker-tools/hostfully/get-messages.js /tools/hostfully/get-messages.js
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
