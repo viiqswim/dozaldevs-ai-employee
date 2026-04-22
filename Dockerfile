@@ -62,6 +62,7 @@ RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
 
 RUN mkdir -p /tools/hostfully
 COPY --from=builder /build/dist/worker-tools/hostfully/validate-env.js /tools/hostfully/validate-env.js
+COPY --from=builder /build/dist/worker-tools/hostfully/get-property.js /tools/hostfully/get-property.js
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
