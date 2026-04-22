@@ -156,10 +156,7 @@ curl -X PATCH http://localhost:3000/admin/tenants/<tenant-id>/config \
   }'
 ```
 
-Config is stored as plain JSONB (non-sensitive). The `loadTenantEnv()` function flattens it into:
-
-- `DAILY_SUMMARY_CHANNELS=C0XXXXXXX,C0YYYYYYY`
-- `SUMMARY_TARGET_CHANNEL=C0ZZZZZZZ`
+Config is stored as plain JSONB (non-sensitive). The `loadTenantEnv()` function reads these values and injects them into the Fly.io machine environment automatically — no `.env` changes needed.
 
 ---
 

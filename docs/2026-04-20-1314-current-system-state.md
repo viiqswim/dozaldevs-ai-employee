@@ -335,16 +335,16 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 
 Two tenants are seeded. Each requires its own Slack OAuth connection to operate.
 
-| Field                | DozalDevs                                     | VLRE                           |
-| -------------------- | --------------------------------------------- | ------------------------------ |
-| ID                   | `...000000000002`                             | `...000000000003`              |
-| Slug                 | `dozaldevs`                                   | `vlre`                         |
-| Slack Workspace      | `T0601SMSVEU` (Dozal Inc.)                    | `T06KFDGLHS6`                  |
-| Archetype ID         | `...0012`                                     | `...0013`                      |
-| Read Channels        | `C092BJ04HUG` (`#project-lighthouse`)         | env: `DAILY_SUMMARY_CHANNELS`  |
-| Approval Channel     | `C0AUBMXKVNU` (`#victor-tests`)               | env: `SUMMARY_TARGET_CHANNEL`  |
-| Publish Channel      | `C092BJ04HUG` (`#project-lighthouse`)         | env: `SUMMARY_PUBLISH_CHANNEL` |
-| Instructions Pattern | Hardcoded channel IDs + mandatory file output | Generic (env vars)             |
+| Field                | DozalDevs                                     | VLRE                                          |
+| -------------------- | --------------------------------------------- | --------------------------------------------- |
+| ID                   | `...000000000002`                             | `...000000000003`                             |
+| Slug                 | `dozaldevs`                                   | `vlre`                                        |
+| Slack Workspace      | `T0601SMSVEU` (Dozal Inc.)                    | `T06KFDGLHS6`                                 |
+| Archetype ID         | `...0012`                                     | `...0013`                                     |
+| Read Channels        | `C092BJ04HUG` (`#project-lighthouse`)         | `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL`   |
+| Approval Channel     | `C0AUBMXKVNU` (`#victor-tests`)               | `C0960S2Q8RL`                                 |
+| Publish Channel      | `C092BJ04HUG` (`#project-lighthouse`)         | `C0960S2Q8RL`                                 |
+| Instructions Pattern | Hardcoded channel IDs + mandatory file output | Hardcoded channel IDs + mandatory file output |
 
 DozalDevs archetype instructions hardcode channel IDs and require the worker to write `/tmp/summary.txt` and `/tmp/approval-message.json` with the `NODE_NO_WARNINGS=1` prefix on the post-message call.
 
