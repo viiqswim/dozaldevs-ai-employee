@@ -1,9 +1,6 @@
 import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { describe, it, expect } from 'vitest';
 import path from 'path';
-
-const execFileAsync = promisify(execFile);
 
 const SCRIPT_PATH = path.resolve(__dirname, '../../../dist/worker-tools/hostfully/validate-env.js');
 
