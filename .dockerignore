@@ -11,3 +11,4 @@ docs
 *.md
 supabase
 .DS_Store
+!src/workers/config/agents.md
