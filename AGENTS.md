@@ -209,6 +209,18 @@ Channel config lives in two places — both must be consistent:
 
 Both archetypes share the same Papi Chulo system prompt (dramatic Spanish TV news correspondent persona), model (`minimax/minimax-m2.7`), runtime (`opencode`), and risk model (`approval_required: true`, `timeout_hours: 24`).
 
+## Hostfully Testing
+
+Use these VLRE resources for all Hostfully-related testing:
+
+| Resource     | ID / URL                                                                                                                                 |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Thread       | `https://platform.hostfully.com/app/#/inbox?threadUid=2f18249a-9523-4acd-a512-20ff06d5c3fa&leadUid=37f5f58f-d308-42bf-8ed3-f0c2d70f16fb` |
+| Thread UID   | `2f18249a-9523-4acd-a512-20ff06d5c3fa`                                                                                                   |
+| Lead UID     | `37f5f58f-d308-42bf-8ed3-f0c2d70f16fb`                                                                                                   |
+| Property     | `https://platform.hostfully.com/app/#/property/c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                     |
+| Property UID | `c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                                                                   |
+
 ## Admin API
 
 Two commonly used endpoints for triggering employees and checking status:
