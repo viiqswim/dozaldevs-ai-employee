@@ -34,9 +34,9 @@ Before this task ends — regardless of whether the task succeeded or failed —
 
 Use this exact command to report an issue:
 
-tsx /tools/platform/report-issue.ts --task-id "$TASK_ID" --tool-name "<tool-name>" --description "<what broke and what you did>"
+tsx /tools/platform/report-issue.ts --task-id "$TASK_ID" --tool-name "<tool-name>" --description "<what broke and what you did>" [--patch-diff "<unified diff of changes>"]
 
-If you applied a patch, include the diff in the description field. After filing the report, also post a brief plain-text summary to the configured Slack issues channel so a human is notified promptly.
+If you applied a patch, include the unified diff via --patch-diff. The tool automatically posts a Slack notification to the configured issues channel if ISSUES_SLACK_CHANNEL is set in the environment.
 
 If you encountered no tool issues during this session, no report is needed. But if anything broke — even something you fixed — it must be surfaced. The platform team cannot improve tools they do not know are broken.
 
