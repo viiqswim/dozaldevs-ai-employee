@@ -379,6 +379,54 @@ Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com
 - Never reference AI tools (claude, opencode, etc.) in commit messages
 - Markdown filenames: `YYYY-MM-DD-HHMM-{name}.md` (run `date "+%Y-%m-%d-%H%M"` first)
 
+## Prometheus Planning — Telegram Notifications (MANDATORY)
+
+These rules apply to any agent acting as Prometheus (plan writer) or Atlas (plan executor) in this repo.
+
+Bot token: `8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE` · Chat ID: `7918467208`
+
+```bash
+# Send a Telegram notification (plain text, no parse_mode)
+curl -s "https://api.telegram.org/bot8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE/sendMessage" \
+  -H "Content-Type: application/json" \
+  -d "{\"chat_id\":\"7918467208\",\"text\":\"<message>\"}"
+```
+
+### Rule 1 — Prometheus: notify when plan is ready
+
+Immediately after writing a plan file to `.sisyphus/plans/`, send:
+
+```
+📋 Plan ready: <plan-name>
+
+Come back to start the work.
+```
+
+Do this before presenting the plan to the user.
+
+### Rule 2 — Prometheus: final task in every plan
+
+Every plan's TODOs section must include a final task after the Final Verification Wave:
+
+```markdown
+- [ ] **N. Notify completion** — Send Telegram notification: plan `<plan-name>` complete, all tasks done, come back to review results.
+```
+
+The executing agent fulfills this task by running the curl command above with an appropriate message.
+
+### Rule 3 — Atlas fallback: always notify on plan completion
+
+When Atlas finishes executing a plan (all tasks marked `[x]`), it MUST send a Telegram notification as its absolute last action — regardless of whether the plan already contained a notification task. Read `plan_name` from `.sisyphus/boulder.json`.
+
+```bash
+PLAN=$(node -e "console.log(require('.sisyphus/boulder.json').plan_name)" 2>/dev/null || echo "plan")
+curl -s "https://api.telegram.org/bot8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE/sendMessage" \
+  -H "Content-Type: application/json" \
+  -d "{\"chat_id\":\"7918467208\",\"text\":\"✅ ${PLAN} complete\n\nAll tasks done. Come back to review results.\"}"
+```
+
+If the plan already had a notification task that fired, the user receives two notifications — this is intentional.
+
 ## Reference Documents
 
 Read these on demand when you need deeper context — do not load preemptively.
