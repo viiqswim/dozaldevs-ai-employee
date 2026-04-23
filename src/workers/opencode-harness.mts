@@ -1,5 +1,6 @@
 import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
+import { resolveAgentsMd } from './lib/agents-md-resolver.mjs';
 
 const log = createLogger('opencode-harness');
 
@@ -22,6 +23,7 @@ interface ArchetypeRow {
   model?: string | null;
   deliverable_type?: string | null;
   runtime?: string | null;
+  agents_md?: string | null;
 }
 
 interface TaskWithArchetype {
@@ -313,6 +315,27 @@ async function main(): Promise<void> {
   log.info({ taskId: TASK_ID }, 'Task status → Executing');
 
   await writeOpencodeAuth();
+
+  try {
+    let tenantConfig: Record<string, unknown> | null = null;
+    if (task.tenant_id) {
+      const tenantRows = await db.get('tenants', `id=eq.${task.tenant_id}&select=config`);
+      tenantConfig = (tenantRows?.[0] as { config?: Record<string, unknown> })?.config ?? null;
+    }
+    const agentsMdContent = resolveAgentsMd(archetype, tenantConfig);
+    if (agentsMdContent && agentsMdContent.trim().length > 0) {
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
+      log.info(
+        'Wrote dynamic AGENTS.md from %s',
+        archetype.agents_md ? 'archetype' : 'tenant default',
+      );
+    } else {
+      log.info('Using static platform AGENTS.md (no dynamic override configured)');
+    }
+  } catch (err) {
+    log.warn('Failed to resolve dynamic AGENTS.md, using static platform default: %s', err);
+  }
 
   let content = '';
   let metadata: Record<string, unknown> = {};
