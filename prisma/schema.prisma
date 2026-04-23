@@ -371,6 +371,7 @@ model Tenant {
   archetypes     Archetype[]
   knowledgeBases KnowledgeBase[]
   integrations   TenantIntegration[]
+  systemEvents   SystemEvent[]
 
   @@map("tenants")
 }
@@ -390,6 +391,21 @@ model TenantIntegration {
 
   @@unique([tenant_id, provider])
   @@map("tenant_integrations")
+}
+
+model SystemEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  task_id           String
+  tenant_id         String   @db.Uuid
+  tool_name         String
+  issue_description String   @db.Text
+  patch_applied     Boolean  @default(false)
+  patch_diff        String?  @db.Text
+  created_at        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@map("system_events")
 }
 
 model TenantSecret {
