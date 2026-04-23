@@ -69,6 +69,9 @@ COPY --from=builder /build/src/worker-tools/hostfully/get-properties.ts /tools/h
 COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools/hostfully/get-reservations.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
 
+RUN mkdir -p /tools/platform
+COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/platform/report-issue.ts
+
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
 
