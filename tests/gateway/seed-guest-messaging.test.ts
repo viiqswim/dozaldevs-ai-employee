@@ -73,6 +73,7 @@ describe('guest-messaging archetype — seed verification', () => {
     expect(result[0].system_prompt).toContain('NO_ACTION_NEEDED');
     expect(result[0].system_prompt).toContain('confidence');
     expect(result[0].system_prompt).toContain('draftResponse');
+    expect(result[0].system_prompt).toContain('conversationSummary');
     expect(result[0].system_prompt).toContain('urgency');
     expect(result[0].system_prompt).toContain('category');
     expect(result[0].system_prompt).not.toContain('to be defined in GM-02');
