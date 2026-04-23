@@ -213,6 +213,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           env: {
             ...tenantEnv,
             TASK_ID: taskId,
+            TENANT_ID: tenantId,
+            ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
             ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
