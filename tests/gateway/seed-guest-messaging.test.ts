@@ -148,17 +148,16 @@ afterAll(async () => {
   await integrationPrisma.$disconnect();
 });
 
-beforeEach(async () => {
-  await integrationPrisma.task.deleteMany({
-    where: {
-      source_system: 'manual',
-      tenant_id: VLRE_TENANT_ID,
-      external_id: { startsWith: 'manual-' },
-    },
-  });
-});
-
 describe('guest-messaging employee trigger — integration', () => {
+  beforeEach(async () => {
+    await integrationPrisma.task.deleteMany({
+      where: {
+        source_system: 'manual',
+        tenant_id: VLRE_TENANT_ID,
+        external_id: { startsWith: 'manual-' },
+      },
+    });
+  }, 30000);
   it('dry-run returns { kind: dry_run } with correct archetypeId', async () => {
     const spy = makeInngestSpy();
     const result = await dispatchEmployee({
