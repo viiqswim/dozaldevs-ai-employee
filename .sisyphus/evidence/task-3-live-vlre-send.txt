@@ -1,0 +1,14 @@
+EXIT_CODE: 0
+STDOUT: {"sent":true,"messageId":null,"timestamp":null}
+
+NOTES:
+- Tool exited 0 (success)
+- sent: true — message was accepted by Hostfully API
+- messageId: null — API returned 204 (empty body) or omitted uid field; this is documented valid behavior per send-message.ts comments: "A 204 response (empty body) is also valid success."
+- timestamp: null — same reason as messageId
+- stderr: empty (see task-3-live-vlre-stderr.txt)
+- Lead UID: 37f5f58f-d308-42bf-8ed3-f0c2d70f16fb
+- Thread UID: 2f18249a-9523-4acd-a512-20ff06d5c3fa
+- Message: "Automated verification test from ai-employee platform — 2026-04-23T..."
+- API key source: tenant_secrets table, VLRE tenant (00000000-0000-0000-0000-000000000003), key=hostfully_api_key, decrypted via AES-256-GCM
+- Run timestamp: 2026-04-23
