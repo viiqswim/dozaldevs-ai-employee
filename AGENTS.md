@@ -383,13 +383,10 @@ Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com
 
 These rules apply to any agent acting as Prometheus (plan writer) or Atlas (plan executor) in this repo.
 
-Bot token: `8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE` · Chat ID: `7918467208`
+Send notifications via the CLI wrapper (uses `src/lib/telegram-client.ts` with retry):
 
 ```bash
-# Send a Telegram notification (plain text, no parse_mode)
-curl -s "https://api.telegram.org/bot8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE/sendMessage" \
-  -H "Content-Type: application/json" \
-  -d "{\"chat_id\":\"7918467208\",\"text\":\"<message>\"}"
+tsx scripts/telegram-notify.ts "Your message here"
 ```
 
 ### Rule 1 — Prometheus: notify when plan is ready
@@ -412,7 +409,7 @@ Every plan's TODOs section must include a final task after the Final Verificatio
 - [ ] **N. Notify completion** — Send Telegram notification: plan `<plan-name>` complete, all tasks done, come back to review results.
 ```
 
-The executing agent fulfills this task by running the curl command above with an appropriate message.
+The executing agent fulfills this task by running the script above with an appropriate message.
 
 ### Rule 3 — Atlas fallback: always notify on plan completion
 
@@ -420,9 +417,7 @@ When Atlas finishes executing a plan (all tasks marked `[x]`), it MUST send a Te
 
 ```bash
 PLAN=$(node -e "console.log(require('.sisyphus/boulder.json').plan_name)" 2>/dev/null || echo "plan")
-curl -s "https://api.telegram.org/bot8431215961:AAHGk2OkQOccpMcxhrknLiJRhr9DdefnInE/sendMessage" \
-  -H "Content-Type: application/json" \
-  -d "{\"chat_id\":\"7918467208\",\"text\":\"✅ ${PLAN} complete\n\nAll tasks done. Come back to review results.\"}"
+tsx scripts/telegram-notify.ts "✅ ${PLAN} complete — All tasks done. Come back to review results."
 ```
 
 If the plan already had a notification task that fired, the user receives two notifications — this is intentional.
