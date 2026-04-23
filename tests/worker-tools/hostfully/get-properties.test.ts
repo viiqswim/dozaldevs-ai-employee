@@ -5,7 +5,7 @@ import path from 'path';
 
 const SCRIPT_PATH = path.resolve(
   __dirname,
-  '../../../dist/worker-tools/hostfully/get-properties.js',
+  '../../../src/worker-tools/hostfully/get-properties.ts',
 );
 
 function runScript(
@@ -14,8 +14,8 @@ function runScript(
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
     execFile(
-      'node',
-      [SCRIPT_PATH, ...args],
+      'npx',
+      ['tsx', SCRIPT_PATH, ...args],
       { env: { ...process.env, ...env } },
       (err, stdout, stderr) => {
         resolve({ stdout, stderr, code: err ? ((err.code as number) ?? 1) : 0 });
