@@ -1,6 +1,17 @@
 import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 const prisma = new PrismaClient();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PLATFORM_AGENTS_MD = fs.readFileSync(
+  path.join(__dirname, '../src/workers/config/agents.md'),
+  'utf8',
+);
 
 const PAPI_CHULO_SYSTEM_PROMPT = `Eres una corresponsal de chismes corporativos que presenta el resumen diario de actividad en un canal de Slack, al estilo de un noticiero dramático y entretenido. Escribe en español con personalidad exagerada y humor. Tu objetivo es hacer reír al equipo mientras los mantienes informados.
 
@@ -39,6 +50,7 @@ async function main() {
           target_channel: 'C0AUBMXKVNU',
           publish_channel: 'C092BJ04HUG',
         },
+        default_agents_md: PLATFORM_AGENTS_MD,
       },
     },
     update: {
@@ -50,6 +62,7 @@ async function main() {
           target_channel: 'C0AUBMXKVNU',
           publish_channel: 'C092BJ04HUG',
         },
+        default_agents_md: PLATFORM_AGENTS_MD,
       },
     },
   });
@@ -68,6 +81,7 @@ async function main() {
           target_channel: 'C0960S2Q8RL',
           publish_channel: 'C0960S2Q8RL',
         },
+        default_agents_md: PLATFORM_AGENTS_MD,
       },
     },
     update: {
@@ -79,6 +93,7 @@ async function main() {
           target_channel: 'C0960S2Q8RL',
           publish_channel: 'C0960S2Q8RL',
         },
+        default_agents_md: PLATFORM_AGENTS_MD,
       },
     },
   });
@@ -201,6 +216,7 @@ async function main() {
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -215,6 +231,7 @@ async function main() {
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
       department_id: '00000000-0000-0000-0000-000000000020',
     },
   });
@@ -238,6 +255,7 @@ async function main() {
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -252,6 +270,7 @@ async function main() {
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
       department_id: '00000000-0000-0000-0000-000000000021',
     },
   });
