@@ -55,6 +55,7 @@ COPY --from=builder /build/package.json ./
 COPY src/workers/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 COPY src/workers/config/opencode.json /app/opencode.json
+COPY src/workers/config/agents.md /app/AGENTS.md
 
 RUN mkdir -p /tools/slack
 COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/read-channels.ts
