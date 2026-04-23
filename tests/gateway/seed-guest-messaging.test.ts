@@ -69,6 +69,13 @@ describe('guest-messaging archetype — seed verification', () => {
     `;
     expect(result[0].system_prompt).not.toBeNull();
     expect((result[0].system_prompt as string).length).toBeGreaterThan(0);
+    expect(result[0].system_prompt).toContain('NEEDS_APPROVAL');
+    expect(result[0].system_prompt).toContain('NO_ACTION_NEEDED');
+    expect(result[0].system_prompt).toContain('confidence');
+    expect(result[0].system_prompt).toContain('draftResponse');
+    expect(result[0].system_prompt).toContain('urgency');
+    expect(result[0].system_prompt).toContain('category');
+    expect(result[0].system_prompt).not.toContain('to be defined in GM-02');
   });
 
   it('instructions is a non-empty string', async () => {
@@ -78,6 +85,12 @@ describe('guest-messaging archetype — seed verification', () => {
     `;
     expect(result[0].instructions).not.toBeNull();
     expect((result[0].instructions as string).length).toBeGreaterThan(0);
+    expect(result[0].instructions).toContain('get-messages.ts');
+    expect(result[0].instructions).toContain('get-property.ts');
+    expect(result[0].instructions).toContain('/tmp/summary.txt');
+    expect(result[0].instructions).toContain('/tmp/approval-message.json');
+    expect(result[0].instructions).toContain('DELIVERY_MODE');
+    expect(result[0].instructions).not.toContain('to be defined in GM-02');
   });
 
   it('agents_md is a non-empty string', async () => {
