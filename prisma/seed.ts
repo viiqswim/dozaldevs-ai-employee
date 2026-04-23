@@ -34,6 +34,9 @@ REGLAS DE FORMATO (obligatorias — no las ignores):
 - Conserva las menciones de Slack exactamente como vienen en el input (ej. <@U06KUE9EC01>). No las conviertas a IDs sueltas ni las elimines.
 - Máximo 600 palabras. Todo en español salvo términos técnicos sin traducción natural.`;
 
+const GUEST_MESSAGING_SYSTEM_PROMPT =
+  'Guest Messaging Employee — system prompt to be defined in GM-02.';
+
 async function main() {
   console.log('🌱 Seeding database...');
 
@@ -201,6 +204,12 @@ async function main() {
     'post the approved summary to the VLRE publish channel (C0960S2Q8RL) as a final clean published message without buttons: ' +
     'tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary>"';
 
+  const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
+    'Guest Messaging Employee — instructions to be defined in GM-02. ' +
+    'Available tools: /tools/hostfully/get-property.ts, /tools/hostfully/get-reservations.ts, ' +
+    '/tools/hostfully/get-messages.ts, /tools/hostfully/send-message.ts, ' +
+    '/tools/slack/post-message.ts, /tools/slack/read-channels.ts, /tools/platform/report-issue.ts';
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0000-000000000012' },
@@ -279,9 +288,69 @@ async function main() {
     `✅ Archetype upserted: ${vlreSummarizerArchetype.id} (role: ${vlreSummarizerArchetype.role_name}, model: ${vlreSummarizerArchetype.model})`,
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vlreGuestMessaging = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0000-000000000015' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000015',
+      role_name: 'guest-messaging',
+      runtime: 'opencode',
+      system_prompt: GUEST_MESSAGING_SYSTEM_PROMPT,
+      instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message', // placeholder — revisit in GM-02
+      tool_registry: {
+        tools: [
+          '/tools/hostfully/get-property.ts',
+          '/tools/hostfully/get-reservations.ts',
+          '/tools/hostfully/get-messages.ts',
+          '/tools/hostfully/send-message.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/slack/read-channels.ts',
+          '/tools/platform/report-issue.ts',
+        ],
+      },
+      trigger_sources: { type: 'webhook' }, // event-driven, not cron
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
+      agents_md: PLATFORM_AGENTS_MD,
+      tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
+      department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
+    },
+    update: {
+      role_name: 'guest-messaging',
+      runtime: 'opencode',
+      system_prompt: GUEST_MESSAGING_SYSTEM_PROMPT,
+      instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: [
+          '/tools/hostfully/get-property.ts',
+          '/tools/hostfully/get-reservations.ts',
+          '/tools/hostfully/get-messages.ts',
+          '/tools/hostfully/send-message.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/slack/read-channels.ts',
+          '/tools/platform/report-issue.ts',
+        ],
+      },
+      trigger_sources: { type: 'webhook' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      concurrency_limit: 5,
+      agents_md: PLATFORM_AGENTS_MD,
+      department_id: '00000000-0000-0000-0000-000000000021',
+      // NO tenant_id — immutable
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${vlreGuestMessaging.id} (role: ${vlreGuestMessaging.role_name}, model: ${vlreGuestMessaging.model})`,
+  );
+
   console.log('✅ Seeding complete.');
   console.log(
-    `Tenants seeded: DozalDevs, VLRE — both have daily-summarizer archetypes. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
+    `Tenants seeded: DozalDevs, VLRE — daily-summarizer archetypes for both, guest-messaging archetype for VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
   );
 }
 
