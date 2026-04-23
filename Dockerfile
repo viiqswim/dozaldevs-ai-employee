@@ -46,6 +46,7 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v2.45.0/gh_2.45.0_l
 
 # opencode-ai is the correct npm package name (not 'opencode' or '@opencode/cli')
 RUN npm install -g opencode-ai@1.3.3
+RUN npm install -g tsx
 
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
@@ -56,16 +57,16 @@ RUN chmod +x ./entrypoint.sh
 COPY src/workers/config/opencode.json /app/opencode.json
 
 RUN mkdir -p /tools/slack
-COPY --from=builder /build/dist/worker-tools/slack/read-channels.js /tools/slack/read-channels.js
-COPY --from=builder /build/dist/worker-tools/slack/post-message.js /tools/slack/post-message.js
+COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/read-channels.ts
+COPY --from=builder /build/src/worker-tools/slack/post-message.ts /tools/slack/post-message.ts
 RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
 
 RUN mkdir -p /tools/hostfully
-COPY --from=builder /build/dist/worker-tools/hostfully/validate-env.js /tools/hostfully/validate-env.js
-COPY --from=builder /build/dist/worker-tools/hostfully/get-property.js /tools/hostfully/get-property.js
-COPY --from=builder /build/dist/worker-tools/hostfully/get-properties.js /tools/hostfully/get-properties.js
-COPY --from=builder /build/dist/worker-tools/hostfully/get-reservations.js /tools/hostfully/get-reservations.js
-COPY --from=builder /build/dist/worker-tools/hostfully/get-messages.js /tools/hostfully/get-messages.js
+COPY --from=builder /build/src/worker-tools/hostfully/validate-env.ts /tools/hostfully/validate-env.ts
+COPY --from=builder /build/src/worker-tools/hostfully/get-property.ts /tools/hostfully/get-property.ts
+COPY --from=builder /build/src/worker-tools/hostfully/get-properties.ts /tools/hostfully/get-properties.ts
+COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools/hostfully/get-reservations.ts
+COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
