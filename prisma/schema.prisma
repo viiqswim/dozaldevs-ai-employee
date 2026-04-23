@@ -211,6 +211,7 @@ model Archetype {
   updated_at        DateTime @updatedAt
   system_prompt     String?  @db.Text
   instructions      String?  @db.Text
+  agents_md         String?  @db.Text
   model             String?
   deliverable_type  String?
 
