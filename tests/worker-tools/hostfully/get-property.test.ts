@@ -3,7 +3,7 @@ import * as http from 'http';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'path';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../dist/worker-tools/hostfully/get-property.js');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/hostfully/get-property.ts');
 
 function runScript(
   args: string[],
@@ -11,8 +11,8 @@ function runScript(
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
     execFile(
-      'node',
-      [SCRIPT_PATH, ...args],
+      'npx',
+      ['tsx', SCRIPT_PATH, ...args],
       { env: { ...process.env, ...env } },
       (err, stdout, stderr) => {
         resolve({ stdout, stderr, code: err ? ((err.code as number) ?? 1) : 0 });

@@ -2,19 +2,24 @@ import { execFile } from 'child_process';
 import { describe, it, expect } from 'vitest';
 import path from 'path';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../dist/worker-tools/hostfully/validate-env.js');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/hostfully/validate-env.ts');
 
 function runScript(
   env: Record<string, string>,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
-    execFile('node', [SCRIPT_PATH], { env: { ...process.env, ...env } }, (err, stdout, stderr) => {
-      resolve({
-        stdout,
-        stderr,
-        code: err ? ((err.code as number) ?? 1) : 0,
-      });
-    });
+    execFile(
+      'npx',
+      ['tsx', SCRIPT_PATH],
+      { env: { ...process.env, ...env } },
+      (err, stdout, stderr) => {
+        resolve({
+          stdout,
+          stderr,
+          code: err ? ((err.code as number) ?? 1) : 0,
+        });
+      },
+    );
   });
 }
 
