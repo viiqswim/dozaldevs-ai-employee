@@ -245,6 +245,24 @@ model KnowledgeBase {
   @@map("knowledge_bases")
 }
 
+model KnowledgeBaseEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  entity_type String?
+  entity_id   String?
+  scope       String
+  content     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id, entity_type, entity_id])
+  @@unique([tenant_id, entity_type, entity_id, scope])
+  @@map("knowledge_base_entries")
+}
+
 model RiskModel {
   id                     String   @id @default(uuid()) @db.Uuid
   archetype_id           String?  @db.Uuid
@@ -370,8 +388,9 @@ model Tenant {
   feedback       Feedback[]
   departments    Department[]
   archetypes     Archetype[]
-  knowledgeBases KnowledgeBase[]
-  integrations   TenantIntegration[]
+  knowledgeBases        KnowledgeBase[]
+  knowledgeBaseEntries  KnowledgeBaseEntry[]
+  integrations          TenantIntegration[]
   systemEvents   SystemEvent[]
 
   @@map("tenants")
