@@ -24,6 +24,7 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "test:db:setup": "PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='ai_employee_test'\" | grep -q 1 && echo 'ai_employee_test already exists' || PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -c 'CREATE DATABASE ai_employee_test'",
     "db:studio": "prisma studio",
     "setup:two-tenants": "tsx scripts/setup-two-tenants.ts",
     "verify:multi-tenancy": "tsx scripts/verify-multi-tenancy.ts",

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from '@prisma/client';
 import { getPrisma, disconnectPrisma } from '../setup.js';
 import { dispatchEmployee } from '../../src/gateway/services/employee-dispatcher.js';
 import type { InngestLike } from '../../src/gateway/server.js';
@@ -142,15 +141,13 @@ describe('guest-messaging archetype — seed verification', () => {
   });
 });
 
-let integrationPrisma: PrismaClient;
-
 function makeInngestSpy(): InngestLike {
   return { send: vi.fn().mockResolvedValue({ ids: ['mock-event-id'] }) };
 }
 
 beforeAll(async () => {
-  integrationPrisma = new PrismaClient();
-  const archetype = await integrationPrisma.archetype.findFirst({
+  const prisma = getPrisma();
+  const archetype = await prisma.archetype.findFirst({
     where: { tenant_id: VLRE_TENANT_ID, role_name: 'guest-messaging' },
   });
   if (!archetype) {
@@ -158,13 +155,9 @@ beforeAll(async () => {
   }
 });
 
-afterAll(async () => {
-  await integrationPrisma.$disconnect();
-});
-
 describe('guest-messaging employee trigger — integration', () => {
   beforeEach(async () => {
-    await integrationPrisma.task.deleteMany({
+    await getPrisma().task.deleteMany({
       where: {
         source_system: 'manual',
         tenant_id: VLRE_TENANT_ID,
@@ -178,7 +171,7 @@ describe('guest-messaging employee trigger — integration', () => {
       tenantId: VLRE_TENANT_ID,
       slug: 'guest-messaging',
       dryRun: true,
-      prisma: integrationPrisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
@@ -190,7 +183,7 @@ describe('guest-messaging employee trigger — integration', () => {
 
   it('dry-run creates no DB row', async () => {
     const spy = makeInngestSpy();
-    const countBefore = await integrationPrisma.task.count({
+    const countBefore = await getPrisma().task.count({
       where: { source_system: 'manual', tenant_id: VLRE_TENANT_ID },
     });
 
@@ -198,11 +191,11 @@ describe('guest-messaging employee trigger — integration', () => {
       tenantId: VLRE_TENANT_ID,
       slug: 'guest-messaging',
       dryRun: true,
-      prisma: integrationPrisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
-    const countAfter = await integrationPrisma.task.count({
+    const countAfter = await getPrisma().task.count({
       where: { source_system: 'manual', tenant_id: VLRE_TENANT_ID },
     });
     expect(countAfter).toBe(countBefore);
@@ -214,14 +207,14 @@ describe('guest-messaging employee trigger — integration', () => {
       tenantId: VLRE_TENANT_ID,
       slug: 'guest-messaging',
       dryRun: false,
-      prisma: integrationPrisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
     expect(result.kind).toBe('dispatched');
     if (result.kind !== 'dispatched') return;
 
-    const task = await integrationPrisma.task.findUnique({ where: { id: result.taskId } });
+    const task = await getPrisma().task.findUnique({ where: { id: result.taskId } });
     expect(task).not.toBeNull();
     expect(task!.source_system).toBe('manual');
     expect(task!.status).toBe('Ready');
@@ -235,7 +228,7 @@ describe('guest-messaging employee trigger — integration', () => {
       tenantId: VLRE_TENANT_ID,
       slug: 'guest-messaging',
       dryRun: false,
-      prisma: integrationPrisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
