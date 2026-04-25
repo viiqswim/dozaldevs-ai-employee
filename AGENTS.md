@@ -247,6 +247,7 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 | First-time setup | `pnpm setup`                                                                                                |
 | Start services   | `pnpm dev:start`                                                                                            |
 | Run tests        | `pnpm test -- --run`                                                                                        |
+| Setup test DB    | `pnpm test:db:setup`                                                                                        |
 | Lint             | `pnpm lint`                                                                                                 |
 | Build            | `pnpm build`                                                                                                |
 | Trigger E2E task | `pnpm trigger-task`                                                                                         |
@@ -269,6 +270,14 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Connection**: `postgresql://postgres:postgres@localhost:54322/ai_employee`
 - **ORM**: Prisma — `prisma/schema.prisma`
 - **REST API**: Supabase PostgREST on `http://localhost:54321`
+
+### Test Database
+
+- **Name**: `ai_employee_test` (separate from dev `ai_employee`)
+- **Setup**: `pnpm test:db:setup` (one-time, idempotent — creates DB, runs migrations + seed)
+- **How it works**: `vitest.config.ts` overrides `DATABASE_URL` → `globalSetup` runs `prisma migrate deploy` + seed → all tests use test DB automatically
+- **Safety guard**: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`
+- **After DB reset**: Run `pnpm test:db:setup` to recreate the test database
 
 ## Infrastructure
 
