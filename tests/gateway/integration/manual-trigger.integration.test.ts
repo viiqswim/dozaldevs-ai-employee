@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from '@prisma/client';
+import { getPrisma, disconnectPrisma } from '../../setup.js';
 import { dispatchEmployee } from '../../../src/gateway/services/employee-dispatcher.js';
 import type { InngestLike } from '../../../src/gateway/server.js';
 
 const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
-let prisma: PrismaClient;
-
 beforeAll(async () => {
-  prisma = new PrismaClient();
+  const prisma = getPrisma();
   const archetype = await prisma.archetype.findFirst({
     where: { tenant_id: DOZALDEVS_TENANT_ID, role_name: 'daily-summarizer' },
   });
@@ -20,11 +18,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  await disconnectPrisma();
 });
 
 beforeEach(async () => {
-  await prisma.task.deleteMany({
+  await getPrisma().task.deleteMany({
     where: { source_system: 'manual', external_id: { startsWith: 'manual-' } },
   });
 });
@@ -40,14 +38,14 @@ describe('manual employee trigger — integration', () => {
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
     expect(result.kind).toBe('dispatched');
     if (result.kind !== 'dispatched') return;
 
-    const task = await prisma.task.findUnique({ where: { id: result.taskId } });
+    const task = await getPrisma().task.findUnique({ where: { id: result.taskId } });
     expect(task).not.toBeNull();
     expect(task!.source_system).toBe('manual');
     expect(task!.status).toBe('Ready');
@@ -63,18 +61,18 @@ describe('manual employee trigger — integration', () => {
 
   it('dry-run: creates no DB row and fires no Inngest event', async () => {
     const spy = makeInngestSpy();
-    const countBefore = await prisma.task.count({ where: { source_system: 'manual' } });
+    const countBefore = await getPrisma().task.count({ where: { source_system: 'manual' } });
 
     const result = await dispatchEmployee({
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: true,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
 
     expect(result.kind).toBe('dry_run');
-    const countAfter = await prisma.task.count({ where: { source_system: 'manual' } });
+    const countAfter = await getPrisma().task.count({ where: { source_system: 'manual' } });
     expect(countAfter).toBe(countBefore);
     expect(spy.send).not.toHaveBeenCalled();
   });
@@ -87,14 +85,14 @@ describe('manual employee trigger — integration', () => {
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy1,
     });
     const r2 = await dispatchEmployee({
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy2,
     });
 
@@ -104,8 +102,8 @@ describe('manual employee trigger — integration', () => {
 
     expect(r1.taskId).not.toBe(r2.taskId);
 
-    const t1 = await prisma.task.findUnique({ where: { id: r1.taskId } });
-    const t2 = await prisma.task.findUnique({ where: { id: r2.taskId } });
+    const t1 = await getPrisma().task.findUnique({ where: { id: r1.taskId } });
+    const t2 = await getPrisma().task.findUnique({ where: { id: r2.taskId } });
     expect(t1!.external_id).not.toBe(t2!.external_id);
     expect(t1!.external_id).toMatch(/^manual-[0-9a-f-]+$/);
     expect(t2!.external_id).toMatch(/^manual-[0-9a-f-]+$/);
@@ -117,13 +115,13 @@ describe('manual employee trigger — integration', () => {
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
     expect(result.kind).toBe('dispatched');
     if (result.kind !== 'dispatched') return;
 
-    const task = await prisma.task.findFirst({
+    const task = await getPrisma().task.findFirst({
       where: { id: result.taskId, tenant_id: DOZALDEVS_TENANT_ID },
       select: {
         id: true,
@@ -145,14 +143,14 @@ describe('manual employee trigger — integration', () => {
       tenantId: DOZALDEVS_TENANT_ID,
       slug: 'daily-summarizer',
       dryRun: false,
-      prisma,
+      prisma: getPrisma(),
       inngest: spy,
     });
     expect(result.kind).toBe('dispatched');
     if (result.kind !== 'dispatched') return;
 
     const OTHER_TENANT = '99999999-9999-9999-9999-999999999999';
-    const task = await prisma.task.findFirst({
+    const task = await getPrisma().task.findFirst({
       where: { id: result.taskId, tenant_id: OTHER_TENANT },
     });
     expect(task).toBeNull();
