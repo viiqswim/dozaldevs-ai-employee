@@ -51,7 +51,7 @@ One employee is active; one is deprecated and on hold:
 
 **What's built**: Event Gateway (Express), Inngest lifecycle functions, OpenCode-based worker (Docker/Fly.io), Supabase state management, Admin API (tenant-scoped `/admin/tenants` projects, trigger + status endpoints), Slack integration (Socket Mode + interactive buttons).
 
-**What's deferred**: Triage agent, review agent, knowledge base (pgvector).
+**What's deferred**: Triage agent, review agent, semantic search (pgvector).
 
 ## OpenCode Worker (All Employees)
 
@@ -74,10 +74,12 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 **Adding a new employee**:
 
 1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`
-2. If shell tools needed, add scripts to `src/worker-tools/{service}/` (compiled into Docker image at `/tools/{service}/`)
+2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`)
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
 **Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
+
+> **⚠️ Planned change (PLAT-05)**: Delivery will always use a Fly.io machine with a delivery-phase instruction set per archetype. The inline `slackClient.postMessage()` path is being removed. Do not add new inline delivery logic to the lifecycle. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-05.
 
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 
@@ -90,6 +92,8 @@ Thread replies and @mentions on summary messages are captured and acknowledged:
 - **Thread reply** → Slack Bolt fires `employee/feedback.received` → stored in `feedback` table → `employee/feedback.stored` emitted → `feedback-responder` generates a Haiku acknowledgment and posts it in-thread.
 - **@mention** → Slack Bolt fires `employee/mention.received` → `mention-handler` classifies intent (feedback / teaching / question / task) → stores if relevant → responds in thread.
 - **Weekly cron** (`0 0 * * 0`, Sunday midnight UTC) → `feedback-summarizer` reads recent feedback, generates a digest with Haiku, writes to `knowledge_bases`.
+
+> **⚠️ Planned change (PLAT-10)**: The two separate handlers (`feedback-handler` + `mention-handler`) will be unified into a single `employee/interaction-handler` Inngest function. All interactions (thread replies + @mentions) will go through the same classification pipeline: classify intent → route → respond. Do not add new logic to either handler — new interaction features should target the unified handler. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-10.
 
 ## Tenants
 
@@ -158,7 +162,7 @@ Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenan
 | DozalDevs | `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000002` |
 | VLRE      | `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000003` |
 
-VLRE alternative: run `pnpm tsx scripts/setup-two-tenants.ts` to migrate the legacy `SLACK_BOT_TOKEN` env var into VLRE's tenant secret without OAuth.
+VLRE alternative: run the Slack OAuth flow for VLRE (see install URL above).
 
 ## Per-Tenant Slack Token Architecture
 
@@ -183,6 +187,8 @@ VLRE alternative: run `pnpm tsx scripts/setup-two-tenants.ts` to migrate the leg
 Fly.io worker logs: `fly logs -a ai-employee-workers` (NOT `ai-employee-summarizer` — that app does not exist).
 
 ## Summarizer — Per-Tenant Channel Configuration
+
+> **⚠️ Planned change (PLAT-07/08)**: Hardcoded channel IDs in archetype instructions will be replaced by a `notification_channel` config (required per-tenant default + optional per-archetype override). All channel resolution will go through config, not natural language instructions. Do not add more hardcoded channel IDs to archetype instructions. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-07 and PLAT-08.
 
 Channel config lives in two places — both must be consistent:
 
@@ -242,17 +248,16 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 ## Commands
 
-| Action           | Command                                                                                                     |
-| ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| First-time setup | `pnpm setup`                                                                                                |
-| Start services   | `pnpm dev:start`                                                                                            |
-| Run tests        | `pnpm test -- --run`                                                                                        |
-| Setup test DB    | `pnpm test:db:setup`                                                                                        |
-| Lint             | `pnpm lint`                                                                                                 |
-| Build            | `pnpm build`                                                                                                |
-| Trigger E2E task | `pnpm trigger-task`                                                                                         |
-| Verify E2E       | `pnpm verify:e2e --task-id <uuid>`                                                                          |
-| Register project | `curl -X POST http://localhost:7700/admin/tenants/:tenantId/projects -H "X-Admin-Key: $ADMIN_API_KEY" -d …` |
+| Action           | Command                            |
+| ---------------- | ---------------------------------- |
+| First-time setup | `pnpm setup`                       |
+| Start services   | `pnpm dev:start`                   |
+| Run tests        | `pnpm test -- --run`               |
+| Setup test DB    | `pnpm test:db:setup`               |
+| Lint             | `pnpm lint`                        |
+| Build            | `pnpm build`                       |
+| Trigger E2E task | `pnpm trigger-task`                |
+| Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -306,7 +311,7 @@ src/
 │   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion
 ├── workers/      # Docker container code — runs inside the worker machine
-├── worker-tools/ # Shell scripts compiled into Docker image (Slack tools, etc.)
+├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared (12 files): fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version
 prisma/           # Schema (19 models), 18 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
@@ -455,4 +460,6 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
 | `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
 | `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
-| `docs/2026-04-20-1314-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
+| `docs/2026-04-24-1452-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
+| `docs/2026-04-21-2202-phase1-story-map.md`              | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                      |
+| `docs/2026-04-21-1813-product-roadmap.md`               | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                       |
