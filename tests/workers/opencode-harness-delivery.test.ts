@@ -147,7 +147,7 @@ describe('opencode-harness — delivery phase', () => {
   it('happy path: patches task to Done and logs Delivering → Done transition', async () => {
     mockFetch = buildMockFetch({});
     vi.stubGlobal('fetch', mockFetch);
-    mockSpawn.mockReturnValue(makeChildProcess(0));
+    mockSpawn.mockImplementation(() => makeChildProcess(0));
 
     await loadHarness();
 
