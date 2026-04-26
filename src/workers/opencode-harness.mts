@@ -24,6 +24,7 @@ interface ArchetypeRow {
   deliverable_type?: string | null;
   runtime?: string | null;
   agents_md?: string | null;
+  delivery_instructions?: string | null;
 }
 
 interface TaskWithArchetype {
@@ -237,6 +238,17 @@ async function runOpencodeSession(
   };
 }
 
+async function runDeliveryPhase(
+  archetype: ArchetypeRow,
+  taskId: string,
+  logger: typeof log,
+): Promise<void> {
+  void archetype;
+  void taskId;
+  void logger;
+  throw new Error('runDeliveryPhase not yet implemented');
+}
+
 async function main(): Promise<void> {
   // Set bash tool timeout (same as entrypoint.sh) — prevents tool calls from timing out
   process.env.OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS ??= '1200000';
@@ -258,6 +270,12 @@ async function main(): Promise<void> {
   if (!archetype) {
     log.error({ taskId: TASK_ID }, '[opencode-harness] Task has no archetype — aborting');
     process.exit(1);
+  }
+
+  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === 'delivery';
+  if (isDeliveryPhase) {
+    await runDeliveryPhase(archetype, TASK_ID, log);
+    return;
   }
 
   const feedbackContext = process.env.FEEDBACK_CONTEXT ?? '';
