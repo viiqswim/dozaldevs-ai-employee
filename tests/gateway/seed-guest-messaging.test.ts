@@ -80,8 +80,10 @@ describe('guest-messaging archetype — seed verification', () => {
 
   it('instructions is a non-empty string', async () => {
     const prisma = getPrisma();
-    const result = await prisma.$queryRaw<Array<{ instructions: string | null }>>`
-      SELECT instructions FROM archetypes WHERE id = ${GUEST_MESSAGING_ARCHETYPE_ID}::uuid
+    const result = await prisma.$queryRaw<
+      Array<{ instructions: string | null; delivery_instructions: string | null }>
+    >`
+      SELECT instructions, delivery_instructions FROM archetypes WHERE id = ${GUEST_MESSAGING_ARCHETYPE_ID}::uuid
     `;
     expect(result[0].instructions).not.toBeNull();
     expect((result[0].instructions as string).length).toBeGreaterThan(0);
@@ -89,8 +91,10 @@ describe('guest-messaging archetype — seed verification', () => {
     expect(result[0].instructions).toContain('get-property.ts');
     expect(result[0].instructions).toContain('/tmp/summary.txt');
     expect(result[0].instructions).toContain('/tmp/approval-message.json');
-    expect(result[0].instructions).toContain('DELIVERY_MODE');
+    expect(result[0].instructions).not.toContain('DELIVERY_MODE');
     expect(result[0].instructions).not.toContain('to be defined in GM-02');
+    expect(result[0].delivery_instructions).toBeTruthy();
+    expect(result[0].delivery_instructions).toContain('send-message.ts');
   });
 
   it('agents_md is a non-empty string', async () => {
