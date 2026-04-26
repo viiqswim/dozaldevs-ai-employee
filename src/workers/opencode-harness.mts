@@ -243,10 +243,54 @@ async function runDeliveryPhase(
   taskId: string,
   logger: typeof log,
 ): Promise<void> {
-  void archetype;
-  void taskId;
-  void logger;
-  throw new Error('runDeliveryPhase not yet implemented');
+  if (!archetype.delivery_instructions) {
+    logger.info({ taskId }, 'Archetype missing delivery_instructions — marking Failed');
+    await markFailed('Archetype missing delivery_instructions', null);
+    return;
+  }
+
+  const rows = await db.get(
+    'deliverables',
+    `external_ref=eq.${taskId}&select=*&order=created_at.desc&limit=1`,
+  );
+  const deliverable = rows?.[0] as Record<string, unknown> | undefined;
+
+  if (!deliverable) {
+    logger.info({ taskId }, 'No deliverable found for task — marking Failed');
+    await markFailed('No deliverable found for task', null);
+    return;
+  }
+
+  const approvedContent = (deliverable.content as string) ?? '';
+  const instructions = `APPROVED CONTENT TO DELIVER:\n${approvedContent}\n\n${archetype.delivery_instructions}`;
+
+  logger.info({ taskId }, 'Starting delivery-phase OpenCode session');
+
+  try {
+    await runOpencodeSession(
+      archetype.system_prompt ?? '',
+      instructions,
+      archetype.model ?? 'minimax/minimax-m2.7',
+    );
+  } catch (err) {
+    logger.error({ taskId, err }, '[opencode-harness] Delivery-phase OpenCode session failed');
+    await markFailed(err instanceof Error ? err.message : String(err), null);
+    throw err;
+  }
+
+  await db.patch('tasks', `id=eq.${taskId}`, {
+    status: 'Done',
+    updated_at: new Date().toISOString(),
+  });
+  logger.info({ taskId }, 'Task status → Done');
+
+  await db.post('status_transitions', {
+    task_id: taskId,
+    from_status: 'Delivering',
+    to_status: 'Done',
+    created_at: new Date().toISOString(),
+  });
+  logger.info({ taskId }, 'Status transition logged: Delivering → Done');
 }
 
 async function main(): Promise<void> {
