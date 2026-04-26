@@ -388,10 +388,7 @@ async function main() {
     'Post the summary with approve/reject buttons to the victor-tests channel (C0AUBMXKVNU) for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0AUBMXKVNU" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
-    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them. ' +
-    'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
-    'post the approved summary to project-lighthouse (C092BJ04HUG) as a final clean published message without buttons: ' +
-    'tsx /tools/slack/post-message.ts --channel "C092BJ04HUG" --text "<approved summary>"';
+    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_SUMMARIZER_INSTRUCTIONS =
     'Read the last 24 hours of messages from the VLRE Slack channels (channel IDs: C0AMGJQN05S, C0ANH9J91NC, C0960S2Q8RL). ' +
@@ -403,10 +400,7 @@ async function main() {
     'Post the summary with approve/reject buttons to the VLRE review channel (C0960S2Q8RL) for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
-    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them. ' +
-    'When the DELIVERY_MODE environment variable equals "true", the summary was already approved — ' +
-    'post the approved summary to the VLRE publish channel (C0960S2Q8RL) as a final clean published message without buttons: ' +
-    'tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary>"';
+    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
     'Run the following steps to process guest messages:\n\n' +
@@ -429,11 +423,7 @@ async function main() {
     'Post the draft response for PM approval with approve/reject buttons:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<guest name> at <property name>: <guest message>\\n\\nDraft response: <draftResponse from JSON>\\n\\nCategory: <category> | Confidence: <confidence> | Urgency: <urgency>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
     'CRITICAL: Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish.\n\n' +
-    'STEP 6: Delivery mode.\n' +
-    'When the DELIVERY_MODE environment variable equals "true", the response was already approved by the property manager. ' +
-    'Read the approved response from the task context or /tmp/summary.txt. ' +
-    'Send it to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<lead-uid-from-original-message>" --message "<approved-response-text>"\n\n' +
-    'STEP 7: Error handling.\n' +
+    'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
     'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
@@ -1122,6 +1112,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved summary from the deliverable content. Post it to the project-lighthouse channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C092BJ04HUG" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -1137,6 +1129,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved summary from the deliverable content. Post it to the project-lighthouse channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C092BJ04HUG" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
   });
@@ -1161,6 +1155,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved summary from the deliverable content. Post it to the VLRE publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -1176,6 +1172,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved summary from the deliverable content. Post it to the VLRE publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
   });
@@ -1211,6 +1209,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<lead_uid from the original message thread>" --message "<draftResponse from the JSON>". Confirm delivery was successful.',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
     },
@@ -1237,6 +1237,8 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       risk_model: { approval_required: true, timeout_hours: 24 },
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions:
+        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<lead_uid from the original message thread>" --message "<draftResponse from the JSON>". Confirm delivery was successful.',
       department_id: '00000000-0000-0000-0000-000000000021',
       // NO tenant_id — immutable
     },
