@@ -335,9 +335,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           (metadata.target_channel as string) ??
           tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
           '';
-        const summaryBlocks = metadata.blocks as unknown[] | undefined;
-        const summaryContent = (deliverable?.content as string) ?? '';
-
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
             try {
@@ -372,15 +369,47 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           await logStatusTransition(supabaseUrl, headers, taskId, 'Delivering', 'Approved');
           log.info({ taskId }, 'State: Delivering');
 
-          if (process.env.DELIVERY_MACHINE_ENABLED === 'true') {
-            const deliveryVmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
-            const deliveryImage =
-              process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-            const deliveryFlyApp =
-              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-            const effectiveSupabaseUrlForDelivery =
-              process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+          const archetypeRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
+            { headers },
+          );
+          const archetypeRows = (await archetypeRes.json()) as Array<{
+            archetypes?: { delivery_instructions?: string | null };
+          }>;
+          const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
+          if (!deliveryInstructions) {
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Failed',
+              failure_reason: 'Archetype missing delivery_instructions',
+            });
+            return;
+          }
 
+          if (approvalMsgTs && targetChannel) {
+            const approvedText = `✅ Approved by <@${actorUserId}> — delivering now.`;
+            try {
+              await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
+                { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ]);
+              log.info({ taskId }, 'Approval message updated');
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                'Approval message update failed (non-fatal) — message may have been deleted',
+              );
+            }
+          }
+
+          const deliveryVmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
+          const deliveryImage =
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const deliveryFlyApp =
+            process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+          const effectiveSupabaseUrlForDelivery =
+            process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+
+          for (let attempt = 0; attempt < 3; attempt++) {
             const deliveryMachine = await createMachine(deliveryFlyApp, {
               image: deliveryImage,
               vm_size: deliveryVmSize,
@@ -390,16 +419,19 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               env: {
                 ...tenantEnvForApproval,
                 TASK_ID: taskId,
-                DELIVERY_MODE: 'true',
+                EMPLOYEE_PHASE: 'delivery',
                 SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                 SUPABASE_SECRET_KEY: supabaseKey,
               },
             });
-
-            log.info({ taskId, deliveryMachineId: deliveryMachine.id }, 'Delivery machine spawned');
+            log.info(
+              { taskId, deliveryMachineId: deliveryMachine.id, attempt },
+              'Delivery machine spawned',
+            );
 
             const maxDeliveryPolls = 20;
             const deliveryIntervalMs = 15_000;
+            let finalStatus = '';
             for (let i = 0; i < maxDeliveryPolls; i++) {
               await new Promise<void>((resolve) => setTimeout(resolve, deliveryIntervalMs));
               const res = await fetch(
@@ -407,8 +439,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 { headers },
               );
               const rows = (await res.json()) as Array<{ status: string }>;
-              const status = rows[0]?.status;
-              if (status === 'Done' || status === 'Failed') break;
+              finalStatus = rows[0]?.status ?? '';
+              if (finalStatus === 'Done' || finalStatus === 'Failed') break;
             }
 
             try {
@@ -419,53 +451,19 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Failed to destroy delivery machine',
               );
             }
-          } else {
-            const publishChannel = tenantEnvForApproval['SUMMARY_PUBLISH_CHANNEL'] ?? targetChannel;
-            if (publishChannel && summaryContent) {
-              await slackClient.postMessage({
-                channel: publishChannel,
-                text: summaryContent,
-                blocks: summaryBlocks,
-              });
-              log.info({ taskId, publishChannel }, 'Summary posted successfully');
-            } else {
-              log.warn(
-                {
-                  taskId,
-                  publishChannel: publishChannel || '(empty)',
-                  summaryContentLen: summaryContent.length,
-                },
-                'Skipping postMessage — publishChannel or summaryContent empty',
-              );
-            }
-            if (approvalMsgTs && targetChannel) {
-              const approvedText = `✅ Approved by <@${actorUserId}> — summary posted.`;
-              try {
-                await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
-                  { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ]);
-                log.info({ taskId }, 'Approval message updated');
-              } catch (err) {
-                log.warn(
-                  { taskId, approvalMsgTs, targetChannel, err },
-                  'Approval message update failed (non-fatal) — message may have been deleted',
-                );
-              }
-            } else {
-              log.warn(
-                {
-                  taskId,
-                  approvalMsgTs: approvalMsgTs ?? '(not set)',
-                  targetChannel: targetChannel || '(empty)',
-                },
-                'Skipping updateMessage — approvalMsgTs or targetChannel empty',
-              );
-            }
 
-            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
-            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Delivering');
-            log.info({ taskId }, 'State: Done');
+            if (finalStatus === 'Done') break;
+
+            if (attempt < 2) {
+              log.warn({ taskId, attempt }, 'Delivery machine failed — retrying');
+              await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
+            } else {
+              log.error({ taskId }, 'Delivery failed after 3 attempts — marking Failed');
+              await patchTask(supabaseUrl, headers, taskId, {
+                status: 'Failed',
+                failure_reason: 'Delivery failed after 3 attempts',
+              });
+            }
           }
         } else {
           if (approvalMsgTs && targetChannel) {
