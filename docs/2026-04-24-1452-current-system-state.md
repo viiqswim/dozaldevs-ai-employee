@@ -116,7 +116,7 @@ VLRE only. Receives guest messages from Hostfully's unified inbox, classifies th
 - **Concurrency**: 5 (multiple concurrent guests)
 - **Tools**: Hostfully (7 tools) + Slack + KB search + Platform issue reporting
 - **Classification output**: JSON with `classification`, `confidence`, `draftResponse`, `category`, `urgency`, `conversationSummary`
-- **Delivery mode**: When `DELIVERY_MODE=true` is set, the harness calls `send-message.ts` to send the approved response to the guest via Hostfully
+- **Delivery**: Always runs inside a Fly.io machine with `EMPLOYEE_PHASE=delivery`. The harness reads `archetype.delivery_instructions` to determine what delivery action to perform (calls `send-message.ts` to send the approved response to the guest via Hostfully). Lifecycle retries up to 3 times on failure.
 
 ---
 
