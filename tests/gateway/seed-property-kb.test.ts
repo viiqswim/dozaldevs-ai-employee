@@ -53,7 +53,7 @@ describe('knowledge_base_entries — seed verification', () => {
     expect(rows[0].content).toContain('Advani');
   });
 
-  it('tool_registry for guest-messaging archetype includes /tools/kb/search.ts', async () => {
+  it('tool_registry for guest-messaging archetype includes /tools/knowledge_base/search.ts', async () => {
     const prisma = getPrisma();
     const rows = await prisma.$queryRaw<{ tool_registry: unknown }[]>`
       SELECT tool_registry FROM archetypes
@@ -62,7 +62,7 @@ describe('knowledge_base_entries — seed verification', () => {
     expect(rows).toHaveLength(1);
     const registry = rows[0].tool_registry as { tools: string[] };
     expect(Array.isArray(registry.tools)).toBe(true);
-    expect(registry.tools).toContain('/tools/kb/search.ts');
+    expect(registry.tools).toContain('/tools/knowledge_base/search.ts');
   });
 
   it('no KB rows exist for DozalDevs tenant (tenant isolation)', async () => {

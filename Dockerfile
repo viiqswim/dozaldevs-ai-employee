@@ -73,6 +73,9 @@ COPY --from=builder /build/src/worker-tools/hostfully/get-reviews.ts /tools/host
 RUN mkdir -p /tools/platform
 COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/platform/report-issue.ts
 
+RUN mkdir -p /tools/knowledge_base
+COPY --from=builder /build/src/worker-tools/knowledge_base/search.ts /tools/knowledge_base/search.ts
+
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
 
