@@ -77,7 +77,11 @@ export async function loadTenantEnv(
     env['SUMMARY_TARGET_CHANNEL'] = targetChannel;
   }
 
-  // SUMMARY_PUBLISH_CHANNEL removed — it was never read by any production code
+  // PUBLISH_CHANNEL — for delivery phase (may differ from notification channel)
+  const publishChannel = summary?.['publish_channel'];
+  if (typeof publishChannel === 'string' && publishChannel) {
+    env['PUBLISH_CHANNEL'] = publishChannel;
+  }
 
   return env;
 }

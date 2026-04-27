@@ -1122,7 +1122,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -1140,7 +1140,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
   });
@@ -1167,7 +1167,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -1185,7 +1185,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
   });
