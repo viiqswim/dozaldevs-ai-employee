@@ -155,7 +155,7 @@ Critical Path: Task 1 → Task 2 → Task 3
 
 ## TODOs
 
-- [ ] 1. Rename directories and update all code/config references
+- [x] 1. Rename directories and update all code/config references
 
   **What to do**:
   1. Rename source directory: `git mv src/worker-tools/kb src/worker-tools/knowledge_base`
@@ -275,7 +275,7 @@ Critical Path: Task 1 → Task 2 → Task 3
   - Files: All renamed/edited files
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Update documentation files
+- [x] 2. Update documentation files
 
   **What to do**:
   1. Update `docs/2026-04-24-1452-current-system-state.md` — 3 references:
