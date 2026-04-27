@@ -149,6 +149,50 @@ function buildFetchMock(
   });
 }
 
+function buildFetchMockNoTargetChannel(
+  opts: {
+    deliveryInstructions?: string | null;
+    taskStatuses?: string[];
+  } = {},
+): ReturnType<typeof vi.fn> {
+  let pollIdx = 0;
+  const statuses = opts.taskStatuses ?? ['Done'];
+
+  return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+    const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
+
+    if ((url as string).includes('/deliverables?')) {
+      return makeOkFetchResponse([
+        {
+          metadata: { approval_message_ts: APPROVAL_MSG_TS },
+          content: "Today's channel summary content",
+          external_ref: TEST_TASK_ID,
+        },
+      ]);
+    }
+
+    if ((url as string).includes('archetypes(delivery_instructions)')) {
+      const di =
+        'deliveryInstructions' in opts
+          ? opts.deliveryInstructions
+          : 'Post the approved content to the publish channel.';
+      return makeOkFetchResponse([{ archetypes: { delivery_instructions: di } }]);
+    }
+
+    if ((url as string).includes('select=status')) {
+      const idx = Math.min(pollIdx, statuses.length - 1);
+      pollIdx++;
+      return makeOkFetchResponse([{ status: statuses[idx] }]);
+    }
+
+    if (method === 'PATCH' || method === 'POST') {
+      return makeOkFetchResponse([]);
+    }
+
+    return makeOkFetchResponse([]);
+  });
+}
+
 function makeEngine(approvalEvent: unknown) {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
@@ -369,5 +413,52 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
       ]),
     );
     expect(mockPostMessage).not.toHaveBeenCalled();
+  });
+
+  it('uses NOTIFICATION_CHANNEL when metadata.target_channel is absent', async () => {
+    mockLoadTenantEnv.mockResolvedValue({
+      SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
+      NOTIFICATION_CHANNEL: 'C_NOTIFY_TEST',
+    });
+    vi.stubGlobal('fetch', buildFetchMockNoTargetChannel());
+
+    const { error } = await makeEngine(makeApprovalEvent('reject', 'U-REJECTOR')).execute(
+      triggerEvent(),
+    );
+
+    expect(error).toBeUndefined();
+    expect(mockUpdateMessage).toHaveBeenCalledWith(
+      'C_NOTIFY_TEST',
+      APPROVAL_MSG_TS,
+      expect.stringContaining('❌ Rejected by <@U-REJECTOR>'),
+      expect.any(Array),
+    );
+  });
+
+  it('NOTIFICATION_CHANNEL takes priority over SUMMARY_TARGET_CHANNEL when metadata.target_channel absent', async () => {
+    mockLoadTenantEnv.mockResolvedValue({
+      SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
+      NOTIFICATION_CHANNEL: 'C_NOTIFY',
+      SUMMARY_TARGET_CHANNEL: 'C_LEGACY',
+    });
+    vi.stubGlobal('fetch', buildFetchMockNoTargetChannel());
+
+    const { error } = await makeEngine(makeApprovalEvent('reject', 'U-REJECTOR')).execute(
+      triggerEvent(),
+    );
+
+    expect(error).toBeUndefined();
+    expect(mockUpdateMessage).toHaveBeenCalledWith(
+      'C_NOTIFY',
+      APPROVAL_MSG_TS,
+      expect.any(String),
+      expect.any(Array),
+    );
+    expect(mockUpdateMessage).not.toHaveBeenCalledWith(
+      'C_LEGACY',
+      expect.any(String),
+      expect.any(String),
+      expect.any(Array),
+    );
   });
 });

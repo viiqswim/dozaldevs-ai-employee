@@ -168,4 +168,72 @@ describe('loadTenantEnv', () => {
     await loadTenantEnv(TENANT_A_ID, deps);
     expect(getMany).not.toHaveBeenCalled();
   });
+
+  it('injects NOTIFICATION_CHANNEL from config.notification_channel (tenant-level)', async () => {
+    const config = { notification_channel: 'C_TENANT_NOTIFY' };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['NOTIFICATION_CHANNEL']).toBe('C_TENANT_NOTIFY');
+  });
+
+  it('injects NOTIFICATION_CHANNEL from archetype param (3rd arg to loadTenantEnv)', async () => {
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps, 'C_ARCHETYPE_NOTIFY');
+    expect(env['NOTIFICATION_CHANNEL']).toBe('C_ARCHETYPE_NOTIFY');
+  });
+
+  it('archetype param overrides tenant config for NOTIFICATION_CHANNEL', async () => {
+    const config = { notification_channel: 'C_TENANT_NOTIFY' };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps, 'C_ARCHETYPE_NOTIFY');
+    expect(env['NOTIFICATION_CHANNEL']).toBe('C_ARCHETYPE_NOTIFY');
+  });
+
+  it('NOTIFICATION_CHANNEL absent when neither tenant config nor archetype has it', async () => {
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['NOTIFICATION_CHANNEL']).toBeUndefined();
+  });
+
+  it('injects SOURCE_CHANNELS from config.source_channels', async () => {
+    const config = { source_channels: ['C001', 'C002'] };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['SOURCE_CHANNELS']).toBe('C001,C002');
+  });
+
+  it('DAILY_SUMMARY_CHANNELS is injected as backward-compat alias (same value as SOURCE_CHANNELS)', async () => {
+    const config = { source_channels: ['C001', 'C002'] };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['DAILY_SUMMARY_CHANNELS']).toBe('C001,C002');
+    expect(env['DAILY_SUMMARY_CHANNELS']).toBe(env['SOURCE_CHANNELS']);
+  });
+
+  it('falls back to summary.channel_ids when source_channels absent (backward compat)', async () => {
+    const config = { summary: { channel_ids: ['C_LEGACY1', 'C_LEGACY2'] } };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['SOURCE_CHANNELS']).toBe('C_LEGACY1,C_LEGACY2');
+    expect(env['DAILY_SUMMARY_CHANNELS']).toBe('C_LEGACY1,C_LEGACY2');
+  });
+
+  it('SOURCE_CHANNELS absent when both source_channels and summary.channel_ids are absent', async () => {
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['SOURCE_CHANNELS']).toBeUndefined();
+  });
+
+  it('SUMMARY_PUBLISH_CHANNEL is NOT present in env output (removed)', async () => {
+    const config = {
+      summary: {
+        channel_ids: ['C001'],
+        target_channel: 'C_TARGET',
+        publish_channel: 'C_PUBLISH',
+      },
+    };
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['SUMMARY_PUBLISH_CHANNEL']).toBeUndefined();
+  });
 });

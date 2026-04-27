@@ -145,4 +145,79 @@ describe('PATCH /admin/tenants/:tenantId/config', () => {
     expect(res.status).toBe(200);
     expect(res.body.summary.channel_ids).toEqual(['C456']);
   });
+
+  it('200 updates config with notification_channel', async () => {
+    const mergedConfig = { notification_channel: 'C_TEST' };
+    const updatedTenant = makeTenant(mergedConfig);
+    const app = makeApp({
+      tenant: {
+        findFirst: vi.fn().mockResolvedValue(makeTenant(null)),
+        update: vi.fn().mockResolvedValue(updatedTenant),
+      },
+    });
+    const res = await request(app)
+      .patch(`/admin/tenants/${TENANT_ID}/config`)
+      .set('X-Admin-Key', ADMIN_KEY)
+      .send({ notification_channel: 'C_TEST' });
+    expect(res.status).toBe(200);
+    expect(res.body.notification_channel).toBe('C_TEST');
+  });
+
+  it('200 updates config with source_channels array', async () => {
+    const mergedConfig = { source_channels: ['C001', 'C002'] };
+    const updatedTenant = makeTenant(mergedConfig);
+    const app = makeApp({
+      tenant: {
+        findFirst: vi.fn().mockResolvedValue(makeTenant(null)),
+        update: vi.fn().mockResolvedValue(updatedTenant),
+      },
+    });
+    const res = await request(app)
+      .patch(`/admin/tenants/${TENANT_ID}/config`)
+      .set('X-Admin-Key', ADMIN_KEY)
+      .send({ source_channels: ['C001', 'C002'] });
+    expect(res.status).toBe(200);
+    expect(res.body.source_channels).toEqual(['C001', 'C002']);
+  });
+
+  it('deep merge: PATCH with only notification_channel preserves existing summary fields', async () => {
+    const existingConfig = { summary: { target_channel: 'C_EXIST', channel_ids: ['C001'] } };
+    const mergedConfig = {
+      summary: { target_channel: 'C_EXIST', channel_ids: ['C001'] },
+      notification_channel: 'C_TEST',
+    };
+    const updatedTenant = makeTenant(mergedConfig);
+    const app = makeApp({
+      tenant: {
+        findFirst: vi.fn().mockResolvedValue(makeTenant(existingConfig)),
+        update: vi.fn().mockResolvedValue(updatedTenant),
+      },
+    });
+    const res = await request(app)
+      .patch(`/admin/tenants/${TENANT_ID}/config`)
+      .set('X-Admin-Key', ADMIN_KEY)
+      .send({ notification_channel: 'C_TEST' });
+    expect(res.status).toBe(200);
+    expect(res.body.notification_channel).toBe('C_TEST');
+    expect(res.body.summary?.target_channel).toBe('C_EXIST');
+    expect(res.body.summary?.channel_ids).toEqual(['C001']);
+  });
+});
+
+describe('GET /admin/tenants/:tenantId/config — notification_channel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('200 returns notification_channel from stored config', async () => {
+    const config = { notification_channel: 'C_NOTIFY', summary: { target_channel: 'C123' } };
+    const app = makeApp({
+      tenant: { findFirst: vi.fn().mockResolvedValue(makeTenant(config)) },
+    });
+    const res = await request(app)
+      .get(`/admin/tenants/${TENANT_ID}/config`)
+      .set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body.notification_channel).toBe('C_NOTIFY');
+  });
 });

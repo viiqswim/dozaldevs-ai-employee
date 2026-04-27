@@ -232,3 +232,32 @@ describe('SlackOAuthStateSchema', () => {
     ).toThrow(ZodError);
   });
 });
+
+describe('TenantConfigBodySchema', () => {
+  it('accepts valid body with notification_channel string', () => {
+    const result = TenantConfigBodySchema.safeParse({ notification_channel: 'C_TEST_001' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-string notification_channel', () => {
+    const result = TenantConfigBodySchema.safeParse({ notification_channel: 123 });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts body without notification_channel (field is optional)', () => {
+    const result = TenantConfigBodySchema.safeParse({ summary: { target_channel: 'C123' } });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid body with source_channels array of strings', () => {
+    const result = TenantConfigBodySchema.safeParse({
+      source_channels: ['C001', 'C002', 'C003'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-array source_channels', () => {
+    const result = TenantConfigBodySchema.safeParse({ source_channels: 'C001' });
+    expect(result.success).toBe(false);
+  });
+});
