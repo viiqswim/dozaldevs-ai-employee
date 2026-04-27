@@ -1,21 +1,23 @@
 /**
- * Resolves AGENTS.md content using three-level fallback:
- * 1. archetype.agents_md (per-employee override)
- * 2. tenantConfig.default_agents_md (tenant-level default)
- * 3. null → caller leaves static /app/AGENTS.md untouched (platform default from PLAT-02)
+ * Resolves AGENTS.md content by concatenating all three levels:
+ * 1. Platform AGENTS.md (always included)
+ * 2. tenantConfig.default_agents_md (if non-empty)
+ * 3. archetype.agents_md (if non-empty)
  */
 export function resolveAgentsMd(
-  archetype: { agents_md?: string | null } | null,
+  platformContent: string,
   tenantConfig: Record<string, unknown> | null,
-): string | null {
-  if (archetype?.agents_md != null && archetype.agents_md.trim().length > 0) {
-    return archetype.agents_md;
-  }
-
+  archetype: { agents_md?: string | null } | null,
+): string {
+  const sections: string[] = [];
+  sections.push(`# Platform Policy\n\n${platformContent}`);
   const tenantDefault = tenantConfig?.default_agents_md;
   if (typeof tenantDefault === 'string' && tenantDefault.trim().length > 0) {
-    return tenantDefault;
+    sections.push(`# Tenant Conventions\n\n${tenantDefault}`);
   }
-
-  return null;
+  const archetypeMd = archetype?.agents_md;
+  if (archetypeMd != null && archetypeMd.trim().length > 0) {
+    sections.push(`# Employee Instructions\n\n${archetypeMd}`);
+  }
+  return sections.join('\n\n');
 }
