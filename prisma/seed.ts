@@ -424,7 +424,7 @@ async function main() {
     'STEP 3: Classify the message and draft a response.\n' +
     'Using the guest message text, reservation details, property information, and any KB results, classify the message and draft a response following the JSON format in your system prompt. Output the JSON classification.\n\n' +
     'STEP 4: Route based on classification.\n' +
-    'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt and stop. Do NOT post to Slack.\n' +
+    'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post an informational message (no approve/reject buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ No action needed — <guest name> at <property name>: <summary from classification JSON>" --task-id $TASK_ID > /tmp/approval-message.json\n' +
     'If classification is NEEDS_APPROVAL: continue to Step 5.\n\n' +
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full classification JSON (including draftResponse) to /tmp/summary.txt.\n' +
