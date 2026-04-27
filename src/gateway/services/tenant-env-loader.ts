@@ -1,3 +1,4 @@
+import { resolveNotificationChannel } from './notification-channel.js';
 import type { TenantRepository } from './tenant-repository.js';
 import type { TenantSecretRepository } from './tenant-secret-repository.js';
 
@@ -17,6 +18,7 @@ const PLATFORM_ENV_WHITELIST = [
 export async function loadTenantEnv(
   tenantId: string,
   deps: { tenantRepo: TenantRepository; secretRepo: TenantSecretRepository },
+  archetypeNotificationChannel?: string | null,
 ): Promise<Record<string, string>> {
   const tenant = await deps.tenantRepo.findById(tenantId);
   if (!tenant) {
@@ -45,21 +47,37 @@ export async function loadTenantEnv(
       ? (tenant.config as Record<string, unknown>)
       : {};
 
-  const summary = config['summary'] as Record<string, unknown> | undefined;
-  if (summary) {
-    const channelIds = summary['channel_ids'];
-    if (Array.isArray(channelIds) && channelIds.length > 0) {
-      env['DAILY_SUMMARY_CHANNELS'] = (channelIds as string[]).join(',');
-    }
-    const targetChannel = summary['target_channel'];
-    if (typeof targetChannel === 'string' && targetChannel) {
-      env['SUMMARY_TARGET_CHANNEL'] = targetChannel;
-    }
-    const publishChannel = summary['publish_channel'];
-    if (typeof publishChannel === 'string' && publishChannel) {
-      env['SUMMARY_PUBLISH_CHANNEL'] = publishChannel;
-    }
+  const tenantNotificationChannel =
+    typeof config['notification_channel'] === 'string' ? config['notification_channel'] : undefined;
+  const notificationChannel = resolveNotificationChannel(
+    { notification_channel: archetypeNotificationChannel ?? null },
+    { notification_channel: tenantNotificationChannel },
+  );
+  if (notificationChannel) {
+    env['NOTIFICATION_CHANNEL'] = notificationChannel;
   }
+
+  const sourceChannels = config['source_channels'];
+  const summary = config['summary'] as Record<string, unknown> | undefined;
+  const legacyChannelIds = summary?.['channel_ids'];
+  const channelList = Array.isArray(sourceChannels)
+    ? sourceChannels
+    : Array.isArray(legacyChannelIds)
+      ? legacyChannelIds
+      : [];
+  if (channelList.length > 0) {
+    const joined = (channelList as string[]).join(',');
+    env['SOURCE_CHANNELS'] = joined;
+    env['DAILY_SUMMARY_CHANNELS'] = joined; // backward compat alias
+  }
+
+  // Keep SUMMARY_TARGET_CHANNEL as alias for backward compat (lifecycle uses it as fallback)
+  const targetChannel = summary?.['target_channel'];
+  if (typeof targetChannel === 'string' && targetChannel) {
+    env['SUMMARY_TARGET_CHANNEL'] = targetChannel;
+  }
+
+  // SUMMARY_PUBLISH_CHANNEL removed — it was never read by any production code
 
   return env;
 }
