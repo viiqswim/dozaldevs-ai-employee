@@ -292,4 +292,29 @@ describe('Multi-tenancy integration', () => {
       expect(env['SUMMARY_TARGET_CHANNEL']).toBe('C_TARGET');
     });
   });
+
+  describe('10. Tenant env loader: NOTIFICATION_CHANNEL tenant isolation', () => {
+    it('NOTIFICATION_CHANNEL is tenant-isolated (different values for different tenants)', async () => {
+      const configA = { notification_channel: 'C_NOTIFY_TENANT_A' };
+      const configB = { notification_channel: 'C_NOTIFY_TENANT_B' };
+
+      const findById = vi
+        .fn()
+        .mockImplementation((id: string) =>
+          id === TENANT_A_ID
+            ? makeTenant(TENANT_A_ID, null, configA)
+            : makeTenant(TENANT_B_ID, null, configB),
+        );
+      const listKeys = vi.fn().mockResolvedValue([]);
+      const tenantRepo = { findById } as never;
+      const secretRepo = { listKeys } as never;
+
+      const envA = await loadTenantEnv(TENANT_A_ID, { tenantRepo, secretRepo });
+      const envB = await loadTenantEnv(TENANT_B_ID, { tenantRepo, secretRepo });
+
+      expect(envA['NOTIFICATION_CHANNEL']).toBe('C_NOTIFY_TENANT_A');
+      expect(envB['NOTIFICATION_CHANNEL']).toBe('C_NOTIFY_TENANT_B');
+      expect(envA['NOTIFICATION_CHANNEL']).not.toBe(envB['NOTIFICATION_CHANNEL']);
+    });
+  });
 });
