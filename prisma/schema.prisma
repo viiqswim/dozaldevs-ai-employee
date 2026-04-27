@@ -213,6 +213,7 @@ model Archetype {
   instructions      String?  @db.Text
   agents_md              String?  @db.Text
   delivery_instructions  String?  @db.Text
+  notification_channel   String?  @db.Text
   model             String?
   deliverable_type  String?
 
