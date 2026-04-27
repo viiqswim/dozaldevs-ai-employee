@@ -212,6 +212,8 @@ function makeEngine(approvalEvent: unknown) {
               return 'mock-initial-machine-id';
             case 'poll-completion':
               return 'Submitting';
+            case 'check-classification':
+              return { skipApproval: false };
             case 'handle-approval-result':
               return fn();
             default:

@@ -8,6 +8,7 @@ import { getTunnelUrl } from '../lib/tunnel-client.js';
 import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
 import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
+import { parseClassifyResponse } from '../lib/classify-message.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -282,6 +283,46 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.info({ taskId }, 'State: Done (no approval required)');
         });
         await step.run('cleanup-no-approval', async () => {
+          try {
+            const flyApp =
+              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            await destroyMachine(flyApp, machineId as string);
+          } catch (err) {
+            log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+          }
+        });
+        return;
+      }
+
+      // ── Classification check: auto-complete NO_ACTION_NEEDED ─────────────────
+      const classificationCheck = await step.run('check-classification', async () => {
+        const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+        // Retry up to 3 times with 1s delay — deliverable may not be committed yet
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await fetch(
+            `${supabaseUrlInner}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
+            { headers },
+          );
+          const rows = (await res.json()) as Array<{ content: string }>;
+          if (rows.length > 0) {
+            const result = parseClassifyResponse(rows[0].content);
+            return { skipApproval: result.classification === 'NO_ACTION_NEEDED' };
+          }
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
+        // No deliverable found after retries — proceed to Reviewing (safe default)
+        return { skipApproval: false };
+      });
+
+      if (classificationCheck.skipApproval) {
+        await step.run('complete-no-action', async () => {
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+          log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — auto-completed)');
+        });
+        await step.run('cleanup-no-action', async () => {
           try {
             const flyApp =
               process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
