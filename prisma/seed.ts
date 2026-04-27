@@ -252,6 +252,8 @@ async function main() {
       slug: 'dozaldevs',
       status: 'active',
       config: {
+        notification_channel: 'C0AUBMXKVNU',
+        source_channels: ['C092BJ04HUG'],
         summary: {
           channel_ids: ['C092BJ04HUG'],
           target_channel: 'C0AUBMXKVNU',
@@ -264,6 +266,8 @@ async function main() {
       name: 'DozalDevs',
       status: 'active',
       config: {
+        notification_channel: 'C0AUBMXKVNU',
+        source_channels: ['C092BJ04HUG'],
         summary: {
           channel_ids: ['C092BJ04HUG'],
           target_channel: 'C0AUBMXKVNU',
@@ -283,6 +287,8 @@ async function main() {
       slug: 'vlre',
       status: 'active',
       config: {
+        notification_channel: 'C0960S2Q8RL',
+        source_channels: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
         summary: {
           channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
           target_channel: 'C0960S2Q8RL',
@@ -295,6 +301,8 @@ async function main() {
       name: 'VLRE',
       status: 'active',
       config: {
+        notification_channel: 'C0960S2Q8RL',
+        source_channels: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
         summary: {
           channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
           target_channel: 'C0960S2Q8RL',
@@ -379,27 +387,27 @@ async function main() {
   console.log(`✅ Department upserted: ${vlreDept.id} (name: ${vlreDept.name})`);
 
   const DOZALDEVS_SUMMARIZER_INSTRUCTIONS =
-    'Read the last 24 hours of messages from the project-lighthouse Slack channel (channel ID: C092BJ04HUG). ' +
-    'Run: tsx /tools/slack/read-channels.ts --channels "C092BJ04HUG" ' +
+    'Read the last 24 hours of messages from the configured Slack source channels. ' +
+    'Run: tsx /tools/slack/read-channels.ts --channels "$SOURCE_CHANNELS" ' +
     'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
     'If no messages are found, use "Sin actividad en #project-lighthouse en las últimas 24 horas. Su corresponsal descansa... por ahora. 🎭" as the summary. ' +
     'CRITICAL — You MUST write the summary content to a file: write the full summary text to /tmp/summary.txt ' +
     '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
-    'Post the summary with approve/reject buttons to the victor-tests channel (C0AUBMXKVNU) for review. ' +
+    'Post the summary with approve/reject buttons to the notification channel for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0AUBMXKVNU" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_SUMMARIZER_INSTRUCTIONS =
-    'Read the last 24 hours of messages from the VLRE Slack channels (channel IDs: C0AMGJQN05S, C0ANH9J91NC, C0960S2Q8RL). ' +
-    'Run: tsx /tools/slack/read-channels.ts --channels "C0AMGJQN05S,C0ANH9J91NC,C0960S2Q8RL" ' +
+    'Read the last 24 hours of messages from the configured Slack source channels. ' +
+    'Run: tsx /tools/slack/read-channels.ts --channels "$SOURCE_CHANNELS" ' +
     'Generate a dramatic Spanish news-style summary following your system prompt guidelines. ' +
     'If no messages are found, use "Sin actividad en los canales de VLRE en las últimas 24 horas. Su corresponsal descansa... por ahora. 🎭" as the summary. ' +
     'CRITICAL — You MUST write the summary content to a file: write the full summary text to /tmp/summary.txt ' +
     '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
-    'Post the summary with approve/reject buttons to the VLRE review channel (C0960S2Q8RL) for review. ' +
+    'Post the summary with approve/reject buttons to the notification channel for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
@@ -421,12 +429,12 @@ async function main() {
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full classification JSON (including draftResponse) to /tmp/summary.txt.\n' +
     'Post the draft response for PM approval with approve/reject buttons:\n' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<guest name> at <property name>: <guest message>\\n\\nDraft response: <draftResponse from JSON>\\n\\nCategory: <category> | Confidence: <confidence> | Urgency: <urgency>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<guest name> at <property name>: <guest message>\\n\\nDraft response: <draftResponse from JSON>\\n\\nCategory: <category> | Confidence: <confidence> | Urgency: <urgency>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
     'CRITICAL: Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish.\n\n' +
     'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
-    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
+    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
     'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"';
 
   const VLRE_COMMON_KB_CONTENT = `# VL Real Estate — Common Knowledge Base
@@ -1110,10 +1118,11 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the project-lighthouse channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C092BJ04HUG" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -1127,10 +1136,11 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the project-lighthouse channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C092BJ04HUG" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
   });
@@ -1153,10 +1163,11 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the VLRE publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -1170,10 +1181,11 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the VLRE publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C0960S2Q8RL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'Read the approved summary from the deliverable content. Post it to the notification channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
   });
@@ -1207,6 +1219,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       },
       trigger_sources: { type: 'webhook' }, // event-driven, not cron
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
@@ -1235,6 +1248,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       },
       trigger_sources: { type: 'webhook' },
       risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
