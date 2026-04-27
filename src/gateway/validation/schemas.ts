@@ -252,6 +252,8 @@ export const SetSecretBodySchema = z.object({
 export type SetSecretBody = z.infer<typeof SetSecretBodySchema>;
 
 export const TenantConfigBodySchema = z.object({
+  notification_channel: z.string().optional(),
+  source_channels: z.array(z.string()).optional(),
   summary: z
     .object({
       channel_ids: z.array(z.string()).optional(),
