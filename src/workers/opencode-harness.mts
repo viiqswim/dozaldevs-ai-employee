@@ -384,17 +384,11 @@ async function main(): Promise<void> {
       const tenantRows = await db.get('tenants', `id=eq.${task.tenant_id}&select=config`);
       tenantConfig = (tenantRows?.[0] as { config?: Record<string, unknown> })?.config ?? null;
     }
-    const agentsMdContent = resolveAgentsMd(archetype, tenantConfig);
-    if (agentsMdContent && agentsMdContent.trim().length > 0) {
-      const { writeFile } = await import('node:fs/promises');
-      await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
-      log.info(
-        'Wrote dynamic AGENTS.md from %s',
-        archetype.agents_md ? 'archetype' : 'tenant default',
-      );
-    } else {
-      log.info('Using static platform AGENTS.md (no dynamic override configured)');
-    }
+    const { readFile, writeFile } = await import('node:fs/promises');
+    const platformContent = await readFile('/app/AGENTS.md', 'utf8');
+    const agentsMdContent = resolveAgentsMd(platformContent, tenantConfig, archetype);
+    await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
+    log.info('Wrote concatenated AGENTS.md (platform + tenant + archetype)');
   } catch (err) {
     log.warn('Failed to resolve dynamic AGENTS.md, using static platform default: %s', err);
   }
