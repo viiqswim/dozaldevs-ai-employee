@@ -354,7 +354,7 @@ Critical Path: Task 1 → Task 2 → Task 3
   - Files: `docs/2026-04-24-1452-current-system-state.md`, `docs/2026-04-21-2202-phase1-story-map.md`
   - Pre-commit: N/A (docs only)
 
-- [ ] 3. Full verification suite + mark PLAT-09 complete
+- [x] 3. Full verification suite + mark PLAT-09 complete
 
   **What to do**:
   1. **Build verification**: Run `pnpm build` — assert exit code 0
@@ -503,7 +503,7 @@ Critical Path: Task 1 → Task 2 → Task 3
   - Files: `docs/2026-04-21-2202-phase1-story-map.md`
   - Pre-commit: `pnpm build`
 
-- [ ] 4. **Notify completion** — Send Telegram notification: plan `plat09-rename-kb` complete, all tasks done, come back to review results.
+- [x] 4. **Notify completion** — Send Telegram notification: plan `plat09-rename-kb` complete, all tasks done, come back to review results.
 
 ---
 
