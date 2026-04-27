@@ -333,6 +333,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const approvalMsgTs = metadata.approval_message_ts as string | undefined;
         const targetChannel =
           (metadata.target_channel as string) ??
+          tenantEnvForApproval['NOTIFICATION_CHANNEL'] ??
           tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
           '';
         if (!approvalEvent) {
