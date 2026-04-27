@@ -110,16 +110,19 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     try {
       await inngest.send({
-        name: 'employee/feedback.received',
+        name: 'employee/interaction.received',
         data: {
-          taskId,
-          feedbackText: msg.text,
+          source: 'thread_reply' as const,
+          text: msg.text,
           userId: msg.user,
-          threadTs: msg.thread_ts,
           channelId: msg.channel,
+          threadTs: msg.thread_ts,
+          taskId,
+          tenantId: undefined,
+          team: undefined,
         },
       });
-      log.info({ taskId, userId: msg.user }, 'Feedback event sent from thread reply');
+      log.info({ taskId, userId: msg.user }, 'Interaction event sent from thread reply');
     } catch (err) {
       log.error({ taskId, err }, 'Failed to send feedback event');
     }
@@ -152,16 +155,19 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     try {
       await inngest.send({
-        name: 'employee/mention.received',
+        name: 'employee/interaction.received',
         data: {
+          source: 'mention' as const,
           text,
           userId: mention.user,
           channelId: mention.channel,
           threadTs: mention.thread_ts,
+          taskId: undefined,
           tenantId,
+          team: mention.team,
         },
       });
-      log.info({ userId: mention.user, tenantId }, 'Mention event sent');
+      log.info({ userId: mention.user, tenantId }, 'Interaction event sent from mention');
     } catch (err) {
       log.error({ err }, 'Failed to send mention event');
     }
