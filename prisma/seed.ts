@@ -420,7 +420,7 @@ async function main() {
     'Use the property_id from the message output.\n' +
     'Run: tsx /tools/hostfully/get-reservations.ts --property-id "<property-id>" --status confirmed\n' +
     'Run: tsx /tools/hostfully/get-property.ts --property-id "<property-id>"\n' +
-    'Knowledge Base search: tsx /tools/kb/search.ts --entity-type property --entity-id "<property-id>"\n\n' +
+    'Knowledge Base search: tsx /tools/knowledge_base/search.ts --entity-type property --entity-id "<property-id>"\n\n' +
     'STEP 3: Classify the message and draft a response.\n' +
     'Using the guest message text, reservation details, property information, and any KB results, classify the message and draft a response following the JSON format in your system prompt. Output the JSON classification.\n\n' +
     'STEP 4: Route based on classification.\n' +
@@ -1214,7 +1214,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
           '/tools/slack/post-message.ts',
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
-          '/tools/kb/search.ts',
+          '/tools/knowledge_base/search.ts',
         ],
       },
       trigger_sources: { type: 'webhook' }, // event-driven, not cron
@@ -1243,7 +1243,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
           '/tools/slack/post-message.ts',
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
-          '/tools/kb/search.ts',
+          '/tools/knowledge_base/search.ts',
         ],
       },
       trigger_sources: { type: 'webhook' },

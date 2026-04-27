@@ -3,7 +3,7 @@ import * as http from 'http';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import path from 'path';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/kb/search.ts');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/knowledge_base/search.ts');
 
 function runScript(
   args: string[],
@@ -60,7 +60,7 @@ function baseEnv(): Record<string, string> {
   };
 }
 
-describe('kb/search shell tool', () => {
+describe('knowledge_base/search shell tool', () => {
   it('--help exits 0 with usage containing --entity-type, --entity-id, SUPABASE_URL but NOT --query', async () => {
     const { stdout, code } = await runScript(['--help'], {});
     expect(code).toBe(0);

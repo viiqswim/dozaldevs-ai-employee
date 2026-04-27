@@ -1,12 +1,12 @@
 /**
- * kb/search.ts
+ * knowledge_base/search.ts
  *
  * Shell tool for AI employees to fetch all knowledge base content for a given entity.
  * Returns entity-specific content and common (shared) policies concatenated together.
  * No keyword filtering — returns all content; the LLM interprets it.
  *
  * Usage:
- *   tsx /tools/kb/search.ts --entity-type <type> --entity-id <id> [--tenant-id <uuid>]
+ *   tsx /tools/knowledge_base/search.ts --entity-type <type> --entity-id <id> [--tenant-id <uuid>]
  *
  * Environment variables:
  *   SUPABASE_URL          (required) Base URL for PostgREST (e.g. http://localhost:54331)
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 
   if (args.help) {
     process.stdout.write(
-      'Usage: tsx /tools/kb/search.ts --entity-type <type> --entity-id <id> [--tenant-id <uuid>]\n\n' +
+      'Usage: tsx /tools/knowledge_base/search.ts --entity-type <type> --entity-id <id> [--tenant-id <uuid>]\n\n' +
         'Fetches all knowledge base content for a given entity from PostgREST.\n' +
         'Returns entity-specific content and common (shared) policies concatenated.\n' +
         'No keyword filtering — returns all content; the LLM interprets it.\n\n' +
