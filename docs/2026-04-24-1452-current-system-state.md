@@ -250,9 +250,9 @@ All require `HOSTFULLY_API_KEY` env var. API base: `https://api.hostfully.com/ap
 
 ### `kb/` (1 tool)
 
-| Tool        | Usage                                                                                       | Output                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `search.ts` | `tsx /tools/kb/search.ts --entity-type property --entity-id "<uid>" [--tenant-id "<uuid>"]` | `{"content":"...","entityFound":true,"commonFound":true}`. Returns entity-specific + common policies concatenated. |
+| Tool        | Usage                                                                                                   | Output                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `search.ts` | `tsx /tools/knowledge_base/search.ts --entity-type property --entity-id "<uid>" [--tenant-id "<uuid>"]` | `{"content":"...","entityFound":true,"commonFound":true}`. Returns entity-specific + common policies concatenated. |
 
 ### `platform/` (1 tool)
 
@@ -452,7 +452,7 @@ Two seeded KB entries for VLRE (stored in `knowledge_base_entries` table):
 | `...0100` | `common` | —                                     | Tenant-wide policies: 21-property reference, service directory, classification rules, escalation triggers |
 | `...0101` | `entity` | property `c960c8d2-...` (3505 Banton) | WiFi, access codes, amenities, house rules, fees                                                          |
 
-Queried via `tsx /tools/kb/search.ts --entity-type property --entity-id "<uid>"`. Returns entity-specific content + common policies concatenated.
+Queried via `tsx /tools/knowledge_base/search.ts --entity-type property --entity-id "<uid>"`. Returns entity-specific content + common policies concatenated.
 
 ---
 
@@ -563,13 +563,13 @@ Default CMD: `bash entrypoint.sh` (engineering worker). Active employees overrid
 
 ### Tools Installed in Image
 
-| Docker Path         | Contents                                                                                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `/tools/slack/`     | `read-channels.ts`, `post-message.ts` + `@slack/web-api` installed                                                                       |
-| `/tools/hostfully/` | `validate-env.ts`, `get-property.ts`, `get-properties.ts`, `get-reservations.ts`, `get-messages.ts`, `get-reviews.ts`, `send-message.ts` |
-| `/tools/kb/`        | `search.ts`                                                                                                                              |
-| `/tools/platform/`  | `report-issue.ts`                                                                                                                        |
-| `/app/AGENTS.md`    | Static platform AGENTS.md (self-repair policy, overridden at runtime by harness)                                                         |
+| Docker Path              | Contents                                                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tools/slack/`          | `read-channels.ts`, `post-message.ts` + `@slack/web-api` installed                                                                       |
+| `/tools/hostfully/`      | `validate-env.ts`, `get-property.ts`, `get-properties.ts`, `get-reservations.ts`, `get-messages.ts`, `get-reviews.ts`, `send-message.ts` |
+| `/tools/knowledge_base/` | `search.ts`                                                                                                                              |
+| `/tools/platform/`       | `report-issue.ts`                                                                                                                        |
+| `/app/AGENTS.md`         | Static platform AGENTS.md (self-repair policy, overridden at runtime by harness)                                                         |
 
 All tools under `src/worker-tools/` are bulk-copied into the image via `COPY src/worker-tools/ /tools/` — new tools are automatically included without Dockerfile changes.
 
