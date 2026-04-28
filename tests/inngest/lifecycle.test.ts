@@ -28,6 +28,7 @@ function createMockSlackClient(): SlackClient {
   const postMessage = vi.fn().mockResolvedValue({});
   return {
     postMessage,
+    updateMessage: vi.fn().mockResolvedValue({}),
   };
 }
 
