@@ -503,6 +503,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const effectiveSupabaseUrlForDelivery =
             process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
 
+          let deliveryFinalStatus = '';
           for (let attempt = 0; attempt < 3; attempt++) {
             const deliveryMachine = await createMachine(deliveryFlyApp, {
               image: deliveryImage,
@@ -536,6 +537,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               finalStatus = rows[0]?.status ?? '';
               if (finalStatus === 'Done' || finalStatus === 'Failed') break;
             }
+            deliveryFinalStatus = finalStatus;
 
             try {
               await destroyMachine(deliveryFlyApp, deliveryMachine.id);
@@ -546,7 +548,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
 
-            if (finalStatus === 'Done') break;
+            if (deliveryFinalStatus === 'Done') break;
 
             if (attempt < 2) {
               log.warn({ taskId, attempt }, 'Delivery machine failed — retrying');
@@ -557,6 +559,35 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 status: 'Failed',
                 failure_reason: 'Delivery failed after 3 attempts',
               });
+              if (approvalMsgTs && targetChannel) {
+                const errorText = `❌ Failed to send response to guest after 3 attempts. Task \`${taskId}\` marked as failed.`;
+                try {
+                  await slackClient.updateMessage(targetChannel, approvalMsgTs, errorText, [
+                    { type: 'section', text: { type: 'mrkdwn', text: errorText } },
+                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                  ]);
+                } catch (err) {
+                  log.warn(
+                    { taskId, approvalMsgTs, targetChannel, err },
+                    'Error message update failed (non-fatal)',
+                  );
+                }
+              }
+            }
+          }
+
+          if (deliveryFinalStatus === 'Done' && approvalMsgTs && targetChannel) {
+            const sentText = `✅ Sent to guest at ${new Date().toISOString()}`;
+            try {
+              await slackClient.updateMessage(targetChannel, approvalMsgTs, sentText, [
+                { type: 'section', text: { type: 'mrkdwn', text: sentText } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ]);
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                'Sent message update failed (non-fatal)',
+              );
             }
           }
         } else {
