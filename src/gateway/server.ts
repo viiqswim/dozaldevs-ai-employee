@@ -12,6 +12,7 @@ import { adminTasksRoutes } from './routes/admin-tasks.js';
 import { adminTenantsRoutes } from './routes/admin-tenants.js';
 import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
+import { adminKbRoutes } from './routes/admin-kb.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
@@ -158,6 +159,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminTenantsRoutes({ prisma }));
   app.use(adminTenantSecretsRoutes({ prisma }));
   app.use(adminTenantConfigRoutes({ prisma }));
+  app.use(adminKbRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
