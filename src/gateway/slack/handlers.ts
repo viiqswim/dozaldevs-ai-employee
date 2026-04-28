@@ -66,6 +66,34 @@ async function isTaskAwaitingApproval(taskId: string): Promise<boolean> {
   }
 }
 
+const GUEST_BUTTON_BLOCKS = (taskId: string) => [
+  {
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✅ Approve & Send', emoji: true },
+        action_id: 'guest_approve',
+        value: taskId,
+        style: 'primary',
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
+        action_id: 'guest_edit',
+        value: taskId,
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '❌ Reject', emoji: true },
+        action_id: 'guest_reject',
+        value: taskId,
+        style: 'danger',
+      },
+    ],
+  },
+];
+
 const BUTTON_BLOCKS = (taskId: string) => [
   {
     type: 'actions',
@@ -323,6 +351,89 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         });
       } catch (restoreErr) {
         log.warn({ taskId, err: restoreErr }, 'Failed to restore buttons after reject failure');
+      }
+    }
+  });
+
+  boltApp.action('guest_approve', async ({ ack, body, respond }) => {
+    const actionBody = body as ActionBody;
+    const taskId = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+    const channelId = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+
+    if (!taskId) {
+      await ack();
+      log.warn('guest_approve action received without task_id');
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: '⏳ Processing approval...',
+      blocks: [
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing approval...' } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+      ],
+    });
+
+    log.info(
+      { taskId, channelId, messageTs, userId: user.id },
+      'guest_approve action received — processing state sent inline with ack',
+    );
+
+    try {
+      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      if (!stillAwaiting) {
+        log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate guest_approve');
+        try {
+          await respond({
+            replace_original: true,
+            text: '⚠️ This summary has already been processed.',
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
+              },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ],
+          });
+        } catch (respondErr) {
+          log.warn({ taskId, respondErr }, 'Failed to update already-processed message');
+        }
+        return;
+      }
+
+      await inngest.send({
+        name: 'employee/approval.received',
+        data: { taskId, action: 'approve', userId: user.id, userName: user.name },
+        id: `employee-approval-${taskId}`,
+      });
+      log.info(
+        { taskId, userId: user.id },
+        'Guest approval event sent — lifecycle will update message',
+      );
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to process guest_approve action');
+      try {
+        await respond({
+          replace_original: true,
+          text: '⚠️ Failed to process approval. Please try again.',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ...GUEST_BUTTON_BLOCKS(taskId),
+          ],
+        });
+      } catch (restoreErr) {
+        log.warn(
+          { taskId, err: restoreErr },
+          'Failed to restore buttons after guest_approve failure',
+        );
       }
     }
   });
