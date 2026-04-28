@@ -269,3 +269,50 @@ export const SlackOAuthStateSchema = z.object({
   nonce: z.string().length(32),
 });
 export type SlackOAuthState = z.infer<typeof SlackOAuthStateSchema>;
+
+// ─── Knowledge Base Entry CRUD ────────────────────────────────────────────────
+
+export const CreateKbEntrySchema = z
+  .object({
+    entity_type: z.string().min(1).max(100).optional(),
+    entity_id: z.string().min(1).max(500).optional(),
+    content: z
+      .string()
+      .min(1, 'content is required')
+      .max(100000, 'content must be under 100,000 characters'),
+  })
+  .refine((data) => !(data.entity_id && !data.entity_type), {
+    message: 'entity_type is required when entity_id is provided',
+    path: ['entity_type'],
+  });
+
+export type CreateKbEntryInput = z.infer<typeof CreateKbEntrySchema>;
+
+export const UpdateKbEntrySchema = z.object({
+  content: z
+    .string()
+    .min(1, 'content is required')
+    .max(100000, 'content must be under 100,000 characters'),
+});
+
+export type UpdateKbEntryInput = z.infer<typeof UpdateKbEntrySchema>;
+
+export const ListKbEntriesQuerySchema = z.object({
+  entity_type: z.string().optional(),
+  entity_id: z.string().optional(),
+});
+
+export type ListKbEntriesQuery = z.infer<typeof ListKbEntriesQuerySchema>;
+
+export const KbEntryIdParamSchema = z.object({
+  tenantId: uuidField(),
+  entryId: uuidField(),
+});
+
+export type KbEntryIdParam = z.infer<typeof KbEntryIdParamSchema>;
+
+export const KbEntryTenantParamSchema = z.object({
+  tenantId: uuidField(),
+});
+
+export type KbEntryTenantParam = z.infer<typeof KbEntryTenantParamSchema>;
