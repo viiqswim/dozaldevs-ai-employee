@@ -69,6 +69,7 @@ COPY --from=builder /build/src/worker-tools/hostfully/get-properties.ts /tools/h
 COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools/hostfully/get-reservations.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-reviews.ts /tools/hostfully/get-reviews.ts
+COPY --from=builder /build/src/worker-tools/hostfully/send-message.ts /tools/hostfully/send-message.ts
 
 RUN mkdir -p /tools/platform
 COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/platform/report-issue.ts

@@ -1242,7 +1242,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<lead_uid from the original message thread>" --message "<draftResponse from the JSON>". Confirm delivery was successful.',
+        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid field from the JSON>" --thread-id "<threadUid field from the JSON, if present>" --message "<draftResponse field from the JSON>". Confirm delivery was successful.',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
     },
@@ -1271,7 +1271,7 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<lead_uid from the original message thread>" --message "<draftResponse from the JSON>". Confirm delivery was successful.',
+        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid field from the JSON>" --thread-id "<threadUid field from the JSON, if present>" --message "<draftResponse field from the JSON>". Confirm delivery was successful.',
       department_id: '00000000-0000-0000-0000-000000000021',
       // NO tenant_id — immutable
     },
