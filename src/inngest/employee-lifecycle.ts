@@ -418,6 +418,51 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           await logStatusTransition(supabaseUrl, headers, taskId, 'Delivering', 'Approved');
           log.info({ taskId }, 'State: Delivering');
 
+          if (editedContent) {
+            try {
+              const deliverableId = deliverable?.id as string | undefined;
+              if (deliverableId) {
+                const currentContent = deliverable?.content as string | undefined;
+                let updatedContent = currentContent ?? '{}';
+                try {
+                  const parsed = JSON.parse(currentContent ?? '{}') as Record<string, unknown>;
+                  parsed.draftResponse = editedContent;
+                  updatedContent = JSON.stringify(parsed);
+                } catch {
+                  // If content is not valid JSON, replace entirely with a minimal object
+                  updatedContent = JSON.stringify({ draftResponse: editedContent });
+                }
+                const patchRes = await fetch(
+                  `${supabaseUrl}/rest/v1/deliverables?id=eq.${deliverableId}`,
+                  {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({
+                      content: updatedContent,
+                      updated_at: new Date().toISOString(),
+                    }),
+                  },
+                );
+                if (!patchRes.ok) {
+                  log.warn(
+                    { taskId, deliverableId },
+                    'Failed to patch deliverable content with editedContent (non-fatal)',
+                  );
+                } else {
+                  log.info(
+                    { taskId, deliverableId },
+                    'Deliverable content patched with editedContent',
+                  );
+                }
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Error patching deliverable content with editedContent (non-fatal)',
+              );
+            }
+          }
+
           const archetypeRes = await fetch(
             `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
             { headers },
@@ -515,6 +560,40 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
         } else {
+          if (rejectionReason) {
+            try {
+              const currentMetadata =
+                (
+                  (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+                    headers,
+                  }).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>
+                )[0]?.metadata ?? {};
+
+              const updatedMetadata = { ...currentMetadata, rejectionReason };
+              const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                  metadata: updatedMetadata,
+                  updated_at: new Date().toISOString(),
+                }),
+              });
+              if (!metaPatchRes.ok) {
+                log.warn(
+                  { taskId },
+                  'Failed to store rejectionReason in task metadata (non-fatal)',
+                );
+              } else {
+                log.info({ taskId }, 'Rejection reason stored in task metadata');
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Error storing rejectionReason in task metadata (non-fatal)',
+              );
+            }
+          }
+
           if (approvalMsgTs && targetChannel) {
             const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
             try {
