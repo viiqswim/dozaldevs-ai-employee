@@ -397,9 +397,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return;
         }
 
-        const { action, userId: actorUserId } = approvalEvent.data as {
+        const {
+          action,
+          userId: actorUserId,
+          editedContent,
+          rejectionReason,
+        } = approvalEvent.data as {
           action: string;
           userId: string;
+          editedContent?: string;
+          rejectionReason?: string;
         };
 
         if (action === 'approve') {
