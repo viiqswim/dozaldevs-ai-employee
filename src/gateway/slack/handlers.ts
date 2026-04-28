@@ -437,4 +437,269 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     }
   });
+
+  boltApp.action('guest_edit', async ({ ack, body, client }) => {
+    const actionBody = body as ActionBody;
+    const rawValue = actionBody.actions[0]?.value ?? '{}';
+    let taskId = '';
+    let draftResponse = '';
+    try {
+      const parsed = JSON.parse(rawValue) as { taskId?: string; draftResponse?: string };
+      taskId = parsed.taskId ?? '';
+      draftResponse = parsed.draftResponse ?? '';
+    } catch {
+      taskId = rawValue;
+    }
+
+    if (!taskId) {
+      await ack();
+      log.warn('guest_edit action received without task_id');
+      return;
+    }
+
+    await ack();
+
+    const channelId = actionBody.channel?.id ?? '';
+    const messageTs = actionBody.message?.ts ?? '';
+
+    try {
+      await client.views.open({
+        trigger_id: (body as { trigger_id: string }).trigger_id,
+        view: {
+          type: 'modal',
+          callback_id: 'guest_edit_modal',
+          private_metadata: JSON.stringify({ taskId, channelId, messageTs }),
+          title: { type: 'plain_text', text: 'Edit Response' },
+          submit: { type: 'plain_text', text: 'Send Edited Response' },
+          close: { type: 'plain_text', text: 'Cancel' },
+          blocks: [
+            {
+              type: 'input',
+              block_id: 'draft_input',
+              label: { type: 'plain_text', text: 'Draft Response' },
+              element: {
+                type: 'plain_text_input',
+                action_id: 'edited_draft',
+                multiline: true,
+                initial_value: draftResponse,
+              },
+            },
+          ],
+        },
+      });
+      log.info({ taskId }, 'guest_edit modal opened');
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to open guest_edit modal');
+    }
+  });
+
+  boltApp.view('guest_edit_modal', async ({ ack, view, body, client }) => {
+    const editedText = view.state.values?.draft_input?.edited_draft?.value ?? '';
+
+    if (!editedText || !editedText.trim()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ack as any)({
+        response_action: 'errors',
+        errors: { draft_input: 'Response cannot be empty.' },
+      });
+      return;
+    }
+
+    await ack();
+
+    let taskId = '';
+    let channelId = '';
+    let messageTs = '';
+    try {
+      const meta = JSON.parse(view.private_metadata ?? '{}') as {
+        taskId?: string;
+        channelId?: string;
+        messageTs?: string;
+      };
+      taskId = meta.taskId ?? '';
+      channelId = meta.channelId ?? '';
+      messageTs = meta.messageTs ?? '';
+    } catch {
+      log.error('Failed to parse guest_edit_modal private_metadata');
+      return;
+    }
+
+    if (!taskId) {
+      log.error('guest_edit_modal submitted without taskId in private_metadata');
+      return;
+    }
+
+    const user = body.user;
+
+    try {
+      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      if (!stillAwaiting) {
+        log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate edit submit');
+        return;
+      }
+
+      await inngest.send({
+        name: 'employee/approval.received',
+        data: {
+          taskId,
+          action: 'approve',
+          userId: user.id,
+          userName: user.name,
+          editedContent: editedText.trim(),
+        },
+        id: `employee-approval-${taskId}`,
+      });
+      log.info({ taskId, userId: user.id }, 'Edit approval event sent');
+
+      if (channelId && messageTs) {
+        try {
+          await client.chat.update({
+            channel: channelId,
+            ts: messageTs,
+            text: '⏳ Processing edited response...',
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⏳ Processing edited response...' },
+              },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn({ taskId, updateErr }, 'Failed to update message after edit submit (non-fatal)');
+        }
+      }
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to process guest_edit_modal submission');
+    }
+  });
+
+  boltApp.action('guest_reject', async ({ ack, body, client }) => {
+    const actionBody = body as ActionBody;
+    const taskId = actionBody.actions[0]?.value ?? '';
+
+    if (!taskId) {
+      await ack();
+      log.warn('guest_reject action received without task_id');
+      return;
+    }
+
+    await ack();
+
+    const channelId = actionBody.channel?.id ?? '';
+    const messageTs = actionBody.message?.ts ?? '';
+
+    try {
+      await client.views.open({
+        trigger_id: (body as { trigger_id: string }).trigger_id,
+        view: {
+          type: 'modal',
+          callback_id: 'guest_reject_modal',
+          private_metadata: JSON.stringify({ taskId, channelId, messageTs }),
+          title: { type: 'plain_text', text: 'Reject Response' },
+          submit: { type: 'plain_text', text: 'Reject' },
+          close: { type: 'plain_text', text: 'Cancel' },
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: 'Are you sure you want to reject this draft response?',
+              },
+            },
+            {
+              type: 'input',
+              block_id: 'reason_input',
+              optional: true,
+              label: { type: 'plain_text', text: 'Rejection Reason (optional)' },
+              element: {
+                type: 'plain_text_input',
+                action_id: 'rejection_reason',
+                multiline: true,
+                placeholder: {
+                  type: 'plain_text',
+                  text: 'Help improve future responses...',
+                },
+              },
+            },
+          ],
+        },
+      });
+      log.info({ taskId }, 'guest_reject modal opened');
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to open guest_reject modal');
+    }
+  });
+
+  boltApp.view('guest_reject_modal', async ({ ack, view, body, client }) => {
+    await ack();
+
+    const reason = view.state.values?.reason_input?.rejection_reason?.value ?? undefined;
+
+    let taskId = '';
+    let channelId = '';
+    let messageTs = '';
+    try {
+      const meta = JSON.parse(view.private_metadata ?? '{}') as {
+        taskId?: string;
+        channelId?: string;
+        messageTs?: string;
+      };
+      taskId = meta.taskId ?? '';
+      channelId = meta.channelId ?? '';
+      messageTs = meta.messageTs ?? '';
+    } catch {
+      log.error('Failed to parse guest_reject_modal private_metadata');
+      return;
+    }
+
+    if (!taskId) {
+      log.error('guest_reject_modal submitted without taskId in private_metadata');
+      return;
+    }
+
+    const user = body.user;
+
+    try {
+      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      if (!stillAwaiting) {
+        log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject submit');
+        return;
+      }
+
+      await inngest.send({
+        name: 'employee/approval.received',
+        data: {
+          taskId,
+          action: 'reject',
+          userId: user.id,
+          userName: user.name,
+          ...(reason ? { rejectionReason: reason } : {}),
+        },
+        id: `employee-approval-${taskId}`,
+      });
+      log.info({ taskId, userId: user.id, hasReason: !!reason }, 'Rejection event sent');
+
+      if (channelId && messageTs) {
+        try {
+          await client.chat.update({
+            channel: channelId,
+            ts: messageTs,
+            text: '⏳ Processing rejection...',
+            blocks: [
+              { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn(
+            { taskId, updateErr },
+            'Failed to update message after reject submit (non-fatal)',
+          );
+        }
+      }
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to process guest_reject_modal submission');
+    }
+  });
 }
