@@ -411,6 +411,7 @@ async function main() {
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
+    'NOTE: Process ONE message per task. The trigger layer handles batching.\n\n' +
     'Run the following steps to process guest messages:\n\n' +
     'STEP 1: Fetch unresponded guest messages.\n' +
     'Run: tsx /tools/hostfully/get-messages.ts --unresponded-only\n' +
@@ -427,9 +428,27 @@ async function main() {
     'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post an informational message (no approve/reject buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ No action needed — <guest name> at <property name>: <summary from classification JSON>" --task-id $TASK_ID > /tmp/approval-message.json\n' +
     'If classification is NEEDS_APPROVAL: continue to Step 5.\n\n' +
     'STEP 5: Write output files and post for approval.\n' +
-    'Write the full classification JSON (including draftResponse) to /tmp/summary.txt.\n' +
-    'Post the draft response for PM approval with approve/reject buttons:\n' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<guest name> at <property name>: <guest message>\\n\\nDraft response: <draftResponse from JSON>\\n\\nCategory: <category> | Confidence: <confidence> | Urgency: <urgency>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
+    'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
+    '- classification, confidence, reasoning, draftResponse, summary, category, conversationSummary, urgency (original 8 fields)\n' +
+    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid, threadUid, messageUid (new guest context fields)\n\n' +
+    'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
+    'Post the rich approval card for PM review:\n' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
+    '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
+    '  --task-id "$TASK_ID" \\\n' +
+    '  --guest-name "<guestName>" \\\n' +
+    '  --property-name "<propertyName>" \\\n' +
+    '  --check-in "<checkIn>" \\\n' +
+    '  --check-out "<checkOut>" \\\n' +
+    '  --booking-channel "<bookingChannel>" \\\n' +
+    '  --original-message "<originalMessage>" \\\n' +
+    '  --draft-response "<draftResponse>" \\\n' +
+    '  --confidence <confidence> \\\n' +
+    '  --category "<category>" \\\n' +
+    '  --lead-uid "<leadUid>" \\\n' +
+    '  --thread-uid "<threadUid>" \\\n' +
+    '  --message-uid "<messageUid>" \\\n' +
+    '  > /tmp/approval-message.json\n\n' +
     'CRITICAL: Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish.\n\n' +
     'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
