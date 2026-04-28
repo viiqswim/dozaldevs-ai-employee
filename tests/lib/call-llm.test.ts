@@ -56,7 +56,10 @@ describe('callLLM', () => {
     _resetAlertState();
     vi.clearAllMocks();
     mockQueryRaw.mockResolvedValue([{ total: 0 }]);
-    vi.mocked(createSlackClient).mockReturnValue({ postMessage: mockPostMessage });
+    vi.mocked(createSlackClient).mockReturnValue({
+      postMessage: mockPostMessage,
+      updateMessage: vi.fn(),
+    });
     mockPostMessage.mockResolvedValue({ ts: '1', channel: '#alerts' });
   });
 
