@@ -7,6 +7,15 @@ export interface ClassifyResult {
   category: string;
   conversationSummary: string | null;
   urgency: boolean;
+  guestName?: string;
+  propertyName?: string;
+  checkIn?: string;
+  checkOut?: string;
+  bookingChannel?: string;
+  originalMessage?: string;
+  leadUid?: string;
+  threadUid?: string;
+  messageUid?: string;
 }
 
 /**
@@ -64,5 +73,14 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     category: isNoActionNeeded ? 'acknowledgment' : (parsed.category ?? 'other'),
     conversationSummary: parsed.conversationSummary ?? null,
     urgency: parsed.urgency === true,
+    ...(parsed.guestName !== undefined && { guestName: parsed.guestName }),
+    ...(parsed.propertyName !== undefined && { propertyName: parsed.propertyName }),
+    ...(parsed.checkIn !== undefined && { checkIn: parsed.checkIn }),
+    ...(parsed.checkOut !== undefined && { checkOut: parsed.checkOut }),
+    ...(parsed.bookingChannel !== undefined && { bookingChannel: parsed.bookingChannel }),
+    ...(parsed.originalMessage !== undefined && { originalMessage: parsed.originalMessage }),
+    ...(parsed.leadUid !== undefined && { leadUid: parsed.leadUid }),
+    ...(parsed.threadUid !== undefined && { threadUid: parsed.threadUid }),
+    ...(parsed.messageUid !== undefined && { messageUid: parsed.messageUid }),
   };
 }
