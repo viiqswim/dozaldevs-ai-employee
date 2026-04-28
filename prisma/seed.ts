@@ -1315,6 +1315,50 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
     `✅ KnowledgeBaseEntry upserted: ${vlrePropertyKb.id} (scope: ${vlrePropertyKb.scope}, entity_id: ${vlrePropertyKb.entity_id})`,
   );
 
+  // KB seed — test property Alpha (multi-property verification)
+  const vlrePropertyAlphaKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000102' },
+    update: {
+      content:
+        '# Test Property Alpha\n\nThis is a test property for multi-property verification.\n\n## Check-in\nCheck-in time: 4:00 PM\nSelf check-in with smart lock code.\n\n## WiFi\nNetwork: AlphaGuest\nPassword: alpha2024',
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000102',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: 'test-property-alpha',
+      scope: 'entity',
+      content:
+        '# Test Property Alpha\n\nThis is a test property for multi-property verification.\n\n## Check-in\nCheck-in time: 4:00 PM\nSelf check-in with smart lock code.\n\n## WiFi\nNetwork: AlphaGuest\nPassword: alpha2024',
+    },
+  });
+
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlrePropertyAlphaKb.id} (scope: ${vlrePropertyAlphaKb.scope}, entity_id: ${vlrePropertyAlphaKb.entity_id})`,
+  );
+
+  // KB seed — test property Beta (multi-property verification)
+  const vlrePropertyBetaKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000103' },
+    update: {
+      content:
+        '# Test Property Beta\n\nSecond test property for multi-property verification.\n\n## Check-in\nCheck-in time: 3:00 PM\nMeet host at front door.\n\n## WiFi\nNetwork: BetaWifi\nPassword: beta2024',
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000103',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: 'test-property-beta',
+      scope: 'entity',
+      content:
+        '# Test Property Beta\n\nSecond test property for multi-property verification.\n\n## Check-in\nCheck-in time: 3:00 PM\nMeet host at front door.\n\n## WiFi\nNetwork: BetaWifi\nPassword: beta2024',
+    },
+  });
+
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlrePropertyBetaKb.id} (scope: ${vlrePropertyBetaKb.scope}, entity_id: ${vlrePropertyBetaKb.entity_id})`,
+  );
+
   console.log('✅ Seeding complete.');
   console.log(
     `Tenants seeded: DozalDevs, VLRE — daily-summarizer archetypes for both, guest-messaging archetype for VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
