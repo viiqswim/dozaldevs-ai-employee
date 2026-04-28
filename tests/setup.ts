@@ -18,6 +18,13 @@ export function getPrisma(): PrismaClient {
 // Clean up test-inserted data but preserve seed records
 export async function cleanupTestData(): Promise<void> {
   const prisma = getPrisma();
+  await prisma.knowledgeBaseEntry.deleteMany({
+    where: {
+      id: {
+        notIn: ['00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000101'],
+      },
+    },
+  });
   await prisma.taskStatusLog.deleteMany({});
   await prisma.validationRun.deleteMany({});
   await prisma.deliverable.deleteMany({});
