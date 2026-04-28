@@ -12,13 +12,13 @@ afterAll(async () => {
 });
 
 describe('knowledge_base_entries — seed verification', () => {
-  it('2 KB rows exist for VLRE tenant', async () => {
+  it('4 KB rows exist for VLRE tenant', async () => {
     const prisma = getPrisma();
     const rows = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT count(*)::bigint FROM knowledge_base_entries
       WHERE tenant_id = ${VLRE_TENANT_ID}::uuid
     `;
-    expect(Number(rows[0].count)).toBe(2);
+    expect(Number(rows[0].count)).toBe(4);
   });
 
   it('common KB row has correct scope, entity_type null, entity_id null', async () => {
@@ -74,17 +74,17 @@ describe('knowledge_base_entries — seed verification', () => {
     expect(Number(rows[0].count)).toBe(0);
   });
 
-  it('deterministic UUIDs match expected values for both KB rows', async () => {
+  it('deterministic UUIDs match expected values for original KB rows', async () => {
     const prisma = getPrisma();
     const rows = await prisma.$queryRaw<{ id: string; scope: string }[]>`
       SELECT id, scope FROM knowledge_base_entries
       WHERE tenant_id = ${VLRE_TENANT_ID}::uuid
       ORDER BY scope
     `;
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(4);
     const commonRow = rows.find((r) => r.scope === 'common');
-    const entityRow = rows.find((r) => r.scope === 'entity');
+    const entityRows = rows.filter((r) => r.scope === 'entity');
     expect(commonRow?.id).toBe(COMMON_KB_ID);
-    expect(entityRow?.id).toBe(ENTITY_KB_ID);
+    expect(entityRows.some((r) => r.id === ENTITY_KB_ID)).toBe(true);
   });
 });
