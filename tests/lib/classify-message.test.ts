@@ -324,4 +324,63 @@ describe('parseClassifyResponse', () => {
     expect(result.classification).toBe('NEEDS_APPROVAL');
     expect(result.category).toBe('access');
   });
+
+  // ─── 15. Guest context fields — all 9 present ────────────────────────────
+
+  it('extracts all 9 guest context fields when present in JSON', () => {
+    const input = JSON.stringify({
+      classification: 'NEEDS_APPROVAL',
+      confidence: 0.9,
+      reasoning: 'Guest asking about early check-in',
+      draftResponse: 'We can accommodate early check-in at 1pm.',
+      summary: 'Early check-in request',
+      category: 'check-in',
+      conversationSummary: 'Guest has been asking about arrival time.',
+      urgency: false,
+      guestName: 'Maria Garcia',
+      propertyName: 'Beachfront Villa',
+      checkIn: '2026-05-10',
+      checkOut: '2026-05-17',
+      bookingChannel: 'AIRBNB',
+      originalMessage: 'Hi, can I check in early around noon?',
+      leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
+      threadUid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
+      messageUid: 'aabbccdd-1234-5678-abcd-ef0123456789',
+    });
+    const result = parseClassifyResponse(input);
+    expect(result.guestName).toBe('Maria Garcia');
+    expect(result.propertyName).toBe('Beachfront Villa');
+    expect(result.checkIn).toBe('2026-05-10');
+    expect(result.checkOut).toBe('2026-05-17');
+    expect(result.bookingChannel).toBe('AIRBNB');
+    expect(result.originalMessage).toBe('Hi, can I check in early around noon?');
+    expect(result.leadUid).toBe('37f5f58f-d308-42bf-8ed3-f0c2d70f16fb');
+    expect(result.threadUid).toBe('2f18249a-9523-4acd-a512-20ff06d5c3fa');
+    expect(result.messageUid).toBe('aabbccdd-1234-5678-abcd-ef0123456789');
+  });
+
+  // ─── 16. Guest context fields — absent → undefined (backward compat) ─────
+
+  it('returns undefined for all guest context fields when absent from JSON', () => {
+    const input = JSON.stringify({
+      classification: 'NEEDS_APPROVAL',
+      confidence: 0.8,
+      reasoning: 'WiFi question',
+      draftResponse: 'WiFi password is abc123.',
+      summary: 'WiFi request',
+      category: 'wifi',
+      conversationSummary: null,
+      urgency: false,
+    });
+    const result = parseClassifyResponse(input);
+    expect(result.guestName).toBeUndefined();
+    expect(result.propertyName).toBeUndefined();
+    expect(result.checkIn).toBeUndefined();
+    expect(result.checkOut).toBeUndefined();
+    expect(result.bookingChannel).toBeUndefined();
+    expect(result.originalMessage).toBeUndefined();
+    expect(result.leadUid).toBeUndefined();
+    expect(result.threadUid).toBeUndefined();
+    expect(result.messageUid).toBeUndefined();
+  });
 });
