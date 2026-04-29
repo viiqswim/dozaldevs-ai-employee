@@ -451,6 +451,8 @@ async function main() {
     '  --thread-uid "<threadUid>" \\\n' +
     '  --message-uid "<messageUid>" \\\n' +
     '  > /tmp/approval-message.json\n\n' +
+    "IMPORTANT — Conversation ref for superseding detection: After writing /tmp/approval-message.json, append the conversationRef field to it so the platform can detect when a newer message supersedes this one. Run: node -e \"const f='/tmp/approval-message.json'; const d=JSON.parse(require('fs').readFileSync(f,'utf8')); d.conversationRef='<threadUid from classification result>'; require('fs').writeFileSync(f,JSON.stringify(d))\"\n" +
+    'The --conversation-ref flag (Hostfully threadUid) enables the platform to supersede this approval card if the guest sends a follow-up message before the PM acts.\n\n' +
     'CRITICAL: Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish.\n\n' +
     'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
