@@ -459,6 +459,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
+          guestName: delivMeta.guest_name as string | undefined,
+          propertyName: delivMeta.property_name as string | undefined,
+          urgency: delivMeta.urgency as boolean | undefined,
         });
         log.info({ taskId, conversationRef }, 'Pending approval tracked');
       });
