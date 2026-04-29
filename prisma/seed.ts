@@ -1123,6 +1123,2159 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
 - **Final Payment**: 45 days before check-in
 - **Booking Window**: Up to 1 month in advance`;
 
+  const VLRE_PROPERTY_3412_SAN_KB_CONTENT = `# 3412-SAN — 3401 Breckenridge drive, Austin, TX
+
+## Property Overview
+- **Internal Code**: 3412-SAN-HOME
+- **Type**: House | **Listing**: Entire Home
+- **Bedrooms**: 4 | **Bathrooms**: 2.5
+- **Max Guests**: 8
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $299 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3401 Breckenridge drive, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Washer — left door in the kitchen (Closer to the Stove)
+- Dryer
+- Indoor pool (seasonal) — Community Pool - Seasonal Availability
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+- Trash bins — Left side of the house
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸No parties
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $135
+- **Security Deposit**: $270
+- **Extra Guest Fee**: $35/night (over base occupancy of 8)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3412-SAN-1
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1.5
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $44 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Sand dunes av, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3412-SAN-2
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1.5
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $44 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Sand dunes av, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3412-SAN-3
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1.5
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $44 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Sand dunes av, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3412-SAN-4
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1.5
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $44 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Sand dunes av, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+## Team Additions
+
+### Las llaves están en el garage, abriendo la puerta del garage
+Q: ¿Dónde se guardan las llaves para acceder a la cena y la bandería en 3412-San?
+A: Las llaves están en el garage, abriendo la puerta del garage al lado derecho. Son dos llaves físicas (lavanderia y alacena) y las llaves de emergencia están en la lock box. Solamente los miembros del equipo tienen acceso a la alacena y en la lavandería la pueden utilizar los huéspedes que rentan casa completa.
+
+_Added via Slack on 2026-03-23_
+
+### Las llaves están en el garage, abriendo la puerta del garage
+Q: ¿Dónde se guardan las llaves para acceder a la cena y la bandería en 3412-San?
+A: Las llaves están en el garage, abriendo la puerta del garage al lado derecho. Son dos llaves físicas (lavanderia y alacena) y las llaves de emergencia están en la lock box. Solamente los miembros del equipo tienen acceso a la alacena y en la lavandería la pueden utilizar los huéspedes que rentan casa completa.
+
+_Added via Slack on 2026-03-23_`;
+
+  const VLRE_PROPERTY_3420_HOV_KB_CONTENT = `# 3401-BRE — 3420 Hovenweep ave, Austin, TX
+
+## Property Overview
+- **Internal Code**: 3401-BRE-HOME
+- **Type**: House | **Listing**: Entire Home
+- **Bedrooms**: 3 | **Bathrooms**: 2
+- **Max Guests**: 6
+- **Check-in**: 2:00 PM | **Check-out**: 10:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $225 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Hovenweep ave, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room
+- Wifi speed (250+ Mbps)
+- Washer — French door next to the room 1
+- Dryer — French door next to the room 2
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+- Trash bins — Left side of the house
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Kitchen
+- Coffee — Kitchen cabinet
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸No parties
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $120
+- **Security Deposit**: $240
+- **Extra Guest Fee**: $35/night (over base occupancy of 6)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3420-HOV-1
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 2:00 PM | **Check-out**: 10:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $34 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Hovenweep Ave,, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Dining room corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Kitchen
+- Coffee — Kitchen cabinet
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3420-HOV-2
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 2:00 PM | **Check-out**: 10:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $34 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Hovenweep Ave,, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Has cat
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Kitchen
+- Coffee — Kitchen cabinet
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸If the TV control remote gets lost, the replacement will have a $50 cost
+- 🔸Common areas are not allowed to sleep
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸Don't change the temperature
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $25
+- **Security Deposit**: $50
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3420-HOV-3
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 2:00 PM | **Check-out**: 10:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $34 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3420 Hovenweep Ave,, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Living room
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Kitchen
+- Coffee — Kitchen cabinet
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸Don't change the temperature
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $25
+- **Security Deposit**: $50
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+## Team Additions
+
+### Las llaves de la alacena, donde se guardan los productos de 
+Q: ¿Dónde se guardan las llaves en 3420-Hov?
+A: Las llaves de la alacena, donde se guardan los productos de limpieza, están en el garage, abriendo la puerta a mano izquierda, pegado a la pared. Estas llaves son exclusivas para el equipo. Los huéspedes no deberían tener acceso porque tenemos productos de limpieza ahí.
+
+_Added via Slack on 2026-03-23_
+
+### Lo ideal sería preguntar al equipo de limpieza pero deberían
+Q: Dónde está o dónde se guardan las escobas en 3420-HOV-HOME?
+A: Lo ideal sería preguntar al equipo de limpieza pero deberían estar en el garage (de esa área está limitada para equipos de limpieza)
+
+_Added via Slack on 2026-03-23_`;
+
+  const VLRE_PROPERTY_3401_BRE_KB_CONTENT = `# 3401-BRE — 3401 Breckenridge drive, Austin, TX
+
+## Property Overview
+- **Internal Code**: 3401-BRE-HOME
+- **Type**: House | **Listing**: Entire Home
+- **Bedrooms**: 3 | **Bathrooms**: 2
+- **Max Guests**: 6
+- **Check-in**: 4:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $109 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3401 Breckenridge drive, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — garage (no access)
+- Wifi speed (250+ Mbps)
+- Washer — French door next to the room 1
+- Dryer — French door next to the room 2
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+- Trash bins — Left side of the house
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸No parties
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $120
+- **Security Deposit**: $240
+- **Extra Guest Fee**: $35/night (over base occupancy of 6)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3401-BRE-1
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 2
+- **Max Guests**: 2
+- **Check-in**: 4:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $49 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3401 Breckenridge drive, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — garage (no access)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Has cat
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $29
+- **Security Deposit**: $58
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3401-BRE-2
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 4:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $49 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3401 Breckenridge drive, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Ipod Station
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — garage (no access)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $25
+- **Security Deposit**: $50
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 3401-BRE-3
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 4:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $49 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 3401 Breckenridge drive, Austin, TX 78744
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — garage (no access)
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Has cat
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry is not available
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $25
+- **Security Deposit**: $50
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 1 month in advance`;
+
+  const VLRE_PROPERTY_271_GIN_KB_CONTENT = `
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 271-GIN-1
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $60 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 271 Gina Dr, Kyle, TX 78640
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home, themostat (livingroom upstairs)
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Washer — special fee $5 for 4 hours
+- Dryer
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry's fee $5 per time *Subject to availability, please make your request for use 24 hours in advance*
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸For delivery services, a $30 fee will be charged if mailbox is needed
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸No photo shoots
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $30
+- **Security Deposit**: $60
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 271-GIN-2
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $60 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 271 Gina Dr, Kyle, TX 78640
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home, themostat (livingroom upstairs)
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Washer — second floor in the living room (next to the stairs
+- Dryer — same as washer
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry's fee $5 per time *Subject to availability, please make your request for use 24 hours in advance*
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸For delivery services, a $30 fee will be charged if mailbox is needed
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸No photo shoots
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $30
+- **Security Deposit**: $60
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 271-GIN-3
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $60 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 271 Gina Dr, Kyle, TX 78640
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Ipod Station
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home, themostat (livingroom upstairs)
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Washer — second floor in the living room (next to the stairs
+- Dryer — same as washer
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Has cat
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry's fee $5 per time *Subject to availability, please make your request for use 24 hours in advance*
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸For delivery services, a $30 fee will be charged if mailbox is needed
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸No photo shoots
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $30
+- **Security Deposit**: $60
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+---
+
+## Unit TEMPLATE.XLSX
+## Property Overview
+- **Internal Code**: 271-GIN-4
+- **Type**: Room | **Listing**: Private Room
+- **Bedrooms**: 1 | **Bathrooms**: 1.5
+- **Max Guests**: 2
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $60 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 271 Gina Dr, Kyle, TX 78640
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner (upstairs)
+- Hangers — Closet room
+
+### Throughout the Property
+- Smart TV — Living room (downstairs)
+- Air Conditioning — Entire home, themostat (livingroom upstairs)
+- Heating — Entire home
+- Internet Wifi — Living room (downstairs)
+- Wifi speed (250+ Mbps)
+- Washer — second floor in the living room (next to the stairs
+- Dryer — same as washer
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — Each room has a smart lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room (downstairs)
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen with labels
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+- Toiletries
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry's fee $5 per time *Subject to availability, please make your request for use 24 hours in advance*
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸Quiet time between 10 pm to 7 a.m. for everyone's comfort 🙏
+- 🔸No parties
+- 🔸No children
+- 🔸Refrain from taking food and beverages from other guest or/and host
+- 🔸Keep bathroom and common areas clean
+- 🔸Common areas are not allowed to sleep
+- 🔸Don't change the temperature
+- 🔸For delivery services, a $30 fee will be charged if mailbox is needed
+- 🔸Linen fee: $15. Replacement items cost an additional $15 each time. Once paid, replacements will be left outside your room.
+- 🔸No photo shoots
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $30
+- **Security Deposit**: $60
+- **Extra Guest Fee**: $35/night (over base occupancy of 2)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance
+
+## Team Additions
+
+### De acuerdo con las políticas y reglas de la casa registradas
+Q: en 271-GIN-HOME se aceptan niños de 2 años?
+A: De acuerdo con las políticas y reglas de la casa registradas específicamente para la propiedad 271-GIN (271 Gina Dr), no se aceptan niños
+. Por lo tanto, no está permitido hospedar a un niño de 2 años en esta propiedad.
+
+_Added via Slack on 2026-03-23_`;
+
+  const VLRE_PROPERTY_219_PAU_KB_CONTENT = `# 219-PAU — 219 Paul Street, San Antonio, TX
+
+## Property Overview
+- **Internal Code**: 219-PAU-HOME
+- **Type**: House | **Listing**: Entire Home
+- **Bedrooms**: 3 | **Bathrooms**: 2
+- **Max Guests**: 6
+- **Check-in**: 3:00 PM | **Check-out**: 11:00 AM
+- **Minimum Stay**: 1 night(s) | **Maximum Stay**: 365 nights
+- **Nightly Rate**: $140 (base)
+- **Cancellation Policy**: Strict
+- **Address**: 219 Paul Street, San Antonio, TX 78203
+
+## WiFi
+- **Network**: Patitos-2g
+- **Password**: VictorOlivia96*
+
+## Access & Check-in
+- **Primary Method**: There is a door code
+- **Alternative Method**: The keys are hidden in secret spot
+
+## Parking
+- **Free Parking (On premises)**
+- **Free Parking (On street)**
+
+## Amenities
+
+### Bedroom
+- Desk
+- Desk chair
+- Iron — Livingroom corner
+- Hangers — Closet room
+- Lock on bedroom
+
+### Throughout the Property
+- Smart TV — Living room
+- Air Conditioning — Entire home
+- Heating — Entire home
+- Internet Wifi — Livingroom next firepit
+- Wifi speed (250+ Mbps)
+- Fenced yard
+- Smoke Detector — Each room
+- Fire Extinguisher — Over Fridge (kitchen)
+- Deadbolt lock — smart lock entrance, rooms privacity lock
+- Outdoor lighting
+- Essentials
+- Ceiling Fan — Room
+- First aid kit — Over fridge in the kitchen
+- Linens Provided
+- Towels Provided
+- Deck/Patio
+- 24-hour checkin
+- House Rules Poster
+- Children Not Allowed
+- Infant Not Allowed
+
+### Living Room
+- TV — Living room
+
+### Kitchen
+- Kitchen
+- Pots Pans — Cabiet in the kitchen
+- Oven
+- Microwave Oven
+- Water Kettle
+- Coffee Maker
+- Dishwasher
+- Fridge
+- Kitchen island
+- Dining table
+- Stove
+- Cooking Basics — Cabinet next to the sink
+- Baking sheet
+- Blender — Cabinet next to the fridge (left side)
+- Coffee — Kitchen (next to the fridge)
+- Freezer
+
+### Bathroom
+- Hair Dryer — Bathroom
+- Shampoo
+- Hot Water
+- Body soap — Bathroom
+
+## House Rules
+- 🔸No shoes in the house (Flip flops or slippers are welcome ☺️)
+- 🔸Laundry's fee $20
+- 🔸Late checkouts will incur a fee of $50
+- 🔸Any smoking odor or smell left inside the property will bring a $100 fee for the extra cleaning needed.
+- 🔸No pets (No animals due to allergies)
+- 🔸No unregistered guests
+- 🔸No parties
+
+## Cancellation Policy
+**Strict** — Full refund for cancellations made within 48 hours of booking, if the check-in date is at least 14 days away. 50% refund for cancellations made at least 7 days before check-in. No refunds for cancellations made within 7 days of check-in.
+
+## Fees
+- **Cleaning Fee**: $119
+- **Security Deposit**: $238
+- **Extra Guest Fee**: $35/night (over base occupancy of 6)
+
+## Booking Details
+- **Currency**: US Dollar
+- **Payment at Booking**: 50% of total
+- **Final Payment**: 45 days before check-in
+- **Booking Window**: Up to 12 months in advance`;
+
+  const VLRE_PROPERTY_1602_BLU_KB_CONTENT = `#  — 1602 Bluebird Dr, Bailey, CO
+
+## Property Overview
+- **Internal Code**: 
+- **Type**: Cabin | **Listing**: Entire Home
+- **Bedrooms**: 3 | **Bathrooms**: 2
+- **Max Guests**: 0
+- **Check-in**:  | **Check-out**: 
+- **Minimum Stay**: 0 night(s) | **Maximum Stay**: 0 nights
+- **Cancellation Policy**: 
+- **Address**: 1602 Bluebird Dr, Bailey, CO 80421
+
+## WiFi
+
+## Access & Check-in
+
+## Parking
+Parking details not specified.
+
+## Amenities
+
+### Throughout the Property
+- Smart TV
+- Heating
+- Internet Wifi
+- Paid Wifi
+- Wifi speed (100+ Mbps)
+- Washer
+- Dryer
+- Fenced yard
+- Indoor Fireplace
+- Single level home
+- Smoke Detector
+- Deadbolt lock
+- Outdoor lighting
+- EV car charger
+- Deck/Patio
+- Fire pit
+- Hammock
+- Outdoor seating
+- Fireplace guards
+- Outlet covers
+- Rural
+- Mountain
+- Allow Pets
+- Allow Children
+
+### Kitchen
+- Oven
+- Microwave Oven
+- Coffee Maker
+- Fridge
+- Stove
+- Freezer
+
+### Bathroom
+- Ventilation Fan
+- Hot Water
+
+## House Rules
+No specific house rules provided.
+
+## Fees
+
+## Booking Details`;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dozalDevsSummarizerArchetype = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0000-000000000012' },
@@ -1297,15 +3450,15 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
 
   console.log(`✅ KnowledgeBaseEntry upserted: ${vlreCommonKb.id} (scope: ${vlreCommonKb.scope})`);
 
-  // KB seed — VLRE property 3505-ban (c960c8d2-9a51-49d8-bb48-355a7bfbe7e2)
+  // KB seed — VLRE property 3505-ban (vlre-3505-ban)
   const vlrePropertyKb = await prisma.knowledgeBaseEntry.upsert({
     where: { id: '00000000-0000-0000-0000-000000000101' },
-    update: { content: VLRE_PROPERTY_3505_BAN_KB_CONTENT },
+    update: { content: VLRE_PROPERTY_3505_BAN_KB_CONTENT, entity_id: 'vlre-3505-ban' },
     create: {
       id: '00000000-0000-0000-0000-000000000101',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       entity_type: 'property',
-      entity_id: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
+      entity_id: 'vlre-3505-ban',
       scope: 'entity',
       content: VLRE_PROPERTY_3505_BAN_KB_CONTENT,
     },
@@ -1357,6 +3510,108 @@ Note: When in doubt, classify as NEEDS_APPROVAL rather than AUTO_RESPOND.`;
 
   console.log(
     `✅ KnowledgeBaseEntry upserted: ${vlrePropertyBetaKb.id} (scope: ${vlrePropertyBetaKb.scope}, entity_id: ${vlrePropertyBetaKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 3412-san (4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9)
+  const vlreProperty3412SanKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000104' },
+    update: { content: VLRE_PROPERTY_3412_SAN_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000104',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      scope: 'entity',
+      content: VLRE_PROPERTY_3412_SAN_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty3412SanKb.id} (scope: ${vlreProperty3412SanKb.scope}, entity_id: ${vlreProperty3412SanKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 3420-hov (2c64f880-90d2-4659-9b02-7b937763e9e1)
+  const vlreProperty3420HovKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000105' },
+    update: { content: VLRE_PROPERTY_3420_HOV_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000105',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: '2c64f880-90d2-4659-9b02-7b937763e9e1',
+      scope: 'entity',
+      content: VLRE_PROPERTY_3420_HOV_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty3420HovKb.id} (scope: ${vlreProperty3420HovKb.scope}, entity_id: ${vlreProperty3420HovKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 3401-bre (6e6169bf-8418-448b-8fd9-a89135e5e358)
+  const vlreProperty3401BreKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000106' },
+    update: { content: VLRE_PROPERTY_3401_BRE_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000106',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      scope: 'entity',
+      content: VLRE_PROPERTY_3401_BRE_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty3401BreKb.id} (scope: ${vlreProperty3401BreKb.scope}, entity_id: ${vlreProperty3401BreKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 271-gin (646ca297-5edf-474f-8b14-a0ee2935f2dd)
+  const vlreProperty271GinKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000107' },
+    update: { content: VLRE_PROPERTY_271_GIN_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000107',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      scope: 'entity',
+      content: VLRE_PROPERTY_271_GIN_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty271GinKb.id} (scope: ${vlreProperty271GinKb.scope}, entity_id: ${vlreProperty271GinKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 219-pau (3fa27670-f4f6-443b-a412-6078d4f5517e)
+  const vlreProperty219PauKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000108' },
+    update: { content: VLRE_PROPERTY_219_PAU_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000108',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: '3fa27670-f4f6-443b-a412-6078d4f5517e',
+      scope: 'entity',
+      content: VLRE_PROPERTY_219_PAU_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty219PauKb.id} (scope: ${vlreProperty219PauKb.scope}, entity_id: ${vlreProperty219PauKb.entity_id})`,
+  );
+
+  // KB seed — VLRE property 1602-blu (dac5a0e0-3984-4f72-b622-de45a9dd758f)
+  const vlreProperty1602BluKb = await prisma.knowledgeBaseEntry.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000109' },
+    update: { content: VLRE_PROPERTY_1602_BLU_KB_CONTENT },
+    create: {
+      id: '00000000-0000-0000-0000-000000000109',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      entity_type: 'property',
+      entity_id: 'dac5a0e0-3984-4f72-b622-de45a9dd758f',
+      scope: 'entity',
+      content: VLRE_PROPERTY_1602_BLU_KB_CONTENT,
+    },
+  });
+  console.log(
+    `✅ KnowledgeBaseEntry upserted: ${vlreProperty1602BluKb.id} (scope: ${vlreProperty1602BluKb.scope}, entity_id: ${vlreProperty1602BluKb.entity_id})`,
   );
 
   console.log('✅ Seeding complete.');

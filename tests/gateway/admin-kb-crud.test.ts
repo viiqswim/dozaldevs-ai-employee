@@ -12,7 +12,7 @@ const SEED_ENTITY_ID = '00000000-0000-0000-0000-000000000101';
 
 // The entity_type+entity_id for the seeded entity entry (used for duplicate tests)
 const SEED_ENTITY_TYPE = 'property';
-const SEED_ENTITY_ENTITY_ID = 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2';
+const SEED_ENTITY_ENTITY_ID = 'vlre-3505-ban';
 
 // A non-existent UUID — won't be in the DB, safe for 404 tests
 const NONEXISTENT_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
