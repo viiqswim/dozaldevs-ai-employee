@@ -295,6 +295,7 @@ async function main() {
           publish_channel: 'C0960S2Q8RL',
         },
         default_agents_md: PLATFORM_AGENTS_MD,
+        guest_messaging: { poll_interval_minutes: 30 },
       },
     },
     update: {
@@ -309,6 +310,7 @@ async function main() {
           publish_channel: 'C0960S2Q8RL',
         },
         default_agents_md: PLATFORM_AGENTS_MD,
+        guest_messaging: { poll_interval_minutes: 30 },
       },
     },
   });
@@ -3389,7 +3391,7 @@ No specific house rules provided.
           '/tools/knowledge_base/search.ts',
         ],
       },
-      trigger_sources: { type: 'webhook' }, // event-driven, not cron
+      trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
@@ -3418,7 +3420,7 @@ No specific house rules provided.
           '/tools/knowledge_base/search.ts',
         ],
       },
-      trigger_sources: { type: 'webhook' },
+      trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 5,
