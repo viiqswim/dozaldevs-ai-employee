@@ -91,6 +91,8 @@ describe('guest-messaging archetype — seed verification', () => {
     expect(result[0].instructions).toContain('get-property.ts');
     expect(result[0].instructions).toContain('/tmp/summary.txt');
     expect(result[0].instructions).toContain('/tmp/approval-message.json');
+    expect(result[0].instructions).toContain('conversation history');
+    expect(result[0].instructions).toContain('messages array');
     expect(result[0].instructions).not.toContain('DELIVERY_MODE');
     expect(result[0].instructions).not.toContain('to be defined in GM-02');
     expect(result[0].delivery_instructions).toBeTruthy();

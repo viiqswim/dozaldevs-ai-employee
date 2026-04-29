@@ -35,7 +35,6 @@ REGLAS DE FORMATO (obligatorias — no las ignores):
 - Conserva las menciones de Slack exactamente como vienen en el input (ej. <@U06KUE9EC01>). No las conviertas a IDs sueltas ni las elimines.
 - Máximo 600 palabras. Todo en español salvo términos técnicos sin traducción natural.`;
 
-
 async function main() {
   console.log('🌱 Seeding database...');
 
@@ -236,7 +235,11 @@ async function main() {
     'Run: tsx /tools/hostfully/get-property.ts --property-id "<property-id>"\n' +
     'Knowledge Base search: tsx /tools/knowledge_base/search.ts --entity-type property --entity-id "<property-id>"\n\n' +
     'STEP 3: Classify the message and draft a response.\n' +
-    'Using the guest message text, reservation details, property information, and any KB results, classify the message and draft a response following the JSON format in your system prompt. Output the JSON classification.\n\n' +
+    'Read ALL messages in the thread from the messages array returned in Step 1 output (chronological order, up to 30 messages). ' +
+    'Pass the full conversation history to the LLM as context, clearly framed as "previous messages in this conversation". ' +
+    'Using the full conversation history, reservation details, property information, and any KB results, classify the message and draft a response following the JSON format in your system prompt. ' +
+    'When drafting the response, acknowledge prior context where relevant (e.g., "As I mentioned..." or "Following up on..."). ' +
+    'Output the JSON classification.\n\n' +
     'STEP 4: Route based on classification.\n' +
     'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post an informational message (no approve/reject buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ No action needed — <guest name> at <property name>: <summary from classification JSON>" --task-id $TASK_ID > /tmp/approval-message.json\n' +
     'If classification is NEEDS_APPROVAL: continue to Step 5.\n\n' +
