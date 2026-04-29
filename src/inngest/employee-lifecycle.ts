@@ -304,6 +304,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       // ── Classification check: auto-complete NO_ACTION_NEEDED ─────────────────
       const classificationCheck = await step.run('check-classification', async () => {
         const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+
+        // Infinite loop guard: if this is a reply-anyway re-draft, force approval flow
+        const taskMetaRes = await fetch(
+          `${supabaseUrlInner}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
+          { headers },
+        );
+        const taskMetaRows = (await taskMetaRes.json()) as Array<{
+          metadata: Record<string, unknown> | null;
+        }>;
+        const taskMeta = (taskMetaRows[0]?.metadata ?? {}) as Record<string, unknown>;
+        if (taskMeta.reply_anyway === true) {
+          return { skipApproval: false };
+        }
+
         // Retry up to 3 times with 1s delay — deliverable may not be committed yet
         for (let attempt = 1; attempt <= 3; attempt++) {
           const res = await fetch(
@@ -324,11 +338,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       });
 
       if (classificationCheck.skipApproval) {
-        await step.run('complete-no-action', async () => {
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
-          log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — auto-completed)');
-        });
         await step.run('cleanup-no-action', async () => {
           try {
             const flyApp =
@@ -338,7 +347,125 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
           }
         });
-        return;
+
+        const replyAnywayEvent = await step.waitForEvent('wait-for-reply-anyway', {
+          event: 'employee/reply-anyway.requested',
+          match: 'data.taskId',
+          timeout: `${timeoutHours}h`,
+        });
+
+        if (!replyAnywayEvent) {
+          await step.run('complete-no-action-timeout', async () => {
+            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+            log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — 24h timeout, no Reply Anyway)');
+          });
+          return;
+        }
+
+        const { userId: replyUserId } = replyAnywayEvent.data as {
+          taskId: string;
+          userId: string;
+          userName: string;
+        };
+
+        await step.run('mark-reply-anyway-override', async () => {
+          await patchTask(supabaseUrl, headers, taskId, {
+            status: 'Executing',
+            metadata: {
+              overridden_no_action: true,
+              reply_anyway: true,
+              reply_anyway_by: replyUserId,
+              reply_anyway_at: new Date().toISOString(),
+            },
+          });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Executing', 'Submitting');
+          log.info(
+            { taskId, userId: replyUserId },
+            'Reply Anyway override — spawning re-draft machine',
+          );
+        });
+
+        const replyContext = await step.run('build-reply-context', async () => {
+          const delivRes = await fetch(
+            `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
+            { headers },
+          );
+          const delivRows = (await delivRes.json()) as Array<{ content: string }>;
+          const content = delivRows[0]?.content ?? '';
+          const parsed = parseClassifyResponse(content);
+          return JSON.stringify({
+            guestName: parsed.guestName ?? 'Unknown',
+            propertyName: parsed.propertyName ?? 'Unknown',
+            checkIn: parsed.checkIn ?? '',
+            checkOut: parsed.checkOut ?? '',
+            bookingChannel: parsed.bookingChannel ?? '',
+            originalMessage: parsed.originalMessage ?? '',
+            summary: parsed.summary,
+            leadUid: parsed.leadUid ?? '',
+            threadUid: parsed.threadUid ?? '',
+            messageUid: parsed.messageUid ?? '',
+            conversationSummary: parsed.conversationSummary ?? '',
+          });
+        });
+
+        const replyMachineId = await step.run('reply-anyway-execute', async () => {
+          const vmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
+          const image =
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const flyApp =
+            process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+          const effectiveSupabaseUrl =
+            process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+
+          const prismaForReply = new PrismaClient();
+          const tenantEnvForReply = await loadTenantEnv(tenantId, {
+            tenantRepo: new TenantRepository(prismaForReply),
+            secretRepo: new TenantSecretRepository(prismaForReply),
+          });
+          await prismaForReply.$disconnect();
+
+          const machine = await createMachine(flyApp, {
+            image,
+            vm_size: vmSize,
+            auto_destroy: true,
+            kill_timeout: 1800,
+            cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+            env: {
+              ...tenantEnvForReply,
+              TASK_ID: taskId,
+              TENANT_ID: tenantId,
+              ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
+              SUPABASE_URL: effectiveSupabaseUrl,
+              SUPABASE_SECRET_KEY: supabaseKey,
+              REPLY_ANYWAY_CONTEXT: replyContext,
+            },
+          });
+          log.info({ taskId, machineId: machine.id }, 'Reply Anyway re-draft machine spawned');
+          return machine.id;
+        });
+
+        await step.run('reply-anyway-poll', async () => {
+          const maxPolls = 60;
+          const intervalMs = 15_000;
+          for (let i = 0; i < maxPolls; i++) {
+            await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+            const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
+              headers,
+            });
+            const rows = (await res.json()) as Array<{ status: string }>;
+            const status = rows[0]?.status ?? '';
+            if (status === 'Submitting' || status === 'Failed') {
+              if (status === 'Failed') {
+                log.error({ taskId }, 'Reply Anyway re-draft machine failed');
+                return;
+              }
+              break;
+            }
+          }
+        });
+
+        void replyMachineId;
       }
 
       // ── Supersede Detection ──────────────────────────────────────────────────

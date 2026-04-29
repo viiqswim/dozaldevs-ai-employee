@@ -130,7 +130,17 @@ function makeClassificationEngine(deliverableContent: string | null) {
       case 'complete-no-action':
         return fn();
       case 'cleanup-no-action':
-        return undefined;
+        return fn();
+      case 'complete-no-action-timeout':
+        return fn();
+      case 'mark-reply-anyway-override':
+        return fn();
+      case 'build-reply-context':
+        return fn();
+      case 'reply-anyway-execute':
+        return 'mock-reply-machine-id';
+      case 'reply-anyway-poll':
+        return fn();
       case 'set-reviewing':
         return undefined;
       default:
@@ -245,7 +255,11 @@ describe('employee-lifecycle — classification flow (check-classification step)
     expect(
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
-    expect(waitForEventMock).not.toHaveBeenCalled();
+    // waitForEvent IS called now (24h Reply Anyway window), returns null (timeout) → Done
+    expect(waitForEventMock).toHaveBeenCalledWith(
+      'wait-for-reply-anyway',
+      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
+    );
   });
 
   it('NEEDS_APPROVAL deliverable → falls through to Reviewing', async () => {
@@ -282,7 +296,10 @@ describe('employee-lifecycle — classification flow (check-classification step)
     expect(
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
-    expect(waitForEventMock).not.toHaveBeenCalled();
+    expect(waitForEventMock).toHaveBeenCalledWith(
+      'wait-for-reply-anyway',
+      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
+    );
   });
 
   it('malformed deliverable content → defaults to NEEDS_APPROVAL, task enters Reviewing', async () => {
