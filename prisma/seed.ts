@@ -241,7 +241,24 @@ async function main() {
     'When drafting the response, acknowledge prior context where relevant (e.g., "As I mentioned..." or "Following up on..."). ' +
     'Output the JSON classification.\n\n' +
     'STEP 4: Route based on classification.\n' +
-    'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post an informational message (no approve/reject buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ No action needed — <guest name> at <property name>: <summary from classification JSON>" --task-id $TASK_ID > /tmp/approval-message.json\n' +
+    'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post a NO_ACTION_NEEDED notification card with Reply Anyway button:\n' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-no-action-notification.ts \\\n' +
+    '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
+    '  --task-id "$TASK_ID" \\\n' +
+    '  --guest-name "<guestName from classification JSON>" \\\n' +
+    '  --property-name "<propertyName from classification JSON>" \\\n' +
+    '  --check-in "<checkIn from classification JSON>" \\\n' +
+    '  --check-out "<checkOut from classification JSON>" \\\n' +
+    '  --booking-channel "<bookingChannel from classification JSON>" \\\n' +
+    '  --original-message "<originalMessage from classification JSON>" \\\n' +
+    '  --summary "<summary from classification JSON>" \\\n' +
+    '  --confidence <confidence from classification JSON> \\\n' +
+    '  --category "<category from classification JSON>" \\\n' +
+    '  --lead-uid "<leadUid from classification JSON>" \\\n' +
+    '  --thread-uid "<threadUid from classification JSON>" \\\n' +
+    '  --message-uid "<messageUid from classification JSON>" \\\n' +
+    '  > /tmp/approval-message.json\n' +
+    "After writing /tmp/approval-message.json, append the conversationRef field: node -e \"const f='/tmp/approval-message.json'; const d=JSON.parse(require('fs').readFileSync(f,'utf8')); d.conversationRef='<threadUid from classification JSON>'; require('fs').writeFileSync(f,JSON.stringify(d))\"\n" +
     'If classification is NEEDS_APPROVAL: continue to Step 5.\n\n' +
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
