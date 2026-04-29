@@ -216,6 +216,9 @@ async function runOpencodeSession(
       ...approvalData,
       approval_message_ts: approvalData.ts,
       target_channel: approvalData.channel,
+      ...(approvalData.conversationRef !== undefined && {
+        conversation_ref: approvalData.conversationRef,
+      }),
     };
     log.info(
       { taskId: TASK_ID },
