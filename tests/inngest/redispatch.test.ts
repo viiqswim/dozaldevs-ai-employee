@@ -52,6 +52,7 @@ function makeEngine(slackMock: SlackClient, sentEvents: Array<{ name: string; da
 function makeSlackMock(): SlackClient {
   return {
     postMessage: vi.fn().mockResolvedValue({ ts: '1234567890.000100', channel: 'C123' }),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
   };
 }
 
