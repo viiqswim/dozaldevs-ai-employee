@@ -405,6 +405,26 @@ Then ask the repo owner to add `https://local-ai-employee-yourname.dozaldevs.com
 - Never reference AI tools (claude, opencode, etc.) in commit messages
 - Markdown filenames: `YYYY-MM-DD-HHMM-{name}.md` (run `date "+%Y-%m-%d-%H%M"` first)
 
+## Git Cleanup on Plan Completion (MANDATORY)
+
+When a plan's implementation work is fully complete (all tasks done, final wave passed), Atlas **must** run `git status` and resolve every outstanding item before declaring done:
+
+```bash
+git status --short
+```
+
+Handle each category:
+
+| Status                                                           | Action                                                                      |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `M` modified — source/test files                                 | Stage and commit with an appropriate message                                |
+| `??` untracked — `.sisyphus/plans/` or `.sisyphus/notepads/`     | Stage and commit: `chore(sisyphus): add plans and notepads for <plan-name>` |
+| `??` untracked — generated/build artifacts (`dist/`, `*.js.map`) | Add to `.gitignore` if not already ignored                                  |
+| `??` untracked — temp/scratch files                              | Delete them                                                                 |
+| `D` deleted files that should stay deleted                       | Stage the deletion and commit                                               |
+
+**Rule**: `git status` must show an empty output (or only entries that are intentionally gitignored) before the plan is considered truly complete. Do not skip this step even if you believe everything was committed during task execution — subagents frequently leave orphaned files.
+
 ## Prometheus Planning — Telegram Notifications (MANDATORY)
 
 These rules apply to any agent acting as Prometheus (plan writer) or Atlas (plan executor) in this repo.
