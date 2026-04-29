@@ -66,6 +66,37 @@ async function isTaskAwaitingApproval(taskId: string): Promise<boolean> {
   }
 }
 
+async function isTaskPendingReplyAnyway(taskId: string): Promise<boolean> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    log.warn('SUPABASE_URL or SUPABASE_SECRET_KEY not set — skipping idempotency check');
+    return true;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    });
+    const rows = (await res.json()) as Array<{ status: string }>;
+    if (!rows.length) {
+      log.warn({ taskId }, 'Task not found during reply-anyway idempotency check');
+      return false;
+    }
+    const terminalStates = ['Done', 'Failed', 'Cancelled'];
+    return !terminalStates.includes(rows[0].status);
+  } catch (err) {
+    log.error(
+      { taskId, err },
+      'Failed to check task status for reply-anyway — proceeding optimistically',
+    );
+    return true;
+  }
+}
+
 const GUEST_BUTTON_BLOCKS = (taskId: string) => [
   {
     type: 'actions',
@@ -111,6 +142,20 @@ const BUTTON_BLOCKS = (taskId: string) => [
         action_id: 'reject',
         value: taskId,
         style: 'danger',
+      },
+    ],
+  },
+];
+
+const NO_ACTION_BUTTON_BLOCKS = (taskId: string) => [
+  {
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '💬 Reply Anyway', emoji: true },
+        action_id: 'guest_reply_anyway',
+        value: taskId,
       },
     ],
   },
@@ -628,6 +673,90 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       log.info({ taskId }, 'guest_reject modal opened');
     } catch (err) {
       log.error({ taskId, err }, 'Failed to open guest_reject modal');
+    }
+  });
+
+  boltApp.action('guest_reply_anyway', async ({ ack, body, respond }) => {
+    const actionBody = body as ActionBody;
+    const taskId = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    if (!taskId) {
+      await ack();
+      log.warn('guest_reply_anyway action received without task_id');
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: '⏳ Processing Reply Anyway...',
+      blocks: [
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing Reply Anyway...' } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+      ],
+    });
+
+    log.info(
+      { taskId, userId: user.id },
+      'guest_reply_anyway action received — processing state sent inline with ack',
+    );
+
+    try {
+      const stillPending = await isTaskPendingReplyAnyway(taskId);
+      if (!stillPending) {
+        log.warn({ taskId }, 'Task already resolved — ignoring duplicate guest_reply_anyway');
+        try {
+          await respond({
+            replace_original: true,
+            text: '⚠️ This notification has already been resolved.',
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⚠️ This notification has already been resolved.' },
+              },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ],
+          });
+        } catch (respondErr) {
+          log.warn({ taskId, respondErr }, 'Failed to update already-resolved message');
+        }
+        return;
+      }
+
+      await inngest.send({
+        name: 'employee/reply-anyway.requested',
+        data: { taskId, userId: user.id, userName: user.name },
+        id: `employee-reply-anyway-${taskId}`,
+      });
+      log.info(
+        { taskId, userId: user.id },
+        'Reply Anyway event sent — lifecycle will spawn re-draft machine',
+      );
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to process guest_reply_anyway action');
+      try {
+        await respond({
+          replace_original: true,
+          text: '⚠️ Failed to process Reply Anyway. Please try again.',
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: '⚠️ Failed to process Reply Anyway. Please try again.',
+              },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            ...NO_ACTION_BUTTON_BLOCKS(taskId),
+          ],
+        });
+      } catch (restoreErr) {
+        log.warn(
+          { taskId, err: restoreErr },
+          'Failed to restore buttons after guest_reply_anyway failure',
+        );
+      }
     }
   });
 
