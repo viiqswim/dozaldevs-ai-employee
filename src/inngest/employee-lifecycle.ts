@@ -902,6 +902,80 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
 
+          // Store rejection reason in feedback table (in addition to task metadata)
+          if (rejectionReason) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  task_id: taskId,
+                  feedback_type: 'rejection_reason',
+                  correction_reason: rejectionReason,
+                  created_by: actorUserId,
+                  tenant_id: tenantId,
+                  original_decision: null,
+                  corrected_decision: null,
+                }),
+              });
+              log.info({ taskId }, 'Rejection reason stored in feedback table');
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to store rejection reason in feedback table (non-fatal)',
+              );
+            }
+          }
+
+          // Set rejection feedback flags so interaction handler can route replies as rejection_reason
+          try {
+            const currentMetaRes = await fetch(
+              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
+              { headers },
+            );
+            const currentMetaRows = (await currentMetaRes.json()) as Array<{
+              metadata: Record<string, unknown> | null;
+            }>;
+            const currentMeta = currentMetaRows[0]?.metadata ?? {};
+            await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({
+                metadata: {
+                  ...currentMeta,
+                  rejection_feedback_requested: true,
+                  rejection_user_id: actorUserId,
+                },
+                updated_at: new Date().toISOString(),
+              }),
+            });
+            log.info({ taskId, actorUserId }, 'Rejection feedback flags set in task metadata');
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to set rejection feedback flags (non-fatal)');
+          }
+
+          // Post thread reply in approval message thread asking for feedback
+          if (approvalMsgTs && targetChannel) {
+            try {
+              const feedbackPromptText = `Got it, <@${actorUserId}>. What should I have done differently? (Reply here — I'll learn from it.)`;
+              await slackClient.postMessage({
+                channel: targetChannel,
+                thread_ts: approvalMsgTs,
+                text: feedbackPromptText,
+                blocks: [
+                  { type: 'section', text: { type: 'mrkdwn', text: feedbackPromptText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
+              });
+              log.info({ taskId, approvalMsgTs }, 'Rejection feedback prompt posted in thread');
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                'Failed to post rejection feedback prompt (non-fatal)',
+              );
+            }
+          }
+
           if (approvalMsgTs && targetChannel) {
             const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
             try {

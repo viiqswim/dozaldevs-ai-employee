@@ -62,6 +62,95 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
 
       if (!context) return;
 
+      const rejectionDetected = await step.run('detect-rejection-feedback', async () => {
+        if (source !== 'thread_reply' || !taskId) return null;
+
+        const supabaseUrl = process.env.SUPABASE_URL ?? '';
+        const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+        const headers = {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        };
+
+        const taskRes = await fetch(
+          `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status,metadata`,
+          { headers },
+        );
+        const tasks = (await taskRes.json()) as Array<{
+          status: string;
+          metadata: Record<string, unknown> | null;
+        }>;
+        const task = tasks[0];
+
+        if (!task) return null;
+        if (task.status !== 'Cancelled') return null;
+        const meta = task.metadata ?? {};
+        if (!meta.rejection_feedback_requested) return null;
+        if (meta.rejection_user_id !== userId) return null;
+
+        return { isRejectionFeedback: true as const, existingMetadata: meta };
+      });
+
+      if (rejectionDetected?.isRejectionFeedback) {
+        const storeResult = await step.run('store-rejection-feedback', async () => {
+          const supabaseUrl = process.env.SUPABASE_URL ?? '';
+          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+          const headers = {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          };
+
+          const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              task_id: taskId,
+              feedback_type: 'rejection_reason',
+              correction_reason: text,
+              created_by: userId,
+              tenant_id: context.tenantId,
+              original_decision: null,
+              corrected_decision: null,
+            }),
+          });
+          const rows = (await feedbackRes.json()) as Array<{ id: string }>;
+          const feedbackId = rows[0]?.id ?? null;
+
+          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              metadata: {
+                ...rejectionDetected.existingMetadata,
+                rejection_feedback_requested: false,
+              },
+              updated_at: new Date().toISOString(),
+            }),
+          });
+
+          return { feedbackId, clearedFlag: true };
+        });
+
+        await step.sendEvent('emit-rejection-rule-extract', {
+          name: 'employee/rule.extract-requested',
+          data: {
+            feedbackId: storeResult.feedbackId,
+            feedbackType: 'rejection_reason',
+            taskId: taskId ?? null,
+            archetypeId: context.archetypeId ?? null,
+            tenantId: context.tenantId,
+            content: text,
+          },
+        });
+
+        log.info({ userId, taskId }, 'Rejection feedback stored and event emitted');
+        return;
+      }
+
       const intent = await step.run('classify-intent', async () => {
         const classifier = new InteractionClassifier(callLLM);
         const archetypeContext = context.roleName ? { role_name: context.roleName } : undefined;
