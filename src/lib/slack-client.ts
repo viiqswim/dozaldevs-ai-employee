@@ -14,6 +14,7 @@ export interface SlackMessageParams {
   text: string;
   channel?: string; // optional — uses defaultChannel if not specified
   blocks?: unknown[]; // optional rich blocks
+  thread_ts?: string; // optional — reply in thread if provided
 }
 
 export interface SlackMessageResult {
@@ -44,6 +45,7 @@ export function createSlackClient(config: SlackClientConfig): SlackClient {
               channel: params.channel ?? config.defaultChannel,
               text: params.text,
               ...(params.blocks ? { blocks: params.blocks } : {}),
+              ...(params.thread_ts ? { thread_ts: params.thread_ts } : {}),
             }),
           });
 
