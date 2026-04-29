@@ -1,0 +1,100 @@
+{
+  "mappings": [
+    {
+      "code": "3412-san",
+      "address": "3412 Sand Dunes Ave, Austin, TX",
+      "hostfullyUid": "4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9",
+      "confidence": "manual"
+    },
+    {
+      "code": "3420-hov",
+      "address": "3420 Hovenweep Ave, Austin, TX",
+      "hostfullyUid": "2c64f880-90d2-4659-9b02-7b937763e9e1",
+      "confidence": "manual"
+    },
+    {
+      "code": "3401-bre",
+      "address": "3401 Breckenridge Dr, Austin, TX 78744",
+      "hostfullyUid": "6e6169bf-8418-448b-8fd9-a89135e5e358",
+      "confidence": "manual"
+    },
+    {
+      "code": "271-gin",
+      "address": "271 Gina Dr, Kyle, TX",
+      "hostfullyUid": "646ca297-5edf-474f-8b14-a0ee2935f2dd",
+      "confidence": "manual"
+    },
+    {
+      "code": "219-pau",
+      "address": "219 Paul Street, San Antonio, TX 78203",
+      "hostfullyUid": "3fa27670-f4f6-443b-a412-6078d4f5517e",
+      "confidence": "exact"
+    },
+    {
+      "code": "1602-blu",
+      "address": "1602 Bluebird Dr, Bailey, CO 80421",
+      "hostfullyUid": "dac5a0e0-3984-4f72-b622-de45a9dd758f",
+      "confidence": "exact"
+    }
+  ],
+  "unmatched": [
+    {
+      "code": "7213-nut",
+      "address": "7213 Nutria Run, Austin, TX 78744",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "3505-ban",
+      "address": "3505 Banton Rd, Austin, TX 78722",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "407-gev",
+      "address": "407 S Gevers St, San Antonio, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "4403-hay",
+      "address": "4403 Hayride Ln, Austin, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "4405-hay",
+      "address": "4405 Hayride Ln, Austin, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "4410-hay",
+      "address": "4410 Hayride Ln, Austin, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "5306-kin",
+      "address": "5306 King Charles Dr, Austin, TX 78724",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "6002-pal",
+      "address": "6002 Palm Cir, Austin, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "6930-her",
+      "address": "6930 Heron Flats, Converse, TX",
+      "reason": "not-in-hostfully-agency"
+    },
+    {
+      "code": "8039-che",
+      "address": "8039 Chestnut Cedar Dr, Converse, TX",
+      "reason": "not-in-hostfully-agency"
+    }
+  ],
+  "_notes": {
+    "271-gin": "HOME listing UID corrected to 646ca297 (was 039bfa35 which is unit 1)",
+    "3412-san": "HOME listing UID corrected to 4d23f49c (was 2fcc1f6c which is unit 1)",
+    "3420-hov": "HOME listing UID corrected to 2c64f880 (was 091661cf which is unit 1)",
+    "3401-bre": "HOME listing UID corrected to 6e6169bf (was 40b69579 which is unit 1)",
+    "3505-ban": "Existing seed UID c960c8d2 was wrong (maps to 5306-KIN-Bundle). Replaced with placeholder vlre-3505-ban.",
+    "unmatched": "10 properties not found in Hostfully agency 942d08d9. Skipped per user decision 2026-04-28."
+  }
+}
