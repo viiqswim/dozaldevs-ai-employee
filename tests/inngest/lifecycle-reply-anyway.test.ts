@@ -345,6 +345,66 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
     expect(machineConfig.env?.TASK_ID).toBe(TEST_TASK_ID);
   });
 
+  it('re-draft machine failure — task remains Failed, no fall-through to set-reviewing', async () => {
+    const fetchMock = buildFetchMock({ statusForPoll: 'Failed' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const stepRunMock = vi
+      .fn()
+      .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+        switch (id) {
+          case 'load-task':
+            return makeMockTaskData();
+          case 'executing':
+            return 'mock-machine-id';
+          case 'poll-completion':
+            return 'Submitting';
+          case 'check-classification':
+            return fn();
+          case 'build-reply-context':
+            return REPLY_CONTEXT_STRING;
+          case 'reply-anyway-execute':
+            return fn();
+          case 'reply-anyway-poll':
+            return 'Failed';
+          default:
+            return undefined;
+        }
+      });
+
+    const waitForEventMock = vi.fn().mockImplementation(async (id: string) => {
+      if (id === 'wait-for-reply-anyway') {
+        return {
+          name: 'employee/reply-anyway.requested',
+          data: { taskId: TEST_TASK_ID, userId: 'U123', userName: 'testuser' },
+        };
+      }
+      return null;
+    });
+
+    const engine = new InngestTestEngine({
+      function: createEmployeeLifecycleFunction(inngest),
+      transformCtx: (ctx: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mocked = mockCtx(ctx as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mocked as any).step.run = stepRunMock;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mocked as any).step.waitForEvent = waitForEventMock;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return mocked as any;
+      },
+    });
+
+    const { error } = await engine.execute(triggerEvent());
+
+    expect(error).toBeUndefined();
+    expect(
+      (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
+    ).toBe(false);
+    expect(findPatchWithStatus(fetchMock, 'Reviewing')).toBeUndefined();
+  });
+
   it('infinite loop guard — reply_anyway metadata forces skipApproval=false, no reply-anyway wait', async () => {
     const fetchMock = buildFetchMock({
       taskMetadata: { reply_anyway: true, overridden_no_action: true },
