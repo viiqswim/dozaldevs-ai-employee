@@ -4,6 +4,8 @@ import {
   trackPendingApproval,
   clearPendingApproval,
   clearPendingApprovalByTaskId,
+  getStaleApprovals,
+  markReminderSent,
 } from '../../../src/inngest/lib/pending-approvals.js';
 
 const SUPABASE_URL = 'http://localhost:54321';
@@ -205,5 +207,145 @@ describe('clearPendingApprovalByTaskId', () => {
     expect(url).toContain(`task_id=eq.${TASK_ID}`);
     expect(url).not.toContain('tenant_id');
     expect(url).not.toContain('thread_uid');
+  });
+});
+
+describe('getStaleApprovals', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns empty array when no rows found', async () => {
+    mockFetch.mockResolvedValue(makeJsonResponse([]));
+
+    const result = await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns mapped PendingApproval objects with all fields including optional ones', async () => {
+    const row = {
+      id: 'stale-id-1',
+      tenant_id: TENANT_ID,
+      thread_uid: THREAD_UID,
+      task_id: TASK_ID,
+      slack_ts: 'msg-ts-stale.000100',
+      channel_id: 'C-STALE-123',
+      created_at: '2026-04-28T00:00:00Z',
+      guest_name: 'John Doe',
+      property_name: 'Beach House',
+      urgency: true,
+    };
+    mockFetch.mockResolvedValue(makeJsonResponse([row]));
+
+    const result = await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe('stale-id-1');
+    expect(result[0]!.tenantId).toBe(TENANT_ID);
+    expect(result[0]!.threadUid).toBe(THREAD_UID);
+    expect(result[0]!.taskId).toBe(TASK_ID);
+    expect(result[0]!.slackTs).toBe('msg-ts-stale.000100');
+    expect(result[0]!.channelId).toBe('C-STALE-123');
+    expect(result[0]!.createdAt).toBe('2026-04-28T00:00:00Z');
+    expect(result[0]!.guestName).toBe('John Doe');
+    expect(result[0]!.propertyName).toBe('Beach House');
+    expect(result[0]!.urgency).toBe(true);
+  });
+
+  it('URL includes reminder_sent_at=is.null filter', async () => {
+    mockFetch.mockResolvedValue(makeJsonResponse([]));
+
+    await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain('reminder_sent_at=is.null');
+  });
+
+  it('URL includes created_at=lt.{cutoff} filter with a valid ISO string', async () => {
+    mockFetch.mockResolvedValue(makeJsonResponse([]));
+
+    const before = Date.now();
+    await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+    const after = Date.now();
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    const match = /created_at=lt\.([^&]+)/.exec(url);
+    expect(match).not.toBeNull();
+    const cutoffMs = new Date(decodeURIComponent(match![1]!)).getTime();
+    // cutoff should be ~60 minutes before now
+    expect(cutoffMs).toBeGreaterThanOrEqual(before - 60 * 60 * 1000 - 1000);
+    expect(cutoffMs).toBeLessThanOrEqual(after - 60 * 60 * 1000 + 1000);
+  });
+
+  it('URL includes tenant_id=eq.{tenantId} filter', async () => {
+    mockFetch.mockResolvedValue(makeJsonResponse([]));
+
+    await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain(`tenant_id=eq.${TENANT_ID}`);
+  });
+
+  it('URL includes order=created_at.asc', async () => {
+    mockFetch.mockResolvedValue(makeJsonResponse([]));
+
+    await getStaleApprovals(SUPABASE_URL, SUPABASE_KEY, TENANT_ID, 60);
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain('order=created_at.asc');
+  });
+});
+
+describe('markReminderSent', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn().mockResolvedValue(makeJsonResponse([]));
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends a PATCH request', async () => {
+    await markReminderSent(SUPABASE_URL, SUPABASE_KEY, ['id1', 'id2']);
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((init.method ?? '').toUpperCase()).toBe('PATCH');
+  });
+
+  it('URL includes id=in.(id1,id2,id3) for multiple IDs', async () => {
+    await markReminderSent(SUPABASE_URL, SUPABASE_KEY, ['id1', 'id2', 'id3']);
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain('id=in.(id1,id2,id3)');
+  });
+
+  it('body contains reminder_sent_at key with an ISO timestamp string', async () => {
+    const before = Date.now();
+    await markReminderSent(SUPABASE_URL, SUPABASE_KEY, ['id1']);
+    const after = Date.now();
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, string>;
+    expect(body['reminder_sent_at']).toBeDefined();
+    const ts = new Date(body['reminder_sent_at']!).getTime();
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after + 1000);
+  });
+
+  it('does NOT call fetch when ids array is empty', async () => {
+    await markReminderSent(SUPABASE_URL, SUPABASE_KEY, []);
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
