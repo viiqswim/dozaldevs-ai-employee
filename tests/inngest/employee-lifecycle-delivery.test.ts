@@ -367,7 +367,7 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
     expect(mockPostMessage).not.toHaveBeenCalled();
   });
 
-  it('reject action → task Cancelled, updateMessage rejection text, no delivery machine', async () => {
+  it('reject action → task Cancelled, updateMessage rejection text, thread reply posted, no delivery machine', async () => {
     vi.stubGlobal('fetch', buildFetchMock());
 
     const { error } = await makeEngine(makeApprovalEvent('reject', 'U-REJECTOR')).execute(
@@ -383,7 +383,14 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
       expect.stringContaining('❌ Rejected by <@U-REJECTOR>'),
       expect.any(Array),
     );
-    expect(mockPostMessage).not.toHaveBeenCalled();
+    // Thread reply is posted asking for rejection feedback
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: TARGET_CHANNEL,
+        thread_ts: APPROVAL_MSG_TS,
+        text: expect.stringContaining('What should I have done differently?'),
+      }),
+    );
   });
 
   it('approvalEvent null (timeout) → task Cancelled, no delivery machine spawned', async () => {
