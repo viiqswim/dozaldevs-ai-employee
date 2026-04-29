@@ -394,6 +394,7 @@ model Tenant {
   knowledgeBaseEntries  KnowledgeBaseEntry[]
   integrations          TenantIntegration[]
   systemEvents   SystemEvent[]
+  pendingApprovals      PendingApproval[]
 
   @@map("tenants")
 }
@@ -444,4 +445,20 @@ model TenantSecret {
 
   @@unique([tenant_id, key])
   @@map("tenant_secrets")
+}
+
+model PendingApproval {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenant_id  String   @db.Uuid
+  thread_uid String
+  task_id    String
+  slack_ts   String
+  channel_id String
+  created_at DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@unique([tenant_id, thread_uid])
+  @@index([tenant_id])
+  @@map("pending_approvals")
 }
