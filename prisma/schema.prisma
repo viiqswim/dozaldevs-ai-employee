@@ -454,7 +454,11 @@ model PendingApproval {
   task_id    String
   slack_ts   String
   channel_id String
-  created_at DateTime @default(now())
+  created_at        DateTime  @default(now())
+  reminder_sent_at  DateTime? @map("reminder_sent_at")
+  urgency           Boolean   @default(false) @map("urgency")
+  guest_name        String?   @map("guest_name")
+  property_name     String?   @map("property_name")
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
 

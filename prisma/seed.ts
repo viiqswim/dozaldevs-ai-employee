@@ -295,7 +295,15 @@ async function main() {
           publish_channel: 'C0960S2Q8RL',
         },
         default_agents_md: PLATFORM_AGENTS_MD,
-        guest_messaging: { poll_interval_minutes: 30 },
+        guest_messaging: {
+          poll_interval_minutes: 30,
+          alert_threshold_minutes: 30,
+          quiet_hours: {
+            start: 1,
+            end: 8,
+            timezone: 'America/Chicago',
+          },
+        },
       },
     },
     update: {
@@ -310,7 +318,15 @@ async function main() {
           publish_channel: 'C0960S2Q8RL',
         },
         default_agents_md: PLATFORM_AGENTS_MD,
-        guest_messaging: { poll_interval_minutes: 30 },
+        guest_messaging: {
+          poll_interval_minutes: 30,
+          alert_threshold_minutes: 30,
+          quiet_hours: {
+            start: 1,
+            end: 8,
+            timezone: 'America/Chicago',
+          },
+        },
       },
     },
   });
