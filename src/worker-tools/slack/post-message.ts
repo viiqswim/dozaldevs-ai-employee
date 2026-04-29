@@ -3,6 +3,7 @@ import { WebClient } from '@slack/web-api';
 interface PostResult {
   ts: string;
   channel: string;
+  conversationRef?: string;
 }
 
 function parseArgs(argv: string[]): {
@@ -10,12 +11,14 @@ function parseArgs(argv: string[]): {
   text: string;
   blocks?: unknown[];
   taskId?: string;
+  conversationRef?: string;
 } {
   const args = argv.slice(2);
   let channel = '';
   let text = '';
   let blocks: unknown[] | undefined;
   let taskId: string | undefined;
+  let conversationRef: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -26,15 +29,24 @@ function parseArgs(argv: string[]): {
       blocks = JSON.parse(args[++i]) as unknown[];
     } else if (args[i] === '--task-id' && args[i + 1]) {
       taskId = args[++i];
+    } else if (args[i] === '--conversation-ref' && args[i + 1]) {
+      conversationRef = args[++i];
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"]\n',
+        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>]\n\n' +
+          'Options:\n' +
+          '  --channel <id>              (required) Slack channel ID to post to\n' +
+          '  --text <string>             (required) Message text\n' +
+          '  --blocks <json>             Optional Block Kit blocks JSON array\n' +
+          '  --task-id <uuid>            Optional task ID — auto-generates approval blocks with Approve/Reject buttons\n' +
+          '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
+          '  --help                      Show this help message\n',
       );
       process.exit(0);
     }
   }
 
-  return { channel, text, blocks, taskId };
+  return { channel, text, blocks, taskId, conversationRef };
 }
 
 function buildApprovalBlocks(text: string, taskId: string, date: string): unknown[] {
@@ -76,7 +88,7 @@ function buildApprovalBlocks(text: string, taskId: string, date: string): unknow
 }
 
 async function main(): Promise<void> {
-  const { channel, text, blocks: rawBlocks, taskId } = parseArgs(process.argv);
+  const { channel, text, blocks: rawBlocks, taskId, conversationRef } = parseArgs(process.argv);
 
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) {
@@ -116,7 +128,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const output: PostResult = { ts: result.ts, channel: result.channel };
+  const output: PostResult = {
+    ts: result.ts,
+    channel: result.channel,
+    ...(conversationRef !== undefined && { conversationRef }),
+  };
   process.stdout.write(JSON.stringify(output) + '\n');
 }
 
