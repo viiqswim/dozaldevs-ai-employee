@@ -9,6 +9,8 @@ import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
 import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
+import { buildSupersededBlocks } from '../lib/slack-blocks.js';
+import { clearPendingApprovalByTaskId } from './lib/pending-approvals.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -590,6 +592,27 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+        } else if (action === 'superseded') {
+          log.info({ taskId }, 'Task superseded by newer message for same conversation');
+          if (approvalMsgTs && targetChannel) {
+            try {
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                '⏭️ Superseded',
+                buildSupersededBlocks(),
+              );
+            } catch (err) {
+              log.warn(
+                { taskId, approvalMsgTs, targetChannel, err },
+                'Superseded message update failed (non-fatal)',
+              );
+            }
+          }
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
+          log.info({ taskId }, 'State: Cancelled (superseded)');
+          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
         } else {
           if (rejectionReason) {
             try {
