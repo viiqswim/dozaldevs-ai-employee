@@ -10,7 +10,12 @@ import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
 import { buildSupersededBlocks } from '../lib/slack-blocks.js';
-import { clearPendingApprovalByTaskId } from './lib/pending-approvals.js';
+import {
+  clearPendingApprovalByTaskId,
+  getPendingApproval,
+  trackPendingApproval,
+  clearPendingApproval,
+} from './lib/pending-approvals.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -336,11 +341,126 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         return;
       }
 
+      // ── Supersede Detection ──────────────────────────────────────────────────
+      await step.run('check-supersede', async () => {
+        // Read conversation_ref from deliverable metadata
+        const delivRes = await fetch(
+          `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+          { headers },
+        );
+        const delivRows = (await delivRes.json()) as Array<{
+          metadata: Record<string, unknown> | null;
+        }>;
+        const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
+        const conversationRef = delivMeta.conversation_ref as string | undefined;
+
+        if (!conversationRef) {
+          // No conversation ref — not a guest message task, skip superseding
+          return;
+        }
+
+        const pending = await getPendingApproval(
+          supabaseUrl,
+          supabaseKey,
+          tenantId,
+          conversationRef,
+        );
+        if (!pending || pending.taskId === taskId) {
+          // No pending approval for this conversation, or it's the same task
+          return;
+        }
+
+        // Check if old task is still in Reviewing state ("approve wins the race")
+        const oldTaskRes = await fetch(
+          `${supabaseUrl}/rest/v1/tasks?id=eq.${pending.taskId}&select=status`,
+          { headers },
+        );
+        const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
+        const oldTaskStatus = oldTaskRows[0]?.status;
+
+        if (oldTaskStatus !== 'Reviewing') {
+          // PM already acted — clear stale entry, don't supersede
+          log.info(
+            { taskId, oldTaskId: pending.taskId, oldTaskStatus },
+            'Stale pending approval found (old task already acted on) — clearing',
+          );
+          await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, conversationRef);
+          return;
+        }
+
+        // Old task is still Reviewing — supersede it
+        log.info(
+          { taskId, oldTaskId: pending.taskId, conversationRef },
+          'Superseding old task for same conversation',
+        );
+
+        // Update old Slack card to show superseded state
+        try {
+          const prismaForSupersede = new PrismaClient();
+          const tenantEnvForSupersede = await loadTenantEnv(tenantId, {
+            tenantRepo: new TenantRepository(prismaForSupersede),
+            secretRepo: new TenantSecretRepository(prismaForSupersede),
+          });
+          await prismaForSupersede.$disconnect();
+          const botToken = tenantEnvForSupersede.SLACK_BOT_TOKEN ?? '';
+          const slackClientForSupersede = createSlackClient({ botToken, defaultChannel: '' });
+          await slackClientForSupersede.updateMessage(
+            pending.channelId,
+            pending.slackTs,
+            '⏭️ Superseded',
+            buildSupersededBlocks(),
+          );
+        } catch (err) {
+          log.warn(
+            { taskId, oldTaskId: pending.taskId, err },
+            'Failed to update superseded Slack card (non-fatal)',
+          );
+        }
+
+        // Fire superseded event to unblock old lifecycle's waitForEvent
+        await inngest.send({
+          name: 'employee/approval.received',
+          data: {
+            taskId: pending.taskId,
+            action: 'superseded',
+            userId: 'system',
+            userName: 'System (superseded)',
+          },
+        });
+      });
+
       // ── State: Reviewing ─────────────────────────────────────────────────────
       await step.run('set-reviewing', async () => {
         await patchTask(supabaseUrl, headers, taskId, { status: 'Reviewing' });
         await logStatusTransition(supabaseUrl, headers, taskId, 'Reviewing', 'Submitting');
         log.info({ taskId }, 'State: Reviewing — awaiting human approval');
+      });
+
+      await step.run('track-pending-approval', async () => {
+        const delivRes = await fetch(
+          `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+          { headers },
+        );
+        const delivRows = (await delivRes.json()) as Array<{
+          metadata: Record<string, unknown> | null;
+        }>;
+        const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
+        const conversationRef = delivMeta.conversation_ref as string | undefined;
+        const approvalMsgTs = delivMeta.approval_message_ts as string | undefined;
+        const targetChannel = delivMeta.target_channel as string | undefined;
+
+        if (!conversationRef || !approvalMsgTs || !targetChannel) {
+          return;
+        }
+
+        await trackPendingApproval(supabaseUrl, supabaseKey, {
+          tenantId,
+          threadUid: conversationRef,
+          taskId,
+          slackTs: approvalMsgTs,
+          channelId: targetChannel,
+        });
+        log.info({ taskId, conversationRef }, 'Pending approval tracked');
       });
 
       const approvalEvent = await step.waitForEvent('wait-for-approval', {
@@ -394,6 +514,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
           return;
@@ -474,6 +595,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }>;
           const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
           if (!deliveryInstructions) {
+            await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
             await patchTask(supabaseUrl, headers, taskId, {
               status: 'Failed',
               failure_reason: 'Archetype missing delivery_instructions',
@@ -557,6 +679,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
             } else {
               log.error({ taskId }, 'Delivery failed after 3 attempts — marking Failed');
+              await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
               await patchTask(supabaseUrl, headers, taskId, {
                 status: 'Failed',
                 failure_reason: 'Delivery failed after 3 attempts',
@@ -591,6 +714,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Sent message update failed (non-fatal)',
               );
             }
+            await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           }
         } else if (action === 'superseded') {
           log.info({ taskId }, 'Task superseded by newer message for same conversation');
@@ -662,6 +786,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
           log.info({ taskId }, 'State: Cancelled (rejected)');
