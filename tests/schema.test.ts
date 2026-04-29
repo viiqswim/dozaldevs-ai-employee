@@ -15,7 +15,7 @@ afterAll(async () => {
 // GROUP 1: Table existence
 // ============================================================
 describe('Table existence', () => {
-  it('all 21 application tables exist in public schema', async () => {
+  it('all 22 application tables exist in public schema', async () => {
     const prisma = getPrisma();
     const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name 
@@ -38,6 +38,7 @@ describe('Table existence', () => {
       'feedback',
       'knowledge_base_entries',
       'knowledge_bases',
+      'pending_approvals',
       'projects',
       'reviews',
       'risk_models',
