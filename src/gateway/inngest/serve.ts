@@ -9,6 +9,7 @@ import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycl
 import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js';
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
+import { createGuestMessagePollerTrigger } from '../../inngest/triggers/guest-message-poller.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
@@ -30,6 +31,7 @@ export function inngestServeRoutes(): Router {
   const summarizerTriggerFn = createSummarizerTrigger(inngest);
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
+  const guestMessagePollerFn = createGuestMessagePollerTrigger(inngest);
 
   const handler = serve({
     client: inngest,
@@ -41,6 +43,7 @@ export function inngestServeRoutes(): Router {
       summarizerTriggerFn,
       interactionHandlerFn,
       feedbackSummarizerFn,
+      guestMessagePollerFn,
     ],
   });
 
