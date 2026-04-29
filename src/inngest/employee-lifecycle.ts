@@ -445,7 +445,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return machine.id;
         });
 
-        await step.run('reply-anyway-poll', async () => {
+        const replyDraftStatus = await step.run('reply-anyway-poll', async () => {
           const maxPolls = 60;
           const intervalMs = 15_000;
           for (let i = 0; i < maxPolls; i++) {
@@ -454,16 +454,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               headers,
             });
             const rows = (await res.json()) as Array<{ status: string }>;
-            const status = rows[0]?.status ?? '';
-            if (status === 'Submitting' || status === 'Failed') {
-              if (status === 'Failed') {
-                log.error({ taskId }, 'Reply Anyway re-draft machine failed');
-                return;
-              }
-              break;
-            }
+            const status = rows[0]?.status;
+            if (status === 'Submitting' || status === 'Failed') return status;
           }
+          return 'Failed';
         });
+
+        if (replyDraftStatus === 'Failed') {
+          log.error({ taskId }, 'Reply Anyway re-draft machine failed — task remains Failed');
+          return;
+        }
 
         void replyMachineId;
       }
