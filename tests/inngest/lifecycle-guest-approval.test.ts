@@ -152,6 +152,7 @@ function makeEngine(approvalEvent: unknown) {
     transformCtx: (ctx: unknown) => {
       const mocked = mockCtx(ctx as any);
       (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue(approvalEvent);
+      (mocked as any).step.sendEvent = vi.fn().mockResolvedValue(undefined);
       (mocked as any).step.run = vi
         .fn()
         .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {

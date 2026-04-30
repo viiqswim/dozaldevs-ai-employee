@@ -672,6 +672,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.info({ taskId }, 'State: Delivering');
 
           if (editedContent) {
+            const originalDraft = deliverable?.content as string | undefined;
             try {
               const deliverableId = deliverable?.id as string | undefined;
               if (deliverableId) {
@@ -714,6 +715,19 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Error patching deliverable content with editedContent (non-fatal)',
               );
             }
+            await step.sendEvent('emit-edit-diff-rule-extract', {
+              name: 'employee/rule.extract-requested',
+              data: {
+                tenantId,
+                feedbackId: null,
+                feedbackType: 'edit_diff',
+                taskId,
+                archetypeId,
+                content: null,
+                originalContent: originalDraft ?? '',
+                editedContent,
+              },
+            });
           }
 
           const archetypeRes = await fetch(
