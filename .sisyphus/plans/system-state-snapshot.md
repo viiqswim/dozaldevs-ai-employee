@@ -1661,19 +1661,19 @@ Max Concurrent: 10 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. Verify: document file exists at correct path, all 20+ sections present, all counts match actual codebase, all Mermaid diagrams present. For each "Must Have": verify it exists. For each "Must NOT Have": search for violations. Check evidence files in `.sisyphus/evidence/`.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Verify Markdown syntax is valid. Check for broken links, inconsistent formatting, orphaned references. Verify no `[UNVERIFIED]` markers remain. Check no forbidden model names appear. Verify all file paths referenced in the document actually exist in the codebase.
   Output: `Markdown [PASS/FAIL] | Links [N valid/N broken] | Markers [CLEAN/N remaining] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Read the document as a new developer would. Verify: "Quick Start" curl commands are syntactically correct, port numbers match Docker Compose files, project structure matches actual `ls` output, shell tool CLI examples match actual source code `--flags`. Test 5 random factual claims by checking source files.
   Output: `Quick Start [PASS/FAIL] | Ports [N/N correct] | Structure [PASS/FAIL] | Random Facts [N/N verified] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   Compare the plan's "Must Have" list against the delivered document. Verify every section from the old doc is present. Verify new sections were added for new subsystems. Verify no content was invented (every fact traces to a notepad file which traces to a source file). Check the document doesn't include out-of-scope content (no code changes, no README updates).
   Output: `Sections [N/N present] | New Sections [N added] | Traceability [PASS/FAIL] | Scope [CLEAN/N violations] | VERDICT`
 
