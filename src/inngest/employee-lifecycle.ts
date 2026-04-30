@@ -19,6 +19,8 @@ import {
 
 const log = createLogger('employee-lifecycle');
 
+export const MAX_LEARNED_RULES_CHARS = 8000;
+
 async function patchTask(
   supabaseUrl: string,
   headers: Record<string, string>,
@@ -210,6 +212,48 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.warn({ taskId, err }, 'Failed to load feedback context — proceeding without it');
         }
 
+        let learnedRulesContext = '';
+        try {
+          const rulesRes = await fetch(
+            `${supabaseUrl}/rest/v1/learned_rules?status=eq.confirmed&tenant_id=eq.${tenantId}&or=(and(entity_type.eq.archetype,entity_id.eq.${archetypeId}),scope.eq.common)&select=rule_text,entity_type,entity_id,scope,confirmed_at&order=confirmed_at.desc`,
+            { headers },
+          );
+          const rulesRows = (await rulesRes.json()) as Array<{
+            rule_text: string;
+            entity_type: string | null;
+            entity_id: string | null;
+            scope: string;
+            confirmed_at: string;
+          }>;
+
+          if (rulesRows.length > 0) {
+            const sorted = [
+              ...rulesRows.filter(
+                (r) => r.entity_type === 'archetype' && r.entity_id === archetypeId,
+              ),
+              ...rulesRows.filter(
+                (r) => !(r.entity_type === 'archetype' && r.entity_id === archetypeId),
+              ),
+            ];
+
+            const header = '## Learned Behaviors — follow these rules';
+            const lines: string[] = [];
+            let charCount = 0;
+            for (const rule of sorted) {
+              const line = `- ${rule.rule_text}`;
+              if (charCount + line.length > MAX_LEARNED_RULES_CHARS) break;
+              lines.push(line);
+              charCount += line.length + 1;
+            }
+
+            if (lines.length > 0) {
+              learnedRulesContext = `${header}\n\n${lines.join('\n')}`;
+            }
+          }
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to load learned rules context — proceeding without it');
+        }
+
         log.info({ taskId, runtime }, 'Dispatching worker machine');
 
         const machine = await createMachine(flyApp, {
@@ -226,6 +270,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
             ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
+            ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
           },
         });
 
