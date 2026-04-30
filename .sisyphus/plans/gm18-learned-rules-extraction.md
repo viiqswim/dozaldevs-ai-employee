@@ -1021,7 +1021,7 @@ c. **Step `store-slack-ref`**: PATCH the `learned_rules`row to store`slack_ts`an
 
 ---
 
-- [ ] 10. Automated Tests
+- [x] 10. Automated Tests
 
   **What to do**:
   - Create comprehensive test files following existing patterns:
@@ -1124,7 +1124,7 @@ c. **Step `store-slack-ref`**: PATCH the `learned_rules`row to store`slack_ts`an
 
 ---
 
-- [ ] 11. API Endpoint Verification
+- [x] 11. API Endpoint Verification
 
   **What to do**:
   - With services running (`pnpm dev:start`), verify the system works end-to-end:
@@ -1226,7 +1226,7 @@ c. **Step `store-slack-ref`**: PATCH the `learned_rules`row to store`slack_ts`an
 
 ---
 
-- [ ] 12. Mark Story Map Complete
+- [x] 12. Mark Story Map Complete
 
   **What to do**:
   - In `docs/2026-04-21-2202-phase1-story-map.md`, find the GM-18 acceptance criteria section (around L902-912)

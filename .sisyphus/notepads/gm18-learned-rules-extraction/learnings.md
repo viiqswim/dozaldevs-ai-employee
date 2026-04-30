@@ -147,3 +147,38 @@
 - Same block kit structure as rule-extractor.ts: section + divider + actions (confirm/reject/rephrase) + context
 - `pnpm build` exits 0
 - Evidence: `.sisyphus/evidence/task-9-thread-reply-capture.txt`
+
+---
+
+## Task 11 — API Verification (2026-04-30)
+
+### Key Findings
+
+**PostgREST URL:**
+- Correct port: `http://localhost:54331/rest/v1` (Kong proxy, NOT 54321)
+- Port 54321 returns "no Route matched" without the correct path prefix
+- `SERVICE_ROLE_KEY` from `docker/.env` works for all PostgREST operations
+
+**Gateway restart required after code changes:**
+- Gateway uses `node --import tsx/esm src/gateway/server.ts` — no hot-reload
+- `pnpm dev:start` spawns gateway + Inngest as child processes; killing gateway also stops Inngest
+- After GM-18 T1-T10, gateway reported 8 functions (pre-change state) → restart to get 11
+
+**Inngest startup:**
+- `npx --yes inngest-cli@latest dev -u http://localhost:7700/api/inngest --port 8288` (use `--yes` to bypass interactive install)
+- Takes ~15-20s to start, then polls gateway every ~5s
+
+**Prisma / Seed:**
+- `prisma.config.ts` skips env file loading when DATABASE_URL already in `process.env`
+- Run seed with explicit env: `DATABASE_URL="postgresql://postgres:postgres@localhost:54322/ai_employee" pnpm prisma db seed`
+- Test DB URL: `ai_employee_test` on same port 54322 — global-setup.ts injects this correctly
+
+**learned_rules table key constraints:**
+- `id UUID NOT NULL` — must provide UUID explicitly (no DB default)
+- `rule_text TEXT NOT NULL` — cannot be null or omitted
+- Tenant isolation via `tenant_id` filter works as expected
+
+**Test results:**
+- All 3 GM-18 test files pass: rule-extractor (10 tests), learned-rules-expiry (5 tests), rule-handlers (6 tests)
+- 13 pre-existing failing test files — all engineering deprecated code, Fly API tests (no token), stale counts
+- No new failures from GM-18 changes
