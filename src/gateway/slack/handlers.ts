@@ -831,4 +831,252 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       log.error({ taskId, err }, 'Failed to process guest_reject_modal submission');
     }
   });
+
+  boltApp.action('rule_confirm', async ({ ack, body }) => {
+    const actionBody = body as ActionBody;
+    const ruleId = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+    if (!ruleId) {
+      await ack();
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `✅ Rule confirmed by <@${user.id}>` },
+        },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+      ],
+    });
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ status: 'confirmed', confirmed_at: new Date().toISOString() }),
+      });
+      log.info({ ruleId, userId: user.id }, 'Rule confirmed');
+    } catch (err) {
+      log.error({ ruleId, err }, 'Failed to PATCH learned_rules on confirm');
+    }
+  });
+
+  boltApp.action('rule_reject', async ({ ack, body }) => {
+    const actionBody = body as ActionBody;
+    const ruleId = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+    if (!ruleId) {
+      await ack();
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `❌ Rule rejected by <@${user.id}>` },
+        },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+      ],
+    });
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+      log.info({ ruleId, userId: user.id }, 'Rule rejected');
+    } catch (err) {
+      log.error({ ruleId, err }, 'Failed to PATCH learned_rules on reject');
+    }
+  });
+
+  boltApp.action('rule_rephrase', async ({ ack, body, client }) => {
+    const actionBody = body as ActionBody;
+    const ruleId = actionBody.actions[0]?.value;
+    if (!ruleId) {
+      await ack();
+      log.warn('rule_rephrase action received without ruleId');
+      return;
+    }
+    await ack();
+
+    let currentRuleText = '';
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}&select=rule_text`,
+        {
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+        },
+      );
+      const rows = (await res.json()) as Array<{ rule_text: string }>;
+      currentRuleText = rows[0]?.rule_text ?? '';
+    } catch (err) {
+      log.error({ ruleId, err }, 'Failed to fetch rule_text for rephrase modal');
+    }
+
+    try {
+      await client.views.open({
+        trigger_id: (body as { trigger_id: string }).trigger_id,
+        view: {
+          type: 'modal',
+          callback_id: 'rule_rephrase_modal',
+          private_metadata: JSON.stringify({ ruleId }),
+          title: { type: 'plain_text', text: 'Rephrase Rule' },
+          submit: { type: 'plain_text', text: 'Save' },
+          close: { type: 'plain_text', text: 'Cancel' },
+          blocks: [
+            {
+              type: 'input',
+              block_id: 'rule_input',
+              label: { type: 'plain_text', text: 'Rule Text' },
+              element: {
+                type: 'plain_text_input',
+                action_id: 'rule_text',
+                multiline: true,
+                initial_value: currentRuleText,
+              },
+            },
+          ],
+        },
+      });
+      log.info({ ruleId }, 'rule_rephrase modal opened');
+    } catch (err) {
+      log.error({ ruleId, err }, 'Failed to open rule_rephrase modal');
+    }
+  });
+
+  boltApp.view('rule_rephrase_modal', async ({ ack, view, client }) => {
+    const newText = view.state.values?.rule_input?.rule_text?.value ?? '';
+
+    if (!newText || !newText.trim()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ack as any)({
+        response_action: 'errors',
+        errors: { rule_input: 'Rule text cannot be empty.' },
+      });
+      return;
+    }
+
+    await ack();
+
+    let ruleId = '';
+    try {
+      const meta = JSON.parse(view.private_metadata ?? '{}') as { ruleId?: string };
+      ruleId = meta.ruleId ?? '';
+    } catch {
+      log.error('Failed to parse rule_rephrase_modal private_metadata');
+      return;
+    }
+
+    if (!ruleId) {
+      log.error('rule_rephrase_modal submitted without ruleId in private_metadata');
+      return;
+    }
+
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+
+      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ rule_text: newText.trim() }),
+      });
+      log.info({ ruleId }, 'rule_text updated via rephrase');
+
+      const metaRes = await fetch(
+        `${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}&select=slack_ts,slack_channel`,
+        {
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+        },
+      );
+      const metaRows = (await metaRes.json()) as Array<{
+        slack_ts: string | null;
+        slack_channel: string | null;
+      }>;
+      const slack_ts = metaRows[0]?.slack_ts;
+      const slack_channel = metaRows[0]?.slack_channel;
+
+      if (slack_ts && slack_channel) {
+        await client.chat.update({
+          channel: slack_channel,
+          ts: slack_ts,
+          text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+              },
+            },
+            { type: 'divider' },
+            {
+              type: 'actions',
+              elements: [
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✅ Confirm' },
+                  style: 'primary',
+                  action_id: 'rule_confirm',
+                  value: ruleId,
+                },
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '❌ Reject' },
+                  style: 'danger',
+                  action_id: 'rule_reject',
+                  value: ruleId,
+                },
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✏️ Rephrase' },
+                  action_id: 'rule_rephrase',
+                  value: ruleId,
+                },
+              ],
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }],
+            },
+          ],
+        });
+        log.info({ ruleId, slack_ts, slack_channel }, 'Slack message updated after rephrase');
+      }
+    } catch (err) {
+      log.error({ ruleId, err }, 'Failed to process rule_rephrase_modal submission');
+    }
+  });
 }
