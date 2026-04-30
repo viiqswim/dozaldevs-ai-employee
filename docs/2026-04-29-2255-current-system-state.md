@@ -10,85 +10,58 @@ Every employee follows the same path: trigger → universal lifecycle → OpenCo
 
 ```mermaid
 flowchart LR
-    subgraph Triggers
-        ADMIN["Admin API — manual"]:::service
-        CRON["Cron — daily 8am UTC"]:::service
-        GUEST_CRON["Guest Message Poller — every 5 min"]:::service
-        ALERT_CRON["Unresponded Alert — every 5 min"]:::service
+    subgraph Triggers["Triggers"]
+        ADMIN["Admin API"]:::service
+        CRON["Daily Cron"]:::service
+        GUESTCRON["Guest Message Poller"]:::service
         JIRA["Jira Webhook"]:::external
     end
 
-    subgraph Gateway [:7700]
-        DISPATCH["employee/task.dispatched"]:::event
-        BOLT["Slack Bolt — Socket Mode"]:::service
-    end
-
-    subgraph Inngest [:8288]
+    subgraph Platform["Platform"]
+        DISPATCH(["employee/task.dispatched"]):::event
         LIFECYCLE["Universal Lifecycle"]:::service
-        INTERACTION["Interaction Handler"]:::service
-        RULE_EXT["Rule Extractor"]:::service
+        HARNESS["Fly.io — OpenCode Harness"]:::service
     end
 
-    subgraph Fly.io Machine
-        HARNESS["opencode-harness.mjs — OpenCode AI Agent"]:::service
+    subgraph StateStore["State"]
+        DB[("Supabase")]:::storage
     end
 
-    subgraph Supabase [:54331]
-        DB[("PostgreSQL + PostgREST")]:::storage
+    subgraph SlackOut["Slack"]
+        SLACKCHAN["Approval Channel"]:::external
     end
 
-    subgraph Slack
-        APPROVAL_CH["Approval Channel"]:::external
-        PUBLISH_CH["Publish Channel"]:::external
-    end
-
-    ADMIN -->|"1. POST /admin/tenants/:id/employees/:slug/trigger"| DISPATCH
-    CRON -->|"1. fires event"| DISPATCH
-    GUEST_CRON -->|"1. polls Hostfully"| DISPATCH
-    ALERT_CRON -->|"1. checks pending_approvals"| APPROVAL_CH
-    JIRA -->|"1. webhook"| DISPATCH
-
-    DISPATCH ==>|"2. route"| LIFECYCLE
-
-    LIFECYCLE -->|"3a. auto-pass: Triaging → AwaitingInput → Ready"| DB
-    LIFECYCLE ==>|"3b. Executing: provision machine"| HARNESS
-    HARNESS -->|"4. fetch archetype (model, instructions, tools)"| DB
-    HARNESS -->|"5. resolve AGENTS.md (platform + tenant + archetype)"| HARNESS
-    HARNESS -->|"6. run OpenCode session — minimax/minimax-m2.7"| HARNESS
-    HARNESS -->|"7. write deliverable + status → Submitting"| DB
-    LIFECYCLE -->|"8. classify + supersede check → Reviewing"| DB
-    BOLT -->|"9. lifecycle waits for approval"| LIFECYCLE
-    BOLT -->|"10. user clicks Approve"| LIFECYCLE
-    LIFECYCLE ==>|"11. spawn delivery machine (EMPLOYEE_PHASE=delivery)"| HARNESS
-    LIFECYCLE -->|"12. status → Done"| DB
-
-    BOLT -->|"thread reply or @mention"| INTERACTION
-    INTERACTION -->|"classify + store + ack"| DB
-    INTERACTION -->|"emit rule.extract-requested"| RULE_EXT
-    RULE_EXT -->|"store proposed rule + Confirm/Reject buttons"| APPROVAL_CH
+    ADMIN -.-> DISPATCH
+    CRON -.-> DISPATCH
+    GUESTCRON -.-> DISPATCH
+    JIRA -.-> DISPATCH
+    DISPATCH ==>|"1. route"| LIFECYCLE
+    LIFECYCLE -->|"2. auto-pass: Triaging → Ready"| DB
+    LIFECYCLE ==>|"3. Executing: provision machine"| HARNESS
+    HARNESS -->|"4. read archetype + run OpenCode"| DB
+    HARNESS -->|"5. write deliverable → Submitting"| DB
+    LIFECYCLE -->|"6. supersede check → Reviewing"| SLACKCHAN
+    SLACKCHAN -->|"7. human approves"| LIFECYCLE
+    LIFECYCLE ==>|"8. spawn delivery machine"| HARNESS
+    HARNESS -->|"9. Done"| DB
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
     classDef external fill:#F5A623,stroke:#C4841A,color:#fff
-    classDef future fill:#B0B0B0,stroke:#808080,color:#333,stroke-dasharray:5
     classDef event fill:#50C878,stroke:#2D7A4A,color:#fff
-    classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
 ```
 
-| #   | What happens                                                                                                                                                   |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Task created via admin API, cron, or Jira webhook — fires `employee/task.dispatched`                                                                           |
-| 2   | Inngest routes to the **universal lifecycle** (one function for all employees)                                                                                 |
-| 3   | States **Triaging → AwaitingInput → Ready** auto-pass instantly (no blocking)                                                                                  |
-| 4   | **Executing**: Fly.io machine provisioned, runs `opencode-harness.mjs` — reads archetype (model, natural-language instructions, available shell tools) from DB |
-| 5   | Harness resolves AGENTS.md via three-level concatenation: platform policy + tenant conventions + employee instructions                                         |
-| 6   | OpenCode session runs with `minimax/minimax-m2.7`, using shell tools at `/tools/`                                                                              |
-| 7   | Worker writes deliverable + sets task status → `Submitting`                                                                                                    |
-| 8   | Lifecycle classifies deliverable (NO_ACTION_NEEDED vs normal), runs supersede check, transitions to `Reviewing`                                                |
-| 9   | Lifecycle holds at `Reviewing`, waiting for Slack button click                                                                                                 |
-| 10  | User clicks Approve (or Edit & Send) — Slack Bolt fires `employee/approval.received`                                                                           |
-| 11  | Lifecycle spawns a **delivery machine** (`EMPLOYEE_PHASE=delivery`) — reads `archetype.delivery_instructions`, runs second OpenCode session                    |
-| 12  | Delivery machine marks task `Done`                                                                                                                             |
+| #   | What happens                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------- |
+| 1   | Inngest routes `employee/task.dispatched` to the **universal lifecycle** (one function for all employees)     |
+| 2   | States **Triaging → AwaitingInput → Ready** auto-pass instantly — persisted in Supabase                       |
+| 3   | **Executing**: lifecycle provisions a Fly.io machine running `opencode-harness.mjs`                           |
+| 4   | Harness fetches archetype (model, instructions, agents_md) from Supabase and runs the OpenCode session        |
+| 5   | OpenCode writes deliverable; harness PATCHes task → `Submitting`                                              |
+| 6   | Lifecycle classifies deliverable, runs supersede check, posts approval card to Slack (`Reviewing`)            |
+| 7   | Human clicks Approve — Slack Bolt fires `employee/approval.received`; lifecycle unblocks                      |
+| 8   | Lifecycle spawns a **delivery machine** (`EMPLOYEE_PHASE=delivery`) — reads `archetype.delivery_instructions` |
+| 9   | Delivery machine PATCHes task → `Done`                                                                        |
 
 ---
 
@@ -219,30 +192,30 @@ Short-circuit: `Submitting → Done` (when `risk_model.approval_required: false`
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Received
+    [*] --> Queued
 
-    Received --> Triaging : auto
-    Triaging --> AwaitingInput : auto
-    AwaitingInput --> Ready : auto
-    Ready --> Executing : provision machine
-    Executing --> Validating : harness sets Submitting
-    Validating --> Submitting : auto
+    state "Queued*" as Queued {
+        Triaging --> AwaitingInput
+        AwaitingInput --> Ready
+    }
 
+    Queued --> Executing : slot available
+    Executing --> Submitting : work complete
     Submitting --> Done : no approval required
-    Submitting --> Done : NO_ACTION_NEEDED + 24h timeout
+    Submitting --> Done : no action needed
     Submitting --> Executing : reply-anyway override
     Submitting --> Reviewing : approval required
 
     Reviewing --> Approved : human approves
     Reviewing --> Cancelled : reject
-    Reviewing --> Cancelled : superseded by newer message
+    Reviewing --> Cancelled : superseded
     Reviewing --> Cancelled : 24h timeout
 
     Approved --> Delivering : spawn delivery machine
     Delivering --> Done : delivery success
-    Delivering --> Failed : 3 delivery attempts failed
+    Delivering --> Failed : 3 attempts failed
 
-    Executing --> Failed : poll timeout or harness error
+    Executing --> Failed : poll timeout or error
 
     Done --> [*]
     Failed --> [*]
@@ -314,7 +287,7 @@ The harness handles two distinct phases controlled by the `EMPLOYEE_PHASE` env v
 - **Default (execution phase)**: Fetches archetype, builds system prompt with context injections, runs OpenCode, POSTs deliverable, transitions to `Submitting`
 - **Delivery phase** (`EMPLOYEE_PHASE=delivery`): Reads the approved deliverable, constructs delivery instructions, runs a second OpenCode session, transitions to `Done`
 
-### Harness Execution Flow (21 steps)
+### Harness Execution Flow
 
 ```mermaid
 sequenceDiagram
@@ -324,26 +297,18 @@ sequenceDiagram
     participant FS as Filesystem
     participant OC as OpenCode
 
-    Note over H: Validate TASK_ID, register SIGTERM handler
-    Note over H: Set bash timeout (20min), check EMPLOYEE_PHASE
     H->>S: GET task + archetype (select=*,archetypes(*))
     S-->>H: system_prompt, instructions, model, agents_md
-    Note over H: Build systemPrompt: base + FEEDBACK_CONTEXT + LEARNED_RULES_CONTEXT
-    Note over H: Build instructions: REPLY_ANYWAY_CONTEXT override OR archetype.instructions
     H->>S: POST execution record (status=running)
     H->>S: PATCH task → Executing
-    H->>FS: Write auth.json + opencode.json
-    H->>S: GET tenant config
-    H->>FS: Resolve + write AGENTS.md (3-level: platform+tenant+archetype)
-    H->>OC: Spawn opencode run --model openrouter/{model}
-    Note over OC: Agent runs with minimax/minimax-m2.7
-    OC->>FS: Write /tmp/summary.txt
-    OC->>FS: Write /tmp/approval-message.json
+    H->>FS: Write auth.json, opencode.json, AGENTS.md
+    H->>OC: Spawn opencode run
+    activate OC
+    OC->>FS: Write /tmp/summary.txt + /tmp/approval-message.json
     OC-->>H: Process exits (code 0)
-    H->>FS: Read /tmp/summary.txt + /tmp/approval-message.json
-    H->>S: POST deliverable (content + metadata, external_ref=TASK_ID)
+    deactivate OC
+    H->>S: POST deliverable
     H->>S: PATCH task → Submitting
-    Note over H: Fire employee/task.completed, exit 0
 ```
 
 | Step | What the harness does                                                                                                                             |
@@ -505,6 +470,8 @@ Env vars: `SUPABASE_URL` (required), `SUPABASE_SECRET_KEY` (required), `TENANT_I
 
 All Slack interactions (thread replies and @mentions) are now routed through a **single Inngest event** `employee/interaction.received`. The Bolt handlers fire this event with `source: 'thread_reply'` or `source: 'mention'`.
 
+### Interaction Handler Flow
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -514,49 +481,58 @@ sequenceDiagram
     participant DB as Supabase
     participant LLM as Haiku 4.5
 
-    rect rgb(230, 243, 255)
-    Note over SL,LLM: Thread Reply + @Mention Flow (Unified — employee/interaction-handler)
     SL->>BT: thread_reply or @mention event
-    BT->>IG: emit employee/interaction.received {source, text, userId, channelId, taskId?, tenantId?}
-    IG->>DB: resolve archetype from taskId (thread) or channelId+tenantId (mention)
-    IG->>DB: check for awaiting_input rule match (thread_reply only)
-    alt awaiting_input rule matched
-        IG->>DB: PATCH learned_rule → proposed + store reply text
+    BT->>IG: emit employee/interaction.received
+    IG->>DB: resolve archetype
+    alt awaiting_input rule match (thread_reply only)
+        IG->>DB: PATCH learned_rule → proposed
         IG->>SL: post Confirm/Reject/Rephrase buttons
-    else rejection feedback (thread_reply on Cancelled task)
-        IG->>DB: store feedback {type: rejection_reason}
+    else rejection feedback
+        IG->>DB: store feedback (type: rejection_reason)
         IG->>IG: emit employee/rule.extract-requested
     else normal interaction
-        IG->>LLM: classify intent (feedback | teaching | question | task)
-        IG->>DB: store to feedback table (if feedback/teaching)
-        IG->>LLM: generate acknowledgment text
+        IG->>LLM: classify intent
+        IG->>DB: store feedback (if feedback/teaching)
+        IG->>LLM: generate acknowledgment
         IG->>SL: post acknowledgment in-thread
         IG->>IG: emit employee/rule.extract-requested (if feedback/teaching)
     end
-    end
+```
 
-    rect rgb(243, 230, 255)
-    Note over SL,LLM: Rule Extraction Sub-flow (employee/rule-extractor)
+| #   | What happens                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | User sends a thread reply or @mention — Slack Bolt captures the event                                      |
+| 2   | Bolt Gateway fires `employee/interaction.received` with `source`, `text`, `userId`, `channelId`, `taskId?` |
+| 3   | `interaction-handler` resolves the archetype (from `taskId` for thread replies, `channelId` for mentions)  |
+| 4a  | **awaiting_input path**: reply text captured as rule, status → `proposed`, confirmation buttons posted     |
+| 4b  | **rejection feedback path**: text stored as `rejection_reason`; rule extraction emitted async              |
+| 4c  | **normal path**: Haiku classifies intent → stores feedback if applicable → posts acknowledgment in-thread  |
+
+### Rule Extraction Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant IG as Inngest
+    participant DB as Supabase
+    participant LLM as Haiku 4.5
+    participant SL as Slack
+
     IG->>LLM: extract ONE behavioral rule from correction
     alt rule extractable
-        IG->>DB: store learned_rule {status: proposed}
-        IG->>SL: post Confirm/Reject/Rephrase buttons to notification_channel
+        IG->>DB: store learned_rule (status: proposed)
+        IG->>SL: post Confirm/Reject/Rephrase buttons
     else not extractable
-        IG->>DB: store learned_rule {status: awaiting_input}
+        IG->>DB: store learned_rule (status: awaiting_input)
         IG->>SL: ask "What should I learn?" in thread
     end
-    end
-
-    rect rgb(230, 255, 243)
-    Note over SL,LLM: Weekly Feedback Summary (Sunday midnight UTC — trigger/feedback-summarizer)
-    IG->>DB: load 7 days of feedback + all confirmed rules per archetype
-    IG->>LLM: generate feedback themes JSON
-    IG->>DB: write themes to knowledge_bases
-    IG->>LLM: detect rule overlaps/contradictions
-    IG->>DB: store merged rules {status: proposed}
-    IG->>SL: post merged rule proposals + contradiction alerts
-    end
 ```
+
+| #   | What happens                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Haiku receives the correction text and attempts to extract one concrete behavioral rule                                                   |
+| 2a  | **Extractable**: rule stored as `proposed` in `learned_rules`; Confirm/Reject/Rephrase buttons posted to `archetype.notification_channel` |
+| 2b  | **Not extractable**: rule created as `awaiting_input`; bot asks "What should I learn?" in thread                                          |
 
 **Thread Reply Flow:**
 
