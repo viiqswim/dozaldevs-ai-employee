@@ -326,10 +326,14 @@ async function main(): Promise<void> {
   }
 
   const feedbackContext = process.env.FEEDBACK_CONTEXT ?? '';
+  const learnedRulesContext = process.env.LEARNED_RULES_CONTEXT ?? '';
   const baseSystemPrompt = archetype.system_prompt ?? '';
-  const systemPrompt = feedbackContext
+  let systemPrompt = feedbackContext
     ? `${baseSystemPrompt}\n\n${feedbackContext}`
     : baseSystemPrompt;
+  if (learnedRulesContext) {
+    systemPrompt = `${systemPrompt}\n\n${learnedRulesContext}`;
+  }
   const replyAnywayContext = process.env.REPLY_ANYWAY_CONTEXT ?? '';
   const instructions = replyAnywayContext
     ? `OVERRIDE — REPLY ANYWAY TASK:\nA PM clicked "Reply Anyway" on a NO_ACTION_NEEDED notification. Process the message below as NEEDS_APPROVAL. Skip Step 1 (fetching messages) — use the provided context. In Step 3, classify as NEEDS_APPROVAL and draft a response. Continue with Step 5.\n\nMessage context:\n${replyAnywayContext}\n\n---\nOriginal instructions (for reference, start from Step 3):\n${archetype.instructions ?? ''}`
