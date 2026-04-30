@@ -62,6 +62,145 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
 
       if (!context) return;
 
+      const awaitingInputRule = await step.run('detect-awaiting-input-rule', async () => {
+        if (source !== 'thread_reply' || !threadTs || !channelId) return null;
+
+        const supabaseUrl = process.env.SUPABASE_URL ?? '';
+        const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+        const headers = {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        };
+
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/learned_rules?status=eq.awaiting_input&slack_channel=eq.${channelId}&slack_ts=eq.${threadTs}&select=id,tenant_id,entity_type,entity_id,scope,source`,
+          { headers },
+        );
+        const rows = (await res.json()) as Array<{
+          id: string;
+          tenant_id: string;
+          entity_type: string | null;
+          entity_id: string | null;
+          scope: string;
+          source: string;
+        }>;
+        return rows[0] ?? null;
+      });
+
+      if (awaitingInputRule) {
+        await step.run('capture-awaiting-input-reply', async () => {
+          const supabaseUrl = process.env.SUPABASE_URL ?? '';
+          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+          const headers = {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          };
+
+          await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${awaitingInputRule.id}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ rule_text: text, status: 'proposed' }),
+          });
+
+          const tokenRes = await fetch(
+            `${supabaseUrl}/rest/v1/tenant_secrets?tenant_id=eq.${awaitingInputRule.tenant_id}&key=eq.slack_bot_token&select=ciphertext,iv,auth_tag`,
+            { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+          );
+          const tokenRows = (await tokenRes.json()) as Array<{
+            ciphertext: string;
+            iv: string;
+            auth_tag: string;
+          }>;
+          if (!tokenRows[0]) {
+            log.warn(
+              { ruleId: awaitingInputRule.id },
+              'No slack_bot_token for awaiting_input rule — skipping Slack post',
+            );
+            return;
+          }
+          const { decrypt } = await import('../lib/encryption.js');
+          const slackToken = decrypt(tokenRows[0]);
+
+          const ruleId = awaitingInputRule.id;
+          const blocks = [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: `🧠 *New behavioral rule proposed:*\n\n> ${text}` },
+            },
+            { type: 'divider' },
+            {
+              type: 'actions',
+              elements: [
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✅ Confirm' },
+                  style: 'primary',
+                  action_id: 'rule_confirm',
+                  value: ruleId,
+                },
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '❌ Reject' },
+                  style: 'danger',
+                  action_id: 'rule_reject',
+                  value: ruleId,
+                },
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✏️ Rephrase' },
+                  action_id: 'rule_rephrase',
+                  value: ruleId,
+                },
+              ],
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ];
+
+          const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${slackToken}` },
+            body: JSON.stringify({
+              channel: channelId,
+              text: `New behavioral rule proposed: ${text}`,
+              blocks,
+            }),
+          });
+          const slackData = (await slackRes.json()) as {
+            ok: boolean;
+            ts?: string;
+            channel?: string;
+            error?: string;
+          };
+
+          if (!slackData.ok) {
+            log.warn(
+              { ruleId, error: slackData.error },
+              'Failed to post rule review after awaiting_input capture',
+            );
+            return;
+          }
+
+          await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              slack_ts: slackData.ts,
+              slack_channel: slackData.channel ?? channelId,
+            }),
+          });
+
+          log.info(
+            { ruleId, userId },
+            'Awaiting-input rule captured from thread reply — status: proposed',
+          );
+        });
+        return;
+      }
+
       const rejectionDetected = await step.run('detect-rejection-feedback', async () => {
         if (source !== 'thread_reply' || !taskId) return null;
 
