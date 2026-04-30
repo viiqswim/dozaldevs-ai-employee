@@ -159,6 +159,8 @@ function makeEngine(approvalEvent: unknown) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue(approvalEvent);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mocked as any).step.sendEvent = vi.fn().mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (mocked as any).step.run = vi
         .fn()
         .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {

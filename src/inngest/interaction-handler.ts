@@ -299,6 +299,9 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             feedbackId: routeResult.feedbackId,
             feedbackType: intent,
             source,
+            content: text,
+            taskId: taskId ?? null,
+            archetypeId: context.archetypeId ?? null,
           },
         });
       }
