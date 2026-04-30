@@ -395,6 +395,7 @@ model Tenant {
   integrations          TenantIntegration[]
   systemEvents   SystemEvent[]
   pendingApprovals      PendingApproval[]
+  learned_rules         LearnedRule[]
 
   @@map("tenants")
 }
@@ -465,4 +466,25 @@ model PendingApproval {
   @@unique([tenant_id, thread_uid])
   @@index([tenant_id])
   @@map("pending_approvals")
+}
+
+model LearnedRule {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenant_id      String    @db.Uuid
+  entity_type    String?
+  entity_id      String?
+  scope          String
+  rule_text      String
+  source         String
+  status         String
+  source_task_id String?
+  slack_ts       String?
+  slack_channel  String?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  confirmed_at   DateTime? @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("learned_rules")
 }
