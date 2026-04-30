@@ -199,23 +199,20 @@ stateDiagram-v2
         AwaitingInput --> Ready
     }
 
-    Queued --> Executing : slot available
+    Queued --> Executing : machine provisioned
     Executing --> Submitting : work complete
-    Submitting --> Done : no approval required
-    Submitting --> Done : no action needed
-    Submitting --> Executing : reply-anyway override
+    Executing --> Failed : timeout or error
+
     Submitting --> Reviewing : approval required
+    Submitting --> Done : short-circuit
+    Submitting --> Executing : reply-anyway
 
     Reviewing --> Approved : human approves
-    Reviewing --> Cancelled : reject
-    Reviewing --> Cancelled : superseded
-    Reviewing --> Cancelled : 24h timeout
+    Reviewing --> Cancelled : reject / supersede / timeout
 
     Approved --> Delivering : spawn delivery machine
-    Delivering --> Done : delivery success
-    Delivering --> Failed : 3 attempts failed
-
-    Executing --> Failed : poll timeout or error
+    Delivering --> Done : success
+    Delivering --> Failed : 3 retries failed
 
     Done --> [*]
     Failed --> [*]
