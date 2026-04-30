@@ -36,14 +36,13 @@ flowchart LR
     GUESTCRON -.-> DISPATCH
     JIRA -.-> DISPATCH
     DISPATCH ==>|"1. route"| LIFECYCLE
-    LIFECYCLE -->|"2. auto-pass: Triaging → Ready"| DB
-    LIFECYCLE ==>|"3. Executing: provision machine"| HARNESS
-    HARNESS -->|"4. read archetype + run OpenCode"| DB
-    HARNESS -->|"5. write deliverable → Submitting"| DB
-    LIFECYCLE -->|"6. supersede check → Reviewing"| SLACKCHAN
-    SLACKCHAN -->|"7. human approves"| LIFECYCLE
-    LIFECYCLE ==>|"8. spawn delivery machine"| HARNESS
-    HARNESS -->|"9. Done"| DB
+    LIFECYCLE -->|"2. auto-pass states → Ready"| DB
+    LIFECYCLE ==>|"3. provision machine"| HARNESS
+    HARNESS -->|"4. execute + write deliverable"| DB
+    LIFECYCLE -->|"5. post approval card"| SLACKCHAN
+    SLACKCHAN -->|"6. human approves"| LIFECYCLE
+    LIFECYCLE ==>|"7. spawn delivery machine"| HARNESS
+    HARNESS -->|"8. Done"| DB
 
     classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
     classDef storage fill:#7B68EE,stroke:#5B4BC7,color:#fff
@@ -56,12 +55,11 @@ flowchart LR
 | 1   | Inngest routes `employee/task.dispatched` to the **universal lifecycle** (one function for all employees)     |
 | 2   | States **Triaging → AwaitingInput → Ready** auto-pass instantly — persisted in Supabase                       |
 | 3   | **Executing**: lifecycle provisions a Fly.io machine running `opencode-harness.mjs`                           |
-| 4   | Harness fetches archetype (model, instructions, agents_md) from Supabase and runs the OpenCode session        |
-| 5   | OpenCode writes deliverable; harness PATCHes task → `Submitting`                                              |
-| 6   | Lifecycle classifies deliverable, runs supersede check, posts approval card to Slack (`Reviewing`)            |
-| 7   | Human clicks Approve — Slack Bolt fires `employee/approval.received`; lifecycle unblocks                      |
-| 8   | Lifecycle spawns a **delivery machine** (`EMPLOYEE_PHASE=delivery`) — reads `archetype.delivery_instructions` |
-| 9   | Delivery machine PATCHes task → `Done`                                                                        |
+| 4   | Harness fetches archetype + runs OpenCode session; writes deliverable and PATCHes task → `Submitting`         |
+| 5   | Lifecycle classifies deliverable, runs supersede check, posts approval card to Slack (`Reviewing`)            |
+| 6   | Human clicks Approve — Slack Bolt fires `employee/approval.received`; lifecycle unblocks                      |
+| 7   | Lifecycle spawns a **delivery machine** (`EMPLOYEE_PHASE=delivery`) — reads `archetype.delivery_instructions` |
+| 8   | Delivery machine PATCHes task → `Done`                                                                        |
 
 ---
 
@@ -191,33 +189,54 @@ Short-circuit: `Submitting → Done` (when `risk_model.approval_required: false`
 `*` = auto-pass (transit immediately, no blocking)
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Queued
+flowchart TD
+    START(["Task received"]):::event
 
-    state "Queued*" as Queued {
-        Triaging --> AwaitingInput
-        AwaitingInput --> Ready
-    }
+    subgraph QueuedStates["Queued*"]
+        TRIAGING["Triaging"]:::service
+        AWAITING["AwaitingInput"]:::service
+        READY["Ready"]:::service
+        TRIAGING --> AWAITING
+        AWAITING --> READY
+    end
 
-    Queued --> Executing : machine provisioned
-    Executing --> Submitting : work complete
-    Executing --> Failed : timeout or error
+    EXECUTING["Executing"]:::service
+    SUBMITTING["Submitting"]:::service
+    REVIEWING["Reviewing"]:::service
+    APPROVED["Approved"]:::service
+    DELIVERING["Delivering"]:::service
+    DONE(["Done"]):::event
+    FAILED(["Failed"]):::event
+    CANCELLED(["Cancelled"]):::event
 
-    Submitting --> Reviewing : approval required
-    Submitting --> Done : short-circuit
-    Submitting --> Executing : reply-anyway
+    START --> QueuedStates
+    READY ==>|"1. machine provisioned"| EXECUTING
+    EXECUTING ==>|"2. work complete"| SUBMITTING
+    EXECUTING -->|"timeout or error"| FAILED
 
-    Reviewing --> Approved : human approves
-    Reviewing --> Cancelled : reject / supersede / timeout
+    SUBMITTING ==>|"3. needs approval"| REVIEWING
+    SUBMITTING -->|"short-circuit"| DONE
+    SUBMITTING -.->|"reply-anyway"| EXECUTING
 
-    Approved --> Delivering : spawn delivery machine
-    Delivering --> Done : success
-    Delivering --> Failed : 3 retries failed
+    REVIEWING ==>|"4. human approves"| APPROVED
+    REVIEWING -->|"reject / supersede / timeout"| CANCELLED
 
-    Done --> [*]
-    Failed --> [*]
-    Cancelled --> [*]
+    APPROVED ==>|"5. spawn delivery machine"| DELIVERING
+    DELIVERING ==>|"6. success"| DONE
+    DELIVERING -->|"3 retries failed"| FAILED
+
+    classDef service fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    classDef event   fill:#50C878,stroke:#2D7A4A,color:#fff
 ```
+
+| #   | Transition   | What happens                                                                               |
+| --- | ------------ | ------------------------------------------------------------------------------------------ |
+| 1   | → Executing  | Lifecycle provisions a Fly.io machine running `opencode-harness.mjs`                       |
+| 2   | → Submitting | OpenCode session completes; harness writes deliverable and PATCHes task to `Submitting`    |
+| 3   | → Reviewing  | Lifecycle classifies deliverable, runs supersede check, posts approval card to Slack       |
+| 4   | → Approved   | Human clicks Approve in Slack; Bolt fires `employee/approval.received`; lifecycle unblocks |
+| 5   | → Delivering | Lifecycle spawns a second Fly.io machine with `EMPLOYEE_PHASE=delivery`                    |
+| 6   | → Done       | Delivery machine completes and PATCHes task to `Done`                                      |
 
 **Terminal states:**
 
