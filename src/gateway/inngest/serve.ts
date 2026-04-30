@@ -11,6 +11,8 @@ import { createInteractionHandlerFunction } from '../../inngest/interaction-hand
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
 import { createGuestMessagePollerTrigger } from '../../inngest/triggers/guest-message-poller.js';
 import { createUnrespondedMessageAlertTrigger } from '../../inngest/triggers/unresponded-message-alert.js';
+import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
+import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
@@ -34,6 +36,8 @@ export function inngestServeRoutes(): Router {
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
   const guestMessagePollerFn = createGuestMessagePollerTrigger(inngest);
   const unrespondedAlertFn = createUnrespondedMessageAlertTrigger(inngest);
+  const ruleExtractorFn = createRuleExtractorFunction(inngest);
+  const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest);
 
   const handler = serve({
     client: inngest,
@@ -47,6 +51,8 @@ export function inngestServeRoutes(): Router {
       feedbackSummarizerFn,
       guestMessagePollerFn,
       unrespondedAlertFn,
+      ruleExtractorFn,
+      learnedRulesExpiryFn,
     ],
   });
 
