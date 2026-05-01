@@ -396,6 +396,7 @@ model Tenant {
   systemEvents   SystemEvent[]
   pendingApprovals      PendingApproval[]
   learned_rules         LearnedRule[]
+  propertyLocks         PropertyLock[]
 
   @@map("tenants")
 }
@@ -466,6 +467,27 @@ model PendingApproval {
   @@unique([tenant_id, thread_uid])
   @@index([tenant_id])
   @@map("pending_approvals")
+}
+
+model PropertyLock {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenant_id            String   @db.Uuid
+  property_external_id String
+  lock_external_id     String
+  lock_name            String
+  lock_provider        String   @default("sifely")
+  lock_role            String?
+  property_type        String
+  property_name        String
+  passcode_name        String?
+  lock_metadata        Json?
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id, property_external_id])
+  @@map("property_locks")
 }
 
 model LearnedRule {
