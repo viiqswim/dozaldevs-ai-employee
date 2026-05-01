@@ -291,7 +291,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               TASK_ID: taskId,
               TENANT_ID: tenantId,
               ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-              SUPABASE_URL: 'http://host.docker.internal:54321',
+              SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
               SUPABASE_SECRET_KEY: supabaseKey,
               INNGEST_BASE_URL: 'http://host.docker.internal:8288',
               INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
@@ -327,7 +327,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       // ── Poll for machine completion (Submitting or Failed) ───────────────────
       const finalStatus = await step.run('poll-completion', async () => {
-        const maxPolls = 60;
+        const maxPolls = 120;
         const intervalMs = 15_000;
 
         for (let i = 0; i < maxPolls; i++) {
@@ -527,7 +527,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 TASK_ID: taskId,
                 TENANT_ID: tenantId,
                 ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-                SUPABASE_URL: 'http://host.docker.internal:54321',
+                SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
                 SUPABASE_SECRET_KEY: supabaseKey,
                 INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                 INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
@@ -564,7 +564,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
 
         const replyDraftStatus = await step.run('reply-anyway-poll', async () => {
-          const maxPolls = 60;
+          const maxPolls = 120;
           const intervalMs = 15_000;
           for (let i = 0; i < maxPolls; i++) {
             await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
@@ -900,7 +900,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   ...tenantEnvForApproval,
                   TASK_ID: taskId,
                   EMPLOYEE_PHASE: 'delivery',
-                  SUPABASE_URL: 'http://host.docker.internal:54321',
+                  SUPABASE_URL: supabaseUrl.replace(
+                    /localhost|127\.0\.0\.1/,
+                    'host.docker.internal',
+                  ),
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',

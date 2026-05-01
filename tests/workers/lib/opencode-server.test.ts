@@ -239,10 +239,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-        process: mockProc,
-        url: 'http://localhost:4096',
-        kill: async () => {},
-      };
+                    process: mockProc,
+                    url: 'http://localhost:4096',
+                    kill: async () => {},
+                    onExit: Promise.resolve(null),
+                    stopKeepalive: () => {},
+                  };
 
       const promise = stopOpencodeServer(handle);
 
@@ -261,10 +263,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-        process: mockProc,
-        url: 'http://localhost:4096',
-        kill: async () => {},
-      };
+                    process: mockProc,
+                    url: 'http://localhost:4096',
+                    kill: async () => {},
+                    onExit: Promise.resolve(null),
+                    stopKeepalive: () => {},
+                  };
 
       const promise = stopOpencodeServer(handle);
 
@@ -284,10 +288,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = true;
 
       const handle = {
-        process: mockProc,
-        url: 'http://localhost:4096',
-        kill: async () => {},
-      };
+                    process: mockProc,
+                    url: 'http://localhost:4096',
+                    kill: async () => {},
+                    onExit: Promise.resolve(null),
+                    stopKeepalive: () => {},
+                  };
 
       await stopOpencodeServer(handle);
 
@@ -299,10 +305,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-        process: mockProc,
-        url: 'http://localhost:4096',
-        kill: async () => {},
-      };
+                    process: mockProc,
+                    url: 'http://localhost:4096',
+                    kill: async () => {},
+                    onExit: Promise.resolve(null),
+                    stopKeepalive: () => {},
+                  };
 
       vi.useFakeTimers();
 
@@ -338,10 +346,12 @@ describe('opencode-server', () => {
       });
 
       const handle = {
-        process: mockProc,
-        url: 'http://localhost:4096',
-        kill: async () => {},
-      };
+                    process: mockProc,
+                    url: 'http://localhost:4096',
+                    kill: async () => {},
+                    onExit: Promise.resolve(null),
+                    stopKeepalive: () => {},
+                  };
 
       const promise = stopOpencodeServer(handle);
 

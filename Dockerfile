@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     bash \
     jq \
+    sqlite3 \
     ca-certificates \
     fuse-overlayfs \
     uidmap \
@@ -45,8 +46,21 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v2.45.0/gh_2.45.0_l
     && rm -rf /tmp/gh*
 
 # opencode-ai is the correct npm package name (not 'opencode' or '@opencode/cli')
-RUN npm install -g opencode-ai@1.3.3
+RUN npm install -g opencode-ai@1.14.31
 RUN npm install -g tsx
+
+# Pre-warm OpenCode SQLite database during build so the migration doesn't run at container start.
+# opencode serve runs the migration on first launch; running it here bakes the migrated DB into the image.
+RUN opencode serve --port 4097 --hostname 127.0.0.1 &>/dev/null & \
+    SERVE_PID=$! && \
+    for i in $(seq 1 120); do \
+      sleep 1; \
+      curl -sf http://127.0.0.1:4097/global/health >/dev/null 2>&1 && break; \
+    done && \
+    kill $SERVE_PID 2>/dev/null; \
+    sleep 2; \
+    DB_PATH="$(echo ~)/.local/share/opencode/opencode.db"; \
+    [ -f "$DB_PATH" ] && sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
 
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules

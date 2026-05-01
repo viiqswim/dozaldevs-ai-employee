@@ -311,6 +311,7 @@ function applyDefaultMockValues() {
     url: 'http://localhost:4096',
     process: {} as import('child_process').ChildProcess,
     kill: vi.fn().mockResolvedValue(undefined),
+    onExit: new Promise<number | null>(() => {}),
   });
   mockCreateSessionManager.mockReturnValue({
     createSession: vi.fn().mockResolvedValue('sess-1'),
@@ -515,6 +516,8 @@ function createMockServerHandle() {
     url: 'http://localhost:4096',
     process: {} as unknown as import('child_process').ChildProcess,
     kill: vi.fn().mockResolvedValue(undefined),
+    onExit: new Promise<number | null>(() => {}),
+    stopKeepalive: vi.fn(),
   };
 }
 
