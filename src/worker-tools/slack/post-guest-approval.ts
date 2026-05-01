@@ -17,6 +17,7 @@ interface GuestApprovalParams {
   messageUid: string;
   urgency: boolean;
   conversationSummary?: string;
+  diagnosis?: string;
   dryRun: boolean;
 }
 
@@ -43,6 +44,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let messageUid = '';
   let urgency = false;
   let conversationSummary: string | undefined;
+  let diagnosis: string | undefined;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -78,6 +80,8 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       urgency = true;
     } else if (args[i] === '--conversation-summary' && args[i + 1]) {
       conversationSummary = args[++i];
+    } else if (args[i] === '--diagnosis' && args[i + 1]) {
+      diagnosis = args[++i];
     } else if (args[i] === '--dry-run') {
       dryRun = true;
     }
@@ -100,6 +104,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     messageUid,
     urgency,
     conversationSummary,
+    diagnosis,
     dryRun,
   };
 }
@@ -156,6 +161,21 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
       text: {
         type: 'mrkdwn',
         text: `*Conversation Summary:*\n${params.conversationSummary}`,
+      },
+    });
+  }
+
+  if (params.diagnosis) {
+    const diagnosisData = JSON.parse(params.diagnosis) as {
+      hasMismatch: boolean;
+      diagnosisSummary: string;
+    };
+    const diagnosisPrefix = diagnosisData.hasMismatch ? ':warning: CODE MISMATCH — ' : '';
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*🔒 Lock Diagnosis:*\n${diagnosisPrefix}${diagnosisData.diagnosisSummary}`,
       },
     });
   }
