@@ -339,3 +339,38 @@ export type HostfullyWebhookPayload = z.infer<typeof HostfullyWebhookPayloadSche
 export function parseHostfullyWebhook(body: unknown): HostfullyWebhookPayload {
   return HostfullyWebhookPayloadSchema.parse(body);
 }
+
+// ─── Property Lock CRUD ───────────────────────────────────────────────────────
+
+export const CreatePropertyLockSchema = z.object({
+  property_external_id: z.string().min(1),
+  lock_external_id: z.string().min(1),
+  lock_name: z.string().min(1),
+  lock_provider: z.string().default('sifely'),
+  lock_role: z.string().optional(),
+  property_type: z.string().min(1),
+  property_name: z.string().min(1),
+  passcode_name: z.string().optional(),
+  lock_metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type CreatePropertyLock = z.infer<typeof CreatePropertyLockSchema>;
+
+export const UpdatePropertyLockSchema = CreatePropertyLockSchema.partial();
+
+export type UpdatePropertyLock = z.infer<typeof UpdatePropertyLockSchema>;
+
+export const TenantPropertyLockParamSchema = TenantIdParamSchema.extend({
+  lockId: uuidField(),
+});
+
+export type TenantPropertyLockParam = z.infer<typeof TenantPropertyLockParamSchema>;
+
+export function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
+  const result = CreatePropertyLockSchema.safeParse(body);
+  if (!result.success) {
+    const messages = result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+    throw new Error(`Invalid property lock payload: ${messages}`);
+  }
+  return result.data;
+}
