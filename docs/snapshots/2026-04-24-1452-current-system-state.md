@@ -654,7 +654,7 @@ AI employees can self-report tool issues via `tsx /tools/platform/report-issue.t
 
 ## Phase 1: Guest Operations MVP — Progress
 
-Active development plan: `docs/2026-04-21-2202-phase1-story-map.md`. Five releases across 39 stories.
+Active development plan: `docs/planning/2026-04-21-2202-phase1-story-map.md`. Five releases across 39 stories.
 
 ### Release 1.0 (End-to-End Thin Slice) — In Progress
 
@@ -746,11 +746,11 @@ tests/                # 118 test files (Vitest)
 
 ## Reference Documents
 
-| Document                                          | When to Read                                                          |
-| ------------------------------------------------- | --------------------------------------------------------------------- |
-| `docs/2026-04-21-1813-product-roadmap.md`         | Product vision, Phase 1–3 roadmap, employee roadmap                   |
-| `docs/2026-04-21-2202-phase1-story-map.md`        | Phase 1 story map — 39 stories across 5 releases, acceptance criteria |
-| `docs/2026-04-20-1314-current-system-state.md`    | Previous system state snapshot (pre-Phase 1 work)                     |
-| `docs/2026-04-14-0104-full-system-vision.md`      | Architecture, archetypes, lifecycle, event routing, operating modes   |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`     | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets  |
-| `docs/2026-04-16-0310-manual-employee-trigger.md` | Manual employee trigger API — endpoints, curl examples                |
+| Document                                                 | When to Read                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------------- |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product vision, Phase 1–3 roadmap, employee roadmap                   |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map — 39 stories across 5 releases, acceptance criteria |
+| `docs/snapshots/2026-04-20-1314-current-system-state.md` | Previous system state snapshot (pre-Phase 1 work)                     |
+| `docs/2026-04-14-0104-full-system-vision.md`             | Architecture, archetypes, lifecycle, event routing, operating modes   |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`            | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets  |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`        | Manual employee trigger API — endpoints, curl examples                |

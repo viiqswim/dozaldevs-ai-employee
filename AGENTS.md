@@ -65,7 +65,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
     Output: JSON `{"channels":[...]}`. Reads channel history with thread replies; filters out bot summary posts.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
 - **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
-- **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
+- **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
 - **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
 
@@ -79,7 +79,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 **Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
 
-> **⚠️ Planned change (PLAT-05)**: Delivery will always use a Fly.io machine with a delivery-phase instruction set per archetype. The inline `slackClient.postMessage()` path is being removed. Do not add new inline delivery logic to the lifecycle. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-05.
+> **⚠️ Planned change (PLAT-05)**: Delivery will always use a Fly.io machine with a delivery-phase instruction set per archetype. The inline `slackClient.postMessage()` path is being removed. Do not add new inline delivery logic to the lifecycle. See `docs/planning/2026-04-21-2202-phase1-story-map.md` § PLAT-05.
 
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 
@@ -93,7 +93,7 @@ Thread replies and @mentions on summary messages are captured and acknowledged:
 - **@mention** → Slack Bolt fires `employee/mention.received` → `mention-handler` classifies intent (feedback / teaching / question / task) → stores if relevant → responds in thread.
 - **Weekly cron** (`0 0 * * 0`, Sunday midnight UTC) → `feedback-summarizer` reads recent feedback, generates a digest with Haiku, writes to `knowledge_bases`.
 
-> **⚠️ Planned change (PLAT-10)**: The two separate handlers (`feedback-handler` + `mention-handler`) will be unified into a single `employee/interaction-handler` Inngest function. All interactions (thread replies + @mentions) will go through the same classification pipeline: classify intent → route → respond. Do not add new logic to either handler — new interaction features should target the unified handler. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-10.
+> **⚠️ Planned change (PLAT-10)**: The two separate handlers (`feedback-handler` + `mention-handler`) will be unified into a single `employee/interaction-handler` Inngest function. All interactions (thread replies + @mentions) will go through the same classification pipeline: classify intent → route → respond. Do not add new logic to either handler — new interaction features should target the unified handler. See `docs/planning/2026-04-21-2202-phase1-story-map.md` § PLAT-10.
 
 ## Tenants
 
@@ -188,7 +188,7 @@ Fly.io worker logs: `fly logs -a ai-employee-workers` (NOT `ai-employee-summariz
 
 ## Summarizer — Per-Tenant Channel Configuration
 
-> **⚠️ Planned change (PLAT-07/08)**: Hardcoded channel IDs in archetype instructions will be replaced by a `notification_channel` config (required per-tenant default + optional per-archetype override). All channel resolution will go through config, not natural language instructions. Do not add more hardcoded channel IDs to archetype instructions. See `docs/2026-04-21-2202-phase1-story-map.md` § PLAT-07 and PLAT-08.
+> **⚠️ Planned change (PLAT-07/08)**: Hardcoded channel IDs in archetype instructions will be replaced by a `notification_channel` config (required per-tenant default + optional per-archetype override). All channel resolution will go through config, not natural language instructions. Do not add more hardcoded channel IDs to archetype instructions. See `docs/planning/2026-04-21-2202-phase1-story-map.md` § PLAT-07 and PLAT-08.
 
 Channel config lives in two places — both must be consistent:
 
@@ -236,7 +236,7 @@ Two commonly used endpoints for triggering employees and checking status:
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY` header on both endpoints. `source_system` for manual tasks: `'manual'` (existing values: `'jira'`, `'cron'`).
 
-The admin API has 18 total routes covering tenant CRUD (create, list, get, update, soft-delete, restore), per-tenant secrets management (list keys, set, delete), tenant config (get, deep-merge update), project CRUD, employee trigger, and task status. Full route table: `docs/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
+The admin API has 18 total routes covering tenant CRUD (create, list, get, update, soft-delete, restore), per-tenant secrets management (list keys, set, delete), tenant config (get, deep-merge update), project CRUD, employee trigger, and task status. Full route table: `docs/snapshots/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
@@ -468,18 +468,30 @@ tsx scripts/telegram-notify.ts "✅ ${PLAN} complete — All tasks done. Come ba
 
 If the plan already had a notification task that fired, the user receives two notifications — this is intentional.
 
+## Docs Directory Structure
+
+The `docs/` directory is organized into subdirectories by document type. Always file new documents in the correct location.
+
+| Directory         | Pattern                                  | Description                                                                                |
+| ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `docs/planning/`  | `*-product-roadmap.md`, `*-story-map.md` | Product roadmaps and phase story maps. File all future phase roadmaps and story maps here. |
+| `docs/snapshots/` | `*-current-system-state.md`              | Point-in-time system state snapshots. File all future system state documents here.         |
+| `docs/` (root)    | Everything else                          | Architecture overviews, guides, phase implementation docs, troubleshooting.                |
+
+**Rule**: When creating any new markdown file whose name matches one of the patterns above, place it in the corresponding subdirectory — not in `docs/` root.
+
 ## Reference Documents
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                | When to Read                                                                                                                                                                                               |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                         |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                             |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                                                                                                                                                  |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`   | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`       | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`           | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
-| `docs/2026-04-24-1452-current-system-state.md`          | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
-| `docs/2026-04-21-2202-phase1-story-map.md`              | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                      |
-| `docs/2026-04-21-1813-product-roadmap.md`               | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                       |
+| Document                                                 | When to Read                                                                                                                                                                                               |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/2026-04-14-0104-full-system-vision.md`             | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                         |
+| `docs/2026-03-22-2317-ai-employee-architecture.md`       | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                             |
+| `docs/2026-04-14-0057-worker-post-redesign-overview.md`  | Worker redesign scope (before/after, files added/removed)                                                                                                                                                  |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`    | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`        | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`            | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
+| `docs/snapshots/2026-04-24-1452-current-system-state.md` | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                      |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                       |
