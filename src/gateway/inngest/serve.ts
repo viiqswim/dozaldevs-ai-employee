@@ -9,7 +9,6 @@ import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycl
 import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js';
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
-import { createGuestMessagePollerTrigger } from '../../inngest/triggers/guest-message-poller.js';
 import { createMonitorTrigger } from '../../inngest/triggers/monitor-trigger.js';
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
 import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js';
@@ -34,7 +33,6 @@ export function inngestServeRoutes(): Router {
   const summarizerTriggerFn = createSummarizerTrigger(inngest);
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
-  const guestMessagePollerFn = createGuestMessagePollerTrigger(inngest);
   const monitorTriggerFn = createMonitorTrigger(inngest);
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
   const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest);
@@ -49,7 +47,6 @@ export function inngestServeRoutes(): Router {
       summarizerTriggerFn,
       interactionHandlerFn,
       feedbackSummarizerFn,
-      guestMessagePollerFn,
       monitorTriggerFn,
       ruleExtractorFn,
       learnedRulesExpiryFn,
