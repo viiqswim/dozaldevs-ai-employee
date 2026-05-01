@@ -45,6 +45,25 @@ const MOCK_ACCESS_RECORDS = [
   },
 ];
 
+const MOCK_LOCK = {
+  lockId: 11111,
+  lockName: 'Test Lock',
+  lockAlias: 'TL',
+  lockMac: 'AA:BB:CC:DD:EE:FF',
+  electricQuantity: 100,
+  hasGateway: 1,
+};
+
+const MOCK_EXISTING_PASSCODE = {
+  keyboardPwdId: 55555,
+  keyboardPwd: '111111',
+  keyboardPwdName: 'test-existing-passcode',
+  keyboardPwdType: 2,
+  startDate: 0,
+  endDate: 0,
+  status: 1,
+};
+
 let server: http.Server;
 let port: number;
 
@@ -70,6 +89,9 @@ beforeAll(async () => {
       if (lockId === 'api-error-lock') {
         res.writeHead(200);
         res.end(JSON.stringify({ code: -2012, msg: 'gateway offline' }));
+      } else if (lockId === 'dup-test') {
+        res.writeHead(200);
+        res.end(JSON.stringify({ list: [...MOCK_PASSCODES, MOCK_EXISTING_PASSCODE] }));
       } else {
         res.writeHead(200);
         res.end(JSON.stringify({ list: MOCK_PASSCODES }));
@@ -82,6 +104,44 @@ beforeAll(async () => {
         res.writeHead(200);
         res.end(JSON.stringify({ list: MOCK_ACCESS_RECORDS }));
       }
+    } else if (pathname === '/v3/lock/list') {
+      res.writeHead(200);
+      res.end(JSON.stringify({ list: [MOCK_LOCK] }));
+    } else if (pathname === '/v3/keyboardPwd/add') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        const params = new URLSearchParams(body);
+        const keyboardPwd = params.get('keyboardPwd');
+        res.writeHead(200);
+        if (keyboardPwd === '987654') {
+          res.end(JSON.stringify({ keyboardPwdId: 99999 }));
+        } else if (keyboardPwd === '000000') {
+          res.end(JSON.stringify({ code: 400, msg: 'test error' }));
+        } else {
+          res.end(JSON.stringify({ keyboardPwdId: 77777 }));
+        }
+      });
+    } else if (pathname === '/v3/keyboardPwd/change') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        res.writeHead(200);
+        res.end(JSON.stringify({ errcode: 0, errmsg: 'success' }));
+      });
+    } else if (pathname === '/v3/keyboardPwd/delete') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        res.writeHead(200);
+        res.end(JSON.stringify({ errcode: 0, errmsg: 'success' }));
+      });
     } else {
       res.writeHead(404);
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -187,5 +247,123 @@ describe('sifely-client shell tool', () => {
     );
     expect(code).toBe(1);
     expect(stderr).toContain('gateway offline');
+  }, 15000);
+
+  it('list-locks returns JSON array with lockId, lockName, lockAlias fields', async () => {
+    const { stdout, code } = await runScript(['--action', 'list-locks'], {
+      ...BASE_ENV,
+      SIFELY_BASE_URL: `http://localhost:${port}`,
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as Record<string, unknown>[];
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0]).toHaveProperty('lockId', 11111);
+    expect(data[0]).toHaveProperty('lockName', 'Test Lock');
+    expect(data[0]).toHaveProperty('lockAlias', 'TL');
+  }, 15000);
+
+  it('create-passcode returns keyboardPwdId on success', async () => {
+    const { stdout, code } = await runScript(
+      [
+        '--action',
+        'create-passcode',
+        '--lock-id',
+        '12345',
+        '--name',
+        'new-passcode',
+        '--code',
+        '987654',
+      ],
+      { ...BASE_ENV, SIFELY_BASE_URL: `http://localhost:${port}` },
+    );
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as Record<string, unknown>;
+    expect(data).toHaveProperty('keyboardPwdId', 99999);
+  }, 15000);
+
+  it('create-passcode returns existed=true when name already exists', async () => {
+    const { stdout, code } = await runScript(
+      [
+        '--action',
+        'create-passcode',
+        '--lock-id',
+        'dup-test',
+        '--name',
+        'test-existing-passcode',
+        '--code',
+        '111111',
+      ],
+      { ...BASE_ENV, SIFELY_BASE_URL: `http://localhost:${port}` },
+    );
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as Record<string, unknown>;
+    expect(data).toHaveProperty('existed', true);
+    expect(data).toHaveProperty('keyboardPwdId', 55555);
+  }, 15000);
+
+  it('create-passcode exits 1 with invalid code format (non-numeric)', async () => {
+    const { stderr, code } = await runScript(
+      ['--action', 'create-passcode', '--lock-id', '12345', '--name', 'test', '--code', 'abc123'],
+      {},
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/numeric|4-9/);
+  }, 15000);
+
+  it('create-passcode exits 1 with invalid code length (too short)', async () => {
+    const { stderr, code } = await runScript(
+      ['--action', 'create-passcode', '--lock-id', '12345', '--name', 'test', '--code', '123'],
+      {},
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain('4-9');
+  }, 15000);
+
+  it('update-passcode returns ok=true on success', async () => {
+    const { stdout, code } = await runScript(
+      [
+        '--action',
+        'update-passcode',
+        '--lock-id',
+        '12345',
+        '--passcode-id',
+        '99999',
+        '--name',
+        'Updated',
+      ],
+      { ...BASE_ENV, SIFELY_BASE_URL: `http://localhost:${port}` },
+    );
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as Record<string, unknown>;
+    expect(data).toHaveProperty('ok', true);
+  }, 15000);
+
+  it('delete-passcode returns ok=true on success', async () => {
+    const { stdout, code } = await runScript(
+      ['--action', 'delete-passcode', '--lock-id', '12345', '--passcode-id', '99999'],
+      { ...BASE_ENV, SIFELY_BASE_URL: `http://localhost:${port}` },
+    );
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as Record<string, unknown>;
+    expect(data).toHaveProperty('ok', true);
+  }, 15000);
+
+  it('exits 1 on Sifely API error during mutation (HTTP 200 with error code in body)', async () => {
+    const { stderr, code } = await runScript(
+      [
+        '--action',
+        'create-passcode',
+        '--lock-id',
+        '12345',
+        '--name',
+        'error-test',
+        '--code',
+        '000000',
+      ],
+      { ...BASE_ENV, SIFELY_BASE_URL: `http://localhost:${port}` },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/createPasscode error|test error/);
   }, 15000);
 });
