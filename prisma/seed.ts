@@ -246,6 +246,22 @@ async function main() {
     'Using the full conversation history, reservation details, property information, and any KB results, classify the message and draft a response following the JSON format in your system prompt. ' +
     'When drafting the response, acknowledge prior context where relevant (e.g., "As I mentioned..." or "Following up on..."). ' +
     'Output the JSON classification.\n\n' +
+    'STEP 3.5: Smart lock diagnosis (access/door/lock messages only).\n' +
+    'If the guest message category is "access" OR the message text contains any of these keywords: "door", "lock", "code", "can\'t get in", "doesn\'t work", "access", "locked out", "entry", "enter", "open" — run the lock diagnosis tool BEFORE finalizing your draft response.\n\n' +
+    'Run: tsx /tools/locks/diagnose-access.ts --property-id "<hostfully-property-uid from Step 2>"\n\n' +
+    'The tool outputs JSON with this shape:\n' +
+    '{\n' +
+    '  "hasMismatch": boolean,\n' +
+    '  "diagnosisSummary": string,\n' +
+    '  "hostfullyCode": string | null,\n' +
+    '  "lockCode": string | null,\n' +
+    '  "propertyId": string\n' +
+    '}\n\n' +
+    'Use the diagnosis result to refine your draftResponse:\n' +
+    '- If hasMismatch is true: inform the PM in your draftResponse that there is a code mismatch between Hostfully and the physical lock. Include the diagnosisSummary. The PM needs to know this is a data issue, not just a guest error.\n' +
+    '- If hasMismatch is false: reassure the guest that "the code matches what\'s programmed on the lock" and suggest troubleshooting steps (try the last 4 digits only, check battery indicator on the lock, make sure to press the lock icon before entering the code).\n' +
+    '- Always include the diagnosisSummary in the classification JSON as a new field "diagnosisSummary" so the PM sees it on the approval card.\n' +
+    'Store the full diagnosis JSON output in a variable — you will pass it to the approval card in Step 5.\n\n' +
     'STEP 4: Route based on classification.\n' +
     'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post a NO_ACTION_NEEDED notification card with Reply Anyway button:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-no-action-notification.ts \\\n' +
@@ -269,9 +285,29 @@ async function main() {
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
     '- classification, confidence, reasoning, draftResponse, summary, category, conversationSummary, urgency (original 8 fields)\n' +
-    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid, threadUid, messageUid (new guest context fields)\n\n' +
+    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid, threadUid, messageUid (new guest context fields)\n' +
+    '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
-    'Post the rich approval card for PM review:\n' +
+    'Post the rich approval card for PM review.\n' +
+    'If Step 3.5 was run (access/lock message), include the --diagnosis flag with the full diagnosis JSON:\n' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
+    '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
+    '  --task-id "$TASK_ID" \\\n' +
+    '  --guest-name "<guestName>" \\\n' +
+    '  --property-name "<propertyName>" \\\n' +
+    '  --check-in "<checkIn>" \\\n' +
+    '  --check-out "<checkOut>" \\\n' +
+    '  --booking-channel "<bookingChannel>" \\\n' +
+    '  --original-message "<originalMessage>" \\\n' +
+    '  --draft-response "<draftResponse>" \\\n' +
+    '  --confidence <confidence> \\\n' +
+    '  --category "<category>" \\\n' +
+    '  --lead-uid "<leadUid>" \\\n' +
+    '  --thread-uid "<threadUid>" \\\n' +
+    '  --message-uid "<messageUid>" \\\n' +
+    "  --diagnosis '<full diagnosis JSON from Step 3.5>' \\\n" +
+    '  > /tmp/approval-message.json\n\n' +
+    'If Step 3.5 was NOT run (non-access message), omit the --diagnosis flag entirely:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
     '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
     '  --task-id "$TASK_ID" \\\n' +
@@ -295,7 +331,20 @@ async function main() {
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
     'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
-    'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"';
+    'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n' +
+    '--- TOOL REFERENCE: diagnose-access ---\n' +
+    'Tool: tsx /tools/locks/diagnose-access.ts\n' +
+    'Purpose: Compares the access code stored in Hostfully against the code programmed on the physical smart lock (via Sifely/lock API). Detects mismatches that would cause a guest to be locked out even with the "correct" code.\n' +
+    'CLI usage: tsx /tools/locks/diagnose-access.ts --property-id "<hostfully-property-uid>"\n' +
+    'The property-uid comes from the Hostfully message/reservation data (property_id field).\n' +
+    'Output shape (JSON to stdout):\n' +
+    '  hasMismatch: boolean — true if Hostfully code differs from lock code\n' +
+    '  diagnosisSummary: string — human-readable summary of the diagnosis result\n' +
+    '  hostfullyCode: string | null — the code stored in Hostfully\n' +
+    '  lockCode: string | null — the code programmed on the physical lock\n' +
+    '  propertyId: string — the property UID that was checked\n' +
+    'Exit codes: 0 = success (even if mismatch found), non-zero = tool error (API failure, property not found, etc.)\n' +
+    "Approval card flag: --diagnosis '<JSON string>' — pass the full JSON output to post-guest-approval.ts so the PM sees the diagnosis inline on the approval card.";
 
   const VLRE_COMMON_KB_CONTENT = `# VL Real Estate — Common Knowledge Base
 
@@ -3228,6 +3277,7 @@ No specific house rules provided.
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
+          '/tools/locks/diagnose-access.ts',
         ],
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
@@ -3257,6 +3307,7 @@ No specific house rules provided.
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
+          '/tools/locks/diagnose-access.ts',
         ],
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
@@ -3502,6 +3553,495 @@ No specific house rules provided.
   console.log(
     `✅ KnowledgeBaseEntry upserted: ${vlreProperty1602BluKb.id} (scope: ${vlreProperty1602BluKb.scope}, entity_id: ${vlreProperty1602BluKb.entity_id})`,
   );
+
+  // =============================================================================
+  // VLRE Property-Lock Mappings (Sifely smart locks)
+  // Source: vlre-hub/apps/api/src/data/properties.json
+  //
+  // lock_role derivation from lock name:
+  //   "FRONT-DOOR" → FRONT_DOOR
+  //   "BACK-DOOR"  → BACK_DOOR
+  //   "-ROOM-"     → ROOM_DOOR
+  //   else         → COMMON_AREA
+  //
+  // To store Sifely credentials for VLRE tenant via admin API:
+  //   curl -X PUT -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  //     "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/sifely_client_id" \
+  //     -d '{"value":"VLRE"}'
+  //   curl -X PUT -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  //     "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/sifely_username" \
+  //     -d '{"value":"admin@vlrealestate.co"}'
+  //   curl -X PUT -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  //     "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/sifely_password" \
+  //     -d '{"value":"<md5-hash-of-password>"}'
+  // =============================================================================
+
+  const VLRE_TENANT_ID = '00000000-0000-0000-0000-000000000003';
+
+  const propertyLockData = [
+    // 219-PAU-HOME (3fa27670-f4f6-443b-a412-6078d4f5517e) — entire home, San Antonio
+    {
+      id: 'dac3ed5b-a9e3-4c35-b371-991e9c6c77c7',
+      property_external_id: '3fa27670-f4f6-443b-a412-6078d4f5517e',
+      lock_external_id: '5280922',
+      lock_name: '219-PAU-HOME-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '219-PAU-HOME',
+    },
+    {
+      id: '0f875a8c-d7f2-4462-b080-59dc9e6cbb5d',
+      property_external_id: '3fa27670-f4f6-443b-a412-6078d4f5517e',
+      lock_external_id: '5197968',
+      lock_name: '219-PAU-HOME-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'home',
+      property_name: '219-PAU-HOME',
+    },
+    // 271-GIN-1 (039bfa35-70d4-4c9b-89a3-4f36fe7f1441) — room, Kyle TX
+    {
+      id: 'b02773dc-943b-4599-9f9d-dc4ebba70fec',
+      property_external_id: '039bfa35-70d4-4c9b-89a3-4f36fe7f1441',
+      lock_external_id: '4831824',
+      lock_name: '271-GIN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-1',
+    },
+    {
+      id: '454a777a-4a5b-4d3d-963f-d44e5fa0b959',
+      property_external_id: '039bfa35-70d4-4c9b-89a3-4f36fe7f1441',
+      lock_external_id: '5002738',
+      lock_name: '271-GIN-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-1',
+    },
+    // 271-GIN-2 (1348a7a1-f10f-4139-a9b3-a4c3e4ffa888) — room, Kyle TX
+    {
+      id: '9d20115d-710c-479d-bc00-0bcfe2f11d10',
+      property_external_id: '1348a7a1-f10f-4139-a9b3-a4c3e4ffa888',
+      lock_external_id: '4831824',
+      lock_name: '271-GIN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-2',
+    },
+    {
+      id: 'fa938a64-d7e8-4bcd-aeff-5e176901ebae',
+      property_external_id: '1348a7a1-f10f-4139-a9b3-a4c3e4ffa888',
+      lock_external_id: '5002706',
+      lock_name: '271-GIN-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-2',
+    },
+    // 271-GIN-3 (6b8c44b3-c7b1-49ab-8659-42336e3a3781) — room, Kyle TX
+    {
+      id: 'bddf589c-bcc4-48f4-b5e0-d14e67ec5792',
+      property_external_id: '6b8c44b3-c7b1-49ab-8659-42336e3a3781',
+      lock_external_id: '4831824',
+      lock_name: '271-GIN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-3',
+    },
+    {
+      id: 'cc2190bb-dcd5-458a-a31f-78e300cee9f1',
+      property_external_id: '6b8c44b3-c7b1-49ab-8659-42336e3a3781',
+      lock_external_id: '5002746',
+      lock_name: '271-GIN-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-3',
+    },
+    // 271-GIN-4 (571db2ba-3ed9-4d1a-b5f4-18c189a412fc) — room, Kyle TX
+    {
+      id: 'd707ca6b-fca6-4c14-ac27-96167f422c10',
+      property_external_id: '571db2ba-3ed9-4d1a-b5f4-18c189a412fc',
+      lock_external_id: '4831824',
+      lock_name: '271-GIN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-4',
+    },
+    {
+      id: '88925685-9be8-4de8-b718-c0b524868200',
+      property_external_id: '571db2ba-3ed9-4d1a-b5f4-18c189a412fc',
+      lock_external_id: '5411126',
+      lock_name: '271-GIN-4-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '271-GIN-4',
+    },
+    // 271-GIN-HOME (646ca297-5edf-474f-8b14-a0ee2935f2dd) — entire home, Kyle TX
+    {
+      id: 'eadef056-c2c1-47c4-9c8e-4b3eede3414c',
+      property_external_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      lock_external_id: '4831824',
+      lock_name: '271-GIN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '271-GIN-HOME',
+    },
+    {
+      id: 'e210004f-ffc1-4c6e-9d95-c8323d98f755',
+      property_external_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      lock_external_id: '5002738',
+      lock_name: '271-GIN-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '271-GIN-HOME',
+    },
+    {
+      id: '6a56b486-93df-4112-9ed1-9c9e65bd5b8a',
+      property_external_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      lock_external_id: '5002706',
+      lock_name: '271-GIN-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '271-GIN-HOME',
+    },
+    {
+      id: 'd589c538-5818-41e9-90a6-433e92f6411c',
+      property_external_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      lock_external_id: '5002746',
+      lock_name: '271-GIN-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '271-GIN-HOME',
+    },
+    {
+      id: 'aff7c8f5-739d-4cc3-98b0-6c2f5b933f96',
+      property_external_id: '646ca297-5edf-474f-8b14-a0ee2935f2dd',
+      lock_external_id: '5411126',
+      lock_name: '271-GIN-4-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '271-GIN-HOME',
+    },
+    // 3401-BRE-1 (40b69579-efba-47b5-b566-1c96f0f85ac7) — room, Austin TX
+    {
+      id: 'bdb602b9-a740-4110-ac2f-ca2cf3c482b0',
+      property_external_id: '40b69579-efba-47b5-b566-1c96f0f85ac7',
+      lock_external_id: '5447540',
+      lock_name: '3401-BRE-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-1',
+    },
+    {
+      id: 'bbcf95a0-81c9-4313-9e7b-24e5665c9d4d',
+      property_external_id: '40b69579-efba-47b5-b566-1c96f0f85ac7',
+      lock_external_id: '4302846',
+      lock_name: '3401-BRE-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-1',
+    },
+    {
+      id: 'a5d1fa66-6fb8-44db-b5f1-753326251dfb',
+      property_external_id: '40b69579-efba-47b5-b566-1c96f0f85ac7',
+      lock_external_id: '4318724',
+      lock_name: '3401-BRE-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-1',
+    },
+    // 3401-BRE-2 (cebffff2-81a2-43d0-b45e-29aa82893d1a) — room, Austin TX
+    {
+      id: '9421b47a-853b-4a26-81c0-dd82662a8056',
+      property_external_id: 'cebffff2-81a2-43d0-b45e-29aa82893d1a',
+      lock_external_id: '5447540',
+      lock_name: '3401-BRE-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-2',
+    },
+    {
+      id: 'fbc3ce38-31d5-4907-a590-b21fafbcb0f5',
+      property_external_id: 'cebffff2-81a2-43d0-b45e-29aa82893d1a',
+      lock_external_id: '4302846',
+      lock_name: '3401-BRE-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-2',
+    },
+    {
+      id: '0261ea02-34d8-4793-af11-3382492b09e2',
+      property_external_id: 'cebffff2-81a2-43d0-b45e-29aa82893d1a',
+      lock_external_id: '4318628',
+      lock_name: '3401-BRE-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-2',
+    },
+    // 3401-BRE-3 (223c0601-045d-49a4-8dfe-a66606b6e167) — room, Austin TX
+    {
+      id: '845a7ce2-f071-4813-87c2-e0057934265a',
+      property_external_id: '223c0601-045d-49a4-8dfe-a66606b6e167',
+      lock_external_id: '5447540',
+      lock_name: '3401-BRE-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-3',
+    },
+    {
+      id: '2881e50a-5b48-44bb-8030-7765b42994f7',
+      property_external_id: '223c0601-045d-49a4-8dfe-a66606b6e167',
+      lock_external_id: '4302846',
+      lock_name: '3401-BRE-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-3',
+    },
+    {
+      id: 'cbb691bc-3f47-401f-8de2-20b3c0bcb4cf',
+      property_external_id: '223c0601-045d-49a4-8dfe-a66606b6e167',
+      lock_external_id: '4318552',
+      lock_name: '3401-BRE-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'room',
+      property_name: '3401-BRE-3',
+    },
+    // 3401-BRE-HOME (6e6169bf-8418-448b-8fd9-a89135e5e358) — entire home, Austin TX
+    {
+      id: 'efbdce49-e191-4fac-9d17-35bb8a88b333',
+      property_external_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      lock_external_id: '5447540',
+      lock_name: '3401-BRE-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    {
+      id: '2b1829fd-2c27-412f-9411-b90895b9660e',
+      property_external_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      lock_external_id: '4302846',
+      lock_name: '3401-BRE-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    {
+      id: 'a9c3ae9d-725f-4604-8ce6-497eae3bed81',
+      property_external_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      lock_external_id: '4318724',
+      lock_name: '3401-BRE-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    {
+      id: '95bdc961-aedb-42a6-b143-c6705e55498e',
+      property_external_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      lock_external_id: '4318628',
+      lock_name: '3401-BRE-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    {
+      id: '3c3603d7-4d57-40bf-a5c7-6430c398a1a9',
+      property_external_id: '6e6169bf-8418-448b-8fd9-a89135e5e358',
+      lock_external_id: '4318552',
+      lock_name: '3401-BRE-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    // 3412-SAN-HOME (4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9) — entire home, Austin TX
+    {
+      id: '359909b9-bd15-4d8a-a82a-f06c345e8046',
+      property_external_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      lock_external_id: '5804542',
+      lock_name: '3412-SAN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '3412-SAN-HOME',
+    },
+    {
+      id: 'b4d3b994-a9c0-4014-8d17-b4c8f1ee1550',
+      property_external_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      lock_external_id: '3531740',
+      lock_name: '3412-SAN-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3412-SAN-HOME',
+    },
+    {
+      id: 'd6f143f1-e2d6-4eb9-82b4-c93a0b514dda',
+      property_external_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      lock_external_id: '3531698',
+      lock_name: '3412-SAN-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3412-SAN-HOME',
+    },
+    {
+      id: '2f634bab-0d74-48a8-ae9c-948395c2f9b8',
+      property_external_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      lock_external_id: '3531784',
+      lock_name: '3412-SAN-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3412-SAN-HOME',
+    },
+    {
+      id: '31401f99-97b7-48d6-a0b2-a93bf0c80eea',
+      property_external_id: '4d23f49c-84e1-4a55-bfd4-3a5dec15e7b9',
+      lock_external_id: '3531802',
+      lock_name: '3412-SAN-4-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3412-SAN-HOME',
+    },
+    // 3420-HOV-HOME (2c64f880-90d2-4659-9b02-7b937763e9e1) — entire home, Austin TX
+    {
+      id: '2199c459-0e99-4c47-869a-58be2849c717',
+      property_external_id: '2c64f880-90d2-4659-9b02-7b937763e9e1',
+      lock_external_id: '5324556',
+      lock_name: '3420-HOV-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '3420-HOV-HOME',
+    },
+    {
+      id: '092d8466-eb30-477d-ad63-fba093069de7',
+      property_external_id: '2c64f880-90d2-4659-9b02-7b937763e9e1',
+      lock_external_id: '19056016',
+      lock_name: '3420-HOV-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3420-HOV-HOME',
+    },
+    {
+      id: '8951d9a6-2a60-4eef-a862-ac9aac023d7b',
+      property_external_id: '2c64f880-90d2-4659-9b02-7b937763e9e1',
+      lock_external_id: '3629734',
+      lock_name: '3420-HOV-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3420-HOV-HOME',
+    },
+    {
+      id: 'd5361fbb-f09e-43f1-a7ef-ded834d7eb52',
+      property_external_id: '2c64f880-90d2-4659-9b02-7b937763e9e1',
+      lock_external_id: '3564902',
+      lock_name: '3420-HOV-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3420-HOV-HOME',
+    },
+    // 3505-BAN-HOME (ea2a0472-29b1-41ae-b9bd-1145526cf2a7) — entire home, Austin TX
+    {
+      id: '6a7f25fa-abd6-4c5c-adfc-28143822d250',
+      property_external_id: 'ea2a0472-29b1-41ae-b9bd-1145526cf2a7',
+      lock_external_id: '16960494',
+      lock_name: '3505-BAN-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '3505-BAN-HOME',
+    },
+    {
+      id: '5ff2458b-b578-4ec0-b1f6-48ec899bff7e',
+      property_external_id: 'ea2a0472-29b1-41ae-b9bd-1145526cf2a7',
+      lock_external_id: '12326642',
+      lock_name: '3505-BAN-1-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3505-BAN-HOME',
+    },
+    {
+      id: '3e876f87-fae6-426a-a9f4-4c3d350f98a3',
+      property_external_id: 'ea2a0472-29b1-41ae-b9bd-1145526cf2a7',
+      lock_external_id: '12326372',
+      lock_name: '3505-BAN-2-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3505-BAN-HOME',
+    },
+    {
+      id: '3ab927cb-0fb2-4be0-b03f-f26009b36b30',
+      property_external_id: 'ea2a0472-29b1-41ae-b9bd-1145526cf2a7',
+      lock_external_id: '12326446',
+      lock_name: '3505-BAN-3-ROOM-DOOR',
+      lock_role: 'ROOM_DOOR',
+      property_type: 'home',
+      property_name: '3505-BAN-HOME',
+    },
+    // 1602-BLU-HOME (dac5a0e0-3984-4f72-b622-de45a9dd758f) — entire home, Bailey CO
+    {
+      id: '06e00596-e64e-4fac-979c-1d337277283c',
+      property_external_id: 'dac5a0e0-3984-4f72-b622-de45a9dd758f',
+      lock_external_id: '16559198',
+      lock_name: '1602-BLU-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '1602-BLU-HOME',
+    },
+    {
+      id: 'bebfb0ab-8328-43f2-a889-23a9b0b73be6',
+      property_external_id: 'dac5a0e0-3984-4f72-b622-de45a9dd758f',
+      lock_external_id: '16559224',
+      lock_name: '1602-BLU-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'home',
+      property_name: '1602-BLU-HOME',
+    },
+    // c960c8d2-9a51-49d8-bb48-355a7bfbe7e2 — Hostfully test property (AGENTS.md)
+    // This property UID is used for E2E testing; mapped to 3401-BRE-HOME locks
+    {
+      id: '25f17f82-33c3-46ea-96bd-8cc089e62da6',
+      property_external_id: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
+      lock_external_id: '5447540',
+      lock_name: '3401-BRE-FRONT-DOOR',
+      lock_role: 'FRONT_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+    {
+      id: '7466f2bd-29e5-4728-8227-8eaf0fc5610a',
+      property_external_id: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
+      lock_external_id: '4302846',
+      lock_name: '3401-BRE-BACK-DOOR',
+      lock_role: 'BACK_DOOR',
+      property_type: 'home',
+      property_name: '3401-BRE-HOME',
+    },
+  ];
+
+  let propertyLockCount = 0;
+  for (const lockData of propertyLockData) {
+    await prisma.propertyLock.upsert({
+      where: { id: lockData.id },
+      create: {
+        id: lockData.id,
+        tenant_id: VLRE_TENANT_ID,
+        property_external_id: lockData.property_external_id,
+        lock_external_id: lockData.lock_external_id,
+        lock_name: lockData.lock_name,
+        lock_provider: 'sifely',
+        lock_role: lockData.lock_role,
+        property_type: lockData.property_type,
+        property_name: lockData.property_name,
+        passcode_name: null,
+      },
+      update: {
+        property_external_id: lockData.property_external_id,
+        lock_external_id: lockData.lock_external_id,
+        lock_name: lockData.lock_name,
+        lock_provider: 'sifely',
+        lock_role: lockData.lock_role,
+        property_type: lockData.property_type,
+        property_name: lockData.property_name,
+        passcode_name: null,
+      },
+    });
+    propertyLockCount++;
+  }
+
+  console.log(`✅ PropertyLock upserted: ${propertyLockCount} records for VLRE tenant`);
 
   console.log('✅ Seeding complete.');
   console.log(
