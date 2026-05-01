@@ -1320,10 +1320,10 @@ tests/                    # 152 test files (Vitest)
 
 | Document                                                            | When to Read                                                                                        |
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-29-2255-current-system-state.md`                      | **START HERE** — this document, latest ground-truth snapshot                                        |
+| `docs/snapshots/2026-04-29-2255-current-system-state.md`            | **START HERE** — this document, latest ground-truth snapshot                                        |
 | `docs/2026-04-14-0104-full-system-vision.md`                        | Architecture deep-dive: archetypes, lifecycle, event routing, operating modes, multi-tenancy design |
-| `docs/2026-04-21-2202-phase1-story-map.md`                          | Phase 1 story map: 58 stories across 5 releases — pending/planned work                              |
-| `docs/2026-04-21-1813-product-roadmap.md`                           | Product roadmap: 4 phases, design partner strategy, success criteria                                |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`                 | Phase 1 story map: 58 stories across 5 releases — pending/planned work                              |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`                  | Product roadmap: 4 phases, design partner strategy, success criteria                                |
 | `docs/2026-04-16-1655-multi-tenancy-guide.md`                       | Provisioning tenants, Slack OAuth, per-tenant secrets, verification                                 |
 | `docs/2026-04-16-0310-manual-employee-trigger.md`                   | Manual employee trigger API — endpoints, curl examples, how it works                                |
 | `docs/2026-04-16-1811-slack-oauth-setup-guide.md`                   | Slack OAuth setup: app creation, redirect URIs, Socket Mode, installation flow                      |

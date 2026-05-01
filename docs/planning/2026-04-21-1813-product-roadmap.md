@@ -165,7 +165,6 @@ gantt
     section Phase 1 - Guest Operations MVP
     Hostfully integration (API shell tools)   :p1a, 2026-05-01, 3w
     Guest Messaging Assistant                 :p1b, after p1a, 3w
-    Review Response Writer                    :p1c, 2026-05-01, 3w
     Per-property metrics engine               :p1d, 2026-05-01, 3w
     VLRE validation (4 employees live)        :p1e, after p1b, 2w
     Design partner outreach                   :p1f, after p1e, 1w
@@ -205,7 +204,7 @@ gantt
 
 ## Phase 1: Guest Operations MVP (Weeks 1-8)
 
-> **Goal**: Four employees running on VLRE's portfolio. Validate that AI employees handle the #1 pain point — guest communication — with PM-acceptable quality. Sign 3-5 design partners.
+> **Goal**: Three employees running on VLRE's portfolio. Validate that AI employees handle the #1 pain point — guest communication — with PM-acceptable quality. Sign 3-5 design partners.
 
 ### 1.1 Hostfully Integration
 
@@ -219,7 +218,6 @@ The foundation. Every STR employee needs access to reservation data, guest profi
 | `get-property.js`     | Fetch property details (address, amenities, rules, check-in instructions) | Guest Messaging, Listing Optimizer                   |
 | `send-message.js`     | Send a message to a guest via Hostfully's unified inbox                   | Guest Messaging (after PM approval)                  |
 | `get-calendar.js`     | Fetch availability calendar and pricing                                   | Pricing Analyst, Turnover Coordinator                |
-| `get-reviews.js`      | Fetch reviews from connected channels (Airbnb, VRBO)                      | Review Response Writer                               |
 
 **Implementation**: Same pattern as existing Slack tools — thin Node.js scripts under `src/worker-tools/hostfully/`, compiled into the Docker image at `/tools/hostfully/`. Each script reads Hostfully API credentials from environment variables (injected per-tenant via `loadTenantEnv`).
 
@@ -229,7 +227,7 @@ The flagship employee. Handles the highest-volume, most time-sensitive task in S
 
 **What it does**:
 
-- Runs on a schedule (every 30 min) or triggered by new message webhook
+- Triggered in real-time by Hostfully `NEW_INBOX_MESSAGE` webhook — no polling delay
 - Reads unresponded guest messages from Hostfully
 - Cross-references reservation details, property info, and check-in/out times
 - Drafts contextual responses matching the PM's voice and tone
@@ -284,21 +282,7 @@ flowchart LR
 
 **VLRE validation target**: 80% of routine messages (check-in instructions, WiFi questions, checkout reminders) approved without edits within 2 weeks.
 
-### 1.3 Review Response Writer
-
-Lower volume, lower risk, high visibility. Responding to every review is table stakes for STR — most PMs skip it because it's tedious.
-
-**What it does**:
-
-- Runs daily — checks for new reviews across all properties
-- Reads the review text, rating, reservation history, and any notes about the stay
-- Drafts a personalized response (grateful for 5-star, empathetic + corrective for negative)
-- Posts to Slack for PM approval
-- After approval, posts the response to the OTA platform via Hostfully
-
-**Why this employee is a great early win**: Review responses are lower-risk than guest messaging (not time-sensitive, no booking at stake), but highly visible. A PM who sees every review responded to within 24 hours — with zero effort on their part — immediately understands the platform's value.
-
-### 1.4 Per-Property Metrics Engine
+### 1.3 Per-Property Metrics Engine
 
 PMs think in properties and doors, not tasks. The metrics engine must reflect this.
 
@@ -308,21 +292,19 @@ PMs think in properties and doors, not tasks. The metrics engine must reflect th
 | --------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------- |
 | **Time saved per property/month** | Tasks completed for this property x estimated manual minutes | "This property costs me 0 hours now"                      |
 | **Guest response time**           | Time from guest message to response sent                     | Faster responses = better reviews = more bookings         |
-| **Review response rate**          | Reviews responded to / total reviews received                | 100% response rate boosts listing visibility              |
 | **Approval rate**                 | Tasks approved without edits / total tasks reviewed          | Tracks how well the employee matches PM expectations      |
 | **Cost per property/month**       | LLM + compute costs allocated by property                    | Transparency — "It costs $0.36/mo per door for messaging" |
 | **Edit rate**                     | How often PM modifies a draft before approving               | Decreasing edit rate = employee is learning               |
 
 **Exposed via**: `GET /admin/tenants/:tenantId/metrics?property_id=X&employee=guest-messaging&period=30d`
 
-### 1.5 What Phase 1 Unlocks
+### 1.4 What Phase 1 Unlocks
 
-After Phase 1, VLRE has four employees running on its portfolio:
+After Phase 1, VLRE has three employees running on its portfolio:
 
 1. **Daily Operations Summarizer** (already live)
 2. **Guest Messaging Assistant** (new)
-3. **Review Response Writer** (new)
-4. **Plus**: Hostfully integration enables every future employee
+3. **Plus**: Hostfully integration enables every future employee
 
 **The sales conversation**:
 
@@ -400,8 +382,6 @@ stateDiagram-v2
 | ---------------------------- | -------------------- | ------------------------------------------- |
 | Guest Messaging (routine)    | 0.7                  | Check-in instructions, WiFi info — low risk |
 | Guest Messaging (complaints) | 0.95                 | Guest complaints always escalate to PM      |
-| Review Response (positive)   | 0.6                  | Thank-you responses are low risk            |
-| Review Response (negative)   | 0.9                  | Negative review responses need PM voice     |
 | Pricing Analyst              | 0.85                 | Direct revenue impact                       |
 | Turnover Coordinator         | 0.7                  | Scheduling is mostly procedural             |
 | Owner Report                 | 0.8                  | Financial accuracy matters                  |
@@ -460,7 +440,6 @@ flowchart LR
 ```
 Monthly Value per Door = Time Saved (hrs) x PM Hourly Rate
                        + Revenue Uplift from Pricing (est.)
-                       + Review Response Value (booking conversion)
                        - Platform Cost per Door
 ```
 
@@ -469,15 +448,14 @@ Monthly Value per Door = Time Saved (hrs) x PM Hourly Rate
 | Employee             | Monthly value (50 units)         | Platform cost | ROI       |
 | -------------------- | -------------------------------- | ------------- | --------- |
 | Guest Messaging      | $1,250 (25 hrs saved x $50/hr)   | $18           | 69:1      |
-| Review Responses     | $325 (6.5 hrs saved x $50/hr)    | $8            | 41:1      |
 | Pricing Analyst      | $2,500 (est. 2% RevPAN uplift)   | $12           | 208:1     |
 | Turnover Coordinator | $1,675 (33.5 hrs saved x $50/hr) | $15           | 112:1     |
 | Owner Reports        | $625 (12.5 hrs saved x $50/hr)   | $7            | 89:1      |
-| **Total**            | **$6,375/mo**                    | **$60/mo**    | **106:1** |
+| **Total**            | **$6,050/mo**                    | **$52/mo**    | **116:1** |
 
 ### 2.6 What Phase 2 Unlocks
 
-> "Here's our VLRE dashboard. 50 properties, 7 AI employees. Last month: 77 hours saved, average guest response time under 4 minutes, 2.3% revenue uplift from pricing optimization, 100% review response rate. Total platform cost: $60. That's $1.20 per door per month — and unlike a human team member, every one of these employees works 24/7, across all 50 properties simultaneously, and gets better every week. Want to run a pilot on 10 of your properties?"
+> "Here's our VLRE dashboard. 50 properties, 6 AI employees. Last month: 77 hours saved, average guest response time under 4 minutes, 2.3% revenue uplift from pricing optimization. Total platform cost: $52. That's $1.04 per door per month — and unlike a human team member, every one of these employees works 24/7, across all 50 properties simultaneously, and gets better every week. Want to run a pilot on 10 of your properties?"
 
 ---
 
@@ -504,7 +482,6 @@ This is what separates the platform from a collection of bots. Employees trigger
 flowchart TD
     subgraph Guest-Facing
         GUESTMSG["Guest Messaging"]:::service
-        REVIEW["Review Writer"]:::service
         CONCIERGE["Welcome Concierge"]:::service
     end
 
@@ -526,7 +503,6 @@ flowchart TD
 
     GUESTMSG -->|"1. guest.complaint.received"| ROUTER
     ROUTER -->|"2. Routes to"| MAINT
-    ROUTER -->|"2. Routes to"| REVIEW
 
     PRICING -->|"3. rates.updated"| ROUTER
     ROUTER -->|"4. Routes to"| FORECAST
@@ -549,7 +525,7 @@ flowchart TD
 | #   | What happens             | Details                                                                                                      |
 | --- | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | 1   | Guest complaint received | Guest Messaging detects a complaint (AC broken, dirty unit) and emits `guest.complaint.received`             |
-| 2   | Auto-routed              | Maintenance Router creates a vendor ticket; Review Writer flags property for proactive follow-up             |
+| 2   | Auto-routed              | Maintenance Router creates a vendor ticket                                                                   |
 | 3   | Rates updated            | Pricing Analyst adjusts rates based on demand signals, emits `rates.updated`                                 |
 | 4   | Downstream updates       | Revenue Forecaster recalculates projections; Listing Optimizer checks if description matches new positioning |
 | 5   | Turnover issue           | Turnover Coordinator detects a problem (cleaner no-show, late finish), emits `turnover.issue.detected`       |
@@ -557,7 +533,7 @@ flowchart TD
 | 7   | Market shift             | Comp Analyzer detects competitor price drops or new supply, emits `market.shift.detected`                    |
 | 8   | Pricing adjusts          | Pricing Analyst re-evaluates rates in response to market conditions                                          |
 
-**The sales pitch**: "When a guest complains about a broken AC, three things happen automatically: maintenance gets a ticket, the guest gets an empathetic response, and the review writer is flagged to handle the inevitable review. No PM intervention needed for the coordination — they just approve the individual outputs."
+**The sales pitch**: "When a guest complains about a broken AC, two things happen automatically: maintenance gets a ticket and the guest gets an empathetic response. No PM intervention needed for the coordination — they just approve the individual outputs."
 
 ### 3.3 Knowledge Base: Property Memory
 
@@ -585,7 +561,7 @@ The web dashboard gives PMs the "operations control center" they need:
 
 Full product-market fit. The platform handles the complete STR operations stack. Employee collaboration creates workflows that no collection of point solutions can match.
 
-> "Your AI operations team has 10 employees. They coordinate automatically — when a guest complains, maintenance, messaging, and review management all activate. Your dashboard shows every property, every employee, every dollar saved. You approve what matters and let the rest run. That's $6,000/month in value for $60/month in platform cost."
+> "Your AI operations team has 9 employees. They coordinate automatically — when a guest complains, maintenance and messaging activate. Your dashboard shows every property, every employee, every dollar saved. You approve what matters and let the rest run. That's $6,000/month in value for $60/month in platform cost."
 
 ---
 
@@ -618,13 +594,13 @@ flowchart LR
     classDef decision fill:#F8E71C,stroke:#C7B916,color:#333
 ```
 
-| #   | What happens      | Details                                                                        |
-| --- | ----------------- | ------------------------------------------------------------------------------ |
-| 1   | PM signs up       | Email + company name creates a tenant automatically                            |
-| 2   | Connect Hostfully | OAuth flow links PM's Hostfully account — imports properties and reservations  |
-| 3   | Connect Slack     | OAuth installs the bot into PM's Slack workspace                               |
-| 4   | Choose employees  | PM picks from catalog (start with Guest Messaging + Review Writer recommended) |
-| 5   | Value realized    | First guest message draft appears in Slack within minutes — the "aha moment"   |
+| #   | What happens      | Details                                                                       |
+| --- | ----------------- | ----------------------------------------------------------------------------- |
+| 1   | PM signs up       | Email + company name creates a tenant automatically                           |
+| 2   | Connect Hostfully | OAuth flow links PM's Hostfully account — imports properties and reservations |
+| 3   | Connect Slack     | OAuth installs the bot into PM's Slack workspace                              |
+| 4   | Choose employees  | PM picks from catalog (start with Guest Messaging recommended)                |
+| 5   | Value realized    | First guest message draft appears in Slack within minutes — the "aha moment"  |
 
 **Target**: Sign up to first approved guest message draft in under 15 minutes.
 
@@ -636,10 +612,10 @@ PMs think in cost-per-door. The pricing model matches their mental model, with t
 | ---------------- | ----------- | ------------------ | ----------------- | ---------- | ---------------------------- |
 | **Starter**      | $5/door/mo  | Up to 3            | 15 tasks/door/mo  | $0.10/task | Solo hosts, 1-10 units       |
 | **Professional** | $12/door/mo | Up to 7            | 50 tasks/door/mo  | $0.07/task | Small PMs, 10-50 units       |
-| **Business**     | $18/door/mo | Up to 12           | 150 tasks/door/mo | $0.05/task | Mid-market PMs, 50-200 units |
+| **Business**     | $18/door/mo | Up to 11           | 150 tasks/door/mo | $0.05/task | Mid-market PMs, 50-200 units |
 | **Enterprise**   | Custom      | Unlimited + custom | Negotiated        | Negotiated | Large PMs, 200+ units        |
 
-**Why task allowances exist**: Per-door pricing stays flat regardless of how many employees run or how frequently they trigger. The standard catalog (12 employees) generates ~45 tasks/door/month at normal operating frequency — well within every tier's allowance. Task caps protect against custom employees with unusually high compute costs (e.g., hourly web scraping across hundreds of competitor listings). Most PMs will never hit the cap.
+**Why task allowances exist**: Per-door pricing stays flat regardless of how many employees run or how frequently they trigger. The standard catalog (11 employees) generates ~45 tasks/door/month at normal operating frequency — well within every tier's allowance. Task caps protect against custom employees with unusually high compute costs (e.g., hourly web scraping across hundreds of competitor listings). Most PMs will never hit the cap.
 
 **Example**: A 50-unit PM on Professional pays **$600/month** with a 2,500 task allowance. Standard catalog usage: ~2,250 tasks/month — comfortably within limits. They save ~$6,375/month in operational time. Platform COGS: ~$60/month. That's a **106:1 ROI** for the PM and **90% gross margin** for us.
 
@@ -709,11 +685,11 @@ Here is the complete catalog of AI employees, organized by the operational domai
 
 ### Guest Experience (3 employees)
 
-| Employee                      | Trigger                | Tools it operates                                                 | Est. manual time   |
-| ----------------------------- | ---------------------- | ----------------------------------------------------------------- | ------------------ |
-| **Guest Messaging Assistant** | New message / schedule | Hostfully (messages, reservations), Hospitable (templates)        | 5 min per message  |
-| **Review Response Writer**    | New review detected    | Hostfully (reviews), Airbnb/VRBO (via Hostfully)                  | 10 min per review  |
-| **Welcome Concierge**         | New booking confirmed  | Hostfully (reservations, property info), Google Maps (local recs) | 15 min per booking |
+| Employee                        | Trigger                     | Tools it operates                                                        | Est. manual time    |
+| ------------------------------- | --------------------------- | ------------------------------------------------------------------------ | ------------------- |
+| **Guest Messaging Assistant**   | `NEW_INBOX_MESSAGE` webhook | Hostfully (messages, reservations), Hospitable (templates)               | 5 min per message   |
+| **Welcome Concierge**           | New booking confirmed       | Hostfully (reservations, property info), Google Maps (local recs)        | 15 min per booking  |
+| **Unresponded Message Monitor** | Every 30 min (cron)         | Slack (scan unacted approval blocks), Hostfully (guest/property context) | 5 min per follow-up |
 
 ### Revenue Management (3 employees)
 
@@ -739,7 +715,7 @@ Here is the complete catalog of AI employees, organized by the operational domai
 | **Owner Report Generator** | Monthly cron / on-demand | Hostfully (revenue, bookings), QuickBooks/Xero (expenses), PriceLabs (market context)  | 30 min per owner   |
 | **Listing Optimizer**      | Weekly cron              | Hostfully (listing content), PriceLabs (performance data), Airbnb/VRBO (via Hostfully) | 20 min per listing |
 
-**Total**: 12 employees covering the full STR operations stack. Each operates the PM's existing tools via API, reverse-engineered API, or browser automation. Each is a new archetype row — the universal lifecycle, harness, approval flow, and metrics engine are reused without modification.
+**Total**: 11 employees covering the full STR operations stack. Each operates the PM's existing tools via API, reverse-engineered API, or browser automation. Each is a new archetype row — the universal lifecycle, harness, approval flow, and metrics engine are reused without modification.
 
 ---
 
@@ -947,7 +923,7 @@ A guest messages at 2 AM: "The AC is broken and my kids can't sleep. This is una
 1. Reads the message — detects urgency (broken AC + children + 2 AM) and emotional tone (angry, escalating)
 2. Pulls property context — sees Unit 12 had an AC issue last July, knows the HVAC vendor on file
 3. Drafts an empathetic, specific response: "I'm so sorry about the AC — I know that's miserable with kids. I've already contacted [HVAC vendor] and they can be there by 8 AM. In the meantime, there are two portable fans in the hallway closet. I'll follow up first thing in the morning to make sure this is fully resolved."
-4. Simultaneously emits `guest.complaint.received` — Maintenance Router creates a vendor ticket, Turnover Coordinator flags the next turnover for AC inspection, Review Writer is alerted to expect a review about this stay
+4. Simultaneously emits `guest.complaint.received` — Maintenance Router creates a vendor ticket, Turnover Coordinator flags the next turnover for AC inspection
 5. Posts the draft to Slack for PM approval (or auto-sends if the employee has earned autonomous trust for urgent maintenance scenarios)
 6. If the guest replies "I want a partial refund" — the employee recognizes this exceeds its authority, responds "I completely understand. I'm escalating this to [PM name] personally" and flags the PM with full context
 
@@ -963,7 +939,7 @@ This isn't a matter of adding more Zapier steps or smarter n8n conditions. The g
 
 **3. Workflows don't improve.** A Zapier workflow on day 1 is identical to the same workflow on day 365. An AI employee that's been corrected 200 times by a PM has learned that PM's voice, preferences, escalation thresholds, and property-specific quirks. The edit rate drops from 40% in week 1 to under 10% by month 3. No workflow automation gets better with use.
 
-**4. Workflows can't collaborate.** An n8n workflow that handles guest messaging doesn't know about the workflow that handles pricing. They're isolated automations. AI employees emit events that trigger other employees — the Guest Messaging employee's complaint detection automatically activates Maintenance, Review Response, and Turnover Coordination. This collaboration is emergent, not pre-configured for every possible scenario.
+**4. Workflows can't collaborate.** An n8n workflow that handles guest messaging doesn't know about the workflow that handles pricing. They're isolated automations. AI employees emit events that trigger other employees — the Guest Messaging employee's complaint detection automatically activates Maintenance and Turnover Coordination. This collaboration is emergent, not pre-configured for every possible scenario.
 
 ### The One-Line Pitch
 
@@ -988,13 +964,13 @@ This isn't a matter of adding more Zapier steps or smarter n8n conditions. The g
 
 ## Success Criteria by Phase
 
-| Phase       | Deadline | Must Hit                                                                 | VLRE Validation Gate                                       |
-| ----------- | -------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| **Phase 1** | Week 8   | Hostfully integration, Guest Messaging + Review Writer live, metrics API | 80%+ approval-without-edit rate on VLRE guest messages     |
-| **Phase 2** | Week 16  | Pricing + Turnover employees, ROI dashboard, 3 paying PMs                | $5,000+/mo documented savings on VLRE portfolio            |
-| **Phase 3** | Week 26  | 10+ employees, event router, dashboard v1, 20 paying PMs                 | VLRE team reports 50%+ operational time reduction          |
-| **Phase 4** | Week 34  | Self-serve onboarding, per-door billing, multi-PMS support               | VLRE ROI data used as landing page case study              |
-| **Phase 5** | Week 45+ | $150K MRR, marketplace, adjacent vertical exploration                    | Platform running VLRE operations with minimal PM oversight |
+| Phase       | Deadline | Must Hit                                                   | VLRE Validation Gate                                       |
+| ----------- | -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| **Phase 1** | Week 8   | Hostfully integration, Guest Messaging live, metrics API   | 80%+ approval-without-edit rate on VLRE guest messages     |
+| **Phase 2** | Week 16  | Pricing + Turnover employees, ROI dashboard, 3 paying PMs  | $5,000+/mo documented savings on VLRE portfolio            |
+| **Phase 3** | Week 26  | 10+ employees, event router, dashboard v1, 20 paying PMs   | VLRE team reports 50%+ operational time reduction          |
+| **Phase 4** | Week 34  | Self-serve onboarding, per-door billing, multi-PMS support | VLRE ROI data used as landing page case study              |
+| **Phase 5** | Week 45+ | $150K MRR, marketplace, adjacent vertical exploration      | Platform running VLRE operations with minimal PM oversight |
 
 ---
 
