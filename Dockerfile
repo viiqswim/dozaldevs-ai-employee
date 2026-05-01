@@ -91,6 +91,11 @@ COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/plat
 RUN mkdir -p /tools/knowledge_base
 COPY --from=builder /build/src/worker-tools/knowledge_base/search.ts /tools/knowledge_base/search.ts
 
+RUN mkdir -p /tools/locks
+COPY --from=builder /build/src/worker-tools/locks/sifely-client.ts /tools/locks/sifely-client.ts
+COPY --from=builder /build/src/worker-tools/locks/hostfully-door-code.ts /tools/locks/hostfully-door-code.ts
+COPY --from=builder /build/src/worker-tools/locks/diagnose-access.ts /tools/locks/diagnose-access.ts
+
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
 
