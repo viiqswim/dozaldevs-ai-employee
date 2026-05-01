@@ -808,7 +808,7 @@ Max Concurrent: 4 (Waves 1 & 2)
 
   **Commit**: NO (verification gate, no files changed)
 
-- [ ] 9. Remove guest-message-poller (file + registration + tests)
+- [x] 9. Remove guest-message-poller (file + registration + tests)
 
   **What to do**:
   - Delete `src/inngest/triggers/guest-message-poller.ts`
@@ -883,7 +883,7 @@ Max Concurrent: 4 (Waves 1 & 2)
   - Files: `src/inngest/triggers/guest-message-poller.ts` (deleted), `src/gateway/inngest/serve.ts`, `tests/inngest/triggers/guest-message-poller.test.ts` (deleted)
   - Pre-commit: `pnpm build && pnpm test -- --run`
 
-- [ ] 10. Update story-map doc to mark GM-22 complete
+- [x] 10. Update story-map doc to mark GM-22 complete
 
   **What to do**:
   - In `docs/planning/2026-04-21-2202-phase1-story-map.md`, find the GM-22 section
@@ -932,7 +932,7 @@ Max Concurrent: 4 (Waves 1 & 2)
   - Files: `docs/planning/2026-04-21-2202-phase1-story-map.md`
   - Pre-commit: —
 
-- [ ] 11. Notify completion via Telegram
+- [x] 11. Notify completion via Telegram
 
   **What to do**:
   - Run: `tsx scripts/telegram-notify.ts "✅ gm22-hostfully-webhook-trigger complete — All tasks done. Come back to review results."`
@@ -978,19 +978,19 @@ Max Concurrent: 4 (Waves 1 & 2)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp). Verify no `message_content` appears in any log statement.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start services with `pnpm dev:start`. Execute ALL 6 curl-based acceptance criteria from the Definition of Done section. Capture response bodies as evidence. Test rapid-fire: send 3 webhooks with different `message_uid` values in 1 second — verify 3 tasks created. Send 2 webhooks with same `message_uid` — verify exactly 1 task. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Rapid-fire [PASS/FAIL] | Dedup [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Verify no modifications to: `employee-dispatcher.ts`, `pending_approvals`, guest-messaging archetype, any HMAC verification added. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Creep [CLEAN/N issues] | Forbidden [CLEAN/N files] | VERDICT`
 
