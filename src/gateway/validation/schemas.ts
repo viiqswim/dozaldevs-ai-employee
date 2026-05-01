@@ -316,3 +316,26 @@ export const KbEntryTenantParamSchema = z.object({
 });
 
 export type KbEntryTenantParam = z.infer<typeof KbEntryTenantParamSchema>;
+
+// ─── Hostfully Webhook ────────────────────────────────────────────────────────
+
+export const HostfullyWebhookPayloadSchema = z
+  .object({
+    agency_uid: z.string().min(1),
+    event_type: z.string().min(1),
+    message_uid: z.string().min(1),
+    thread_uid: z.string().min(1),
+    lead_uid: z.string().optional(),
+    property_uid: z.string().optional(),
+    message_content: z.string().optional(),
+    created: z.string().optional(),
+    type: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
+export type HostfullyWebhookPayload = z.infer<typeof HostfullyWebhookPayloadSchema>;
+
+export function parseHostfullyWebhook(body: unknown): HostfullyWebhookPayload {
+  return HostfullyWebhookPayloadSchema.parse(body);
+}

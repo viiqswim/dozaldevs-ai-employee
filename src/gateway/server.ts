@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { createInngestClient } from './inngest/client.js';
 import { healthRoutes } from './routes/health.js';
 import { jiraRoutes } from './routes/jira.js';
+import { hostfullyRoutes } from './routes/hostfully.js';
 import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { adminEmployeeTriggerRoutes } from './routes/admin-employee-trigger.js';
@@ -152,6 +153,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   app.use(healthRoutes());
   app.use(jiraRoutes({ inngestClient: options.inngestClient, prisma }));
+  app.use(hostfullyRoutes({ inngestClient: options.inngestClient, prisma }));
   app.use(githubRoutes());
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
