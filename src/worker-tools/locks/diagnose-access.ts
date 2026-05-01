@@ -385,9 +385,8 @@ function buildDiagnosisSummary(
         summaryLines.push(`  ✅ ${lockLabel}: ${successful.length} successful entry(ies)`);
       }
       if (failed.length > 0) {
-        const wrongCodes = [...new Set(failed.map((r) => r.keyboardPwd))];
         summaryLines.push(
-          `  ❌ ${lockLabel}: ${failed.length} failed attempt(s) with code(s): ${wrongCodes.join(', ')}`,
+          `  ❌ ${lockLabel}: ${failed.length} failed attempt(s) in the last 2 hours`,
         );
       }
     }
