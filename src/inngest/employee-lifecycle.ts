@@ -1,3 +1,4 @@
+import { execSync, spawn } from 'node:child_process';
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
@@ -60,6 +61,31 @@ async function logStatusTransition(
     const body = await res.text().catch(() => '(unreadable)');
     throw new Error(`logStatusTransition failed: HTTP ${res.status} — ${body}`);
   }
+}
+
+function runLocalDockerContainer(opts: {
+  taskId: string;
+  env: Record<string, string>;
+  name: string;
+  cmd?: string[];
+}): { id: string } {
+  const cmd = opts.cmd ?? ['node', '/app/dist/workers/opencode-harness.mjs'];
+  const envArgs = Object.entries(opts.env)
+    .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
+    .join(' ');
+  const dockerCmd = `docker run -d --rm --add-host=host.docker.internal:host-gateway --name ${JSON.stringify(opts.name)} ${envArgs} ai-employee-worker:latest ${cmd.join(' ')}`;
+  const containerId = execSync(dockerCmd, { encoding: 'utf8' }).trim();
+  const logFile = `/tmp/${opts.name}.log`;
+  const logProc = spawn('sh', ['-c', `docker logs -f ${containerId} > ${logFile} 2>&1`], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  logProc.unref();
+  log.info(
+    { taskId: opts.taskId, containerId, name: opts.name },
+    'Local Docker container dispatched',
+  );
+  return { id: 'docker_' + containerId.slice(0, 12) };
 }
 
 export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFunction.Any {
@@ -255,6 +281,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         }
 
         log.info({ taskId, runtime }, 'Dispatching worker machine');
+
+        if (process.env.USE_LOCAL_DOCKER === '1') {
+          const localMachine = runLocalDockerContainer({
+            taskId,
+            name: `employee-${taskId.slice(0, 8)}`,
+            env: {
+              ...tenantEnv,
+              TASK_ID: taskId,
+              TENANT_ID: tenantId,
+              ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
+              SUPABASE_URL: 'http://host.docker.internal:54321',
+              SUPABASE_SECRET_KEY: supabaseKey,
+              INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+              INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+              INNGEST_DEV: '1',
+              ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
+              ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
+            },
+            cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+          });
+          return localMachine.id;
+        }
 
         const machine = await createMachine(flyApp, {
           image,
@@ -469,6 +517,31 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             secretRepo: new TenantSecretRepository(prismaForReply),
           });
           await prismaForReply.$disconnect();
+
+          if (process.env.USE_LOCAL_DOCKER === '1') {
+            const localMachine = runLocalDockerContainer({
+              taskId,
+              name: `employee-reply-${taskId.slice(0, 8)}`,
+              env: {
+                ...tenantEnvForReply,
+                TASK_ID: taskId,
+                TENANT_ID: tenantId,
+                ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
+                SUPABASE_URL: 'http://host.docker.internal:54321',
+                SUPABASE_SECRET_KEY: supabaseKey,
+                INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+                INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+                INNGEST_DEV: '1',
+                REPLY_ANYWAY_CONTEXT: replyContext,
+              },
+              cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+            });
+            log.info(
+              { taskId, machineId: localMachine.id },
+              'Reply Anyway re-draft machine spawned (local Docker)',
+            );
+            return localMachine.id;
+          }
 
           const machine = await createMachine(flyApp, {
             image,
@@ -818,20 +891,39 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           let deliveryFinalStatus = '';
           for (let attempt = 0; attempt < 3; attempt++) {
-            const deliveryMachine = await createMachine(deliveryFlyApp, {
-              image: deliveryImage,
-              vm_size: deliveryVmSize,
-              auto_destroy: true,
-              kill_timeout: 1800,
-              cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-              env: {
-                ...tenantEnvForApproval,
-                TASK_ID: taskId,
-                EMPLOYEE_PHASE: 'delivery',
-                SUPABASE_URL: effectiveSupabaseUrlForDelivery,
-                SUPABASE_SECRET_KEY: supabaseKey,
-              },
-            });
+            let deliveryMachine: { id: string };
+            if (process.env.USE_LOCAL_DOCKER === '1') {
+              deliveryMachine = runLocalDockerContainer({
+                taskId,
+                name: `employee-delivery-${taskId.slice(0, 8)}`,
+                env: {
+                  ...tenantEnvForApproval,
+                  TASK_ID: taskId,
+                  EMPLOYEE_PHASE: 'delivery',
+                  SUPABASE_URL: 'http://host.docker.internal:54321',
+                  SUPABASE_SECRET_KEY: supabaseKey,
+                  INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+                  INNGEST_DEV: '1',
+                },
+                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+              });
+            } else {
+              deliveryMachine = await createMachine(deliveryFlyApp, {
+                image: deliveryImage,
+                vm_size: deliveryVmSize,
+                auto_destroy: true,
+                kill_timeout: 1800,
+                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+                env: {
+                  ...tenantEnvForApproval,
+                  TASK_ID: taskId,
+                  EMPLOYEE_PHASE: 'delivery',
+                  SUPABASE_URL: effectiveSupabaseUrlForDelivery,
+                  SUPABASE_SECRET_KEY: supabaseKey,
+                },
+              });
+            }
             log.info(
               { taskId, deliveryMachineId: deliveryMachine.id, attempt },
               'Delivery machine spawned',
@@ -852,13 +944,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             deliveryFinalStatus = finalStatus;
 
-            try {
-              await destroyMachine(deliveryFlyApp, deliveryMachine.id);
-            } catch (err) {
-              log.warn(
-                { taskId, deliveryMachineId: deliveryMachine.id, err },
-                'Failed to destroy delivery machine',
-              );
+            if (process.env.USE_LOCAL_DOCKER !== '1') {
+              try {
+                await destroyMachine(deliveryFlyApp, deliveryMachine.id);
+              } catch (err) {
+                log.warn(
+                  { taskId, deliveryMachineId: deliveryMachine.id, err },
+                  'Failed to destroy delivery machine',
+                );
+              }
             }
 
             if (deliveryFinalStatus === 'Done') break;
