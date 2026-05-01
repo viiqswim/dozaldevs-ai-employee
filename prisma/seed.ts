@@ -3,6 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { GUEST_MESSAGING_SYSTEM_PROMPT } from './prompts/guest-messaging.js';
+import {
+  UNRESPONDED_MONITOR_SYSTEM_PROMPT,
+  VLRE_UNRESPONDED_MONITOR_INSTRUCTIONS,
+} from './prompts/unresponded-message-monitor.js';
 
 const prisma = new PrismaClient();
 
@@ -3267,6 +3271,54 @@ No specific house rules provided.
 
   console.log(
     `✅ Archetype upserted: ${vlreGuestMessaging.id} (role: ${vlreGuestMessaging.role_name}, model: ${vlreGuestMessaging.model})`,
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vlreUnrespondedMonitor = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0000-000000000016' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000016',
+      role_name: 'unresponded-message-monitor',
+      runtime: 'opencode',
+      system_prompt: UNRESPONDED_MONITOR_SYSTEM_PROMPT,
+      instructions: VLRE_UNRESPONDED_MONITOR_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts'],
+      },
+      trigger_sources: { type: 'cron', expression: '*/30 * * * *' },
+      risk_model: { approval_required: false, timeout_hours: 1 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions: null,
+      tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
+      department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
+    },
+    update: {
+      role_name: 'unresponded-message-monitor',
+      runtime: 'opencode',
+      system_prompt: UNRESPONDED_MONITOR_SYSTEM_PROMPT,
+      instructions: VLRE_UNRESPONDED_MONITOR_INSTRUCTIONS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts'],
+      },
+      trigger_sources: { type: 'cron', expression: '*/30 * * * *' },
+      risk_model: { approval_required: false, timeout_hours: 1 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      agents_md: PLATFORM_AGENTS_MD,
+      delivery_instructions: null,
+      department_id: '00000000-0000-0000-0000-000000000021',
+      // NO tenant_id — immutable
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${vlreUnrespondedMonitor.id} (role: ${vlreUnrespondedMonitor.role_name}, model: ${vlreUnrespondedMonitor.model})`,
   );
 
   // KB seed — common (tenant-wide, VLRE)
