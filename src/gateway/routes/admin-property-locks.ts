@@ -132,7 +132,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         }
 
         const propertyLock = await prisma.propertyLock.update({
-          where: { id: paramResult.data.lockId },
+          where: { id: paramResult.data.lockId, tenant_id: paramResult.data.tenantId },
           data: {
             ...result.data,
             lock_metadata: result.data.lock_metadata as Prisma.InputJsonValue | undefined,
@@ -171,7 +171,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         }
 
         await prisma.propertyLock.delete({
-          where: { id: paramResult.data.lockId },
+          where: { id: paramResult.data.lockId, tenant_id: paramResult.data.tenantId },
         });
 
         res.status(204).send();

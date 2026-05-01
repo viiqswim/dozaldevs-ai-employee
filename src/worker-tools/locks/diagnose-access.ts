@@ -355,9 +355,8 @@ function buildDiagnosisSummary(
           `  ❌ ${lockLabel}: No passcode named "${result.expectedPasscodeName}" found`,
         );
       } else if (!result.matchesHostfully) {
-        const actualCode = result.matchedPasscode?.keyboardPwd ?? 'unknown';
         summaryLines.push(
-          `  ❌ ${lockLabel}: passcode "${result.expectedPasscodeName}" has code [${actualCode}], expected ${hostfullyDoorCode}`,
+          `  ❌ ${lockLabel}: passcode "${result.expectedPasscodeName}" does not match the Hostfully door code`,
         );
       } else {
         summaryLines.push(`  ✅ ${lockLabel}: matches`);

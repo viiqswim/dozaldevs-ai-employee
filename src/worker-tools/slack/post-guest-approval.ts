@@ -166,18 +166,24 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
   }
 
   if (params.diagnosis) {
-    const diagnosisData = JSON.parse(params.diagnosis) as {
-      hasMismatch: boolean;
-      diagnosisSummary: string;
-    };
-    const diagnosisPrefix = diagnosisData.hasMismatch ? ':warning: CODE MISMATCH — ' : '';
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*🔒 Lock Diagnosis:*\n${diagnosisPrefix}${diagnosisData.diagnosisSummary}`,
-      },
-    });
+    try {
+      const diagnosisData = JSON.parse(params.diagnosis) as {
+        hasMismatch: boolean;
+        diagnosisSummary: string;
+      };
+      const diagnosisPrefix = diagnosisData.hasMismatch ? ':warning: CODE MISMATCH — ' : '';
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*🔒 Lock Diagnosis:*\n${diagnosisPrefix}${diagnosisData.diagnosisSummary}`,
+        },
+      });
+    } catch {
+      process.stderr.write(
+        'Warning: --diagnosis value is not valid JSON, skipping diagnosis block\n',
+      );
+    }
   }
 
   blocks.push(
