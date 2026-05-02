@@ -461,11 +461,14 @@ log('');
 // ─────────────────────────────────────────────────────
 log('── Step 7: Starting Cloudflare Tunnel ──');
 
-// Check if tunnel already routing
+// Check if tunnel already routing — must parse HTTP status, not just curl exit code.
+// Cloudflare CDN always responds (HTTP 530 for disconnected tunnels); curl exits 0.
 let tunnelAlreadyActive = false;
 try {
-  await $`curl -s --max-time 5 -o /dev/null -w "%{http_code}" ${TUNNEL_URL}/health`;
-  tunnelAlreadyActive = true;
+  const tunnelCheckResult =
+    await $`curl -s --max-time 5 -o /dev/null -w "%{http_code}" ${TUNNEL_URL}/health`;
+  const statusCode = parseInt(tunnelCheckResult.stdout.trim(), 10);
+  tunnelAlreadyActive = statusCode >= 200 && statusCode < 300;
 } catch {
   /* tunnel not up */
 }
