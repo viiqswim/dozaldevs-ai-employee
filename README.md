@@ -8,7 +8,7 @@ Automated engineering workflow: receives Jira tickets via webhook and delivers p
 
 1. `git clone <repo> && pnpm install`
 2. `pnpm setup` — sets up local Supabase, runs migrations, builds Docker image
-3. `pnpm dev:start` — starts Gateway (:3000) and Inngest (:8288)
+3. `pnpm dev:start` — starts Gateway (:7700) and Inngest (:8288)
 4. `pnpm trigger-task` — sends a mock Jira webhook and monitors to completion
 5. `pnpm verify:e2e --task-id <uuid>` — verify all 12 integration checks pass
 
@@ -49,7 +49,7 @@ Full port registry for all projects: [PORT_REGISTRY.md](https://github.com/victo
 
 ## How It Works
 
-1. **Jira webhook** arrives at `POST /webhooks/jira` (Gateway, port 3000)
+1. **Jira webhook** arrives at `POST /webhooks/jira` (Gateway, port 7700)
 2. Gateway creates a `tasks` row (status `Ready`) and fires `engineering/task.received` to Inngest
 3. **Lifecycle function** transitions to `Executing` and spawns a Docker worker container
 4. **Worker container** clones the repo, starts OpenCode (AI coding agent), generates code, runs validation, and opens a PR on GitHub
@@ -74,7 +74,7 @@ Projects can be registered at runtime via the admin REST API. All endpoints requ
 **Create a project:**
 
 ```bash
-curl -X POST http://localhost:3000/admin/tenants/$TENANT_ID/projects \
+curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
   -H "Content-Type: application/json" \
   -H "X-Admin-Key: $ADMIN_API_KEY" \
   -d '{
@@ -95,13 +95,15 @@ curl -X POST http://localhost:3000/admin/tenants/$TENANT_ID/projects \
 
 ## Scripts
 
-| Script                | Command                            | Purpose                                                                 |
-| --------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
-| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image |
-| `dev-start.ts`        | `pnpm dev:start`                   | Start all local services                                                |
-| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API          |
-| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                           |
-| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                               |
+| Script                | Command                            | Purpose                                                                                                                                                                                                                          |
+| --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                                                                                          |
+| `dev-start.ts`        | `pnpm dev:start`                   | Start Docker Compose + Inngest (:8288) + Gateway (:7700) — no tunnel, no Docker build                                                                                                                                            |
+| `dev-local.ts`        | `pnpm dev:local`                   | Full local stack: Docker Compose + Inngest + Gateway + Cloudflare named tunnel (`local-ai-employee.dozaldevs.com → :7700`) + Docker worker image build. Flags: `--reset` (wipe DB + re-seed), `--skip-build` (skip Docker build) |
+| `dev-e2e.ts`          | `pnpm dev:e2e`                     | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                                                                                  |
+| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API                                                                                                                                                                   |
+| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                                                                                                                                                                                    |
+| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                                                                                                                                                                                        |
 
 ## Project Structure
 
@@ -111,7 +113,7 @@ src/
 ├── inngest/     # Lifecycle, watchdog, redispatch functions
 ├── workers/     # Docker container code — AI agent execution
 └── lib/         # Shared: logger, fly-client, github-client, retry
-prisma/          # Schema (16 tables), migrations, seed
+prisma/          # Schema (24 models), migrations, seed
 scripts/         # zx TypeScript scripts (setup, trigger, verify)
 docker/          # Supabase self-hosted Docker Compose (replaces `supabase start` — see note below)
 docs/            # Architecture and phase documentation
