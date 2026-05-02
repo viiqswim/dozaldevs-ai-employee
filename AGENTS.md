@@ -372,6 +372,38 @@ grep "EXIT_CODE:" /tmp/<name>.log && echo "DONE" || echo "RUNNING"
 
 Session naming: `ai-e2e`, `ai-dev`, `ai-build`. Log files: `/tmp/ai-e2e.log`, etc.
 
+### Tmux Session Cleanup (MANDATORY)
+
+Stale tmux sessions accumulate zsh processes, gitstatus watchers, and kernel vnodes. On macOS, this exhausts the vnode table (`kern.maxvnodes`) and triggers `ENFILE: file table overflow` errors — even when file descriptor limits are not reached. **This has caused production-impacting failures.**
+
+**Rules:**
+
+1. **Kill sessions when done.** After a long-running command completes (EXIT_CODE detected in log), immediately kill its tmux session:
+
+   ```bash
+   tmux kill-session -t <name>
+   ```
+
+2. **Never leave sessions overnight.** At the end of any task execution, kill ALL tmux sessions you created:
+
+   ```bash
+   tmux list-sessions -F '#{session_name}' | grep '^ai-' | xargs -I{} tmux kill-session -t {}
+   ```
+
+3. **Pre-flight check.** Before creating a new tmux session, check how many exist. If more than 10 are alive, kill finished ones first:
+
+   ```bash
+   echo "Active tmux sessions: $(tmux list-sessions 2>/dev/null | wc -l | tr -d ' ')"
+   ```
+
+4. **Reuse session names.** Prefer reusing names like `ai-build` over creating `ai-build2`, `ai-build3`, etc. Kill the old one first:
+
+   ```bash
+   tmux kill-session -t ai-build 2>/dev/null; tmux new-session -d -s ai-build -x 220 -y 50
+   ```
+
+5. **Final wave cleanup.** Every plan's Final Verification Wave must include a step that kills all tmux sessions created during execution.
+
 ## Known Issues
 
 ### 1. ngrok free tier doesn't work with Fly.io
