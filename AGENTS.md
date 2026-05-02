@@ -63,6 +63,13 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
     Output: JSON `{"ts":"...","channel":"..."}`. When `--task-id` is provided, auto-generates blocks: header, summary text, divider, task ID context block, Approve/Reject buttons.
   - `tsx /tools/slack/read-channels.ts --channels "C123,C456" --lookback-hours 24`
     Output: JSON `{"channels":[...]}`. Reads channel history with thread replies; filters out bot summary posts.
+- **Lock tools**: `src/worker-tools/locks/` — pre-installed in Docker image at `/tools/locks/`. Usage:
+  - `tsx /tools/locks/sifely-client.ts --action list-locks` — list all locks on the account
+  - `tsx /tools/locks/sifely-client.ts --action list-passcodes --lock-id <id>` — list passcodes for a lock
+  - `tsx /tools/locks/sifely-client.ts --action list-access-records --lock-id <id>` — list access records for a lock
+  - `tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — create a timed passcode
+  - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
+  - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
 - **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
@@ -248,16 +255,17 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 ## Commands
 
-| Action           | Command                            |
-| ---------------- | ---------------------------------- |
-| First-time setup | `pnpm setup`                       |
-| Start services   | `pnpm dev:start`                   |
-| Run tests        | `pnpm test -- --run`               |
-| Setup test DB    | `pnpm test:db:setup`               |
-| Lint             | `pnpm lint`                        |
-| Build            | `pnpm build`                       |
-| Trigger E2E task | `pnpm trigger-task`                |
-| Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
+| Action                    | Command                            |
+| ------------------------- | ---------------------------------- |
+| First-time setup          | `pnpm setup`                       |
+| Start services            | `pnpm dev:start`                   |
+| Full local stack + tunnel | `pnpm dev:local`                   |
+| Run tests                 | `pnpm test -- --run`               |
+| Setup test DB             | `pnpm test:db:setup`               |
+| Lint                      | `pnpm lint`                        |
+| Build                     | `pnpm build`                       |
+| Trigger E2E task          | `pnpm trigger-task`                |
+| Verify E2E                | `pnpm verify:e2e --task-id <uuid>` |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -356,7 +364,7 @@ See `.env.example` for the full list.
 
 **NEVER** run commands expected to take >30 seconds with a blocking shell call. Launch in a detached tmux session with output piped to a log file. Poll every 30–60 seconds.
 
-Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev:start`, `docker build`, `fly logs`, `cloudflared tunnel`.
+Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev:start`, `pnpm dev:local`, `docker build`, `fly logs`, `cloudflared tunnel`.
 
 ```bash
 # Launch
@@ -418,7 +426,9 @@ The Slack app's redirect URI must be pre-registered and cannot be a `localhost` 
 
 **Named tunnel is already configured** at `~/.cloudflared/ai-employee-local.yml` → `tunnel: e160ac6d-2d7d-47c4-a552-b13700947d29`.
 
-Start it: `cloudflared tunnel --config ~/.cloudflared/ai-employee-local.yml run`
+**Preferred**: `pnpm dev:local` — starts the full stack including the named tunnel automatically.
+
+**Manual**: `cloudflared tunnel --config ~/.cloudflared/ai-employee-local.yml run`
 
 **For new contributors**: create your own subdomain (e.g. `local-ai-employee-yourname.dozaldevs.com`):
 
