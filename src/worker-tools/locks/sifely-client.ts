@@ -286,9 +286,13 @@ async function listLocks(baseUrl: string, token: string, clientId: string): Prom
     date: String(Date.now()),
   });
 
-  const response = await fetch(`${baseUrl}/v3/lock/list?${params.toString()}`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+  const response = await fetch(`${baseUrl}/v3/lock/list`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
   });
 
   if (!response.ok) {
