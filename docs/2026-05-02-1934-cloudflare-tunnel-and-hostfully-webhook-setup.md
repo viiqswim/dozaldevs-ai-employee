@@ -1,46 +1,73 @@
 # Cloudflare Tunnel + Hostfully Webhook Setup Guide
 
-**Purpose**: How to configure the named Cloudflare tunnel (`local-ai-employee.dozaldevs.com`) and register it as a Hostfully webhook endpoint so the `guest-messaging` employee receives `NEW_INBOX_MESSAGE` events.
+**Purpose**: How the named Cloudflare tunnel (`local-ai-employee.dozaldevs.com`) is configured, how Hostfully webhooks currently reach `vlre-employee`, and what is needed for `ai-employee` to also receive them.
 
 ---
 
-## Overview
+## Two-System Context
+
+There are **two separate local systems** that both need to receive Hostfully `NEW_INBOX_MESSAGE` events:
+
+| System                       | Repo                               | Port    | Tunnel            | Path                       | Status                                |
+| ---------------------------- | ---------------------------------- | ------- | ----------------- | -------------------------- | ------------------------------------- |
+| `vlre-employee` (Papi Chulo) | `/repos/real-estate/vlre-employee` | `48901` | Tailscale Funnel  | `POST /webhook`            | ✅ Active — registered with Hostfully |
+| `ai-employee`                | `/repos/dozal-devs/ai-employee`    | `7700`  | Cloudflare tunnel | `POST /webhooks/hostfully` | ⏳ Not yet registered with Hostfully  |
+
+**Current flow** (production):
 
 ```
 Guest sends message in Hostfully
         ↓
-Hostfully → POST https://local-ai-employee.dozaldevs.com/webhooks/hostfully
+Hostfully → POST https://<tailscale-hostname>/webhook
         ↓
-Cloudflare Tunnel → http://localhost:7700/webhooks/hostfully
+Tailscale Funnel → http://localhost:48901/webhook
         ↓
-Gateway matches agency_uid → VLRE tenant → guest-messaging archetype
-        ↓
-Task created → Inngest lifecycle → Fly.io worker → AI drafts reply
-        ↓
-Slack approval → send via Hostfully API
+vlre-employee pipeline → Slack approval → Hostfully API
 ```
 
-The tunnel is the bridge between Hostfully (external) and your local gateway (port 7700). It must be running whenever you want to receive Hostfully webhooks or perform Slack OAuth.
+**Cloudflare tunnel** (`local-ai-employee.dozaldevs.com → localhost:7700`) is currently used **only for Slack OAuth**. It is not the registered Hostfully webhook URL.
+
+> **The fanout problem**: Hostfully supports only one registered webhook per event type. To compare both systems simultaneously, a local fanout proxy is needed. See [Part 5: Dual-System Fanout](#part-5-dual-system-fanout-receiving-webhooks-in-both-apps-simultaneously).
 
 ---
 
-## Status for This Machine (VLRE tenant)
+## VLRE Prerequisites Status (as of 2026-05-03)
 
-| Prerequisite                                              | Status     | Notes                                                      |
-| --------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
-| `cloudflared` binary installed                            | ✅ Done    | `brew install cloudflare/cloudflare/cloudflared`           |
-| Named tunnel created (`e160ac6d-...`)                     | ✅ Done    | Tunnel exists at `~/.cloudflared/`                         |
-| DNS route: `local-ai-employee.dozaldevs.com` → tunnel     | ✅ Done    | Managed by Cloudflare DNS                                  |
-| Config file `~/.cloudflared/ai-employee-local.yml`        | ✅ Done    | Routes hostname → `localhost:7700`                         |
-| Credentials file `~/.cloudflared/e160ac6d-...json`        | ✅ Done    | Auth for this tunnel                                       |
-| `SLACK_REDIRECT_BASE_URL` in `.env`                       | ✅ Done    | `https://local-ai-employee.dozaldevs.com`                  |
-| VLRE `tenant.config.guest_messaging.hostfully_agency_uid` | ✅ Done    | `942d08d9-82bb-4fd3-9091-ca0c6b50b578` (seeded)            |
-| VLRE `guest-messaging` archetype                          | ✅ Done    | ID `00000000-0000-0000-0000-000000000015` (seeded)         |
-| Hostfully webhook registered with Hostfully API           | ❓ Unknown | Run `register-webhook.ts` to check/register (see §3 below) |
-| `HOSTFULLY_API_KEY` in `.env`                             | ❌ Not set | Needed only to run `register-webhook.ts` locally           |
-| `HOSTFULLY_AGENCY_UID` in `.env`                          | ❌ Not set | Needed only to run `register-webhook.ts` locally           |
+### Cloudflare tunnel (ai-employee — Slack OAuth)
 
-> **Bottom line**: The tunnel and VLRE tenant DB config are complete. The only open question is whether the Hostfully webhook has been registered via the API. If the guest-messaging employee is already receiving Hostfully events, it has. If not, follow §3 to register it.
+| Prerequisite                                          | Status  | Notes                                            |
+| ----------------------------------------------------- | ------- | ------------------------------------------------ |
+| `cloudflared` binary installed                        | ✅ Done | `brew install cloudflare/cloudflare/cloudflared` |
+| Named tunnel created (`e160ac6d-...`)                 | ✅ Done | Credentials at `~/.cloudflared/e160ac6d-...json` |
+| DNS route: `local-ai-employee.dozaldevs.com` → tunnel | ✅ Done | Managed by Cloudflare DNS                        |
+| Config file `~/.cloudflared/ai-employee-local.yml`    | ✅ Done | Routes hostname → `localhost:7700`               |
+| `SLACK_REDIRECT_BASE_URL` in ai-employee `.env`       | ✅ Done | `https://local-ai-employee.dozaldevs.com`        |
+
+### VLRE tenant DB config (ai-employee)
+
+| Prerequisite                                         | Status  | Notes                                              |
+| ---------------------------------------------------- | ------- | -------------------------------------------------- |
+| `tenant.config.guest_messaging.hostfully_agency_uid` | ✅ Done | `942d08d9-82bb-4fd3-9091-ca0c6b50b578` (seeded)    |
+| `guest-messaging` archetype                          | ✅ Done | ID `00000000-0000-0000-0000-000000000015` (seeded) |
+
+### Hostfully webhook (vlre-employee — currently active)
+
+| Prerequisite                             | Status  | Notes                                                      |
+| ---------------------------------------- | ------- | ---------------------------------------------------------- |
+| Tailscale Funnel running on port `48901` | ✅ Done | Auto-started by `bun run start` in vlre-employee           |
+| Webhook registered with Hostfully        | ✅ Done | Points to Tailscale public URL → `localhost:48901/webhook` |
+| `HOSTFULLY_API_KEY`                      | ✅ Done | Set in vlre-employee's `.env` (not in ai-employee)         |
+| `HOSTFULLY_AGENCY_UID`                   | ✅ Done | Set in vlre-employee's `.env` (not in ai-employee)         |
+
+### Hostfully webhook (ai-employee — not yet receiving)
+
+| Prerequisite                                         | Status      | Notes                                                     |
+| ---------------------------------------------------- | ----------- | --------------------------------------------------------- |
+| `POST /webhooks/hostfully` route exists              | ✅ Done     | `src/gateway/routes/hostfully.ts`                         |
+| Cloudflare tunnel exposing `:7700`                   | ✅ Done     | Must be running via `pnpm dev:local`                      |
+| Hostfully webhook registered pointing to ai-employee | ❌ Not done | Blocked: Hostfully only supports one webhook — see Part 5 |
+
+> **Bottom line**: All ai-employee infrastructure is in place. The only missing piece is getting Hostfully to send events to ai-employee — which requires solving the fanout problem since vlre-employee is already registered.
 
 ---
 
@@ -88,10 +115,12 @@ curl https://local-ai-employee.dozaldevs.com/health
 
 ### What the tunnel is used for
 
-| Use case                   | URL                                                            |
-| -------------------------- | -------------------------------------------------------------- |
-| Slack OAuth redirect       | `https://local-ai-employee.dozaldevs.com/slack/oauth_callback` |
-| Hostfully webhook receiver | `https://local-ai-employee.dozaldevs.com/webhooks/hostfully`   |
+| Use case                                      | URL                                                            |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| Slack OAuth redirect                          | `https://local-ai-employee.dozaldevs.com/slack/oauth_callback` |
+| Hostfully webhooks (future — requires fanout) | `https://local-ai-employee.dozaldevs.com/webhooks/hostfully`   |
+
+> The Cloudflare tunnel is **not** the current registered Hostfully webhook URL. That is the Tailscale Funnel URL (vlre-employee). See Part 5 for how to receive webhooks in both systems simultaneously.
 
 ---
 
@@ -249,6 +278,94 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 | Webhook → 400 `Invalid payload`                            | Hostfully sent unexpected shape              | Check gateway logs for Zod error details                                                  |
 | Webhook registered but events not arriving                 | Hostfully still targeting old URL            | Re-register: old webhook must be deleted in Hostfully dashboard first, then re-run script |
 | `cloudflared tunnel login` fails                           | No internet or cert expired                  | Re-run `cloudflared tunnel login`                                                         |
+
+---
+
+## Part 5: Dual-System Fanout — Receiving Webhooks in Both Apps Simultaneously
+
+### The Problem
+
+Hostfully supports only **one registered webhook URL** per event type. `vlre-employee` is already registered at the Tailscale Funnel URL. Adding `ai-employee` as a second recipient requires a fanout layer that receives the single Hostfully event and forwards it to both apps in parallel.
+
+### Key Insight: Tailscale port changes don't require Hostfully re-registration
+
+From vlre-employee's README:
+
+> "You only need to re-register if the public URL changes. Changing `WEBHOOK_PORT` does **not** require re-registration because Tailscale Funnel always serves on public port 443 regardless of the local port."
+
+This means we can redirect the Tailscale Funnel to a **new fanout server** on a different local port, and the Hostfully-registered URL stays exactly the same.
+
+### Recommended Solution: Local Fanout Proxy
+
+```
+Hostfully → POST https://<tailscale-hostname>/webhook   (unchanged — no Hostfully config change)
+                    ↓
+        Tailscale Funnel (now points to :18080 instead of :48901)
+                    ↓
+            Fanout Proxy (:18080)
+            ↙                    ↘  (parallel, fire-and-forget)
+localhost:48901/webhook    localhost:7700/webhooks/hostfully
+    ↓                               ↓
+vlre-employee                  ai-employee
+(unchanged behavior)         (new — for comparison)
+```
+
+**Steps to implement:**
+
+1. **Write a fanout proxy script** (small tsx or Bun script, ~50 lines):
+   - Listens on port `18080`
+   - On `POST /webhook` or `POST /webhooks/hostfully` (accept both): forward the raw body to both downstream targets in parallel using `Promise.all()`
+   - Return 200 immediately (don't wait for downstream responses — Hostfully expects a fast ack)
+   - Log both downstream responses for observability
+
+2. **Switch the Tailscale Funnel** from port `48901` to `18080`:
+
+   ```bash
+   # Stop existing funnel
+   tailscale funnel reset
+   # Start new one pointing to the fanout
+   tailscale funnel --bg 18080
+   ```
+
+3. **Verify nothing broke for vlre-employee**:
+
+   ```bash
+   # Tailscale public URL is unchanged — test it
+   curl -X POST https://<tailscale-hostname>/webhook \
+     -H "Content-Type: application/json" \
+     -d '{"event_type":"NEW_INBOX_MESSAGE","agency_uid":"942d08d9-...","message_uid":"fanout-test-001",...}'
+   # Both apps should receive the event simultaneously
+   ```
+
+4. **No Hostfully re-registration needed** — the external URL hasn't changed.
+
+### Alternative: Use vlre-employee's simulate script as a manual fanout
+
+`vlre-employee` has a simulate script that fires a real Hostfully message through its own pipeline. You can manually fire the same message UID at ai-employee too:
+
+```bash
+# In vlre-employee: pick a real message UID
+bun run scripts/simulate-webhook.ts --list
+
+# Fire it through vlre-employee normally
+bun run scripts/simulate-webhook.ts --uid <message-uid>
+
+# Fire the same message UID at ai-employee manually
+curl -X POST http://localhost:7700/webhooks/hostfully \
+  -H "Content-Type: application/json" \
+  -d '{"agency_uid":"942d08d9-82bb-4fd3-9091-ca0c6b50b578","event_type":"NEW_INBOX_MESSAGE","message_uid":"<message-uid>","thread_uid":"<thread-uid>","lead_uid":"<lead-uid>","property_uid":"<property-uid>"}'
+```
+
+This is the lowest-friction option for occasional one-off comparisons — no infrastructure changes needed.
+
+### Webhook paths differ between the two systems
+
+| System          | Expected path              | Port    |
+| --------------- | -------------------------- | ------- |
+| `vlre-employee` | `POST /webhook`            | `48901` |
+| `ai-employee`   | `POST /webhooks/hostfully` | `7700`  |
+
+Any fanout proxy must map between these paths explicitly.
 
 ---
 
