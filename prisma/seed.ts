@@ -271,13 +271,25 @@ async function main() {
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
-    'NOTE: Process ONE message per task. The trigger layer handles batching.\n\n' +
-    'Run the following steps to process guest messages:\n\n' +
-    'STEP 1: Fetch unresponded guest messages.\n' +
-    'Run: tsx /tools/hostfully/get-messages.ts --property-id "$PROPERTY_UID" --unresponded-only\n' +
-    'Output is a JSON array of message threads. ' +
-    'If the output is an empty array or contains no messages, write "NO_ACTION_NEEDED: No unresponded guest messages found." to /tmp/summary.txt and stop.\n\n' +
-    'STEP 2: For each unresponded message thread, gather context.\n' +
+    'CONTEXT: This task was triggered by a Hostfully NEW_INBOX_MESSAGE webhook for a specific guest message.\n' +
+    'The following env vars identify the exact message to process:\n' +
+    '  $LEAD_UID      — the lead/reservation UID (use this to fetch the message thread)\n' +
+    '  $THREAD_UID    — the message thread UID\n' +
+    '  $MESSAGE_UID   — the specific inbound message UID\n' +
+    '  $PROPERTY_UID  — the property UID\n\n' +
+    'Run the following steps to process the guest message:\n\n' +
+    'STEP 1: Fetch the guest message thread.\n' +
+    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID"\n' +
+    'Output is a JSON array containing the message thread for this lead. ' +
+    'If the output is an empty array or contains no messages, this is an unexpected error (the webhook said a message exists). ' +
+    'Write "ERROR: get-messages returned empty result for lead $LEAD_UID — expected at least one message thread." to /tmp/summary.txt. ' +
+    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "Error processing guest message: get-messages returned empty result for lead $LEAD_UID" --task-id "$TASK_ID" > /tmp/approval-message.json\n' +
+    'Then stop.\n\n' +
+    'STEP 1.5: Already-responded guard.\n' +
+    'Inspect the messages array in the thread returned by Step 1. Identify the last (most recent) message in the thread.\n' +
+    'If the last message has sender "host" (senderType "AGENCY" maps to "host" in the output JSON), the thread has already been responded to. ' +
+    'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt and stop.\n\n' +
+    'STEP 2: Gather context for the message thread.\n' +
     'Use the property_id from the message output.\n' +
     'Run: tsx /tools/hostfully/get-reservations.ts --property-id "<property-id>" --status confirmed\n' +
     'Run: tsx /tools/hostfully/get-property.ts --property-id "<property-id>"\n' +
