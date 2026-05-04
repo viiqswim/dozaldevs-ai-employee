@@ -1,0 +1,23 @@
+{
+  "uid": "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2",
+  "name": "Test Beach House",
+  "propertyType": "HOUSE",
+  "address": "123 Ocean Drive, Miami Beach, FL 33139, US",
+  "bedrooms": 3,
+  "beds": 4,
+  "bathrooms": "2",
+  "maxGuests": 6,
+  "checkInTime": 1500,
+  "checkOutTime": 1100,
+  "wifiNetwork": "BeachHouse_5G",
+  "wifiPassword": "SunsetWaves2024!",
+  "bookingNotes": "Please remove shoes at the entrance. Beach towels are in the hall closet.",
+  "extraNotes": "The wifi router is in the living room cabinet. Network: BeachHouse_5G, Password: SunsetWaves2024!",
+  "guideBookUrl": null,
+  "amenities": ["WIFI", "POOL", "PARKING", "AIR_CONDITIONING", "WASHER_DRYER"],
+  "houseRules": [
+    { "rule": "NO_SMOKING", "description": "No smoking anywhere on the property" },
+    { "rule": "NO_PETS", "description": null },
+    { "rule": "QUIET_HOURS", "description": "Quiet hours 10pm-8am" }
+  ]
+}

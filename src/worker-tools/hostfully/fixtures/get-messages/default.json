@@ -1,0 +1,20 @@
+[
+  {
+    "reservationId": "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb",
+    "guestName": "Test Guest",
+    "channel": "AIRBNB",
+    "unresponded": true,
+    "messages": [
+      {
+        "text": "Welcome to the Beach House! Check-in is at 3pm. The door code is 1234. Let me know if you need anything!",
+        "sender": "host",
+        "timestamp": "2026-05-01T14:00:00Z"
+      },
+      {
+        "text": "Hi, what's the wifi password? We just arrived and can't find it anywhere.",
+        "sender": "guest",
+        "timestamp": "2026-05-03T18:30:00Z"
+      }
+    ]
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "uid": "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb",
+    "propertyUid": "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2",
+    "guestName": "Test Guest",
+    "checkIn": "2026-05-03T15:00:00",
+    "checkOut": "2026-05-10T11:00:00",
+    "channel": "AIRBNB",
+    "numberOfGuests": 2,
+    "status": "BOOKED"
+  }
+]
