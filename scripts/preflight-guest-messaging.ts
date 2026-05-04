@@ -135,7 +135,7 @@ async function main(): Promise<void> {
   const ARCHETYPE_ID = '00000000-0000-0000-0000-000000000015';
   const AGENCY_UID = '942d08d9-82bb-4fd3-9091-ca0c6b50b578';
   const GATEWAY = 'http://localhost:7700';
-  const POSTGREST = 'http://localhost:54321/rest/v1';
+  const POSTGREST = `${getEnv('SUPABASE_URL') || 'http://localhost:54331'}/rest/v1`;
   const HOSTFULLY_BASE = 'https://api.hostfully.com/api/v3.2';
 
   const ADMIN_API_KEY = getEnv('ADMIN_API_KEY');
