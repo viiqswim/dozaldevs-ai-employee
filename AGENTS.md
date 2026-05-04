@@ -86,7 +86,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 **Adding a new employee**:
 
 1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`
-2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`)
+2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`). Follow the [Shell Tool Checklist](docs/2026-05-04-1645-adding-a-shell-tool.md).
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
 **Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
@@ -613,3 +613,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/snapshots/2026-04-24-1452-current-system-state.md` | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
 | `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                      |
 | `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                       |
+| `docs/2026-05-04-1645-adding-a-shell-tool.md`            | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                |
