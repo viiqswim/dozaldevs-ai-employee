@@ -46,7 +46,10 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v2.45.0/gh_2.45.0_l
     && rm -rf /tmp/gh*
 
 # opencode-ai is the correct npm package name (not 'opencode' or '@opencode/cli')
-RUN npm install -g opencode-ai@1.14.31
+# 1.14.31 is the last known-working version — 1.14.33 causes session bootstrap failure (exit code 0 ~6s after session creation)
+RUN npm install -g opencode-ai@1.14.31 && \
+    ARCH=$(uname -m | sed 's/x86_64/x64/g;s/aarch64/arm64/g') && \
+    npm install -g "opencode-linux-${ARCH}@1.14.31"
 RUN npm install -g tsx
 
 # Pre-warm OpenCode SQLite database during build so the migration doesn't run at container start.
@@ -61,6 +64,11 @@ RUN opencode serve --port 4097 --hostname 127.0.0.1 &>/dev/null & \
     sleep 2; \
     DB_PATH="$(echo ~)/.local/share/opencode/opencode.db"; \
     [ -f "$DB_PATH" ] && sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+
+# Disable OpenCode auto-update in the global config so containers don't self-update on startup.
+# This must run AFTER the pre-warm step above (which creates ~/.config/opencode/).
+RUN mkdir -p ~/.config/opencode && \
+    echo '{"autoupdate":false}' > ~/.config/opencode/opencode.json
 
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
