@@ -20,6 +20,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import fs, { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createDecipheriv } from 'node:crypto';
 
 $.verbose = false;
 
@@ -59,6 +60,12 @@ if (args.includes('--help')) {
   log('  • Event Gateway (:7700) with Slack Socket Mode');
   log('  • Cloudflare tunnel (local-ai-employee.dozaldevs.com → :7700)');
   log('  • Docker worker image build (default, skip with --skip-build)');
+  log('  • Hostfully webhook auto-registration (non-fatal if missing secrets)');
+  log('');
+  log('Fly.io hybrid mode (USE_FLY_HYBRID=1 in .env):');
+  log('  • PostgREST quick tunnel is auto-started (cloudflared → localhost:54321)');
+  log('  • TUNNEL_URL in .env is updated with the new trycloudflare.com URL');
+  log('  • Gateway passes USE_FLY_HYBRID=1 so workers dispatch to Fly.io');
   log('');
   log('Options:');
   log('  --reset       Wipe database and re-seed before starting');
@@ -156,6 +163,19 @@ async function waitForHttp(url: string, maxWaitMs = 30_000, intervalMs = 2_000):
     log(`  ... waiting (${elapsed}s)`);
   }
   return false;
+}
+
+// ─────────────────────────────────────────────────────
+// Decrypt helper (AES-256-GCM, matches src/lib/encryption.ts)
+// ─────────────────────────────────────────────────────
+function decryptSecret(ciphertext: string, iv: string, authTag: string, keyHex: string): string {
+  const key = Buffer.from(keyHex, 'hex');
+  const ivBuf = Buffer.from(iv, 'base64');
+  const authTagBuf = Buffer.from(authTag, 'base64');
+  const ctBuf = Buffer.from(ciphertext, 'base64');
+  const decipher = createDecipheriv('aes-256-gcm', key, ivBuf);
+  decipher.setAuthTag(authTagBuf);
+  return decipher.update(ctBuf).toString() + decipher.final('utf8');
 }
 
 // ─────────────────────────────────────────────────────
@@ -367,6 +387,24 @@ try {
   /* already up-to-date */
 }
 ok('Migrations complete (or already up-to-date)');
+
+const checkSql =
+  "SELECT notification_channel FROM archetypes WHERE id = '00000000-0000-0000-0000-000000000015'";
+try {
+  const checkResult =
+    await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -t -A -c ${checkSql}`;
+  const val = checkResult.stdout.trim();
+  if (!val || val === '' || val.toLowerCase() === 'null') {
+    const updateSql =
+      "UPDATE archetypes SET notification_channel = 'C0AMGJQN05S' WHERE id = '00000000-0000-0000-0000-000000000015'";
+    await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -c ${updateSql}`;
+    ok('VLRE guest-messaging archetype: notification_channel set to C0AMGJQN05S');
+  } else {
+    ok(`VLRE guest-messaging archetype: notification_channel = ${val}`);
+  }
+} catch {
+  /* archetype row may not exist yet — seed will handle it */
+}
 log('');
 
 log('── Step 4b: Waiting for Docker Compose services (up to 120s) ──');
@@ -377,6 +415,73 @@ if (!supabaseReady) {
 }
 ok('Docker Compose services healthy at http://localhost:54321');
 log('');
+
+// ─────────────────────────────────────────────────────
+// Step 4c: PostgREST Supabase Tunnel (Fly.io hybrid mode)
+// ─────────────────────────────────────────────────────
+if (process.env.USE_FLY_HYBRID === '1') {
+  log('── Step 4c: PostgREST Supabase Tunnel (Fly.io hybrid mode) ──');
+
+  let postgrestTunnelAlive = false;
+  const existingTunnelUrl = process.env.TUNNEL_URL?.trim();
+
+  if (existingTunnelUrl) {
+    try {
+      const r =
+        await $`curl -s --max-time 5 -o /dev/null -w "%{http_code}" ${existingTunnelUrl}/rest/v1/`;
+      const code = parseInt(r.stdout.trim(), 10);
+      postgrestTunnelAlive = code >= 200 && code < 500;
+    } catch {
+      /* dead or unreachable */
+    }
+  }
+
+  if (postgrestTunnelAlive) {
+    ok(`Existing PostgREST tunnel alive: ${existingTunnelUrl}`);
+  } else {
+    info('Starting PostgREST quick tunnel...');
+    const postgrestTunnelLog = '/tmp/postgrest-tunnel.log';
+    const tunnelLogStream = fs.createWriteStream(postgrestTunnelLog);
+
+    const postgrestProc = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:54321'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+    });
+    postgrestProc.stdout?.pipe(tunnelLogStream);
+    postgrestProc.stderr?.pipe(tunnelLogStream);
+    children.push(postgrestProc);
+
+    const newTunnelUrl = await new Promise<string | null>((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 30_000);
+      const urlPattern = /https:\/\/\S+\.trycloudflare\.com/;
+
+      function scan(data: Buffer): void {
+        const match = data.toString().match(urlPattern);
+        if (match) {
+          clearTimeout(timeout);
+          resolve(match[0]);
+        }
+      }
+
+      postgrestProc.stdout?.on('data', scan);
+      postgrestProc.stderr?.on('data', scan);
+    });
+
+    if (!newTunnelUrl) {
+      warn(`PostgREST tunnel URL not captured within 30s — logs at ${postgrestTunnelLog}`);
+    } else {
+      const envPath = '.env';
+      const envContent = readFileSync(envPath, 'utf8');
+      const updated = envContent.match(/^TUNNEL_URL=/m)
+        ? envContent.replace(/^TUNNEL_URL=.*/m, `TUNNEL_URL=${newTunnelUrl}`)
+        : `${envContent}\nTUNNEL_URL=${newTunnelUrl}`;
+      writeFileSync(envPath, updated);
+      process.env.TUNNEL_URL = newTunnelUrl;
+      ok(`PostgREST tunnel: ${newTunnelUrl} (updated .env)`);
+    }
+  }
+  log('');
+}
 
 // ─────────────────────────────────────────────────────
 // Step 5: Start Inngest Dev Server
@@ -421,13 +526,9 @@ log('');
 // ─────────────────────────────────────────────────────
 log('── Step 6: Starting Event Gateway ──');
 
-// Merge process.env (which already has .env loaded) with critical overrides:
-//   USE_FLY_HYBRID=0  — .env may have USE_FLY_HYBRID=1 for remote mode; force local dispatch
-//   USE_LOCAL_DOCKER=1 — ensure worker containers dispatch to local Docker
 const gatewayEnv: NodeJS.ProcessEnv = {
   ...process.env,
-  USE_LOCAL_DOCKER: '1',
-  USE_FLY_HYBRID: '0',
+  USE_LOCAL_DOCKER: process.env.USE_FLY_HYBRID === '1' ? '0' : '1',
 };
 
 const gatewayProc = spawn('node', ['--import', 'tsx/esm', 'src/gateway/server.ts'], {
@@ -454,6 +555,89 @@ if (!gatewayReady) {
   process.exit(1);
 }
 ok(`Event Gateway is healthy at http://localhost:${GATEWAY_PORT}`);
+log('');
+
+// ─────────────────────────────────────────────────────
+// Step 6c: Hostfully webhook registration
+// ─────────────────────────────────────────────────────
+log('── Step 6c: Hostfully webhook registration ──');
+try {
+  const encKey = process.env.ENCRYPTION_KEY ?? '';
+  const webhookPublicUrl = process.env.WEBHOOK_PUBLIC_URL;
+
+  if (!encKey || !webhookPublicUrl) {
+    warn('ENCRYPTION_KEY or WEBHOOK_PUBLIC_URL not set — skipping Hostfully webhook registration');
+  } else {
+    const secretsSql =
+      "SELECT key, ciphertext, iv, auth_tag FROM tenant_secrets WHERE tenant_id = '00000000-0000-0000-0000-000000000003' AND key IN ('hostfully_api_key', 'hostfully_agency_uid')";
+    const secretsResult =
+      await $`PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee -t -A -F '|' -c ${secretsSql}`;
+
+    const secrets: Record<string, string> = {};
+    for (const row of secretsResult.stdout.trim().split('\n')) {
+      const parts = row.split('|').map((p) => p.trim());
+      if (parts.length === 4 && parts[0]) {
+        const [key, ciphertext, iv, authTag] = parts;
+        try {
+          secrets[key] = decryptSecret(ciphertext, iv, authTag, encKey);
+        } catch {
+          /* skip rows that fail to decrypt */
+        }
+      }
+    }
+
+    const apiKey = secrets['hostfully_api_key'];
+    const agencyUid = secrets['hostfully_agency_uid'];
+
+    if (!apiKey || !agencyUid) {
+      warn('Hostfully secrets not found in DB — skipping webhook registration');
+    } else {
+      const baseUrl = 'https://api.hostfully.com/api/v3.2';
+      const callbackUrl = `${webhookPublicUrl}/webhooks/hostfully`;
+
+      const listRes = await fetch(
+        `${baseUrl}/webhooks?agencyUid=${encodeURIComponent(agencyUid)}`,
+        { headers: { 'X-HOSTFULLY-APIKEY': apiKey, 'Content-Type': 'application/json' } },
+      );
+
+      if (listRes.ok) {
+        const data = (await listRes.json()) as {
+          webhooks?: Array<{ uid: string; eventType: string; callbackUrl: string }>;
+        };
+        const alreadyRegistered = (data.webhooks ?? []).find(
+          (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl === callbackUrl,
+        );
+
+        if (alreadyRegistered) {
+          ok(`Hostfully webhook already registered (${alreadyRegistered.uid}) — skipping`);
+        } else {
+          const regRes = await fetch(`${baseUrl}/webhooks`, {
+            method: 'POST',
+            headers: { 'X-HOSTFULLY-APIKEY': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agencyUid,
+              eventType: 'NEW_INBOX_MESSAGE',
+              callbackUrl,
+              webhookType: 'POST_JSON',
+              objectUid: agencyUid,
+            }),
+          });
+
+          if (regRes.ok) {
+            const regData = (await regRes.json()) as { webhook?: { uid: string } };
+            ok(`Hostfully webhook registered (${regData.webhook?.uid ?? 'unknown'})`);
+          } else {
+            warn(`Hostfully webhook registration failed (${regRes.status}) — non-fatal`);
+          }
+        }
+      } else {
+        warn(`Could not list Hostfully webhooks (${listRes.status}) — skipping registration`);
+      }
+    }
+  }
+} catch (err) {
+  warn(`Hostfully webhook registration error: ${(err as Error).message} — non-fatal`);
+}
 log('');
 
 // ─────────────────────────────────────────────────────
@@ -522,6 +706,9 @@ log(`  Studio:     http://localhost:54323`);
 log(`  Inngest:    http://localhost:8288`);
 log(`  Gateway:    http://localhost:${GATEWAY_PORT}`);
 log(`  Tunnel:     ${TUNNEL_URL}`);
+if (process.env.USE_FLY_HYBRID === '1') {
+  log(`  PostgREST Tunnel: ${process.env.TUNNEL_URL ?? '(not captured)'} [Fly.io hybrid mode]`);
+}
 log('');
 log('  Slack webhooks route through the tunnel automatically.');
 log(`  Trigger a task:  curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \\`);
