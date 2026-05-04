@@ -31,12 +31,18 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       throw error;
     }
 
-    const { agency_uid, event_type, message_uid, thread_uid } = payload;
+    const { agency_uid, event_type, message_uid, thread_uid, lead_uid } = payload;
     logger.info({ agency_uid, event_type, message_uid, thread_uid }, 'Hostfully webhook received');
 
     if (event_type !== 'NEW_INBOX_MESSAGE') {
       logger.info({ event_type }, 'Ignoring non-message Hostfully event');
       res.json({ ok: true, ignored: true });
+      return;
+    }
+
+    if (!lead_uid) {
+      logger.warn({ message_uid }, 'NEW_INBOX_MESSAGE webhook missing lead_uid');
+      res.status(400).json({ error: 'lead_uid is required for NEW_INBOX_MESSAGE events' });
       return;
     }
 
