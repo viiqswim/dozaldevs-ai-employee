@@ -7,8 +7,19 @@ import {
   UNRESPONDED_MONITOR_SYSTEM_PROMPT,
   VLRE_UNRESPONDED_MONITOR_INSTRUCTIONS,
 } from './prompts/unresponded-message-monitor.js';
+import { encrypt } from '../src/lib/encryption.js';
 
 const prisma = new PrismaClient();
+
+async function seedSecret(tenantId: string, key: string, plaintext: string) {
+  const { ciphertext, iv, auth_tag } = encrypt(plaintext);
+  await prisma.tenantSecret.upsert({
+    where: { tenant_id_key: { tenant_id: tenantId, key } },
+    create: { tenant_id: tenantId, key, ciphertext, iv, auth_tag },
+    update: { ciphertext, iv, auth_tag },
+  });
+  console.log(`✅ Secret upserted: ${key} (tenant: ${tenantId})`);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,6 +142,18 @@ async function main() {
     },
   });
   console.log(`✅ Tenant upserted: ${vlreTenant.id} (slug: ${vlreTenant.slug})`);
+
+  await seedSecret('00000000-0000-0000-0000-000000000003', 'hostfully_api_key', 'Y6EQ7KgSwoOGCokD');
+  await seedSecret(
+    '00000000-0000-0000-0000-000000000003',
+    'hostfully_agency_uid',
+    '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
+  );
+  await seedSecret(
+    '00000000-0000-0000-0000-000000000003',
+    'slack_bot_token',
+    'xoxb-6661458697890-9224761438049-WvI5MGhekSqT5XYs03esTvxN',
+  );
 
   const [agentVersion, project] = await prisma.$transaction([
     prisma.agentVersion.upsert({
