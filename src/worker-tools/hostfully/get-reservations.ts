@@ -115,6 +115,19 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // HOSTFULLY_MOCK: return fixture data instead of calling the real API.
+  // Set HOSTFULLY_MOCK=true in .env for local E2E testing without real Hostfully credentials.
+  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const fixturePath = join(__dirname, 'fixtures', 'get-reservations', 'default.json');
+    const fixtureData = readFileSync(fixturePath, 'utf8');
+    process.stdout.write(fixtureData.trimEnd() + '\n');
+    return;
+  }
+
   if (!propertyId) {
     process.stderr.write('Error: --property-id argument is required\n');
     process.exit(1);

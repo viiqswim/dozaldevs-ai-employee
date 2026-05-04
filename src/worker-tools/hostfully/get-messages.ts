@@ -160,6 +160,28 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // HOSTFULLY_MOCK: return fixture data instead of calling the real API.
+  // Set HOSTFULLY_MOCK=true in .env for local E2E testing without real Hostfully credentials.
+  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    let fixturePath = join(__dirname, 'fixtures', 'get-messages', 'default.json');
+    if (leadId) {
+      const leadFixture = join(__dirname, 'fixtures', 'get-messages', `${leadId}.json`);
+      try {
+        readFileSync(leadFixture);
+        fixturePath = leadFixture;
+      } catch {
+        // fall back to default
+      }
+    }
+    const fixtureData = readFileSync(fixturePath, 'utf8');
+    process.stdout.write(fixtureData.trimEnd() + '\n');
+    return;
+  }
+
   const agencyUid = process.env['HOSTFULLY_AGENCY_UID'] ?? '';
 
   if (!leadId && !propertyId && !agencyUid) {
