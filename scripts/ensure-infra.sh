@@ -23,6 +23,7 @@ SHARED_NETWORK="supabase-shared"
 SHARED_POSTGRES_CONTAINER="shared-postgres"
 PROJECT_AUTH_CONTAINER="ai-employee-auth"
 PROJECT_KONG_CONTAINER="ai-employee-kong"
+PROJECT_REST_CONTAINER="ai-employee-rest"
 DB_NAME="ai_employee"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
 POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-54322}"
@@ -133,6 +134,8 @@ start_project_services() {
   docker compose -f "$DOCKER_DIR/supabase-services.yml" --env-file "$DOCKER_DIR/.env" up -d
   wait_healthy "$PROJECT_AUTH_CONTAINER" 60
   wait_healthy "$PROJECT_KONG_CONTAINER" 30
+  docker exec "$PROJECT_KONG_CONTAINER" kong reload 2>/dev/null || true
+  log_success "Kong reloaded (PostgREST DNS refreshed)"
 }
 
 print_status() {
@@ -162,7 +165,7 @@ main() {
     SHARED_RUNNING=true
   fi
 
-  if container_running "$PROJECT_AUTH_CONTAINER" && container_running "$PROJECT_KONG_CONTAINER"; then
+  if container_running "$PROJECT_AUTH_CONTAINER" && container_running "$PROJECT_KONG_CONTAINER" && container_running "$PROJECT_REST_CONTAINER"; then
     PROJECT_RUNNING=true
   fi
 

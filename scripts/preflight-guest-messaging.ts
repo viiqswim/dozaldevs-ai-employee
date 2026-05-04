@@ -274,16 +274,13 @@ async function main(): Promise<void> {
   // ─── Check 8 — Guest-messaging archetype in DB ───────────────────────────────
   section('Check 8 · Guest-Messaging Archetype');
   try {
-    const r = await fetch(
-      `${POSTGREST}/archetypes?id=eq.${ARCHETYPE_ID}&select=id,role_name,slug`,
-      {
-        headers: {
-          apikey: SUPABASE_SECRET_KEY,
-          Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
-        },
+    const r = await fetch(`${POSTGREST}/archetypes?id=eq.${ARCHETYPE_ID}&select=id,role_name`, {
+      headers: {
+        apikey: SUPABASE_SECRET_KEY,
+        Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
       },
-    );
-    const rows = (await r.json()) as Array<{ id: string; role_name: string; slug: string }>;
+    });
+    const rows = (await r.json()) as Array<{ id: string; role_name: string }>;
     if (Array.isArray(rows) && rows.length > 0) {
       checkPass('Guest-messaging archetype exists', rows[0].role_name);
     } else {
