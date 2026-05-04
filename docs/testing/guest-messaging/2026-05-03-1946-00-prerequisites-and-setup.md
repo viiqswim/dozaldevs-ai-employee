@@ -22,6 +22,22 @@
 
 ---
 
+## Automated Preflight Script
+
+Instead of running each step manually, use the preflight script to check everything at once:
+
+```bash
+npx tsx scripts/preflight-guest-messaging.ts
+```
+
+The script checks all prerequisites below, reports ✅/❌ for each, and auto-fixes what it can (storing the Hostfully API key as a tenant secret and registering the Hostfully webhook). If all checks pass, you're ready to test.
+
+> **Note**: The smoke test (Step 13) creates a real task with a `preflight-{timestamp}` message UID. Cancel it in the Inngest dashboard at `http://localhost:8288` if you don't want it to run through the full lifecycle.
+
+If any checks fail, the script prints actionable next steps. You can also follow the manual steps below for detailed troubleshooting.
+
+---
+
 ## Step 1 — Verify Environment Variables
 
 Open `.env` and confirm every variable below is set (non-empty). These are validated at `pnpm dev:local` startup.
