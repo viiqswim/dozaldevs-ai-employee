@@ -84,7 +84,7 @@ COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/
 COPY --from=builder /build/src/worker-tools/slack/post-message.ts /tools/slack/post-message.ts
 RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
 
-RUN mkdir -p /tools/hostfully
+RUN mkdir -p /tools/hostfully/fixtures/get-messages /tools/hostfully/fixtures/get-reservations /tools/hostfully/fixtures/get-property
 COPY --from=builder /build/src/worker-tools/hostfully/validate-env.ts /tools/hostfully/validate-env.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-property.ts /tools/hostfully/get-property.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-properties.ts /tools/hostfully/get-properties.ts
@@ -92,6 +92,9 @@ COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools
 COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-reviews.ts /tools/hostfully/get-reviews.ts
 COPY --from=builder /build/src/worker-tools/hostfully/send-message.ts /tools/hostfully/send-message.ts
+COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-messages/default.json /tools/hostfully/fixtures/get-messages/default.json
+COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-reservations/default.json /tools/hostfully/fixtures/get-reservations/default.json
+COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-property/default.json /tools/hostfully/fixtures/get-property/default.json
 
 RUN mkdir -p /tools/platform
 COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/platform/report-issue.ts
