@@ -327,7 +327,7 @@ async function main() {
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
     '- classification, confidence, reasoning, draftResponse, summary, category, conversationSummary, urgency (original 8 fields)\n' +
-    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid, threadUid, messageUid (new guest context fields)\n' +
+    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (= reservationId from Step 1 output — these are the same value), threadUid, messageUid (new guest context fields)\n' +
     '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
     'Post the rich approval card for PM review.\n' +

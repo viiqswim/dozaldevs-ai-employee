@@ -3,7 +3,7 @@ import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-cli
 import { resolveAgentsMd } from './lib/agents-md-resolver.mjs';
 import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager } from './lib/session-manager.js';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 
 const log = createLogger('opencode-harness');
 
@@ -337,16 +337,11 @@ async function runOpencodeSession(
 }
 
 async function runDeliveryPhase(
-  archetype: ArchetypeRow,
+  _archetype: ArchetypeRow,
   taskId: string,
   logger: typeof log,
 ): Promise<void> {
-  if (!archetype.delivery_instructions) {
-    logger.info({ taskId }, 'Archetype missing delivery_instructions — marking Failed');
-    await markFailed('Archetype missing delivery_instructions', null);
-    return;
-  }
-
+  // 1. Fetch the deliverable content
   const rows = await db.get(
     'deliverables',
     `external_ref=eq.${taskId}&select=*&order=created_at.desc&limit=1`,
@@ -360,27 +355,100 @@ async function runDeliveryPhase(
   }
 
   const approvedContent = (deliverable.content as string) ?? '';
-  const instructions = `APPROVED CONTENT TO DELIVER:\n${approvedContent}\n\n${archetype.delivery_instructions}`;
 
-  logger.info({ taskId }, 'Starting delivery-phase OpenCode session');
-
+  // 2. Parse the approved content JSON
+  let contentData: Record<string, unknown>;
   try {
-    await runOpencodeSession(
-      archetype.system_prompt ?? '',
-      instructions,
-      archetype.model ?? 'minimax/minimax-m2.7',
-    );
-  } catch (err) {
-    logger.error({ taskId, err }, '[opencode-harness] Delivery-phase OpenCode session failed');
-    await markFailed(err instanceof Error ? err.message : String(err), null);
-    throw err;
+    contentData = JSON.parse(approvedContent) as Record<string, unknown>;
+  } catch {
+    logger.warn({ taskId }, 'Approved content is not JSON — treating as plain text, skipping send');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile('/tmp/summary.txt', approvedContent, 'utf8');
+    await db.patch('tasks', `id=eq.${taskId}`, {
+      status: 'Done',
+      updated_at: new Date().toISOString(),
+    });
+    return;
   }
+
+  // 3. Extract threads to send
+  //    a) { threads_processed: [...] } array
+  //    b) Single thread object with { leadUid, threadUid, draftResponse, classification }
+  const threads: Array<{
+    leadUid?: string;
+    threadUid?: string;
+    draftResponse?: string;
+    classification?: string;
+  }> = [];
+
+  if (Array.isArray(contentData.threads_processed)) {
+    for (const t of contentData.threads_processed as Array<Record<string, unknown>>) {
+      threads.push({
+        leadUid: (t.leadUid ?? t.reservationId) as string | undefined, // reservationId IS the lead UID
+        threadUid: t.threadUid as string | undefined,
+        draftResponse: t.draftResponse as string | undefined,
+        classification: t.classification as string | undefined,
+      });
+    }
+  } else if (contentData.draftResponse) {
+    // Single thread
+    threads.push({
+      leadUid: (contentData.leadUid ?? contentData.reservationId) as string | undefined, // reservationId IS the lead UID
+      threadUid: contentData.threadUid as string | undefined,
+      draftResponse: contentData.draftResponse as string | undefined,
+      classification: contentData.classification as string | undefined,
+    });
+  }
+
+  // 4. Send messages for NEEDS_APPROVAL threads
+  const results: Array<{ leadUid: string; sent: boolean; error?: string }> = [];
+
+  for (const thread of threads) {
+    if (!thread.leadUid || !thread.draftResponse) {
+      logger.warn({ taskId, thread }, 'Thread missing leadUid or draftResponse — skipping');
+      continue;
+    }
+    // Only send for NEEDS_APPROVAL (skip NO_ACTION_NEEDED)
+    if (thread.classification && thread.classification !== 'NEEDS_APPROVAL') {
+      logger.info(
+        { taskId, leadUid: thread.leadUid, classification: thread.classification },
+        'Skipping non-NEEDS_APPROVAL thread',
+      );
+      continue;
+    }
+
+    try {
+      const args = [
+        '--lead-id',
+        thread.leadUid,
+        '--message',
+        thread.draftResponse,
+        ...(thread.threadUid ? ['--thread-id', thread.threadUid] : []),
+      ];
+      // Escape args for shell
+      const escapedArgs = args.map((a) => JSON.stringify(a)).join(' ');
+      const cmd = `tsx /tools/hostfully/send-message.ts ${escapedArgs}`;
+      logger.info({ taskId, leadUid: thread.leadUid, cmd }, 'Sending message to guest');
+      const output = execSync(cmd, { encoding: 'utf8', timeout: 30000 });
+      logger.info({ taskId, leadUid: thread.leadUid, output }, 'Message sent successfully');
+      results.push({ leadUid: thread.leadUid, sent: true });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error({ taskId, leadUid: thread.leadUid, err: errMsg }, 'Failed to send message');
+      results.push({ leadUid: thread.leadUid, sent: false, error: errMsg });
+    }
+  }
+
+  // 5. Write summary and mark Done
+  const { writeFile } = await import('node:fs/promises');
+  const summary = JSON.stringify({ delivered: results, taskId }, null, 2);
+  await writeFile('/tmp/summary.txt', summary, 'utf8');
 
   await db.patch('tasks', `id=eq.${taskId}`, {
     status: 'Done',
     updated_at: new Date().toISOString(),
   });
-  logger.info({ taskId }, 'Task status → Done');
+  logger.info({ taskId, results }, 'Delivery phase complete — task Done');
 
   await db.post('status_transitions', {
     task_id: taskId,
