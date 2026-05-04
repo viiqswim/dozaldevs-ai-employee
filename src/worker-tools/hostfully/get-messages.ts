@@ -111,12 +111,14 @@ async function main(): Promise<void> {
 
   if (help) {
     process.stdout.write(
-      'Usage: node get-messages.js --property-id <uid> [--unresponded-only] [--limit <n>]\n\n' +
+      'Usage: node get-messages.js [--property-id <uid>] [--unresponded-only] [--limit <n>]\n\n' +
         'Fetches guest message threads for a Hostfully property from the unified inbox.\n' +
         'Note: Hostfully aggregates messages from all booking channels (Airbnb, VRBO, etc.)\n' +
         'into a unified inbox. This tool fetches conversations for all active reservations.\n\n' +
         'Options:\n' +
-        '  --property-id <uid>    (required) Property UID to fetch messages for\n' +
+        '  --property-id <uid>    (optional) Property UID to fetch messages for.\n' +
+        '                         If omitted, fetches messages across all properties using\n' +
+        '                         the HOSTFULLY_AGENCY_UID environment variable.\n' +
         '  --unresponded-only     Filter to threads where the last message is from the guest\n' +
         '                         (host has not yet replied). Useful for identifying conversations\n' +
         '                         that need attention.\n' +
@@ -139,14 +141,19 @@ async function main(): Promise<void> {
         'Default behavior: returns threads for all BOOKING-type leads with check-in\n' +
         'within the last 30 days or upcoming. Excludes calendar blocks and inquiries.\n\n' +
         'Environment variables:\n' +
-        '  HOSTFULLY_API_KEY    (required) Hostfully API key\n' +
-        '  HOSTFULLY_API_URL    (optional) Base API URL (default: https://api.hostfully.com/api/v3.2)\n',
+        '  HOSTFULLY_API_KEY      (required) Hostfully API key\n' +
+        '  HOSTFULLY_AGENCY_UID   (required when --property-id is omitted) Agency UID for listing all properties\n' +
+        '  HOSTFULLY_API_URL      (optional) Base API URL (default: https://api.hostfully.com/api/v3.2)\n',
     );
     process.exit(0);
   }
 
-  if (!propertyId) {
-    process.stderr.write('Error: --property-id argument is required\n');
+  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'] ?? '';
+
+  if (!propertyId && !agencyUid) {
+    process.stderr.write(
+      'Error: either --property-id argument or HOSTFULLY_AGENCY_UID environment variable is required\n',
+    );
     process.exit(1);
   }
 
@@ -162,7 +169,9 @@ async function main(): Promise<void> {
 
   // Fetch leads: last 30 days and upcoming
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const queryBase = `${baseUrl}/leads?propertyUid=${encodeURIComponent(propertyId)}&checkInFrom=${thirtyDaysAgo}`;
+  const queryBase = propertyId
+    ? `${baseUrl}/leads?propertyUid=${encodeURIComponent(propertyId)}&checkInFrom=${thirtyDaysAgo}`
+    : `${baseUrl}/leads?agencyUid=${encodeURIComponent(agencyUid)}&checkInFrom=${thirtyDaysAgo}`;
 
   // Cursor-dedup pagination loop (same pattern as get-reservations.ts)
   const seenUids = new Set<string>();

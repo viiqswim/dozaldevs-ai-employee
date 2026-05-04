@@ -176,6 +176,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         );
         await prismaClient.$disconnect();
 
+        const rawEvent = (taskData.raw_event as Record<string, string> | null) ?? {};
+        const rawEventEnv: Record<string, string> = {};
+        if (rawEvent.property_uid) rawEventEnv['PROPERTY_UID'] = rawEvent.property_uid;
+        if (rawEvent.lead_uid) rawEventEnv['LEAD_UID'] = rawEvent.lead_uid;
+        if (rawEvent.thread_uid) rawEventEnv['THREAD_UID'] = rawEvent.thread_uid;
+        if (rawEvent.message_uid) rawEventEnv['MESSAGE_UID'] = rawEvent.message_uid;
+
         const runtime = (archetype.runtime as string | null) ?? 'generic-harness';
         const cmd =
           runtime === 'opencode'
@@ -292,6 +299,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             name: `employee-${taskId.slice(0, 8)}`,
             env: {
               ...tenantEnv,
+              ...rawEventEnv,
               TASK_ID: taskId,
               TENANT_ID: tenantId,
               ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
@@ -316,6 +324,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           cmd,
           env: {
             ...tenantEnv,
+            ...rawEventEnv,
             TASK_ID: taskId,
             TENANT_ID: tenantId,
             ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',

@@ -274,7 +274,7 @@ async function main() {
     'NOTE: Process ONE message per task. The trigger layer handles batching.\n\n' +
     'Run the following steps to process guest messages:\n\n' +
     'STEP 1: Fetch unresponded guest messages.\n' +
-    'Run: tsx /tools/hostfully/get-messages.ts --unresponded-only\n' +
+    'Run: tsx /tools/hostfully/get-messages.ts --property-id "$PROPERTY_UID" --unresponded-only\n' +
     'Output is a JSON array of message threads. ' +
     'If the output is an empty array or contains no messages, write "NO_ACTION_NEEDED: No unresponded guest messages found." to /tmp/summary.txt and stop.\n\n' +
     'STEP 2: For each unresponded message thread, gather context.\n' +
