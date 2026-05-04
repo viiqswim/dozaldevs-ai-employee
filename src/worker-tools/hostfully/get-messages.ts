@@ -71,12 +71,14 @@ type ThreadSummary = {
 
 function parseArgs(argv: string[]): {
   propertyId: string;
+  leadId: string;
   unrespondedOnly: boolean;
   limit: number;
   help: boolean;
 } {
   const args = argv.slice(2);
   let propertyId = '';
+  let leadId = '';
   let unrespondedOnly = false;
   let limit = 30;
   let help = false;
@@ -84,6 +86,8 @@ function parseArgs(argv: string[]): {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--property-id' && args[i + 1]) {
       propertyId = args[++i];
+    } else if (args[i] === '--lead-id' && args[i + 1]) {
+      leadId = args[++i];
     } else if (args[i] === '--unresponded-only') {
       unrespondedOnly = true;
     } else if (args[i] === '--limit' && args[i + 1]) {
@@ -93,7 +97,7 @@ function parseArgs(argv: string[]): {
     }
   }
 
-  return { propertyId, unrespondedOnly, limit, help };
+  return { propertyId, leadId, unrespondedOnly, limit, help };
 }
 
 function formatGuestName(
@@ -107,18 +111,21 @@ function formatGuestName(
 }
 
 async function main(): Promise<void> {
-  const { propertyId, unrespondedOnly, limit, help } = parseArgs(process.argv);
+  const { propertyId, leadId, unrespondedOnly, limit, help } = parseArgs(process.argv);
 
   if (help) {
     process.stdout.write(
-      'Usage: node get-messages.js [--property-id <uid>] [--unresponded-only] [--limit <n>]\n\n' +
+      'Usage: node get-messages.js [--lead-id <uid> | --property-id <uid>] [--unresponded-only] [--limit <n>]\n\n' +
         'Fetches guest message threads for a Hostfully property from the unified inbox.\n' +
         'Note: Hostfully aggregates messages from all booking channels (Airbnb, VRBO, etc.)\n' +
         'into a unified inbox. This tool fetches conversations for all active reservations.\n\n' +
         'Options:\n' +
+        '  --lead-id <uid>        Fetch messages for a single lead/reservation thread.\n' +
+        '                         Mutually exclusive with --property-id.\n' +
         '  --property-id <uid>    (optional) Property UID to fetch messages for.\n' +
         '                         If omitted, fetches messages across all properties using\n' +
         '                         the HOSTFULLY_AGENCY_UID environment variable.\n' +
+        '                         Mutually exclusive with --lead-id.\n' +
         '  --unresponded-only     Filter to threads where the last message is from the guest\n' +
         '                         (host has not yet replied). Useful for identifying conversations\n' +
         '                         that need attention.\n' +
@@ -148,11 +155,16 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  if (leadId && propertyId) {
+    process.stderr.write('Error: --lead-id and --property-id are mutually exclusive\n');
+    process.exit(1);
+  }
+
   const agencyUid = process.env['HOSTFULLY_AGENCY_UID'] ?? '';
 
-  if (!propertyId && !agencyUid) {
+  if (!leadId && !propertyId && !agencyUid) {
     process.stderr.write(
-      'Error: either --property-id argument or HOSTFULLY_AGENCY_UID environment variable is required\n',
+      'Error: either --lead-id or --property-id argument or HOSTFULLY_AGENCY_UID environment variable is required\n',
     );
     process.exit(1);
   }
@@ -166,6 +178,55 @@ async function main(): Promise<void> {
   const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
 
   const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
+
+  // --- Single-lead path (--lead-id) ---
+  if (leadId) {
+    const leadRes = await fetch(`${baseUrl}/leads/${encodeURIComponent(leadId)}`, { headers });
+    if (!leadRes.ok) {
+      process.stderr.write(`Error: Failed to fetch lead ${leadId}: ${leadRes.status}\n`);
+      process.exit(1);
+    }
+    const lead = (await leadRes.json()) as RawLead;
+
+    const messagesUrl = `${baseUrl}/messages?leadUid=${encodeURIComponent(leadId)}&_limit=${encodeURIComponent(String(limit))}`;
+    const msgRes = await fetch(messagesUrl, { headers });
+    if (!msgRes.ok) {
+      process.stderr.write(
+        `Error: Failed to fetch messages for lead ${leadId}: ${msgRes.status}\n`,
+      );
+      process.exit(1);
+    }
+    const msgJson = (await msgRes.json()) as { messages?: RawMessage[] };
+    const rawMessages = msgJson.messages ?? [];
+
+    const threads: ThreadSummary[] = [];
+
+    if (rawMessages.length > 0) {
+      const sorted = [...rawMessages].sort((a, b) =>
+        (a.createdUtcDateTime ?? '').localeCompare(b.createdUtcDateTime ?? ''),
+      );
+      const lastMessage = sorted[sorted.length - 1];
+      const unresponded = lastMessage?.senderType === 'GUEST';
+
+      const messages: MessageSummary[] = sorted.map((m) => ({
+        text: m.content?.text ?? null,
+        sender: m.senderType === 'GUEST' ? 'guest' : m.senderType === 'AGENCY' ? 'host' : null,
+        timestamp: m.createdUtcDateTime ?? null,
+      }));
+
+      threads.push({
+        reservationId: lead.uid,
+        guestName: formatGuestName(lead.guestInformation),
+        channel: lead.channel ?? null,
+        unresponded,
+        messages,
+      });
+    }
+
+    const results = unrespondedOnly ? threads.filter((t) => t.unresponded) : threads;
+    process.stdout.write(JSON.stringify(results) + '\n');
+    return;
+  }
 
   // Fetch leads: last 30 days and upcoming
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
