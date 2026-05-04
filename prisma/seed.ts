@@ -3324,7 +3324,7 @@ No specific house rules provided.
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
       risk_model: { approval_required: true, timeout_hours: 24 },
-      notification_channel: null,
+      notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
@@ -3354,7 +3354,7 @@ No specific house rules provided.
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
       risk_model: { approval_required: true, timeout_hours: 24 },
-      notification_channel: null,
+      notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:

@@ -166,10 +166,14 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
 
         const prismaClient = new PrismaClient();
-        const tenantEnv = await loadTenantEnv(tenantId, {
-          tenantRepo: new TenantRepository(prismaClient),
-          secretRepo: new TenantSecretRepository(prismaClient),
-        });
+        const tenantEnv = await loadTenantEnv(
+          tenantId,
+          {
+            tenantRepo: new TenantRepository(prismaClient),
+            secretRepo: new TenantSecretRepository(prismaClient),
+          },
+          (archetype.notification_channel as string | null) ?? null,
+        );
         await prismaClient.$disconnect();
 
         const runtime = (archetype.runtime as string | null) ?? 'generic-harness';
