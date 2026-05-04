@@ -25,6 +25,8 @@ export async function startOpencodeServer(
   const cwd = options?.cwd ?? '/workspace';
   const healthTimeoutMs = options?.healthTimeoutMs ?? 30000;
 
+  let listeningDetected = false;
+
   return new Promise<OpencodeServerHandle | null>((resolve) => {
     const childProcess = spawn(
       'opencode',
@@ -42,14 +44,12 @@ export async function startOpencodeServer(
 
     let resolved = false;
     const timers = {
-      pollInterval: undefined as ReturnType<typeof setInterval> | undefined,
       timeoutHandle: undefined as ReturnType<typeof setTimeout> | undefined,
     };
 
     const resolveOnce = (value: OpencodeServerHandle | null) => {
       if (resolved) return;
       resolved = true;
-      if (timers.pollInterval !== undefined) clearInterval(timers.pollInterval);
       if (timers.timeoutHandle !== undefined) clearTimeout(timers.timeoutHandle);
       resolve(value);
     };
@@ -140,7 +140,18 @@ export async function startOpencodeServer(
         log.info(`[opencode-server:stdout] ${line}`);
       }
       if (text.includes('listening')) {
+        listeningDetected = true;
         startKeepaliveOnce();
+        setTimeout(() => {
+          const handle: OpencodeServerHandle = {
+            process: childProcess,
+            url: `http://localhost:${port}`,
+            kill: async () => stopOpencodeServer(handle),
+            onExit,
+            stopKeepalive,
+          };
+          resolveOnce(handle);
+        }, 200);
       }
     });
 
@@ -154,7 +165,9 @@ export async function startOpencodeServer(
     childProcess.on('exit', (code) => {
       log.warn(`[opencode-server] opencode serve exited with code ${code}`);
       onExitResolve(code);
-      resolveOnce(null);
+      if (!listeningDetected) {
+        resolveOnce(null);
+      }
     });
 
     childProcess.on('error', (err) => {
@@ -170,31 +183,6 @@ export async function startOpencodeServer(
     };
     process.on('exit', exitCleanup);
     process.on('SIGTERM', exitCleanup);
-
-    timers.pollInterval = setInterval(() => {
-      void (async () => {
-        try {
-          const response = await fetch(`http://localhost:${port}/global/health`);
-          if (response.ok) {
-            const data = (await response.json()) as { healthy?: boolean };
-            if (data.healthy === true) {
-              startKeepaliveOnce();
-
-              const handle: OpencodeServerHandle = {
-                process: childProcess,
-                url: `http://localhost:${port}`,
-                kill: async () => stopOpencodeServer(handle),
-                onExit,
-                stopKeepalive,
-              };
-              resolveOnce(handle);
-            }
-          }
-        } catch {
-          // not ready yet
-        }
-      })();
-    }, 100);
 
     timers.timeoutHandle = setTimeout(() => {
       log.warn(
