@@ -397,7 +397,7 @@ src/
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared (12 files): fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version
-prisma/           # Schema (19 models), 18 migrations, seed
+prisma/           # Schema (24 models), 28 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 docker/           # Supabase self-hosted Docker Compose
 docs/             # Architecture vision, phase docs, troubleshooting
