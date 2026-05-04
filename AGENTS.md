@@ -46,6 +46,7 @@ One employee is active; one is deprecated and on hold:
 
 1. **Engineering** ⚠️ **DEPRECATED — ON HOLD** — receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode, delivers a GitHub pull request. Do not add features or fix bugs in engineering-specific files. See Deprecated Components table.
 2. **Summarizer (Papi Chulo)** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
+3. **Guest-Messaging (VLRE)** — receives Hostfully `NEW_INBOX_MESSAGE` webhooks, fetches unresponded guest messages via Hostfully API, drafts replies using AI, posts a Slack approval card for PM review, delivers approved reply to guest via Hostfully. Rejects are stored as learned rules.
 
 **Stack**: TypeScript · Express · Inngest · Prisma · Docker · Supabase (PostgREST)
 
@@ -70,8 +71,12 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — create a timed passcode
   - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
+- **OpenCode version — CRITICAL**: Pinned to `1.14.31` (`opencode-linux-${ARCH}@1.14.31` native binary in Docker image). Version `1.14.33` has a confirmed 6-second exit regression (session bootstrap failure). **Never upgrade without explicit testing.**
+- **`USE_LOCAL_DOCKER` flag**: Set programmatically by `dev-start.ts` (line 329) — the `.env` value is always overridden. Do not rely on `.env` to control local vs Fly.io dispatch.
+- **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
+- **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
-- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`
+- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`, `trigger/unresponded-message-monitor` (cron `*/30 * * * *`, `src/inngest/triggers/monitor-trigger.ts`), `trigger/learned-rules-expiry` (cron `0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts` — maintenance only, no task dispatch)
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
 - **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
@@ -261,6 +266,49 @@ curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-0000000
 ```
 
 **When writing diagnostic/preflight scripts**: Check `GET /admin/tenants/:id/secrets` for `is_set: true` — do NOT check `.env` for these values. The system never reads them from `.env`.
+
+## Guest-Messaging Employee (VLRE)
+
+- **Archetype ID**: `00000000-0000-0000-0000-000000000015`
+- **Tenant**: VLRE (`00000000-0000-0000-0000-000000000003`)
+- **role_name**: `guest-messaging` · **model**: `minimax/minimax-m2.7` · **approval_required**: true, timeout_hours: 24
+- **Notification channel**: `C0960S2Q8RL` · **concurrency_limit**: 5
+- **Trigger**: Hostfully webhook only — `POST /webhooks/hostfully` (`src/gateway/routes/hostfully.ts`)
+- **Dedup key**: `external_id: hostfully-msg-{message_uid}` — duplicate webhook → 200 + `{ duplicate: true }` (no new task)
+- **No HMAC verification** on the Hostfully webhook — Zod schema validation only
+
+**Inbound flow**:
+
+```
+Hostfully NEW_INBOX_MESSAGE webhook
+  → POST /webhooks/hostfully
+    → match tenant by agency_uid (tenant.config.guest_messaging.hostfully_agency_uid)
+    → find archetype by { tenant_id, role_name: 'guest-messaging' }
+    → prisma.task.create → inngest.send('employee/task.dispatched')
+      → universal lifecycle → local Docker / Fly.io worker → OpenCode
+        → model calls get-messages.ts --unresponded-only (Hostfully API)
+        → NEEDS_APPROVAL → post-guest-approval.ts → Slack card → PM approves → send-message.ts → Hostfully
+        → NO_ACTION_NEEDED → task goes to Submitting → auto-completes
+```
+
+**CRITICAL gotcha — webhook is a trigger only**: The model independently polls Hostfully for ALL unresponded messages via `get-messages.ts --unresponded-only`. The `message_uid`/`thread_uid` from the webhook payload is stored in `raw_event` but NOT passed to the model. If no unresponded messages exist in Hostfully at execution time, the model returns `NO_ACTION_NEEDED` regardless of the webhook payload.
+
+**Simulate a webhook locally** (no auth required — no HMAC on this endpoint):
+
+```bash
+curl -X POST http://localhost:7700/webhooks/hostfully \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agency_uid": "942d08d9-82bb-4fd3-9091-ca0c6b50b578",
+    "event_type": "NEW_INBOX_MESSAGE",
+    "message_uid": "test-msg-001",
+    "thread_uid": "2f18249a-9523-4acd-a512-20ff06d5c3fa",
+    "lead_uid": "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb",
+    "property_uid": "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2"
+  }'
+```
+
+`message_uid` must be unique per request (dedup key). For a real E2E test, there must be an actual unresponded message in Hostfully first — otherwise the model returns `NO_ACTION_NEEDED`.
 
 ## Admin API
 
