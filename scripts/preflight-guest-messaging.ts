@@ -102,7 +102,7 @@ ${C.bold}Usage:${C.reset}
   npx tsx scripts/preflight-guest-messaging.ts --help
 
 ${C.bold}What it checks:${C.reset}
-  1.  Environment variables (13 required vars)
+  1.  Environment variables (11 required vars)
   2.  Docker daemon running
   3.  cloudflared on PATH
   4.  Cloudflare tunnel config exists (~/.cloudflared/ai-employee-local.yml)
@@ -110,9 +110,9 @@ ${C.bold}What it checks:${C.reset}
   6.  Cloudflare tunnel reachable (local-ai-employee.dozaldevs.com)
   7.  VLRE tenant in DB
   8.  Guest-messaging archetype in DB
-  9.  Hostfully API key stored as tenant secret (auto-fixes if missing)
+  9.  Hostfully tenant secrets in DB (hostfully_api_key + hostfully_agency_uid; auto-fixes agency UID)
   10. VLRE Slack OAuth connected
-  11. Hostfully webhook registered (auto-registers if missing)
+  11. Hostfully webhook registered (auto-registers if missing; skipped if HOSTFULLY_API_KEY not in .env)
   12. Webhook receiver smoke test
 
 ${C.bold}Exit codes:${C.reset}
@@ -133,16 +133,15 @@ async function main(): Promise<void> {
 
   const TENANT_ID = '00000000-0000-0000-0000-000000000003';
   const ARCHETYPE_ID = '00000000-0000-0000-0000-000000000015';
-  const AGENCY_UID = '942d08d9-82bb-4fd3-9091-ca0c6b50b578';
   const GATEWAY = 'http://localhost:7700';
   const POSTGREST = `${getEnv('SUPABASE_URL') || 'http://localhost:54331'}/rest/v1`;
   const HOSTFULLY_BASE = 'https://api.hostfully.com/api/v3.2';
 
   const ADMIN_API_KEY = getEnv('ADMIN_API_KEY');
   const SUPABASE_SECRET_KEY = getEnv('SUPABASE_SECRET_KEY');
-  const HOSTFULLY_API_KEY = getEnv('HOSTFULLY_API_KEY');
-  const HOSTFULLY_AGENCY_UID = getEnv('HOSTFULLY_AGENCY_UID');
   const WEBHOOK_PUBLIC_URL = getEnv('WEBHOOK_PUBLIC_URL');
+
+  let agencyUid = '';
 
   // ─── Check 1 — Env vars present ─────────────────────────────────────────────
   section('Check 1 · Environment Variables');
@@ -157,8 +156,6 @@ async function main(): Promise<void> {
     'SLACK_APP_TOKEN',
     'SLACK_SIGNING_SECRET',
     'OPENROUTER_API_KEY',
-    'HOSTFULLY_API_KEY',
-    'HOSTFULLY_AGENCY_UID',
     'WEBHOOK_PUBLIC_URL',
   ];
   const missing: string[] = [];
@@ -172,7 +169,7 @@ async function main(): Promise<void> {
     }
   }
   if (missing.length === 0) {
-    checkPass('All 13 required env vars present');
+    checkPass('All 11 required env vars present');
   } else {
     checkFail(`${missing.length} env var(s) missing`, missing.join(', '));
   }
@@ -296,8 +293,8 @@ async function main(): Promise<void> {
     checkFail('Could not query archetypes', e instanceof Error ? e.message : String(e));
   }
 
-  // ─── Check 9 — Hostfully API key as tenant secret (with auto-fix) ────────────
-  section('Check 9 · Hostfully API Key (Tenant Secret)');
+  // ─── Check 9 — Hostfully tenant secrets in DB ────────────────────────────────
+  section('Check 9 · Hostfully Tenant Secrets');
   try {
     const r = await fetch(`${GATEWAY}/admin/tenants/${TENANT_ID}/secrets`, {
       headers: { 'X-Admin-Key': ADMIN_API_KEY },
@@ -306,30 +303,90 @@ async function main(): Promise<void> {
       secrets?: Array<{ key: string; is_set: boolean }>;
     };
     const secrets = body.secrets ?? [];
-    const hasKey = secrets.some((s) => s.key === 'hostfully_api_key');
-    if (hasKey) {
-      checkPass('hostfully_api_key stored as tenant secret');
-    } else if (HOSTFULLY_API_KEY) {
-      // Auto-fix: store it
-      warn('hostfully_api_key not stored — auto-fixing...');
-      const putR = await fetch(`${GATEWAY}/admin/tenants/${TENANT_ID}/secrets/hostfully_api_key`, {
-        method: 'PUT',
-        headers: {
-          'X-Admin-Key': ADMIN_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ value: HOSTFULLY_API_KEY }),
-      });
-      if (putR.ok) {
-        checkFixed('hostfully_api_key auto-stored as tenant secret');
-      } else {
-        checkFail('Auto-fix failed — could not store hostfully_api_key', `status=${putR.status}`);
-      }
+
+    const apiKeyEntry = secrets.find((s) => s.key === 'hostfully_api_key');
+    let apiKeyOk = apiKeyEntry?.is_set === true;
+    if (apiKeyOk) {
+      ok('hostfully_api_key stored');
     } else {
-      checkFail(
-        'hostfully_api_key not stored and HOSTFULLY_API_KEY not in .env',
-        'Add HOSTFULLY_API_KEY to .env and re-run',
+      fail(
+        'hostfully_api_key not stored',
+        `Store via: curl -X PUT ${GATEWAY}/admin/tenants/${TENANT_ID}/secrets/hostfully_api_key` +
+          ` -H "X-Admin-Key: <ADMIN_API_KEY>" -H "Content-Type: application/json"` +
+          ` -d '{"value":"<your-hostfully-api-key>"}'`,
       );
+    }
+
+    const agencyUidEntry = secrets.find((s) => s.key === 'hostfully_agency_uid');
+    let agencyUidOk = agencyUidEntry?.is_set === true;
+    let anyFixed = false;
+    if (agencyUidOk) {
+      ok('hostfully_agency_uid stored');
+    } else {
+      warn('hostfully_agency_uid not stored — attempting auto-fix from tenant config...');
+      try {
+        const cfgR = await fetch(`${POSTGREST}/tenants?id=eq.${TENANT_ID}&select=config`, {
+          headers: {
+            apikey: SUPABASE_SECRET_KEY,
+            Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+          },
+        });
+        const cfgRows = (await cfgR.json()) as Array<{
+          config: { guest_messaging?: { hostfully_agency_uid?: string } };
+        }>;
+        const uid = cfgRows[0]?.config?.guest_messaging?.hostfully_agency_uid ?? '';
+        if (uid) {
+          const putR = await fetch(
+            `${GATEWAY}/admin/tenants/${TENANT_ID}/secrets/hostfully_agency_uid`,
+            {
+              method: 'PUT',
+              headers: { 'X-Admin-Key': ADMIN_API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: uid }),
+            },
+          );
+          if (putR.ok) {
+            agencyUid = uid;
+            agencyUidOk = true;
+            anyFixed = true;
+            fixed('hostfully_agency_uid auto-stored from tenant config');
+          } else {
+            fail('Auto-fix failed for hostfully_agency_uid', `status=${putR.status}`);
+          }
+        } else {
+          fail(
+            'hostfully_agency_uid not found in tenant config',
+            'Check tenant.config.guest_messaging.hostfully_agency_uid in DB',
+          );
+        }
+      } catch (e) {
+        fail(
+          'Could not fetch tenant config for agency UID',
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+
+    if (agencyUidOk && !agencyUid) {
+      try {
+        const cfgR = await fetch(`${POSTGREST}/tenants?id=eq.${TENANT_ID}&select=config`, {
+          headers: {
+            apikey: SUPABASE_SECRET_KEY,
+            Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+          },
+        });
+        const cfgRows = (await cfgR.json()) as Array<{
+          config: { guest_messaging?: { hostfully_agency_uid?: string } };
+        }>;
+        agencyUid = cfgRows[0]?.config?.guest_messaging?.hostfully_agency_uid ?? '';
+      } catch {}
+    }
+
+    if (apiKeyOk && agencyUidOk && anyFixed) {
+      checkFixed('Hostfully tenant secrets verified (agency UID auto-stored)');
+    } else if (apiKeyOk && agencyUidOk) {
+      checkPass('Hostfully tenant secrets verified');
+    } else {
+      checkFail('Hostfully tenant secrets incomplete — see details above');
     }
   } catch (e) {
     checkFail('Could not check tenant secrets', e instanceof Error ? e.message : String(e));
@@ -362,63 +419,91 @@ async function main(): Promise<void> {
 
   // ─── Check 11 — Hostfully webhook registered (with auto-fix) ─────────────────
   section('Check 11 · Hostfully Webhook');
+  const hostfullyApiKey = getEnv('HOSTFULLY_API_KEY');
   const targetUrl = `${WEBHOOK_PUBLIC_URL}/webhooks/hostfully`;
-  if (!HOSTFULLY_API_KEY || !HOSTFULLY_AGENCY_UID) {
-    checkFail('Cannot check Hostfully webhook — HOSTFULLY_API_KEY or HOSTFULLY_AGENCY_UID missing');
-  } else {
-    try {
-      const r = await fetch(`${HOSTFULLY_BASE}/webhooks?agencyUid=${HOSTFULLY_AGENCY_UID}`, {
-        headers: {
-          'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
-          'Content-Type': 'application/json',
-        },
-      });
-      const body = (await r.json()) as {
-        webhooks?: Array<{ eventType: string; callbackUrl: string }>;
-      };
-      const webhooks = body.webhooks ?? [];
-      const exact = webhooks.find(
-        (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl === targetUrl,
-      );
-      const wrongUrl = webhooks.find(
-        (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl !== targetUrl,
-      );
 
-      if (exact) {
-        checkPass('Hostfully webhook registered', targetUrl);
-      } else if (wrongUrl) {
-        warn(`Webhook exists but points to wrong URL: ${wrongUrl.callbackUrl}`);
-        warn(`Expected: ${targetUrl}`);
-        checkFail(
-          'Hostfully webhook points to wrong URL',
-          'Delete old webhook in Hostfully dashboard and re-run',
-        );
-      } else {
-        // Auto-fix: register webhook
-        warn('Hostfully webhook not found — auto-registering...');
-        const postR = await fetch(`${HOSTFULLY_BASE}/webhooks`, {
-          method: 'POST',
+  if (!hostfullyApiKey) {
+    warn('HOSTFULLY_API_KEY not in .env — skipping live webhook verification');
+    warn('Add it to .env as a developer convenience to enable this check');
+    checkPass('Hostfully webhook check skipped (secret stored in DB — see Check 9)');
+  } else if (!WEBHOOK_PUBLIC_URL) {
+    checkFail('Cannot check Hostfully webhook — WEBHOOK_PUBLIC_URL missing');
+  } else {
+    if (!agencyUid) {
+      try {
+        const cfgR = await fetch(`${POSTGREST}/tenants?id=eq.${TENANT_ID}&select=config`, {
           headers: {
-            'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
+            apikey: SUPABASE_SECRET_KEY,
+            Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+          },
+        });
+        const cfgRows = (await cfgR.json()) as Array<{
+          config: { guest_messaging?: { hostfully_agency_uid?: string } };
+        }>;
+        agencyUid = cfgRows[0]?.config?.guest_messaging?.hostfully_agency_uid ?? '';
+      } catch {}
+    }
+
+    if (!agencyUid) {
+      warn('Agency UID unavailable — skipping live Hostfully API call');
+      checkFail('Cannot check Hostfully webhook — agency UID could not be resolved');
+    } else {
+      try {
+        const r = await fetch(`${HOSTFULLY_BASE}/webhooks?agencyUid=${agencyUid}`, {
+          headers: {
+            'X-HOSTFULLY-APIKEY': hostfullyApiKey,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            agencyUid: HOSTFULLY_AGENCY_UID,
-            eventType: 'NEW_INBOX_MESSAGE',
-            callbackUrl: targetUrl,
-            webhookType: 'POST_JSON',
-            objectUid: HOSTFULLY_AGENCY_UID,
-          }),
         });
-        if (postR.ok) {
-          checkFixed('Hostfully webhook auto-registered', targetUrl);
+        const body = (await r.json()) as {
+          webhooks?: Array<{ eventType: string; callbackUrl: string }>;
+        };
+        const webhooks = body.webhooks ?? [];
+        const exact = webhooks.find(
+          (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl === targetUrl,
+        );
+        const wrongUrl = webhooks.find(
+          (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl !== targetUrl,
+        );
+
+        if (exact) {
+          checkPass('Hostfully webhook registered', targetUrl);
+        } else if (wrongUrl) {
+          warn(`Webhook exists but points to wrong URL: ${wrongUrl.callbackUrl}`);
+          warn(`Expected: ${targetUrl}`);
+          checkFail(
+            'Hostfully webhook points to wrong URL',
+            'Delete old webhook in Hostfully dashboard and re-run',
+          );
         } else {
-          const errBody = await postR.text();
-          checkFail('Auto-registration failed', `status=${postR.status} ${errBody.slice(0, 100)}`);
+          warn('Hostfully webhook not found — auto-registering...');
+          const postR = await fetch(`${HOSTFULLY_BASE}/webhooks`, {
+            method: 'POST',
+            headers: {
+              'X-HOSTFULLY-APIKEY': hostfullyApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              agencyUid,
+              eventType: 'NEW_INBOX_MESSAGE',
+              callbackUrl: targetUrl,
+              webhookType: 'POST_JSON',
+              objectUid: agencyUid,
+            }),
+          });
+          if (postR.ok) {
+            checkFixed('Hostfully webhook auto-registered', targetUrl);
+          } else {
+            const errBody = await postR.text();
+            checkFail(
+              'Auto-registration failed',
+              `status=${postR.status} ${errBody.slice(0, 100)}`,
+            );
+          }
         }
+      } catch (e) {
+        checkFail('Could not check Hostfully webhooks', e instanceof Error ? e.message : String(e));
       }
-    } catch (e) {
-      checkFail('Could not check Hostfully webhooks', e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -430,7 +515,7 @@ async function main(): Promise<void> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        agency_uid: AGENCY_UID,
+        agency_uid: agencyUid,
         event_type: 'NEW_INBOX_MESSAGE',
         message_uid: messageUid,
         thread_uid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
