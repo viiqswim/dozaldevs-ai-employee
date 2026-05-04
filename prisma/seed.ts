@@ -155,6 +155,25 @@ async function main() {
     'xoxb-6661458697890-9224761438049-WvI5MGhekSqT5XYs03esTvxN',
   );
 
+  await prisma.tenantIntegration.upsert({
+    where: {
+      tenant_id_provider: { tenant_id: '00000000-0000-0000-0000-000000000003', provider: 'slack' },
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000031',
+      tenant_id: '00000000-0000-0000-0000-000000000003',
+      provider: 'slack',
+      external_id: 'T06KFDGLHS6',
+      status: 'active',
+    },
+    update: {
+      external_id: 'T06KFDGLHS6',
+      status: 'active',
+      deleted_at: null,
+    },
+  });
+  console.log('✅ TenantIntegration upserted: VLRE Slack (T06KFDGLHS6)');
+
   const [agentVersion, project] = await prisma.$transaction([
     prisma.agentVersion.upsert({
       where: { id: '00000000-0000-0000-0000-000000000002' },
