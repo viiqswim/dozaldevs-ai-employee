@@ -234,6 +234,34 @@ Use these VLRE resources for all Hostfully-related testing:
 | Property     | `https://platform.hostfully.com/app/#/property/c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                     |
 | Property UID | `c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                                                                   |
 
+## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
+
+Hostfully credentials are **tenant-level secrets stored in the database**, not `.env` variables. The `tenant-env-loader.ts` auto-uppercases and injects all `tenant_secrets` rows into the worker machine env — no code changes needed when adding new secrets.
+
+| Value                  | Correct Location                                                                                                                        | Never Do                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `HOSTFULLY_API_KEY`    | `tenant_secrets` row with `key = 'hostfully_api_key'`                                                                                   | Put in `.env` as a system requirement    |
+| `HOSTFULLY_AGENCY_UID` | `tenant_secrets` row with `key = 'hostfully_agency_uid'` AND `tenant.config.guest_messaging.hostfully_agency_uid` (for webhook routing) | Hardcode in scripts or require in `.env` |
+| `WEBHOOK_PUBLIC_URL`   | `.env` only — legitimate exception (global developer config for one-time webhook registration, not per-tenant)                          | Store in tenant_secrets                  |
+
+**How injection works**: `tenant-env-loader.ts` calls `secretRepo.getMany(tenantId)` and runs `env[key.toUpperCase()] = value` for every secret. Result: `hostfully_api_key` → `HOSTFULLY_API_KEY` in machine env, `hostfully_agency_uid` → `HOSTFULLY_AGENCY_UID`. No whitelist. Any key stored in `tenant_secrets` is automatically injected.
+
+**Provisioning commands**:
+
+```bash
+# Store Hostfully API key for VLRE
+curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/hostfully_api_key" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"value":"<your-key>"}'
+
+# Store agency UID for VLRE (value already seeded in tenant config)
+curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/hostfully_agency_uid" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"value":"942d08d9-82bb-4fd3-9091-ca0c6b50b578"}'
+```
+
+**When writing diagnostic/preflight scripts**: Check `GET /admin/tenants/:id/secrets` for `is_set: true` — do NOT check `.env` for these values. The system never reads them from `.env`.
+
 ## Admin API
 
 Two commonly used endpoints for triggering employees and checking status:
