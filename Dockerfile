@@ -82,6 +82,8 @@ COPY src/workers/config/agents.md /app/AGENTS.md
 RUN mkdir -p /tools/slack
 COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/read-channels.ts
 COPY --from=builder /build/src/worker-tools/slack/post-message.ts /tools/slack/post-message.ts
+COPY --from=builder /build/src/worker-tools/slack/post-guest-approval.ts /tools/slack/post-guest-approval.ts
+COPY --from=builder /build/src/worker-tools/slack/post-no-action-notification.ts /tools/slack/post-no-action-notification.ts
 RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
 
 RUN mkdir -p /tools/hostfully/fixtures/get-messages /tools/hostfully/fixtures/get-reservations /tools/hostfully/fixtures/get-property
