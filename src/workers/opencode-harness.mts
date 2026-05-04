@@ -144,9 +144,20 @@ async function writeOpencodeAuth(): Promise<void> {
 
   const configDir = join(process.cwd(), '.opencode');
   await mkdir(configDir, { recursive: true });
-  const configJson = JSON.stringify({ permission: { '*': 'allow', question: 'deny' } }, null, 2);
+  const configJson = JSON.stringify(
+    { permission: { '*': 'allow', question: 'deny' }, autoupdate: false },
+    null,
+    2,
+  );
   await writeFile(join(configDir, 'opencode.json'), configJson, 'utf8');
   log.info('[opencode-harness] opencode.json permission config written');
+
+  // Also write global config to prevent auto-update at the global level
+  const globalConfigDir = join(homedir(), '.config', 'opencode');
+  await mkdir(globalConfigDir, { recursive: true });
+  const globalConfigJson = JSON.stringify({ autoupdate: false }, null, 2);
+  await writeFile(join(globalConfigDir, 'opencode.json'), globalConfigJson, 'utf8');
+  log.info('[opencode-harness] global opencode.json written (autoupdate: false)');
 }
 
 async function runOpencodeSession(

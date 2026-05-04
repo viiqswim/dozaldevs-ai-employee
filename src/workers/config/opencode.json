@@ -1,3 +1,4 @@
 {
-  "permission": { "*": "allow", "question": "deny" }
+  "permission": { "*": "allow", "question": "deny" },
+  "autoupdate": false
 }
