@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 export interface PendingApproval {
   id: string;
   tenantId: string;
@@ -69,6 +71,7 @@ export async function trackPendingApproval(
       Prefer: 'resolution=merge-duplicates',
     },
     body: JSON.stringify({
+      id: randomUUID(),
       tenant_id: data.tenantId,
       thread_uid: data.threadUid,
       task_id: data.taskId,

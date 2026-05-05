@@ -200,7 +200,10 @@ async function runOpencodeSession(
 
     log.info({ taskId: TASK_ID, sessionId }, 'OpenCode session created — injecting prompt');
 
-    await sessionManager.injectTaskPrompt(sessionId, fullPrompt);
+    const injected = await sessionManager.injectTaskPrompt(sessionId, fullPrompt);
+    if (!injected) {
+      throw new Error('[opencode-harness] Failed to inject prompt into OpenCode session');
+    }
 
     log.info({ taskId: TASK_ID, sessionId }, 'Prompt injected — monitoring for completion');
 
@@ -404,16 +407,10 @@ async function main(): Promise<void> {
       return;
     }
 
-    // 5. Mark task Done + log status transition
+    // 5. Mark task Done
     await db.patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Done',
       updated_at: new Date().toISOString(),
-    });
-    await db.post('status_transitions', {
-      task_id: TASK_ID,
-      from_status: 'Delivering',
-      to_status: 'Done',
-      created_at: new Date().toISOString(),
     });
     log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
     await fireCompletionEvent(TASK_ID);
