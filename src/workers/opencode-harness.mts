@@ -3,7 +3,6 @@ import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-cli
 import { resolveAgentsMd } from './lib/agents-md-resolver.mjs';
 import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager } from './lib/session-manager.js';
-import { spawn } from 'child_process';
 
 const log = createLogger('opencode-harness');
 
@@ -47,7 +46,7 @@ const db: PostgRESTClient = createPostgRESTClient();
 
 type ServerHandle = { kill: () => Promise<void> };
 let serverHandleGlobal: ServerHandle | null = null;
-let opencodeRunPid: number | null = null;
+const opencodeRunPid: number | null = null;
 
 process.on('SIGTERM', () => {
   log.warn({ taskId: TASK_ID }, '[opencode-harness] SIGTERM received — marking task Failed');
