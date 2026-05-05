@@ -1004,6 +1004,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           if (deliveryFinalStatus === 'Done' && approvalMsgTs && targetChannel) {
             const sentText = `✅ Sent to guest at ${new Date().toISOString()}`;
+            log.info({ taskId }, 'State: Done');
             try {
               await slackClient.updateMessage(targetChannel, approvalMsgTs, sentText, [
                 { type: 'section', text: { type: 'mrkdwn', text: sentText } },
@@ -1076,10 +1077,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           // Store rejection reason in feedback table (in addition to task metadata)
           if (rejectionReason) {
             try {
-              await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+              const now = new Date().toISOString();
+              const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
+                  id: crypto.randomUUID(),
                   task_id: taskId,
                   feedback_type: 'rejection_reason',
                   correction_reason: rejectionReason,
@@ -1087,62 +1090,22 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   tenant_id: tenantId,
                   original_decision: null,
                   corrected_decision: null,
+                  updated_at: now,
                 }),
               });
-              log.info({ taskId }, 'Rejection reason stored in feedback table');
+              if (!feedbackRes.ok) {
+                const body = await feedbackRes.text();
+                log.warn(
+                  { taskId, status: feedbackRes.status, body },
+                  'Failed to store rejection reason in feedback table (non-fatal)',
+                );
+              } else {
+                log.info({ taskId }, 'Rejection reason stored in feedback table');
+              }
             } catch (err) {
               log.warn(
                 { taskId, err },
                 'Failed to store rejection reason in feedback table (non-fatal)',
-              );
-            }
-          }
-
-          // Set rejection feedback flags so interaction handler can route replies as rejection_reason
-          try {
-            const currentMetaRes = await fetch(
-              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-              { headers },
-            );
-            const currentMetaRows = (await currentMetaRes.json()) as Array<{
-              metadata: Record<string, unknown> | null;
-            }>;
-            const currentMeta = currentMetaRows[0]?.metadata ?? {};
-            await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-              method: 'PATCH',
-              headers,
-              body: JSON.stringify({
-                metadata: {
-                  ...currentMeta,
-                  rejection_feedback_requested: true,
-                  rejection_user_id: actorUserId,
-                },
-                updated_at: new Date().toISOString(),
-              }),
-            });
-            log.info({ taskId, actorUserId }, 'Rejection feedback flags set in task metadata');
-          } catch (err) {
-            log.warn({ taskId, err }, 'Failed to set rejection feedback flags (non-fatal)');
-          }
-
-          // Post thread reply in approval message thread asking for feedback
-          if (approvalMsgTs && targetChannel) {
-            try {
-              const feedbackPromptText = `Got it, <@${actorUserId}>. What should I have done differently? (Reply here — I'll learn from it.)`;
-              await slackClient.postMessage({
-                channel: targetChannel,
-                thread_ts: approvalMsgTs,
-                text: feedbackPromptText,
-                blocks: [
-                  { type: 'section', text: { type: 'mrkdwn', text: feedbackPromptText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
-              });
-              log.info({ taskId, approvalMsgTs }, 'Rejection feedback prompt posted in thread');
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Failed to post rejection feedback prompt (non-fatal)',
               );
             }
           }
@@ -1161,6 +1124,21 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          if (rejectionReason && approvalMsgTs && targetChannel) {
+            try {
+              const learnedText = `📝 Noted: "${rejectionReason}" — I'll apply this next time.`;
+              await slackClient.postMessage({
+                channel: targetChannel,
+                thread_ts: approvalMsgTs,
+                text: learnedText,
+                blocks: [{ type: 'section', text: { type: 'mrkdwn', text: learnedText } }],
+              });
+              log.info({ taskId }, 'Rejection acknowledgment posted in thread');
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to post rejection acknowledgment (non-fatal)');
+            }
+          }
+
           await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');

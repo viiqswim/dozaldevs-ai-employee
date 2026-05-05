@@ -39,7 +39,13 @@ interface ActionBody {
   message?: { ts: string };
 }
 
-async function isTaskAwaitingApproval(taskId: string): Promise<boolean> {
+const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
+const TERMINAL_STATUSES = new Set(['Done', 'Cancelled', 'Failed', 'Delivering']);
+
+async function isTaskAwaitingApproval(
+  taskId: string,
+  { maxRetries = 0, retryDelayMs = 2000 }: { maxRetries?: number; retryDelayMs?: number } = {},
+): Promise<boolean> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !supabaseKey) {
@@ -47,23 +53,36 @@ async function isTaskAwaitingApproval(taskId: string): Promise<boolean> {
     return true;
   }
 
-  try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-      },
-    });
-    const rows = (await res.json()) as Array<{ status: string }>;
-    if (!rows.length) {
-      log.warn({ taskId }, 'Task not found during idempotency check');
-      return false;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, retryDelayMs));
     }
-    return rows[0].status === 'Reviewing';
-  } catch (err) {
-    log.error({ taskId, err }, 'Failed to check task status — proceeding optimistically');
-    return true;
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      });
+      const rows = (await res.json()) as Array<{ status: string }>;
+      if (!rows.length) {
+        log.warn({ taskId }, 'Task not found during idempotency check');
+        return false;
+      }
+      const status = rows[0].status;
+      if (status === 'Reviewing') return true;
+      if (TERMINAL_STATUSES.has(status)) return false;
+      if (TRANSIENT_PRE_REVIEWING.has(status) && attempt < maxRetries) {
+        log.info({ taskId, status, attempt }, 'Task in transient state — waiting for Reviewing');
+        continue;
+      }
+      return false;
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to check task status — proceeding optimistically');
+      return true;
+    }
   }
+  return false;
 }
 
 async function isTaskPendingReplyAnyway(taskId: string): Promise<boolean> {
@@ -275,7 +294,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     );
 
     try {
-      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      const stillAwaiting = await isTaskAwaitingApproval(taskId, {
+        maxRetries: 10,
+        retryDelayMs: 2000,
+      });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate approve');
         try {
@@ -352,7 +374,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     );
 
     try {
-      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      const stillAwaiting = await isTaskAwaitingApproval(taskId, {
+        maxRetries: 10,
+        retryDelayMs: 2000,
+      });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject');
         try {
@@ -429,7 +454,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     );
 
     try {
-      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      const stillAwaiting = await isTaskAwaitingApproval(taskId, {
+        maxRetries: 10,
+        retryDelayMs: 2000,
+      });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate guest_approve');
         try {
@@ -577,7 +605,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const user = body.user;
 
     try {
-      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      const stillAwaiting = await isTaskAwaitingApproval(taskId, {
+        maxRetries: 10,
+        retryDelayMs: 2000,
+      });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate edit submit');
         return;
@@ -789,10 +820,50 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const user = body.user;
 
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: '⏳ Processing rejection...',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn({ taskId, updateErr }, 'Failed to show processing state (non-fatal)');
+      }
+    }
+
     try {
-      const stillAwaiting = await isTaskAwaitingApproval(taskId);
+      const stillAwaiting = await isTaskAwaitingApproval(taskId, {
+        maxRetries: 10,
+        retryDelayMs: 2000,
+      });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject submit');
+        if (channelId && messageTs) {
+          try {
+            await client.chat.update({
+              channel: channelId,
+              ts: messageTs,
+              text: '⚠️ This response has already been processed.',
+              blocks: [
+                {
+                  type: 'section',
+                  text: { type: 'mrkdwn', text: '⚠️ This response has already been processed.' },
+                },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ],
+            });
+          } catch (updateErr) {
+            log.warn(
+              { taskId, updateErr },
+              'Failed to update already-processed message (non-fatal)',
+            );
+          }
+        }
         return;
       }
 
@@ -808,27 +879,30 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         id: `employee-approval-${taskId}`,
       });
       log.info({ taskId, userId: user.id, hasReason: !!reason }, 'Rejection event sent');
-
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to process guest_reject_modal submission');
       if (channelId && messageTs) {
         try {
           await client.chat.update({
             channel: channelId,
             ts: messageTs,
-            text: '⏳ Processing rejection...',
+            text: '⚠️ Failed to process rejection. Please try again.',
             blocks: [
-              { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
+              },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ...GUEST_BUTTON_BLOCKS(taskId),
             ],
           });
         } catch (updateErr) {
           log.warn(
             { taskId, updateErr },
-            'Failed to update message after reject submit (non-fatal)',
+            'Failed to restore buttons after rejection error (non-fatal)',
           );
         }
       }
-    } catch (err) {
-      log.error({ taskId, err }, 'Failed to process guest_reject_modal submission');
     }
   });
 
