@@ -908,25 +908,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('rule_confirm', async ({ ack, body }) => {
+  boltApp.action('rule_confirm', async ({ ack, body, client }) => {
+    await ack();
     const actionBody = body as ActionBody;
     const ruleId = actionBody.actions[0]?.value;
     const user = actionBody.user;
-    if (!ruleId) {
-      await ack();
-      return;
+    const channel = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+    if (!ruleId) return;
+    if (channel && messageTs) {
+      await client.chat.update({
+        channel,
+        ts: messageTs,
+        text: `✅ Rule confirmed by <@${user.id}>`,
+        blocks: [
+          { type: 'section', text: { type: 'mrkdwn', text: `✅ Rule confirmed by <@${user.id}>` } },
+          { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+        ],
+      });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
-      replace_original: true,
-      blocks: [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `✅ Rule confirmed by <@${user.id}>` },
-        },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
-      ],
-    });
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -946,25 +946,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('rule_reject', async ({ ack, body }) => {
+  boltApp.action('rule_reject', async ({ ack, body, client }) => {
+    await ack();
     const actionBody = body as ActionBody;
     const ruleId = actionBody.actions[0]?.value;
     const user = actionBody.user;
-    if (!ruleId) {
-      await ack();
-      return;
+    const channel = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+    if (!ruleId) return;
+    if (channel && messageTs) {
+      await client.chat.update({
+        channel,
+        ts: messageTs,
+        text: `❌ Rule rejected by <@${user.id}>`,
+        blocks: [
+          { type: 'section', text: { type: 'mrkdwn', text: `❌ Rule rejected by <@${user.id}>` } },
+          { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+        ],
+      });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
-      replace_original: true,
-      blocks: [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `❌ Rule rejected by <@${user.id}>` },
-        },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
-      ],
-    });
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
