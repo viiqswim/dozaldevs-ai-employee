@@ -245,6 +245,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     }
 
+    const taskId = mention.thread_ts ? await findTaskIdByThreadTs(mention.thread_ts) : null;
+
     try {
       await inngest.send({
         name: 'employee/interaction.received',
@@ -254,7 +256,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           userId: mention.user,
           channelId: mention.channel,
           threadTs: mention.thread_ts,
-          taskId: undefined,
+          taskId: taskId ?? undefined,
           tenantId,
           team: mention.team,
         },
