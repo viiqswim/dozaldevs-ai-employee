@@ -102,10 +102,15 @@ function parseArgs(argv: string[]): NoActionParams {
 export function buildNoActionBlocks(params: NoActionParams): unknown[] {
   const confidencePct = Math.round(params.confidence * 100);
 
+  const normalizedMessage = params.originalMessage.replace(/\\n/g, '\n');
   const truncatedMessage =
-    params.originalMessage.length > 300
-      ? params.originalMessage.substring(0, 300) + '...'
-      : params.originalMessage;
+    normalizedMessage.length > 300
+      ? normalizedMessage.substring(0, 300) + '...'
+      : normalizedMessage;
+  const quotedMessage = truncatedMessage
+    .split('\n')
+    .map((line) => `>${line}`)
+    .join('\n');
 
   const blocks: unknown[] = [
     {
@@ -144,7 +149,7 @@ export function buildNoActionBlocks(params: NoActionParams): unknown[] {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Guest message:*\n>${truncatedMessage}`,
+        text: `*Guest message:*\n${quotedMessage}`,
       },
     },
     {
