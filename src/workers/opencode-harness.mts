@@ -416,6 +416,7 @@ async function main(): Promise<void> {
       created_at: new Date().toISOString(),
     });
     log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
+    await fireCompletionEvent(TASK_ID);
     return;
   }
 
