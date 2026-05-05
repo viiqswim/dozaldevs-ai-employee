@@ -63,7 +63,7 @@ if (args.includes('--help')) {
   log('  • Hostfully webhook auto-registration (non-fatal if missing secrets)');
   log('');
   log('Fly.io hybrid mode (USE_FLY_HYBRID=1 in .env):');
-  log('  • PostgREST quick tunnel is auto-started (cloudflared → localhost:54321)');
+  log('  • PostgREST quick tunnel is auto-started (cloudflared → localhost:54331)');
   log('  • TUNNEL_URL in .env is updated with the new trycloudflare.com URL');
   log('  • Gateway passes USE_FLY_HYBRID=1 so workers dispatch to Fly.io');
   log('');
@@ -304,9 +304,9 @@ if (resetFlag) {
   log('── Step 3: Resetting DB (--reset flag) ──');
   log('  Stopping Docker Compose and removing volumes...');
   $.verbose = true;
-  await $`docker compose -f docker/docker-compose.yml down -v`;
+  await $`docker compose -f docker/supabase-services.yml --env-file docker/.env down -v`;
   log('  Starting Docker Compose fresh...');
-  await $`docker compose -f docker/docker-compose.yml up -d`;
+  await $`docker compose -f docker/supabase-services.yml --env-file docker/.env up -d`;
   $.verbose = false;
 
   // Wait for PostgreSQL to be ready before running migrations
@@ -357,7 +357,8 @@ if (!existsSync('docker/.env')) {
 
 let servicesRunning = false;
 try {
-  const result = await $`docker compose -f docker/docker-compose.yml ps --format json`;
+  const result =
+    await $`docker compose -f docker/supabase-services.yml --env-file docker/.env ps --format json`;
   const containers = result.stdout.trim().split('\n').filter(Boolean);
   servicesRunning = containers.length > 0;
 } catch {
@@ -368,7 +369,7 @@ if (!servicesRunning) {
   info('Starting Docker Compose services...');
   try {
     $.verbose = true;
-    await $`docker compose -f docker/docker-compose.yml up -d`;
+    await $`docker compose -f docker/supabase-services.yml --env-file docker/.env up -d`;
     $.verbose = false;
     ok('Docker Compose services started');
   } catch {
@@ -408,12 +409,12 @@ try {
 log('');
 
 log('── Step 4b: Waiting for Docker Compose services (up to 120s) ──');
-const supabaseReady = await waitForHttp('http://localhost:54321/rest/v1/', 120_000);
+const supabaseReady = await waitForHttp('http://localhost:54331/rest/v1/', 120_000);
 if (!supabaseReady) {
   fail('Docker Compose services did not become healthy after 120s');
   process.exit(1);
 }
-ok('Docker Compose services healthy at http://localhost:54321');
+ok('Docker Compose services healthy at http://localhost:54331');
 log('');
 
 // ─────────────────────────────────────────────────────
@@ -443,7 +444,7 @@ if (process.env.USE_FLY_HYBRID === '1') {
     const postgrestTunnelLog = '/tmp/postgrest-tunnel.log';
     const tunnelLogStream = fs.createWriteStream(postgrestTunnelLog);
 
-    const postgrestProc = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:54321'], {
+    const postgrestProc = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:54331'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
     });
@@ -701,7 +702,7 @@ log('');
 log('╔══════════════════════════════════════════════════╗');
 log('║      Local Full-Stack Environment Ready         ║');
 log('╚══════════════════════════════════════════════════╝');
-log(`  PostgREST:  http://localhost:54321`);
+log(`  PostgREST:  http://localhost:54331`);
 log(`  Studio:     http://localhost:54323`);
 log(`  Inngest:    http://localhost:8288`);
 log(`  Gateway:    http://localhost:${GATEWAY_PORT}`);
