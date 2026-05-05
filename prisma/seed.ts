@@ -3238,7 +3238,7 @@ No specific house rules provided.
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'You will receive the approved deliverable content below. Post the approved summary to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean field.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -3256,7 +3256,7 @@ No specific house rules provided.
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'You will receive the approved deliverable content below. Post the approved summary to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean field.',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
   });
@@ -3283,7 +3283,7 @@ No specific house rules provided.
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'You will receive the approved deliverable content below. Post the approved summary to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean field.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -3301,7 +3301,7 @@ No specific house rules provided.
       concurrency_limit: 1,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved summary from the deliverable content. Post it to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons.',
+        'You will receive the approved deliverable content below. Post the approved summary to the publish channel as a clean published message without buttons: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$PUBLISH_CHANNEL" --text "<approved summary content>". Do not include approve/reject buttons. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean field.',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
   });
@@ -3340,7 +3340,7 @@ No specific house rules provided.
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid field from the JSON>" --thread-id "<threadUid field from the JSON, if present>" --message "<draftResponse field from the JSON>". Confirm delivery was successful.',
+        'You will receive the approved deliverable content below as JSON. Parse it to extract the leadUid, threadUid (if present), and draftResponse fields. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid>" --thread-id "<threadUid, if present>" --message "<draftResponse>". After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
     },
@@ -3370,7 +3370,7 @@ No specific house rules provided.
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'Read the approved response from the deliverable content. The deliverable content is a JSON object with a draftResponse field. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid field from the JSON>" --thread-id "<threadUid field from the JSON, if present>" --message "<draftResponse field from the JSON>". Confirm delivery was successful.',
+        'You will receive the approved deliverable content below as JSON. Parse it to extract the leadUid, threadUid (if present), and draftResponse fields. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid>" --thread-id "<threadUid, if present>" --message "<draftResponse>". After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       department_id: '00000000-0000-0000-0000-000000000021',
       // NO tenant_id — immutable
     },
