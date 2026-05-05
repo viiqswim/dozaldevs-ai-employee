@@ -846,7 +846,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Error patching deliverable content with editedContent (non-fatal)',
               );
             }
-            await step.sendEvent('emit-edit-diff-rule-extract', {
+            await inngest.send({
               name: 'employee/rule.extract-requested',
               data: {
                 tenantId,
@@ -857,6 +857,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 content: null,
                 originalContent: originalDraft ?? '',
                 editedContent,
+                actorUserId,
+                approvalMsgTs,
+                targetChannel,
               },
             });
           }

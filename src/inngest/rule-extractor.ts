@@ -32,6 +32,9 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         content,
         originalContent,
         editedContent,
+        actorUserId,
+        approvalMsgTs,
+        targetChannel: payloadTargetChannel,
       } = payload;
 
       const supabaseUrl = process.env.SUPABASE_URL ?? '';
@@ -260,29 +263,12 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         log.info({ ruleId, tenantId, archetypeId }, 'Rule extraction complete — status: proposed');
       } else {
         await step.run('post-awaiting-input', async () => {
-          let threadTs: string | undefined;
-          if (taskId) {
-            try {
-              const taskRes = await fetch(
-                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-                { headers },
-              );
-              const taskRows = (await taskRes.json()) as Array<{
-                metadata: Record<string, unknown> | null;
-              }>;
-              const metadata = taskRows[0]?.metadata;
-              if (metadata && typeof metadata.approval_message_ts === 'string') {
-                threadTs = metadata.approval_message_ts;
-              }
-            } catch {
-              log.warn({ taskId }, 'Failed to fetch task metadata for thread_ts');
-            }
-          }
+          const threadTs = approvalMsgTs;
+          const channel = payloadTargetChannel ?? notificationChannel;
+          const userMention = actorUserId ? `<@${actorUserId}> ` : '';
+          const text = `${userMention}What should I learn from this change? (Reply here — I'll record it.)`;
 
-          const messagePayload: Record<string, unknown> = {
-            channel: notificationChannel,
-            text: "What should I learn from this change? (Reply here — I'll record it.)",
-          };
+          const messagePayload: Record<string, unknown> = { channel, text };
           if (threadTs) {
             messagePayload.thread_ts = threadTs;
           }

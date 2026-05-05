@@ -13,4 +13,7 @@ export interface RuleExtractRequestedPayload {
   originalContent?: string; // for edit_diff: the original draft
   editedContent?: string; // for edit_diff: the edited version
   source?: string; // 'thread_reply' | 'mention' — from interaction handler
+  actorUserId?: string; // Slack user ID of the person who triggered the event (e.g. made the edit)
+  approvalMsgTs?: string; // Slack ts of the approval card — thread the follow-up reply here
+  targetChannel?: string; // Slack channel ID where the approval card was posted
 }
