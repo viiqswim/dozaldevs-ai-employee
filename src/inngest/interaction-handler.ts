@@ -63,7 +63,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       if (!context) return;
 
       const awaitingInputRule = await step.run('detect-awaiting-input-rule', async () => {
-        if (source !== 'thread_reply' || !threadTs || !channelId) return null;
+        if (source !== 'thread_reply' || !taskId) return null;
 
         const supabaseUrl = process.env.SUPABASE_URL ?? '';
         const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
@@ -75,7 +75,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         };
 
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/learned_rules?status=eq.awaiting_input&slack_channel=eq.${channelId}&slack_ts=eq.${threadTs}&select=id,tenant_id,entity_type,entity_id,scope,source`,
+          `${supabaseUrl}/rest/v1/learned_rules?status=eq.awaiting_input&source_task_id=eq.${taskId}&select=id,tenant_id,entity_type,entity_id,scope,source`,
           { headers },
         );
         const rows = (await res.json()) as Array<{
