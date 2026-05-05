@@ -167,6 +167,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
               channel: channelId,
               text: `New behavioral rule proposed: ${text}`,
               blocks,
+              ...(threadTs ? { thread_ts: threadTs } : {}),
             }),
           });
           const slackData = (await slackRes.json()) as {
