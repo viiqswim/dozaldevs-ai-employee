@@ -547,6 +547,35 @@ Each property builds up institutional knowledge over time:
 
 Employees query this knowledge base before every task. The Pricing Analyst knows Unit 12's AC issues cause summer cancellations. The Guest Messaging employee knows this guest prefers text over app messages.
 
+#### 3.3.1 Smart Rule Extraction from Rejection Feedback (Planned Enhancement)
+
+When a PM rejects an employee's output and provides a reason, the platform currently stores the reason as raw text and posts a thread acknowledgment ("📝 Noted: ..."). Option B extends this into structured, reusable rules.
+
+**How it works**:
+
+1. PM rejects with reason: "Don't use emojis in guest messages — feels unprofessional"
+2. Lifecycle stores the reason in `feedback` table (already implemented)
+3. A rule-extraction step calls an LLM to distill the reason into a structured rule:
+   ```json
+   {
+     "rule": "Never use emojis in guest-facing messages",
+     "scope": "guest-messaging",
+     "tenant_id": "..."
+   }
+   ```
+4. Rule is saved to `knowledge_bases` for that tenant/employee
+5. A thread reply posts the extracted rule back to Slack: "📖 Rule saved: 'Never use emojis in guest messages'"
+6. On future tasks, the harness prepends active rules to the system prompt (existing `FEEDBACK_CONTEXT` mechanism)
+
+**Why it's deferred**: Requires modifying the rule extractor to accept a Slack reply target, plus async coordination between the rejection handler and the extraction job. The immediate value (raw reason stored + thread acknowledgment) is already delivered in Phase 1. Structured rule extraction is a Phase 3 enhancement that amplifies the existing feedback loop.
+
+**Implementation notes** (when ready):
+
+- Reuse the existing weekly `feedback-summarizer` rule-extraction LLM call, triggered on-demand instead of on a cron schedule
+- Pass `{ channel: targetChannel, thread_ts: approvalMsgTs }` to the extractor so it can post the result back
+- Scope rules by `employee_role` so guest-messaging rules don't bleed into summarizer behavior
+- The `FEEDBACK_CONTEXT` injection in `opencode-harness.mts` already propagates knowledge base content — no harness changes needed
+
 ### 3.4 PM Dashboard (v1)
 
 The web dashboard gives PMs the "operations control center" they need:
