@@ -279,16 +279,10 @@ async function main() {
     '  $PROPERTY_UID  — the property UID\n\n' +
     'Run the following steps to process the guest message:\n\n' +
     'STEP 1: Fetch the guest message thread.\n' +
-    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID"\n' +
-    'Output is a JSON array containing the message thread for this lead. ' +
-    'If the output is an empty array or contains no messages, this is an unexpected error (the webhook said a message exists). ' +
-    'Write "ERROR: get-messages returned empty result for lead $LEAD_UID — expected at least one message thread." to /tmp/summary.txt. ' +
-    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "Error processing guest message: get-messages returned empty result for lead $LEAD_UID" --task-id "$TASK_ID" > /tmp/approval-message.json\n' +
-    'Then stop.\n\n' +
-    'STEP 1.5: Already-responded guard.\n' +
-    'Inspect the messages array in the thread returned by Step 1. Identify the last (most recent) message in the thread.\n' +
-    'If the last message has sender "host" (senderType "AGENCY" maps to "host" in the output JSON), the thread has already been responded to. ' +
-    'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt and stop.\n\n' +
+    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --unresponded-only\n' +
+    'Output is a JSON array of unresponded threads (last message is from guest). ' +
+    'If the output is an empty array, the host has already responded — no action needed from the AI. ' +
+    'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt and stop. Do NOT post any Slack notification.\n\n' +
     'STEP 2: Gather context for the message thread.\n' +
     'Use the property_id from the message output.\n' +
     'Run: tsx /tools/hostfully/get-reservations.ts --property-id "<property-id>" --status confirmed\n' +
