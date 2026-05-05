@@ -304,7 +304,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
               source,
               status: 'awaiting_input',
               source_task_id: taskId ?? null,
-              slack_ts: data.ts ?? null,
+              slack_ts: threadTs ?? data.ts ?? null,
               slack_channel: data.channel ?? notificationChannel,
             }),
           });
