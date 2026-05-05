@@ -63,7 +63,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       if (!context) return;
 
       const awaitingInputRule = await step.run('detect-awaiting-input-rule', async () => {
-        if (source !== 'thread_reply' || !taskId) return null;
+        if (!taskId) return null;
 
         const supabaseUrl = process.env.SUPABASE_URL ?? '';
         const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
