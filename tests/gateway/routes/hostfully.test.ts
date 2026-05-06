@@ -13,6 +13,7 @@ function makeApp(
     tenantFindMany?: ReturnType<typeof vi.fn>;
     archetypeFindUnique?: ReturnType<typeof vi.fn>;
     taskCreate?: ReturnType<typeof vi.fn>;
+    taskFindFirst?: ReturnType<typeof vi.fn>;
     inngestClient?: { send: ReturnType<typeof vi.fn> };
   } = {},
 ) {
@@ -37,6 +38,7 @@ function makeApp(
         },
         task: {
           create: overrides.taskCreate ?? vi.fn().mockResolvedValue({ id: TASK_ID }),
+          findFirst: overrides.taskFindFirst ?? vi.fn().mockResolvedValue(null),
         },
       } as never,
       inngestClient: overrides.inngestClient,
@@ -200,5 +202,69 @@ describe('POST /webhooks/hostfully', () => {
         data: { taskId: TASK_ID, archetypeId: ARCHETYPE_ID },
       }),
     );
+  });
+
+  it('11. active task for same thread_uid → 200 active_task_exists, no task created', async () => {
+    const EXISTING_TASK_ID = 'existing-task-uuid';
+    const taskFindFirst = vi.fn().mockResolvedValue({ id: EXISTING_TASK_ID, status: 'Submitting' });
+    const taskCreate = vi.fn();
+    const app = makeApp({ taskFindFirst, taskCreate });
+    const res = await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload({ message_uid: 'echo-msg-002' }));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      active_task_exists: true,
+      existing_task_id: EXISTING_TASK_ID,
+    });
+    expect(taskCreate).not.toHaveBeenCalled();
+  });
+
+  it('12. no active task for thread_uid (findFirst returns null) → task created normally', async () => {
+    const taskFindFirst = vi.fn().mockResolvedValue(null);
+    const taskCreate = vi.fn().mockResolvedValue({ id: TASK_ID });
+    const app = makeApp({ taskFindFirst, taskCreate });
+    const res = await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, task_id: TASK_ID });
+    expect(taskCreate).toHaveBeenCalled();
+  });
+
+  it('13. findFirst queries with correct tenant, archetype, non-terminal status filter, and thread_uid path', async () => {
+    const taskFindFirst = vi.fn().mockResolvedValue(null);
+    const app = makeApp({ taskFindFirst });
+    await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload({ thread_uid: 'thread-specific-uid' }));
+    expect(taskFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenant_id: TENANT_ID,
+          archetype_id: ARCHETYPE_ID,
+          status: { notIn: ['Done', 'Failed', 'Cancelled'] },
+          raw_event: { path: ['thread_uid'], equals: 'thread-specific-uid' },
+        }),
+      }),
+    );
+  });
+
+  it('14. findFirst is always called when thread_uid is present (schema requires it)', async () => {
+    const taskFindFirst = vi.fn().mockResolvedValue(null);
+    const taskCreate = vi.fn().mockResolvedValue({ id: TASK_ID });
+    const app = makeApp({ taskFindFirst, taskCreate });
+    const res = await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload({ thread_uid: 'any-valid-thread-uid' }));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, task_id: TASK_ID });
+    expect(taskFindFirst).toHaveBeenCalled();
+    expect(taskCreate).toHaveBeenCalled();
   });
 });

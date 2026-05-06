@@ -76,7 +76,7 @@ describe('POST /webhooks/hostfully', () => {
     expect(task!.status).toBe('Ready');
   });
 
-  it('dedup: second identical request → duplicate: true, only 1 task row in DB', async () => {
+  it('dedup: second identical request → deduplicated (active_task_exists or duplicate), only 1 task row in DB', async () => {
     const firstRes = await app.inject({
       method: 'POST',
       url: '/webhooks/hostfully',
@@ -98,7 +98,9 @@ describe('POST /webhooks/hostfully', () => {
     expect(secondRes.statusCode).toBe(200);
     const secondJson = JSON.parse(secondRes.body);
     expect(secondJson.ok).toBe(true);
-    expect(secondJson.duplicate).toBe(true);
+    // Thread-level dedup fires first (active_task_exists) for same thread;
+    // message-level dedup (duplicate) fires as fallback for same message_uid.
+    expect(secondJson.active_task_exists ?? secondJson.duplicate).toBe(true);
 
     const count = await getPrisma().task.count({
       where: { external_id: 'hostfully-msg-test-msg-001' },
