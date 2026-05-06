@@ -16,6 +16,7 @@ interface NoActionParams {
   threadUid: string;
   messageUid: string;
   conversationSummary?: string;
+  threadTs?: string;
   dryRun: boolean;
 }
 
@@ -41,6 +42,7 @@ function parseArgs(argv: string[]): NoActionParams {
   let threadUid = '';
   let messageUid = '';
   let conversationSummary: string | undefined;
+  let threadTs: string | undefined;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -74,6 +76,8 @@ function parseArgs(argv: string[]): NoActionParams {
       messageUid = args[++i];
     } else if (args[i] === '--conversation-summary' && args[i + 1]) {
       conversationSummary = args[++i];
+    } else if (args[i] === '--thread-ts' && args[i + 1]) {
+      threadTs = args[++i];
     } else if (args[i] === '--dry-run') {
       dryRun = true;
     }
@@ -95,6 +99,7 @@ function parseArgs(argv: string[]): NoActionParams {
     threadUid,
     messageUid,
     conversationSummary,
+    threadTs,
     dryRun,
   };
 }
@@ -187,7 +192,7 @@ export function buildNoActionBlocks(params: NoActionParams): unknown[] {
   return blocks;
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const params = parseArgs(process.argv);
 
   const requiredStrings: Array<[string, string]> = [
@@ -237,6 +242,7 @@ async function main(): Promise<void> {
     channel: params.channel,
     text: `No action needed — ${params.propertyName} (${params.guestName})`,
     blocks: blocks as import('@slack/web-api').KnownBlock[],
+    ...(params.threadTs ? { thread_ts: params.threadTs } : {}),
   });
 
   if (!result.ok || !result.ts || !result.channel) {

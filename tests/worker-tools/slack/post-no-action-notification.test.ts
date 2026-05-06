@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { origArgv } = vi.hoisted(() => {
   const origArgv = [...process.argv];
@@ -44,7 +44,12 @@ vi.mock('@slack/web-api', () => ({
   })),
 }));
 
-import { buildNoActionBlocks } from '../../../src/worker-tools/slack/post-no-action-notification.js';
+import { WebClient } from '@slack/web-api';
+
+import {
+  buildNoActionBlocks,
+  main,
+} from '../../../src/worker-tools/slack/post-no-action-notification.js';
 
 const baseParams = {
   channel: 'C123',
@@ -178,6 +183,117 @@ describe('buildNoActionBlocks', () => {
     });
     const summaryBlocks = blocks.filter((b) => JSON.stringify(b).includes('Conversation Summary'));
     expect(summaryBlocks.length).toBe(0);
+  });
+});
+
+describe('--thread-ts flag', () => {
+  const baseArgv = [
+    'node',
+    'post-no-action-notification.ts',
+    '--channel',
+    'C-THREAD-TEST',
+    '--task-id',
+    'task-thread-test',
+    '--guest-name',
+    'Jane Guest',
+    '--property-name',
+    'Villa Test',
+    '--check-in',
+    '2026-05-01',
+    '--check-out',
+    '2026-05-05',
+    '--booking-channel',
+    'AIRBNB',
+    '--original-message',
+    'Got it thanks',
+    '--summary',
+    'Guest acknowledged check-in instructions',
+    '--confidence',
+    '0.9',
+    '--category',
+    'acknowledgment',
+    '--lead-uid',
+    'lead-thread',
+    '--thread-uid',
+    'thread-thread',
+    '--message-uid',
+    'msg-thread',
+  ];
+
+  let savedArgv: string[];
+  let savedToken: string | undefined;
+  let origWrite: typeof process.stdout.write;
+
+  beforeEach(() => {
+    savedArgv = [...process.argv];
+    savedToken = process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = 'test-token';
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+  });
+
+  afterEach(() => {
+    process.argv = savedArgv;
+    if (savedToken !== undefined) {
+      process.env.SLACK_BOT_TOKEN = savedToken;
+    } else {
+      delete process.env.SLACK_BOT_TOKEN;
+    }
+    process.stdout.write = origWrite;
+  });
+
+  // ─── 11. --thread-ts provided → postMessage receives thread_ts ───────────
+
+  it('calls postMessage with thread_ts when --thread-ts is provided', async () => {
+    const mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts2', channel: 'C2' });
+    vi.mocked(WebClient).mockImplementationOnce(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    process.argv = [...baseArgv, '--thread-ts', '1234.5678'];
+    await main();
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ thread_ts: '1234.5678' }),
+    );
+  });
+
+  // ─── 12. no --thread-ts → postMessage has no thread_ts ───────────────────
+
+  it('calls postMessage WITHOUT thread_ts when --thread-ts is not provided', async () => {
+    const mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts3', channel: 'C3' });
+    vi.mocked(WebClient).mockImplementationOnce(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    process.argv = [...baseArgv];
+    await main();
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ thread_ts: expect.anything() }),
+    );
+  });
+
+  // ─── 13. --thread-ts "" (empty) → postMessage has no thread_ts ───────────
+
+  it('calls postMessage WITHOUT thread_ts when --thread-ts is empty string', async () => {
+    const mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts4', channel: 'C4' });
+    vi.mocked(WebClient).mockImplementationOnce(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    process.argv = [...baseArgv, '--thread-ts', ''];
+    await main();
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ thread_ts: expect.anything() }),
+    );
   });
 });
 
