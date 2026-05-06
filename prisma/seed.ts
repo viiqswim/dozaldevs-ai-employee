@@ -314,6 +314,7 @@ async function main() {
     'If classification is NO_ACTION_NEEDED: write the classification JSON to /tmp/summary.txt. Then post a NO_ACTION_NEEDED notification card with Reply Anyway button:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-no-action-notification.ts \\\n' +
     '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
+    '  --thread-ts "$NOTIFY_MSG_TS" \\\n' +
     '  --task-id "$TASK_ID" \\\n' +
     '  --guest-name "<guestName from classification JSON>" \\\n' +
     '  --property-name "<propertyName from classification JSON>" \\\n' +
@@ -339,6 +340,7 @@ async function main() {
     'Post the rich approval card for PM review. Run this command EXACTLY ONCE — do NOT run it twice:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
     '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
+    '  --thread-ts "$NOTIFY_MSG_TS" \\\n' +
     '  --task-id "$TASK_ID" \\\n' +
     '  --guest-name "<guestName>" \\\n' +
     '  --property-name "<propertyName>" \\\n' +
