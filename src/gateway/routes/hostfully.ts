@@ -81,6 +81,38 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       return;
     }
 
+    // ── Thread-level dedup: prevent echo-loop ghost tasks ───────────────────
+    // Hostfully fires NEW_INBOX_MESSAGE for AI's own outgoing replies. Each echo
+    // has a unique message_uid (bypassing message-level dedup), but shares the
+    // same thread_uid. Block if an active task already exists for this thread.
+    if (payload.thread_uid) {
+      const activeTask = await prisma.task.findFirst({
+        where: {
+          tenant_id,
+          archetype_id: archetype.id,
+          status: { notIn: ['Done', 'Failed', 'Cancelled'] },
+          raw_event: {
+            path: ['thread_uid'],
+            equals: payload.thread_uid,
+          },
+        },
+        select: { id: true, status: true },
+      });
+
+      if (activeTask) {
+        logger.info(
+          {
+            thread_uid: payload.thread_uid,
+            existingTaskId: activeTask.id,
+            existingStatus: activeTask.status,
+          },
+          'Active task already exists for thread — skipping duplicate webhook',
+        );
+        res.json({ ok: true, active_task_exists: true, existing_task_id: activeTask.id });
+        return;
+      }
+    }
+
     let task: { id: string };
     try {
       task = await prisma.task.create({
