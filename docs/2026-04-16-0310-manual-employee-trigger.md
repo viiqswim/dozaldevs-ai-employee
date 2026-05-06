@@ -21,7 +21,7 @@ All requests require the `X-Admin-Key` header. The downstream flow is identical 
 
 ## Prerequisites
 
-- Services running: `pnpm dev:start`
+- Services running: `pnpm dev`
 - `ADMIN_API_KEY` in `.env`
 
 ---

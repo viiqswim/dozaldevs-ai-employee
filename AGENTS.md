@@ -72,7 +72,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31` (`opencode-linux-${ARCH}@1.14.31` native binary in Docker image). Version `1.14.33` has a confirmed 6-second exit regression (session bootstrap failure). **Never upgrade without explicit testing.**
-- **`USE_LOCAL_DOCKER` flag**: Set programmatically by `dev-start.ts` (line 329) — the `.env` value is always overridden. Do not rely on `.env` to control local vs Fly.io dispatch.
+- **`USE_LOCAL_DOCKER` flag**: Set programmatically by `dev.ts` — the `.env` value is always overridden. Do not rely on `.env` to control local vs Fly.io dispatch.
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
@@ -331,17 +331,16 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 ## Commands
 
-| Action                    | Command                            |
-| ------------------------- | ---------------------------------- |
-| First-time setup          | `pnpm setup`                       |
-| Start services            | `pnpm dev:start`                   |
-| Full local stack + tunnel | `pnpm dev:local`                   |
-| Run tests                 | `pnpm test -- --run`               |
-| Setup test DB             | `pnpm test:db:setup`               |
-| Lint                      | `pnpm lint`                        |
-| Build                     | `pnpm build`                       |
-| Trigger E2E task          | `pnpm trigger-task`                |
-| Verify E2E                | `pnpm verify:e2e --task-id <uuid>` |
+| Action           | Command                            |
+| ---------------- | ---------------------------------- |
+| First-time setup | `pnpm setup`                       |
+| Start services   | `pnpm dev`                         |
+| Run tests        | `pnpm test -- --run`               |
+| Setup test DB    | `pnpm test:db:setup`               |
+| Lint             | `pnpm lint`                        |
+| Build            | `pnpm build`                       |
+| Trigger E2E task | `pnpm trigger-task`                |
+| Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -441,7 +440,7 @@ See `.env.example` for the full list.
 
 **NEVER** run commands expected to take >30 seconds with a blocking shell call. Launch in a detached tmux session with output piped to a log file. Poll every 30–60 seconds.
 
-Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev:start`, `pnpm dev:local`, `docker build`, `fly logs`, `cloudflared tunnel`.
+Commands that ALWAYS require tmux: `pnpm trigger-task`, `pnpm dev`, `docker build`, `fly logs`, `cloudflared tunnel`.
 
 ```bash
 # Launch
@@ -503,7 +502,7 @@ The Slack app's redirect URI must be pre-registered and cannot be a `localhost` 
 
 **Named tunnel is already configured** at `~/.cloudflared/ai-employee-local.yml` → `tunnel: e160ac6d-2d7d-47c4-a552-b13700947d29`.
 
-**Preferred**: `pnpm dev:local` — starts the full stack including the named tunnel automatically.
+**Preferred**: `pnpm dev` — starts the full stack including the named tunnel automatically.
 
 **Manual**: `cloudflared tunnel --config ~/.cloudflared/ai-employee-local.yml run`
 

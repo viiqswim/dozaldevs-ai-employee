@@ -433,7 +433,7 @@ async function main(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     fail(`Network error reaching ${WEBHOOK_ENDPOINT}`);
     fail(`  ${msg}`);
-    fail('Is the gateway running? Start it with: pnpm dev:start');
+    fail('Is the gateway running? Start it with: pnpm dev');
     process.exit(1);
   }
 
@@ -560,7 +560,7 @@ async function main(): Promise<void> {
       consecutiveErrors++;
       if (consecutiveErrors >= 3) {
         fail('Failed to read task status from DB 3 times in a row');
-        fail('Check DATABASE_URL and that Supabase is running: pnpm dev:start');
+        fail('Check DATABASE_URL and that Supabase is running: pnpm dev');
         process.exit(1);
       }
       warn(`DB read failed (attempt ${consecutiveErrors}/3) — retrying...`);

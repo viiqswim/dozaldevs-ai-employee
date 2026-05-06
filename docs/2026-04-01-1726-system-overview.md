@@ -60,16 +60,16 @@ flowchart LR
 
 ## What Each Phase Built
 
-| Phase | Name                     | What It Added                                                                                                           | Key Files                                                                                                                                                                           |
-| ----- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                                  | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                                                                       |
-| 2     | Event Gateway            | Express server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                      |
-| 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                                 | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                                                           |
-| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/inngest/lifecycle.ts`                                                                                          |
-| 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                                 | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`                                              |
-| 6     | Completion & Delivery    | Validation pipeline (5 stages), fix loop, branch manager, PR manager, completion flow                                   | `src/workers/lib/validation-pipeline.ts`, `src/workers/lib/fix-loop.ts`, `src/workers/lib/pr-manager.ts`, `src/workers/lib/completion.ts`                                           |
-| 7     | Resilience               | Watchdog cron, redispatch function, token tracker, agent version tracking, Slack client                                 | `src/inngest/watchdog.ts`, `src/inngest/redispatch.ts`, `src/workers/lib/token-tracker.ts`                                                                                          |
-| 8     | E2E Validation           | Local Docker dispatch path, Supabase polling (replaces waitForEvent), zx TypeScript scripts, 7 infrastructure bug fixes | `scripts/dev-start.ts`, `scripts/verify-e2e.ts`, `scripts/setup.ts`, `scripts/trigger-task.ts`, fixes across `lifecycle.ts`, `completion.ts`, `session-manager.ts`, `entrypoint.sh` |
+| Phase | Name                     | What It Added                                                                                                           | Key Files                                                                                                                                                                     |
+| ----- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Foundation               | Prisma schema (16 tables), migrations, seed data, logger, test harness                                                  | `prisma/schema.prisma`, `prisma/seed.ts`, `src/lib/logger.ts`                                                                                                                 |
+| 2     | Event Gateway            | Express server, Jira webhook route with HMAC validation, task creation service, project lookup                          | `src/gateway/server.ts`, `src/gateway/routes/jira.ts`, `src/gateway/services/task-creation.ts`                                                                                |
+| 3     | Inngest Core             | Inngest client, lifecycle function skeleton, `engineering/task.received` event dispatch                                 | `src/gateway/inngest/send.ts`, `src/inngest/lifecycle.ts`                                                                                                                     |
+| 4     | Execution Infrastructure | Fly.io client, PostgREST client, cost gate, execution record creation, container dispatch path                          | `src/lib/fly-client.ts`, `src/workers/lib/postgrest-client.ts`, `src/inngest/lifecycle.ts`                                                                                    |
+| 5     | Execution Agent          | Worker entrypoint, orchestrate.mts, OpenCode server wrapper, session manager, heartbeat                                 | `src/workers/entrypoint.sh`, `src/workers/orchestrate.mts`, `src/workers/lib/opencode-server.ts`, `src/workers/lib/session-manager.ts`                                        |
+| 6     | Completion & Delivery    | Validation pipeline (5 stages), fix loop, branch manager, PR manager, completion flow                                   | `src/workers/lib/validation-pipeline.ts`, `src/workers/lib/fix-loop.ts`, `src/workers/lib/pr-manager.ts`, `src/workers/lib/completion.ts`                                     |
+| 7     | Resilience               | Watchdog cron, redispatch function, token tracker, agent version tracking, Slack client                                 | `src/inngest/watchdog.ts`, `src/inngest/redispatch.ts`, `src/workers/lib/token-tracker.ts`                                                                                    |
+| 8     | E2E Validation           | Local Docker dispatch path, Supabase polling (replaces waitForEvent), zx TypeScript scripts, 7 infrastructure bug fixes | `scripts/dev.ts`, `scripts/verify-e2e.ts`, `scripts/setup.ts`, `scripts/trigger-task.ts`, fixes across `lifecycle.ts`, `completion.ts`, `session-manager.ts`, `entrypoint.sh` |
 
 ---
 
@@ -150,8 +150,7 @@ The self-hosted [Supabase Docker Compose](../docker/docker-compose.yml) uses `${
 ### Start Everything at Once
 
 ```bash
-pnpm dev:start          # recommended — TypeScript version (scripts/dev-start.ts)
-./scripts/dev-start.sh  # bash original (preserved for reference)
+pnpm dev                # recommended — TypeScript version (scripts/dev.ts)
 ```
 
 Both scripts start Docker Compose services (PostgreSQL, PostgREST, Kong), wait for them to be healthy, start Inngest Dev Server, then start the gateway.

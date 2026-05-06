@@ -151,7 +151,7 @@ If both flags are set (`USE_FLY_HYBRID=1` AND `USE_LOCAL_DOCKER=1`), neither pat
 
 ```bash
 # Terminal 1 — local services
-pnpm dev:start
+pnpm dev
 # Starts Docker Compose (Supabase :54321/:54322), Inngest Dev Server (:8288), Gateway (:3000)
 
 # Terminal 2 — Cloudflare Tunnel
@@ -620,7 +620,7 @@ All three are registered via `serve({ client: inngest, functions: [lifecycleFn, 
 | Script              | Command                                                                                                | Purpose                                                              |
 | ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
 | `pnpm setup`        | `tsx scripts/setup.ts`                                                                                 | One-time setup: Docker Compose, migrations, seed, build Docker image |
-| `pnpm dev:start`    | `tsx scripts/dev-start.ts`                                                                             | Start Supabase + Inngest Dev Server + Gateway with health checks     |
+| `pnpm dev`          | `tsx scripts/dev.ts`                                                                                   | Start Supabase + Inngest Dev Server + Gateway with health checks     |
 | `pnpm trigger-task` | `tsx scripts/trigger-task.ts`                                                                          | Send mock Jira webhook, poll until terminal state                    |
 | `pnpm verify:e2e`   | `tsx scripts/verify-e2e.ts`                                                                            | 12-point integration verification                                    |
 | `pnpm fly:setup`    | `tsx scripts/fly-setup.ts`                                                                             | Create Fly.io worker app (one-time)                                  |
@@ -629,7 +629,7 @@ All three are registered via `serve({ client: inngest, functions: [lifecycleFn, 
 | `pnpm lint`         | `eslint .`                                                                                             | Lint check                                                           |
 | `pnpm build`        | `tsc -p tsconfig.build.json`                                                                           | TypeScript compile                                                   |
 
-### `pnpm dev:start` Sequence
+### `pnpm dev` Sequence
 
 1. Verify Docker daemon and Docker Compose
 2. Verify required env vars are set
