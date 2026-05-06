@@ -291,7 +291,7 @@ async function main(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     fail(`Cannot reach gateway at ${gatewayBase}`);
     fail(`  ${msg}`);
-    fail('Is it running? Start with: pnpm dev:start');
+    fail('Is it running? Start with: pnpm dev');
     process.exit(1);
   }
 

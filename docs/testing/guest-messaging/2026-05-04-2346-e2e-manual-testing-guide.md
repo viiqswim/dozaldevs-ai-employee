@@ -148,7 +148,7 @@ curl -s "http://localhost:54321/tenant_integrations?tenant_id=eq.00000000-0000-0
 
 If empty or null: re-run Slack OAuth.
 
-1. Make sure `pnpm dev:local` is running (needs the Cloudflare tunnel for the OAuth callback)
+1. Make sure `pnpm dev` is running (needs the Cloudflare tunnel for the OAuth callback)
 2. Open in browser: `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000003`
 3. Select the VLRE workspace (`vlreworkspace.slack.com`) and complete the flow
 4. Re-run the check above
@@ -255,16 +255,16 @@ tmux kill-session -t ai-dev 2>/dev/null
 # Start a new session
 tmux new-session -d -s ai-dev -x 220 -y 50
 tmux send-keys -t ai-dev \
-  "cd /Users/victordozal/repos/dozal-devs/ai-employee && pnpm dev:local 2>&1 | tee /tmp/ai-dev.log" \
+  "cd /Users/victordozal/repos/dozal-devs/ai-employee && pnpm dev 2>&1 | tee /tmp/ai-dev.log" \
   Enter
 
 # Watch the startup logs
 sleep 15 && tail -40 /tmp/ai-dev.log
 ```
 
-`pnpm dev:local` starts everything including the named Cloudflare tunnel (`local-ai-employee.dozaldevs.com → :7700`). The tunnel is required for Slack OAuth but not for sending test webhooks locally.
+`pnpm dev` starts everything including the named Cloudflare tunnel (`local-ai-employee.dozaldevs.com → :7700`). The tunnel is required for Slack OAuth but not for sending test webhooks locally.
 
-If you only need to test without Slack OAuth setup, you can use `pnpm dev:start` instead (no tunnel, no Docker build).
+If you don't need the tunnel, use `pnpm dev --no-tunnel --skip-build`.
 
 ---
 
@@ -927,7 +927,7 @@ done
    grep -i "socket mode" /tmp/ai-dev.log | tail -3
    ```
 
-   If missing, the gateway lost its WebSocket connection to Slack. Restart with `pnpm dev:local`.
+   If missing, the gateway lost its WebSocket connection to Slack. Restart with `pnpm dev`.
 
 2. Check gateway logs for authorization errors:
 

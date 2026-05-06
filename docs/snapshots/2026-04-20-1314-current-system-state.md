@@ -496,7 +496,7 @@ docker build -t ai-employee-worker:latest . && pnpm fly:image
 | Script                              | Command                          | Purpose                                                        |
 | ----------------------------------- | -------------------------------- | -------------------------------------------------------------- |
 | `setup.ts`                          | `pnpm setup`                     | One-time setup: Docker Compose, migrations, seed, Docker image |
-| `dev-start.ts`                      | `pnpm dev:start`                 | Start all services with health checks                          |
+| `dev.ts`                            | `pnpm dev`                       | Start all services with health checks                          |
 | `trigger-task.ts`                   | `pnpm trigger-task`              | Send mock Jira webhook, monitor execution                      |
 | `verify-e2e.ts`                     | `pnpm verify:e2e --task-id uuid` | 12-point E2E verification                                      |
 | `register-project.ts`               | `pnpm register-project`          | Interactive project registration wizard                        |

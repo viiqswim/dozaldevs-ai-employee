@@ -8,9 +8,8 @@ A multi-tenant AI Employee Platform. Deploys autonomous AI agents ("digital empl
 
 1. `git clone <repo> && pnpm install`
 2. `pnpm setup` — sets up local Supabase, runs migrations, builds Docker image
-3. `pnpm dev:start` — starts Gateway (:7700) and Inngest (:8288)
-4. `pnpm dev:local` — full stack with Cloudflare tunnel (needed for Slack OAuth)
-5. Configure tenant secrets via admin API (Slack OAuth, Hostfully credentials) — see [Multi-Tenancy Guide](docs/2026-04-16-1655-multi-tenancy-guide.md)
+3. `pnpm dev` — starts Gateway (:7700), Inngest (:8288), and Cloudflare tunnel (auto-detected)
+4. Configure tenant secrets via admin API (Slack OAuth, Hostfully credentials) — see [Multi-Tenancy Guide](docs/2026-04-16-1655-multi-tenancy-guide.md)
 
 ## Local Development (Docker)
 
@@ -109,15 +108,14 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 
 ## Scripts
 
-| Script                | Command                            | Purpose                                                                                                                                                                                                                          |
-| --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                                                                                          |
-| `dev-start.ts`        | `pnpm dev:start`                   | Start Docker Compose + Inngest (:8288) + Gateway (:7700) — no tunnel, no Docker build                                                                                                                                            |
-| `dev-local.ts`        | `pnpm dev:local`                   | Full local stack: Docker Compose + Inngest + Gateway + Cloudflare named tunnel (`local-ai-employee.dozaldevs.com → :7700`) + Docker worker image build. Flags: `--reset` (wipe DB + re-seed), `--skip-build` (skip Docker build) |
-| `dev-e2e.ts`          | `pnpm dev:e2e`                     | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                                                                                  |
-| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API                                                                                                                                                                   |
-| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                                                                                                                                                                                    |
-| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                                                                                                                                                                                        |
+| Script                | Command                            | Purpose                                                                                                                                                             |
+| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                             |
+| `dev.ts`              | `pnpm dev`                         | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel` |
+| `dev-e2e.ts`          | `pnpm dev:e2e`                     | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                     |
+| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API                                                                                                      |
+| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                                                                                                                       |
+| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                                                                                                                           |
 
 ## Project Structure
 
@@ -137,7 +135,7 @@ docs/            # Architecture and phase documentation
 
 This project uses the [official Supabase self-hosted Docker Compose](docker/docker-compose.yml) instead of the Supabase CLI (`supabase start`). The reason: the CLI hardcodes `Database: "postgres"` in its Go source and cannot be overridden — PostgREST always connects to `postgres`, regardless of `DATABASE_URL`. Since worker containers read task data via PostgREST, this would create a split-brain with `ai_employee` as the app database. The Docker Compose uses `${POSTGRES_DB}` throughout, so setting `POSTGRES_DB=ai_employee` in `docker/.env` makes all services natively use the right database.
 
-**You do not need the Supabase CLI installed.** `pnpm setup` and `pnpm dev:start` use `docker compose` directly.
+**You do not need the Supabase CLI installed.** `pnpm setup` and `pnpm dev` use `docker compose` directly.
 
 ## Environment Variables
 

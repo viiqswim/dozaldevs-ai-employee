@@ -1135,7 +1135,7 @@ CLI wrapper: `tsx scripts/telegram-notify.ts "Your message here"`
 | Script                      | pnpm Command                       | Purpose                                                                                                     |
 | --------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `setup.ts`                  | `pnpm setup`                       | One-time idempotent setup: Docker Compose services, migrations, seed, Docker image build                    |
-| `dev-start.ts`              | `pnpm dev:start`                   | Start all local services (gateway, Inngest dev server)                                                      |
+| `dev.ts`                    | `pnpm dev`                         | Start all local services (gateway, Inngest dev server)                                                      |
 | `dev-start.sh`              | —                                  | Shell version of dev-start (legacy/fallback)                                                                |
 | `trigger-task.ts`           | `pnpm trigger-task`                | Send mock Jira webhook and monitor task to completion (E2E trigger)                                         |
 | `register-project.ts`       | `pnpm register-project`            | Interactive wizard to register a new project via admin API                                                  |
@@ -1211,7 +1211,7 @@ Most stories complete per story map.
 ```bash
 # Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin)
 pnpm setup          # One-time: infra, migrations, seed, Docker image
-pnpm dev:start      # Start gateway (:7700) + Inngest (:8288)
+pnpm dev            # Start gateway (:7700) + Inngest (:8288)
 
 # Trigger DozalDevs daily summarizer
 TENANT=00000000-0000-0000-0000-000000000002

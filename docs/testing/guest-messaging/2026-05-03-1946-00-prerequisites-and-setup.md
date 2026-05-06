@@ -40,7 +40,7 @@ If any checks fail, the script prints actionable next steps. You can also follow
 
 ## Step 1 — Verify Environment Variables
 
-Open `.env` and confirm every variable below is set (non-empty). These are validated at `pnpm dev:local` startup.
+Open `.env` and confirm every variable below is set (non-empty). These are validated at `pnpm dev` startup.
 
 ```bash
 # Check all required vars are present and non-empty
@@ -65,7 +65,7 @@ grep -E "^(DATABASE_URL|SUPABASE_URL|SUPABASE_SECRET_KEY|INNGEST_EVENT_KEY|INNGE
 | `HOSTFULLY_AGENCY_UID` | `942d08d9-82bb-4fd3-9091-ca0c6b50b578`                       |
 | `WEBHOOK_PUBLIC_URL`   | `https://local-ai-employee.dozaldevs.com`                    |
 
-> **Note**: `HOSTFULLY_API_KEY`, `HOSTFULLY_AGENCY_UID`, and `WEBHOOK_PUBLIC_URL` are used by the webhook registration script. They are NOT validated by `pnpm dev:local` — you must add them to `.env` manually if missing.
+> **Note**: `HOSTFULLY_API_KEY`, `HOSTFULLY_AGENCY_UID`, and `WEBHOOK_PUBLIC_URL` are used by the webhook registration script. They are NOT validated by `pnpm dev` — you must add them to `.env` manually if missing.
 
 ---
 
@@ -102,7 +102,7 @@ ls ~/.cloudflared/ai-employee-local.yml && echo "✅ tunnel config exists" || ec
 ## Step 5 — Start the Full Local Stack
 
 ```bash
-pnpm dev:local
+pnpm dev
 ```
 
 This command starts (in order): Docker Compose services, the Express gateway on port 7700, the Inngest dev server on port 8288, and the named Cloudflare tunnel (`local-ai-employee.dozaldevs.com`). It validates all required env vars before starting.
@@ -112,7 +112,7 @@ This command starts (in order): Docker Compose services, the Express gateway on 
 > ```bash
 > tmux kill-session -t ai-dev 2>/dev/null
 > tmux new-session -d -s ai-dev -x 220 -y 50
-> tmux send-keys -t ai-dev "cd /Users/victordozal/repos/dozal-devs/ai-employee && pnpm dev:local 2>&1 | tee /tmp/ai-dev.log" Enter
+> tmux send-keys -t ai-dev "cd /Users/victordozal/repos/dozal-devs/ai-employee && pnpm dev 2>&1 | tee /tmp/ai-dev.log" Enter
 > # Wait ~15 seconds, then check:
 > tail -30 /tmp/ai-dev.log
 > ```

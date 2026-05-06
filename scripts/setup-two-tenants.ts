@@ -136,7 +136,7 @@ async function main() {
   const dozalOk = await ensureTenant(DOZALDEVS_ID, 'DozalDevs', 'dozaldevs');
   const vlreOk = await ensureTenant(VLRE_ID, 'VLRE', 'vlre');
   if (!dozalOk || !vlreOk) {
-    fail('Tenant creation failed. Is the gateway running? (pnpm dev:start)');
+    fail('Tenant creation failed. Is the gateway running? (pnpm dev)');
     rl.close();
     process.exit(1);
   }

@@ -23,7 +23,7 @@ pnpm trigger-task --key TEST-100
 
 ```bash
 curl http://localhost:8288/   # verify Inngest is up
-pnpm dev:start                # restart all services
+pnpm dev                      # restart all services
 ```
 
 ## 3. Container Exits Immediately ("REPO_URL not set")

@@ -396,7 +396,7 @@ if (hasErrors) {
 } else {
   log(`${COLORS.green}${COLORS.bold}✓ Setup complete!${COLORS.reset}`);
   log('\nNext steps:');
-  log(`  1. ${COLORS.cyan}pnpm dev:start${COLORS.reset}   — start Gateway + Inngest`);
+  log(`  1. ${COLORS.cyan}pnpm dev${COLORS.reset}   — start Gateway + Inngest`);
   log(`  2. ${COLORS.cyan}pnpm trigger-task${COLORS.reset} — send a mock Jira webhook`);
   log(`  3. ${COLORS.cyan}pnpm verify:e2e --task-id <uuid>${COLORS.reset} — verify the run`);
 

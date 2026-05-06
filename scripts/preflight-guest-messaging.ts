@@ -228,7 +228,7 @@ async function main(): Promise<void> {
   } catch (e) {
     checkFail(
       'Gateway unreachable',
-      `Start the stack: pnpm dev:local (error: ${e instanceof Error ? e.message : String(e)})`,
+      `Start the stack: pnpm dev (error: ${e instanceof Error ? e.message : String(e)})`,
     );
   }
 

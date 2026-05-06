@@ -162,7 +162,7 @@ Do not attempt to mock these. The value of local E2E testing comes from exercisi
 
 ### Prerequisites
 
-1. Services running: `pnpm dev:start` (gateway on `:7700`, Inngest on `:8288`)
+1. Services running: `pnpm dev` (gateway on `:7700`, Inngest on `:8288`)
 2. Docker image rebuilt with latest worker code: `docker build -t ai-employee-worker:latest .`
 3. `.env` configured with mock flags: `HOSTFULLY_MOCK=true`
 4. Tenant secrets provisioned (Slack OAuth complete for the target tenant)

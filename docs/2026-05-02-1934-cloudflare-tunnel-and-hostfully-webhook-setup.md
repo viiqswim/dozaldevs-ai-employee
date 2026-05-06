@@ -64,7 +64,7 @@ vlre-employee pipeline → Slack approval → Hostfully API
 | Prerequisite                                         | Status      | Notes                                                     |
 | ---------------------------------------------------- | ----------- | --------------------------------------------------------- |
 | `POST /webhooks/hostfully` route exists              | ✅ Done     | `src/gateway/routes/hostfully.ts`                         |
-| Cloudflare tunnel exposing `:7700`                   | ✅ Done     | Must be running via `pnpm dev:local`                      |
+| Cloudflare tunnel exposing `:7700`                   | ✅ Done     | Must be running via `pnpm dev`                            |
 | Hostfully webhook registered pointing to ai-employee | ❌ Not done | Blocked: Hostfully only supports one webhook — see Part 5 |
 
 > **Bottom line**: All ai-employee infrastructure is in place. The only missing piece is getting Hostfully to send events to ai-employee — which requires solving the fanout problem since vlre-employee is already registered.
@@ -91,10 +91,10 @@ This routes all traffic for `local-ai-employee.dozaldevs.com` to your local gate
 
 ### Starting the tunnel
 
-**Preferred — `pnpm dev:local` starts everything:**
+**Preferred — `pnpm dev` starts everything:**
 
 ```bash
-pnpm dev:local
+pnpm dev
 # Starts: Docker Compose + Inngest (:8288) + Gateway (:7700) + Cloudflare tunnel + Docker image build
 # Flags: --skip-build (faster restart), --reset (wipe DB + re-seed)
 ```
@@ -174,7 +174,7 @@ The webhook tells Hostfully where to send `NEW_INBOX_MESSAGE` events. It only ne
 
 ### Prerequisites
 
-- `pnpm dev:local` must be running (tunnel must be alive so Hostfully can reach the URL)
+- `pnpm dev` must be running (tunnel must be alive so Hostfully can reach the URL)
 - You need: `HOSTFULLY_API_KEY` and `HOSTFULLY_AGENCY_UID` (from the Hostfully dashboard)
 
 ### Register the webhook
@@ -270,7 +270,7 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 
 | Symptom                                                    | Cause                                        | Fix                                                                                       |
 | ---------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `curl health` → connection refused                         | Tunnel running but gateway not started       | Run `pnpm dev:local` or start gateway separately                                          |
+| `curl health` → connection refused                         | Tunnel running but gateway not started       | Run `pnpm dev` or start gateway separately                                                |
 | `curl health` → `ERR_CONNECTION_REFUSED` on the public URL | cloudflared not running                      | `cloudflared tunnel --config ~/.cloudflared/ai-employee-local.yml run`                    |
 | `cloudflared exited immediately`                           | Bad credentials or config                    | Check `/tmp/cloudflared.log`                                                              |
 | Webhook → `{"ok":true,"tenant_not_found":true}`            | `agency_uid` doesn't match any tenant config | Run `pnpm prisma db seed` to re-seed VLRE config                                          |
@@ -373,7 +373,7 @@ Any fanout proxy must map between these paths explicitly.
 
 ```bash
 # Start everything (recommended)
-pnpm dev:local
+pnpm dev
 
 # Verify tunnel
 curl https://local-ai-employee.dozaldevs.com/health

@@ -548,7 +548,7 @@ This section maps every major concept from the [Full System Vision](./2026-04-14
 | Action                         | Command                                                                                                                                                     |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | First-time setup               | `pnpm setup`                                                                                                                                                |
-| Start services                 | `pnpm dev:start`                                                                                                                                            |
+| Start services                 | `pnpm dev`                                                                                                                                                  |
 | Run tests                      | `pnpm test -- --run`                                                                                                                                        |
 | Lint                           | `pnpm lint`                                                                                                                                                 |
 | Build                          | `pnpm build`                                                                                                                                                |
