@@ -154,7 +154,7 @@ describe('createMonitorTrigger', () => {
 
     expect(mockCreateTaskAndDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        externalId: expect.stringMatching(/^monitor-tenant-xyz-/),
+        externalId: expect.stringMatching(/^monitor-tenant-xyz$/),
       }),
     );
   });
