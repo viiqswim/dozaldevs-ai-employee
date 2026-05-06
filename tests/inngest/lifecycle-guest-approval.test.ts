@@ -202,6 +202,7 @@ beforeEach(() => {
     SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
     SUMMARY_TARGET_CHANNEL: 'C-FALLBACK',
   });
+  vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any);
 
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
     fn();
