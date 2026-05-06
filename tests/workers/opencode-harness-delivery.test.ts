@@ -70,11 +70,13 @@ function buildMockFetch(opts: {
   deliveryInstructions?: string | null;
   deliverableContent?: string;
   deliverableRows?: unknown[];
+  roleName?: string | null;
 }) {
   const {
     deliveryInstructions = 'Post the approved content to the #announcements Slack channel.',
     deliverableContent = 'The approved daily summary.',
     deliverableRows,
+    roleName = null,
   } = opts;
 
   const taskRow = {
@@ -83,6 +85,7 @@ function buildMockFetch(opts: {
     tenant_id: null,
     archetypes: {
       id: 'arch-id',
+      role_name: roleName,
       system_prompt: 'You are a helpful Slack assistant.',
       model: 'minimax/minimax-m2.7',
       delivery_instructions: deliveryInstructions,
@@ -386,5 +389,125 @@ describe('opencode-harness — delivery phase', () => {
       unknown
     >;
     expect(lastBody).toMatchObject({ status: 'Done' });
+  });
+
+  it('guest-messaging: valid JSON → pre-parsed command with correct --lead-id and --thread-id', async () => {
+    const deliverableContent = JSON.stringify({
+      leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
+      threadUid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
+      draftResponse: 'Thank you for your message!',
+    });
+    mockFetch = buildMockFetch({ roleName: 'guest-messaging', deliverableContent });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
+
+    const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
+    expect(promptArg).toContain('--lead-id "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"');
+    expect(promptArg).not.toContain('--lead-id "test-task-id"');
+    expect(promptArg).toContain('--thread-id "2f18249a-9523-4acd-a512-20ff06d5c3fa"');
+    expect(promptArg).toContain('pre-parsed');
+  });
+
+  it('guest-messaging: missing threadUid → command omits --thread-id', async () => {
+    const deliverableContent = JSON.stringify({
+      leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
+      draftResponse: 'Thank you!',
+    });
+    mockFetch = buildMockFetch({ roleName: 'guest-messaging', deliverableContent });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
+
+    const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
+    expect(promptArg).toContain('--lead-id "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"');
+    expect(promptArg).not.toContain('--thread-id');
+    expect(promptArg).toContain('pre-parsed');
+  });
+
+  it('guest-messaging: non-JSON deliverable → raw passthrough', async () => {
+    mockFetch = buildMockFetch({
+      roleName: 'guest-messaging',
+      deliverableContent: 'This is plain text, not JSON',
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
+
+    const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
+    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
+    expect(promptArg).not.toContain('pre-parsed');
+  });
+
+  it('guest-messaging: JSON missing leadUid → raw passthrough', async () => {
+    const deliverableContent = JSON.stringify({ draftResponse: 'Hello' });
+    mockFetch = buildMockFetch({ roleName: 'guest-messaging', deliverableContent });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
+
+    const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
+    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
+    expect(promptArg).not.toContain('pre-parsed');
+  });
+
+  it('non-guest-messaging archetype: pre-parse NOT triggered, raw passthrough', async () => {
+    const deliverableContent = JSON.stringify({
+      leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
+      draftResponse: 'Hello',
+    });
+    mockFetch = buildMockFetch({ roleName: 'daily-summarizer', deliverableContent });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
+
+    const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
+    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
+    expect(promptArg).not.toContain('pre-parsed');
   });
 });
