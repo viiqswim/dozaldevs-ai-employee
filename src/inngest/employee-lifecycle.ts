@@ -1571,7 +1571,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 channel: targetChannel,
                 thread_ts: approvalMsgTs,
                 text: feedbackText,
-                blocks: [{ type: 'section', text: { type: 'mrkdwn', text: feedbackText } }],
+                blocks: [
+                  { type: 'section', text: { type: 'mrkdwn', text: feedbackText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
               });
               log.info({ taskId }, 'Rejection feedback solicitation posted in thread');
             } catch (err) {
