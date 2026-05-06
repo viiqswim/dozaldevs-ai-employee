@@ -539,11 +539,15 @@ const gatewayEnv: NodeJS.ProcessEnv = {
   USE_LOCAL_DOCKER: process.env.USE_FLY_HYBRID === '1' ? '0' : '1',
 };
 
-const gatewayProc = spawn('node', ['--import', 'tsx/esm', 'src/gateway/server.ts'], {
-  stdio: 'pipe',
-  detached: false,
-  env: gatewayEnv,
-});
+const gatewayProc = spawn(
+  'npx',
+  ['tsx', 'watch', '--clear-screen=false', 'src/gateway/server.ts'],
+  {
+    stdio: 'pipe',
+    detached: false,
+    env: gatewayEnv,
+  },
+);
 children.push(gatewayProc);
 
 gatewayProc.stdout?.on('data', serviceLog('gateway', C.cyan));
@@ -564,6 +568,22 @@ if (!gatewayReady) {
 }
 ok(`Event Gateway is healthy at http://localhost:${GATEWAY_PORT}`);
 log('');
+
+// ─────────────────────────────────────────────────────
+// Step 6c-watch: Worker file change warnings
+// ─────────────────────────────────────────────────────
+let workerWarnDebounce: ReturnType<typeof setTimeout> | null = null;
+const watchWorkerDirs = (dir: string) => {
+  if (!existsSync(dir)) return;
+  fs.watch(dir, { recursive: true }, () => {
+    if (workerWarnDebounce) clearTimeout(workerWarnDebounce);
+    workerWarnDebounce = setTimeout(() => {
+      warn('Worker files changed — run `docker build -t ai-employee-worker:latest .` to apply');
+    }, 500);
+  });
+};
+watchWorkerDirs('src/workers');
+watchWorkerDirs('src/worker-tools');
 
 // ─────────────────────────────────────────────────────
 // Step 6c: Hostfully webhook registration
@@ -722,7 +742,7 @@ log('╚════════════════════════
 log(`  PostgREST:  http://localhost:54331`);
 log(`  Studio:     http://localhost:54323`);
 log(`  Inngest:    http://localhost:8288`);
-log(`  Gateway:    http://localhost:${GATEWAY_PORT}`);
+log(`  Gateway:    http://localhost:${GATEWAY_PORT} (auto-restart enabled)`);
 if (!noTunnelFlag && tunnelAvailable) {
   log(`  Tunnel:     ${TUNNEL_URL}`);
 }
