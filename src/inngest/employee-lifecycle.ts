@@ -136,6 +136,49 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         log.info({ taskId }, 'State: Triaging (auto-pass)');
       });
 
+      // ── Notification: Task received ──────────────────────────────────────────
+      await step.run('notify-received', async () => {
+        try {
+          const prismaForNotify = new PrismaClient();
+          const tenantEnvForNotify = await loadTenantEnv(
+            tenantId,
+            {
+              tenantRepo: new TenantRepository(prismaForNotify),
+              secretRepo: new TenantSecretRepository(prismaForNotify),
+            },
+            (archetype.notification_channel as string | null) ?? null,
+          );
+          await prismaForNotify.$disconnect();
+          const botToken = tenantEnvForNotify['SLACK_BOT_TOKEN'] ?? '';
+          const channel =
+            tenantEnvForNotify['NOTIFICATION_CHANNEL'] ??
+            tenantEnvForNotify['SUMMARY_TARGET_CHANNEL'] ??
+            '';
+          if (!botToken || !channel) return;
+          const roleName = (archetype.role_name as string) ?? 'unknown';
+          const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
+          await slackClientForNotify.postMessage({
+            channel,
+            text: `⏳ Task received — processing (${roleName})`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `⏳ *Task received* — processing\n_Employee: ${roleName}_`,
+                },
+              },
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+              },
+            ],
+          });
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to send received notification (non-fatal)');
+        }
+      });
+
       // ── State: AwaitingInput ─────────────────────────────────────────────────
       // Auto-passes: triage found no ambiguity
       await step.run('awaiting-input', async () => {
