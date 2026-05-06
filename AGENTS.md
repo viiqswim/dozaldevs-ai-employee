@@ -155,6 +155,22 @@ curl -X POST "http://localhost:8288/e/local" \
 
 **Reference implementation**: `src/inngest/employee-lifecycle.ts` (`handle-approval-result` step) and `src/worker-tools/slack/post-message.ts` (`buildApprovalBlocks`).
 
+## Slack Message Hygiene (MANDATORY — No Message Accumulation)
+
+Every task gets ONE primary top-level Slack message per channel. All status progressions MUST use one of:
+
+1. **Replace in place** via `chat.update` — capture `ts` from `postMessage` return value and store it for later updates
+2. **Thread replies** via `thread_ts` — post follow-up context as replies to the original message
+
+**Rules:**
+
+- NEVER discard a `ts` return value from `postMessage`. Always capture it: `const result = await slackClient.postMessage(...)` then use `result.ts`.
+- In Inngest steps, return `{ ts: result.ts, channel: result.channel }` from `step.run(...)` to make the reference accessible to all subsequent steps in the same run.
+- Every terminal state (Done, Failed, Cancelled) MUST update the original "Task received" notification message to reflect the final outcome — never leave it frozen at "⏳ processing".
+- The approval card (`pending_approvals.slack_ts`) and the notify-received message are separate messages — both must be updated at terminal states.
+
+**Reference implementation**: `src/inngest/employee-lifecycle.ts` — `notify-received` step (captures ts), `handle-approval-result` step (updates both messages), `mark-failed` step (updates notify-received to ❌ Failed).
+
 ## Slack OAuth — Per-Tenant Installation
 
 Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenant_integrations` (provider: `slack`, external_id: Slack team ID). The `TenantInstallationStore` (`src/gateway/slack/installation-store.ts`) looks them up by team ID for Bolt authorization.
