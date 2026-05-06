@@ -24,4 +24,4 @@
 - [x] F3. **Real Manual QA** — `unspecified-high`
 - [x] F4. **Scope Fidelity Check** — `deep`
 
-- [ ] 9. **Notify completion** — Send Telegram notification: plan `guest-messaging-threading-delivery-fix` complete, all tasks done, come back to review results.
+- [x] 9. **Notify completion** — Send Telegram notification: plan `guest-messaging-threading-delivery-fix` complete, all tasks done, come back to review results.
