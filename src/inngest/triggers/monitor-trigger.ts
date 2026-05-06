@@ -41,13 +41,12 @@ export function createMonitorTrigger(inngest: Inngest): InngestFunction.Any {
       }
 
       for (const archetype of archetypes) {
-        const slotKey = Math.floor(Date.now() / (30 * 60 * 1000));
         await createTaskAndDispatch({
           inngest,
           step,
           tenantId: archetype.tenant_id,
           archetypeSlug: 'unresponded-message-monitor',
-          externalId: `monitor-${archetype.tenant_id}-${slotKey}`,
+          externalId: `monitor-${archetype.tenant_id}`,
           sourceSystem: 'cron',
         });
       }
