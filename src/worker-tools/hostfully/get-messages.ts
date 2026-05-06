@@ -228,11 +228,14 @@ async function main(): Promise<void> {
         (a.createdUtcDateTime ?? '').localeCompare(b.createdUtcDateTime ?? ''),
       );
       const lastMessage = sorted[sorted.length - 1];
-      const unresponded = lastMessage?.senderType === 'GUEST';
+      const unresponded = !!lastMessage?.senderType && lastMessage.senderType !== 'AGENCY';
+      process.stderr.write(
+        `[get-messages] lead=${leadId}: ${rawMessages.length} messages, lastMessage.senderType="${lastMessage?.senderType ?? 'undefined'}", unresponded=${unresponded}\n`,
+      );
 
       const messages: MessageSummary[] = sorted.map((m) => ({
         text: m.content?.text ?? null,
-        sender: m.senderType === 'GUEST' ? 'guest' : m.senderType === 'AGENCY' ? 'host' : null,
+        sender: m.senderType === 'AGENCY' ? 'host' : m.senderType ? 'guest' : null,
         timestamp: m.createdUtcDateTime ?? null,
       }));
 
@@ -318,11 +321,14 @@ async function main(): Promise<void> {
     );
 
     const lastMessage = sorted[sorted.length - 1];
-    const unresponded = lastMessage?.senderType === 'GUEST';
+    const unresponded = !!lastMessage?.senderType && lastMessage.senderType !== 'AGENCY';
+    process.stderr.write(
+      `[get-messages] lead=${lead.uid}: ${rawMessages.length} messages, lastMessage.senderType="${lastMessage?.senderType ?? 'undefined'}", unresponded=${unresponded}\n`,
+    );
 
     const messages: MessageSummary[] = sorted.map((m) => ({
       text: m.content?.text ?? null,
-      sender: m.senderType === 'GUEST' ? 'guest' : m.senderType === 'AGENCY' ? 'host' : null,
+      sender: m.senderType === 'AGENCY' ? 'host' : m.senderType ? 'guest' : null,
       timestamp: m.createdUtcDateTime ?? null,
     }));
 
