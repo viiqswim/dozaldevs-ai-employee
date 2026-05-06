@@ -569,6 +569,76 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
             log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — 24h timeout, no Reply Anyway)');
+            try {
+              const prismaForTimeout = new PrismaClient();
+              const tenantEnvForTimeout = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForTimeout),
+                  secretRepo: new TenantSecretRepository(prismaForTimeout),
+                },
+                (archetype.notification_channel as string | null) ?? null,
+              );
+              await prismaForTimeout.$disconnect();
+              const botTokenForTimeout = tenantEnvForTimeout['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForTimeout) {
+                const slackForTimeout = createSlackClient({
+                  botToken: botTokenForTimeout,
+                  defaultChannel: '',
+                });
+                const timeoutText = `✅ Task complete — no action needed`;
+                if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+                  try {
+                    await slackForTimeout.updateMessage(
+                      notifyMsgRef.channel,
+                      notifyMsgRef.ts,
+                      timeoutText,
+                      [
+                        { type: 'section', text: { type: 'mrkdwn', text: timeoutText } },
+                        {
+                          type: 'context',
+                          elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                        },
+                      ],
+                    );
+                  } catch (err) {
+                    log.warn(
+                      { taskId, err },
+                      'Failed to update notify-received on no-action timeout (non-fatal)',
+                    );
+                  }
+                }
+                const delivResTimeout = await fetch(
+                  `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+                  { headers },
+                );
+                const delivRowsTimeout = (await delivResTimeout.json()) as Array<{
+                  metadata: Record<string, unknown> | null;
+                }>;
+                const delivMetaTimeout =
+                  (delivRowsTimeout[0]?.metadata as Record<string, unknown>) ?? {};
+                const noActionTs = delivMetaTimeout.approval_message_ts as string | undefined;
+                const noActionChannel = delivMetaTimeout.target_channel as string | undefined;
+                if (noActionTs && noActionChannel) {
+                  try {
+                    await slackForTimeout.updateMessage(noActionChannel, noActionTs, timeoutText, [
+                      { type: 'section', text: { type: 'mrkdwn', text: timeoutText } },
+                      {
+                        type: 'context',
+                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                      },
+                    ]);
+                  } catch (err) {
+                    log.warn(
+                      { taskId, err },
+                      'Failed to update no-action card on timeout (non-fatal)',
+                    );
+                  }
+                }
+              }
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update Slack on no-action timeout (non-fatal)');
+            }
           });
           return;
         }
@@ -697,6 +767,81 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         if (replyDraftStatus === 'Failed') {
           log.error({ taskId }, 'Reply Anyway re-draft machine failed — task remains Failed');
+          try {
+            const prismaForReplyFail = new PrismaClient();
+            const tenantEnvForReplyFail = await loadTenantEnv(
+              tenantId,
+              {
+                tenantRepo: new TenantRepository(prismaForReplyFail),
+                secretRepo: new TenantSecretRepository(prismaForReplyFail),
+              },
+              (archetype.notification_channel as string | null) ?? null,
+            );
+            await prismaForReplyFail.$disconnect();
+            const botTokenForReplyFail = tenantEnvForReplyFail['SLACK_BOT_TOKEN'] ?? '';
+            if (botTokenForReplyFail) {
+              const slackForReplyFail = createSlackClient({
+                botToken: botTokenForReplyFail,
+                defaultChannel: '',
+              });
+              const replyFailText = `❌ Task failed`;
+              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+                try {
+                  await slackForReplyFail.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    replyFailText,
+                    [
+                      { type: 'section', text: { type: 'mrkdwn', text: replyFailText } },
+                      {
+                        type: 'context',
+                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                      },
+                    ],
+                  );
+                } catch (err) {
+                  log.warn(
+                    { taskId, err },
+                    'Failed to update notify-received on re-draft failure (non-fatal)',
+                  );
+                }
+              }
+              const delivResReplyFail = await fetch(
+                `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+                { headers },
+              );
+              const delivRowsReplyFail = (await delivResReplyFail.json()) as Array<{
+                metadata: Record<string, unknown> | null;
+              }>;
+              const delivMetaReplyFail =
+                (delivRowsReplyFail[0]?.metadata as Record<string, unknown>) ?? {};
+              const replyFailCardTs = delivMetaReplyFail.approval_message_ts as string | undefined;
+              const replyFailCardChannel = delivMetaReplyFail.target_channel as string | undefined;
+              if (replyFailCardTs && replyFailCardChannel) {
+                try {
+                  await slackForReplyFail.updateMessage(
+                    replyFailCardChannel,
+                    replyFailCardTs,
+                    replyFailText,
+                    [
+                      { type: 'section', text: { type: 'mrkdwn', text: replyFailText } },
+                      {
+                        type: 'context',
+                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                      },
+                    ],
+                  );
+                } catch (err) {
+                  log.warn(
+                    { taskId, err },
+                    'Failed to update no-action card on re-draft failure (non-fatal)',
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to update Slack on re-draft failure (non-fatal)');
+          }
           return;
         }
 
@@ -998,6 +1143,38 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               status: 'Failed',
               failure_reason: 'Archetype missing delivery_instructions',
             });
+            const configFailText = `❌ Task failed — missing delivery configuration`;
+            if (approvalMsgTs && targetChannel) {
+              try {
+                await slackClient.updateMessage(targetChannel, approvalMsgTs, configFailText, [
+                  { type: 'section', text: { type: 'mrkdwn', text: configFailText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ]);
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update approval card on config error (non-fatal)',
+                );
+              }
+            }
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                await slackClient.updateMessage(
+                  notifyMsgRef.channel,
+                  notifyMsgRef.ts,
+                  configFailText,
+                  [
+                    { type: 'section', text: { type: 'mrkdwn', text: configFailText } },
+                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                  ],
+                );
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received on config error (non-fatal)',
+                );
+              }
+            }
             return;
           }
 
@@ -1136,6 +1313,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   log.warn(
                     { taskId, approvalMsgTs, targetChannel, err },
                     'Error message update failed (non-fatal)',
+                  );
+                }
+              }
+              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+                try {
+                  const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
+                  await slackClient.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    deliveryFailText,
+                    [
+                      { type: 'section', text: { type: 'mrkdwn', text: deliveryFailText } },
+                      {
+                        type: 'context',
+                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                      },
+                    ],
+                  );
+                } catch (err) {
+                  log.warn(
+                    { taskId, err },
+                    'Failed to update notify-received on delivery failure (non-fatal)',
                   );
                 }
               }
