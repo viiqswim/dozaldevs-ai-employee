@@ -23,9 +23,15 @@ function makeChildProcess(exitCode: number) {
   const proc = new EventEmitter() as NodeJS.EventEmitter & {
     stdout: NodeJS.EventEmitter;
     stderr: NodeJS.EventEmitter;
+    killed: boolean;
+    kill: (signal?: string) => void;
   };
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
+  proc.killed = false;
+  proc.kill = () => {
+    proc.killed = true;
+  };
   setTimeout(() => proc.emit('close', exitCode), 20);
   return proc;
 }
