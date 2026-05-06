@@ -69,6 +69,7 @@ function runLocalDockerContainer(opts: {
   name: string;
   cmd?: string[];
 }): { id: string } {
+  stopLocalDockerContainer(opts.name);
   const cmd = opts.cmd ?? ['node', '/app/dist/workers/opencode-harness.mjs'];
   const envArgs = Object.entries(opts.env)
     .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
@@ -86,6 +87,15 @@ function runLocalDockerContainer(opts: {
     'Local Docker container dispatched',
   );
   return { id: 'docker_' + containerId.slice(0, 12) };
+}
+
+function stopLocalDockerContainer(name: string): void {
+  try {
+    execSync(`docker stop ${JSON.stringify(name)} 2>/dev/null || true`, { encoding: 'utf8' });
+    execSync(`docker rm -f ${JSON.stringify(name)} 2>/dev/null || true`, { encoding: 'utf8' });
+  } catch {
+    /* Container may not exist — safe to ignore */
+  }
 }
 
 export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFunction.Any {
@@ -438,9 +448,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
         await step.run('cleanup-on-failure', async () => {
           try {
-            const flyApp =
-              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-            await destroyMachine(flyApp, machineId as string);
+            if ((machineId as string).startsWith('docker_')) {
+              stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+            } else {
+              const flyApp =
+                process.env.FLY_SUMMARIZER_APP ??
+                process.env.FLY_WORKER_APP ??
+                'ai-employee-workers';
+              await destroyMachine(flyApp, machineId as string);
+            }
           } catch (err) {
             log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
           }
@@ -503,9 +519,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         });
         await step.run('cleanup-no-approval', async () => {
           try {
-            const flyApp =
-              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-            await destroyMachine(flyApp, machineId as string);
+            if ((machineId as string).startsWith('docker_')) {
+              stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+            } else {
+              const flyApp =
+                process.env.FLY_SUMMARIZER_APP ??
+                process.env.FLY_WORKER_APP ??
+                'ai-employee-workers';
+              await destroyMachine(flyApp, machineId as string);
+            }
           } catch (err) {
             log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
           }
@@ -552,9 +574,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       if (classificationCheck.skipApproval) {
         await step.run('cleanup-no-action', async () => {
           try {
-            const flyApp =
-              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-            await destroyMachine(flyApp, machineId as string);
+            if ((machineId as string).startsWith('docker_')) {
+              stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+            } else {
+              const flyApp =
+                process.env.FLY_SUMMARIZER_APP ??
+                process.env.FLY_WORKER_APP ??
+                'ai-employee-workers';
+              await destroyMachine(flyApp, machineId as string);
+            }
           } catch (err) {
             log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
           }
@@ -844,9 +872,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           } catch (err) {
             log.warn({ taskId, err }, 'Failed to update Slack on re-draft failure (non-fatal)');
           }
+          if (process.env.USE_LOCAL_DOCKER === '1') {
+            stopLocalDockerContainer(`employee-reply-${taskId.slice(0, 8)}`);
+          }
           return;
         }
 
+        if (process.env.USE_LOCAL_DOCKER === '1') {
+          stopLocalDockerContainer(`employee-reply-${taskId.slice(0, 8)}`);
+        }
         void replyMachineId;
       }
 
@@ -1223,6 +1257,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           let deliveryFinalStatus = '';
           for (let attempt = 0; attempt < 3; attempt++) {
+            if (attempt > 0 && process.env.USE_LOCAL_DOCKER === '1') {
+              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
+            }
             let deliveryMachine: { id: string };
             if (process.env.USE_LOCAL_DOCKER === '1') {
               deliveryMachine = runLocalDockerContainer({
@@ -1290,6 +1327,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   'Failed to destroy delivery machine',
                 );
               }
+            } else {
+              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
             }
 
             if (deliveryFinalStatus === 'Done') break;
@@ -1596,9 +1635,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       await step.run('cleanup', async () => {
         try {
-          const flyApp =
-            process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-          await destroyMachine(flyApp, machineId as string);
+          if ((machineId as string).startsWith('docker_')) {
+            stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+          } else {
+            const flyApp =
+              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            await destroyMachine(flyApp, machineId as string);
+          }
         } catch (err) {
           log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
         }
