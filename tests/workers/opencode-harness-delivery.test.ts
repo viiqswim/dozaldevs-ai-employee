@@ -198,7 +198,7 @@ describe('opencode-harness — delivery phase', () => {
     >;
     expect(body).toMatchObject({
       status: 'Failed',
-      failure_reason: 'No deliverable found for task',
+      failure_reason: 'No deliverable found for delivery phase',
     });
     expect(mockSpawn).not.toHaveBeenCalled();
   });
@@ -240,7 +240,8 @@ describe('opencode-harness — delivery phase', () => {
     // spawn('opencode', ['run', '--model', model, fullPrompt], opts)
     const [, spawnArgs] = mockSpawn.mock.calls[0] as [string, string[], object];
     const fullPrompt = spawnArgs[3];
-    expect(fullPrompt).toContain(`APPROVED CONTENT TO DELIVER:\n${approvedContent}`);
+    expect(fullPrompt).toContain(`--- DELIVERABLE CONTENT ---\n${approvedContent}`);
+    expect(fullPrompt).toContain('--- END DELIVERABLE CONTENT ---');
     expect(fullPrompt).toContain(deliveryInstr);
   });
 

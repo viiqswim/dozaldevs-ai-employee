@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { origArgv } = vi.hoisted(() => {
   const origArgv = [...process.argv];
@@ -306,5 +306,111 @@ describe('idempotency guard', () => {
     expect(mockPostMessage).not.toHaveBeenCalled();
     const stdout = stdoutChunks.join('');
     expect(stdout).toContain('1234567890.123456');
+  });
+});
+
+describe('--thread-ts flag', () => {
+  const baseArgv = [
+    'node',
+    'post-guest-approval.ts',
+    '--channel',
+    'C-TEST',
+    '--task-id',
+    'test-task-id',
+    '--guest-name',
+    'Test Guest',
+    '--property-name',
+    'Test Property',
+    '--check-in',
+    '2026-01-01',
+    '--check-out',
+    '2026-01-05',
+    '--booking-channel',
+    'AIRBNB',
+    '--original-message',
+    'Test message',
+    '--draft-response',
+    'Test response',
+    '--confidence',
+    '0.9',
+    '--category',
+    'test',
+    '--lead-uid',
+    'lead-test',
+    '--thread-uid',
+    'thread-test',
+    '--message-uid',
+    'msg-test',
+  ];
+
+  let origWrite: typeof process.stdout.write;
+  let origEnv: string | undefined;
+  let mockPostMessage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    origEnv = process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+    vi.mocked(existsSync).mockReturnValue(false);
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts-test', channel: 'C-test' });
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  afterEach(() => {
+    process.env.SLACK_BOT_TOKEN = origEnv;
+    process.stdout.write = origWrite;
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({
+          chat: { postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' }) },
+        }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  it('passes thread_ts to postMessage when --thread-ts is provided', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv, '--thread-ts', '1234.5678'];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage.mock.calls[0][0]).toMatchObject({ thread_ts: '1234.5678' });
+  });
+
+  it('does not pass thread_ts to postMessage when --thread-ts is absent', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage.mock.calls[0][0]).not.toHaveProperty('thread_ts');
+  });
+
+  it('does not pass thread_ts to postMessage when --thread-ts is empty string', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv, '--thread-ts', ''];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(mockPostMessage).toHaveBeenCalledOnce();
+    expect(mockPostMessage.mock.calls[0][0]).not.toHaveProperty('thread_ts');
   });
 });

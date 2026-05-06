@@ -21,6 +21,7 @@ interface GuestApprovalParams {
   conversationSummary?: string;
   diagnosis?: string;
   dryRun: boolean;
+  threadTs?: string;
 }
 
 interface PostResult {
@@ -48,6 +49,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let conversationSummary: string | undefined;
   let diagnosis: string | undefined;
   let dryRun = false;
+  let threadTs: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -86,6 +88,8 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       diagnosis = args[++i];
     } else if (args[i] === '--dry-run') {
       dryRun = true;
+    } else if (args[i] === '--thread-ts') {
+      threadTs = args[++i];
     }
   }
 
@@ -108,6 +112,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     conversationSummary,
     diagnosis,
     dryRun,
+    threadTs,
   };
 }
 
@@ -321,6 +326,7 @@ export async function main(): Promise<void> {
     channel: params.channel,
     text: `Guest message approval request — ${params.propertyName} (${params.guestName})`,
     blocks: blocks as import('@slack/web-api').KnownBlock[],
+    ...(params.threadTs ? { thread_ts: params.threadTs } : {}),
   });
 
   if (!result.ok || !result.ts || !result.channel) {
