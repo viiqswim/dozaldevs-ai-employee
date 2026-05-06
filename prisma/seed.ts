@@ -282,7 +282,10 @@ async function main() {
     'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --unresponded-only\n' +
     'Output is a JSON array of unresponded threads (last message is from guest). ' +
     'If the output is an empty array, the host has already responded — no action needed from the AI. ' +
-    'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt and stop. Do NOT post any Slack notification.\n\n' +
+    'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt.\n' +
+    'Then post a brief notification so the PM knows this task was processed:\n' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ Guest message task processed — no unresponded messages found. No action needed." --task-id "$TASK_ID" > /tmp/approval-message.json\n' +
+    'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist before stopping.\n\n' +
     'STEP 2: Gather context for the message thread.\n' +
     'Use the property_id from the message output.\n' +
     'Run: tsx /tools/hostfully/get-reservations.ts --property-id "<property-id>" --status confirmed\n' +
