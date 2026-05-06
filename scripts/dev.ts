@@ -17,7 +17,7 @@
  */
 
 import { $ } from 'zx';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import fs, { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -131,6 +131,23 @@ async function cleanup(): Promise<void> {
   cleaningUp = true;
   log('');
   log('Shutting down services...');
+
+  // Stop any running worker containers spawned by lifecycle steps
+  try {
+    const containers = execSync(
+      'docker ps --filter ancestor=ai-employee-worker:latest --format "{{.Names}}" 2>/dev/null || true',
+      { encoding: 'utf8' },
+    ).trim();
+    if (containers) {
+      log(`Stopping worker containers: ${containers.replace(/\n/g, ', ')}`);
+      execSync(`docker stop ${containers.replace(/\n/g, ' ')} 2>/dev/null || true`, {
+        encoding: 'utf8',
+      });
+    }
+  } catch {
+    /* Docker may not be available — ignore */
+  }
+
   for (const child of children) {
     try {
       child.kill('SIGTERM');
