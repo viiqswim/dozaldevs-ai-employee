@@ -51,6 +51,8 @@ export function inngestServeRoutes(): Router {
       ruleExtractorFn,
       learnedRulesExpiryFn,
     ],
+    serveOrigin: `http://localhost:${process.env.PORT ?? '7700'}`,
+    servePath: '/api/inngest',
   });
 
   router.use(handler);
