@@ -160,10 +160,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           );
           await prismaForNotify.$disconnect();
           const botToken = tenantEnvForNotify['SLACK_BOT_TOKEN'] ?? '';
-          const channel =
-            tenantEnvForNotify['NOTIFICATION_CHANNEL'] ??
-            tenantEnvForNotify['SUMMARY_TARGET_CHANNEL'] ??
-            '';
+          const channel = tenantEnvForNotify['NOTIFICATION_CHANNEL'] ?? '';
           if (!botToken || !channel) return { ts: null, channel: null };
           const roleName = (archetype.role_name as string) ?? 'unknown';
           const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
