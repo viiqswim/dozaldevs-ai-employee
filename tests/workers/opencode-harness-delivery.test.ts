@@ -3,12 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSpawn = vi.hoisted(() => vi.fn());
 const mockReadFile = vi.hoisted(() => vi.fn());
+const mockStartOpencodeServer = vi.hoisted(() => vi.fn());
+const mockCreateSessionManager = vi.hoisted(() => vi.fn());
 
 vi.mock('child_process', () => ({ spawn: mockSpawn }));
 vi.mock('fs/promises', () => ({
   readFile: mockReadFile,
   mkdir: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../../src/workers/lib/opencode-server.js', () => ({
+  startOpencodeServer: mockStartOpencodeServer,
+}));
+vi.mock('../../src/workers/lib/session-manager.js', () => ({
+  createSessionManager: mockCreateSessionManager,
 }));
 vi.mock('../../src/lib/logger.js', () => ({
   createLogger: () => ({
@@ -34,6 +42,28 @@ function makeChildProcess(exitCode: number) {
   };
   setTimeout(() => proc.emit('close', exitCode), 20);
   return proc;
+}
+
+function buildServerHandle() {
+  return {
+    url: 'http://localhost:4096',
+    kill: vi.fn().mockResolvedValue(undefined),
+    onExit: new Promise<number | null>(() => {
+      // never resolves — session monitor wins the race
+    }),
+    stopKeepalive: vi.fn(),
+    process: { killed: false, kill: vi.fn() },
+  };
+}
+
+function buildSessionManagerMock() {
+  return {
+    createSession: vi.fn().mockResolvedValue('mock-session-id'),
+    injectTaskPrompt: vi.fn().mockResolvedValue(true),
+    monitorSession: vi.fn().mockResolvedValue({ completed: true, reason: 'idle' }),
+    abortSession: vi.fn().mockResolvedValue(undefined),
+    sendFixPrompt: vi.fn().mockResolvedValue(true),
+  };
 }
 
 function buildMockFetch(opts: {
@@ -121,6 +151,7 @@ async function loadHarness(): Promise<void> {
 
 describe('opencode-harness — delivery phase', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
+  let sessionManagerMock: ReturnType<typeof buildSessionManagerMock>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -136,9 +167,16 @@ describe('opencode-harness — delivery phase', () => {
     vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path === '/tmp/summary.txt') return Promise.resolve('Delivery confirmed');
+      if (path === '/tmp/summary.txt') return Promise.resolve(JSON.stringify({ delivered: true }));
       return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
     });
+
+    mockStartOpencodeServer.mockResolvedValue(buildServerHandle());
+
+    sessionManagerMock = buildSessionManagerMock();
+    mockCreateSessionManager.mockReturnValue(sessionManagerMock);
+
+    mockSpawn.mockImplementation(() => makeChildProcess(0));
   });
 
   afterEach(() => {
@@ -150,14 +188,13 @@ describe('opencode-harness — delivery phase', () => {
     delete process.env.SUPABASE_SECRET_KEY;
   });
 
-  it('happy path: patches task to Done and logs Delivering → Done transition', async () => {
+  it('happy path: patches task to Done when delivery confirmed', async () => {
     mockFetch = buildMockFetch({});
     vi.stubGlobal('fetch', mockFetch);
-    mockSpawn.mockImplementation(() => makeChildProcess(0));
 
     await loadHarness();
 
-    await waitForFetch(mockFetch, 'status_transitions', 'POST');
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
 
     const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
     expect(patchCalls.length).toBeGreaterThan(0);
@@ -209,16 +246,14 @@ describe('opencode-harness — delivery phase', () => {
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
-  it('opencode failure: patches task to Failed when spawn exits with non-zero code', async () => {
+  it('opencode failure: patches task to Failed when OpenCode server fails to start', async () => {
     mockFetch = buildMockFetch({});
     vi.stubGlobal('fetch', mockFetch);
-    mockSpawn.mockReturnValue(makeChildProcess(1));
+    mockStartOpencodeServer.mockResolvedValue(null);
 
     await loadHarness();
 
-    await vi.waitFor(() => expect(vi.mocked(process.exit)).toHaveBeenCalledWith(1), {
-      timeout: 12000,
-    });
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
 
     const patchCall = findFetchCall(mockFetch, '/tasks', 'PATCH')!;
     expect(patchCall).toBeDefined();
@@ -229,7 +264,7 @@ describe('opencode-harness — delivery phase', () => {
     expect(body).toMatchObject({ status: 'Failed' });
   });
 
-  it('correct instructions: spawn receives APPROVED CONTENT TO DELIVER prefix with approved text and delivery instructions', async () => {
+  it('correct instructions: task reaches Done when delivery instructions and content are provided', async () => {
     const approvedContent = 'Top story: new feature shipped today.';
     const deliveryInstr = 'Post the summary to the #daily-digest Slack channel.';
     mockFetch = buildMockFetch({
@@ -237,30 +272,119 @@ describe('opencode-harness — delivery phase', () => {
       deliveryInstructions: deliveryInstr,
     });
     vi.stubGlobal('fetch', mockFetch);
-    mockSpawn.mockReturnValue(makeChildProcess(0));
 
     await loadHarness();
 
-    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), { timeout: 4000 });
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
 
-    // spawn('opencode', ['run', '--model', model, fullPrompt], opts)
-    const [, spawnArgs] = mockSpawn.mock.calls[0] as [string, string[], object];
-    const fullPrompt = spawnArgs[3];
-    expect(fullPrompt).toContain(`--- DELIVERABLE CONTENT ---\n${approvedContent}`);
-    expect(fullPrompt).toContain('--- END DELIVERABLE CONTENT ---');
-    expect(fullPrompt).toContain(deliveryInstr);
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
   });
 
   it('delivery phase makes no POST to executions or deliverables tables', async () => {
     mockFetch = buildMockFetch({});
     vi.stubGlobal('fetch', mockFetch);
-    mockSpawn.mockReturnValue(makeChildProcess(0));
 
     await loadHarness();
 
-    await waitForFetch(mockFetch, 'status_transitions', 'POST');
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
 
     expect(filterFetchCalls(mockFetch, '/executions', 'POST')).toHaveLength(0);
     expect(filterFetchCalls(mockFetch, '/deliverables', 'POST')).toHaveLength(0);
+  });
+
+  it('delivered:false in summary.txt: patches task to Failed', async () => {
+    mockFetch = buildMockFetch({});
+    vi.stubGlobal('fetch', mockFetch);
+    mockReadFile.mockImplementation((path: string) => {
+      if (path === '/tmp/summary.txt') return Promise.resolve(JSON.stringify({ delivered: false }));
+      return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    });
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCall = findFetchCall(mockFetch, '/tasks', 'PATCH')!;
+    const body = JSON.parse((patchCall[1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({
+      status: 'Failed',
+      failure_reason: 'Delivery not confirmed — send-message.ts may not have succeeded',
+    });
+  });
+
+  it('invalid JSON in summary.txt: patches task to Failed', async () => {
+    mockFetch = buildMockFetch({});
+    vi.stubGlobal('fetch', mockFetch);
+    mockReadFile.mockImplementation((path: string) => {
+      if (path === '/tmp/summary.txt') return Promise.resolve('not valid json');
+      return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    });
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCall = findFetchCall(mockFetch, '/tasks', 'PATCH')!;
+    const body = JSON.parse((patchCall[1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({
+      status: 'Failed',
+      failure_reason: 'Delivery not confirmed — summary.txt is not valid JSON',
+    });
+  });
+
+  it('missing summary.txt (ENOENT): patches task to Failed', async () => {
+    mockFetch = buildMockFetch({});
+    vi.stubGlobal('fetch', mockFetch);
+    mockReadFile.mockImplementation((path: string) => {
+      if (path === '/tmp/approval-message.json')
+        return Promise.resolve(JSON.stringify({ ts: 'mock-ts', channel: 'C123' }));
+      return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    });
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCall = findFetchCall(mockFetch, '/tasks', 'PATCH')!;
+    const body = JSON.parse((patchCall[1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({
+      status: 'Failed',
+      failure_reason: 'Delivery not confirmed — no summary.txt produced',
+    });
+  });
+
+  it('delivered:true with null messageId: patches task to Done', async () => {
+    mockFetch = buildMockFetch({});
+    vi.stubGlobal('fetch', mockFetch);
+    mockReadFile.mockImplementation((path: string) => {
+      if (path === '/tmp/summary.txt')
+        return Promise.resolve(JSON.stringify({ delivered: true, messageId: null }));
+      return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    });
+
+    await loadHarness();
+
+    await waitForFetch(mockFetch, '/tasks', 'PATCH');
+
+    const patchCalls = filterFetchCalls(mockFetch, '/tasks', 'PATCH');
+    const lastBody = JSON.parse((patchCalls.at(-1)![1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(lastBody).toMatchObject({ status: 'Done' });
   });
 });

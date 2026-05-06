@@ -387,14 +387,24 @@ async function main(): Promise<void> {
     }
     const deliverableContent = (deliverable.content as string) ?? '';
 
-    // 2. Build delivery prompt with injected deliverable content
-    const deliveryInstructions = archetype.delivery_instructions ?? '';
+    // 2. Validate delivery_instructions
+    const deliveryInstructions = archetype.delivery_instructions;
+    if (!deliveryInstructions) {
+      log.error(
+        { taskId: TASK_ID },
+        '[opencode-harness] Archetype missing delivery_instructions — failing delivery',
+      );
+      await markFailed('Archetype missing delivery_instructions', null);
+      return;
+    }
+
+    // 3. Build delivery prompt with injected deliverable content
     const deliveryPrompt = `${deliveryInstructions}\n\n--- DELIVERABLE CONTENT ---\n${deliverableContent}\n--- END DELIVERABLE CONTENT ---\n\nTask ID: ${TASK_ID}`;
 
-    // 3. Auth setup — required before OpenCode session
+    // 4. Auth setup — required before OpenCode session
     await writeOpencodeAuth();
 
-    // 4. Run the OpenCode delivery session
+    // 5. Run the OpenCode delivery session
     try {
       await runOpencodeSession(
         archetype.system_prompt ?? '',
@@ -407,7 +417,31 @@ async function main(): Promise<void> {
       return;
     }
 
-    // 5. Mark task Done
+    // 6. Verify delivery confirmation from /tmp/summary.txt
+    {
+      const { readFile: deliveryReadFile } = await import('fs/promises');
+      let summaryRaw: string;
+      try {
+        summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
+      } catch {
+        await markFailed('Delivery not confirmed — no summary.txt produced', null);
+        return;
+      }
+      let deliverySummary: Record<string, unknown>;
+      try {
+        deliverySummary = JSON.parse(summaryRaw) as Record<string, unknown>;
+      } catch {
+        await markFailed('Delivery not confirmed — summary.txt is not valid JSON', null);
+        return;
+      }
+      if (deliverySummary.delivered !== true) {
+        await markFailed('Delivery not confirmed — send-message.ts may not have succeeded', null);
+        return;
+      }
+      log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery confirmed via summary.txt');
+    }
+
+    // 7. Mark task Done
     await db.patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Done',
       updated_at: new Date().toISOString(),
