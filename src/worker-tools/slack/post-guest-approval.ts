@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+
 import { WebClient } from '@slack/web-api';
 
 interface GuestApprovalParams {
@@ -249,7 +251,27 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
   return blocks;
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
+  // Idempotency guard: prevent double-posting if model calls this tool twice
+  const APPROVAL_OUTPUT_PATH = '/tmp/approval-message.json';
+  if (existsSync(APPROVAL_OUTPUT_PATH)) {
+    try {
+      const existing = JSON.parse(readFileSync(APPROVAL_OUTPUT_PATH, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      if (typeof existing.ts === 'string' && existing.ts.length > 0) {
+        process.stderr.write(
+          `Idempotency guard: ${APPROVAL_OUTPUT_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
+        );
+        process.stdout.write(JSON.stringify({ ts: existing.ts, channel: existing.channel }) + '\n');
+        return;
+      }
+    } catch {
+      // Malformed JSON — treat as not-posted, proceed normally
+    }
+  }
+
   const params = parseArgs(process.argv);
 
   const requiredStrings: Array<[string, string]> = [
