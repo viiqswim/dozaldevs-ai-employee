@@ -187,8 +187,16 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       boltApp = bolt;
 
       const port = parseInt(process.env.PORT ?? '7700', 10);
-      app.listen(port, '0.0.0.0', () => {
+      const server = app.listen(port, '0.0.0.0', () => {
         logger.info(`Gateway listening on port ${port}`);
+      });
+
+      process.on('SIGTERM', () => {
+        server.close(() => process.exit(0));
+      });
+
+      process.on('SIGINT', () => {
+        server.close(() => process.exit(0));
       });
     })
     .catch((err: unknown) => {
