@@ -44,6 +44,15 @@ vi.mock('@slack/web-api', () => ({
   })),
 }));
 
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn().mockReturnValue(false),
+  readFileSync: vi.fn().mockReturnValue('{}'),
+}));
+
+import { existsSync, readFileSync } from 'node:fs';
+
+import { WebClient } from '@slack/web-api';
+
 import { buildGuestApprovalBlocks } from '../../../src/worker-tools/slack/post-guest-approval.js';
 
 const baseParams = {
@@ -229,5 +238,73 @@ describe('buildGuestApprovalBlocks', () => {
     const rejectButton = actionsBlock!.elements.find((e) => e.action_id === 'guest_reject');
     expect(rejectButton).toBeDefined();
     expect(rejectButton!.value).toBe('task-uuid-123');
+  });
+});
+
+describe('idempotency guard', () => {
+  it('skips Slack post when /tmp/approval-message.json already exists', async () => {
+    vi.mocked(existsSync).mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce(
+      '{"ts":"1234567890.123456","channel":"C0960S2Q8RL"}',
+    );
+
+    const mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' });
+    vi.mocked(WebClient).mockImplementationOnce(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    const stdoutChunks: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    const writeStub = (chunk: string | Uint8Array, ...args: unknown[]) => {
+      stdoutChunks.push(String(chunk));
+      void args;
+      return true;
+    };
+    process.stdout.write = writeStub as typeof process.stdout.write;
+
+    const savedArgv = [...process.argv];
+    process.argv = [
+      'node',
+      'post-guest-approval.ts',
+      '--channel',
+      'C0960S2Q8RL',
+      '--task-id',
+      'task-guard-test',
+      '--guest-name',
+      'Guard Test',
+      '--property-name',
+      'Test Property',
+      '--check-in',
+      '2026-01-01',
+      '--check-out',
+      '2026-01-05',
+      '--booking-channel',
+      'AIRBNB',
+      '--original-message',
+      'Hello',
+      '--draft-response',
+      'Hi there',
+      '--confidence',
+      '0.9',
+      '--category',
+      'test',
+      '--lead-uid',
+      'lead-guard',
+      '--thread-uid',
+      'thread-guard',
+      '--message-uid',
+      'msg-guard',
+    ];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+    process.stdout.write = origWrite;
+
+    expect(mockPostMessage).not.toHaveBeenCalled();
+    const stdout = stdoutChunks.join('');
+    expect(stdout).toContain('1234567890.123456');
   });
 });
