@@ -89,16 +89,30 @@ describe('createInteractionHandlerFunction', () => {
     mockFetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('slack.com')) {
         return Promise.resolve({
+          ok: true,
           json: () => Promise.resolve({ ok: true, ts: '123', channel: 'C123' }),
+          text: vi.fn().mockResolvedValue(''),
         });
       }
       if (url.includes('feedback')) {
-        return Promise.resolve({ json: () => Promise.resolve([{ id: 'fb-1' }]) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: 'fb-1' }]),
+          text: vi.fn().mockResolvedValue(''),
+        });
       }
       if (url.includes('knowledge_base_entries')) {
-        return Promise.resolve({ json: () => Promise.resolve([{ content: 'KB entry 1' }]) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ content: 'KB entry 1' }]),
+          text: vi.fn().mockResolvedValue(''),
+        });
       }
-      return Promise.resolve({ json: () => Promise.resolve([]) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([]),
+        text: vi.fn().mockResolvedValue(''),
+      });
     });
     vi.stubGlobal('fetch', mockFetch);
 
