@@ -255,6 +255,8 @@ beforeEach(() => {
 
   // Make setTimeout resolve immediately so the 15-second delivery polling
   // loop does not block tests
+  vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any);
+
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
     fn();
     return 0 as unknown as NodeJS.Timeout;

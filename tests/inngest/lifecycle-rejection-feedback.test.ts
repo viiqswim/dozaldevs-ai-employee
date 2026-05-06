@@ -198,6 +198,8 @@ beforeEach(() => {
     SUMMARY_TARGET_CHANNEL: 'C-FALLBACK',
   });
 
+  vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any);
+
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
     fn();
     return 0 as unknown as NodeJS.Timeout;

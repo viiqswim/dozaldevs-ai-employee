@@ -1535,6 +1535,53 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
 
+          try {
+            const currentMetaRes = await fetch(
+              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
+              { headers },
+            );
+            const currentMetaRows = (await currentMetaRes.json()) as Array<{
+              metadata: Record<string, unknown> | null;
+            }>;
+            const currentMeta = (currentMetaRows[0]?.metadata as Record<string, unknown>) ?? {};
+
+            const updatedMeta = {
+              ...currentMeta,
+              rejection_feedback_requested: true,
+              rejection_user_id: actorUserId,
+            };
+
+            await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({
+                metadata: updatedMeta,
+                updated_at: new Date().toISOString(),
+              }),
+            });
+            log.info({ taskId }, 'Rejection feedback flag set in task metadata');
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to set rejection feedback flag (non-fatal)');
+          }
+
+          if (!rejectionReason && approvalMsgTs && targetChannel) {
+            try {
+              const feedbackText = `Got it, <@${actorUserId}>. What should I have done differently?`;
+              await slackClient.postMessage({
+                channel: targetChannel,
+                thread_ts: approvalMsgTs,
+                text: feedbackText,
+                blocks: [{ type: 'section', text: { type: 'mrkdwn', text: feedbackText } }],
+              });
+              log.info({ taskId }, 'Rejection feedback solicitation posted in thread');
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to post rejection feedback solicitation (non-fatal)',
+              );
+            }
+          }
+
           await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
