@@ -23,3 +23,10 @@
 - Also add `ok: true` to mock responses so the happy path does not hit the error branch
 - Pattern: `{ ok: true, json: vi.fn().mockResolvedValue(...), text: vi.fn().mockResolvedValue("") }`
 - All 4 mock response objects in beforeEach needed the fix (slack, feedback, knowledge_base_entries, fallback)
+
+## Task 3: Deleted deprecated lifecycle test file (2026-05-06)
+- `tests/inngest/lifecycle.test.ts` (~900 lines) tested `createLifecycleFunction` from deprecated `src/inngest/lifecycle.ts`
+- No other test files imported from it — safe to delete standalone
+- Deletion introduced zero new test failures in `tests/inngest/`
+- Pre-existing failures in inngest tests are unrelated to lifecycle.ts deletion
+- The `tests/inngest/` suite has ~20 passing test files; failures are in active employee-lifecycle tests (separate issue)
