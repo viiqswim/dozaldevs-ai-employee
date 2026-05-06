@@ -137,7 +137,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       });
 
       // ── Notification: Task received ──────────────────────────────────────────
-      await step.run('notify-received', async () => {
+      const notifyMsgRef = await step.run('notify-received', async () => {
         try {
           const prismaForNotify = new PrismaClient();
           const tenantEnvForNotify = await loadTenantEnv(
@@ -154,10 +154,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             tenantEnvForNotify['NOTIFICATION_CHANNEL'] ??
             tenantEnvForNotify['SUMMARY_TARGET_CHANNEL'] ??
             '';
-          if (!botToken || !channel) return;
+          if (!botToken || !channel) return { ts: null, channel: null };
           const roleName = (archetype.role_name as string) ?? 'unknown';
           const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
-          await slackClientForNotify.postMessage({
+          const result = await slackClientForNotify.postMessage({
             channel,
             text: `⏳ Task received — processing (${roleName})`,
             blocks: [
@@ -174,8 +174,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               },
             ],
           });
+          return { ts: result.ts, channel };
         } catch (err) {
           log.warn({ taskId, err }, 'Failed to send received notification (non-fatal)');
+          return { ts: null, channel: null };
         }
       });
 
@@ -403,6 +405,34 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await step.run('mark-failed', async () => {
           await patchTask(supabaseUrl, headers, taskId, { status: 'Failed' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Executing');
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const prismaForFail = new PrismaClient();
+              const tenantEnvForFail = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForFail),
+                  secretRepo: new TenantSecretRepository(prismaForFail),
+                },
+                (archetype.notification_channel as string | null) ?? null,
+              );
+              await prismaForFail.$disconnect();
+              const botTokenForFail = tenantEnvForFail['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForFail) {
+                const slackForFail = createSlackClient({
+                  botToken: botTokenForFail,
+                  defaultChannel: '',
+                });
+                const failText = `❌ Task failed`;
+                await slackForFail.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, failText, [
+                  { type: 'section', text: { type: 'mrkdwn', text: failText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ]);
+              }
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update notify-received on failure (non-fatal)');
+            }
+          }
         });
         await step.run('cleanup-on-failure', async () => {
           try {
@@ -437,6 +467,37 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
           log.info({ taskId }, 'State: Done (no approval required)');
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const prismaForDone = new PrismaClient();
+              const tenantEnvForDone = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForDone),
+                  secretRepo: new TenantSecretRepository(prismaForDone),
+                },
+                (archetype.notification_channel as string | null) ?? null,
+              );
+              await prismaForDone.$disconnect();
+              const botTokenForDone = tenantEnvForDone['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForDone) {
+                const slackForDone = createSlackClient({
+                  botToken: botTokenForDone,
+                  defaultChannel: '',
+                });
+                const doneText = `✅ Task complete`;
+                await slackForDone.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, doneText, [
+                  { type: 'section', text: { type: 'mrkdwn', text: doneText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ]);
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to update notify-received on completion (non-fatal)',
+              );
+            }
+          }
         });
         await step.run('cleanup-no-approval', async () => {
           try {
@@ -818,6 +879,22 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const expiredNotifyText = `⏰ Expired — no action taken.`;
+              await slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                expiredNotifyText,
+                [
+                  { type: 'section', text: { type: 'mrkdwn', text: expiredNotifyText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
+              );
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update notify-received on expiry (non-fatal)');
+            }
+          }
           await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
@@ -937,6 +1014,23 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 { taskId, approvalMsgTs, targetChannel, err },
                 'Approval message update failed (non-fatal) — message may have been deleted',
               );
+            }
+          }
+
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const approvedNotifyText = `✅ Approved by <@${actorUserId}> — delivering now.`;
+              await slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                approvedNotifyText,
+                [
+                  { type: 'section', text: { type: 'mrkdwn', text: approvedNotifyText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
+              );
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update notify-received on approval (non-fatal)');
             }
           }
 
@@ -1062,6 +1156,25 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Sent message update failed (non-fatal)',
               );
             }
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                const sentNotifyText = `✅ Task complete`;
+                await slackClient.updateMessage(
+                  notifyMsgRef.channel,
+                  notifyMsgRef.ts,
+                  sentNotifyText,
+                  [
+                    { type: 'section', text: { type: 'mrkdwn', text: sentNotifyText } },
+                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                  ],
+                );
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received after delivery (non-fatal)',
+                );
+              }
+            }
             await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
           }
         } else if (action === 'superseded') {
@@ -1078,6 +1191,25 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
                 'Superseded message update failed (non-fatal)',
+              );
+            }
+          }
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const supersededNotifyText = `⏭️ Superseded`;
+              await slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                supersededNotifyText,
+                [
+                  { type: 'section', text: { type: 'mrkdwn', text: supersededNotifyText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
+              );
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to update notify-received on supersede (non-fatal)',
               );
             }
           }
@@ -1167,6 +1299,25 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
                 'Rejection message update failed (non-fatal)',
+              );
+            }
+          }
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
+              await slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                rejectedNotifyText,
+                [
+                  { type: 'section', text: { type: 'mrkdwn', text: rejectedNotifyText } },
+                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                ],
+              );
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to update notify-received on rejection (non-fatal)',
               );
             }
           }
