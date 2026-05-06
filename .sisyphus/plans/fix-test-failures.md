@@ -541,7 +541,7 @@ Wave FINAL (After ALL tasks):
 
 ---
 
-- [ ] 7. Notify completion
+- [x] 7. Notify completion
 
   Send Telegram notification: plan `fix-test-failures` complete, all tasks done, come back to review results.
 
