@@ -51,7 +51,7 @@ export async function loadTenantEnv(
   const tenantNotificationChannel =
     typeof config['notification_channel'] === 'string' ? config['notification_channel'] : undefined;
   const notificationChannel = resolveNotificationChannel(
-    { notification_channel: archetypeNotificationChannel ?? null },
+    { notification_channel: archetypeNotificationChannel ?? undefined },
     { notification_channel: tenantNotificationChannel },
   );
   if (notificationChannel) {

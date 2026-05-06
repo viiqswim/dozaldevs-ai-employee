@@ -10,12 +10,12 @@ describe('resolveNotificationChannel', () => {
     expect(result).toBe('C_ARCHETYPE');
   });
 
-  it('returns tenant value when archetype notification_channel is null', () => {
+  it('returns empty string when archetype notification_channel is null (explicit suppress)', () => {
     const result = resolveNotificationChannel(
       { notification_channel: null },
       { notification_channel: 'C_TENANT' },
     );
-    expect(result).toBe('C_TENANT');
+    expect(result).toBe('');
   });
 
   it('returns empty string when both archetype and tenant values are absent', () => {
@@ -29,5 +29,13 @@ describe('resolveNotificationChannel', () => {
       { notification_channel: 'C_TENANT_DEFAULT' },
     );
     expect(result).toBe('C_ARCHETYPE_OVERRIDE');
+  });
+
+  it('returns tenant value when archetype notification_channel is undefined', () => {
+    const result = resolveNotificationChannel(
+      { notification_channel: undefined },
+      { notification_channel: 'C_TENANT' },
+    );
+    expect(result).toBe('C_TENANT');
   });
 });
