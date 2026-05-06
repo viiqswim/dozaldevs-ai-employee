@@ -336,8 +336,7 @@ async function main() {
     '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (= reservationId from Step 1 output — these are the same value), threadUid, messageUid (new guest context fields)\n' +
     '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
-    'Post the rich approval card for PM review.\n' +
-    'If Step 3.5 was run (access/lock message), include the --diagnosis flag with the full diagnosis JSON:\n' +
+    'Post the rich approval card for PM review. Run this command EXACTLY ONCE — do NOT run it twice:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
     '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
     '  --task-id "$TASK_ID" \\\n' +
@@ -353,25 +352,9 @@ async function main() {
     '  --lead-uid "<leadUid>" \\\n' +
     '  --thread-uid "<threadUid>" \\\n' +
     '  --message-uid "<messageUid>" \\\n' +
-    "  --diagnosis '<full diagnosis JSON from Step 3.5>' \\\n" +
-    '  > /tmp/approval-message.json\n\n' +
-    'If Step 3.5 was NOT run (non-access message), omit the --diagnosis flag entirely:\n' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
-    '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
-    '  --task-id "$TASK_ID" \\\n' +
-    '  --guest-name "<guestName>" \\\n' +
-    '  --property-name "<propertyName>" \\\n' +
-    '  --check-in "<checkIn>" \\\n' +
-    '  --check-out "<checkOut>" \\\n' +
-    '  --booking-channel "<bookingChannel>" \\\n' +
-    '  --original-message "<originalMessage>" \\\n' +
-    '  --draft-response "<draftResponse>" \\\n' +
-    '  --confidence <confidence> \\\n' +
-    '  --category "<category>" \\\n' +
-    '  --lead-uid "<leadUid>" \\\n' +
-    '  --thread-uid "<threadUid>" \\\n' +
-    '  --message-uid "<messageUid>" \\\n' +
-    '  > /tmp/approval-message.json\n\n' +
+    '  > /tmp/approval-message.json\n' +
+    'If Step 3.5 was run (access/lock message), add the --diagnosis flag before the > redirect:\n' +
+    "  --diagnosis '<full diagnosis JSON from Step 3.5>'\n\n" +
     "IMPORTANT — Conversation ref for superseding detection: After writing /tmp/approval-message.json, append the conversationRef field to it so the platform can detect when a newer message supersedes this one. Run: node -e \"const f='/tmp/approval-message.json'; const d=JSON.parse(require('fs').readFileSync(f,'utf8')); d.conversationRef='<threadUid from classification result>'; require('fs').writeFileSync(f,JSON.stringify(d))\"\n" +
     'The --conversation-ref flag (Hostfully threadUid) enables the platform to supersede this approval card if the guest sends a follow-up message before the PM acts.\n\n' +
     'CRITICAL: Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish.\n\n' +
