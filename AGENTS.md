@@ -364,9 +364,8 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
 Do NOT attempt to fix these — they are unrelated to any recent changes:
 
-- `container-boot.test.ts` — requires Docker socket; always fails in CI without Docker
+- `container-boot.test.ts` — requires Docker socket; all 4 tests skip via `describe.skipIf` when Docker is unavailable
 - `inngest-serve.test.ts` — function count check expects an old count; stale test
-- `tests/inngest/integration.test.ts` — uses Fastify-specific API (`inject`, `ready`, `close`) that no longer exists after Express migration; stale test
 
 ## Database
 

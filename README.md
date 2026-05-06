@@ -203,4 +203,4 @@ pnpm lint     # ESLint
 pnpm build    # TypeScript compile
 ```
 
-Two pre-existing test failures are expected: `container-boot.test.ts` (requires Docker socket) and `inngest-serve.test.ts` (function count check).
+One pre-existing test failure is expected: `inngest-serve.test.ts` (function count check expects an old count). `container-boot.test.ts` skips all 4 tests when Docker is unavailable (not a failure).
