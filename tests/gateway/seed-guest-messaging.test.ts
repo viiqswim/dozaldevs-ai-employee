@@ -108,12 +108,12 @@ describe('guest-messaging archetype — seed verification', () => {
     expect((result[0].agents_md as string).length).toBeGreaterThan(0);
   });
 
-  it('deliverable_type = slack_message', async () => {
+  it('deliverable_type = hostfully_message', async () => {
     const prisma = getPrisma();
     const result = await prisma.$queryRaw<Array<{ deliverable_type: string }>>`
       SELECT deliverable_type FROM archetypes WHERE id = ${GUEST_MESSAGING_ARCHETYPE_ID}::uuid
     `;
-    expect(result[0].deliverable_type).toBe('slack_message');
+    expect(result[0].deliverable_type).toBe('hostfully_message');
   });
 
   it('concurrency_limit = 5', async () => {
