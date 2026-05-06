@@ -399,7 +399,50 @@ async function main(): Promise<void> {
     }
 
     // 3. Build delivery prompt with injected deliverable content
-    const deliveryPrompt = `${deliveryInstructions}\n\n--- DELIVERABLE CONTENT ---\n${deliverableContent}\n--- END DELIVERABLE CONTENT ---\n\nTask ID: ${TASK_ID}`;
+    // Pre-parse for guest-messaging: extract Hostfully IDs programmatically
+    // to avoid LLM UUID confusion in the delivery prompt
+    let deliveryPrompt = '';
+    if (archetype.role_name === 'guest-messaging') {
+      let usedPreParse = false;
+      try {
+        const parsed = JSON.parse(deliverableContent) as Record<string, unknown>;
+        const leadUid = typeof parsed['leadUid'] === 'string' ? parsed['leadUid'] : '';
+        const threadUid = typeof parsed['threadUid'] === 'string' ? parsed['threadUid'] : '';
+        const draftResponse =
+          typeof parsed['draftResponse'] === 'string' ? parsed['draftResponse'] : '';
+        // Safety: leadUid must be non-empty and MUST NOT be the task ID
+        if (leadUid && leadUid !== TASK_ID && draftResponse) {
+          const threadIdArg = threadUid ? `--thread-id "${threadUid}"` : '';
+          const sendCmd =
+            `tsx /tools/hostfully/send-message.ts --lead-id "${leadUid}" ${threadIdArg} --message "${draftResponse}"`
+              .replace(/  +/g, ' ')
+              .trim();
+          deliveryPrompt = `${deliveryInstructions}\n\nThe deliverable has been pre-parsed. Execute this exact command to deliver the response:\n\n${sendCmd}\n\nAfter delivery, write results to /tmp/summary.txt as JSON with "delivered": true and the send-message.ts output.\n\nTask ID: ${TASK_ID}`;
+          usedPreParse = true;
+          log.info(
+            { taskId: TASK_ID, leadUid, hasThreadId: !!threadUid },
+            '[opencode-harness] guest-messaging delivery pre-parsed',
+          );
+        } else {
+          if (leadUid === TASK_ID) {
+            log.warn(
+              { taskId: TASK_ID, leadUid },
+              '[opencode-harness] leadUid matches taskId — execution model error, using raw fallback',
+            );
+          }
+        }
+      } catch (err) {
+        log.warn(
+          { taskId: TASK_ID, err },
+          '[opencode-harness] guest-messaging JSON pre-parse failed — using raw deliverable',
+        );
+      }
+      if (!usedPreParse) {
+        deliveryPrompt = `${deliveryInstructions}\n\n--- DELIVERABLE CONTENT ---\n${deliverableContent}\n--- END DELIVERABLE CONTENT ---\n\nTask ID: ${TASK_ID}`;
+      }
+    } else {
+      deliveryPrompt = `${deliveryInstructions}\n\n--- DELIVERABLE CONTENT ---\n${deliverableContent}\n--- END DELIVERABLE CONTENT ---\n\nTask ID: ${TASK_ID}`;
+    }
 
     // 4. Auth setup — required before OpenCode session
     await writeOpencodeAuth();

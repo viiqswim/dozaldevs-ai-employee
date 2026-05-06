@@ -334,7 +334,7 @@ async function main() {
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
     '- classification, confidence, reasoning, draftResponse, summary, category, conversationSummary, urgency (original 8 fields)\n' +
-    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (= reservationId from Step 1 output — these are the same value), threadUid, messageUid (new guest context fields)\n' +
+    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (CRITICAL: extract from the leadUid field in the message objects returned by get-messages.ts in Step 1 — this is the Hostfully reservation UID, e.g. looks like 37f5f58f-d308-42bf-8ed3-f0c2d70f16fb. Do NOT use the $TASK_ID environment variable as leadUid — they are different identifiers), threadUid (from the threadUid field in Step 1 output), messageUid (from the uid field of the specific message)\n' +
     '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
     'Post the rich approval card for PM review. Run this command EXACTLY ONCE — do NOT run it twice:\n' +
@@ -3299,7 +3299,7 @@ No specific house rules provided.
       system_prompt: GUEST_MESSAGING_SYSTEM_PROMPT,
       instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
-      deliverable_type: 'slack_message',
+      deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
           '/tools/hostfully/get-property.ts',
@@ -3319,7 +3319,7 @@ No specific house rules provided.
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'You will receive the approved deliverable content below as JSON. Parse it to extract the leadUid, threadUid (if present), and draftResponse fields. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid>" --thread-id "<threadUid, if present>" --message "<draftResponse>". After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
+        'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
     },
@@ -3329,7 +3329,7 @@ No specific house rules provided.
       system_prompt: GUEST_MESSAGING_SYSTEM_PROMPT,
       instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
-      deliverable_type: 'slack_message',
+      deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
           '/tools/hostfully/get-property.ts',
@@ -3349,7 +3349,7 @@ No specific house rules provided.
       concurrency_limit: 5,
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
-        'You will receive the approved deliverable content below as JSON. Parse it to extract the leadUid, threadUid (if present), and draftResponse fields. Send the approved response to the guest via Hostfully: tsx /tools/hostfully/send-message.ts --lead-id "<leadUid>" --thread-id "<threadUid, if present>" --message "<draftResponse>". After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
+        'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       department_id: '00000000-0000-0000-0000-000000000021',
       // NO tenant_id — immutable
     },
