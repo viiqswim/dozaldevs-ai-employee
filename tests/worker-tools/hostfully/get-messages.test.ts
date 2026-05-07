@@ -276,7 +276,7 @@ afterAll(async () => {
 });
 
 describe('get-messages shell tool', () => {
-  it('default (no filters) returns threads for BOOKING leads only, not BLOCK', async () => {
+  it('default (no filters) returns threads for non-BLOCK leads, excludes BLOCK calendar entries', async () => {
     const { stdout, code } = await runScript(['--property-id', 'VALID_PROPERTY'], {
       HOSTFULLY_API_KEY: 'testkey',
       HOSTFULLY_API_URL: `http://localhost:${port}`,

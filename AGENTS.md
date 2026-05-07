@@ -86,6 +86,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (8am UTC, weekdays)
   - `trigger/feedback-summarizer` — weekly cron that generates a digest of recent feedback using Claude Haiku
   - `trigger/learned-rules-expiry` — cron maintenance (`0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts`) — handles expiry of learned rules, no task dispatch
+  - `trigger/guest-message-poll` — cron (`*/15 * * * *`, `src/inngest/triggers/guest-message-poll.ts`) — polls Hostfully for unresponded messages across ALL leads regardless of status (NEW, BOOKED, CLOSED), creates tasks for any unresponded thread without an active task; catches messages Hostfully silently drops for CLOSED leads
 
   Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) remain registered but are on hold — see Deprecated Components table.
 
@@ -307,20 +308,33 @@ curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-0000000
 **Inbound flow**:
 
 ```
-Hostfully NEW_INBOX_MESSAGE webhook
+Hostfully NEW_INBOX_MESSAGE webhook  ─┐
+  → POST /webhooks/hostfully          │  Both paths converge on the same
+Polling cron (every 15 min)         ─┘  universal lifecycle below
+  → trigger/guest-message-poll
+    → polls all leads (any status: NEW, BOOKED, CLOSED) via Hostfully API
+    → creates tasks for unresponded threads without an active task
+      → external_id: hostfully-poll-{lead_uid}-{YYYY-MM-DD} (one per lead per day)
+
+Webhook path:
   → POST /webhooks/hostfully
     → match tenant by agency_uid (tenant.config.guest_messaging.hostfully_agency_uid)
     → find archetype by { tenant_id, role_name: 'guest-messaging' }
     → prisma.task.create → inngest.send('employee/task.dispatched')
-      → universal lifecycle
-        → pre-check: if last message in thread is from host (senderType=AGENCY) → task goes Received → Done (no worker, no Slack)
-        → otherwise → local Docker / Fly.io worker → OpenCode
-          → model calls get-messages.ts --unresponded-only (Hostfully API)
-          → NEEDS_APPROVAL → post-guest-approval.ts → Slack card → PM approves → send-message.ts → Hostfully
-          → NO_ACTION_NEEDED → task goes to Submitting → auto-completes
+
+Both paths → universal lifecycle:
+  → pre-check: if last message in thread is from host (senderType=AGENCY) → task goes Received → Done (no worker, no Slack)
+  → otherwise → local Docker / Fly.io worker → OpenCode
+    → model calls get-messages.ts --unresponded-only (Hostfully API)
+    → NEEDS_APPROVAL → post-guest-approval.ts → Slack card → PM approves → send-message.ts → Hostfully
+    → NO_ACTION_NEEDED → task goes to Submitting → auto-completes
 ```
 
 **CRITICAL gotcha — webhook is a trigger only**: The model independently polls Hostfully for ALL unresponded messages via `get-messages.ts --unresponded-only`. The `message_uid`/`thread_uid` from the webhook payload is stored in `raw_event` but NOT passed to the model. If no unresponded messages exist in Hostfully at execution time, the model returns `NO_ACTION_NEEDED` regardless of the webhook payload.
+
+**CRITICAL gotcha — CLOSED leads do not fire webhooks**: Hostfully does NOT fire `NEW_INBOX_MESSAGE` webhooks for leads with status `CLOSED`. This is handled automatically by the `trigger/guest-message-poll` cron (every 15 min), which polls all leads regardless of status. Manual recovery is only needed for immediate response on a missed message: fire the webhook manually: `curl -X POST http://localhost:7700/webhooks/hostfully -H "Content-Type: application/json" -d '{"agency_uid":"942d08d9-82bb-4fd3-9091-ca0c6b50b578","event_type":"NEW_INBOX_MESSAGE","message_uid":"manual-<timestamp>","thread_uid":"<thread_uid>","lead_uid":"<lead_uid>","property_uid":"<property_uid>"}'`. If the thread has a zombie task stuck in `Submitting` (no pending approval, Inngest run long gone), manually mark it `Done` in the DB first: `UPDATE tasks SET status = 'Done', updated_at = NOW() WHERE id = '<task_id>' AND status = 'Submitting';`
+
+**CRITICAL gotcha — lead type filter**: `get-messages.ts` includes all lead types except `BLOCK` (calendar blocks). This is intentional — Airbnb and other OTAs sometimes surface real stays as `INQUIRY` type in Hostfully, not `BOOKING`. Do not change the filter back to `type === 'BOOKING'`.
 
 **Simulate a webhook locally** (no auth required — no HMAC on this endpoint):
 
