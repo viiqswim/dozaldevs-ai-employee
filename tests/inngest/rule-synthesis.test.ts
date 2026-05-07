@@ -95,7 +95,7 @@ function makeFetchMock({
     }
     // Knowledge bases POST (used by summarize step — won't be hit with empty feedback, but fallback)
     if (url.includes('/rest/v1/knowledge_bases') && method === 'POST') {
-      return { json: () => Promise.resolve([]) };
+      return { ok: true, json: () => Promise.resolve([]) };
     }
 
     return { json: () => Promise.resolve([]) };

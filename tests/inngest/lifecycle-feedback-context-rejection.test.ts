@@ -260,7 +260,7 @@ describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integrat
         });
       }
       if ((url as string).includes('knowledge_bases')) {
-        return Promise.resolve({ json: () => Promise.resolve({}) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
       }
       return Promise.resolve({ json: () => Promise.resolve([]) });
     });
