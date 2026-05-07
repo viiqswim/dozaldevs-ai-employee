@@ -76,7 +76,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
-- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`, `trigger/unresponded-message-monitor` (cron `*/30 * * * *`, `src/inngest/triggers/monitor-trigger.ts`), `trigger/learned-rules-expiry` (cron `0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts` — maintenance only, no task dispatch)
+- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`, `trigger/learned-rules-expiry` (cron `0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts` — maintenance only, no task dispatch)
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
 - **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
@@ -301,10 +301,12 @@ Hostfully NEW_INBOX_MESSAGE webhook
     → match tenant by agency_uid (tenant.config.guest_messaging.hostfully_agency_uid)
     → find archetype by { tenant_id, role_name: 'guest-messaging' }
     → prisma.task.create → inngest.send('employee/task.dispatched')
-      → universal lifecycle → local Docker / Fly.io worker → OpenCode
-        → model calls get-messages.ts --unresponded-only (Hostfully API)
-        → NEEDS_APPROVAL → post-guest-approval.ts → Slack card → PM approves → send-message.ts → Hostfully
-        → NO_ACTION_NEEDED → task goes to Submitting → auto-completes
+      → universal lifecycle
+        → pre-check: if last message in thread is from host (senderType=AGENCY) → task goes Received → Done (no worker, no Slack)
+        → otherwise → local Docker / Fly.io worker → OpenCode
+          → model calls get-messages.ts --unresponded-only (Hostfully API)
+          → NEEDS_APPROVAL → post-guest-approval.ts → Slack card → PM approves → send-message.ts → Hostfully
+          → NO_ACTION_NEEDED → task goes to Submitting → auto-completes
 ```
 
 **CRITICAL gotcha — webhook is a trigger only**: The model independently polls Hostfully for ALL unresponded messages via `get-messages.ts --unresponded-only`. The `message_uid`/`thread_uid` from the webhook payload is stored in `raw_event` but NOT passed to the model. If no unresponded messages exist in Hostfully at execution time, the model returns `NO_ACTION_NEEDED` regardless of the webhook payload.
