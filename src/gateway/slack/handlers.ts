@@ -166,26 +166,6 @@ const BUTTON_BLOCKS = (taskId: string) => [
   },
 ];
 
-const OVERRIDE_BUTTON_BLOCKS = (taskId: string) => [
-  {
-    type: 'actions',
-    elements: [
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '🔄 Take Action', emoji: true },
-        action_id: 'override_take_action',
-        value: taskId,
-      },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '✅ Dismiss', emoji: true },
-        action_id: 'override_dismiss',
-        value: taskId,
-      },
-    ],
-  },
-];
-
 export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void {
   boltApp.event('message', async ({ event }) => {
     const msg = event as {
