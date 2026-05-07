@@ -269,14 +269,51 @@ Use these VLRE resources for all Hostfully-related testing:
 
 **Owner's Airbnb guest test account**: Messages from the following thread are sent by the repo owner using a personal Airbnb guest test account — not a real guest. Do not treat these as production inquiries. Useful for end-to-end testing of the guest-messaging employee with a live Airbnb-sourced lead.
 
-| Resource     | ID / URL                                                                                                                                 |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Thread       | `https://platform.hostfully.com/app/#/inbox?threadUid=aef3d0cf-bc61-4f05-a3ce-1a4199ca336d&leadUid=29a64abd-d02c-44bc-8d5c-47df58a7ab14` |
-| Thread UID   | `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`                                                                                                   |
-| Lead UID     | `29a64abd-d02c-44bc-8d5c-47df58a7ab14`                                                                                                   |
-| Property UID | `562695df-6a4f-40d6-990d-56fe043aa9e8`                                                                                                   |
-| Guest name   | Olivia (test account)                                                                                                                    |
-| Lead status  | NEW · Type: INQUIRY · Channel: AIRBNB                                                                                                    |
+| Resource          | ID / URL                                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Thread            | `https://platform.hostfully.com/app/#/inbox?threadUid=aef3d0cf-bc61-4f05-a3ce-1a4199ca336d&leadUid=29a64abd-d02c-44bc-8d5c-47df58a7ab14` |
+| Thread UID        | `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`                                                                                                   |
+| Lead UID          | `29a64abd-d02c-44bc-8d5c-47df58a7ab14`                                                                                                   |
+| Property UID      | `562695df-6a4f-40d6-990d-56fe043aa9e8`                                                                                                   |
+| Guest name        | Olivia (test account)                                                                                                                    |
+| Lead status       | NEW · Type: INQUIRY · Channel: AIRBNB                                                                                                    |
+| Airbnb thread URL | `https://www.airbnb.com/guest/messages/2525238359`                                                                                       |
+
+### E2E Testing with Playwright Browser
+
+During E2E testing sessions you can use the Playwright MCP browser to interact with both sides of the pipeline directly — no manual steps required. Open both URLs, log in once, and you have full visibility and control.
+
+**Airbnb (guest side)** — send messages as Olivia from the test account:
+
+- URL: `https://www.airbnb.com/guest/messages/2525238359`
+- This is the Airbnb inbox thread that feeds into Hostfully thread `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`
+- Type into the `textbox "Write a message..."` element and click Send
+
+**Slack (PM approval side)** — monitor approval cards and approve/reject:
+
+- Workspace: VLRE (`T06KFDGLHS6`)
+- Channel: `#cs-guest-communication` — `https://app.slack.com/client/T06KFDGLHS6/C0AMGJQN05S`
+- Channel ID: `C0AMGJQN05S`
+- Approval cards appear here; click **Approve** or **Reject** buttons directly in the browser
+
+**Typical E2E test flow**:
+
+1. Send a new message from Airbnb test account (as Olivia) via the Playwright browser
+2. The pre-check runs — if last message is from host, task auto-completes (expected). Wait for Olivia's message to be the last one.
+3. Fire the webhook manually or wait for the 15-min polling cron:
+   ```bash
+   curl -X POST http://localhost:7700/webhooks/hostfully \
+     -H "Content-Type: application/json" \
+     -d '{"agency_uid":"942d08d9-82bb-4fd3-9091-ca0c6b50b578","event_type":"NEW_INBOX_MESSAGE","message_uid":"test-e2e-'$(date +%s)'","thread_uid":"aef3d0cf-bc61-4f05-a3ce-1a4199ca336d","lead_uid":"29a64abd-d02c-44bc-8d5c-47df58a7ab14","property_uid":"562695df-6a4f-40d6-990d-56fe043aa9e8"}'
+   ```
+4. Worker spawns → drafts reply → Approve/Reject card appears in `#cs-guest-communication`
+5. Click **Approve** in Slack browser tab
+6. Confirm reply appears in Airbnb thread (Airbnb tab)
+
+**Checking pipeline state** without polling DB:
+
+- Read the last few Slack messages — they show task outcome ("No action needed", approval card, or failure)
+- Approval cards include the task ID in a context block at the bottom
 
 ## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
 
