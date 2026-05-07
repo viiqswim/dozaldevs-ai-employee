@@ -34,7 +34,11 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
       summary: responseText.trim(),
       urgency: false,
       conversationSummary: null,
-      reasoning: 'Early exit — no messages to process',
+      reasoning:
+        responseText
+          .trim()
+          .replace(/^NO_ACTION_NEEDED:\s*/, '')
+          .trim() || 'No messages to process',
     };
   }
 
