@@ -250,7 +250,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const kbRows = (await kbRes.json()) as Array<{ source_config: unknown }>;
 
           const fbRes = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?created_at=gte.${thirtyDaysAgo}&select=correction_reason,feedback_type,created_at&order=created_at.desc&limit=10`,
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${tenantId}&created_at=gte.${thirtyDaysAgo}&select=correction_reason,feedback_type,created_at&order=created_at.desc&limit=10`,
             { headers },
           );
           const fbRows = (await fbRes.json()) as Array<{
@@ -1564,6 +1564,34 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn(
                 { taskId, err },
                 'Failed to post rejection feedback solicitation (non-fatal)',
+              );
+            }
+          }
+
+          if (!rejectionReason) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/learned_rules`, {
+                method: 'POST',
+                headers: { ...headers, Prefer: 'return=minimal' },
+                body: JSON.stringify({
+                  id: crypto.randomUUID(),
+                  tenant_id: tenantId,
+                  entity_type: 'archetype',
+                  entity_id: archetypeId,
+                  scope: 'entity',
+                  rule_text: '',
+                  source: 'rejection',
+                  status: 'awaiting_input',
+                  source_task_id: taskId,
+                  slack_ts: approvalMsgTs ?? null,
+                  slack_channel: targetChannel ?? null,
+                }),
+              });
+              log.info({ taskId }, 'Awaiting-input rule created for rejection without reason');
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to create awaiting-input rule for rejection (non-fatal)',
               );
             }
           }

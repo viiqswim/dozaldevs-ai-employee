@@ -89,6 +89,99 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         return rows[0] ?? null;
       });
 
+      const rejectionFeedbackRequest = await step.run(
+        'detect-rejection-feedback-request',
+        async () => {
+          if (!taskId || awaitingInputRule) return null;
+
+          const supabaseUrl = process.env.SUPABASE_URL ?? '';
+          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+          const headers = {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          };
+
+          const res = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status,metadata`,
+            { headers },
+          );
+          const rows = (await res.json()) as Array<{
+            status: string;
+            metadata: Record<string, unknown> | null;
+          }>;
+          const task = rows[0];
+          if (!task) return null;
+          if (task.status !== 'Cancelled') return null;
+          const meta = task.metadata ?? {};
+          if (!meta.rejection_feedback_requested) return null;
+          if (meta.rejection_user_id !== userId) return null;
+          return { taskId };
+        },
+      );
+
+      if (rejectionFeedbackRequest) {
+        await step.run('capture-rejection-feedback', async () => {
+          const supabaseUrl = process.env.SUPABASE_URL ?? '';
+          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+          const headers = {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          };
+
+          const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              id: crypto.randomUUID(),
+              task_id: taskId ?? null,
+              feedback_type: 'rejection_reason',
+              correction_reason: text,
+              created_by: userId,
+              tenant_id: context.tenantId,
+              original_decision: null,
+              corrected_decision: null,
+              updated_at: new Date().toISOString(),
+            }),
+          });
+          const feedbackRows = (await feedbackRes.json()) as Array<{ id: string }>;
+          const newFeedbackId = feedbackRows[0]?.id ?? crypto.randomUUID();
+
+          // Clear the rejection_feedback_requested flag so second replies go through normal classification
+          const metaRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
+            { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+          );
+          const metaRows = (await metaRes.json()) as Array<{
+            metadata: Record<string, unknown> | null;
+          }>;
+          const existingMeta = metaRows[0]?.metadata ?? {};
+          await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+            method: 'PATCH',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              metadata: { ...existingMeta, rejection_feedback_requested: false },
+            }),
+          });
+
+          await step.sendEvent('emit-rejection-rule-extract', {
+            name: 'employee/rule.extract-requested',
+            data: {
+              feedbackId: newFeedbackId,
+              feedbackType: 'rejection_reason',
+              taskId: taskId ?? null,
+              archetypeId: context.archetypeId ?? null,
+              tenantId: context.tenantId,
+              content: text,
+            },
+          });
+
+          log.info({ taskId, userId }, 'Rejection feedback captured from thread reply');
+        });
+        return;
+      }
+
       if (awaitingInputRule) {
         await step.run('capture-awaiting-input-reply', async () => {
           const supabaseUrl = process.env.SUPABASE_URL ?? '';
