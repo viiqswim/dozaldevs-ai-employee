@@ -383,4 +383,104 @@ describe('parseClassifyResponse', () => {
     expect(result.threadUid).toBeUndefined();
     expect(result.messageUid).toBeUndefined();
   });
+
+  describe('displayContext', () => {
+    it('passes through explicit displayContext from JSON', () => {
+      const input = JSON.stringify({
+        classification: 'NO_ACTION_NEEDED',
+        confidence: 0.9,
+        reasoning: 'All handled',
+        summary: 'No action needed',
+        category: 'acknowledgment',
+        conversationSummary: null,
+        urgency: false,
+        displayContext: { Guest: 'John Smith', Property: 'Beach House' },
+      });
+      const result = parseClassifyResponse(input);
+      expect(result.displayContext).toEqual({ Guest: 'John Smith', Property: 'Beach House' });
+    });
+
+    it('synthesizes displayContext from guest fields when displayContext absent', () => {
+      const input = JSON.stringify({
+        classification: 'NO_ACTION_NEEDED',
+        confidence: 0.9,
+        reasoning: 'All handled',
+        summary: 'No action needed',
+        category: 'acknowledgment',
+        conversationSummary: null,
+        urgency: false,
+        guestName: 'Maria Garcia',
+        propertyName: 'Beachfront Villa',
+        checkIn: '2026-05-10',
+        checkOut: '2026-05-17',
+        bookingChannel: 'AIRBNB',
+      });
+      const result = parseClassifyResponse(input);
+      expect(result.displayContext).toEqual({
+        Guest: 'Maria Garcia',
+        Property: 'Beachfront Villa',
+        'Check-in': '2026-05-10',
+        'Check-out': '2026-05-17',
+        Channel: 'AIRBNB',
+      });
+    });
+
+    it('explicit displayContext wins when both displayContext and guest fields are present', () => {
+      const input = JSON.stringify({
+        classification: 'NO_ACTION_NEEDED',
+        confidence: 0.9,
+        reasoning: 'All handled',
+        summary: 'No action needed',
+        category: 'acknowledgment',
+        conversationSummary: null,
+        urgency: false,
+        displayContext: { 'Custom Key': 'Custom Value' },
+        guestName: 'Should Not Appear',
+        propertyName: 'Should Not Appear',
+      });
+      const result = parseClassifyResponse(input);
+      expect(result.displayContext).toEqual({ 'Custom Key': 'Custom Value' });
+    });
+
+    it('returns undefined displayContext when neither displayContext nor guest fields are present', () => {
+      const input = JSON.stringify({
+        classification: 'NO_ACTION_NEEDED',
+        confidence: 0.9,
+        reasoning: 'No messages',
+        summary: 'No action needed',
+        category: 'acknowledgment',
+        conversationSummary: null,
+        urgency: false,
+      });
+      const result = parseClassifyResponse(input);
+      expect(result.displayContext).toBeUndefined();
+    });
+
+    it('omits empty-value guest fields from synthesized displayContext', () => {
+      const input = JSON.stringify({
+        classification: 'NO_ACTION_NEEDED',
+        confidence: 0.9,
+        reasoning: 'All handled',
+        summary: 'No action needed',
+        category: 'acknowledgment',
+        conversationSummary: null,
+        urgency: false,
+        guestName: 'John',
+        propertyName: '',
+        checkIn: '2026-05-10',
+        checkOut: '',
+        bookingChannel: '',
+      });
+      const result = parseClassifyResponse(input);
+      expect(result.displayContext).toEqual({
+        Guest: 'John',
+        'Check-in': '2026-05-10',
+      });
+    });
+
+    it('returns undefined displayContext for early-exit NO_ACTION_NEEDED string', () => {
+      const result = parseClassifyResponse('NO_ACTION_NEEDED: No unresponded messages found.');
+      expect(result.displayContext).toBeUndefined();
+    });
+  });
 });

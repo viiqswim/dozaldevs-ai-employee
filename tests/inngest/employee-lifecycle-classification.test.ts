@@ -133,13 +133,9 @@ function makeClassificationEngine(deliverableContent: string | null) {
         return fn();
       case 'complete-no-action-timeout':
         return fn();
-      case 'mark-reply-anyway-override':
+      case 'post-override-card':
         return fn();
-      case 'build-reply-context':
-        return fn();
-      case 'reply-anyway-execute':
-        return 'mock-reply-machine-id';
-      case 'reply-anyway-poll':
+      case 'create-override-task':
         return fn();
       case 'set-reviewing':
         return undefined;
@@ -255,10 +251,10 @@ describe('employee-lifecycle — classification flow (check-classification step)
     expect(
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
-    // waitForEvent IS called now (24h Reply Anyway window), returns null (timeout) → Done
+    // waitForEvent IS called now (24h override window), returns null (timeout) → Done
     expect(waitForEventMock).toHaveBeenCalledWith(
-      'wait-for-reply-anyway',
-      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
+      'wait-for-override',
+      expect.objectContaining({ event: 'employee/override.requested' }),
     );
   });
 
@@ -297,8 +293,8 @@ describe('employee-lifecycle — classification flow (check-classification step)
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
     expect(waitForEventMock).toHaveBeenCalledWith(
-      'wait-for-reply-anyway',
-      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
+      'wait-for-override',
+      expect.objectContaining({ event: 'employee/override.requested' }),
     );
   });
 

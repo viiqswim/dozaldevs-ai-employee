@@ -85,7 +85,7 @@ async function isTaskAwaitingApproval(
   return false;
 }
 
-async function isTaskPendingReplyAnyway(taskId: string): Promise<boolean> {
+async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !supabaseKey) {
@@ -102,7 +102,7 @@ async function isTaskPendingReplyAnyway(taskId: string): Promise<boolean> {
     });
     const rows = (await res.json()) as Array<{ status: string }>;
     if (!rows.length) {
-      log.warn({ taskId }, 'Task not found during reply-anyway idempotency check');
+      log.warn({ taskId }, 'Task not found during override idempotency check');
       return false;
     }
     const terminalStates = ['Done', 'Failed', 'Cancelled'];
@@ -110,7 +110,7 @@ async function isTaskPendingReplyAnyway(taskId: string): Promise<boolean> {
   } catch (err) {
     log.error(
       { taskId, err },
-      'Failed to check task status for reply-anyway — proceeding optimistically',
+      'Failed to check task status for override — proceeding optimistically',
     );
     return true;
   }
@@ -166,14 +166,20 @@ const BUTTON_BLOCKS = (taskId: string) => [
   },
 ];
 
-const NO_ACTION_BUTTON_BLOCKS = (taskId: string) => [
+const OVERRIDE_BUTTON_BLOCKS = (taskId: string) => [
   {
     type: 'actions',
     elements: [
       {
         type: 'button',
-        text: { type: 'plain_text', text: '💬 Reply Anyway', emoji: true },
-        action_id: 'guest_reply_anyway',
+        text: { type: 'plain_text', text: '🔄 Take Action', emoji: true },
+        action_id: 'override_take_action',
+        value: taskId,
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✅ Dismiss', emoji: true },
+        action_id: 'override_dismiss',
         value: taskId,
       },
     ],
@@ -709,87 +715,160 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('guest_reply_anyway', async ({ ack, body, respond }) => {
+  boltApp.action('override_take_action', async ({ ack, body, client }) => {
     const actionBody = body as ActionBody;
-    const taskId = actionBody.actions[0]?.value;
+    const taskId = actionBody.actions[0]?.value ?? '';
+
+    if (!taskId) {
+      await ack();
+      log.warn('override_take_action received without task_id');
+      return;
+    }
+
+    await ack();
+
+    const channelId = actionBody.channel?.id ?? '';
+    const messageTs = actionBody.message?.ts ?? '';
+
+    try {
+      await client.views.open({
+        trigger_id: (body as { trigger_id: string }).trigger_id,
+        view: {
+          type: 'modal',
+          callback_id: 'override_take_action_modal',
+          private_metadata: JSON.stringify({ taskId, channelId, messageTs }),
+          title: { type: 'plain_text', text: 'Provide Direction' },
+          submit: { type: 'plain_text', text: 'Submit' },
+          close: { type: 'plain_text', text: 'Cancel' },
+          blocks: [
+            {
+              type: 'input',
+              block_id: 'direction_input',
+              label: { type: 'plain_text', text: 'What should the AI do?' },
+              element: {
+                type: 'plain_text_input',
+                action_id: 'direction_text',
+                multiline: true,
+                placeholder: {
+                  type: 'plain_text',
+                  text: 'Describe the action you want the AI to take...',
+                },
+              },
+            },
+          ],
+        },
+      });
+      log.info({ taskId }, 'override_take_action modal opened');
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to open override_take_action modal');
+    }
+  });
+
+  boltApp.action('override_dismiss', async ({ ack, body }) => {
+    const actionBody = body as ActionBody;
+    const taskId = actionBody.actions[0]?.value ?? '';
     const user = actionBody.user;
 
     if (!taskId) {
       await ack();
-      log.warn('guest_reply_anyway action received without task_id');
+      log.warn('override_dismiss received without task_id');
       return;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: '⏳ Processing Reply Anyway...',
+      text: `✅ Dismissed by <@${user.id}>`,
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing Reply Anyway...' } },
+        { type: 'section', text: { type: 'mrkdwn', text: `✅ Dismissed by <@${user.id}>` } },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
 
-    log.info(
-      { taskId, userId: user.id },
-      'guest_reply_anyway action received — processing state sent inline with ack',
-    );
+    try {
+      await inngest.send({
+        name: 'employee/override.requested',
+        data: { taskId, direction: null, userId: user.id, userName: user.name },
+        id: `employee-override-dismiss-${taskId}`,
+      });
+      log.info({ taskId, userId: user.id }, 'Override dismiss event sent');
+    } catch (err) {
+      log.error({ taskId, err }, 'Failed to send override dismiss event');
+    }
+  });
+
+  boltApp.view('override_take_action_modal', async ({ ack, view, body, client }) => {
+    const direction = view.state.values?.direction_input?.direction_text?.value ?? '';
+
+    if (!direction || !direction.trim()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ack as any)({
+        response_action: 'errors',
+        errors: { direction_input: 'Direction cannot be empty.' },
+      });
+      return;
+    }
+
+    await ack();
+
+    let taskId = '';
+    let channelId = '';
+    let messageTs = '';
+    try {
+      const meta = JSON.parse(view.private_metadata ?? '{}') as {
+        taskId?: string;
+        channelId?: string;
+        messageTs?: string;
+      };
+      taskId = meta.taskId ?? '';
+      channelId = meta.channelId ?? '';
+      messageTs = meta.messageTs ?? '';
+    } catch {
+      log.error('Failed to parse override_take_action_modal private_metadata');
+      return;
+    }
+
+    if (!taskId) {
+      log.error('override_take_action_modal submitted without taskId in private_metadata');
+      return;
+    }
+
+    const stillAwaiting = await isTaskAwaitingOverride(taskId);
+    if (!stillAwaiting) {
+      log.warn({ taskId }, 'Task already resolved — ignoring duplicate override submission');
+      return;
+    }
+
+    const user = body.user;
 
     try {
-      const stillPending = await isTaskPendingReplyAnyway(taskId);
-      if (!stillPending) {
-        log.warn({ taskId }, 'Task already resolved — ignoring duplicate guest_reply_anyway');
+      await inngest.send({
+        name: 'employee/override.requested',
+        data: { taskId, direction: direction.trim(), userId: user.id, userName: user.name },
+        id: `employee-override-${taskId}`,
+      });
+      log.info({ taskId, userId: user.id }, 'Override take-action event sent');
+
+      if (channelId && messageTs) {
         try {
-          await respond({
-            replace_original: true,
-            text: '⚠️ This notification has already been resolved.',
+          await client.chat.update({
+            channel: channelId,
+            ts: messageTs,
+            text: '⏳ Processing override...',
             blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This notification has already been resolved.' },
-              },
+              { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing override...' } },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
-        } catch (respondErr) {
-          log.warn({ taskId, respondErr }, 'Failed to update already-resolved message');
+        } catch (updateErr) {
+          log.warn(
+            { taskId, updateErr },
+            'Failed to update message after override submit (non-fatal)',
+          );
         }
-        return;
       }
-
-      await inngest.send({
-        name: 'employee/reply-anyway.requested',
-        data: { taskId, userId: user.id, userName: user.name },
-        id: `employee-reply-anyway-${taskId}`,
-      });
-      log.info(
-        { taskId, userId: user.id },
-        'Reply Anyway event sent — lifecycle will spawn re-draft machine',
-      );
     } catch (err) {
-      log.error({ taskId, err }, 'Failed to process guest_reply_anyway action');
-      try {
-        await respond({
-          replace_original: true,
-          text: '⚠️ Failed to process Reply Anyway. Please try again.',
-          blocks: [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: '⚠️ Failed to process Reply Anyway. Please try again.',
-              },
-            },
-            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-            ...NO_ACTION_BUTTON_BLOCKS(taskId),
-          ],
-        });
-      } catch (restoreErr) {
-        log.warn(
-          { taskId, err: restoreErr },
-          'Failed to restore buttons after guest_reply_anyway failure',
-        );
-      }
+      log.error({ taskId, err }, 'Failed to process override_take_action_modal submission');
     }
   });
 
