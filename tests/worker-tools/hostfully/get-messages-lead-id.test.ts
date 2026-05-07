@@ -27,6 +27,8 @@ const LEAD_WITH_MESSAGES = {
   type: 'BOOKING',
   status: 'BOOKED',
   channel: 'AIRBNB',
+  checkInLocalDateTime: '2026-04-25T15:00:00',
+  checkOutLocalDateTime: '2026-04-28T11:00:00',
   guestInformation: { firstName: 'Maria', lastName: 'Garcia' },
 };
 
@@ -36,6 +38,8 @@ const LEAD_NO_MESSAGES = {
   type: 'BOOKING',
   status: 'BOOKED',
   channel: 'VRBO',
+  checkInLocalDateTime: '2026-04-20T15:00:00',
+  checkOutLocalDateTime: '2026-04-23T11:00:00',
   guestInformation: { firstName: 'Ghost', lastName: 'Guest' },
 };
 
@@ -45,6 +49,8 @@ const LEAD_RESPONDED = {
   type: 'BOOKING',
   status: 'BOOKED',
   channel: 'BOOKING_COM',
+  checkInLocalDateTime: '2026-04-21T15:00:00',
+  checkOutLocalDateTime: '2026-04-24T11:00:00',
   guestInformation: { firstName: 'Bob', lastName: 'Replied' },
 };
 
@@ -135,7 +141,11 @@ beforeAll(async () => {
         res.end(
           JSON.stringify({
             uid: 'lead-limit-test',
+            propertyUid: 'prop-limit',
             channel: 'AIRBNB',
+            status: 'BOOKED',
+            checkInLocalDateTime: '2026-04-20T15:00:00',
+            checkOutLocalDateTime: '2026-04-22T11:00:00',
             guestInformation: { firstName: 'Limit', lastName: 'Test' },
           }),
         );
@@ -218,8 +228,12 @@ describe('get-messages --lead-id flag', () => {
     const data = JSON.parse(stdout) as Record<string, unknown>[];
     const thread = data[0];
     expect(thread).toHaveProperty('reservationId', 'lead-abc');
+    expect(thread).toHaveProperty('propertyUid', 'prop-1');
     expect(thread).toHaveProperty('guestName', 'Maria Garcia');
     expect(thread).toHaveProperty('channel', 'AIRBNB');
+    expect(thread).toHaveProperty('checkIn', '2026-04-25T15:00:00');
+    expect(thread).toHaveProperty('checkOut', '2026-04-28T11:00:00');
+    expect(thread).toHaveProperty('leadStatus', 'BOOKED');
     expect(thread).toHaveProperty('unresponded', true);
     expect(Array.isArray(thread['messages'])).toBe(true);
   });
