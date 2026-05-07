@@ -71,13 +71,25 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — create a timed passcode
   - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
+- **Hostfully tools**: `src/worker-tools/hostfully/` — pre-installed in Docker image at `/tools/hostfully/`. Hostfully API integration: message retrieval (`get-messages.ts --unresponded-only`), message sending (`send-message.ts`), property/reservation/review lookups, webhook registration, environment validation.
+- **Knowledge base tools**: `src/worker-tools/knowledge_base/` — pre-installed in Docker image at `/tools/knowledge_base/`. Knowledge base search tool (`search.ts`) for querying tenant-scoped learned knowledge.
+- **Platform tools**: `src/worker-tools/platform/` — pre-installed in Docker image at `/tools/platform/`. Platform infrastructure tool (`report-issue.ts`) for logging system events.
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31` (`opencode-linux-${ARCH}@1.14.31` native binary in Docker image). Version `1.14.33` has a confirmed 6-second exit regression (session bootstrap failure). **Never upgrade without explicit testing.**
 - **`USE_LOCAL_DOCKER` flag**: Set programmatically by `dev.ts` — the `.env` value is always overridden. Do not rely on `.env` to control local vs Fly.io dispatch.
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
-- **Inngest functions**: `employee/universal-lifecycle`, `employee/feedback-handler`, `employee/feedback-responder`, `employee/mention-handler`, `trigger/daily-summarizer`, `trigger/feedback-summarizer`, `trigger/learned-rules-expiry` (cron `0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts` — maintenance only, no task dispatch)
-- **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-20-1314-current-system-state.md` for the full 15-step harness flow.
+- **Inngest functions** (active):
+  - `employee/universal-lifecycle` — universal employee lifecycle (all employees)
+  - `employee/interaction-handler` — unified handler for thread replies and @mentions; classifies intent, stores feedback, responds in-thread
+  - `employee/rule-extractor` — extracts behavioral rules from corrections/rejections; posts Slack confirmation cards for PM review; stores confirmed rules as `learned_rules`
+  - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (8am UTC, weekdays)
+  - `trigger/feedback-summarizer` — weekly cron that generates a digest of recent feedback using Claude Haiku
+  - `trigger/learned-rules-expiry` — cron maintenance (`0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts`) — handles expiry of learned rules, no task dispatch
+
+  Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) remain registered but are on hold — see Deprecated Components table.
+
+- **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-29-2255-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
 - **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
 
@@ -85,7 +97,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 **Adding a new employee**:
 
-1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`
+1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional fields: `agents_md` (per-archetype AGENTS.md content injected into worker context), `delivery_instructions` (instructions used during the delivery phase), `notification_channel` (per-archetype Slack notification channel, overrides tenant default).
 2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`). Follow the [Shell Tool Checklist](docs/2026-05-04-1645-adding-a-shell-tool.md).
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
@@ -99,13 +111,12 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 ## Feedback Pipeline
 
-Thread replies and @mentions on summary messages are captured and acknowledged:
+Thread replies and @mentions on employee Slack messages are captured and handled through a unified pipeline:
 
-- **Thread reply** → Slack Bolt fires `employee/feedback.received` → stored in `feedback` table → `employee/feedback.stored` emitted → `feedback-responder` generates a Haiku acknowledgment and posts it in-thread.
-- **@mention** → Slack Bolt fires `employee/mention.received` → `mention-handler` classifies intent (feedback / teaching / question / task) → stores if relevant → responds in thread.
-- **Weekly cron** (`0 0 * * 0`, Sunday midnight UTC) → `feedback-summarizer` reads recent feedback, generates a digest with Haiku, writes to `knowledge_bases`.
-
-> **⚠️ Planned change (PLAT-10)**: The two separate handlers (`feedback-handler` + `mention-handler`) will be unified into a single `employee/interaction-handler` Inngest function. All interactions (thread replies + @mentions) will go through the same classification pipeline: classify intent → route → respond. Do not add new logic to either handler — new interaction features should target the unified handler. See `docs/planning/2026-04-21-2202-phase1-story-map.md` § PLAT-10.
+- **Thread reply or @mention** → Slack Bolt fires `employee/interaction.received` (with `source: 'thread_reply'` or `source: 'mention'`) → `interaction-handler` classifies intent
+  - **Correction/teaching** → fires `employee/rule.extract-requested` → `rule-extractor` extracts a concrete behavioral rule → posts Slack confirmation card for PM review → confirmed rules stored in `learned_rules`
+  - **Question/feedback** → responds in thread; stores if relevant
+- **Weekly cron** (`trigger/feedback-summarizer`, Sunday midnight UTC) → reads recent feedback, generates a digest with Claude Haiku, writes to `knowledge_bases`
 
 ## Tenants
 
@@ -367,7 +378,7 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 Do NOT attempt to fix these — they are unrelated to any recent changes:
 
 - `container-boot.test.ts` — requires Docker socket; all 4 tests skip via `describe.skipIf` when Docker is unavailable
-- `inngest-serve.test.ts` — function count check expects an old count; stale test
+- `inngest-serve.test.ts` — function count check hardcodes `function_count === 2` but 9 functions are registered; stale assertion, do not fix
 
 ## Database
 
@@ -401,23 +412,23 @@ For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm f
 ```
 src/
 ├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
-│   ├── routes/       # All HTTP route handlers (10 files)
+│   ├── routes/       # All HTTP route handlers
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
-│   ├── services/     # Business logic (10 files): dispatcher, task creation, project registry, tenant/secret repos
+│   ├── services/     # Business logic: dispatcher, task creation, project registry, tenant/secret repos
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
-│   └── lib/          # Shared: create-task-and-dispatch, poll-completion
+│   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
-└── lib/          # Shared (12 files): fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version
+└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version, classify-message, hostfully-precheck, slack-blocks, telegram-client
 prisma/           # Schema (24 models), 28 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 docker/           # Supabase self-hosted Docker Compose
 docs/             # Architecture vision, phase docs, troubleshooting
-tests/            # 102 test files (Vitest)
+tests/            # Vitest test suite
 ```
 
 ## Key Conventions
@@ -430,6 +441,50 @@ tests/            # 102 test files (Vitest)
 - **Multi-tenancy is mandatory** — every table, registry, catalog, and query must be scoped by `tenant_id`. When adding any new data structure, ask: "Is this tenant-isolated?" If not, it's a bug.
 - **Shared files must stay employee-agnostic** — `src/inngest/employee-lifecycle.ts`, `src/workers/opencode-harness.mts`, and any file under `src/gateway/` or `src/lib/` serve ALL employees. Never use employee-specific language (e.g. "guest", "summary", "Hostfully") in log messages, comments, error strings, or variable names in these files. If you catch yourself writing something employee-specific in a shared file, that is a bug.
 - **Zod v4 UUID validation**: `z.string().uuid()` enforces RFC 4122 version/variant bits and may reject certain UUIDs. Use the loose `UUID_REGEX` in `src/gateway/validation/schemas.ts` for any route param that accepts tenant or task UUIDs.
+
+### Documentation Freshness (MANDATORY)
+
+When making code changes that add, remove, or rename any of the following, you MUST update AGENTS.md and/or README.md in the same commit or PR:
+
+**Triggers requiring AGENTS.md update:**
+
+- New or removed Inngest function (update Inngest functions list and pipeline description)
+- New or removed worker-tool directory under `src/worker-tools/` (update Shell tools section)
+- New or removed gateway route file (update route description)
+- New or removed gateway service (update services description)
+- New Prisma model or significant field additions (update relevant sections)
+- New or removed `src/lib/` module (update lib description)
+- Changes to approved LLM models
+- Changes to employee archetypes or tenant configuration
+- Completion of a "planned change" noted with ⚠️ (remove the warning, document current state)
+
+**Triggers requiring README.md update:**
+
+- New or removed npm script in `package.json` (update Scripts table)
+- New or removed admin API endpoint (update route table)
+- New active employee type (update Active employees table)
+- Changes to Quick Start or setup flow
+- New documentation files in `docs/` (update Documentation table)
+
+**What to update (high-level only):**
+
+- Describe what things ARE and what they DO — not line numbers, not exact file counts, not implementation details
+- Use directory names and module purposes, not "N files" counts
+- Reference file paths only when they rarely change (e.g., entry points, config files)
+
+**What NOT to update:**
+
+- `docs/` snapshot files — these are point-in-time records, not living documents
+- Deprecated component entries — leave as-is unless removing the component entirely
+- Line numbers or exact counts of anything — these go stale within days
+
+**Example — YES update:**
+
+> "Added `src/worker-tools/calendar/` with Google Calendar scripts. Updated AGENTS.md Shell tools section."
+
+**Example — NO update needed:**
+
+> "Refactored internal helper in `src/lib/retry.ts` from callback to async/await. No public API change."
 
 ## Environment Variables
 
@@ -619,16 +674,16 @@ The `docs/` directory is organized into subdirectories by document type. Always 
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                 | When to Read                                                                                                                                                                                               |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`             | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                         |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`       | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                             |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md`  | Worker redesign scope (before/after, files added/removed)                                                                                                                                                  |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`    | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                             |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`        | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                       |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`            | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                         |
-| `docs/snapshots/2026-04-24-1452-current-system-state.md` | Verified ground-truth snapshot: full lifecycle, harness flow (15 steps), all gateway routes (18 admin + webhooks + OAuth), DB schema (19 models), shell tool CLI syntax, Docker services, shared libraries |
-| `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                      |
-| `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                       |
-| `docs/2026-05-04-1645-adding-a-shell-tool.md`            | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                |
-| `docs/2026-05-04-2023-local-e2e-testing.md`              | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                   |
+| Document                                                 | When to Read                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/2026-04-14-0104-full-system-vision.md`             | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
+| `docs/2026-03-22-2317-ai-employee-architecture.md`       | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
+| `docs/2026-04-14-0057-worker-post-redesign-overview.md`  | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`    | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                                                                           |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`        | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                                                                     |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`            | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                                                                       |
+| `docs/snapshots/2026-04-29-2255-current-system-state.md` | Point-in-time system state snapshot: full lifecycle, harness flow, all gateway routes, DB schema, shell tool CLI syntax, Docker services, shared libraries — includes interaction handler unification, guest messaging full flow, learned rules pipeline |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                                                                    |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                                                                     |
+| `docs/2026-05-04-1645-adding-a-shell-tool.md`            | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                                                              |
+| `docs/2026-05-04-2023-local-e2e-testing.md`              | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                                                                 |
