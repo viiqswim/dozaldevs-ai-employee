@@ -13,9 +13,9 @@
  *   BOOKING_REQUEST  — A pending reservation awaiting host approval. Not yet
  *                      confirmed; excluded from default results.
  *
- * DEFAULT FILTER: Only BOOKING-type leads are returned unless --status is
- * specified. BLOCKs, INQUIRYs, and BOOKING_REQUESTs are excluded by default
- * because they do not represent actual guest stays.
+ * DEFAULT FILTER: All leads except BLOCKs are returned unless --status is
+ * specified. Airbnb and other OTAs may surface real stays as INQUIRY type,
+ * so excluding them would miss legitimate guest conversations.
  *
  * CLIENT-SIDE FILTERING: The Hostfully API has no server-side type or status
  * filter. All type/status filtering happens here after fetching all pages.
@@ -102,11 +102,11 @@ async function main(): Promise<void> {
         '                         confirmed  — active bookings (BOOKED, STAY, etc.); default when omitted\n' +
         '                         cancelled  — any cancellation variant (by guest, owner, or system)\n' +
         '                         inquiry    — guest inquiries/questions (not actual bookings)\n' +
-        '                       Without --status, only confirmed bookings (BOOKING type) are returned.\n' +
-        '                       Calendar blocks and pending requests are always excluded.\n' +
+        '                       Without --status, all non-BLOCK leads are returned (BOOKING, INQUIRY, etc.).\n' +
+        '                       Calendar blocks are always excluded.\n' +
         '  --from <date>        Filter by check-in from date (YYYY-MM-DD)\n' +
         '  --to <date>          Filter by check-in to date (YYYY-MM-DD)\n' +
-        '                       Without --from/--to, only current and future reservations are shown.\n' +
+        '                       Without --from/--to, last 30 days + future reservations are shown.\n' +
         '  --help               Show this help message\n\n' +
         'Environment variables:\n' +
         '  HOSTFULLY_API_KEY    (required) Hostfully API key\n' +
@@ -151,10 +151,12 @@ async function main(): Promise<void> {
   if (to) {
     queryBase += `&checkInTo=${encodeURIComponent(to)}`;
   }
-  // Default to today as checkInFrom so we don't fetch the entire booking history.
-  // Past reservations are rarely useful and the full history can be very large.
+  // Default to last 30 days + future so we include recently checked-out guests
+  // (CLOSED leads) who may still be messaging. Without this, the AI model can't
+  // find reservation details for guests who checked out yesterday.
   if (!from && !to) {
-    queryBase += `&checkInFrom=${new Date().toISOString().slice(0, 10)}`;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    queryBase += `&checkInFrom=${thirtyDaysAgo}`;
   }
 
   const seenUids = new Set<string>();
@@ -212,7 +214,9 @@ async function main(): Promise<void> {
   } else if (status === 'inquiry') {
     filtered = allLeads.filter((l) => l.type === 'INQUIRY');
   } else {
-    filtered = allLeads.filter((l) => l.type === 'BOOKING');
+    // Exclude only calendar blocks — include BOOKING, INQUIRY, BOOKING_REQUEST, etc.
+    // Airbnb and other OTAs may surface real stays as INQUIRY type, not just BOOKING.
+    filtered = allLeads.filter((l) => l.type !== 'BLOCK');
   }
 
   const results: ReservationSummary[] = filtered.map((lead) => {
