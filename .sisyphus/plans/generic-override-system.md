@@ -186,7 +186,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Add generic `displayContext` to ClassifyResult with backward compatibility
+- [x] 1. Add generic `displayContext` to ClassifyResult with backward compatibility
 
   **What to do**:
   - Add `displayContext?: Record<string, string>` field to the `ClassifyResult` interface in `src/lib/classify-message.ts`
@@ -284,7 +284,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/lib/classify-message.ts`, `tests/lib/classify-message.test.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Add generic override Slack handlers (take_action, dismiss, modal)
+- [x] 2. Add generic override Slack handlers (take_action, dismiss, modal)
 
   **What to do**:
   - In `src/gateway/slack/handlers.ts`, add three new handlers inside `registerSlackHandlers()`:
@@ -437,7 +437,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/gateway/slack/handlers.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 3. Implement lifecycle generic override path (card + waitForEvent + linked task creation)
+- [x] 3. Implement lifecycle generic override path (card + waitForEvent + linked task creation)
 
   **What to do**:
   This is the core task. Replace the entire Reply Anyway NO_ACTION flow (lines 535-877) with the generic override system. The work has two parts:
@@ -614,7 +614,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 4. Remove Reply Anyway code from lifecycle
+- [x] 4. Remove Reply Anyway code from lifecycle
 
   **What to do**:
   After Task 3 has written the new override path, verify and clean up any remaining Reply Anyway code in `employee-lifecycle.ts`:
@@ -691,7 +691,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 5. Replace REPLY_ANYWAY_CONTEXT with OVERRIDE_DIRECTION in harness
+- [x] 5. Replace REPLY_ANYWAY_CONTEXT with OVERRIDE_DIRECTION in harness
 
   **What to do**:
   - In `src/workers/opencode-harness.mts`, replace the `REPLY_ANYWAY_CONTEXT` handling (lines 506-509):
@@ -776,7 +776,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/workers/opencode-harness.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 6. Rewrite Reply Anyway tests for generic override system
+- [x] 6. Rewrite Reply Anyway tests for generic override system
 
   **What to do**:
   Three existing test files test the Reply Anyway pattern. Rewrite them to test the new generic override system:
@@ -892,7 +892,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `tests/inngest/lifecycle-override.test.ts` (new), `tests/gateway/slack/override-handler.test.ts` (new), `tests/inngest/employee-lifecycle-classification.test.ts` (updated), `tests/inngest/lifecycle-reply-anyway.test.ts` (deleted), `tests/gateway/slack/reply-anyway-handler.test.ts` (deleted)
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 7. Update archetype instructions + delete post-no-action-notification.ts
+- [x] 7. Update archetype instructions + delete post-no-action-notification.ts
 
   **What to do**:
 
@@ -999,7 +999,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `prisma/seed.ts`, `src/worker-tools/slack/post-no-action-notification.ts` (deleted)
   - Pre-commit: `pnpm build`
 
-- [ ] 8. Codebase sweep — remove ALL remaining Reply Anyway references
+- [x] 8. Codebase sweep — remove ALL remaining Reply Anyway references
 
   **What to do**:
   Final cleanup pass to ensure zero Reply Anyway artifacts remain anywhere in the codebase:
@@ -1076,7 +1076,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Any files with stale references
   - Pre-commit: `pnpm build`
 
-- [ ] 9. Full build, lint, and test verification
+- [x] 9. Full build, lint, and test verification
 
   **What to do**:
   Final verification that everything works together:
@@ -1158,7 +1158,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Any files fixed during verification
   - Pre-commit: `pnpm build && pnpm lint && pnpm test -- --run`
 
-- [ ] 10. Notify completion
+- [x] 10. Notify completion
 
   Send Telegram notification: plan `generic-override-system` complete, all tasks done, come back to review results.
 
@@ -1177,19 +1177,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep codebase). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify no guest-messaging-specific language in shared files.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration. Test edge cases: empty displayContext, missing summary, rapid button clicks, concurrent overrides. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes. Verify zero references remain to: `reply-anyway`, `REPLY_ANYWAY_CONTEXT`, `guest_reply_anyway`, `post-no-action-notification`, `NO_ACTION_BUTTON_BLOCKS`, `isTaskPendingReplyAnyway`.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Removed Refs [CLEAN/N remaining] | VERDICT`
 
