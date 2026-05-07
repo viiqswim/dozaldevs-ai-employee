@@ -116,8 +116,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         Prefer: 'return=representation',
       };
 
-      void archetypeId;
-
       // ── State: Received ──────────────────────────────────────────────────────
       const taskData = await step.run('load-task', async () => {
         const res = await fetch(
@@ -234,6 +232,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (rawEvent.lead_uid) rawEventEnv['LEAD_UID'] = rawEvent.lead_uid;
         if (rawEvent.thread_uid) rawEventEnv['THREAD_UID'] = rawEvent.thread_uid;
         if (rawEvent.message_uid) rawEventEnv['MESSAGE_UID'] = rawEvent.message_uid;
+        if (rawEvent.direction) rawEventEnv['OVERRIDE_DIRECTION'] = rawEvent.direction;
 
         const runtime = (archetype.runtime as string | null) ?? 'generic-harness';
         const cmd =
@@ -536,19 +535,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const classificationCheck = await step.run('check-classification', async () => {
         const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
 
-        // Infinite loop guard: if this is a reply-anyway re-draft, force approval flow
-        const taskMetaRes = await fetch(
-          `${supabaseUrlInner}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-          { headers },
-        );
-        const taskMetaRows = (await taskMetaRes.json()) as Array<{
-          metadata: Record<string, unknown> | null;
-        }>;
-        const taskMeta = (taskMetaRows[0]?.metadata ?? {}) as Record<string, unknown>;
-        if (taskMeta.reply_anyway === true) {
-          return { skipApproval: false };
-        }
-
         // Retry up to 3 times with 1s delay — deliverable may not be committed yet
         for (let attempt = 1; attempt <= 3; attempt++) {
           const res = await fetch(
@@ -558,14 +544,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const rows = (await res.json()) as Array<{ content: string }>;
           if (rows.length > 0) {
             const result = parseClassifyResponse(rows[0].content);
-            return { skipApproval: result.classification === 'NO_ACTION_NEEDED' };
+            return {
+              skipApproval: result.classification === 'NO_ACTION_NEEDED',
+              reasoning: result.reasoning,
+              displayContext: result.displayContext,
+            };
           }
           if (attempt < 3) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
         // No deliverable found after retries — proceed to Reviewing (safe default)
-        return { skipApproval: false };
+        return { skipApproval: false, reasoning: '', displayContext: undefined };
       });
 
       if (classificationCheck.skipApproval) {
@@ -585,17 +575,144 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
         });
 
-        const replyAnywayEvent = await step.waitForEvent('wait-for-reply-anyway', {
-          event: 'employee/reply-anyway.requested',
+        const overrideCardRef = await step.run('post-override-card', async () => {
+          try {
+            const prismaForCard = new PrismaClient();
+            const tenantEnvForCard = await loadTenantEnv(
+              tenantId,
+              {
+                tenantRepo: new TenantRepository(prismaForCard),
+                secretRepo: new TenantSecretRepository(prismaForCard),
+              },
+              (archetype.notification_channel as string | null) ?? null,
+            );
+            await prismaForCard.$disconnect();
+            const botTokenForCard = tenantEnvForCard['SLACK_BOT_TOKEN'] ?? '';
+            const channelForCard = tenantEnvForCard['NOTIFICATION_CHANNEL'] ?? '';
+            if (!botTokenForCard || !channelForCard) return { ts: null, channel: null };
+
+            const slackForCard = createSlackClient({
+              botToken: botTokenForCard,
+              defaultChannel: channelForCard,
+            });
+
+            const reasoning = classificationCheck.reasoning ?? '';
+            const displayContext = classificationCheck.displayContext ?? {};
+
+            const contextFields = Object.entries(displayContext).map(([label, value]) => ({
+              type: 'mrkdwn',
+              text: `*${label}:* ${value}`,
+            }));
+
+            const blocks: unknown[] = [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `🤖 *No action needed* — AI decided to skip this task.\n\n*Reasoning:* ${reasoning}`,
+                },
+              },
+            ];
+
+            if (contextFields.length > 0) {
+              blocks.push({ type: 'context', elements: contextFields });
+            }
+
+            blocks.push({ type: 'divider' });
+            blocks.push({
+              type: 'actions',
+              elements: [
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '🔄 Take Action', emoji: true },
+                  action_id: 'override_take_action',
+                  value: taskId,
+                },
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✅ Dismiss', emoji: true },
+                  action_id: 'override_dismiss',
+                  value: taskId,
+                },
+              ],
+            });
+            blocks.push({
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            });
+
+            const result = await slackForCard.postMessage({
+              channel: channelForCard,
+              text: `🤖 No action needed — AI skipped this task`,
+              blocks,
+            });
+
+            await fetch(
+              `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&order=created_at.desc&limit=1`,
+              {
+                method: 'PATCH',
+                headers: { ...headers, Prefer: 'return=minimal' },
+                body: JSON.stringify({
+                  metadata: {
+                    override_card_ts: result.ts,
+                    override_card_channel: channelForCard,
+                  },
+                }),
+              },
+            );
+
+            return { ts: result.ts, channel: channelForCard };
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to post override card (non-fatal)');
+            return { ts: null, channel: null };
+          }
+        });
+
+        const overrideEvent = await step.waitForEvent('wait-for-override', {
+          event: 'employee/override.requested',
           match: 'data.taskId',
           timeout: `${timeoutHours}h`,
         });
 
-        if (!replyAnywayEvent) {
+        const resolvedText = `✅ Task complete — no action needed`;
+
+        const updateOverrideCard = async (
+          text: string,
+          slackClient: ReturnType<typeof createSlackClient>,
+        ) => {
+          if (overrideCardRef?.ts && overrideCardRef?.channel) {
+            try {
+              await slackClient.updateMessage(overrideCardRef.channel, overrideCardRef.ts, text, [
+                { type: 'section', text: { type: 'mrkdwn', text } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ]);
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update override card (non-fatal)');
+            }
+          }
+        };
+
+        const updateNotifyMsg = async (
+          text: string,
+          slackClient: ReturnType<typeof createSlackClient>,
+        ) => {
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              await slackClient.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, text, [
+                { type: 'section', text: { type: 'mrkdwn', text } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ]);
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update notify-received message (non-fatal)');
+            }
+          }
+        };
+
+        if (!overrideEvent) {
           await step.run('complete-no-action-timeout', async () => {
             await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
-            log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — 24h timeout, no Reply Anyway)');
+            log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — timeout, no override)');
             try {
               const prismaForTimeout = new PrismaClient();
               const tenantEnvForTimeout = await loadTenantEnv(
@@ -613,55 +730,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   botToken: botTokenForTimeout,
                   defaultChannel: '',
                 });
-                const timeoutText = `✅ Task complete — no action needed`;
-                if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-                  try {
-                    await slackForTimeout.updateMessage(
-                      notifyMsgRef.channel,
-                      notifyMsgRef.ts,
-                      timeoutText,
-                      [
-                        { type: 'section', text: { type: 'mrkdwn', text: timeoutText } },
-                        {
-                          type: 'context',
-                          elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                        },
-                      ],
-                    );
-                  } catch (err) {
-                    log.warn(
-                      { taskId, err },
-                      'Failed to update notify-received on no-action timeout (non-fatal)',
-                    );
-                  }
-                }
-                const delivResTimeout = await fetch(
-                  `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
-                  { headers },
-                );
-                const delivRowsTimeout = (await delivResTimeout.json()) as Array<{
-                  metadata: Record<string, unknown> | null;
-                }>;
-                const delivMetaTimeout =
-                  (delivRowsTimeout[0]?.metadata as Record<string, unknown>) ?? {};
-                const noActionTs = delivMetaTimeout.approval_message_ts as string | undefined;
-                const noActionChannel = delivMetaTimeout.target_channel as string | undefined;
-                if (noActionTs && noActionChannel) {
-                  try {
-                    await slackForTimeout.updateMessage(noActionChannel, noActionTs, timeoutText, [
-                      { type: 'section', text: { type: 'mrkdwn', text: timeoutText } },
-                      {
-                        type: 'context',
-                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                      },
-                    ]);
-                  } catch (err) {
-                    log.warn(
-                      { taskId, err },
-                      'Failed to update no-action card on timeout (non-fatal)',
-                    );
-                  }
-                }
+                await updateNotifyMsg(resolvedText, slackForTimeout);
+                await updateOverrideCard(resolvedText, slackForTimeout);
               }
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update Slack on no-action timeout (non-fatal)');
@@ -670,215 +740,90 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return;
         }
 
-        const { userId: replyUserId } = replyAnywayEvent.data as {
+        const overrideData = overrideEvent.data as {
           taskId: string;
+          direction: string | null;
           userId: string;
           userName: string;
         };
 
-        await step.run('mark-reply-anyway-override', async () => {
-          await patchTask(supabaseUrl, headers, taskId, {
-            status: 'Executing',
-            metadata: {
-              overridden_no_action: true,
-              reply_anyway: true,
-              reply_anyway_by: replyUserId,
-              reply_anyway_at: new Date().toISOString(),
-            },
-          });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Executing', 'Submitting');
-          log.info(
-            { taskId, userId: replyUserId },
-            'Reply Anyway override — spawning re-draft machine',
-          );
-        });
-
-        const replyContext = await step.run('build-reply-context', async () => {
-          const delivRes = await fetch(
-            `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
-            { headers },
-          );
-          const delivRows = (await delivRes.json()) as Array<{ content: string }>;
-          const content = delivRows[0]?.content ?? '';
-          const parsed = parseClassifyResponse(content);
-          return JSON.stringify({
-            guestName: parsed.guestName ?? 'Unknown',
-            propertyName: parsed.propertyName ?? 'Unknown',
-            checkIn: parsed.checkIn ?? '',
-            checkOut: parsed.checkOut ?? '',
-            bookingChannel: parsed.bookingChannel ?? '',
-            originalMessage: parsed.originalMessage ?? '',
-            summary: parsed.summary,
-            leadUid: parsed.leadUid ?? '',
-            threadUid: parsed.threadUid ?? '',
-            messageUid: parsed.messageUid ?? '',
-            conversationSummary: parsed.conversationSummary ?? '',
-          });
-        });
-
-        const replyMachineId = await step.run('reply-anyway-execute', async () => {
-          const vmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
-          const image =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-          const flyApp =
-            process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
-          const effectiveSupabaseUrl =
-            process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
-
-          const prismaForReply = new PrismaClient();
-          const tenantEnvForReply = await loadTenantEnv(tenantId, {
-            tenantRepo: new TenantRepository(prismaForReply),
-            secretRepo: new TenantSecretRepository(prismaForReply),
-          });
-          await prismaForReply.$disconnect();
-
-          if (process.env.USE_LOCAL_DOCKER === '1') {
-            const localMachine = runLocalDockerContainer({
-              taskId,
-              name: `employee-reply-${taskId.slice(0, 8)}`,
-              env: {
-                ...tenantEnvForReply,
-                TASK_ID: taskId,
-                TENANT_ID: tenantId,
-                ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-                SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
-                SUPABASE_SECRET_KEY: supabaseKey,
-                INNGEST_BASE_URL: 'http://host.docker.internal:8288',
-                INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
-                INNGEST_DEV: '1',
-                REPLY_ANYWAY_CONTEXT: replyContext,
-              },
-              cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-            });
-            log.info(
-              { taskId, machineId: localMachine.id },
-              'Reply Anyway re-draft machine spawned (local Docker)',
-            );
-            return localMachine.id;
-          }
-
-          const machine = await createMachine(flyApp, {
-            image,
-            vm_size: vmSize,
-            auto_destroy: true,
-            kill_timeout: 1800,
-            cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-            env: {
-              ...tenantEnvForReply,
-              TASK_ID: taskId,
-              TENANT_ID: tenantId,
-              ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-              SUPABASE_URL: effectiveSupabaseUrl,
-              SUPABASE_SECRET_KEY: supabaseKey,
-              REPLY_ANYWAY_CONTEXT: replyContext,
-            },
-          });
-          log.info({ taskId, machineId: machine.id }, 'Reply Anyway re-draft machine spawned');
-          return machine.id;
-        });
-
-        const replyDraftStatus = await step.run('reply-anyway-poll', async () => {
-          const maxPolls = 120;
-          const intervalMs = 15_000;
-          for (let i = 0; i < maxPolls; i++) {
-            await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
-            const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
-              headers,
-            });
-            const rows = (await res.json()) as Array<{ status: string }>;
-            const status = rows[0]?.status;
-            if (status === 'Submitting' || status === 'Failed') return status;
-          }
-          return 'Failed';
-        });
-
-        if (replyDraftStatus === 'Failed') {
-          log.error({ taskId }, 'Reply Anyway re-draft machine failed — task remains Failed');
-          try {
-            const prismaForReplyFail = new PrismaClient();
-            const tenantEnvForReplyFail = await loadTenantEnv(
-              tenantId,
-              {
-                tenantRepo: new TenantRepository(prismaForReplyFail),
-                secretRepo: new TenantSecretRepository(prismaForReplyFail),
-              },
-              (archetype.notification_channel as string | null) ?? null,
-            );
-            await prismaForReplyFail.$disconnect();
-            const botTokenForReplyFail = tenantEnvForReplyFail['SLACK_BOT_TOKEN'] ?? '';
-            if (botTokenForReplyFail) {
-              const slackForReplyFail = createSlackClient({
-                botToken: botTokenForReplyFail,
-                defaultChannel: '',
-              });
-              const replyFailText = `❌ Task failed`;
-              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-                try {
-                  await slackForReplyFail.updateMessage(
-                    notifyMsgRef.channel,
-                    notifyMsgRef.ts,
-                    replyFailText,
-                    [
-                      { type: 'section', text: { type: 'mrkdwn', text: replyFailText } },
-                      {
-                        type: 'context',
-                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                      },
-                    ],
-                  );
-                } catch (err) {
-                  log.warn(
-                    { taskId, err },
-                    'Failed to update notify-received on re-draft failure (non-fatal)',
-                  );
-                }
-              }
-              const delivResReplyFail = await fetch(
-                `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
-                { headers },
+        if (!overrideData.direction) {
+          await step.run('complete-override-dismissed', async () => {
+            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+            log.info({ taskId, userId: overrideData.userId }, 'State: Done (override dismissed)');
+            try {
+              const prismaForDismiss = new PrismaClient();
+              const tenantEnvForDismiss = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForDismiss),
+                  secretRepo: new TenantSecretRepository(prismaForDismiss),
+                },
+                (archetype.notification_channel as string | null) ?? null,
               );
-              const delivRowsReplyFail = (await delivResReplyFail.json()) as Array<{
-                metadata: Record<string, unknown> | null;
-              }>;
-              const delivMetaReplyFail =
-                (delivRowsReplyFail[0]?.metadata as Record<string, unknown>) ?? {};
-              const replyFailCardTs = delivMetaReplyFail.approval_message_ts as string | undefined;
-              const replyFailCardChannel = delivMetaReplyFail.target_channel as string | undefined;
-              if (replyFailCardTs && replyFailCardChannel) {
-                try {
-                  await slackForReplyFail.updateMessage(
-                    replyFailCardChannel,
-                    replyFailCardTs,
-                    replyFailText,
-                    [
-                      { type: 'section', text: { type: 'mrkdwn', text: replyFailText } },
-                      {
-                        type: 'context',
-                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                      },
-                    ],
-                  );
-                } catch (err) {
-                  log.warn(
-                    { taskId, err },
-                    'Failed to update no-action card on re-draft failure (non-fatal)',
-                  );
-                }
+              await prismaForDismiss.$disconnect();
+              const botTokenForDismiss = tenantEnvForDismiss['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForDismiss) {
+                const slackForDismiss = createSlackClient({
+                  botToken: botTokenForDismiss,
+                  defaultChannel: '',
+                });
+                await updateNotifyMsg(resolvedText, slackForDismiss);
               }
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to update Slack on override dismiss (non-fatal)');
             }
-          } catch (err) {
-            log.warn({ taskId, err }, 'Failed to update Slack on re-draft failure (non-fatal)');
-          }
-          if (process.env.USE_LOCAL_DOCKER === '1') {
-            stopLocalDockerContainer(`employee-reply-${taskId.slice(0, 8)}`);
-          }
+          });
           return;
         }
 
-        if (process.env.USE_LOCAL_DOCKER === '1') {
-          stopLocalDockerContainer(`employee-reply-${taskId.slice(0, 8)}`);
-        }
-        void replyMachineId;
+        await step.run('create-override-task', async () => {
+          const newTaskRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+            method: 'POST',
+            headers: { ...headers, Prefer: 'return=representation' },
+            body: JSON.stringify({
+              archetype_id: archetypeId,
+              tenant_id: tenantId,
+              source_system: 'override',
+              external_id: `override-${taskId}`,
+              status: 'Ready',
+              raw_event: { override_of_task_id: taskId, direction: overrideData.direction },
+              metadata: {
+                override_direction: overrideData.direction,
+                overridden_by: overrideData.userId,
+                override_of_task_id: taskId,
+              },
+            }),
+          });
+          const newTaskRows = (await newTaskRes.json()) as Array<{ id: string }>;
+          const newTaskId = newTaskRows[0]?.id;
+          if (!newTaskId) {
+            log.error({ taskId }, 'Failed to create override task — no id returned');
+            return;
+          }
+
+          await patchTask(supabaseUrl, headers, taskId, {
+            status: 'Done',
+            metadata: {
+              overridden_no_action: true,
+              override_task_id: newTaskId,
+              override_by: overrideData.userId,
+              override_at: new Date().toISOString(),
+            },
+          });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+          log.info(
+            { taskId, newTaskId, userId: overrideData.userId },
+            'Override task created — original task Done',
+          );
+
+          await inngest.send({
+            name: 'employee/task.dispatched',
+            data: { taskId: newTaskId, archetypeId },
+          });
+        });
+        return;
       }
 
       // ── Supersede Detection ──────────────────────────────────────────────────

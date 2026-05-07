@@ -7,6 +7,7 @@ export interface ClassifyResult {
   category: string;
   conversationSummary: string | null;
   urgency: boolean;
+  displayContext?: Record<string, string>;
   guestName?: string;
   propertyName?: string;
   checkIn?: string;
@@ -41,7 +42,7 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     responseText.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? responseText.match(/(\{[\s\S]+\})/);
   const jsonString = jsonMatch?.[1] ?? responseText;
 
-  let parsed: Partial<ClassifyResult>;
+  let parsed: Partial<ClassifyResult & { displayContext?: Record<string, string> }>;
   try {
     parsed = JSON.parse(jsonString) as Partial<ClassifyResult>;
   } catch {
@@ -62,6 +63,24 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
   const isNoActionNeeded = rawClassification === 'NO_ACTION_NEEDED';
   const classification = isNoActionNeeded ? 'NO_ACTION_NEEDED' : 'NEEDS_APPROVAL';
 
+  const explicitDisplayContext =
+    parsed.displayContext && typeof parsed.displayContext === 'object'
+      ? parsed.displayContext
+      : undefined;
+
+  let synthesizedDisplayContext: Record<string, string> | undefined;
+  if (!explicitDisplayContext) {
+    const fields: Record<string, string> = {};
+    if (parsed.guestName) fields['Guest'] = parsed.guestName;
+    if (parsed.propertyName) fields['Property'] = parsed.propertyName;
+    if (parsed.checkIn) fields['Check-in'] = parsed.checkIn;
+    if (parsed.checkOut) fields['Check-out'] = parsed.checkOut;
+    if (parsed.bookingChannel) fields['Channel'] = parsed.bookingChannel;
+    synthesizedDisplayContext = Object.keys(fields).length > 0 ? fields : undefined;
+  }
+
+  const displayContext = explicitDisplayContext ?? synthesizedDisplayContext;
+
   return {
     classification,
     confidence: Math.min(1.0, Math.max(0.0, parsed.confidence ?? 0.5)),
@@ -73,6 +92,7 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     category: isNoActionNeeded ? 'acknowledgment' : (parsed.category ?? 'other'),
     conversationSummary: parsed.conversationSummary ?? null,
     urgency: parsed.urgency === true,
+    ...(displayContext !== undefined && { displayContext }),
     ...(parsed.guestName !== undefined && { guestName: parsed.guestName }),
     ...(parsed.propertyName !== undefined && { propertyName: parsed.propertyName }),
     ...(parsed.checkIn !== undefined && { checkIn: parsed.checkIn }),

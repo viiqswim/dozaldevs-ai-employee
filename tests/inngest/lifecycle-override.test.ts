@@ -87,21 +87,7 @@ const NO_ACTION_CONTENT = JSON.stringify({
   messageUid: 'msg-abc',
 });
 
-const REPLY_CONTEXT_STRING = JSON.stringify({
-  guestName: 'Jane Doe',
-  propertyName: 'Ocean Villa',
-  checkIn: '2026-06-01',
-  checkOut: '2026-06-07',
-  bookingChannel: 'airbnb',
-  originalMessage: 'Thanks so much!',
-  summary: 'Acknowledgment',
-  leadUid: 'lead-abc',
-  threadUid: 'thread-abc',
-  messageUid: 'msg-abc',
-  conversationSummary: '',
-});
-
-const inngest = new Inngest({ id: 'ai-employee-test-reply-anyway' });
+const inngest = new Inngest({ id: 'ai-employee-test-override' });
 
 function makeMockTaskData() {
   return {
@@ -126,33 +112,18 @@ function makeOkFetchResponse(data: unknown) {
   };
 }
 
-function buildFetchMock(opts: {
-  taskMetadata?: Record<string, unknown> | null;
-  deliverableContent?: string | null;
-  statusForPoll?: string;
-}) {
-  const {
-    taskMetadata = null,
-    deliverableContent = NO_ACTION_CONTENT,
-    statusForPoll = 'Submitting',
-  } = opts;
+function buildFetchMock(opts: { deliverableContent?: string | null } = {}) {
+  const { deliverableContent = NO_ACTION_CONTENT } = opts;
 
   return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
     const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
 
     if (method === 'PATCH' || method === 'POST') {
-      return makeOkFetchResponse([]);
-    }
-
-    if ((url as string).includes('/tasks?') && (url as string).includes('select=metadata')) {
-      if (taskMetadata !== null) {
-        return makeOkFetchResponse([{ metadata: taskMetadata }]);
-      }
-      return makeOkFetchResponse([{ metadata: null }]);
+      return makeOkFetchResponse([{ id: 'new-task-id-123' }]);
     }
 
     if ((url as string).includes('/tasks?') && (url as string).includes('select=status')) {
-      return makeOkFetchResponse([{ status: statusForPoll }]);
+      return makeOkFetchResponse([{ status: 'Submitting' }]);
     }
 
     if ((url as string).includes('/deliverables?')) {
@@ -201,14 +172,14 @@ beforeEach(() => {
   mockDestroyMachine.mockResolvedValue(undefined);
   mockGetTunnelUrl.mockResolvedValue('http://mock-tunnel.trycloudflare.com');
   mockUpdateMessage.mockResolvedValue({});
-  mockPostMessage.mockResolvedValue({});
+  mockPostMessage.mockResolvedValue({ ts: 'override-card-ts', channel: 'C-NOTIFY' });
   mockCreateSlackClient.mockReturnValue({
     updateMessage: mockUpdateMessage,
     postMessage: mockPostMessage,
   });
   mockLoadTenantEnv.mockResolvedValue({
     SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
-    SUMMARY_TARGET_CHANNEL: 'C-FALLBACK',
+    NOTIFICATION_CHANNEL: 'C-NOTIFY',
   });
 
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
@@ -228,8 +199,8 @@ afterEach(() => {
   delete process.env.FLY_WORKER_APP;
 });
 
-describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', () => {
-  it('timeout path — task patched to Done, re-draft machine NOT spawned', async () => {
+describe('employee-lifecycle — generic override flow (NO_ACTION_NEEDED)', () => {
+  it('timeout path — task patched to Done, no new machine spawned', async () => {
     const fetchMock = buildFetchMock({});
     vi.stubGlobal('fetch', fetchMock);
 
@@ -244,6 +215,10 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
           case 'poll-completion':
             return 'Submitting';
           case 'check-classification':
+            return fn();
+          case 'cleanup-no-action':
+            return fn();
+          case 'post-override-card':
             return fn();
           case 'complete-no-action-timeout':
             return fn();
@@ -273,16 +248,16 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
     expect(error).toBeUndefined();
     expect(findPatchWithStatus(fetchMock, 'Done')).toBeDefined();
     expect(waitForEventMock).toHaveBeenCalledWith(
-      'wait-for-reply-anyway',
-      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
+      'wait-for-override',
+      expect.objectContaining({ event: 'employee/override.requested' }),
     );
-    expect(mockCreateMachine).not.toHaveBeenCalled();
+    expect(mockCreateMachine).not.toHaveBeenCalledTimes(2);
     expect(
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
   });
 
-  it('click path — re-draft machine spawned with REPLY_ANYWAY_CONTEXT env var', async () => {
+  it('dismiss path — direction null → task patched to Done, no new task created', async () => {
     const fetchMock = buildFetchMock({});
     vi.stubGlobal('fetch', fetchMock);
 
@@ -298,9 +273,11 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
             return 'Submitting';
           case 'check-classification':
             return fn();
-          case 'build-reply-context':
-            return REPLY_CONTEXT_STRING;
-          case 'reply-anyway-execute':
+          case 'cleanup-no-action':
+            return fn();
+          case 'post-override-card':
+            return fn();
+          case 'complete-override-dismissed':
             return fn();
           default:
             return undefined;
@@ -308,10 +285,10 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
       });
 
     const waitForEventMock = vi.fn().mockImplementation(async (id: string) => {
-      if (id === 'wait-for-reply-anyway') {
+      if (id === 'wait-for-override') {
         return {
-          name: 'employee/reply-anyway.requested',
-          data: { taskId: TEST_TASK_ID, userId: 'U123', userName: 'testuser' },
+          name: 'employee/override.requested',
+          data: { taskId: TEST_TASK_ID, direction: null, userId: 'U123', userName: 'testuser' },
         };
       }
       return null;
@@ -334,82 +311,19 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
     const { error } = await engine.execute(triggerEvent());
 
     expect(error).toBeUndefined();
-    expect(waitForEventMock).toHaveBeenCalledWith(
-      'wait-for-reply-anyway',
-      expect.objectContaining({ event: 'employee/reply-anyway.requested' }),
-    );
-    expect(mockCreateMachine).toHaveBeenCalledTimes(1);
-    const firstCall = mockCreateMachine.mock.calls[0] as [string, Record<string, unknown>];
-    const machineConfig = firstCall[1] as { env?: Record<string, string> };
-    expect(machineConfig.env?.REPLY_ANYWAY_CONTEXT).toBe(REPLY_CONTEXT_STRING);
-    expect(machineConfig.env?.TASK_ID).toBe(TEST_TASK_ID);
-  });
-
-  it('re-draft machine failure — task remains Failed, no fall-through to set-reviewing', async () => {
-    const fetchMock = buildFetchMock({ statusForPoll: 'Failed' });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const stepRunMock = vi
-      .fn()
-      .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
-        switch (id) {
-          case 'load-task':
-            return makeMockTaskData();
-          case 'executing':
-            return 'mock-machine-id';
-          case 'poll-completion':
-            return 'Submitting';
-          case 'check-classification':
-            return fn();
-          case 'build-reply-context':
-            return REPLY_CONTEXT_STRING;
-          case 'reply-anyway-execute':
-            return fn();
-          case 'reply-anyway-poll':
-            return 'Failed';
-          default:
-            return undefined;
-        }
-      });
-
-    const waitForEventMock = vi.fn().mockImplementation(async (id: string) => {
-      if (id === 'wait-for-reply-anyway') {
-        return {
-          name: 'employee/reply-anyway.requested',
-          data: { taskId: TEST_TASK_ID, userId: 'U123', userName: 'testuser' },
-        };
-      }
-      return null;
-    });
-
-    const engine = new InngestTestEngine({
-      function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = stepRunMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = waitForEventMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
-    });
-
-    const { error } = await engine.execute(triggerEvent());
-
-    expect(error).toBeUndefined();
+    expect(findPatchWithStatus(fetchMock, 'Done')).toBeDefined();
+    expect(
+      (stepRunMock.mock.calls as Array<[string, unknown]>).some(
+        ([id]) => id === 'create-override-task',
+      ),
+    ).toBe(false);
     expect(
       (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
     ).toBe(false);
-    expect(findPatchWithStatus(fetchMock, 'Reviewing')).toBeUndefined();
   });
 
-  it('infinite loop guard — reply_anyway metadata forces skipApproval=false, no reply-anyway wait', async () => {
-    const fetchMock = buildFetchMock({
-      taskMetadata: { reply_anyway: true, overridden_no_action: true },
-      deliverableContent: NO_ACTION_CONTENT,
-    });
+  it('take-action path — direction provided → new linked task created via PostgREST POST', async () => {
+    const fetchMock = buildFetchMock({});
     vi.stubGlobal('fetch', fetchMock);
 
     const stepRunMock = vi
@@ -423,6 +337,95 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
           case 'poll-completion':
             return 'Submitting';
           case 'check-classification':
+            return fn();
+          case 'cleanup-no-action':
+            return fn();
+          case 'post-override-card':
+            return fn();
+          case 'create-override-task':
+            return fn();
+          default:
+            return undefined;
+        }
+      });
+
+    vi.spyOn(inngest, 'send').mockResolvedValue({ ids: ['mock-dispatch-id'] } as never);
+
+    const waitForEventMock = vi.fn().mockImplementation(async (id: string) => {
+      if (id === 'wait-for-override') {
+        return {
+          name: 'employee/override.requested',
+          data: {
+            taskId: TEST_TASK_ID,
+            direction: 'Please send a welcome message',
+            userId: 'U123',
+            userName: 'testuser',
+          },
+        };
+      }
+      return null;
+    });
+
+    const engine = new InngestTestEngine({
+      function: createEmployeeLifecycleFunction(inngest),
+      transformCtx: (ctx: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mocked = mockCtx(ctx as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mocked as any).step.run = stepRunMock;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mocked as any).step.waitForEvent = waitForEventMock;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return mocked as any;
+      },
+    });
+
+    const { error } = await engine.execute(triggerEvent());
+
+    expect(error).toBeUndefined();
+
+    const postCalls = (fetchMock.mock.calls as Array<[string, RequestInit | undefined]>).filter(
+      ([, init]) => ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase() === 'POST',
+    );
+    const taskPostCall = postCalls.find(([url]) => (url as string).includes('/rest/v1/tasks'));
+    expect(taskPostCall).toBeDefined();
+
+    if (taskPostCall) {
+      const body = JSON.parse((taskPostCall[1]?.body as string) ?? '{}') as {
+        source_system?: string;
+        metadata?: { override_direction?: string };
+      };
+      expect(body.source_system).toBe('override');
+      expect(body.metadata?.override_direction).toBe('Please send a welcome message');
+    }
+
+    expect(findPatchWithStatus(fetchMock, 'Done')).toBeDefined();
+    expect(
+      (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
+    ).toBe(false);
+  });
+
+  it('waitForEvent uses employee/override.requested event name', async () => {
+    const fetchMock = buildFetchMock({});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const stepRunMock = vi
+      .fn()
+      .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+        switch (id) {
+          case 'load-task':
+            return makeMockTaskData();
+          case 'executing':
+            return 'mock-machine-id';
+          case 'poll-completion':
+            return 'Submitting';
+          case 'check-classification':
+            return fn();
+          case 'cleanup-no-action':
+            return fn();
+          case 'post-override-card':
+            return fn();
+          case 'complete-no-action-timeout':
             return fn();
           default:
             return undefined;
@@ -445,14 +448,13 @@ describe('employee-lifecycle — Reply Anyway wait window (NO_ACTION_NEEDED)', (
       },
     });
 
-    const { error } = await engine.execute(triggerEvent());
+    await engine.execute(triggerEvent());
 
-    expect(error).toBeUndefined();
-    const waitForEventCalls = waitForEventMock.mock.calls as Array<[string, unknown]>;
-    expect(waitForEventCalls.some(([id]) => id === 'wait-for-reply-anyway')).toBe(false);
-    expect(waitForEventCalls.some(([id]) => id === 'wait-for-approval')).toBe(true);
-    expect(
-      (stepRunMock.mock.calls as Array<[string, unknown]>).some(([id]) => id === 'set-reviewing'),
-    ).toBe(true);
+    expect(waitForEventMock).toHaveBeenCalledWith(
+      'wait-for-override',
+      expect.objectContaining({ event: 'employee/override.requested', match: 'data.taskId' }),
+    );
+    const waitCalls = waitForEventMock.mock.calls as Array<[string, unknown]>;
+    expect(waitCalls.some(([id]) => id === 'wait-for-reply-anyway')).toBe(false);
   });
 });

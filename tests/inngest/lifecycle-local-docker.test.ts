@@ -397,9 +397,6 @@ describe('employee-lifecycle — local Docker container management', () => {
   });
 });
 
-// Tests 5-7: delivery retry and reply-anyway paths involve complex multi-step flows
-// (Slack clients, approval events, delivery polling). These verify the implementation
-// patterns exist in source rather than exercising the full lifecycle flow.
 describe('employee-lifecycle — local Docker cleanup patterns in source (code inspection)', () => {
   let sourceCode: string;
 
@@ -417,19 +414,5 @@ describe('employee-lifecycle — local Docker cleanup patterns in source (code i
       sourceCode.match(/stopLocalDockerContainer\(`employee-delivery-/g) ?? []
     ).length;
     expect(stopDeliveryOccurrences).toBeGreaterThanOrEqual(2);
-  });
-
-  it('Test 6: reply-anyway failure path — stopLocalDockerContainer called with employee-reply- prefix', () => {
-    expect(sourceCode).toContain(
-      'stopLocalDockerContainer(`employee-reply-${taskId.slice(0, 8)}`)',
-    );
-    expect(sourceCode).toContain("if (process.env.USE_LOCAL_DOCKER === '1')");
-  });
-
-  it('Test 7: reply-anyway success path — stopLocalDockerContainer also called on success (≥2 occurrences)', () => {
-    const replyStopOccurrences = (
-      sourceCode.match(/stopLocalDockerContainer\(`employee-reply-/g) ?? []
-    ).length;
-    expect(replyStopOccurrences).toBeGreaterThanOrEqual(2);
   });
 });
