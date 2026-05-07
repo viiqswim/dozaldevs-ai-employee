@@ -63,9 +63,8 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
         await step.run(`summarize-feedback-${archetype.id}`, async () => {
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-          // TODO(GM-19): feedback query lacks tenant_id and archetype_id filter — pre-existing bug, tracked separately
           const feedbackRes = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?created_at=gte.${sevenDaysAgo}&select=id,correction_reason,feedback_type,created_at,task_id&limit=100`,
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${archetype.tenant_id}&created_at=gte.${sevenDaysAgo}&select=id,correction_reason,feedback_type,created_at,task_id&limit=100`,
             { headers },
           );
           const feedbackItems = (await feedbackRes.json()) as FeedbackRow[];
