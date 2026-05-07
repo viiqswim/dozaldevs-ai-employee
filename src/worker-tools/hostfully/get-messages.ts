@@ -33,6 +33,8 @@ type RawLead = {
   type?: string;
   status?: string;
   channel?: string;
+  checkInLocalDateTime?: string | null;
+  checkOutLocalDateTime?: string | null;
   guestInformation?: {
     firstName?: string | null;
     lastName?: string | null;
@@ -63,8 +65,12 @@ type MessageSummary = {
 
 type ThreadSummary = {
   reservationId: string;
+  propertyUid: string | null;
   guestName: string | null;
   channel: string | null;
+  checkIn: string | null;
+  checkOut: string | null;
+  leadStatus: string | null;
   unresponded: boolean;
   messages: MessageSummary[];
 };
@@ -134,8 +140,12 @@ async function main(): Promise<void> {
         'Output: JSON array of conversation threads. Each thread:\n' +
         '  {\n' +
         '    "reservationId": "uuid",        \u2014 the lead/reservation ID\n' +
+        '    "propertyUid": "uuid",          \u2014 the property UID (use with get-property.ts)\n' +
         '    "guestName": "John Doe",        \u2014 guest\'s full name (or null)\n' +
         '    "channel": "AIRBNB",            \u2014 booking channel\n' +
+        '    "checkIn": "2026-05-01T15:00:00",  \u2014 check-in date/time (or null)\n' +
+        '    "checkOut": "2026-05-05T11:00:00", \u2014 check-out date/time (or null)\n' +
+        '    "leadStatus": "BOOKED",         \u2014 lead status from Hostfully (or null)\n' +
         '    "unresponded": true,            \u2014 true if last message is from guest\n' +
         '    "messages": [\n' +
         '      {\n' +
@@ -241,8 +251,12 @@ async function main(): Promise<void> {
 
       threads.push({
         reservationId: lead.uid,
+        propertyUid: lead.propertyUid ?? null,
         guestName: formatGuestName(lead.guestInformation),
         channel: lead.channel ?? null,
+        checkIn: lead.checkInLocalDateTime ?? null,
+        checkOut: lead.checkOutLocalDateTime ?? null,
+        leadStatus: lead.status ?? null,
         unresponded,
         messages,
       });
@@ -335,8 +349,12 @@ async function main(): Promise<void> {
 
     threads.push({
       reservationId: lead.uid,
+      propertyUid: lead.propertyUid ?? null,
       guestName: formatGuestName(lead.guestInformation),
       channel: lead.channel ?? null,
+      checkIn: lead.checkInLocalDateTime ?? null,
+      checkOut: lead.checkOutLocalDateTime ?? null,
+      leadStatus: lead.status ?? null,
       unresponded,
       messages,
     });

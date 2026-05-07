@@ -28,6 +28,8 @@ const VALID_LEADS = [
     type: 'BOOKING',
     status: 'BOOKED',
     channel: 'AIRBNB',
+    checkInLocalDateTime: '2026-04-20T15:00:00',
+    checkOutLocalDateTime: '2026-04-23T11:00:00',
     guestInformation: { firstName: 'John', lastName: 'Doe' },
   },
   {
@@ -36,6 +38,8 @@ const VALID_LEADS = [
     type: 'BOOKING',
     status: 'BOOKED',
     channel: 'VRBO',
+    checkInLocalDateTime: '2026-04-25T15:00:00',
+    checkOutLocalDateTime: '2026-04-28T11:00:00',
     guestInformation: { firstName: 'Jane', lastName: 'Smith' },
   },
   {
@@ -44,6 +48,8 @@ const VALID_LEADS = [
     type: 'BLOCK',
     status: 'BLOCKED',
     channel: 'HOSTFULLY',
+    checkInLocalDateTime: null,
+    checkOutLocalDateTime: null,
     guestInformation: { firstName: null, lastName: null },
   },
 ];
@@ -55,6 +61,8 @@ const ZERO_MSG_LEADS = [
     type: 'BOOKING',
     status: 'BOOKED',
     channel: 'AIRBNB',
+    checkInLocalDateTime: '2026-04-18T15:00:00',
+    checkOutLocalDateTime: '2026-04-21T11:00:00',
     guestInformation: { firstName: 'Ghost', lastName: 'User' },
   },
 ];
@@ -66,6 +74,8 @@ const ALL_RESPONDED_LEADS = [
     type: 'BOOKING',
     status: 'BOOKED',
     channel: 'VRBO',
+    checkInLocalDateTime: '2026-04-19T15:00:00',
+    checkOutLocalDateTime: '2026-04-22T11:00:00',
     guestInformation: { firstName: 'Alice', lastName: 'Brown' },
   },
 ];
@@ -407,8 +417,12 @@ describe('get-messages shell tool', () => {
     const thread1 = data.find((t) => t['reservationId'] === 'lead-1');
     expect(thread1).toBeDefined();
     expect(thread1).toHaveProperty('reservationId', 'lead-1');
+    expect(thread1).toHaveProperty('propertyUid', 'VALID_PROPERTY');
     expect(thread1).toHaveProperty('guestName', 'John Doe');
     expect(thread1).toHaveProperty('channel', 'AIRBNB');
+    expect(thread1).toHaveProperty('checkIn', '2026-04-20T15:00:00');
+    expect(thread1).toHaveProperty('checkOut', '2026-04-23T11:00:00');
+    expect(thread1).toHaveProperty('leadStatus', 'BOOKED');
     expect(thread1).toHaveProperty('unresponded', true);
     expect(Array.isArray(thread1!['messages'])).toBe(true);
     const messages = thread1!['messages'] as Record<string, unknown>[];
