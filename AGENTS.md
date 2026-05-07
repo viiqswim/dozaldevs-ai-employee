@@ -296,24 +296,36 @@ During E2E testing sessions you can use the Playwright MCP browser to interact w
 - Channel ID: `C0AMGJQN05S`
 - Approval cards appear here; click **Approve** or **Reject** buttons directly in the browser
 
-**Typical E2E test flow**:
+**Verified E2E flow** (confirmed working 2026-05-07):
 
-1. Send a new message from Airbnb test account (as Olivia) via the Playwright browser
-2. The pre-check runs — if last message is from host, task auto-completes (expected). Wait for Olivia's message to be the last one.
-3. Fire the webhook manually or wait for the 15-min polling cron:
-   ```bash
-   curl -X POST http://localhost:7700/webhooks/hostfully \
-     -H "Content-Type: application/json" \
-     -d '{"agency_uid":"942d08d9-82bb-4fd3-9091-ca0c6b50b578","event_type":"NEW_INBOX_MESSAGE","message_uid":"test-e2e-'$(date +%s)'","thread_uid":"aef3d0cf-bc61-4f05-a3ce-1a4199ca336d","lead_uid":"29a64abd-d02c-44bc-8d5c-47df58a7ab14","property_uid":"562695df-6a4f-40d6-990d-56fe043aa9e8"}'
-   ```
-4. Worker spawns → drafts reply → Approve/Reject card appears in `#cs-guest-communication`
-5. Click **Approve** in Slack browser tab
-6. Confirm reply appears in Airbnb thread (Airbnb tab)
+| Step | What happens                                                                                                                                                                                                      | Where to observe                                                                                |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1    | Send a new message as Olivia in the Airbnb thread                                                                                                                                                                 | Airbnb tab — `textbox "Write a message..."`                                                     |
+| 2    | Airbnb notifies Hostfully; Hostfully fires `NEW_INBOX_MESSAGE` webhook to `POST /webhooks/hostfully`                                                                                                              | Gateway logs                                                                                    |
+| 3    | Gateway matches tenant by `agency_uid`, finds `guest-messaging` archetype, creates task, emits `employee/task.dispatched`                                                                                         | Task appears in DB with status `Received`                                                       |
+| 4    | Universal lifecycle starts — **pre-check** calls Hostfully messages API: if last message is from host (`senderType=AGENCY`) → task goes straight to `Done`, no worker spawned. If last is from guest → continues. | If `Done` in <5s, pre-check fired and found no action needed — expected if host already replied |
+| 5    | Lifecycle transitions `Received → Ready → Executing` — local Docker / Fly.io worker spawns, OpenCode starts                                                                                                       | DB status = `Executing`                                                                         |
+| 6    | Worker calls `get-messages.ts --unresponded-only` to fetch unresponded guest messages from Hostfully API                                                                                                          | Worker logs inside Docker container                                                             |
+| 7    | Worker drafts a reply, calls `post-guest-approval.ts` to post a Slack approval card to `#cs-guest-communication` with guest name, property, original message, and proposed response                               | Slack tab — approval card appears in channel                                                    |
+| 8    | Task moves to `Reviewing` state; approval card shows **Approve & Send**, **Edit & Send**, **Reject** buttons                                                                                                      | DB status = `Reviewing`                                                                         |
+| 9    | Click **Approve & Send** in the Slack thread                                                                                                                                                                      | Slack tab — card updates to "Approved by @Victor Dozal — delivering now."                       |
+| 10   | Lifecycle receives `employee/approval.received` → delivers reply via Hostfully `send-message.ts`                                                                                                                  | Hostfully API call                                                                              |
+| 11   | Reply appears in Airbnb thread from host ("Leo")                                                                                                                                                                  | Airbnb tab — reload/navigate to thread                                                          |
+| 12   | Task marked `Done`                                                                                                                                                                                                | DB status = `Done`                                                                              |
+
+**Key behaviors to know**:
+
+- **Pre-check auto-completes**: If the last Hostfully message is from the host at the time the lifecycle runs, the task skips the worker and goes to `Done` immediately (~1s). This is correct — no reply needed.
+- **Real webhooks fire automatically**: When Olivia sends a message on Airbnb, Hostfully fires a real `NEW_INBOX_MESSAGE` webhook to the registered URL. You do NOT need to fire it manually. The manual `curl` is only needed if the webhook is missed (e.g. CLOSED lead) or for isolated testing.
+- **Polling cron as backup**: The `guest-message-poll` cron fires every 15 min and catches any unresponded messages that webhooks missed (common for CLOSED leads, which Hostfully silently drops webhooks for).
+- **Approval card is in a thread**: The top-level channel message says "Task received — processing". The actual approval card (with Approve/Reject buttons) is posted as a **reply in the thread** — click "View thread" or "1 reply" to find it.
+- **Check-in/Check-out may show TBD**: For INQUIRY-type leads that haven't been booked yet, dates are not confirmed and will appear as TBD in the approval card. This is expected.
 
 **Checking pipeline state** without polling DB:
 
 - Read the last few Slack messages — they show task outcome ("No action needed", approval card, or failure)
 - Approval cards include the task ID in a context block at the bottom
+- A task that goes `Done` in under 5 seconds = pre-check fired (last message was from host)
 
 ## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
 
