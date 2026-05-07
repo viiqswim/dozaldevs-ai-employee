@@ -183,7 +183,7 @@ afterAll(async () => {
 });
 
 describe('get-reservations shell tool', () => {
-  it('default filter (no --status) returns only BOOKING type leads', async () => {
+  it('default filter (no --status) returns all leads except BLOCK type', async () => {
     const { stdout, code } = await runScript(['--property-id', 'VALID_PROPERTY'], {
       HOSTFULLY_API_KEY: 'testkey',
       HOSTFULLY_API_URL: `http://localhost:${port}`,
@@ -194,7 +194,7 @@ describe('get-reservations shell tool', () => {
     expect(uids).toContain('lead-1');
     expect(uids).toContain('lead-2');
     expect(uids).not.toContain('lead-3');
-    expect(uids).not.toContain('lead-4');
+    expect(uids).toContain('lead-4');
   });
 
   it('--status confirmed returns only confirmed BOOKING leads', async () => {
