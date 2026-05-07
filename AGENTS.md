@@ -415,6 +415,8 @@ Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start
 
 **CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` or `src/worker-tools/` requires rebuilding the Docker image before the fix takes effect. Gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild.
 
+**Gateway auto-restarts on file change**: `pnpm dev` runs the gateway with `tsx watch`, which automatically detects file changes and restarts the server process. After editing any file under `src/gateway/` or `src/inngest/`, the change is live immediately — do NOT tell the user to manually restart the server. Verify by confirming the node process start time matches the file's modification time.
+
 ```bash
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
 ```
