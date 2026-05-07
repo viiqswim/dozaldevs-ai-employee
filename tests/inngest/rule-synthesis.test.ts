@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { createFeedbackSummarizerTrigger } from '../../src/inngest/triggers/feedback-summarizer.js';
 
 const { mockCallLLM, mockDecrypt } = vi.hoisted(() => ({
@@ -339,12 +337,5 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
     const url = archetypesFetch![0] as string;
     expect(url).toContain('tenant_id');
     expect(url).toContain('notification_channel');
-  });
-
-  // ── Test 7: TODO(GM-19) comment present in source file ──
-  it('feedback-summarizer.ts contains TODO(GM-19) comment', () => {
-    const filePath = join(process.cwd(), 'src/inngest/triggers/feedback-summarizer.ts');
-    const contents = readFileSync(filePath, 'utf-8');
-    expect(contents).toContain('TODO(GM-19)');
   });
 });
