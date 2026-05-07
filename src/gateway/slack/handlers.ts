@@ -291,11 +291,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         try {
           await respond({
             replace_original: true,
-            text: '⚠️ This summary has already been processed.',
+            text: '⚠️ This task has already been processed.',
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
+                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
@@ -371,11 +371,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         try {
           await respond({
             replace_original: true,
-            text: '⚠️ This summary has already been processed.',
+            text: '⚠️ This task has already been processed.',
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
+                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
@@ -451,11 +451,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         try {
           await respond({
             replace_original: true,
-            text: '⚠️ This summary has already been processed.',
+            text: '⚠️ This task has already been processed.',
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This summary has already been processed.' },
+                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
