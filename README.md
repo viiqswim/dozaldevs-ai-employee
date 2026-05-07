@@ -108,27 +108,30 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 
 ## Scripts
 
-| Script                | Command                            | Purpose                                                                                                                                                             |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `setup.ts`            | `pnpm setup`                       | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                             |
-| `dev.ts`              | `pnpm dev`                         | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel` |
-| `dev-e2e.ts`          | `pnpm dev:e2e`                     | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                     |
-| `register-project.ts` | `pnpm register-project`            | Interactive wizard to register a new project via the admin API                                                                                                      |
-| `trigger-task.ts`     | `pnpm trigger-task`                | Send mock webhook and monitor                                                                                                                                       |
-| `verify-e2e.ts`       | `pnpm verify:e2e --task-id <uuid>` | 12-point E2E verification                                                                                                                                           |
+| Script                 | Command                                | Purpose                                                                                                                                                             |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`             | `pnpm setup`                           | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                             |
+| `dev.ts`               | `pnpm dev`                             | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel` |
+| `dev-e2e.ts`           | `pnpm dev:e2e`                         | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                     |
+| `register-project.ts`  | `pnpm register-project`                | Interactive wizard to register a new project via the admin API                                                                                                      |
+| `trigger-task.ts`      | `pnpm trigger-task`                    | Send mock webhook and monitor                                                                                                                                       |
+| `verify-e2e.ts`        | `pnpm verify:e2e --task-id <uuid>`     | 12-point E2E verification                                                                                                                                           |
+| `setup-two-tenants.ts` | `pnpm setup:two-tenants`               | Multi-tenant setup: provisions DozalDevs + VLRE tenants with archetypes                                                                                             |
+| `telegram-notify.ts`   | `tsx scripts/telegram-notify.ts "msg"` | Send developer Telegram push notification                                                                                                                           |
 
 ## Project Structure
 
 ```
 src/
-├── gateway/     # Express server — webhook receiver (Hostfully, Jira) + Slack Bolt + Inngest host
-├── inngest/     # Universal employee lifecycle, feedback pipeline, cron triggers
-├── workers/     # Docker container code — AI agent execution
-└── lib/         # Shared: logger, fly-client, github-client, retry
-prisma/          # Schema (24 models), migrations, seed
-scripts/         # zx TypeScript scripts (setup, trigger, verify)
-docker/          # Supabase self-hosted Docker Compose (replaces `supabase start` — see note below)
-docs/            # Architecture and phase documentation
+├── gateway/      # Express server — webhook receiver (Hostfully, Jira) + Slack Bolt + Inngest host
+├── inngest/      # Universal employee lifecycle, interaction handler, rule extractor, cron triggers
+├── workers/      # Docker container code — AI agent execution (OpenCode harness)
+├── worker-tools/ # Shell tools for employees (Slack, Hostfully, locks, KB search, platform reporting)
+└── lib/          # Shared utilities: LLM client, Slack/Fly.io/GitHub clients, encryption, logging, retry
+prisma/           # Schema, migrations, seed
+scripts/          # TypeScript scripts (setup, trigger, verify, dev tools)
+docker/           # Docker Compose infrastructure (shared PostgreSQL, project-specific services)
+docs/             # Architecture, planning, snapshots, guides
 ```
 
 ## Infrastructure Note: Docker Compose vs `supabase start`
@@ -186,21 +189,23 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 
 ## Documentation
 
-| Document                                                                       | Description                                                                    |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [Full System Vision](docs/2026-04-14-0104-full-system-vision.md)               | Architecture, archetypes, lifecycle, event routing, multi-tenancy              |
-| [Current System State](docs/snapshots/2026-04-24-1452-current-system-state.md) | Verified ground-truth snapshot: lifecycle, harness flow, all routes, DB schema |
-| [Multi-Tenancy Guide](docs/2026-04-16-1655-multi-tenancy-guide.md)             | Provisioning tenants, Slack OAuth, per-tenant secrets, verification            |
-| [Phase 1 Story Map](docs/planning/2026-04-21-2202-phase1-story-map.md)         | 58 stories across 5 releases — active development roadmap                      |
-| [Product Roadmap](docs/planning/2026-04-21-1813-product-roadmap.md)            | 4-phase product roadmap, design partner strategy                               |
-| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)                     | Common failures with symptoms and fixes                                        |
+| Document                                                                       | Description                                                                                                                                   |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Full System Vision](docs/2026-04-14-0104-full-system-vision.md)               | Architecture, archetypes, lifecycle, event routing, multi-tenancy                                                                             |
+| [Current System State](docs/snapshots/2026-04-29-2255-current-system-state.md) | Latest verified snapshot: lifecycle, harness flow, all routes, DB schema — includes unified interaction handler and guest messaging full flow |
+| [Multi-Tenancy Guide](docs/2026-04-16-1655-multi-tenancy-guide.md)             | Provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                           |
+| [Phase 1 Story Map](docs/planning/2026-04-21-2202-phase1-story-map.md)         | 58 stories across 5 releases — active development roadmap                                                                                     |
+| [Product Roadmap](docs/planning/2026-04-21-1813-product-roadmap.md)            | 4-phase product roadmap, design partner strategy                                                                                              |
+| [Troubleshooting](docs/2026-04-01-2110-troubleshooting.md)                     | Common failures with symptoms and fixes                                                                                                       |
+| [Adding a Shell Tool](docs/2026-05-04-1645-adding-a-shell-tool.md)             | File structure, CLI pattern, mock fixtures, Docker integration for new shell tools                                                            |
+| [Local E2E Testing](docs/2026-05-04-2023-local-e2e-testing.md)                 | Testing without real external APIs — mock conventions, fixture structure, env propagation                                                     |
 
 ## Testing
 
 ```bash
-pnpm test     # Run Vitest suite (515+ tests)
+pnpm test     # Run Vitest suite
 pnpm lint     # ESLint
 pnpm build    # TypeScript compile
 ```
 
-One pre-existing test failure is expected: `inngest-serve.test.ts` (function count check expects an old count). `container-boot.test.ts` skips all 4 tests when Docker is unavailable (not a failure).
+One pre-existing test failure is expected: `inngest-serve.test.ts` (function count check hardcodes `2` but 9 functions are registered; stale assertion). `container-boot.test.ts` skips all 4 tests when Docker is unavailable (not a failure).
