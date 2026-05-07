@@ -98,26 +98,46 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
 
           let themes: FeedbackTheme[] = [];
           try {
-            themes = JSON.parse(llmResult.content) as FeedbackTheme[];
+            // Strip markdown code fences if present (LLM may wrap JSON in ```json ... ```)
+            const rawContent = llmResult.content.trim();
+            const jsonContent = rawContent
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```\s*$/i, '')
+              .trim();
+            themes = JSON.parse(jsonContent) as FeedbackTheme[];
           } catch {
-            log.warn({ archetypeId: archetype.id }, 'Failed to parse feedback themes JSON');
+            log.warn(
+              { archetypeId: archetype.id, llmContent: llmResult.content.substring(0, 500) },
+              'Failed to parse feedback themes JSON',
+            );
             return;
           }
 
-          await fetch(`${supabaseUrl}/rest/v1/knowledge_bases`, {
+          const now = new Date().toISOString();
+          const kbRes = await fetch(`${supabaseUrl}/rest/v1/knowledge_bases`, {
             method: 'POST',
             headers: { ...headers, Prefer: 'return=minimal' },
             body: JSON.stringify({
+              id: crypto.randomUUID(),
+              tenant_id: archetype.tenant_id,
               archetype_id: archetype.id,
+              updated_at: now,
               source_config: {
                 type: 'feedback_summary',
                 period: '7d',
                 themes,
-                generated_at: new Date().toISOString(),
+                generated_at: now,
                 feedback_count: feedbackItems.length,
               },
             }),
           });
+          if (!kbRes.ok) {
+            const errBody = await kbRes.text();
+            log.warn(
+              { archetypeId: archetype.id, status: kbRes.status, errBody },
+              'Failed to store feedback summary in knowledge_bases',
+            );
+          }
 
           log.info(
             { archetypeId: archetype.id, themeCount: themes.length },
