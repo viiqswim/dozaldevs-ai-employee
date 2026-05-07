@@ -468,4 +468,65 @@ describe('employee-lifecycle — rejection feedback loop', () => {
     );
     expect(cancelPatches.length).toBeGreaterThan(0);
   });
+
+  it('10. rejection without reason POSTs awaiting_input learned_rule with source=rejection', async () => {
+    const mockFetch = buildFetchMock({ includeApprovalMsgTs: true });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const { error } = await makeEngine(makeRejectionEvent()).execute(triggerEvent());
+    expect(error).toBeUndefined();
+
+    const rulePost = (mockFetch.mock.calls as Array<[string, RequestInit | undefined]>).find(
+      ([url, init]) => {
+        if (!(url as string).includes('/rest/v1/learned_rules')) return false;
+        if (((init as RequestInit | undefined)?.method ?? '').toUpperCase() !== 'POST')
+          return false;
+        try {
+          const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
+            status?: string;
+            source?: string;
+            rule_text?: string;
+            source_task_id?: string;
+          };
+          return (
+            body.status === 'awaiting_input' &&
+            body.source === 'rejection' &&
+            body.rule_text === '' &&
+            body.source_task_id === TEST_TASK_ID
+          );
+        } catch {
+          return false;
+        }
+      },
+    );
+
+    expect(rulePost).toBeDefined();
+  });
+
+  it('11. rejection WITH reason does NOT POST awaiting_input learned_rule', async () => {
+    const mockFetch = buildFetchMock({ includeApprovalMsgTs: true });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const { error } = await makeEngine(
+      makeRejectionEvent({ rejectionReason: 'Too casual tone' }),
+    ).execute(triggerEvent());
+    expect(error).toBeUndefined();
+
+    const awaitingInputPost = (
+      mockFetch.mock.calls as Array<[string, RequestInit | undefined]>
+    ).find(([url, init]) => {
+      if (!(url as string).includes('/rest/v1/learned_rules')) return false;
+      if (((init as RequestInit | undefined)?.method ?? '').toUpperCase() !== 'POST') return false;
+      try {
+        const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
+          status?: string;
+        };
+        return body.status === 'awaiting_input';
+      } catch {
+        return false;
+      }
+    });
+
+    expect(awaitingInputPost).toBeUndefined();
+  });
 });

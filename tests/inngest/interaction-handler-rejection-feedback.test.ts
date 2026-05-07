@@ -92,7 +92,7 @@ function buildFetchMock(taskRows: Array<{ status: string; metadata: Record<strin
       return { json: () => Promise.resolve(taskRows) };
     }
     if (url.includes('/rest/v1/feedback') && method === 'POST') {
-      return { json: () => Promise.resolve([{ id: 'fb-uuid-1' }]) };
+      return { ok: true, json: () => Promise.resolve([{ id: 'fb-uuid-1' }]) };
     }
     if (url.includes('/rest/v1/tasks?id=eq.') && method === 'PATCH') {
       return { json: () => Promise.resolve([]) };
