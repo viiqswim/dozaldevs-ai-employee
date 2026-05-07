@@ -10,6 +10,7 @@ import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
 import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
+import { checkLastMessageSender } from '../lib/hostfully-precheck.js';
 import { buildSupersededBlocks } from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
@@ -134,6 +135,41 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const tenantId = taskData.tenant_id as string | undefined;
       if (!tenantId) {
         throw new Error('Task is missing tenant_id — cannot proceed with lifecycle');
+      }
+
+      // ── Pre-check: skip host-sent messages before any notification or worker ──
+      if (archetype.role_name === 'guest-messaging') {
+        const rawEventForCheck = (taskData.raw_event as Record<string, string> | null) ?? {};
+        const leadUidForCheck = rawEventForCheck['lead_uid'] ?? '';
+        if (leadUidForCheck) {
+          const skipTask = await step.run('pre-check-skip-host-message', async () => {
+            const prismaForCheck = new PrismaClient();
+            const tenantEnvForCheck = await loadTenantEnv(
+              tenantId,
+              {
+                tenantRepo: new TenantRepository(prismaForCheck),
+                secretRepo: new TenantSecretRepository(prismaForCheck),
+              },
+              null,
+            );
+            await prismaForCheck.$disconnect();
+            const apiKey = tenantEnvForCheck['HOSTFULLY_API_KEY'] ?? '';
+            const result = await checkLastMessageSender(leadUidForCheck, apiKey);
+            return result.lastSenderIsHost;
+          });
+
+          if (skipTask) {
+            await step.run('skip-host-message-done', async () => {
+              await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+              await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Received');
+              log.info(
+                { taskId },
+                'Pre-check: last message from host — skipping (no worker, no notification)',
+              );
+            });
+            return;
+          }
+        }
       }
 
       // ── State: Triaging ──────────────────────────────────────────────────────
@@ -598,24 +634,39 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
             const reasoning = classificationCheck.reasoning ?? '';
             const displayContext = classificationCheck.displayContext ?? {};
+            const roleName = (archetype.role_name as string) ?? 'unknown';
+            const rawEventForCard = (taskData.raw_event as Record<string, string> | null) ?? {};
 
             const contextFields = Object.entries(displayContext).map(([label, value]) => ({
               type: 'mrkdwn',
               text: `*${label}:* ${value}`,
             }));
 
+            const traceFields: string[] = [];
+            if (rawEventForCard['property_uid'])
+              traceFields.push(`Property: \`${rawEventForCard['property_uid']}\``);
+            if (rawEventForCard['lead_uid'])
+              traceFields.push(`Lead: \`${rawEventForCard['lead_uid']}\``);
+
             const blocks: unknown[] = [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `🤖 *No action needed* — AI decided to skip this task.\n\n*Reasoning:* ${reasoning}`,
+                  text: `🤖 *No action needed* — AI decided to skip this task.\n_Employee: ${roleName}_\n\n*Reasoning:* ${reasoning}`,
                 },
               },
             ];
 
             if (contextFields.length > 0) {
               blocks.push({ type: 'context', elements: contextFields });
+            }
+
+            if (traceFields.length > 0) {
+              blocks.push({
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: traceFields.join(' | ') }],
+              });
             }
 
             blocks.push({ type: 'divider' });
