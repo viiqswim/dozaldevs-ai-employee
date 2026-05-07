@@ -64,7 +64,21 @@ describe('parseClassifyResponse', () => {
     expect(result.draftResponse).toBeNull();
     expect(result.urgency).toBe(false);
     expect(result.conversationSummary).toBeNull();
-    expect(result.reasoning).toBe('Early exit — no messages to process');
+    expect(result.reasoning).toBe('All messages already answered.');
+  });
+
+  it('extracts actual reason text from early-exit string', () => {
+    const result = parseClassifyResponse(
+      'NO_ACTION_NEEDED: Thread already responded to. Last message is from host.',
+    );
+    expect(result.classification).toBe('NO_ACTION_NEEDED');
+    expect(result.reasoning).toBe('Thread already responded to. Last message is from host.');
+  });
+
+  it('falls back to default reasoning for bare NO_ACTION_NEEDED: prefix', () => {
+    const result = parseClassifyResponse('NO_ACTION_NEEDED:');
+    expect(result.classification).toBe('NO_ACTION_NEEDED');
+    expect(result.reasoning).toBe('No messages to process');
   });
 
   // ─── 4. Markdown code fence wrapping (EC1) ───────────────────────────────
