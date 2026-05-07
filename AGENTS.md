@@ -267,6 +267,17 @@ Use these VLRE resources for all Hostfully-related testing:
 | Property     | `https://platform.hostfully.com/app/#/property/c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                     |
 | Property UID | `c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                                                                   |
 
+**Owner's Airbnb guest test account**: Messages from the following thread are sent by the repo owner using a personal Airbnb guest test account — not a real guest. Do not treat these as production inquiries. Useful for end-to-end testing of the guest-messaging employee with a live Airbnb-sourced lead.
+
+| Resource     | ID / URL                                                                                                                                 |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Thread       | `https://platform.hostfully.com/app/#/inbox?threadUid=aef3d0cf-bc61-4f05-a3ce-1a4199ca336d&leadUid=29a64abd-d02c-44bc-8d5c-47df58a7ab14` |
+| Thread UID   | `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`                                                                                                   |
+| Lead UID     | `29a64abd-d02c-44bc-8d5c-47df58a7ab14`                                                                                                   |
+| Property UID | `562695df-6a4f-40d6-990d-56fe043aa9e8`                                                                                                   |
+| Guest name   | Olivia (test account)                                                                                                                    |
+| Lead status  | NEW · Type: INQUIRY · Channel: AIRBNB                                                                                                    |
+
 ## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
 
 Hostfully credentials are **tenant-level secrets stored in the database**, not `.env` variables. The `tenant-env-loader.ts` auto-uppercases and injects all `tenant_secrets` rows into the worker machine env — no code changes needed when adding new secrets.
