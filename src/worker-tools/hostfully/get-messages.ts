@@ -292,12 +292,13 @@ async function main(): Promise<void> {
     if (!hasNew || !cursor) break;
   } while (true);
 
-  // Filter to BOOKING-type leads only (exclude BLOCKs, INQUIRYs, BOOKING_REQUESTs)
-  const bookingLeads = allLeads.filter((l) => l.type === 'BOOKING');
+  // Exclude calendar blocks only — include BOOKING, INQUIRY, BOOKING_REQUEST, etc.
+  // Airbnb and other OTAs may surface real stays as INQUIRY type, not just BOOKING.
+  const eligibleLeads = allLeads.filter((l) => l.type !== 'BLOCK');
 
   const threads: ThreadSummary[] = [];
 
-  for (const lead of bookingLeads) {
+  for (const lead of eligibleLeads) {
     const messagesUrl = `${baseUrl}/messages?leadUid=${encodeURIComponent(lead.uid)}&_limit=${encodeURIComponent(String(limit))}`;
 
     const msgRes = await fetch(messagesUrl, { headers });
