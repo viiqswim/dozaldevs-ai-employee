@@ -62,7 +62,7 @@ async function runHandler(handler: any, feedbackItems: FeedbackRow[]) {
       });
     }
     if ((url as string).includes('knowledge_bases')) {
-      return Promise.resolve({ json: () => Promise.resolve({}) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     }
     return Promise.resolve({ json: () => Promise.resolve([]) });
   });
