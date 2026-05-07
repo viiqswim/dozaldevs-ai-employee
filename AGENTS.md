@@ -385,7 +385,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Name**: `ai_employee` (NOT `postgres` — the CLI default)
 - **Connection**: `postgresql://postgres:postgres@localhost:54322/ai_employee`
 - **ORM**: Prisma — `prisma/schema.prisma`
-- **REST API**: Supabase PostgREST on `http://localhost:54321`
+- **REST API**: Supabase PostgREST on `http://localhost:54331`
 
 ### Test Database
 
@@ -566,7 +566,7 @@ Stale tmux sessions accumulate zsh processes, gitstatus watchers, and kernel vno
 
 Cloudflare Tunnel is the permanent solution for hybrid mode.
 
-**PostgREST tunnel** (for Fly.io workers → local Supabase): `cloudflared tunnel --url http://localhost:54321` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`. This tunnel can be a quick (random-URL) tunnel since `TUNNEL_URL` is set at dispatch time.
+**PostgREST tunnel** (for Fly.io workers → local Supabase): `cloudflared tunnel --url http://localhost:54331` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`. This tunnel can be a quick (random-URL) tunnel since `TUNNEL_URL` is set at dispatch time.
 
 ### 2. Slack OAuth redirect URI requires a stable public URL
 
