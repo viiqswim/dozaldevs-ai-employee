@@ -64,7 +64,7 @@ export async function trackPendingApproval(
   supabaseKey: string,
   data: PendingApprovalData,
 ): Promise<void> {
-  await fetch(`${supabaseUrl}/rest/v1/pending_approvals`, {
+  const res = await fetch(`${supabaseUrl}/rest/v1/pending_approvals`, {
     method: 'POST',
     headers: {
       ...makeHeaders(supabaseKey),
@@ -82,6 +82,10 @@ export async function trackPendingApproval(
       urgency: data.urgency ?? false,
     }),
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`trackPendingApproval: PostgREST returned ${res.status}: ${body}`);
+  }
 }
 
 export async function clearPendingApproval(
