@@ -1,54 +1,57 @@
 import { serve } from 'inngest/express';
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client'; // Dead code: only used by engineering fns (deregistered)
 import { createInngestClient } from './client.js';
-import { createLifecycleFunction } from '../../inngest/lifecycle.js';
-import { createRedispatchFunction } from '../../inngest/redispatch.js';
-import { createWatchdogFunction } from '../../inngest/watchdog.js';
+// import { createLifecycleFunction } from '../../inngest/lifecycle.js'; // Deregistered: engineering employee on hold
+// import { createRedispatchFunction } from '../../inngest/redispatch.js'; // Deregistered: engineering employee on hold
+// import { createWatchdogFunction } from '../../inngest/watchdog.js'; // Deregistered: engineering employee on hold
 import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycle.js';
-import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js';
+// import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js'; // Deregistered: use manual trigger via admin API
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
-import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js';
+// import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js'; // Deregistered: manual cleanup if needed
 // import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
-import { createSlackClient } from '../../lib/slack-client.js';
-import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
+// import { createSlackClient } from '../../lib/slack-client.js'; // Dead code: only used by engineering fns (deregistered)
+// import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js'; // Dead code: only used by engineering fns (deregistered)
 
 export function inngestServeRoutes(): Router {
   const router = Router();
   const inngest = createInngestClient();
-  const prisma = new PrismaClient();
-  const slackClient = createSlackClient({
-    botToken: process.env.SLACK_BOT_TOKEN ?? '',
-    defaultChannel: process.env.SLACK_CHANNEL_ID ?? '',
-  });
+  // const prisma = new PrismaClient(); // Dead code: only passed to engineering fns (deregistered)
+  // const slackClient = createSlackClient({ // Dead code: only passed to engineering fns (deregistered)
+  //   botToken: process.env.SLACK_BOT_TOKEN ?? '',
+  //   defaultChannel: process.env.SLACK_CHANNEL_ID ?? '',
+  // });
 
-  const flyClient = { getMachine, destroyMachine, createMachine };
+  // const flyClient = { getMachine, destroyMachine, createMachine }; // Dead code: only passed to watchdogFn (deregistered)
 
-  const lifecycleFn = createLifecycleFunction(inngest, prisma, slackClient);
-  const redispatchFn = createRedispatchFunction(inngest, prisma, slackClient);
-  const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient);
+  // === DEREGISTERED FUNCTIONS ===
+  // Only guest-messaging (universal lifecycle) and its learning pipeline remain active.
+  // Engineering employee functions and summarizer trigger deregistered — source files preserved.
+  // const lifecycleFn = createLifecycleFunction(inngest, prisma, slackClient); // Deregistered: engineering employee on hold
+  // const redispatchFn = createRedispatchFunction(inngest, prisma, slackClient); // Deregistered: engineering employee on hold
+  // const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient); // Deregistered: engineering employee on hold
   const employeeLifecycleFn = createEmployeeLifecycleFunction(inngest);
-  const summarizerTriggerFn = createSummarizerTrigger(inngest);
+  // const summarizerTriggerFn = createSummarizerTrigger(inngest); // Deregistered: use manual trigger via admin API
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
-  const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest);
+  // const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest); // Deregistered: manual cleanup if needed — DELETE FROM learned_rules WHERE expires_at < NOW();
   // const guestMessagePollFn = createGuestMessagePollTrigger(inngest); // Disabled: cron tasks have incomplete raw_event data, causing broken approval cards
 
   const handler = serve({
     client: inngest,
     functions: [
-      lifecycleFn,
-      redispatchFn,
-      watchdogFn,
+      // lifecycleFn, // Deregistered: engineering employee on hold
+      // redispatchFn, // Deregistered: engineering employee on hold
+      // watchdogFn, // Deregistered: engineering employee on hold
       employeeLifecycleFn,
-      summarizerTriggerFn,
+      // summarizerTriggerFn, // Deregistered: use manual trigger via admin API
       interactionHandlerFn,
       feedbackSummarizerFn,
       ruleExtractorFn,
-      learnedRulesExpiryFn,
+      // learnedRulesExpiryFn, // Deregistered: manual cleanup if needed
       // guestMessagePollFn,
     ],
     serveOrigin: `http://localhost:${process.env.PORT ?? '7700'}`,
