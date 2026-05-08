@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { WebClient } from '@slack/web-api';
 
@@ -20,6 +20,7 @@ interface GuestApprovalParams {
   urgency: boolean;
   conversationSummary?: string;
   diagnosis?: string;
+  conversationRef?: string;
   dryRun: boolean;
   threadTs?: string;
 }
@@ -48,6 +49,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let urgency = false;
   let conversationSummary: string | undefined;
   let diagnosis: string | undefined;
+  let conversationRef: string | undefined;
   let dryRun = false;
   let threadTs: string | undefined;
 
@@ -90,6 +92,8 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       dryRun = true;
     } else if (args[i] === '--thread-ts') {
       threadTs = args[++i];
+    } else if (args[i] === '--conversation-ref' && args[i + 1]) {
+      conversationRef = args[++i];
     }
   }
 
@@ -111,6 +115,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     urgency,
     conversationSummary,
     diagnosis,
+    conversationRef,
     dryRun,
     threadTs,
   };
@@ -265,7 +270,11 @@ export async function main(): Promise<void> {
         string,
         unknown
       >;
-      if (typeof existing.ts === 'string' && existing.ts.length > 0) {
+      if (
+        typeof existing.ts === 'string' &&
+        existing.ts.length > 0 &&
+        !/PLACEHOLDER/i.test(existing.ts)
+      ) {
         process.stderr.write(
           `Idempotency guard: ${APPROVAL_OUTPUT_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
         );
@@ -333,6 +342,31 @@ export async function main(): Promise<void> {
     process.stderr.write(`Error: Slack postMessage failed: ${result.error ?? 'unknown'}\n`);
     process.exit(1);
   }
+
+  const resolvedConversationRef = params.conversationRef ?? params.threadUid;
+  const approvalOutput = {
+    ts: result.ts,
+    channel: result.channel,
+    conversationRef: resolvedConversationRef,
+    approval_message_ts: result.ts,
+    target_channel: result.channel,
+    conversation_ref: resolvedConversationRef,
+    task_id: params.taskId,
+    guest_name: params.guestName,
+    property_name: params.propertyName,
+    category: params.category,
+    confidence: params.confidence,
+    lead_uid: params.leadUid,
+    thread_uid: params.threadUid,
+    message_uid: params.messageUid,
+    original_message: params.originalMessage,
+    draft_response: params.draftResponse,
+    check_in: params.checkIn,
+    check_out: params.checkOut,
+    booking_channel: params.bookingChannel,
+    urgency: params.urgency,
+  };
+  writeFileSync(APPROVAL_OUTPUT_PATH, JSON.stringify(approvalOutput));
 
   const output: PostResult = { ts: result.ts, channel: result.channel };
   process.stdout.write(JSON.stringify(output) + '\n');
