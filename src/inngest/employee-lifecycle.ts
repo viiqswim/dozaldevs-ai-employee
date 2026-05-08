@@ -243,6 +243,42 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               text: `⏳ Task received — processing (${roleName})`,
               blocks,
             });
+            if (result.ts) {
+              try {
+                const currentMetadata =
+                  (
+                    (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+                      headers,
+                    }).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>
+                  )[0]?.metadata ?? {};
+                const updatedMetadata = {
+                  ...currentMetadata,
+                  notify_slack_ts: result.ts,
+                  notify_slack_channel: channel,
+                };
+                const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                  method: 'PATCH',
+                  headers,
+                  body: JSON.stringify({
+                    metadata: updatedMetadata,
+                    updated_at: new Date().toISOString(),
+                  }),
+                });
+                if (!metaPatchRes.ok) {
+                  log.warn(
+                    { taskId },
+                    'Failed to store notify_slack_ts in task metadata (non-fatal)',
+                  );
+                } else {
+                  log.info({ taskId }, 'notify_slack_ts stored in task metadata');
+                }
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Error storing notify_slack_ts in task metadata (non-fatal)',
+                );
+              }
+            }
             return { ts: result.ts, channel, enrichment };
           }
 
@@ -264,6 +300,42 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               },
             ],
           });
+          if (result.ts) {
+            try {
+              const currentMetadata =
+                (
+                  (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+                    headers,
+                  }).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>
+                )[0]?.metadata ?? {};
+              const updatedMetadata = {
+                ...currentMetadata,
+                notify_slack_ts: result.ts,
+                notify_slack_channel: channel,
+              };
+              const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                  metadata: updatedMetadata,
+                  updated_at: new Date().toISOString(),
+                }),
+              });
+              if (!metaPatchRes.ok) {
+                log.warn(
+                  { taskId },
+                  'Failed to store notify_slack_ts in task metadata (non-fatal)',
+                );
+              } else {
+                log.info({ taskId }, 'notify_slack_ts stored in task metadata');
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Error storing notify_slack_ts in task metadata (non-fatal)',
+              );
+            }
+          }
           return { ts: result.ts, channel, enrichment: null };
         } catch (err) {
           log.warn({ taskId, err }, 'Failed to send received notification (non-fatal)');
