@@ -737,6 +737,45 @@ tsx scripts/telegram-notify.ts "✅ ${PLAN} complete — All tasks done. Come ba
 
 If the plan already had a notification task that fired, the user receives two notifications — this is intentional.
 
+## Plan E2E Validation (MANDATORY)
+
+Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step. "The code works" is not sufficient — the full employee workflow must be exercised end-to-end in a real browser before the plan is considered done.
+
+### What this means
+
+A plan is only complete when Playwright browser automation has walked the full trigger-to-delivery flow with real external services. This applies to every employee type. The verification wave must include:
+
+1. **Trigger** — fire the real trigger (send a message, hit a webhook, invoke the cron)
+2. **Pipeline trace** — confirm each lifecycle state transition occurs (check DB or logs)
+3. **Worker output** — confirm the worker produced the expected draft/deliverable
+4. **Approval gate** — if `approval_required: true`, click Approve or Reject in the real Slack UI using Playwright browser automation
+5. **Delivery** — confirm the final action completed (message sent, channel updated, etc.)
+
+### Per-employee trigger reference
+
+| Employee                     | Trigger                                                                     | Browser validation entry point                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Guest-Messaging (VLRE)**   | Send message on Airbnb (`https://www.airbnb.com/guest/messages/2525238359`) | Airbnb thread → Slack `#cs-guest-communication` approval card → Hostfully/Airbnb reply appears |
+| **Summarizer (Papi Chulo)**  | `POST /admin/tenants/.../employees/daily-summarizer/trigger`                | Slack `#victor-tests` approval card → published to `#project-lighthouse`                       |
+| **Engineering (deprecated)** | N/A — on hold                                                               | N/A                                                                                            |
+
+For new employees, document the equivalent entry point when the archetype is added.
+
+### Plan template addition
+
+Every plan's Final Verification Wave must include an E2E browser step before the Telegram notification task:
+
+```markdown
+- [ ] **N. E2E browser validation** — Walk the full trigger-to-delivery flow in a real browser:
+  - Fire the real trigger (not a mock)
+  - Confirm each lifecycle state in the DB (`Received → Executing → Reviewing → Done`)
+  - Interact with the approval gate in Slack (Playwright or manual click)
+  - Confirm delivery reached the end destination
+  - Document: trigger used, task ID, outcome observed
+```
+
+**No plan passes its Final Verification Wave without this step completed.**
+
 ## Docs Directory Structure
 
 The `docs/` directory is organized into subdirectories by document type. Always file new documents in the correct location.
