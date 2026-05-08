@@ -1424,7 +1424,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 failure_reason: 'Delivery failed after 3 attempts',
               });
               if (approvalMsgTs && targetChannel) {
-                const errorText = `❌ Failed to send response to guest after 3 attempts. Task \`${taskId}\` marked as failed.`;
+                const errorText = `❌ Delivery failed after 3 attempts. Task \`${taskId}\` marked as failed.`;
                 try {
                   await slackClient.updateMessage(targetChannel, approvalMsgTs, errorText, [
                     { type: 'section', text: { type: 'mrkdwn', text: errorText } },
@@ -1461,7 +1461,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
 
           if (deliveryFinalStatus === 'Done' && approvalMsgTs && targetChannel) {
-            const sentText = `✅ Sent to guest at ${new Date().toISOString()}`;
+            const sentText = `✅ Delivered at ${new Date().toISOString()}`;
             log.info({ taskId }, 'State: Done');
             try {
               await slackClient.updateMessage(targetChannel, approvalMsgTs, sentText, [
