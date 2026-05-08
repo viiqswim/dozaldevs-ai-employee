@@ -11,7 +11,14 @@ import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
 import { checkLastMessageSender } from '../lib/hostfully-precheck.js';
-import { buildSupersededBlocks } from '../lib/slack-blocks.js';
+import { fetchLeadEnrichment } from '../lib/hostfully-enrichment.js';
+import {
+  buildSupersededBlocks,
+  buildEnrichedNotifyBlocks,
+  buildNotifyStateBlocks,
+  buildNoActionThreadBlocks,
+  buildOverrideCardBlocks,
+} from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
   getPendingApproval,
@@ -195,8 +202,50 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           await prismaForNotify.$disconnect();
           const botToken = tenantEnvForNotify['SLACK_BOT_TOKEN'] ?? '';
           const channel = tenantEnvForNotify['NOTIFICATION_CHANNEL'] ?? '';
-          if (!botToken || !channel) return { ts: null, channel: null };
+          if (!botToken || !channel) return { ts: null, channel: null, enrichment: null };
           const roleName = (archetype.role_name as string) ?? 'unknown';
+
+          let enrichment: import('../lib/hostfully-enrichment.js').LeadEnrichment | null = null;
+          if ((archetype.role_name as string) === 'guest-messaging') {
+            const rawEventForEnrich = (taskData.raw_event as Record<string, string> | null) ?? {};
+            const leadUidForEnrich = rawEventForEnrich['lead_uid'] ?? '';
+            const messageContent = rawEventForEnrich['message_content'] ?? '';
+            const apiKey = tenantEnvForNotify['HOSTFULLY_API_KEY'] ?? '';
+            if (leadUidForEnrich && apiKey) {
+              enrichment = await fetchLeadEnrichment(leadUidForEnrich, apiKey);
+            }
+            const blocks = enrichment
+              ? buildEnrichedNotifyBlocks({
+                  guestName: enrichment.guestName ?? 'Guest',
+                  propertyName: enrichment.propertyName ?? undefined,
+                  checkIn: enrichment.checkIn ?? undefined,
+                  checkOut: enrichment.checkOut ?? undefined,
+                  bookingChannel: enrichment.bookingChannel ?? undefined,
+                  messageSnippet: messageContent || undefined,
+                  taskId,
+                })
+              : [
+                  {
+                    type: 'section',
+                    text: {
+                      type: 'mrkdwn',
+                      text: `⏳ *Task received* — processing\n_Employee: ${roleName}_`,
+                    },
+                  },
+                  {
+                    type: 'context',
+                    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                  },
+                ];
+            const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
+            const result = await slackClientForNotify.postMessage({
+              channel,
+              text: `⏳ Task received — processing (${roleName})`,
+              blocks,
+            });
+            return { ts: result.ts, channel, enrichment };
+          }
+
           const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
           const result = await slackClientForNotify.postMessage({
             channel,
@@ -215,7 +264,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               },
             ],
           });
-          return { ts: result.ts, channel };
+          return { ts: result.ts, channel, enrichment: null };
         } catch (err) {
           log.warn({ taskId, err }, 'Failed to send received notification (non-fatal)');
           return { ts: null, channel: null };
@@ -637,65 +686,32 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             const roleName = (archetype.role_name as string) ?? 'unknown';
             const rawEventForCard = (taskData.raw_event as Record<string, string> | null) ?? {};
 
-            const contextFields = Object.entries(displayContext).map(([label, value]) => ({
-              type: 'mrkdwn',
-              text: `*${label}:* ${value}`,
-            }));
-
-            const traceFields: string[] = [];
-            if (rawEventForCard['property_uid'])
-              traceFields.push(`Property: \`${rawEventForCard['property_uid']}\``);
-            if (rawEventForCard['lead_uid'])
-              traceFields.push(`Lead: \`${rawEventForCard['lead_uid']}\``);
-
-            const blocks: unknown[] = [
-              {
-                type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: `🤖 *No action needed* — AI decided to skip this task.\n_Employee: ${roleName}_\n\n*Reasoning:* ${reasoning}`,
-                },
-              },
-            ];
-
-            if (contextFields.length > 0) {
-              blocks.push({ type: 'context', elements: contextFields });
-            }
-
-            if (traceFields.length > 0) {
-              blocks.push({
-                type: 'context',
-                elements: [{ type: 'mrkdwn', text: traceFields.join(' | ') }],
+            if (notifyMsgRef?.ts) {
+              await slackForCard.postMessage({
+                channel: channelForCard,
+                text: `ℹ️ No action needed`,
+                blocks: buildNoActionThreadBlocks({
+                  reasoning,
+                  taskId,
+                  propertyUid: rawEventForCard['property_uid'] ?? undefined,
+                  leadUid: rawEventForCard['lead_uid'] ?? undefined,
+                }),
+                thread_ts: notifyMsgRef.ts,
               });
             }
 
-            blocks.push({ type: 'divider' });
-            blocks.push({
-              type: 'actions',
-              elements: [
-                {
-                  type: 'button',
-                  text: { type: 'plain_text', text: '🔄 Take Action', emoji: true },
-                  action_id: 'override_take_action',
-                  value: taskId,
-                },
-                {
-                  type: 'button',
-                  text: { type: 'plain_text', text: '✅ Dismiss', emoji: true },
-                  action_id: 'override_dismiss',
-                  value: taskId,
-                },
-              ],
-            });
-            blocks.push({
-              type: 'context',
-              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            const blocks = buildOverrideCardBlocks({
+              reasoning,
+              taskId,
+              roleName,
+              displayContext: Object.keys(displayContext).length > 0 ? displayContext : undefined,
             });
 
             const result = await slackForCard.postMessage({
               channel: channelForCard,
               text: `🤖 No action needed — AI skipped this task`,
               blocks,
+              thread_ts: notifyMsgRef?.ts ?? undefined,
             });
 
             await fetch(
@@ -746,13 +762,22 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const updateNotifyMsg = async (
           text: string,
           slackClient: ReturnType<typeof createSlackClient>,
+          blocks?: unknown[],
         ) => {
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
-              await slackClient.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, text, [
-                { type: 'section', text: { type: 'mrkdwn', text } },
-                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-              ]);
+              await slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                text,
+                blocks ?? [
+                  { type: 'section', text: { type: 'mrkdwn', text } },
+                  {
+                    type: 'context',
+                    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                  },
+                ],
+              );
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received message (non-fatal)');
             }
@@ -781,7 +806,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   botToken: botTokenForTimeout,
                   defaultChannel: '',
                 });
-                await updateNotifyMsg(resolvedText, slackForTimeout);
+                await updateNotifyMsg(
+                  resolvedText,
+                  slackForTimeout,
+                  buildNotifyStateBlocks({ emoji: '✅', text: 'No action needed', taskId }),
+                );
                 await updateOverrideCard(resolvedText, slackForTimeout);
               }
             } catch (err) {
@@ -820,7 +849,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   botToken: botTokenForDismiss,
                   defaultChannel: '',
                 });
-                await updateNotifyMsg(resolvedText, slackForDismiss);
+                await updateNotifyMsg(
+                  resolvedText,
+                  slackForDismiss,
+                  buildNotifyStateBlocks({
+                    emoji: '✅',
+                    text: 'No action needed — dismissed',
+                    taskId,
+                  }),
+                );
               }
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update Slack on override dismiss (non-fatal)');
