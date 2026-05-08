@@ -762,7 +762,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO (verification only)
 
-- [ ] 9. **Notify completion** — Send Telegram notification: plan `guest-messaging-reliability` complete, all tasks done, come back to review results.
+- [x] 9. **Notify completion** — Send Telegram notification: plan `guest-messaging-reliability` complete, all tasks done, come back to review results.
 
 ---
 
