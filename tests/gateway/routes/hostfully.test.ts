@@ -14,6 +14,7 @@ function makeApp(
     archetypeFindUnique?: ReturnType<typeof vi.fn>;
     taskCreate?: ReturnType<typeof vi.fn>;
     taskFindFirst?: ReturnType<typeof vi.fn>;
+    taskUpdate?: ReturnType<typeof vi.fn>;
     inngestClient?: { send: ReturnType<typeof vi.fn> };
   } = {},
 ) {
@@ -39,6 +40,7 @@ function makeApp(
         task: {
           create: overrides.taskCreate ?? vi.fn().mockResolvedValue({ id: TASK_ID }),
           findFirst: overrides.taskFindFirst ?? vi.fn().mockResolvedValue(null),
+          update: overrides.taskUpdate ?? vi.fn().mockResolvedValue({}),
         },
       } as never,
       inngestClient: overrides.inngestClient,
@@ -206,7 +208,9 @@ describe('POST /webhooks/hostfully', () => {
 
   it('11. active task for same thread_uid → 200 active_task_exists, no task created', async () => {
     const EXISTING_TASK_ID = 'existing-task-uuid';
-    const taskFindFirst = vi.fn().mockResolvedValue({ id: EXISTING_TASK_ID, status: 'Submitting' });
+    const taskFindFirst = vi
+      .fn()
+      .mockResolvedValue({ id: EXISTING_TASK_ID, status: 'Executing', metadata: null });
     const taskCreate = vi.fn();
     const app = makeApp({ taskFindFirst, taskCreate });
     const res = await request(app)
