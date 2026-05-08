@@ -256,6 +256,33 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   `⏳ Task received — processing (${roleName})`,
                   blocks,
                 );
+                try {
+                  const currentMetadataForSupersede =
+                    (
+                      (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+                        headers,
+                      }).then((r) => r.json())) as Array<{
+                        metadata: Record<string, unknown> | null;
+                      }>
+                    )[0]?.metadata ?? {};
+                  await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({
+                      metadata: {
+                        ...currentMetadataForSupersede,
+                        notify_slack_ts: supersededNotifyTs,
+                        notify_slack_channel: supersededNotifyChannel,
+                      },
+                      updated_at: new Date().toISOString(),
+                    }),
+                  });
+                } catch (metaErr) {
+                  log.warn(
+                    { taskId, metaErr },
+                    'Failed to store superseded notify_slack_ts in task metadata (non-fatal)',
+                  );
+                }
                 return { ts: supersededNotifyTs, channel: supersededNotifyChannel, enrichment };
               } catch (err) {
                 log.warn(
@@ -334,6 +361,33 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 `⏳ Task received — processing (${roleName})`,
                 genericBlocks,
               );
+              try {
+                const currentMetadataForSupersede =
+                  (
+                    (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+                      headers,
+                    }).then((r) => r.json())) as Array<{
+                      metadata: Record<string, unknown> | null;
+                    }>
+                  )[0]?.metadata ?? {};
+                await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                  method: 'PATCH',
+                  headers,
+                  body: JSON.stringify({
+                    metadata: {
+                      ...currentMetadataForSupersede,
+                      notify_slack_ts: supersededNotifyTs,
+                      notify_slack_channel: supersededNotifyChannel,
+                    },
+                    updated_at: new Date().toISOString(),
+                  }),
+                });
+              } catch (metaErr) {
+                log.warn(
+                  { taskId, metaErr },
+                  'Failed to store superseded notify_slack_ts in task metadata (non-fatal)',
+                );
+              }
               return { ts: supersededNotifyTs, channel: supersededNotifyChannel, enrichment: null };
             } catch (err) {
               log.warn(
