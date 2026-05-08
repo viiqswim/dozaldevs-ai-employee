@@ -79,16 +79,18 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
-- **Inngest functions** (active):
+- **Inngest functions** (active — 4 registered):
   - `employee/universal-lifecycle` — universal employee lifecycle (all employees)
   - `employee/interaction-handler` — unified handler for thread replies and @mentions; classifies intent, stores feedback, responds in-thread
   - `employee/rule-extractor` — extracts behavioral rules from corrections/rejections; posts Slack confirmation cards for PM review; stores confirmed rules as `learned_rules`
-  - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (8am UTC, weekdays)
   - `trigger/feedback-summarizer` — weekly cron that generates a digest of recent feedback using Claude Haiku
-  - `trigger/learned-rules-expiry` — cron maintenance (`0 2 * * *`, `src/inngest/triggers/learned-rules-expiry.ts`) — handles expiry of learned rules, no task dispatch
-  - `trigger/guest-message-poll` — cron (`*/15 * * * *`, `src/inngest/triggers/guest-message-poll.ts`) — polls Hostfully for unresponded messages across ALL leads regardless of status (NEW, BOOKED, CLOSED), creates tasks for any unresponded thread without an active task; catches messages Hostfully silently drops for CLOSED leads
 
-  Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) remain registered but are on hold — see Deprecated Components table.
+- **Inngest functions** (deregistered — source preserved, not running):
+  - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (deregistered; trigger manually via admin API: `POST /admin/tenants/:id/employees/daily-summarizer/trigger`)
+  - `trigger/learned-rules-expiry` — cron for learned rules expiry (deregistered; manual cleanup: `DELETE FROM learned_rules WHERE expires_at < NOW();`)
+  - `trigger/guest-message-poll` — polls Hostfully for unresponded messages across ALL leads (deregistered; source preserved at `src/inngest/triggers/guest-message-poll.ts`)
+
+  Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) are deregistered from Inngest — source files preserved; see Deprecated Components table.
 
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-29-2255-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
