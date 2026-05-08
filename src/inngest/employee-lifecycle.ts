@@ -204,6 +204,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const channel = tenantEnvForNotify['NOTIFICATION_CHANNEL'] ?? '';
           if (!botToken || !channel) return { ts: null, channel: null, enrichment: null };
           const roleName = (archetype.role_name as string) ?? 'unknown';
+          const rawEventForSupersede = (taskData.raw_event as Record<string, unknown> | null) ?? {};
+          const supersededNotifyTs = rawEventForSupersede['superseded_notify_ts'] as
+            | string
+            | undefined;
+          const supersededNotifyChannel = rawEventForSupersede['superseded_notify_channel'] as
+            | string
+            | undefined;
 
           let enrichment: import('../lib/hostfully-enrichment.js').LeadEnrichment | null = null;
           if ((archetype.role_name as string) === 'guest-messaging') {
@@ -237,6 +244,26 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                     elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
                   },
                 ];
+            if (supersededNotifyTs && supersededNotifyChannel) {
+              try {
+                const slackClientForSupersede = createSlackClient({
+                  botToken,
+                  defaultChannel: channel,
+                });
+                await slackClientForSupersede.updateMessage(
+                  supersededNotifyChannel,
+                  supersededNotifyTs,
+                  `⏳ Task received — processing (${roleName})`,
+                  blocks,
+                );
+                return { ts: supersededNotifyTs, channel: supersededNotifyChannel, enrichment };
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'chat.update failed for superseded thread — falling back to new top-level message',
+                );
+              }
+            }
             const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
             const result = await slackClientForNotify.postMessage({
               channel,
@@ -282,23 +309,44 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             return { ts: result.ts, channel, enrichment };
           }
 
+          const genericBlocks = [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `⏳ *Task received* — processing\n_Employee: ${roleName}_`,
+              },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            },
+          ];
+          if (supersededNotifyTs && supersededNotifyChannel) {
+            try {
+              const slackClientForSupersede = createSlackClient({
+                botToken,
+                defaultChannel: channel,
+              });
+              await slackClientForSupersede.updateMessage(
+                supersededNotifyChannel,
+                supersededNotifyTs,
+                `⏳ Task received — processing (${roleName})`,
+                genericBlocks,
+              );
+              return { ts: supersededNotifyTs, channel: supersededNotifyChannel, enrichment: null };
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'chat.update failed for superseded thread — falling back to new top-level message',
+              );
+            }
+          }
           const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
           const result = await slackClientForNotify.postMessage({
             channel,
             text: `⏳ Task received — processing (${roleName})`,
-            blocks: [
-              {
-                type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: `⏳ *Task received* — processing\n_Employee: ${roleName}_`,
-                },
-              },
-              {
-                type: 'context',
-                elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-              },
-            ],
+            blocks: genericBlocks,
           });
           if (result.ts) {
             try {
@@ -517,6 +565,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
               INNGEST_DEV: '1',
               NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+              ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
               ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
               ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
             },
@@ -540,6 +589,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+            ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
             ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
             ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
           },
