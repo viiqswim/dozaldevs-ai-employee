@@ -32,6 +32,7 @@ model Task {
   dispatch_attempts  Int      @default(0)
   failure_reason     String?
   triage_result      Json?
+  metadata           Json?
   planContent        String?  @map("plan_content") @db.Text
   planGeneratedAt    DateTime? @map("plan_generated_at")
   costUsdCents       Int      @default(0) @map("cost_usd_cents")
