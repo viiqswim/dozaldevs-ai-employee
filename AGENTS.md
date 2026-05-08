@@ -79,11 +79,12 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
-- **Inngest functions** (active — 4 registered):
+- **Inngest functions** (active — 5 registered):
   - `employee/universal-lifecycle` — universal employee lifecycle (all employees)
   - `employee/interaction-handler` — unified handler for thread replies and @mentions; classifies intent, stores feedback, responds in-thread
   - `employee/rule-extractor` — extracts behavioral rules from corrections/rejections; posts Slack confirmation cards for PM review; stores confirmed rules as `learned_rules`
   - `trigger/feedback-summarizer` — weekly cron that generates a digest of recent feedback using Claude Haiku
+  - `trigger/reviewing-watchdog` — every-15-min cron; finds tasks stuck in `Reviewing` with no `pending_approvals` row for >30 min and marks them `Failed`
 
 - **Inngest functions** (deregistered — source preserved, not running):
   - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (deregistered; trigger manually via admin API: `POST /admin/tenants/:id/employees/daily-summarizer/trigger`)

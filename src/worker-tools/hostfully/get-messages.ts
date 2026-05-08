@@ -81,6 +81,7 @@ function parseArgs(argv: string[]): {
   unrespondedOnly: boolean;
   limit: number;
   help: boolean;
+  fallbackPropertyUid: string;
 } {
   const args = argv.slice(2);
   let propertyId = '';
@@ -88,6 +89,7 @@ function parseArgs(argv: string[]): {
   let unrespondedOnly = false;
   let limit = 30;
   let help = false;
+  let fallbackPropertyUid = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--property-id' && args[i + 1]) {
@@ -98,12 +100,14 @@ function parseArgs(argv: string[]): {
       unrespondedOnly = true;
     } else if (args[i] === '--limit' && args[i + 1]) {
       limit = parseInt(args[++i], 10);
+    } else if (args[i] === '--fallback-property-uid' && args[i + 1]) {
+      fallbackPropertyUid = args[++i];
     } else if (args[i] === '--help') {
       help = true;
     }
   }
 
-  return { propertyId, leadId, unrespondedOnly, limit, help };
+  return { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid };
 }
 
 function formatGuestName(
@@ -117,11 +121,13 @@ function formatGuestName(
 }
 
 async function main(): Promise<void> {
-  const { propertyId, leadId, unrespondedOnly, limit, help } = parseArgs(process.argv);
+  const { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid } = parseArgs(
+    process.argv,
+  );
 
   if (help) {
     process.stdout.write(
-      'Usage: node get-messages.js [--lead-id <uid> | --property-id <uid>] [--unresponded-only] [--limit <n>]\n\n' +
+      'Usage: node get-messages.js [--lead-id <uid> | --property-id <uid>] [--unresponded-only] [--limit <n>] [--fallback-property-uid <uid>]\n\n' +
         'Fetches guest message threads for a Hostfully property from the unified inbox.\n' +
         'Note: Hostfully aggregates messages from all booking channels (Airbnb, VRBO, etc.)\n' +
         'into a unified inbox. This tool fetches conversations for all active reservations.\n\n' +
@@ -136,6 +142,10 @@ async function main(): Promise<void> {
         '                         (host has not yet replied). Useful for identifying conversations\n' +
         '                         that need attention.\n' +
         '  --limit <n>            Max messages to fetch per conversation thread (default: 30)\n' +
+        '  --fallback-property-uid <uid>\n' +
+        '                         Property UID to use when the Hostfully API returns null for propertyUid\n' +
+        '                         on the lead. INQUIRY-type leads often have no propertyUid assigned yet.\n' +
+        "                         The webhook payload's property_uid is the authoritative fallback source.\n" +
         '  --help                 Show this help message\n\n' +
         'Output: JSON array of conversation threads. Each thread:\n' +
         '  {\n' +
@@ -249,9 +259,15 @@ async function main(): Promise<void> {
         timestamp: m.createdUtcDateTime ?? null,
       }));
 
+      const resolvedPropertyUid = lead.propertyUid ?? (fallbackPropertyUid || null);
+      if (!lead.propertyUid && fallbackPropertyUid) {
+        process.stderr.write(
+          `[get-messages] lead=${leadId}: propertyUid is null — using --fallback-property-uid ${fallbackPropertyUid}\n`,
+        );
+      }
       threads.push({
         reservationId: lead.uid,
-        propertyUid: lead.propertyUid ?? null,
+        propertyUid: resolvedPropertyUid,
         guestName: formatGuestName(lead.guestInformation),
         channel: lead.channel ?? null,
         checkIn: lead.checkInLocalDateTime ?? null,
@@ -347,9 +363,15 @@ async function main(): Promise<void> {
       timestamp: m.createdUtcDateTime ?? null,
     }));
 
+    const resolvedPropertyUid = lead.propertyUid ?? (fallbackPropertyUid || null);
+    if (!lead.propertyUid && fallbackPropertyUid) {
+      process.stderr.write(
+        `[get-messages] lead=${lead.uid}: propertyUid is null — using --fallback-property-uid ${fallbackPropertyUid}\n`,
+      );
+    }
     threads.push({
       reservationId: lead.uid,
-      propertyUid: lead.propertyUid ?? null,
+      propertyUid: resolvedPropertyUid,
       guestName: formatGuestName(lead.guestInformation),
       channel: lead.channel ?? null,
       checkIn: lead.checkInLocalDateTime ?? null,

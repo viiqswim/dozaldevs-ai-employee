@@ -275,7 +275,7 @@ async function main() {
     '  $PROPERTY_UID  — the property UID\n\n' +
     'Run the following steps to process the guest message:\n\n' +
     'STEP 1: Fetch the guest message thread.\n' +
-    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --unresponded-only\n' +
+    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --unresponded-only --fallback-property-uid "$PROPERTY_UID"\n' +
     'Output is a JSON array of unresponded threads (last message is from guest). ' +
     'If the output is an empty array, the host has already responded — no action needed from the AI. ' +
     'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt.\n' +
@@ -343,7 +343,7 @@ async function main() {
     'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
-    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --title "Guest Message Error" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
+    'Post an info-only error notification (no approval buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --title "Guest Message Error" --text "Error processing guest message: <error details>"\n' +
     'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n' +
     '--- TOOL REFERENCE: diagnose-access ---\n' +
     'Tool: tsx /tools/locks/diagnose-access.ts\n' +
