@@ -73,6 +73,7 @@ const baseParams = {
   messageUid: 'msg-ghi',
   urgency: false,
   dryRun: true,
+  replyBroadcast: false,
 };
 
 describe('buildGuestApprovalBlocks', () => {

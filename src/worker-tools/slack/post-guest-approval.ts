@@ -23,6 +23,7 @@ interface GuestApprovalParams {
   conversationRef?: string;
   dryRun: boolean;
   threadTs?: string;
+  replyBroadcast: boolean;
 }
 
 interface PostResult {
@@ -52,6 +53,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let conversationRef: string | undefined;
   let dryRun = false;
   let threadTs: string | undefined;
+  let replyBroadcast = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -92,6 +94,8 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       dryRun = true;
     } else if (args[i] === '--thread-ts') {
       threadTs = args[++i];
+    } else if (args[i] === '--reply-broadcast') {
+      replyBroadcast = true;
     } else if (args[i] === '--conversation-ref' && args[i + 1]) {
       conversationRef = args[++i];
     }
@@ -118,6 +122,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     conversationRef,
     dryRun,
     threadTs,
+    replyBroadcast,
   };
 }
 
@@ -331,12 +336,20 @@ export async function main(): Promise<void> {
 
   const client = new WebClient(token);
 
-  const result = await client.chat.postMessage({
+  const effectiveThreadTs =
+    params.threadTs && params.threadTs.length > 0 ? params.threadTs : undefined;
+
+  const postMessageArgs = {
     channel: params.channel,
     text: `Guest message approval request — ${params.propertyName} (${params.guestName})`,
     blocks: blocks as import('@slack/web-api').KnownBlock[],
-    ...(params.threadTs ? { thread_ts: params.threadTs } : {}),
-  });
+    ...(effectiveThreadTs ? { thread_ts: effectiveThreadTs } : {}),
+    ...(params.replyBroadcast && effectiveThreadTs ? { reply_broadcast: true } : {}),
+  };
+
+  const result = await client.chat.postMessage(
+    postMessageArgs as Parameters<typeof client.chat.postMessage>[0],
+  );
 
   if (!result.ok || !result.ts || !result.channel) {
     process.stderr.write(`Error: Slack postMessage failed: ${result.error ?? 'unknown'}\n`);
