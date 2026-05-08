@@ -238,6 +238,19 @@ async function runOpencodeSession(
       try {
         const approvalJson = await readFile('/tmp/approval-message.json', 'utf8');
         const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
+        const PLACEHOLDER_PATTERN = /PLACEHOLDER/i;
+        const tsVal = String(approvalData.ts ?? '');
+        const channelVal = String(approvalData.channel ?? '');
+        if (
+          !tsVal ||
+          !channelVal ||
+          PLACEHOLDER_PATTERN.test(tsVal) ||
+          PLACEHOLDER_PATTERN.test(channelVal)
+        ) {
+          const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of calling post-guest-approval.ts. Failing task.`;
+          log.error({ taskId: TASK_ID }, msg);
+          throw new Error(msg);
+        }
         extraMetadata = {
           ...approvalData,
           approval_message_ts: approvalData.ts,
@@ -250,8 +263,11 @@ async function runOpencodeSession(
           { taskId: TASK_ID },
           '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
         );
-      } catch {
-        // not written
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith('[opencode-harness] Invalid')) {
+          throw err; // re-throw validation errors
+        }
+        // not written — swallow file-not-found errors only
       }
       return { content, extraMetadata };
     };
