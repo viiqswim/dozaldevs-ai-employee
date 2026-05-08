@@ -986,6 +986,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const targetChannel = delivMeta.target_channel as string | undefined;
 
         if (!conversationRef || !approvalMsgTs || !targetChannel) {
+          log.warn(
+            { taskId, conversationRef, approvalMsgTs, targetChannel },
+            'track-pending-approval: Missing required metadata — approval card may not have been posted. Task will proceed to wait-for-approval but may timeout.',
+          );
           return;
         }
 
