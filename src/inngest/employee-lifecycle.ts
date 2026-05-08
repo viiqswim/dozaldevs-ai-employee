@@ -517,10 +517,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const failText = `❌ Task failed`;
-                await slackForFail.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, failText, [
-                  { type: 'section', text: { type: 'mrkdwn', text: failText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ]);
+                await slackForFail.updateMessage(
+                  notifyMsgRef.channel,
+                  notifyMsgRef.ts,
+                  failText,
+                  buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId }),
+                );
               }
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received on failure (non-fatal)');
@@ -585,10 +587,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const doneText = `✅ Task complete`;
-                await slackForDone.updateMessage(notifyMsgRef.channel, notifyMsgRef.ts, doneText, [
-                  { type: 'section', text: { type: 'mrkdwn', text: doneText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ]);
+                await slackForDone.updateMessage(
+                  notifyMsgRef.channel,
+                  notifyMsgRef.ts,
+                  doneText,
+                  buildNotifyStateBlocks({ emoji: '✅', text: 'Task complete', taskId }),
+                );
               }
             } catch (err) {
               log.warn(
@@ -1009,6 +1013,49 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         log.info({ taskId }, 'State: Reviewing — awaiting human approval');
       });
 
+      await step.run('update-notify-reviewing', async () => {
+        if (!notifyMsgRef?.ts || !notifyMsgRef?.channel) return;
+        try {
+          const prismaForReviewing = new PrismaClient();
+          const tenantEnvForReviewing = await loadTenantEnv(
+            tenantId,
+            {
+              tenantRepo: new TenantRepository(prismaForReviewing),
+              secretRepo: new TenantSecretRepository(prismaForReviewing),
+            },
+            (archetype.notification_channel as string | null) ?? null,
+          );
+          await prismaForReviewing.$disconnect();
+          const botTokenForReviewing = tenantEnvForReviewing['SLACK_BOT_TOKEN'] ?? '';
+          if (!botTokenForReviewing) return;
+          const slackForReviewing = createSlackClient({
+            botToken: botTokenForReviewing,
+            defaultChannel: '',
+          });
+          const reviewingDelivRes = await fetch(
+            `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+            { headers },
+          );
+          const reviewingDelivRows = (await reviewingDelivRes.json()) as Array<{
+            metadata: Record<string, unknown> | null;
+          }>;
+          const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
+            | string
+            | undefined;
+          const reviewingText = reviewingGuestName
+            ? `Awaiting approval — reply drafted for ${reviewingGuestName}`
+            : 'Awaiting approval — reply drafted';
+          await slackForReviewing.updateMessage(
+            notifyMsgRef.channel,
+            notifyMsgRef.ts,
+            reviewingText,
+            buildNotifyStateBlocks({ emoji: '⏳', text: reviewingText, taskId }),
+          );
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to update notify-received on reviewing (non-fatal)');
+        }
+      });
+
       await step.run('track-pending-approval', async () => {
         const delivRes = await fetch(
           `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
@@ -1101,10 +1148,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 expiredNotifyText,
-                [
-                  { type: 'section', text: { type: 'mrkdwn', text: expiredNotifyText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
+                buildNotifyStateBlocks({ emoji: '⏰', text: 'Expired — no action taken', taskId }),
               );
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received on expiry (non-fatal)');
@@ -1233,10 +1277,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   configFailText,
-                  [
-                    { type: 'section', text: { type: 'mrkdwn', text: configFailText } },
-                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                  ],
+                  buildNotifyStateBlocks({
+                    emoji: '❌',
+                    text: 'Task failed — missing delivery configuration',
+                    taskId,
+                  }),
                 );
               } catch (err) {
                 log.warn(
@@ -1271,10 +1316,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 approvedNotifyText,
-                [
-                  { type: 'section', text: { type: 'mrkdwn', text: approvedNotifyText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
+                buildNotifyStateBlocks({
+                  emoji: '⏳',
+                  text: `Approved by <@${actorUserId}> — delivering now`,
+                  taskId,
+                }),
               );
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received on approval (non-fatal)');
@@ -1398,13 +1444,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                     notifyMsgRef.channel,
                     notifyMsgRef.ts,
                     deliveryFailText,
-                    [
-                      { type: 'section', text: { type: 'mrkdwn', text: deliveryFailText } },
-                      {
-                        type: 'context',
-                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                      },
-                    ],
+                    buildNotifyStateBlocks({
+                      emoji: '❌',
+                      text: 'Delivery failed — reply not sent',
+                      taskId,
+                    }),
                   );
                 } catch (err) {
                   log.warn(
@@ -1432,15 +1476,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
               try {
-                const sentNotifyText = `✅ Task complete`;
+                const guestNameForDone = metadata['guest_name'] as string | undefined;
+                const sentNotifyText = guestNameForDone
+                  ? `Reply sent to ${guestNameForDone}`
+                  : 'Reply sent';
                 await slackClient.updateMessage(
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   sentNotifyText,
-                  [
-                    { type: 'section', text: { type: 'mrkdwn', text: sentNotifyText } },
-                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                  ],
+                  buildNotifyStateBlocks({ emoji: '✅', text: sentNotifyText, taskId }),
                 );
               } catch (err) {
                 log.warn(
@@ -1475,10 +1519,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 supersededNotifyText,
-                [
-                  { type: 'section', text: { type: 'mrkdwn', text: supersededNotifyText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
+                buildNotifyStateBlocks({
+                  emoji: '⏭️',
+                  text: 'Superseded — newer message received',
+                  taskId,
+                }),
               );
             } catch (err) {
               log.warn(
@@ -1583,10 +1628,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 rejectedNotifyText,
-                [
-                  { type: 'section', text: { type: 'mrkdwn', text: rejectedNotifyText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
+                buildNotifyStateBlocks({
+                  emoji: '❌',
+                  text: `Rejected by <@${actorUserId}>`,
+                  taskId,
+                }),
               );
             } catch (err) {
               log.warn(
