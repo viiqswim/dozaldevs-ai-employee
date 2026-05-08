@@ -523,7 +523,7 @@ async function main(): Promise<void> {
     });
     log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
     await fireCompletionEvent(TASK_ID);
-    return;
+    process.exit(0);
   }
 
   const feedbackContext = process.env.FEEDBACK_CONTEXT ?? '';
