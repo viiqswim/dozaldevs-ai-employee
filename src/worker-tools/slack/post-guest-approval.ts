@@ -95,7 +95,13 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     } else if (args[i] === '--thread-ts') {
       threadTs = args[++i];
     } else if (args[i] === '--reply-broadcast') {
-      replyBroadcast = true;
+      const nextArg = args[i + 1];
+      if (nextArg !== undefined && !nextArg.startsWith('--')) {
+        replyBroadcast = nextArg === 'true';
+        i++;
+      } else {
+        replyBroadcast = true;
+      }
     } else if (args[i] === '--conversation-ref' && args[i + 1]) {
       conversationRef = args[++i];
     }
