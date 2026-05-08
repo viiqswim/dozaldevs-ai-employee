@@ -251,7 +251,7 @@ async function main() {
     '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
     'Post the summary with approve/reject buttons to the notification channel for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --title "Daily Summary" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_SUMMARIZER_INSTRUCTIONS =
@@ -263,7 +263,7 @@ async function main() {
     '(example: write the text content directly to /tmp/summary.txt using shell file write). ' +
     'Post the summary with approve/reject buttons to the notification channel for review. ' +
     'CRITICAL — Capture the output: run the post-message tool and redirect stdout to /tmp/approval-message.json: ' +
-    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
+    'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --title "Daily Summary" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
@@ -343,7 +343,7 @@ async function main() {
     'STEP 6: Error handling.\n' +
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
-    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
+    'Post an error notification: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --title "Guest Message Error" --text "Error processing guest message: <error details>" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json\n' +
     'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n' +
     '--- TOOL REFERENCE: diagnose-access ---\n' +
     'Tool: tsx /tools/locks/diagnose-access.ts\n' +
@@ -3287,6 +3287,7 @@ No specific house rules provided.
           '/tools/hostfully/get-messages.ts',
           '/tools/hostfully/send-message.ts',
           '/tools/slack/post-message.ts',
+          '/tools/slack/post-guest-approval.ts',
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
@@ -3317,6 +3318,7 @@ No specific house rules provided.
           '/tools/hostfully/get-messages.ts',
           '/tools/hostfully/send-message.ts',
           '/tools/slack/post-message.ts',
+          '/tools/slack/post-guest-approval.ts',
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
