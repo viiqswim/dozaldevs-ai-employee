@@ -206,6 +206,27 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
               return null;
             }
 
+            // Cross-namespace check: skip if a webhook-created task is active for this lead
+            const activeTaskRes = await fetch(
+              `${supabaseUrl}/rest/v1/tasks?archetype_id=eq.${archetype.id}&status=not.in.(Done,Failed,Cancelled)&tenant_id=eq.${archetype.tenant_id}&raw_event->>lead_uid=eq.${leadUid}&select=id,external_id`,
+              { headers },
+            );
+            const activeTasks = (await activeTaskRes.json()) as Array<{
+              id: string;
+              external_id: string;
+            }>;
+            if (activeTasks.length > 0) {
+              log.info(
+                {
+                  leadUid,
+                  existingTaskId: activeTasks[0].id,
+                  existingExternalId: activeTasks[0].external_id,
+                },
+                'Active task already exists for lead (cross-namespace check) — skipping',
+              );
+              return null;
+            }
+
             const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
               method: 'POST',
               headers,
@@ -215,6 +236,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
                 source_system: 'cron',
                 status: 'Ready',
                 tenant_id: archetype.tenant_id,
+                raw_event: { lead_uid: leadUid, source: 'poll' },
               }),
             });
 
