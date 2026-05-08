@@ -336,6 +336,7 @@ async function main() {
     '  --thread-uid "<threadUid>" \\\n' +
     '  --message-uid "<messageUid>" \\\n' +
     '  --conversation-ref "<threadUid>"\n' +
+    'If the environment variable REPLY_BROADCAST is set to "true", add the --reply-broadcast flag to the post-guest-approval.ts command above.\n\n' +
     'If Step 3.5 was run (access/lock message), add the --diagnosis flag:\n' +
     "  --diagnosis '<full diagnosis JSON from Step 3.5>'\n" +
     'The tool writes /tmp/approval-message.json directly after a successful Slack post — no piping or file manipulation needed.\n\n' +
