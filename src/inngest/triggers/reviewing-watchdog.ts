@@ -131,7 +131,7 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
             return false;
           }
 
-          await fetch(`${supabaseUrl}/rest/v1/task_status_logs`, {
+          await fetch(`${supabaseUrl}/rest/v1/task_status_log`, {
             method: 'POST',
             headers,
             body: JSON.stringify({

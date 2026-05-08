@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 RUN corepack enable pnpm
 
@@ -6,7 +6,7 @@ WORKDIR /build
 
 COPY package.json pnpm-lock.yaml tsconfig.json tsconfig.build.json ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY src/ ./src/
 COPY prisma/ ./prisma/
@@ -16,10 +16,10 @@ RUN pnpm exec prisma generate --schema ./prisma/schema.prisma
 
 RUN pnpm build
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 
-FROM node:20-slim
+FROM node:22-slim
 
 ARG TARGETARCH
 
