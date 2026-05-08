@@ -365,8 +365,11 @@ async function runOpencodeSession(
       { taskId: TASK_ID },
       '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
     );
-  } catch {
-    // not written
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('[opencode-harness] Invalid')) {
+      throw err; // re-throw validation errors
+    }
+    // not written — swallow file-not-found errors only
   }
 
   if (content === 'completed' && Object.keys(extraMetadata).length === 0) {
