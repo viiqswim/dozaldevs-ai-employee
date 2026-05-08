@@ -720,7 +720,7 @@ Max Concurrent: 3 (Wave 1)
 
 ---
 
-- [ ] 8. Notify completion — Send Telegram notification: plan `supersede-slack-threading` complete, all tasks done, come back to review results.
+- [x] 8. Notify completion — Send Telegram notification: plan `supersede-slack-threading` complete, all tasks done, come back to review results.
 
 ---
 
