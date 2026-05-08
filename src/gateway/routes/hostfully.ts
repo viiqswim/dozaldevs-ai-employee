@@ -81,10 +81,16 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       return;
     }
 
-    // ── Thread-level dedup: prevent echo-loop ghost tasks ───────────────────
-    // Hostfully fires NEW_INBOX_MESSAGE for AI's own outgoing replies. Each echo
-    // has a unique message_uid (bypassing message-level dedup), but shares the
-    // same thread_uid. Block if an active task already exists for this thread.
+    // ── Thread-level dedup with supersede ───────────────────────────────────
+    // Hostfully fires NEW_INBOX_MESSAGE for both guest messages and AI's own
+    // outgoing replies. If a worker is actively running (Executing/Validating),
+    // block the duplicate to avoid parallel workers on the same thread. For all
+    // other non-terminal states (e.g. Reviewing, Submitting), supersede the old
+    // task so the new one sees the latest messages. Echo-loop webhooks (AI reply
+    // triggers) are handled by the lifecycle pre-check, which auto-completes
+    // tasks where the last message is already from the host.
+    let supersededNotifyTs: string | undefined;
+    let supersededNotifyChannel: string | undefined;
     if (payload.thread_uid) {
       const activeTask = await prisma.task.findFirst({
         where: {
@@ -96,20 +102,39 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
             equals: payload.thread_uid,
           },
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, metadata: true },
       });
 
       if (activeTask) {
+        if (['Executing', 'Validating'].includes(activeTask.status)) {
+          logger.info(
+            {
+              thread_uid: payload.thread_uid,
+              existingTaskId: activeTask.id,
+              existingStatus: activeTask.status,
+            },
+            'Active task is executing for thread — skipping webhook',
+          );
+          res.json({ ok: true, active_task_exists: true, existing_task_id: activeTask.id });
+          return;
+        }
+
+        await prisma.task.update({
+          where: { id: activeTask.id },
+          data: { status: 'Cancelled', updated_at: new Date() },
+        });
+        const meta = activeTask.metadata as Record<string, unknown> | null;
+        supersededNotifyTs = meta?.notify_slack_ts as string | undefined;
+        supersededNotifyChannel = meta?.notify_slack_channel as string | undefined;
         logger.info(
           {
             thread_uid: payload.thread_uid,
-            existingTaskId: activeTask.id,
-            existingStatus: activeTask.status,
+            supersededTaskId: activeTask.id,
+            supersededStatus: activeTask.status,
           },
-          'Active task already exists for thread — skipping duplicate webhook',
+          'Superseded stale task — creating new task for thread',
         );
-        res.json({ ok: true, active_task_exists: true, existing_task_id: activeTask.id });
-        return;
+        // Fall through to create new task
       }
     }
 
@@ -128,6 +153,12 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
             lead_uid: payload.lead_uid,
             property_uid: payload.property_uid,
             ...(message_content ? { message_content } : {}),
+            ...(supersededNotifyTs
+              ? {
+                  superseded_notify_ts: supersededNotifyTs,
+                  superseded_notify_channel: supersededNotifyChannel,
+                }
+              : {}),
           },
         },
         select: { id: true },
