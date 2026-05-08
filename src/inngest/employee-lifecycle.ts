@@ -1096,7 +1096,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       // ── Supersede Detection ──────────────────────────────────────────────────
       await step.run('check-supersede', async () => {
-        // Read conversation_ref from deliverable metadata
+        const rawEventData = (taskData.raw_event as Record<string, string> | null) ?? {};
+        const authoritativeThreadUid = rawEventData['thread_uid'];
+
         const delivRes = await fetch(
           `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
           { headers },
@@ -1107,17 +1109,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
         const conversationRef = delivMeta.conversation_ref as string | undefined;
 
-        if (!conversationRef) {
-          // No conversation ref — not a guest message task, skip superseding
+        if (!conversationRef && !authoritativeThreadUid) {
           return;
         }
 
-        const pending = await getPendingApproval(
-          supabaseUrl,
-          supabaseKey,
-          tenantId,
-          conversationRef,
-        );
+        const lookupKey = authoritativeThreadUid ?? conversationRef!;
+
+        const pending = await getPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
 
         // Determine the old task to supersede — prefer pending_approvals record, but fall back
         // to a direct task lookup if the record is missing (e.g. track-pending-approval raced
@@ -1142,7 +1140,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               { taskId, oldTaskId: pending.taskId, oldTaskStatus },
               'Stale pending approval found (PM already acted on old task) — clearing without supersede',
             );
-            await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, conversationRef);
+            await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
             return;
           }
 
@@ -1161,7 +1159,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             status: string;
           }>;
 
-          // Among candidates, find one whose raw_event.thread_uid matches conversationRef
           for (const candidate of fallbackRows) {
             const candEventRes = await fetch(
               `${supabaseUrl}/rest/v1/tasks?id=eq.${candidate.id}&select=raw_event`,
@@ -1171,7 +1168,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               raw_event: Record<string, unknown> | null;
             }>;
             const candThreadUid = candEventRows[0]?.raw_event?.['thread_uid'] as string | undefined;
-            if (candThreadUid === conversationRef) {
+            if (candThreadUid === lookupKey) {
               oldTaskId = candidate.id;
               break;
             }
@@ -1296,6 +1293,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       });
 
       await step.run('track-pending-approval', async () => {
+        const rawEventForTracking = (taskData.raw_event as Record<string, string> | null) ?? {};
+        const authoritativeThreadUid = rawEventForTracking['thread_uid'];
+
         const delivRes = await fetch(
           `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
           { headers },
@@ -1308,9 +1308,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const approvalMsgTs = delivMeta.approval_message_ts as string | undefined;
         const targetChannel = delivMeta.target_channel as string | undefined;
 
-        if (!conversationRef || !approvalMsgTs || !targetChannel) {
+        const threadUidForTracking = authoritativeThreadUid ?? conversationRef;
+
+        if (!threadUidForTracking || !approvalMsgTs || !targetChannel) {
           log.warn(
-            { taskId, conversationRef, approvalMsgTs, targetChannel },
+            { taskId, threadUidForTracking, approvalMsgTs, targetChannel },
             'track-pending-approval: Missing required metadata — approval card may not have been posted. Task will proceed to wait-for-approval but may timeout.',
           );
           return;
@@ -1318,7 +1320,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         await trackPendingApproval(supabaseUrl, supabaseKey, {
           tenantId,
-          threadUid: conversationRef,
+          threadUid: threadUidForTracking,
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
@@ -1326,7 +1328,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           propertyName: delivMeta.property_name as string | undefined,
           urgency: delivMeta.urgency as boolean | undefined,
         });
-        log.info({ taskId, conversationRef }, 'Pending approval tracked');
+        log.info({ taskId, threadUidForTracking }, 'Pending approval tracked');
       });
 
       const approvalEvent = await step.waitForEvent('wait-for-approval', {
