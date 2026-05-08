@@ -1118,64 +1118,126 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           tenantId,
           conversationRef,
         );
-        if (!pending || pending.taskId === taskId) {
-          // No pending approval for this conversation, or it's the same task
-          return;
-        }
 
-        // Check if old task is still in Reviewing state ("approve wins the race")
-        const oldTaskRes = await fetch(
-          `${supabaseUrl}/rest/v1/tasks?id=eq.${pending.taskId}&select=status`,
-          { headers },
-        );
-        const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
-        const oldTaskStatus = oldTaskRows[0]?.status;
+        // Determine the old task to supersede — prefer pending_approvals record, but fall back
+        // to a direct task lookup if the record is missing (e.g. track-pending-approval raced
+        // with check-supersede, or the record was never written due to a transient error).
+        let oldTaskId: string | null = null;
+        let oldApprovalMsgTs: string | null = null;
+        let oldApprovalChannel: string | null = null;
 
-        if (!['Reviewing', 'Cancelled'].includes(oldTaskStatus)) {
-          // PM already acted (approved/rejected) — pending_approvals already cleared by handler,
-          // this is a stale row. Clear it and skip.
-          log.info(
-            { taskId, oldTaskId: pending.taskId, oldTaskStatus },
-            'Stale pending approval found (PM already acted on old task) — clearing without supersede',
+        if (pending && pending.taskId !== taskId) {
+          // Happy path: pending_approvals record exists
+          const oldTaskRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${pending.taskId}&select=status`,
+            { headers },
           );
-          await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, conversationRef);
-          return;
+          const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
+          const oldTaskStatus = oldTaskRows[0]?.status;
+
+          if (!['Reviewing', 'Cancelled'].includes(oldTaskStatus)) {
+            // PM already acted (approved/rejected) — pending_approvals already cleared by handler,
+            // this is a stale row. Clear it and skip.
+            log.info(
+              { taskId, oldTaskId: pending.taskId, oldTaskStatus },
+              'Stale pending approval found (PM already acted on old task) — clearing without supersede',
+            );
+            await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, conversationRef);
+            return;
+          }
+
+          oldTaskId = pending.taskId;
+          oldApprovalMsgTs = pending.slackTs;
+          oldApprovalChannel = pending.channelId;
+        } else if (!pending || pending.taskId === taskId) {
+          // Fallback: no pending_approvals record — query tasks directly for a Reviewing/Cancelled
+          // task on the same conversation thread that isn't the current task.
+          const fallbackRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?tenant_id=eq.${tenantId}&status=in.(Reviewing,Cancelled)&id=neq.${taskId}&select=id,status&order=created_at.desc&limit=5`,
+            { headers },
+          );
+          const fallbackRows = (await fallbackRes.json()) as Array<{
+            id: string;
+            status: string;
+          }>;
+
+          // Among candidates, find one whose raw_event.thread_uid matches conversationRef
+          for (const candidate of fallbackRows) {
+            const candEventRes = await fetch(
+              `${supabaseUrl}/rest/v1/tasks?id=eq.${candidate.id}&select=raw_event`,
+              { headers },
+            );
+            const candEventRows = (await candEventRes.json()) as Array<{
+              raw_event: Record<string, unknown> | null;
+            }>;
+            const candThreadUid = candEventRows[0]?.raw_event?.['thread_uid'] as string | undefined;
+            if (candThreadUid === conversationRef) {
+              oldTaskId = candidate.id;
+              break;
+            }
+          }
+
+          if (!oldTaskId) {
+            // No supersedable task found via fallback — nothing to do
+            return;
+          }
+
+          // Look up the old task's approval card ts from its deliverable
+          const oldDelivRes = await fetch(
+            `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
+            { headers },
+          );
+          const oldDelivRows = (await oldDelivRes.json()) as Array<{
+            metadata: Record<string, unknown> | null;
+          }>;
+          const oldDelivMeta = (oldDelivRows[0]?.metadata as Record<string, unknown>) ?? {};
+          oldApprovalMsgTs = (oldDelivMeta.approval_message_ts as string | undefined) ?? null;
+          oldApprovalChannel = (oldDelivMeta.target_channel as string | undefined) ?? null;
+
+          log.info(
+            { taskId, oldTaskId, conversationRef, source: 'fallback-task-lookup' },
+            'Superseding old task via fallback lookup (no pending_approvals record)',
+          );
         }
+
+        if (!oldTaskId) return;
 
         // Old task is Reviewing or Cancelled (system-superseded by webhook handler) — supersede it
         log.info(
-          { taskId, oldTaskId: pending.taskId, conversationRef },
+          { taskId, oldTaskId, conversationRef },
           'Superseding old task for same conversation',
         );
 
         // Update old Slack card to show superseded state
-        try {
-          const prismaForSupersede = new PrismaClient();
-          const tenantEnvForSupersede = await loadTenantEnv(tenantId, {
-            tenantRepo: new TenantRepository(prismaForSupersede),
-            secretRepo: new TenantSecretRepository(prismaForSupersede),
-          });
-          await prismaForSupersede.$disconnect();
-          const botToken = tenantEnvForSupersede.SLACK_BOT_TOKEN ?? '';
-          const slackClientForSupersede = createSlackClient({ botToken, defaultChannel: '' });
-          await slackClientForSupersede.updateMessage(
-            pending.channelId,
-            pending.slackTs,
-            '⏭️ Superseded',
-            buildSupersededBlocks(),
-          );
-        } catch (err) {
-          log.warn(
-            { taskId, oldTaskId: pending.taskId, err },
-            'Failed to update superseded Slack card (non-fatal)',
-          );
+        if (oldApprovalMsgTs && oldApprovalChannel) {
+          try {
+            const prismaForSupersede = new PrismaClient();
+            const tenantEnvForSupersede = await loadTenantEnv(tenantId, {
+              tenantRepo: new TenantRepository(prismaForSupersede),
+              secretRepo: new TenantSecretRepository(prismaForSupersede),
+            });
+            await prismaForSupersede.$disconnect();
+            const botToken = tenantEnvForSupersede.SLACK_BOT_TOKEN ?? '';
+            const slackClientForSupersede = createSlackClient({ botToken, defaultChannel: '' });
+            await slackClientForSupersede.updateMessage(
+              oldApprovalChannel,
+              oldApprovalMsgTs,
+              '⏭️ Superseded',
+              buildSupersededBlocks(),
+            );
+          } catch (err) {
+            log.warn(
+              { taskId, oldTaskId, err },
+              'Failed to update superseded Slack card (non-fatal)',
+            );
+          }
         }
 
         // Fire superseded event to unblock old lifecycle's waitForEvent
         await inngest.send({
           name: 'employee/approval.received',
           data: {
-            taskId: pending.taskId,
+            taskId: oldTaskId,
             action: 'superseded',
             userId: 'system',
             userName: 'System (superseded)',
