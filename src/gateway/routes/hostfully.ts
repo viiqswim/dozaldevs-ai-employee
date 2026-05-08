@@ -31,7 +31,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       throw error;
     }
 
-    const { agency_uid, event_type, message_uid, thread_uid, lead_uid } = payload;
+    const { agency_uid, event_type, message_uid, thread_uid, lead_uid, message_content } = payload;
     logger.info({ agency_uid, event_type, message_uid, thread_uid }, 'Hostfully webhook received');
 
     if (event_type !== 'NEW_INBOX_MESSAGE') {
@@ -127,6 +127,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
             message_uid: payload.message_uid,
             lead_uid: payload.lead_uid,
             property_uid: payload.property_uid,
+            ...(message_content ? { message_content } : {}),
           },
         },
         select: { id: true },
