@@ -11,7 +11,7 @@ import { createInteractionHandlerFunction } from '../../inngest/interaction-hand
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
 import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js';
-import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
+// import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { getMachine, destroyMachine, createMachine } from '../../lib/fly-client.js';
 
@@ -35,7 +35,7 @@ export function inngestServeRoutes(): Router {
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
   const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest);
-  const guestMessagePollFn = createGuestMessagePollTrigger(inngest);
+  // const guestMessagePollFn = createGuestMessagePollTrigger(inngest); // Disabled: cron tasks have incomplete raw_event data, causing broken approval cards
 
   const handler = serve({
     client: inngest,
@@ -49,7 +49,7 @@ export function inngestServeRoutes(): Router {
       feedbackSummarizerFn,
       ruleExtractorFn,
       learnedRulesExpiryFn,
-      guestMessagePollFn,
+      // guestMessagePollFn,
     ],
     serveOrigin: `http://localhost:${process.env.PORT ?? '7700'}`,
     servePath: '/api/inngest',
