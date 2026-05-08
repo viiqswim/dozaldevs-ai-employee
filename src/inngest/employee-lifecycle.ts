@@ -1131,17 +1131,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
         const oldTaskStatus = oldTaskRows[0]?.status;
 
-        if (oldTaskStatus !== 'Reviewing') {
-          // PM already acted — clear stale entry, don't supersede
+        if (!['Reviewing', 'Cancelled'].includes(oldTaskStatus)) {
+          // PM already acted (approved/rejected) — pending_approvals already cleared by handler,
+          // this is a stale row. Clear it and skip.
           log.info(
             { taskId, oldTaskId: pending.taskId, oldTaskStatus },
-            'Stale pending approval found (old task already acted on) — clearing',
+            'Stale pending approval found (PM already acted on old task) — clearing without supersede',
           );
           await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, conversationRef);
           return;
         }
 
-        // Old task is still Reviewing — supersede it
+        // Old task is Reviewing or Cancelled (system-superseded by webhook handler) — supersede it
         log.info(
           { taskId, oldTaskId: pending.taskId, conversationRef },
           'Superseding old task for same conversation',
