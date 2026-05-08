@@ -47,9 +47,10 @@ vi.mock('@slack/web-api', () => ({
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(false),
   readFileSync: vi.fn().mockReturnValue('{}'),
+  writeFileSync: vi.fn(),
 }));
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { WebClient } from '@slack/web-api';
 
@@ -307,6 +308,75 @@ describe('idempotency guard', () => {
     const stdout = stdoutChunks.join('');
     expect(stdout).toContain('1234567890.123456');
   });
+
+  it('proceeds past idempotency guard when existing ts is a PLACEHOLDER value', async () => {
+    vi.mocked(existsSync).mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce(
+      '{"ts":"CHANNEL_ID_PLACEHOLDER","channel":"C-TEST"}',
+    );
+
+    vi.mocked(WebClient).mockReset();
+    const mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts-new', channel: 'C-new' });
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    const savedEnv = process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+    const origWritePH = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    const savedArgv = [...process.argv];
+    process.argv = [
+      'node',
+      'post-guest-approval.ts',
+      '--channel',
+      'C-TEST',
+      '--task-id',
+      'task-ph-test',
+      '--guest-name',
+      'PH Test Guest',
+      '--property-name',
+      'Test Property',
+      '--check-in',
+      '2026-01-01',
+      '--check-out',
+      '2026-01-05',
+      '--booking-channel',
+      'AIRBNB',
+      '--original-message',
+      'Hello',
+      '--draft-response',
+      'Hi there',
+      '--confidence',
+      '0.9',
+      '--category',
+      'test',
+      '--lead-uid',
+      'lead-ph',
+      '--thread-uid',
+      'thread-ph',
+      '--message-uid',
+      'msg-ph',
+    ];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+    process.env.SLACK_BOT_TOKEN = savedEnv;
+    process.stdout.write = origWritePH;
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({
+          chat: { postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' }) },
+        }) as unknown as InstanceType<typeof WebClient>,
+    );
+
+    expect(mockPostMessage).toHaveBeenCalled();
+  });
 });
 
 describe('--thread-ts flag', () => {
@@ -412,5 +482,209 @@ describe('--thread-ts flag', () => {
 
     expect(mockPostMessage).toHaveBeenCalledOnce();
     expect(mockPostMessage.mock.calls[0][0]).not.toHaveProperty('thread_ts');
+  });
+});
+
+describe('--conversation-ref flag', () => {
+  const baseArgv = [
+    'node',
+    'post-guest-approval.ts',
+    '--channel',
+    'C-TEST',
+    '--task-id',
+    'task-conv-ref-test',
+    '--guest-name',
+    'ConvRef Test',
+    '--property-name',
+    'Test Property',
+    '--check-in',
+    '2026-01-01',
+    '--check-out',
+    '2026-01-05',
+    '--booking-channel',
+    'AIRBNB',
+    '--original-message',
+    'Hello',
+    '--draft-response',
+    'Hi there',
+    '--confidence',
+    '0.9',
+    '--category',
+    'test',
+    '--lead-uid',
+    'lead-conv-ref',
+    '--thread-uid',
+    'thread-conv-ref',
+    '--message-uid',
+    'msg-conv-ref',
+  ];
+
+  let origWrite: typeof process.stdout.write;
+  let origEnv: string | undefined;
+  let mockPostMessage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    origEnv = process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(writeFileSync).mockClear();
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    mockPostMessage = vi.fn().mockResolvedValue({ ok: true, ts: 'ts-conv', channel: 'C-conv' });
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  afterEach(() => {
+    process.env.SLACK_BOT_TOKEN = origEnv;
+    process.stdout.write = origWrite;
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({
+          chat: { postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' }) },
+        }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  it('uses --conversation-ref value in writeFileSync output when flag is provided', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv, '--conversation-ref', 'conv-ref-value-123'];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalledOnce();
+    const [path, content] = vi.mocked(writeFileSync).mock.calls[0] as [string, string];
+    expect(path).toBe('/tmp/approval-message.json');
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    expect(parsed.conversationRef).toBe('conv-ref-value-123');
+    expect(parsed.conversation_ref).toBe('conv-ref-value-123');
+  });
+
+  it('falls back to threadUid in writeFileSync output when --conversation-ref is absent', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalledOnce();
+    const [, content] = vi.mocked(writeFileSync).mock.calls[0] as [string, string];
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    expect(parsed.conversationRef).toBe('thread-conv-ref');
+    expect(parsed.conversation_ref).toBe('thread-conv-ref');
+  });
+});
+
+describe('self-write /tmp/approval-message.json', () => {
+  const baseArgv = [
+    'node',
+    'post-guest-approval.ts',
+    '--channel',
+    'C-WRITE-TEST',
+    '--task-id',
+    'task-write-test',
+    '--guest-name',
+    'Write Test Guest',
+    '--property-name',
+    'Write Test Property',
+    '--check-in',
+    '2026-03-01',
+    '--check-out',
+    '2026-03-05',
+    '--booking-channel',
+    'VRBO',
+    '--original-message',
+    'What are the house rules?',
+    '--draft-response',
+    'Please refer to our house manual.',
+    '--confidence',
+    '0.85',
+    '--category',
+    'rules',
+    '--lead-uid',
+    'lead-write',
+    '--thread-uid',
+    'thread-write',
+    '--message-uid',
+    'msg-write',
+  ];
+
+  let origWrite: typeof process.stdout.write;
+  let origEnv: string | undefined;
+  let mockPostMessage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    origEnv = process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(writeFileSync).mockClear();
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (() => true) as typeof process.stdout.write;
+
+    mockPostMessage = vi
+      .fn()
+      .mockResolvedValue({ ok: true, ts: 'ts-write-123', channel: 'C-WRITE-TEST' });
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({ chat: { postMessage: mockPostMessage } }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  afterEach(() => {
+    process.env.SLACK_BOT_TOKEN = origEnv;
+    process.stdout.write = origWrite;
+    vi.mocked(existsSync).mockReturnValue(false);
+    vi.mocked(WebClient).mockReset();
+    vi.mocked(WebClient).mockImplementation(
+      () =>
+        ({
+          chat: { postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' }) },
+        }) as unknown as InstanceType<typeof WebClient>,
+    );
+  });
+
+  it('calls writeFileSync with path /tmp/approval-message.json after successful Slack post', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalledOnce();
+    expect(vi.mocked(writeFileSync).mock.calls[0][0]).toBe('/tmp/approval-message.json');
+  });
+
+  it('written JSON contains required fields: ts, channel, conversationRef, approval_message_ts, target_channel, conversation_ref', async () => {
+    const savedArgv = [...process.argv];
+    process.argv = [...baseArgv];
+
+    const { main } = await import('../../../src/worker-tools/slack/post-guest-approval.js');
+    await main();
+
+    process.argv = savedArgv;
+
+    const [, content] = vi.mocked(writeFileSync).mock.calls[0] as [string, string];
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+
+    expect(parsed).toHaveProperty('ts', 'ts-write-123');
+    expect(parsed).toHaveProperty('channel', 'C-WRITE-TEST');
+    expect(parsed).toHaveProperty('conversationRef');
+    expect(parsed).toHaveProperty('approval_message_ts', 'ts-write-123');
+    expect(parsed).toHaveProperty('target_channel', 'C-WRITE-TEST');
+    expect(parsed).toHaveProperty('conversation_ref');
   });
 });
