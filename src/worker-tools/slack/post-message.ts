@@ -12,6 +12,7 @@ function parseArgs(argv: string[]): {
   blocks?: unknown[];
   taskId?: string;
   conversationRef?: string;
+  title?: string;
 } {
   const args = argv.slice(2);
   let channel = '';
@@ -19,6 +20,7 @@ function parseArgs(argv: string[]): {
   let blocks: unknown[] | undefined;
   let taskId: string | undefined;
   let conversationRef: string | undefined;
+  let title: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -31,30 +33,38 @@ function parseArgs(argv: string[]): {
       taskId = args[++i];
     } else if (args[i] === '--conversation-ref' && args[i + 1]) {
       conversationRef = args[++i];
+    } else if (args[i] === '--title' && args[i + 1]) {
+      title = args[++i];
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>]\n\n' +
+        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>]\n\n' +
           'Options:\n' +
           '  --channel <id>              (required) Slack channel ID to post to\n' +
           '  --text <string>             (required) Message text\n' +
           '  --blocks <json>             Optional Block Kit blocks JSON array\n' +
           '  --task-id <uuid>            Optional task ID — auto-generates approval blocks with Approve/Reject buttons\n' +
           '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
+          '  --title <string>            Optional approval card header title (default: "Task Review — <date>")\n' +
           '  --help                      Show this help message\n',
       );
       process.exit(0);
     }
   }
 
-  return { channel, text, blocks, taskId, conversationRef };
+  return { channel, text, blocks, taskId, conversationRef, title };
 }
 
-function buildApprovalBlocks(text: string, taskId: string, date: string): unknown[] {
+export function buildApprovalBlocks(
+  text: string,
+  taskId: string,
+  date: string,
+  title?: string,
+): unknown[] {
   return [
     {
       type: 'header',
       block_id: 'papi-chulo-daily-summary',
-      text: { type: 'plain_text', text: `Daily Summary — ${date}`, emoji: true },
+      text: { type: 'plain_text', text: title ?? `Task Review — ${date}`, emoji: true },
     },
     {
       type: 'section',
@@ -88,7 +98,14 @@ function buildApprovalBlocks(text: string, taskId: string, date: string): unknow
 }
 
 async function main(): Promise<void> {
-  const { channel, text, blocks: rawBlocks, taskId, conversationRef } = parseArgs(process.argv);
+  const {
+    channel,
+    text,
+    blocks: rawBlocks,
+    taskId,
+    conversationRef,
+    title,
+  } = parseArgs(process.argv);
 
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) {
@@ -115,7 +132,7 @@ async function main(): Promise<void> {
     day: 'numeric',
   });
 
-  const blocks = rawBlocks ?? (taskId ? buildApprovalBlocks(text, taskId, date) : undefined);
+  const blocks = rawBlocks ?? (taskId ? buildApprovalBlocks(text, taskId, date, title) : undefined);
 
   const result = await client.chat.postMessage({
     channel,
