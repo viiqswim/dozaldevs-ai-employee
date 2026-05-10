@@ -200,7 +200,7 @@ export function buildEnrichedTerminalBlocks(params: {
   const blocks: unknown[] = [];
 
   if (status === 'done') {
-    let mainText = `✅ *Approved by ${actorMention}*${guestSuffix}${propertyLine}`;
+    const mainText = `✅ *Approved by ${actorMention}*${guestSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
