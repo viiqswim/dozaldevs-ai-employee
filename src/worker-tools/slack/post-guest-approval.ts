@@ -21,6 +21,7 @@ interface GuestApprovalParams {
   conversationSummary?: string;
   diagnosis?: string;
   conversationRef?: string;
+  leadStatus?: string;
   dryRun: boolean;
   threadTs?: string;
   replyBroadcast: boolean;
@@ -51,6 +52,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let conversationSummary: string | undefined;
   let diagnosis: string | undefined;
   let conversationRef: string | undefined;
+  let leadStatus: string | undefined;
   let dryRun = false;
   let threadTs: string | undefined;
   let replyBroadcast = false;
@@ -104,6 +106,8 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       }
     } else if (args[i] === '--conversation-ref' && args[i + 1]) {
       conversationRef = args[++i];
+    } else if (args[i] === '--lead-status' && args[i + 1]) {
+      leadStatus = args[++i];
     }
   }
 
@@ -126,6 +130,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     conversationSummary,
     diagnosis,
     conversationRef,
+    leadStatus,
     dryRun,
     threadTs,
     replyBroadcast,
@@ -173,6 +178,24 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
         { type: 'mrkdwn', text: `*Check-in:* ${params.checkIn}` },
         { type: 'mrkdwn', text: `*Check-out:* ${params.checkOut}` },
         { type: 'mrkdwn', text: `*Booking Channel:* ${params.bookingChannel}` },
+        ...(params.leadStatus
+          ? [
+              {
+                type: 'mrkdwn',
+                text: `*Status:* ${
+                  params.leadStatus === 'BOOKED'
+                    ? '📗'
+                    : params.leadStatus === 'INQUIRY'
+                      ? '📙'
+                      : params.leadStatus === 'CLOSED'
+                        ? '📕'
+                        : params.leadStatus === 'NEW'
+                          ? '📘'
+                          : ''
+                } ${params.leadStatus}`.trim(),
+              },
+            ]
+          : []),
       ],
     },
     { type: 'divider' },
@@ -260,6 +283,12 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
           action_id: 'guest_reject',
           value: params.taskId,
           style: 'danger',
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '🔗 View in Hostfully', emoji: true },
+          action_id: 'view_in_hostfully',
+          url: `https://platform.hostfully.com/app/#/inbox?threadUid=${params.threadUid}&leadUid=${params.leadUid}`,
         },
       ],
     },
@@ -384,6 +413,7 @@ export async function main(): Promise<void> {
     check_out: params.checkOut,
     booking_channel: params.bookingChannel,
     urgency: params.urgency,
+    lead_status: params.leadStatus ?? null,
   };
   writeFileSync(APPROVAL_OUTPUT_PATH, JSON.stringify(approvalOutput));
 
