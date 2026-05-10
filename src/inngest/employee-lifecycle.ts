@@ -18,6 +18,9 @@ import {
   buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
+  buildEnrichedTerminalBlocks,
+  buildContextThreadBlocks,
+  buildHostfullyLink,
 } from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
@@ -619,7 +622,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
               INNGEST_DEV: '1',
               NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-              ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
+              ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
               ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
               ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
             },
@@ -643,7 +646,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-            ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
+            ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
             ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
             ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
           },
@@ -1370,7 +1373,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
             try {
-              const expiryText = '⏰ Daily summary expired — no action taken.';
+              const expiryText = '⏰ Expired — no action taken.';
               await slackClient.updateMessage(targetChannel, approvalMsgTs, expiryText, [
                 { type: 'section', text: { type: 'mrkdwn', text: expiryText } },
                 { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
@@ -1550,6 +1553,39 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
 
+          if (metadata['original_message'] && approvalMsgTs && targetChannel) {
+            try {
+              const contextBlocks = buildContextThreadBlocks({
+                action: editedContent ? 'edit' : 'approve',
+                actorUserId,
+                guestName: metadata['guest_name'] as string | undefined,
+                propertyName: metadata['property_name'] as string | undefined,
+                checkIn: metadata['check_in'] as string | undefined,
+                checkOut: metadata['check_out'] as string | undefined,
+                bookingChannel: metadata['booking_channel'] as string | undefined,
+                originalMessage: metadata['original_message'] as string,
+                sentResponse: editedContent ?? (metadata['draft_response'] as string | undefined),
+                draftResponse: metadata['draft_response'] as string | undefined,
+                editedResponse: editedContent,
+                confidence:
+                  typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
+                category: metadata['category'] as string | undefined,
+                threadUid: metadata['thread_uid'] as string | undefined,
+                leadUid: metadata['lead_uid'] as string | undefined,
+                taskId,
+              });
+              await slackClient.postMessage({
+                channel: targetChannel,
+                thread_ts: approvalMsgTs,
+                text: '📋 Message context preserved for reference',
+                blocks: contextBlocks as import('@slack/web-api').KnownBlock[],
+              });
+              log.info({ taskId }, 'Context thread reply posted');
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to post context thread reply (non-fatal)');
+            }
+          }
+
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const approvedNotifyText = `✅ Approved by <@${actorUserId}> — delivering now.`;
@@ -1702,13 +1738,27 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
 
           if (deliveryFinalStatus === 'Done' && approvalMsgTs && targetChannel) {
-            const sentText = `✅ Delivered at ${new Date().toISOString()}`;
+            const epoch = Math.floor(Date.now() / 1000);
+            const isoFallback = new Date().toISOString();
+            const sentText = `✅ Delivered <!date^${epoch}^{date_short_pretty} at {time}|${isoFallback}>`;
             log.info({ taskId }, 'State: Done');
             try {
-              await slackClient.updateMessage(targetChannel, approvalMsgTs, sentText, [
-                { type: 'section', text: { type: 'mrkdwn', text: sentText } },
-                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-              ]);
+              const doneBlocks = buildEnrichedTerminalBlocks({
+                status: 'done',
+                actorUserId,
+                guestName: metadata['guest_name'] as string | undefined,
+                propertyName: metadata['property_name'] as string | undefined,
+                threadUid: metadata['thread_uid'] as string | undefined,
+                leadUid: metadata['lead_uid'] as string | undefined,
+                sentSnippet: (metadata['draft_response'] as string | undefined)?.slice(0, 150),
+                taskId,
+              });
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                sentText,
+                doneBlocks as import('@slack/web-api').KnownBlock[],
+              );
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
@@ -1721,11 +1771,26 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 const sentNotifyText = guestNameForDone
                   ? `Reply sent to ${guestNameForDone}`
                   : 'Reply sent';
+                const notifyDoneBlocks = guestNameForDone
+                  ? buildEnrichedTerminalBlocks({
+                      status: 'done',
+                      actorUserId,
+                      guestName: guestNameForDone,
+                      propertyName: metadata['property_name'] as string | undefined,
+                      threadUid: metadata['thread_uid'] as string | undefined,
+                      leadUid: metadata['lead_uid'] as string | undefined,
+                      sentSnippet: (metadata['draft_response'] as string | undefined)?.slice(
+                        0,
+                        150,
+                      ),
+                      taskId,
+                    })
+                  : buildNotifyStateBlocks({ emoji: '✅', text: sentNotifyText, taskId });
                 await slackClient.updateMessage(
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   sentNotifyText,
-                  buildNotifyStateBlocks({ emoji: '✅', text: sentNotifyText, taskId }),
+                  notifyDoneBlocks as import('@slack/web-api').KnownBlock[],
                 );
               } catch (err) {
                 log.warn(
@@ -1851,10 +1916,21 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (approvalMsgTs && targetChannel) {
             const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
             try {
-              await slackClient.updateMessage(targetChannel, approvalMsgTs, rejectedText, [
-                { type: 'section', text: { type: 'mrkdwn', text: rejectedText } },
-                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-              ]);
+              const rejectedBlocks = buildEnrichedTerminalBlocks({
+                status: 'rejected',
+                actorUserId,
+                guestName: metadata['guest_name'] as string | undefined,
+                propertyName: metadata['property_name'] as string | undefined,
+                threadUid: metadata['thread_uid'] as string | undefined,
+                leadUid: metadata['lead_uid'] as string | undefined,
+                taskId,
+              });
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                rejectedText,
+                rejectedBlocks as import('@slack/web-api').KnownBlock[],
+              );
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
@@ -1862,18 +1938,60 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          if (metadata['original_message'] && approvalMsgTs && targetChannel) {
+            try {
+              const contextBlocks = buildContextThreadBlocks({
+                action: 'reject',
+                actorUserId,
+                guestName: metadata['guest_name'] as string | undefined,
+                propertyName: metadata['property_name'] as string | undefined,
+                checkIn: metadata['check_in'] as string | undefined,
+                checkOut: metadata['check_out'] as string | undefined,
+                bookingChannel: metadata['booking_channel'] as string | undefined,
+                originalMessage: metadata['original_message'] as string,
+                draftResponse: metadata['draft_response'] as string | undefined,
+                confidence:
+                  typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
+                category: metadata['category'] as string | undefined,
+                threadUid: metadata['thread_uid'] as string | undefined,
+                leadUid: metadata['lead_uid'] as string | undefined,
+                taskId,
+              });
+              await slackClient.postMessage({
+                channel: targetChannel,
+                thread_ts: approvalMsgTs,
+                text: '📋 Message context preserved for reference',
+                blocks: contextBlocks as import('@slack/web-api').KnownBlock[],
+              });
+              log.info({ taskId }, 'Context thread reply posted');
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to post context thread reply (non-fatal)');
+            }
+          }
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
+              const guestNameForReject = metadata['guest_name'] as string | undefined;
+              const notifyRejectBlocks = guestNameForReject
+                ? buildEnrichedTerminalBlocks({
+                    status: 'rejected',
+                    actorUserId,
+                    guestName: guestNameForReject,
+                    propertyName: metadata['property_name'] as string | undefined,
+                    threadUid: metadata['thread_uid'] as string | undefined,
+                    leadUid: metadata['lead_uid'] as string | undefined,
+                    taskId,
+                  })
+                : buildNotifyStateBlocks({
+                    emoji: '❌',
+                    text: `Rejected by <@${actorUserId}>`,
+                    taskId,
+                  });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 rejectedNotifyText,
-                buildNotifyStateBlocks({
-                  emoji: '❌',
-                  text: `Rejected by <@${actorUserId}>`,
-                  taskId,
-                }),
+                notifyRejectBlocks as import('@slack/web-api').KnownBlock[],
               );
             } catch (err) {
               log.warn(
