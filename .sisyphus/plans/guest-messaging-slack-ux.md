@@ -78,9 +78,9 @@ Transform the guest-messaging Slack experience from opaque status notifications 
 
 ### Definition of Done
 
-- [ ] `pnpm test -- --run` passes with all new tests
-- [ ] `pnpm build` succeeds with no type errors
-- [ ] Full E2E: Airbnb test message → Slack approval card with Hostfully link → Approve → Delivery confirmed → all Slack messages show enriched context
+- [x] `pnpm test -- --run` passes with all new tests
+- [x] `pnpm build` succeeds with no type errors
+- [x] Full E2E: Airbnb test message → Slack approval card with Hostfully link → Approve → Delivery confirmed → all Slack messages show enriched context
 
 ### Must Have
 
@@ -951,7 +951,7 @@ Max Concurrent: 3 (Wave 1)
 
   **Commit**: NO (validation only, no code changes)
 
-- [ ] 8. Notify completion
+- [x] 8. Notify completion
 
   **What to do**:
   - Send Telegram notification that plan `guest-messaging-slack-ux` is complete, all tasks done
@@ -975,19 +975,19 @@ Max Concurrent: 3 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check Slack blocks). For each "Must NOT Have": search codebase for forbidden patterns (employee-specific language in shared files, renamed Inngest steps). Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify no employee-specific language in `employee-lifecycle.ts` (search for "guest", "hostfully", "property" in log messages/comments in shared code).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (enriched notify-received → approval card → approve → thread reply → terminal states). Test edge cases: webhook without `message_content`, property API timeout, rapid duplicate messages. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git log`/`diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -1018,9 +1018,9 @@ pnpm lint           # Expected: no lint errors
 
 ### Final Checklist
 
-- [ ] All "Must Have" present — Hostfully links, property name, actor attribution, thread replies, timestamps
-- [ ] All "Must NOT Have" absent — no employee-specific language in shared files, no step renames, no output shape breaks
-- [ ] All tests pass (existing + new)
-- [ ] Full E2E validated: Airbnb → Slack → Approve → Delivery → all messages show enriched context
-- [ ] Docker image rebuilt with approval card changes
-- [ ] Telegram notification sent on completion
+- [x] All "Must Have" present — Hostfully links, property name, actor attribution, thread replies, timestamps
+- [x] All "Must NOT Have" absent — no employee-specific language in shared files, no step renames, no output shape breaks
+- [x] All tests pass (existing + new)
+- [x] Full E2E validated: Airbnb → Slack → Approve → Delivery → all messages show enriched context
+- [x] Docker image rebuilt with approval card changes
+- [x] Telegram notification sent on completion
