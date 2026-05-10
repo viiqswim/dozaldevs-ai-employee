@@ -15,25 +15,25 @@ type Block = {
 
 describe('buildSupersededBlocks', () => {
   it('returns an array of blocks', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-001');
     expect(Array.isArray(blocks)).toBe(true);
     expect(blocks.length).toBeGreaterThan(0);
   });
 
   it('contains no actions block — buttons are removed in superseded state', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-002');
     const actionsBlock = blocks.find((b) => (b as { type: string }).type === 'actions');
     expect(actionsBlock).toBeUndefined();
   });
 
   it('contains a section block', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-003');
     const sectionBlock = blocks.find((b) => (b as { type: string }).type === 'section');
     expect(sectionBlock).toBeDefined();
   });
 
   it('section text includes the word "Superseded"', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-004');
     const sectionBlock = blocks.find((b) => (b as { type: string }).type === 'section') as
       | { type: string; text: { text: string } }
       | undefined;
@@ -42,21 +42,28 @@ describe('buildSupersededBlocks', () => {
   });
 
   it('section text includes the superseded emoji ⏭️', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-005');
     const allText = JSON.stringify(blocks);
     expect(allText).toContain('⏭️');
   });
 
   it('section text mentions that the response was not sent', () => {
-    const blocks = buildSupersededBlocks();
+    const blocks = buildSupersededBlocks('task-sup-006');
     const allText = JSON.stringify(blocks);
     expect(allText).toContain('not sent');
   });
 
   it('returns a new array on each call (no shared state)', () => {
-    const blocks1 = buildSupersededBlocks();
-    const blocks2 = buildSupersededBlocks();
+    const blocks1 = buildSupersededBlocks('task-sup-007');
+    const blocks2 = buildSupersededBlocks('task-sup-007');
     expect(blocks1).not.toBe(blocks2);
+  });
+
+  it('includes task ID in context block', () => {
+    const blocks = buildSupersededBlocks('task-sup-008');
+    const contextBlock = blocks.find((b) => (b as { type: string }).type === 'context');
+    expect(contextBlock).toBeDefined();
+    expect(JSON.stringify(contextBlock)).toContain('task-sup-008');
   });
 });
 

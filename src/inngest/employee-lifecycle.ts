@@ -1220,7 +1220,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               oldApprovalChannel,
               oldApprovalMsgTs,
               '⏭️ Superseded',
-              buildSupersededBlocks(),
+              buildSupersededBlocks(oldTaskId),
             );
           } catch (err) {
             log.warn(
@@ -1744,7 +1744,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 targetChannel,
                 approvalMsgTs,
                 '⏭️ Superseded',
-                buildSupersededBlocks(),
+                buildSupersededBlocks(taskId),
               );
             } catch (err) {
               log.warn(
