@@ -59,9 +59,33 @@ export async function fetchLeadEnrichment(
     const lastName = lead.guestInformation?.lastName ?? '';
     const fullName = `${firstName} ${lastName}`.trim();
 
+    let propertyName: string | null = null;
+    if (lead.propertyUid) {
+      try {
+        const propUrl = `${apiBaseUrl}/properties/${encodeURIComponent(lead.propertyUid)}`;
+        const propRes = await fetch(propUrl, {
+          headers: {
+            'X-HOSTFULLY-APIKEY': apiKey,
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(2000),
+        });
+        if (propRes.ok) {
+          const propertyJson = (await propRes.json()) as {
+            property?: { name?: string };
+            name?: string;
+          };
+          const property = propertyJson.property ?? propertyJson;
+          propertyName = (property as { name?: string }).name ?? null;
+        }
+      } catch (_) {
+        propertyName = null;
+      }
+    }
+
     return {
       guestName: fullName || null,
-      propertyName: null,
+      propertyName,
       checkIn: formatDate(lead.checkInLocalDateTime),
       checkOut: formatDate(lead.checkOutLocalDateTime),
       bookingChannel: lead.channel ?? null,
