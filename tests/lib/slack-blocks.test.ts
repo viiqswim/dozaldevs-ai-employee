@@ -5,6 +5,9 @@ import {
   buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
+  buildHostfullyLink,
+  buildEnrichedTerminalBlocks,
+  buildContextThreadBlocks,
 } from '../../src/lib/slack-blocks.js';
 
 type Block = {
@@ -230,5 +233,145 @@ describe('buildOverrideCardBlocks', () => {
     });
     const contextBlocks = (blocks as Block[]).filter((b) => b.type === 'context');
     expect(contextBlocks.length).toBe(1);
+  });
+});
+
+describe('buildHostfullyLink', () => {
+  it('returns correctly formatted Hostfully inbox URL', () => {
+    const url = buildHostfullyLink('thread-123', 'lead-456');
+    expect(url).toBe(
+      'https://platform.hostfully.com/app/#/inbox?threadUid=thread-123&leadUid=lead-456',
+    );
+  });
+});
+
+describe('buildEnrichedTerminalBlocks', () => {
+  const FIXED_EPOCH = 1746806400;
+
+  it('status done with all fields contains actor mention, guest name, property, hostfully link, date, task ID', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'done',
+      actorUserId: 'U123',
+      guestName: 'Tiffany White',
+      propertyName: 'Ocean View Suite',
+      threadUid: 'thread-123',
+      leadUid: 'lead-456',
+      sentSnippet: 'Thank you for your inquiry!',
+      taskId: 'test-task-id',
+      timestamp: FIXED_EPOCH,
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('<@U123>');
+    expect(allText).toContain('Tiffany White');
+    expect(allText).toContain('Ocean View Suite');
+    expect(allText).toContain('hostfully.com');
+    expect(allText).toContain('<!date^');
+    expect(allText).toContain('test-task-id');
+  });
+
+  it('status done with minimal fields does not throw and includes task ID context block', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'done',
+      taskId: 'minimal-task-id',
+    });
+    expect(Array.isArray(blocks)).toBe(true);
+    expect(JSON.stringify(blocks)).toContain('minimal-task-id');
+  });
+
+  it('status rejected contains rejection indicator and actor mention', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'rejected',
+      actorUserId: 'U456',
+      taskId: 'task-rej-001',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('❌');
+    expect(allText).toContain('<@U456>');
+    expect(allText).toContain('task-rej-001');
+  });
+
+  it('status failed contains task failed text', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'failed',
+      taskId: 'task-fail-001',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('❌ *Task failed*');
+    expect(allText).toContain('task-fail-001');
+  });
+
+  it('status expired contains expired indicator', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'expired',
+      taskId: 'task-exp-001',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('⏰');
+    expect(allText).toContain('task-exp-001');
+  });
+
+  it('status delivery_failed contains delivery failed text', () => {
+    const blocks = buildEnrichedTerminalBlocks({
+      status: 'delivery_failed',
+      taskId: 'task-df-001',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('❌ *Delivery failed');
+    expect(allText).toContain('task-df-001');
+  });
+});
+
+describe('buildContextThreadBlocks', () => {
+  it('action approve with sentResponse contains sent response section and quoted original message', () => {
+    const blocks = buildContextThreadBlocks({
+      action: 'approve',
+      sentResponse: 'Thank you for your inquiry!',
+      originalMessage: 'Is the pool heated?',
+      taskId: 'task-ctx-001',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('📤 Response sent to guest');
+    expect(allText).toContain('>Thank you for your inquiry!');
+    expect(allText).toContain('>Is the pool heated?');
+    expect(allText).toContain('task-ctx-001');
+  });
+
+  it('action edit with draftResponse and editedResponse contains both sections', () => {
+    const blocks = buildContextThreadBlocks({
+      action: 'edit',
+      draftResponse: 'AI draft here.',
+      editedResponse: 'Edited by PM.',
+      taskId: 'task-ctx-002',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('🤖 Original AI draft');
+    expect(allText).toContain('✏️ Edited response');
+    expect(allText).toContain('>AI draft here.');
+    expect(allText).toContain('>Edited by PM.');
+    expect(allText).toContain('task-ctx-002');
+  });
+
+  it('action reject with draftResponse contains not-sent draft section', () => {
+    const blocks = buildContextThreadBlocks({
+      action: 'reject',
+      draftResponse: 'Rejected AI response.',
+      taskId: 'task-ctx-003',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('🤖 AI suggested response (not sent)');
+    expect(allText).toContain('>Rejected AI response.');
+    expect(allText).toContain('task-ctx-003');
+  });
+
+  it('with no optional fields does not throw and includes header section and task ID', () => {
+    const blocks = buildContextThreadBlocks({
+      action: 'approve',
+      taskId: 'task-ctx-004',
+    });
+    expect(Array.isArray(blocks)).toBe(true);
+    expect(blocks.length).toBeGreaterThan(0);
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('Message Context');
+    expect(allText).toContain('task-ctx-004');
   });
 });
