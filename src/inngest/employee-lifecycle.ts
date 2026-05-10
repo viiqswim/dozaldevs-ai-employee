@@ -20,7 +20,6 @@ import {
   buildOverrideCardBlocks,
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
-  buildHostfullyLink,
 } from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
@@ -1767,15 +1766,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
               try {
-                const guestNameForDone = metadata['guest_name'] as string | undefined;
-                const sentNotifyText = guestNameForDone
-                  ? `Reply sent to ${guestNameForDone}`
+                const terminalRecipientName = metadata['guest_name'] as string | undefined;
+                const sentNotifyText = terminalRecipientName
+                  ? `Reply sent to ${terminalRecipientName}`
                   : 'Reply sent';
-                const notifyDoneBlocks = guestNameForDone
+                const notifyDoneBlocks = terminalRecipientName
                   ? buildEnrichedTerminalBlocks({
                       status: 'done',
                       actorUserId,
-                      guestName: guestNameForDone,
+                      guestName: terminalRecipientName,
                       propertyName: metadata['property_name'] as string | undefined,
                       threadUid: metadata['thread_uid'] as string | undefined,
                       leadUid: metadata['lead_uid'] as string | undefined,
@@ -1971,12 +1970,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
-              const guestNameForReject = metadata['guest_name'] as string | undefined;
-              const notifyRejectBlocks = guestNameForReject
+              const terminalRecipientName = metadata['guest_name'] as string | undefined;
+              const notifyRejectBlocks = terminalRecipientName
                 ? buildEnrichedTerminalBlocks({
                     status: 'rejected',
                     actorUserId,
-                    guestName: guestNameForReject,
+                    guestName: terminalRecipientName,
                     propertyName: metadata['property_name'] as string | undefined,
                     threadUid: metadata['thread_uid'] as string | undefined,
                     leadUid: metadata['lead_uid'] as string | undefined,
