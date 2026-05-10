@@ -1,6 +1,6 @@
 import type { KnownBlock } from '@slack/web-api';
 
-export function buildSupersededBlocks(): KnownBlock[] {
+export function buildSupersededBlocks(taskId: string): unknown[] {
   return [
     {
       type: 'section',
@@ -8,6 +8,10 @@ export function buildSupersededBlocks(): KnownBlock[] {
         type: 'mrkdwn',
         text: '⏭️ *Superseded* — a newer message from this guest is pending review below.\n_This suggested response was not sent._',
       },
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
     },
   ];
 }
@@ -140,6 +144,290 @@ export function buildOverrideCardBlocks(params: {
       },
     ],
   });
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+  });
+
+  return blocks;
+}
+
+export function buildHostfullyLink(threadUid: string, leadUid: string): string {
+  return `https://platform.hostfully.com/app/#/inbox?threadUid=${threadUid}&leadUid=${leadUid}`;
+}
+
+export function buildEnrichedTerminalBlocks(params: {
+  status: 'done' | 'rejected' | 'failed' | 'expired' | 'delivery_failed';
+  actorUserId?: string;
+  guestName?: string;
+  propertyName?: string;
+  threadUid?: string;
+  leadUid?: string;
+  sentSnippet?: string;
+  taskId: string;
+  timestamp?: number;
+}): unknown[] {
+  const {
+    status,
+    actorUserId,
+    guestName,
+    propertyName,
+    threadUid,
+    leadUid,
+    sentSnippet,
+    taskId,
+    timestamp,
+  } = params;
+
+  const epoch = Math.floor(timestamp ?? Date.now() / 1000);
+  const isoFallback = new Date(epoch * 1000).toISOString();
+  const slackDate = `<!date^${epoch}^{date_short_pretty} at {time}|${isoFallback}>`;
+
+  const hasHostfullyLink = threadUid && leadUid;
+  const hostfullyMrkdwn = hasHostfullyLink
+    ? `<${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>`
+    : null;
+
+  const guestSuffix = guestName ? ` · ${guestName}` : '';
+  const propertyLine = propertyName ? `\n_${propertyName}_` : '';
+  const actorMention = actorUserId ? `<@${actorUserId}>` : 'Unknown';
+
+  const contextBlock = {
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+  };
+
+  const blocks: unknown[] = [];
+
+  if (status === 'done') {
+    let mainText = `✅ *Approved by ${actorMention}*${guestSuffix}${propertyLine}`;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: mainText },
+    });
+
+    if (sentSnippet) {
+      const snippet = sentSnippet.length > 150 ? `${sentSnippet.slice(0, 150)}…` : sentSnippet;
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `> ${snippet}` },
+      });
+    }
+
+    const footerParts: string[] = [];
+    if (hostfullyMrkdwn) footerParts.push(hostfullyMrkdwn);
+    footerParts.push(slackDate);
+
+    if (footerParts.length > 0) {
+      blocks.push({
+        type: 'context',
+        elements: footerParts.map((text) => ({ type: 'mrkdwn', text })),
+      });
+    }
+
+    blocks.push(contextBlock);
+    return blocks;
+  }
+
+  if (status === 'rejected') {
+    const mainText = `❌ *Rejected by ${actorMention}*${guestSuffix}${propertyLine}`;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: mainText },
+    });
+
+    const footerParts: string[] = [];
+    if (hostfullyMrkdwn) footerParts.push(hostfullyMrkdwn);
+    footerParts.push(slackDate);
+
+    if (footerParts.length > 0) {
+      blocks.push({
+        type: 'context',
+        elements: footerParts.map((text) => ({ type: 'mrkdwn', text })),
+      });
+    }
+
+    blocks.push(contextBlock);
+    return blocks;
+  }
+
+  if (status === 'failed') {
+    const mainText = `❌ *Task failed*${guestSuffix}${propertyLine}`;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: mainText },
+    });
+
+    if (hostfullyMrkdwn) {
+      blocks.push({
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+      });
+    }
+
+    blocks.push(contextBlock);
+    return blocks;
+  }
+
+  if (status === 'expired') {
+    const mainText = `⏰ *Expired — no action taken*${guestSuffix}${propertyLine}`;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: mainText },
+    });
+
+    if (hostfullyMrkdwn) {
+      blocks.push({
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+      });
+    }
+
+    blocks.push(contextBlock);
+    return blocks;
+  }
+
+  const mainText = `❌ *Delivery failed — reply not sent*${guestSuffix}${propertyLine}`;
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: mainText },
+  });
+
+  if (hostfullyMrkdwn) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+    });
+  }
+
+  blocks.push(contextBlock);
+  return blocks;
+}
+
+export function buildContextThreadBlocks(params: {
+  action: 'approve' | 'edit' | 'reject';
+  actorUserId?: string;
+  guestName?: string;
+  propertyName?: string;
+  checkIn?: string;
+  checkOut?: string;
+  bookingChannel?: string;
+  originalMessage?: string;
+  sentResponse?: string;
+  draftResponse?: string;
+  editedResponse?: string;
+  confidence?: number;
+  category?: string;
+  threadUid?: string;
+  leadUid?: string;
+  taskId: string;
+}): unknown[] {
+  const {
+    action,
+    guestName,
+    checkIn,
+    checkOut,
+    bookingChannel,
+    originalMessage,
+    sentResponse,
+    draftResponse,
+    editedResponse,
+    confidence,
+    category,
+    threadUid,
+    leadUid,
+    taskId,
+  } = params;
+
+  const blocks: unknown[] = [];
+
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `📋 *Message Context* — preserved for reference` },
+  });
+
+  const contextRowParts: string[] = [];
+  if (guestName) contextRowParts.push(`*Guest:* ${guestName}`);
+  if (checkIn && checkOut) contextRowParts.push(`*Dates:* ${checkIn}–${checkOut}`);
+  if (bookingChannel) contextRowParts.push(`*Channel:* ${bookingChannel}`);
+  if (contextRowParts.length > 0) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: contextRowParts.join(' | ') }],
+    });
+  }
+
+  if (originalMessage) {
+    const quotedMessage = originalMessage
+      .split('\n')
+      .map((line) => `>${line}`)
+      .join('\n');
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*💬 Guest message:*\n${quotedMessage}` },
+    });
+  }
+
+  if (action === 'approve' && sentResponse) {
+    const quotedSent = sentResponse
+      .split('\n')
+      .map((line) => `>${line}`)
+      .join('\n');
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*📤 Response sent to guest:*\n${quotedSent}` },
+    });
+  } else if (action === 'edit') {
+    if (draftResponse) {
+      const quotedDraft = draftResponse
+        .split('\n')
+        .map((line) => `>${line}`)
+        .join('\n');
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*🤖 Original AI draft:*\n${quotedDraft}` },
+      });
+    }
+    if (editedResponse) {
+      const quotedEdited = editedResponse
+        .split('\n')
+        .map((line) => `>${line}`)
+        .join('\n');
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*✏️ Edited response (sent):*\n${quotedEdited}` },
+      });
+    }
+  } else if (action === 'reject' && draftResponse) {
+    const quotedDraft = draftResponse
+      .split('\n')
+      .map((line) => `>${line}`)
+      .join('\n');
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*🤖 AI suggested response (not sent):*\n${quotedDraft}` },
+    });
+  }
+
+  const footerElements: unknown[] = [];
+  const hasHostfullyLink = threadUid && leadUid;
+  if (hasHostfullyLink) {
+    footerElements.push({
+      type: 'mrkdwn',
+      text: `<${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>`,
+    });
+  }
+  if (confidence !== undefined) {
+    const pct = Math.round(confidence * 100);
+    footerElements.push({ type: 'mrkdwn', text: `Confidence: ${pct}%` });
+  }
+  if (category) {
+    footerElements.push({ type: 'mrkdwn', text: `Category: ${category}` });
+  }
+  if (footerElements.length > 0) {
+    blocks.push({ type: 'context', elements: footerElements });
+  }
+
   blocks.push({
     type: 'context',
     elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
