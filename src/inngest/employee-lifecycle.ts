@@ -695,11 +695,29 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const failText = `❌ Task failed`;
+                const failedEnrichment = notifyMsgRef.enrichment as
+                  | {
+                      guestName?: string;
+                      propertyName?: string;
+                      threadUid?: string;
+                      leadUid?: string;
+                    }
+                  | undefined;
+                const notifyFailedBlocks = failedEnrichment?.guestName
+                  ? buildEnrichedTerminalBlocks({
+                      status: 'failed',
+                      guestName: failedEnrichment.guestName,
+                      propertyName: failedEnrichment.propertyName,
+                      threadUid: failedEnrichment.threadUid,
+                      leadUid: failedEnrichment.leadUid,
+                      taskId,
+                    })
+                  : buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId });
                 await slackForFail.updateMessage(
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   failText,
-                  buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId }),
+                  notifyFailedBlocks,
                 );
               }
             } catch (err) {
@@ -1370,13 +1388,31 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
           '';
         if (!approvalEvent) {
+          const expiryEnrichment = notifyMsgRef?.enrichment as
+            | { guestName?: string; propertyName?: string; threadUid?: string; leadUid?: string }
+            | undefined;
           if (approvalMsgTs && targetChannel) {
             try {
               const expiryText = '⏰ Expired — no action taken.';
-              await slackClient.updateMessage(targetChannel, approvalMsgTs, expiryText, [
-                { type: 'section', text: { type: 'mrkdwn', text: expiryText } },
-                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-              ]);
+              const expiryCardBlocks = expiryEnrichment?.guestName
+                ? buildEnrichedTerminalBlocks({
+                    status: 'expired',
+                    guestName: expiryEnrichment.guestName,
+                    propertyName: expiryEnrichment.propertyName,
+                    threadUid: expiryEnrichment.threadUid,
+                    leadUid: expiryEnrichment.leadUid,
+                    taskId,
+                  })
+                : [
+                    { type: 'section', text: { type: 'mrkdwn', text: expiryText } },
+                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+                  ];
+              await slackClient.updateMessage(
+                targetChannel,
+                approvalMsgTs,
+                expiryText,
+                expiryCardBlocks,
+              );
             } catch (err) {
               log.warn(
                 { taskId, approvalMsgTs, targetChannel, err },
@@ -1387,11 +1423,25 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const expiredNotifyText = `⏰ Expired — no action taken.`;
+              const notifyExpiryBlocks = expiryEnrichment?.guestName
+                ? buildEnrichedTerminalBlocks({
+                    status: 'expired',
+                    guestName: expiryEnrichment.guestName,
+                    propertyName: expiryEnrichment.propertyName,
+                    threadUid: expiryEnrichment.threadUid,
+                    leadUid: expiryEnrichment.leadUid,
+                    taskId,
+                  })
+                : buildNotifyStateBlocks({
+                    emoji: '⏰',
+                    text: 'Expired — no action taken',
+                    taskId,
+                  });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 expiredNotifyText,
-                buildNotifyStateBlocks({ emoji: '⏰', text: 'Expired — no action taken', taskId }),
+                notifyExpiryBlocks,
               );
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received on expiry (non-fatal)');
