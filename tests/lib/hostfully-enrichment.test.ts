@@ -114,27 +114,60 @@ describe('fetchLeadEnrichment', () => {
     expect(result.guestName).toBe('Bob Jones');
   });
 
-  // ─── 7. propertyName is always null ──────────────────────────────────────
+  // ─── 7. propertyName is fetched when propertyUid present ─────────────────
 
-  it('always returns propertyName=null (no second API call)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
+  it('fetches propertyName from the property API when propertyUid is present', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
         makeResponse({
           uid: 'x',
           propertyUid: 'prop-abc',
           guestInformation: { firstName: 'Alice', lastName: 'Wonder' },
         }),
-      ),
-    );
-    const mockFetch = vi.mocked(global.fetch);
+      )
+      .mockResolvedValueOnce(makeResponse({ name: 'Ocean View Suite' }));
+    vi.stubGlobal('fetch', mockFetch);
+    const result = await fetchLeadEnrichment('lead-123', 'fake-key');
+    expect(result.propertyName).toBe('Ocean View Suite');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  // ─── 8. Property API failure → graceful null ──────────────────────────────
+
+  it('returns propertyName=null without throwing when property fetch fails', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeResponse({
+          uid: 'x',
+          propertyUid: 'prop-abc',
+          guestInformation: { firstName: 'Alice', lastName: 'Wonder' },
+        }),
+      )
+      .mockRejectedValueOnce(new Error('network error'));
+    vi.stubGlobal('fetch', mockFetch);
     const result = await fetchLeadEnrichment('lead-123', 'fake-key');
     expect(result.propertyName).toBeNull();
-    // Only one fetch call — no second call for property
+    expect(result.guestName).toBe('Alice Wonder');
+  });
+
+  // ─── 9. No propertyUid → only one fetch ──────────────────────────────────
+
+  it('does not fetch property when propertyUid is absent', async () => {
+    const mockFetch = vi.fn().mockResolvedValueOnce(
+      makeResponse({
+        uid: 'x',
+        guestInformation: { firstName: 'Bob', lastName: 'Smith' },
+      }),
+    );
+    vi.stubGlobal('fetch', mockFetch);
+    const result = await fetchLeadEnrichment('lead-123', 'fake-key');
+    expect(result.propertyName).toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  // ─── 8. Custom apiBaseUrl is used ────────────────────────────────────────
+  // ─── 10. Custom apiBaseUrl is used ───────────────────────────────────────
 
   it('uses the provided apiBaseUrl', async () => {
     const mockFetch = vi.fn().mockResolvedValue(makeResponse({ uid: 'x' }));
