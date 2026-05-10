@@ -249,11 +249,18 @@ Optional fields: `lead_uid`, `property_uid`, `message_content`, `created`, `type
 
 `prisma.archetype.findUnique()` with composite unique key `(tenant_id, role_name: 'guest-messaging')`. If not found, returns 200 with `{ archetype_not_found: true }`.
 
-**5. Thread-level dedup / echo-loop guard** (lines 84-114)
+**5. Thread-level dedup with supersede** (lines 84-138)
 
-`prisma.task.findFirst()` where `status NOT IN (Done, Failed, Cancelled)` AND `raw_event->thread_uid = payload.thread_uid`. This prevents ghost tasks when Hostfully fires a webhook for the AI's own outgoing reply. If an active task exists for this thread, returns 200 with `{ active_task_exists: true }`.
+`prisma.task.findFirst()` where `status NOT IN (Done, Failed, Cancelled)` AND `raw_event->thread_uid = payload.thread_uid`, with `select: { id, status, metadata }`.
 
-**6. Task creation** (lines 116-145)
+If an active task exists for this thread:
+
+- **Executing or Validating**: Returns 200 with `{ active_task_exists: true }` — blocks the duplicate to avoid parallel workers on the same thread.
+- **Any other non-terminal state** (e.g. Reviewing, Submitting): Cancels the old task (`status = 'Cancelled'`), reads `notify_slack_ts` and `notify_slack_channel` from the old task's `metadata`, and falls through to create a new task. These values are passed to the new task's `raw_event` as `superseded_notify_ts` and `superseded_notify_channel` so the lifecycle can reuse the old Slack thread.
+
+Echo-loop webhooks (AI reply triggers) are handled by the lifecycle pre-check, which auto-completes tasks where the last message is already from the host.
+
+**6. Task creation** (lines 141-165)
 
 `prisma.task.create()` with:
 
@@ -262,11 +269,13 @@ Optional fields: `lead_uid`, `property_uid`, `message_content`, `created`, `type
 - `source_system`: `'hostfully'`
 - `status`: `'Ready'` (not `'Received'` — the lifecycle starts at Ready for webhook-triggered tasks)
 - `tenant_id`: from step 3
-- `raw_event`: `{ thread_uid, message_uid, lead_uid, property_uid, message_content? }`
+- `raw_event`: `{ thread_uid, message_uid, lead_uid, property_uid, message_content?, superseded_notify_ts?, superseded_notify_channel? }`
+
+The `superseded_notify_ts` and `superseded_notify_channel` fields are only present when the webhook handler superseded an old task that had already posted a Slack notification (step 5). The lifecycle uses these to reuse the old Slack thread instead of creating a new top-level message.
 
 The unique constraint `(external_id, source_system, tenant_id)` catches duplicate webhooks. A Prisma P2002 error returns 200 with `{ duplicate: true }`.
 
-**7. Inngest event emission** (lines 147-160)
+**7. Inngest event emission** (lines 175-190)
 
 ```
 inngest.send({
@@ -282,7 +291,7 @@ The `id` field deduplicates at the Inngest level. Errors are logged but not re-t
 
 ## 7. Step-by-Step: Lifecycle Execution
 
-**File**: `src/inngest/employee-lifecycle.ts` (1759 lines)
+**File**: `src/inngest/employee-lifecycle.ts` (2000 lines)
 **Trigger**: `employee/task.dispatched` event → `employee/universal-lifecycle` function
 
 ### 7.1 Pre-check: Skip If Host Already Replied
@@ -314,13 +323,17 @@ This is the most common fast-exit path. A task that completes in under 5 seconds
 
 For guest-messaging tasks, the lifecycle calls `fetchLeadEnrichment(leadUid, apiKey)` from `src/lib/hostfully-enrichment.ts` to get: guest name, property name, check-in/out dates, booking channel.
 
-It then posts a rich Slack card using `buildEnrichedNotifyBlocks()` to the `notification_channel` (`C0AMGJQN05S`). The card includes guest details and a snippet of the message from `raw_event.message_content`.
+**Supersede thread reuse**: Before posting a new Slack message, the step checks `raw_event.superseded_notify_ts` and `raw_event.superseded_notify_channel`. If both are present (set by the webhook handler when it superseded an old task), the step calls `slackClient.updateMessage()` to update the old parent message in-place with the new task's "Processing" content. This reuses the existing Slack thread instead of creating a new top-level message. If `chat.update` fails (e.g. message deleted, channel mismatch), the step logs a warning and falls back to posting a new top-level message.
+
+If no supersede values are present, the step posts a new rich Slack card using `buildEnrichedNotifyBlocks()` to the `notification_channel` (`C0AMGJQN05S`). The card includes guest details and a snippet of the message from `raw_event.message_content`.
+
+**Metadata persistence**: After posting (or updating) the Slack message, the step writes `{ notify_slack_ts, notify_slack_channel }` to `tasks.metadata` via a PostgREST PATCH (read-modify-write merge pattern). This ensures the Slack thread reference is persisted in the database and available to the webhook handler if a future webhook supersedes this task. The metadata write is non-fatal — failures are logged but do not block the lifecycle.
 
 The return value `notifyMsgRef = { ts, channel, enrichment }` is stored and used for ALL subsequent `chat.update` calls throughout the lifecycle. Never discard this reference.
 
 ### 7.3 Worker Execution
 
-**Step name**: `executing` (line 290)
+**Step name**: `executing` (line 464)
 
 Before spawning the worker, the lifecycle injects these env vars from `raw_event`:
 
@@ -337,7 +350,10 @@ It also loads:
 
 These are injected as `FEEDBACK_CONTEXT` and `LEARNED_RULES_CONTEXT` env vars, prepended to the system prompt inside the worker.
 
-The worker also receives `NOTIFY_MSG_TS` so the approval card can be posted as a thread reply to the original notification message.
+The worker also receives:
+
+- `NOTIFY_MSG_TS` — Slack `ts` of the notify-received message, so the approval card can be posted as a thread reply to the original notification message.
+- `REPLY_BROADCAST` — Set to `'true'` when `raw_event.superseded_notify_ts` is present (i.e. this task superseded an old one and is reusing the old Slack thread). The archetype instructions tell the model to pass `--reply-broadcast "$REPLY_BROADCAST"` to `post-guest-approval.ts`, which makes the new approval card visible at the channel level (not just in the thread).
 
 ---
 
@@ -416,9 +432,9 @@ flowchart TD
 | 8   | Messages fetched  | `get-messages.ts --lead-id "$LEAD_UID" --unresponded-only --fallback-property-uid "$PROPERTY_UID"`. Returns `ThreadSummary[]` with guest name, channel, check-in/out, messages. |
 | 9   | Property loaded   | `get-property.ts --property-id {propertyUid}`. Parallel calls: property details, amenities, rules.                                                                              |
 | 10  | Context complete  | `get-reservations.ts --property-id {propertyUid}`. For access/lock messages: `diagnose-access.ts --property-id {uid}`.                                                          |
-| 11a | NEEDS_APPROVAL    | Model drafts reply, calls `post-guest-approval.ts`.                                                                                                                             |
+| 11a | NEEDS_APPROVAL    | Model drafts reply, calls `post-guest-approval.ts`. If `REPLY_BROADCAST=true`, adds `--reply-broadcast` flag so the card is visible at channel level.                           |
 | 11b | NO_ACTION_NEEDED  | Model writes classification JSON to `/tmp/summary.txt`.                                                                                                                         |
-| 12  | Card posted       | Approval card posted to `#cs-guest-communication` as thread reply to `NOTIFY_MSG_TS`.                                                                                           |
+| 12  | Card posted       | Approval card posted to `#cs-guest-communication` as thread reply to `NOTIFY_MSG_TS`. When `--reply-broadcast` is set, the card also appears at the channel level.              |
 | 13  | Output ready      | `/tmp/approval-message.json` written with full metadata. Harness validates `ts` and `channel` are non-empty.                                                                    |
 | 14  | Done              | POST `deliverables`, PATCH `tasks.status='Submitting'`, fire `employee/task.completed`.                                                                                         |
 
@@ -430,7 +446,7 @@ flowchart TD
 
 ## 9. Classification Branch: NEEDS_APPROVAL vs NO_ACTION_NEEDED
 
-**Step name**: `check-classification` (line 624)
+**Step name**: `check-classification` (line 800)
 
 After the worker completes, the lifecycle reads the deliverable from DB (`deliverables WHERE external_ref={taskId}`) and calls `parseClassifyResponse(content)` from `src/lib/classify-message.ts`. This returns `{ skipApproval: boolean, reasoning: string, displayContext: object }`.
 
@@ -485,13 +501,22 @@ flowchart TD
 
 ### 10.1 Supersede Detection
 
-**Step name**: `check-supersede` (line 922)
+**Step name**: `check-supersede` (line 1098)
 
-The lifecycle reads `deliverables.metadata.conversation_ref` (the Hostfully `thread_uid`). It then queries `pending_approvals WHERE thread_uid={conversationRef}` to find any other task already in `Reviewing` for this same conversation.
+The lifecycle determines the conversation lookup key using two sources, in priority order:
 
-If a superseded task is found:
+1. **`raw_event.thread_uid`** (authoritative) — set by the gateway from the Hostfully webhook payload. Always consistent for the same Hostfully conversation thread.
+2. **`deliverables.metadata.conversation_ref`** (fallback) — set by the AI model via `post-guest-approval.ts`. Can be inconsistent (sometimes `lead_uid`, sometimes `property_uid`) depending on model behavior.
 
-- Updates the old Slack card to `⏭️ Superseded`
+The final lookup key is: `authoritativeThreadUid ?? conversationRef`. If neither is available, the step returns immediately.
+
+**Primary path**: Queries `pending_approvals WHERE thread_uid={lookupKey}` to find any other task already in `Reviewing` for this conversation. If found and the old task is still in `Reviewing` or `Cancelled` state, proceeds to supersede it.
+
+**Fallback path**: If no `pending_approvals` record exists (e.g. race condition with `track-pending-approval`, or transient write failure), the step falls back to a direct task query: fetches the 5 most recent `Reviewing` or `Cancelled` tasks for this tenant and checks each one's `raw_event.thread_uid` against the `lookupKey`. If a match is found, it reads the old task's `approval_message_ts` and `target_channel` from its deliverable metadata.
+
+If a superseded task is found (via either path):
+
+- Updates the old Slack approval card to `⏭️ Superseded` via `slackClient.updateMessage()`
 - Emits `employee/approval.received` with `action: 'superseded'` to unblock the old lifecycle
 - Clears the old `pending_approvals` row
 
@@ -499,18 +524,18 @@ This prevents two approval cards from existing simultaneously for the same guest
 
 ### 10.2 Waiting for PM Decision
 
-**Step name**: `wait-for-approval` (line 1093)
+**Step name**: `wait-for-approval` (line 1334)
 
 `step.waitForEvent('employee/approval.received')` with a 24-hour timeout. The event carries `action` (one of `'approve'`, `'reject'`, `'superseded'`) and optional `editedContent` or `rejectionReason`.
 
 Before waiting, the lifecycle:
 
-1. Updates the notify message to `⏳ Awaiting approval — reply drafted for {guestName}` (`update-notify-reviewing`, line 1016)
-2. Inserts a `pending_approvals` row with `{ tenantId, threadUid, taskId, slackTs, channelId, guestName, propertyName, urgency }` (`track-pending-approval`, line 1059)
+1. Updates the notify message to `⏳ Awaiting approval — reply drafted for {guestName}` (`update-notify-reviewing`, line 1252)
+2. Inserts a `pending_approvals` row (`track-pending-approval`, line 1295). The `threadUid` used for the row is determined the same way as in `check-supersede`: `raw_event.thread_uid` (authoritative) falling back to `deliverables.metadata.conversation_ref`. This ensures both steps use the same consistent key for lookup and tracking.
 
 ### 10.3 Approve Path
 
-**Step name**: `handle-approval-result` (line 1100)
+**Step name**: `handle-approval-result` (line 1341)
 
 On `action: 'approve'`:
 
@@ -598,14 +623,14 @@ flowchart TD
 
 When the model classifies a message as `NO_ACTION_NEEDED`, the lifecycle doesn't immediately close the task. Instead, it gives the PM a chance to override.
 
-**Step name**: `post-override-card` (line 667)
+**Step name**: `post-override-card` (line 843)
 
 1. Stops the worker container (`cleanup-no-action`)
 2. Posts a thread reply with `buildNoActionThreadBlocks()` — shows reasoning, property UID, lead UID
 3. Posts an override card with `buildOverrideCardBlocks()` — shows reasoning + "Override" button
 4. Patches `deliverables.metadata` with `override_card_ts` and `override_card_channel`
 
-**Step name**: `wait-for-override` (line 742)
+**Step name**: `wait-for-override` (line 918)
 
 `step.waitForEvent('employee/override.requested')` with `{timeoutHours}h` timeout.
 
@@ -672,6 +697,7 @@ erDiagram
         string status
         uuid tenant_id FK
         json raw_event
+        json metadata
         int dispatch_attempts
         string failure_reason
     }
@@ -742,8 +768,9 @@ erDiagram
 
 - `tasks.archetype_id` links to `archetypes.id` — the archetype defines the model, tools, and behavior
 - `tasks.external_id` + `tasks.source_system` + `tasks.tenant_id` form a unique constraint — prevents duplicate tasks
+- `tasks.metadata` (JSONB, nullable) — stores `notify_slack_ts` and `notify_slack_channel` after the `notify-received` step. Used by the webhook handler to read the old task's Slack thread reference when superseding, and passed to the new task's `raw_event` as `superseded_notify_ts`/`superseded_notify_channel`
 - `deliverables.external_ref` = `tasks.id` — the deliverable stores the draft reply and approval metadata
-- `pending_approvals.thread_uid` = Hostfully `thread_uid` — unique per tenant, used for supersede detection
+- `pending_approvals.thread_uid` = Hostfully `thread_uid` (from `raw_event.thread_uid`) — unique per tenant, used for supersede detection
 - `tenant_secrets` rows are auto-injected into worker env by `tenant-env-loader.ts` (key uppercased)
 - `learned_rules.source_task_id` links a rule back to the task that generated it
 
@@ -770,6 +797,7 @@ The tenant env loader builds the worker machine environment in this order:
 - `TASK_ID`
 - `TENANT_ID`
 - `NOTIFY_MSG_TS` — Slack `ts` of the notify-received message, so approval card posts as thread reply
+- `REPLY_BROADCAST` — Set to `'true'` when `raw_event.superseded_notify_ts` is present (task superseded an old one and is reusing its Slack thread). Tells the model to pass `--reply-broadcast` to `post-guest-approval.ts` so the new approval card appears at channel level.
 - `FEEDBACK_CONTEXT` — last 3 knowledge base entries + last 10 feedback rows
 - `LEARNED_RULES_CONTEXT` — all confirmed learned rules
 - `PROPERTY_UID`, `LEAD_UID`, `THREAD_UID`, `MESSAGE_UID` — from `raw_event`
@@ -785,7 +813,7 @@ The tenant env loader builds the worker machine environment in this order:
 | --------------------------------------------------- | ------------------------------------------------------ |
 | `src/gateway/routes/hostfully.ts`                   | Webhook handler — entry point for all Hostfully events |
 | `src/gateway/validation/schemas.ts` (lines 322-341) | Zod schema for Hostfully webhook payload               |
-| `src/inngest/employee-lifecycle.ts`                 | Universal lifecycle — all 21 steps                     |
+| `src/inngest/employee-lifecycle.ts`                 | Universal lifecycle — all 29 steps                     |
 | `src/inngest/triggers/guest-message-poll.ts`        | Polling cron (deregistered, source preserved)          |
 | `src/workers/opencode-harness.mts`                  | Worker harness — runs inside Docker container          |
 | `src/gateway/slack/handlers.ts`                     | Slack button handlers for approve/reject/override      |
@@ -843,9 +871,9 @@ The lifecycle reads `deliverables.metadata` (which contains the parsed contents 
 
 The harness pre-parses the deliverable JSON to build the exact `send-message.ts` command before starting the delivery OpenCode session. The model in the delivery phase just executes that command — it doesn't re-draft anything.
 
-**7. `conversation_ref` = Hostfully `thread_uid`.**
+**7. Supersede detection uses `raw_event.thread_uid`, not `conversation_ref`.**
 
-The `deliverables.metadata.conversation_ref` field holds the Hostfully `thread_uid`. This is what the supersede check uses to find conflicting tasks in `pending_approvals`. If this field is missing from the deliverable metadata, supersede detection won't work.
+The `check-supersede` and `track-pending-approval` steps use `raw_event.thread_uid` (set by the gateway from the Hostfully webhook payload) as the authoritative key for `pending_approvals` lookups. The `deliverables.metadata.conversation_ref` field (set by the AI model) is only used as a fallback when `raw_event.thread_uid` is absent. This was changed because the model inconsistently sets `conversation_ref` — sometimes using `lead_uid`, sometimes `property_uid` — which caused supersede detection to fail when two tasks for the same conversation had different `conversation_ref` values.
 
 **8. All Hostfully tools check `HOSTFULLY_MOCK=true`.**
 
@@ -858,3 +886,11 @@ The dedup key is `hostfully-msg-{message_uid}`. If you fire a test webhook twice
 **10. The approval card is in a thread, not the top-level channel.**
 
 The top-level message in `#cs-guest-communication` says "Task received — processing". The actual approval card (with Approve/Reject buttons) is posted as a reply in that thread. PMs need to click "View thread" or "1 reply" to find it.
+
+**11. Superseded tasks reuse the old Slack thread.**
+
+When a guest sends a follow-up message while a previous reply is pending approval, the webhook handler cancels the old task and reads `notify_slack_ts`/`notify_slack_channel` from the old task's `metadata`. These are passed to the new task's `raw_event` as `superseded_notify_ts`/`superseded_notify_channel`. The new lifecycle's `notify-received` step calls `chat.update` on the old parent message instead of posting a new top-level message, keeping one Slack thread per guest conversation. The new approval card is posted with `reply_broadcast` so it appears at the channel level. If the old task's metadata is missing (race condition or transient error), the new task gracefully falls back to creating a new top-level message.
+
+**12. `tasks.metadata` persists Slack thread references.**
+
+After `notify-received` posts (or updates) the Slack notification, it writes `{ notify_slack_ts, notify_slack_channel }` to `tasks.metadata` via PostgREST. This is the mechanism that enables supersede thread reuse — the webhook handler reads these values from the old task to pass to the new one. The metadata write is non-fatal; if it fails, the task proceeds normally but thread reuse on future supersedes won't work for this task.
