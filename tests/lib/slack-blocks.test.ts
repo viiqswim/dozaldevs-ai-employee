@@ -8,6 +8,7 @@ import {
   buildHostfullyLink,
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
+  buildCompactNotifyBlocks,
 } from '../../src/lib/slack-blocks.js';
 
 type Block = {
@@ -373,5 +374,214 @@ describe('buildContextThreadBlocks', () => {
     const allText = JSON.stringify(blocks);
     expect(allText).toContain('Message Context');
     expect(allText).toContain('task-ctx-004');
+  });
+});
+
+describe('buildCompactNotifyBlocks', () => {
+  type Block = { type: string; text?: { type: string; text: string }; elements?: unknown[] };
+
+  const FULL_PARAMS = {
+    guestName: 'Olivia',
+    propertyName: 'Beach House',
+    threadUid: 'thread-abc',
+    leadUid: 'lead-xyz',
+    taskId: 'task-compact-001',
+  } as const;
+
+  it('always returns exactly 2 blocks', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'processing', taskId: 'task-c-001' });
+    expect(blocks).toHaveLength(2);
+  });
+
+  it('first block is a section with mrkdwn text', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'processing', taskId: 'task-c-002' });
+    const section = (blocks as Block[])[0];
+    expect(section.type).toBe('section');
+    expect(section.text?.type).toBe('mrkdwn');
+    expect(typeof section.text?.text).toBe('string');
+  });
+
+  it('second block is a context block with task ID', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'processing', taskId: 'task-c-003' });
+    const context = (blocks as Block[])[1];
+    expect(context.type).toBe('context');
+    expect(JSON.stringify(context)).toContain('task-c-003');
+  });
+
+  it('main text is fully bold (wrapped in *…*)', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'processing', taskId: 'task-c-004' });
+    const text = (blocks as Block[])[0].text?.text ?? '';
+    expect(text.startsWith('*')).toBe(true);
+    expect(text.endsWith('*')).toBe(true);
+  });
+
+  it('status processing → ⏳ … Processing', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'processing', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('⏳');
+    expect(text).toContain('Processing');
+  });
+
+  it('status reviewing → ⏳ … Awaiting approval', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'reviewing', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('⏳');
+    expect(text).toContain('Awaiting approval');
+  });
+
+  it('status done → ✅ … Reply sent · <@actorUserId>', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'done',
+      actorUserId: 'U999',
+      ...FULL_PARAMS,
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('✅');
+    expect(text).toContain('Reply sent');
+    expect(text).toContain('<@U999>');
+  });
+
+  it('status rejected → ❌ … Rejected · <@actorUserId>', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'rejected',
+      actorUserId: 'U888',
+      ...FULL_PARAMS,
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('❌');
+    expect(text).toContain('Rejected');
+    expect(text).toContain('<@U888>');
+  });
+
+  it('status failed → ❌ … Failed', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'failed', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('❌');
+    expect(text).toContain('Failed');
+  });
+
+  it('status expired → ⏰ … Expired', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'expired', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('⏰');
+    expect(text).toContain('Expired');
+  });
+
+  it('status delivery_failed → ❌ … Delivery failed', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'delivery_failed', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('❌');
+    expect(text).toContain('Delivery failed');
+  });
+
+  it('status no_action → ✅ … No action needed', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'no_action', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('✅');
+    expect(text).toContain('No action needed');
+  });
+
+  it('status superseded → ⏭️ … Superseded', () => {
+    const blocks = buildCompactNotifyBlocks({ status: 'superseded', ...FULL_PARAMS });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('⏭️');
+    expect(text).toContain('Superseded');
+  });
+
+  it('includes Hostfully link when both threadUid and leadUid are provided', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      threadUid: 'thread-abc',
+      leadUid: 'lead-xyz',
+      taskId: 'task-c-link-01',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('https://platform.hostfully.com');
+    expect(text).toContain('🔗 View');
+  });
+
+  it('omits Hostfully link when threadUid is missing', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      leadUid: 'lead-xyz',
+      taskId: 'task-c-link-02',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).not.toContain('hostfully.com');
+  });
+
+  it('omits Hostfully link when leadUid is missing', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      threadUid: 'thread-abc',
+      taskId: 'task-c-link-03',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).not.toContain('hostfully.com');
+  });
+
+  it('includes guestName and propertyName in identity when both provided', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      guestName: 'Olivia',
+      propertyName: 'Beach House',
+      taskId: 'task-c-id-01',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('Olivia');
+    expect(text).toContain('Beach House');
+    expect(text).toContain('Olivia · Beach House');
+  });
+
+  it('gracefully handles missing guestName — only propertyName shown in identity', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      propertyName: 'Beach House',
+      taskId: 'task-c-id-02',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('Beach House');
+    expect(text).not.toContain(' · Beach House');
+  });
+
+  it('gracefully handles missing propertyName — only guestName shown in identity', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      guestName: 'Olivia',
+      taskId: 'task-c-id-03',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('Olivia');
+    expect(text).not.toContain('Olivia · ');
+  });
+
+  it('gracefully handles missing guestName and propertyName — text starts with emoji directly', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'processing',
+      taskId: 'task-c-id-04',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).not.toContain(' — ');
+    expect(text).toContain('⏳');
+    expect(text).toContain('Processing');
+  });
+
+  it('full params produce correct combined text with identity, status, and link', () => {
+    const blocks = buildCompactNotifyBlocks({
+      status: 'done',
+      guestName: 'Olivia',
+      propertyName: 'Beach House',
+      actorUserId: 'U123',
+      threadUid: 'thread-abc',
+      leadUid: 'lead-xyz',
+      taskId: 'task-c-full-01',
+    });
+    const text = (blocks as Block[])[0].text!.text;
+    expect(text).toContain('Olivia');
+    expect(text).toContain('Beach House');
+    expect(text).toContain('Reply sent');
+    expect(text).toContain('<@U123>');
+    expect(text).toContain('hostfully.com');
+    expect(JSON.stringify(blocks)).toContain('task-c-full-01');
   });
 });
