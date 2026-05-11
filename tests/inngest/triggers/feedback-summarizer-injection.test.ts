@@ -50,19 +50,36 @@ async function runHandler(handler: any, feedbackItems: FeedbackRow[]) {
     run: vi.fn().mockImplementation((_name: string, fn: () => unknown) => fn()),
   };
 
+  const reportedCount = Math.max(feedbackItems.length, 10);
   global.fetch = vi.fn().mockImplementation((url: string) => {
     if ((url as string).includes('archetypes')) {
       return Promise.resolve({
-        json: () => Promise.resolve([{ id: 'arch-1', role_name: 'Test Employee' }]),
+        json: () =>
+          Promise.resolve([
+            {
+              id: 'arch-1',
+              role_name: 'Test Employee',
+              tenant_id: 'tenant-1',
+              notification_channel: null,
+            },
+          ]),
       });
     }
     if ((url as string).includes('feedback')) {
       return Promise.resolve({
+        ok: true,
+        headers: {
+          get: (name: string) =>
+            name === 'content-range' ? `0-${reportedCount - 1}/${reportedCount}` : null,
+        },
         json: () => Promise.resolve(feedbackItems),
       });
     }
     if ((url as string).includes('knowledge_bases')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }
+    if ((url as string).includes('learned_rules')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     }
     return Promise.resolve({ json: () => Promise.resolve([]) });
   });
