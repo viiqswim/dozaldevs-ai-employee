@@ -3,6 +3,7 @@ import type { InngestFunction } from 'inngest';
 import { callLLM } from '../../lib/call-llm.js';
 import { decrypt } from '../../lib/encryption.js';
 import { createLogger } from '../../lib/logger.js';
+import { CONSOLIDATION_THRESHOLD } from '../employee-lifecycle.js';
 
 const log = createLogger('feedback-summarizer');
 
@@ -31,7 +32,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
   return inngest.createFunction(
     {
       id: 'trigger/feedback-summarizer',
-      triggers: [{ cron: '0 0 * * 0' }],
+      triggers: [{ cron: '0 */6 * * *' }],
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async ({ step }: { step: any }) => {
@@ -60,11 +61,47 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
       });
 
       for (const archetype of archetypes) {
+        await step.run(`check-threshold-${archetype.id}`, async () => {
+          const countRes = await fetch(
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${archetype.tenant_id}&consolidated_at=is.null&select=id`,
+            { headers: { ...headers, Prefer: 'count=exact' } },
+          );
+          const countHeader = countRes.headers.get('content-range');
+          const total = countHeader ? parseInt(countHeader.split('/')[1] ?? '0', 10) : 0;
+
+          if (total < CONSOLIDATION_THRESHOLD) {
+            log.info(
+              {
+                archetypeId: archetype.id,
+                unconsolidatedCount: total,
+                threshold: CONSOLIDATION_THRESHOLD,
+              },
+              'Below consolidation threshold — skipping',
+            );
+            return { skip: true, count: total };
+          }
+
+          log.info(
+            { archetypeId: archetype.id, unconsolidatedCount: total },
+            'Consolidation threshold met — proceeding',
+          );
+          return { skip: false, count: total };
+        });
+
         await step.run(`summarize-feedback-${archetype.id}`, async () => {
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const countRes = await fetch(
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${archetype.tenant_id}&consolidated_at=is.null&select=id`,
+            { headers: { ...headers, Prefer: 'count=exact' } },
+          );
+          const countHeader = countRes.headers.get('content-range');
+          const total = countHeader ? parseInt(countHeader.split('/')[1] ?? '0', 10) : 0;
+
+          if (total < CONSOLIDATION_THRESHOLD) {
+            return;
+          }
 
           const feedbackRes = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${archetype.tenant_id}&created_at=gte.${sevenDaysAgo}&select=id,correction_reason,feedback_type,created_at,task_id&limit=100`,
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${archetype.tenant_id}&consolidated_at=is.null&select=id,correction_reason,feedback_type,created_at,task_id&order=created_at.desc`,
             { headers },
           );
           const feedbackItems = (await feedbackRes.json()) as FeedbackRow[];
@@ -98,7 +135,6 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
 
           let themes: FeedbackTheme[] = [];
           try {
-            // Strip markdown code fences if present (LLM may wrap JSON in ```json ... ```)
             const rawContent = llmResult.content.trim();
             const jsonContent = rawContent
               .replace(/^```(?:json)?\s*/i, '')
@@ -124,7 +160,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
               updated_at: now,
               source_config: {
                 type: 'feedback_summary',
-                period: '7d',
+                period: 'threshold_triggered',
                 themes,
                 generated_at: now,
                 feedback_count: feedbackItems.length,
@@ -143,6 +179,106 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
             { archetypeId: archetype.id, themeCount: themes.length },
             'Feedback summary stored',
           );
+
+          if (!archetype.notification_channel) {
+            log.warn(
+              { archetypeId: archetype.id },
+              'null notification_channel — skipping batch Slack review card',
+            );
+            return;
+          }
+
+          let slackToken: string | null = null;
+          try {
+            const secretRes = await fetch(
+              `${supabaseUrl}/rest/v1/tenant_secrets?tenant_id=eq.${archetype.tenant_id}&key=eq.slack_bot_token&select=ciphertext,iv,auth_tag`,
+              { headers },
+            );
+            const secretRows = (await secretRes.json()) as Array<{
+              ciphertext: string;
+              iv: string;
+              auth_tag: string;
+            }>;
+            if (secretRows[0]) {
+              slackToken = decrypt(secretRows[0]);
+            }
+          } catch (err) {
+            log.warn(
+              { archetypeId: archetype.id, err },
+              'Failed to resolve Slack token — batch review card will be skipped',
+            );
+          }
+
+          if (!slackToken) return;
+
+          const themeLines = themes
+            .map((t) => `• *${t.theme}* (${t.frequency}x): _"${t.representative_quote}"_`)
+            .join('\n');
+
+          const feedbackIds = feedbackItems.map((f) => f.id);
+          const batchValue = JSON.stringify({ feedbackIds, archetypeId: archetype.id });
+
+          const blocks = [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `📋 *Feedback consolidation ready* — ${feedbackItems.length} items for *${archetype.role_name ?? archetype.id}*\n\n*Recurring themes:*\n${themeLines}`,
+              },
+            },
+            { type: 'divider' },
+            {
+              type: 'actions',
+              elements: [
+                {
+                  type: 'button',
+                  text: { type: 'plain_text', text: '✅ Confirm All & Consolidate' },
+                  style: 'primary',
+                  action_id: 'batch_rules_confirm',
+                  value: batchValue,
+                },
+              ],
+            },
+            {
+              type: 'context',
+              elements: [
+                {
+                  type: 'mrkdwn',
+                  text: `Archetype \`${archetype.id}\` · ${feedbackItems.length} feedback items`,
+                },
+              ],
+            },
+          ];
+
+          const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${slackToken}`,
+            },
+            body: JSON.stringify({
+              channel: archetype.notification_channel,
+              text: `Feedback consolidation ready: ${feedbackItems.length} items for ${archetype.role_name ?? archetype.id}`,
+              blocks,
+            }),
+          });
+          const slackData = (await slackRes.json()) as {
+            ok: boolean;
+            ts?: string;
+            error?: string;
+          };
+
+          if (!slackData.ok) {
+            log.warn(
+              { archetypeId: archetype.id, error: slackData.error },
+              'Failed to post batch review card to Slack',
+            );
+          } else {
+            log.info(
+              { archetypeId: archetype.id, feedbackCount: feedbackItems.length },
+              'Batch review card posted to Slack',
+            );
+          }
         });
 
         await step.run(`synthesize-rules-${archetype.id}`, async () => {
@@ -349,7 +485,6 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
             }
           }
 
-          // Post contradiction alerts (informational, no buttons)
           if (contradictions.length > 0 && archetype.notification_channel && slackToken) {
             for (const contradiction of contradictions) {
               const conflictRules = contradiction.rule_ids

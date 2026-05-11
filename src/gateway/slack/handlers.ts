@@ -1214,4 +1214,82 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       log.error({ ruleId, err }, 'Failed to process rule_rephrase_modal submission');
     }
   });
+
+  boltApp.action('batch_rules_confirm', async ({ ack, body, client }) => {
+    await ack();
+    const actionBody = body as ActionBody;
+    const rawValue = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+    const channel = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+
+    if (!rawValue) return;
+
+    let feedbackIds: string[] = [];
+    let archetypeId: string | undefined;
+    try {
+      const parsed = JSON.parse(rawValue) as { feedbackIds?: string[]; archetypeId?: string };
+      feedbackIds = parsed.feedbackIds ?? [];
+      archetypeId = parsed.archetypeId;
+    } catch {
+      log.error({ userId: user.id }, 'batch_rules_confirm: failed to parse action value');
+      return;
+    }
+
+    if (channel && messageTs) {
+      await client.chat.update({
+        channel,
+        ts: messageTs,
+        text: `✅ Feedback consolidated by <@${user.id}>`,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `✅ *Feedback consolidated by <@${user.id}>* — ${feedbackIds.length} items marked as reviewed`,
+            },
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: archetypeId ? `Archetype \`${archetypeId}\`` : 'Batch consolidation',
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    if (feedbackIds.length === 0) {
+      log.warn({ userId: user.id }, 'batch_rules_confirm: no feedback IDs in payload');
+      return;
+    }
+
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+      const now = new Date().toISOString();
+      const idList = feedbackIds.join(',');
+
+      await fetch(`${supabaseUrl}/rest/v1/feedback?id=in.(${idList})`, {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ consolidated_at: now }),
+      });
+
+      log.info(
+        { userId: user.id, feedbackCount: feedbackIds.length, archetypeId },
+        'Batch feedback consolidated',
+      );
+    } catch (err) {
+      log.error({ err, userId: user.id }, 'Failed to PATCH feedback on batch_rules_confirm');
+    }
+  });
 }
