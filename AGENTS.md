@@ -120,7 +120,21 @@ Thread replies and @mentions on employee Slack messages are captured and handled
 - **Thread reply or @mention** → Slack Bolt fires `employee/interaction.received` (with `source: 'thread_reply'` or `source: 'mention'`) → `interaction-handler` classifies intent
   - **Correction/teaching** → fires `employee/rule.extract-requested` → `rule-extractor` extracts a concrete behavioral rule → posts Slack confirmation card for PM review → confirmed rules stored in `learned_rules`
   - **Question/feedback** → responds in thread; stores if relevant
-- **Weekly cron** (`trigger/feedback-summarizer`, Sunday midnight UTC) → reads recent feedback, generates a digest with Claude Haiku, writes to `knowledge_bases`
+- **Every-6-hour cron** (`trigger/feedback-summarizer`, `0 */6 * * *`) → checks each archetype for unconsolidated feedback (`consolidated_at IS NULL`). If count ≥ `CONSOLIDATION_THRESHOLD` (5), summarizes themes with Claude Haiku, writes to `knowledge_bases`, and posts ONE batch Slack card per archetype with a "✅ Confirm All & Consolidate" button (`batch_rules_confirm` action). PM clicks once to mark all feedback rows `consolidated_at = NOW()`.
+
+**Feedback injection into AI context** (`employee-lifecycle.ts` `dispatch-machine` step):
+
+- Queries ALL feedback rows where `consolidated_at IS NULL` for the tenant — no date window, no row limit
+- Queries ALL `knowledge_bases` rows for the archetype — no date window, no row limit
+- Safety cap: if combined context exceeds `MAX_FEEDBACK_CONTEXT_CHARS` (32000), oldest items are truncated with a `warn` log (`'Feedback context truncated — consolidation needed'`)
+- Confirmed `learned_rules` are injected separately via `LEARNED_RULES_CONTEXT` env var (unchanged)
+- Raw feedback is the safety net (always injected until consolidated); consolidation is the optimization
+
+**Key constants** (exported from `employee-lifecycle.ts`):
+
+- `CONSOLIDATION_THRESHOLD = 5` — minimum unconsolidated items before batch consolidation runs
+- `MAX_FEEDBACK_CONTEXT_CHARS = 32000` — safety cap on raw feedback env var size
+- `MAX_LEARNED_RULES_CHARS = 8000` — cap on confirmed rules env var size (unchanged)
 
 ## Tenants
 
