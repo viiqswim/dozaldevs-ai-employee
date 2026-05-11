@@ -178,7 +178,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Add `consolidated_at` column to feedback table
+- [x] 1. Add `consolidated_at` column to feedback table
 
   **What to do**:
   - Add a nullable `DateTime` column `consolidated_at` to the `Feedback` model in `prisma/schema.prisma`
@@ -251,7 +251,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `prisma/schema.prisma`, `prisma/migrations/*add-feedback-consolidated-at*`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Reject stale awaiting_input rules with empty rule_text
+- [x] 2. Reject stale awaiting_input rules with empty rule_text
 
   **What to do**:
   - Write a one-time cleanup SQL script that updates `learned_rules` SET `status = 'rejected'` WHERE `status = 'awaiting_input'` AND (`rule_text = ''` OR `rule_text IS NULL`)
@@ -318,7 +318,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: cleanup script or inline SQL evidence
   - Pre-commit: n/a
 
-- [ ] 3. Add consolidation constants and types
+- [x] 3. Add consolidation constants and types
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, add a new constant `CONSOLIDATION_THRESHOLD = 5` next to the existing `MAX_LEARNED_RULES_CHARS = 8000` (line 31)
