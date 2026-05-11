@@ -20,6 +20,7 @@ import {
   buildOverrideCardBlocks,
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
+  buildCompactNotifyBlocks,
 } from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
@@ -225,29 +226,14 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             if (leadUidForEnrich && apiKey) {
               enrichment = await fetchLeadEnrichment(leadUidForEnrich, apiKey);
             }
-            const blocks = enrichment
-              ? buildEnrichedNotifyBlocks({
-                  guestName: enrichment.guestName ?? 'Guest',
-                  propertyName: enrichment.propertyName ?? undefined,
-                  checkIn: enrichment.checkIn ?? undefined,
-                  checkOut: enrichment.checkOut ?? undefined,
-                  bookingChannel: enrichment.bookingChannel ?? undefined,
-                  messageSnippet: messageContent || undefined,
-                  taskId,
-                })
-              : [
-                  {
-                    type: 'section',
-                    text: {
-                      type: 'mrkdwn',
-                      text: `⏳ *Task received* — processing\n_Employee: ${roleName}_`,
-                    },
-                  },
-                  {
-                    type: 'context',
-                    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                  },
-                ];
+            const blocks = buildCompactNotifyBlocks({
+              status: 'processing',
+              guestName: enrichment?.guestName ?? undefined,
+              propertyName: enrichment?.propertyName ?? undefined,
+              threadUid: rawEventForEnrich['thread_uid'] ?? undefined,
+              leadUid: rawEventForEnrich['lead_uid'] ?? undefined,
+              taskId,
+            });
             if (supersededNotifyTs && supersededNotifyChannel) {
               try {
                 const slackClientForSupersede = createSlackClient({
@@ -724,16 +710,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                       leadUid?: string;
                     }
                   | undefined;
-                const notifyFailedBlocks = failedEnrichment?.guestName
-                  ? buildEnrichedTerminalBlocks({
-                      status: 'failed',
-                      guestName: failedEnrichment.guestName,
-                      propertyName: failedEnrichment.propertyName,
-                      threadUid: failedEnrichment.threadUid,
-                      leadUid: failedEnrichment.leadUid,
-                      taskId,
-                    })
-                  : buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId });
+                const rawEventForFail =
+                  (taskData.raw_event as Record<string, unknown> | null) ?? {};
+                const notifyFailedBlocks =
+                  (archetype.role_name as string) === 'guest-messaging'
+                    ? buildCompactNotifyBlocks({
+                        status: 'failed',
+                        guestName: failedEnrichment?.guestName,
+                        propertyName: failedEnrichment?.propertyName,
+                        threadUid: rawEventForFail['thread_uid'] as string | undefined,
+                        leadUid: rawEventForFail['lead_uid'] as string | undefined,
+                        taskId,
+                      })
+                    : failedEnrichment?.guestName
+                      ? buildEnrichedTerminalBlocks({
+                          status: 'failed',
+                          guestName: failedEnrichment.guestName,
+                          propertyName: failedEnrichment.propertyName,
+                          threadUid: failedEnrichment.threadUid,
+                          leadUid: failedEnrichment.leadUid,
+                          taskId,
+                        })
+                      : buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId });
                 await slackForFail.updateMessage(
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
@@ -1319,14 +1317,29 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
             | string
             | undefined;
+          const reviewingPropertyName = reviewingDelivRows[0]?.metadata?.['property_name'] as
+            | string
+            | undefined;
           const reviewingText = reviewingGuestName
             ? `Awaiting approval — reply drafted for ${reviewingGuestName}`
             : 'Awaiting approval — reply drafted';
+          const rawEventForReviewing = (taskData.raw_event as Record<string, unknown> | null) ?? {};
+          const reviewingBlocks =
+            (archetype.role_name as string) === 'guest-messaging'
+              ? buildCompactNotifyBlocks({
+                  status: 'reviewing',
+                  guestName: reviewingGuestName,
+                  propertyName: reviewingPropertyName,
+                  threadUid: rawEventForReviewing['thread_uid'] as string | undefined,
+                  leadUid: rawEventForReviewing['lead_uid'] as string | undefined,
+                  taskId,
+                })
+              : buildNotifyStateBlocks({ emoji: '⏳', text: reviewingText, taskId });
           await slackForReviewing.updateMessage(
             notifyMsgRef.channel,
             notifyMsgRef.ts,
             reviewingText,
-            buildNotifyStateBlocks({ emoji: '⏳', text: reviewingText, taskId }),
+            reviewingBlocks,
           );
         } catch (err) {
           log.warn({ taskId, err }, 'Failed to update notify-received on reviewing (non-fatal)');
@@ -1444,20 +1457,32 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const expiredNotifyText = `⏰ Expired — no action taken.`;
-              const notifyExpiryBlocks = expiryEnrichment?.guestName
-                ? buildEnrichedTerminalBlocks({
-                    status: 'expired',
-                    guestName: expiryEnrichment.guestName,
-                    propertyName: expiryEnrichment.propertyName,
-                    threadUid: expiryEnrichment.threadUid,
-                    leadUid: expiryEnrichment.leadUid,
-                    taskId,
-                  })
-                : buildNotifyStateBlocks({
-                    emoji: '⏰',
-                    text: 'Expired — no action taken',
-                    taskId,
-                  });
+              const rawEventForExpiry =
+                (taskData.raw_event as Record<string, unknown> | null) ?? {};
+              const notifyExpiryBlocks =
+                (archetype.role_name as string) === 'guest-messaging'
+                  ? buildCompactNotifyBlocks({
+                      status: 'expired',
+                      guestName: expiryEnrichment?.guestName,
+                      propertyName: expiryEnrichment?.propertyName,
+                      threadUid: rawEventForExpiry['thread_uid'] as string | undefined,
+                      leadUid: rawEventForExpiry['lead_uid'] as string | undefined,
+                      taskId,
+                    })
+                  : expiryEnrichment?.guestName
+                    ? buildEnrichedTerminalBlocks({
+                        status: 'expired',
+                        guestName: expiryEnrichment.guestName,
+                        propertyName: expiryEnrichment.propertyName,
+                        threadUid: expiryEnrichment.threadUid,
+                        leadUid: expiryEnrichment.leadUid,
+                        taskId,
+                      })
+                    : buildNotifyStateBlocks({
+                        emoji: '⏰',
+                        text: 'Expired — no action taken',
+                        taskId,
+                      });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
@@ -1659,15 +1684,29 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const approvedNotifyText = `✅ Approved by <@${actorUserId}> — delivering now.`;
+              const rawEventForApprove =
+                (taskData.raw_event as Record<string, unknown> | null) ?? {};
+              const approveNotifyBlocks =
+                (archetype.role_name as string) === 'guest-messaging'
+                  ? buildCompactNotifyBlocks({
+                      status: 'done',
+                      guestName: metadata['guest_name'] as string | undefined,
+                      propertyName: metadata['property_name'] as string | undefined,
+                      actorUserId,
+                      threadUid: rawEventForApprove['thread_uid'] as string | undefined,
+                      leadUid: rawEventForApprove['lead_uid'] as string | undefined,
+                      taskId,
+                    })
+                  : buildNotifyStateBlocks({
+                      emoji: '⏳',
+                      text: `Approved by <@${actorUserId}> — delivering now`,
+                      taskId,
+                    });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 approvedNotifyText,
-                buildNotifyStateBlocks({
-                  emoji: '⏳',
-                  text: `Approved by <@${actorUserId}> — delivering now`,
-                  taskId,
-                }),
+                approveNotifyBlocks,
               );
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update notify-received on approval (non-fatal)');
@@ -1787,15 +1826,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
                 try {
                   const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
+                  const rawEventForDelivFail =
+                    (taskData.raw_event as Record<string, unknown> | null) ?? {};
+                  const delivFailBlocks =
+                    (archetype.role_name as string) === 'guest-messaging'
+                      ? buildCompactNotifyBlocks({
+                          status: 'delivery_failed',
+                          guestName: metadata['guest_name'] as string | undefined,
+                          propertyName: metadata['property_name'] as string | undefined,
+                          threadUid: rawEventForDelivFail['thread_uid'] as string | undefined,
+                          leadUid: rawEventForDelivFail['lead_uid'] as string | undefined,
+                          taskId,
+                        })
+                      : buildNotifyStateBlocks({
+                          emoji: '❌',
+                          text: 'Delivery failed — reply not sent',
+                          taskId,
+                        });
                   await slackClient.updateMessage(
                     notifyMsgRef.channel,
                     notifyMsgRef.ts,
                     deliveryFailText,
-                    buildNotifyStateBlocks({
-                      emoji: '❌',
-                      text: 'Delivery failed — reply not sent',
-                      taskId,
-                    }),
+                    delivFailBlocks,
                   );
                 } catch (err) {
                   log.warn(
@@ -1841,21 +1893,34 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 const sentNotifyText = terminalRecipientName
                   ? `Reply sent to ${terminalRecipientName}`
                   : 'Reply sent';
-                const notifyDoneBlocks = terminalRecipientName
-                  ? buildEnrichedTerminalBlocks({
-                      status: 'done',
-                      actorUserId,
-                      guestName: terminalRecipientName,
-                      propertyName: metadata['property_name'] as string | undefined,
-                      threadUid: metadata['thread_uid'] as string | undefined,
-                      leadUid: metadata['lead_uid'] as string | undefined,
-                      sentSnippet: (metadata['draft_response'] as string | undefined)?.slice(
-                        0,
-                        150,
-                      ),
-                      taskId,
-                    })
-                  : buildNotifyStateBlocks({ emoji: '✅', text: sentNotifyText, taskId });
+                const rawEventForDone =
+                  (taskData.raw_event as Record<string, unknown> | null) ?? {};
+                const notifyDoneBlocks =
+                  (archetype.role_name as string) === 'guest-messaging'
+                    ? buildCompactNotifyBlocks({
+                        status: 'done',
+                        guestName: terminalRecipientName,
+                        propertyName: metadata['property_name'] as string | undefined,
+                        actorUserId,
+                        threadUid: rawEventForDone['thread_uid'] as string | undefined,
+                        leadUid: rawEventForDone['lead_uid'] as string | undefined,
+                        taskId,
+                      })
+                    : terminalRecipientName
+                      ? buildEnrichedTerminalBlocks({
+                          status: 'done',
+                          actorUserId,
+                          guestName: terminalRecipientName,
+                          propertyName: metadata['property_name'] as string | undefined,
+                          threadUid: metadata['thread_uid'] as string | undefined,
+                          leadUid: metadata['lead_uid'] as string | undefined,
+                          sentSnippet: (metadata['draft_response'] as string | undefined)?.slice(
+                            0,
+                            150,
+                          ),
+                          taskId,
+                        })
+                      : buildNotifyStateBlocks({ emoji: '✅', text: sentNotifyText, taskId });
                 await slackClient.updateMessage(
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
@@ -1891,15 +1956,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const supersededNotifyText = `⏭️ Superseded`;
+              const rawEventForSuperseded =
+                (taskData.raw_event as Record<string, unknown> | null) ?? {};
+              const supersededNotifyBlocks =
+                (archetype.role_name as string) === 'guest-messaging'
+                  ? buildCompactNotifyBlocks({
+                      status: 'superseded',
+                      guestName: metadata['guest_name'] as string | undefined,
+                      propertyName: metadata['property_name'] as string | undefined,
+                      threadUid: rawEventForSuperseded['thread_uid'] as string | undefined,
+                      leadUid: rawEventForSuperseded['lead_uid'] as string | undefined,
+                      taskId,
+                    })
+                  : buildNotifyStateBlocks({
+                      emoji: '⏭️',
+                      text: 'Superseded — newer message received',
+                      taskId,
+                    });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,
                 supersededNotifyText,
-                buildNotifyStateBlocks({
-                  emoji: '⏭️',
-                  text: 'Superseded — newer message received',
-                  taskId,
-                }),
+                supersededNotifyBlocks,
               );
             } catch (err) {
               log.warn(
@@ -2042,21 +2120,34 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             try {
               const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
               const terminalRecipientName = metadata['guest_name'] as string | undefined;
-              const notifyRejectBlocks = terminalRecipientName
-                ? buildEnrichedTerminalBlocks({
-                    status: 'rejected',
-                    actorUserId,
-                    guestName: terminalRecipientName,
-                    propertyName: metadata['property_name'] as string | undefined,
-                    threadUid: metadata['thread_uid'] as string | undefined,
-                    leadUid: metadata['lead_uid'] as string | undefined,
-                    taskId,
-                  })
-                : buildNotifyStateBlocks({
-                    emoji: '❌',
-                    text: `Rejected by <@${actorUserId}>`,
-                    taskId,
-                  });
+              const rawEventForReject =
+                (taskData.raw_event as Record<string, unknown> | null) ?? {};
+              const notifyRejectBlocks =
+                (archetype.role_name as string) === 'guest-messaging'
+                  ? buildCompactNotifyBlocks({
+                      status: 'rejected',
+                      guestName: terminalRecipientName,
+                      propertyName: metadata['property_name'] as string | undefined,
+                      actorUserId,
+                      threadUid: rawEventForReject['thread_uid'] as string | undefined,
+                      leadUid: rawEventForReject['lead_uid'] as string | undefined,
+                      taskId,
+                    })
+                  : terminalRecipientName
+                    ? buildEnrichedTerminalBlocks({
+                        status: 'rejected',
+                        actorUserId,
+                        guestName: terminalRecipientName,
+                        propertyName: metadata['property_name'] as string | undefined,
+                        threadUid: metadata['thread_uid'] as string | undefined,
+                        leadUid: metadata['lead_uid'] as string | undefined,
+                        taskId,
+                      })
+                    : buildNotifyStateBlocks({
+                        emoji: '❌',
+                        text: `Rejected by <@${actorUserId}>`,
+                        taskId,
+                      });
               await slackClient.updateMessage(
                 notifyMsgRef.channel,
                 notifyMsgRef.ts,

@@ -360,9 +360,8 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
       { channel: string; text: string; blocks: unknown[] },
     ];
     const blocksStr = JSON.stringify(firstCall[0].blocks);
+    // Compact notify blocks include guest name but not check-in/check-out dates
     expect(blocksStr).toContain('Jane Smith');
-    expect(blocksStr).toContain('May 15');
-    expect(blocksStr).toContain('May 18');
   });
 
   it('Test 2: non-guest-messaging task uses generic "Task received" blocks and skips enrichment', async () => {
@@ -485,12 +484,12 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
     // postMessage was still called (task proceeds)
     expect(mockPostMessage).toHaveBeenCalled();
 
-    // blocks contain "Guest" as the fallback name
+    // Compact blocks are produced even with null enrichment (no 'Guest' fallback in compact format)
     const firstCall = mockPostMessage.mock.calls[0] as [
       { channel: string; text: string; blocks: unknown[] },
     ];
-    const blocksStr = JSON.stringify(firstCall[0].blocks);
-    expect(blocksStr).toContain('Guest');
+    expect(Array.isArray(firstCall[0].blocks)).toBe(true);
+    expect(firstCall[0].blocks.length).toBeGreaterThan(0);
   });
 
   it('Test 4: override card and no-action thread reply both use notify message thread_ts', async () => {
