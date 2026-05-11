@@ -222,7 +222,9 @@ describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integrat
     };
 
     expect(machineConfig.env).toHaveProperty('FEEDBACK_CONTEXT');
-    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain('Recent specific feedback:');
+    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(
+      'All unconsolidated feedback (newest first):',
+    );
     expect(machineConfig.env.FEEDBACK_CONTEXT).toContain('[rejection_reason]');
     expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(rejectionText);
   });

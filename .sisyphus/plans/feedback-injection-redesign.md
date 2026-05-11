@@ -470,7 +470,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 5. Rewrite feedback-summarizer.ts — threshold-triggered batch consolidation
+- [x] 5. Rewrite feedback-summarizer.ts — threshold-triggered batch consolidation
 
   **What to do**:
   - Replace the weekly cron trigger (`0 0 * * 0`) in `feedback-summarizer.ts` with a more frequent schedule (e.g., every 6 hours: `0 */6 * * *`) — the cron checks the threshold condition and exits early if not met
@@ -554,7 +554,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/triggers/feedback-summarizer.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 6. Add batch confirmation Slack handler
+- [x] 6. Add batch confirmation Slack handler
 
   **What to do**:
   - In `src/gateway/slack/handlers.ts`, add a new action handler for `batch_rules_confirm` (the action_id from Task 5's batch Slack card)
