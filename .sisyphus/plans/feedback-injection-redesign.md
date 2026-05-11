@@ -755,7 +755,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `tests/inngest/feedback-consolidation.test.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 9. Update AGENTS.md feedback pipeline docs
+- [x] 9. Update AGENTS.md feedback pipeline docs
 
   **What to do**:
   - Update the "Feedback Pipeline" section in `AGENTS.md` to reflect the new architecture:
