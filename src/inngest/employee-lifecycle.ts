@@ -14,7 +14,6 @@ import { checkLastMessageSender } from '../lib/hostfully-precheck.js';
 import { fetchLeadEnrichment } from '../lib/hostfully-enrichment.js';
 import {
   buildSupersededBlocks,
-  buildEnrichedNotifyBlocks,
   buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
@@ -221,7 +220,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if ((archetype.role_name as string) === 'guest-messaging') {
             const rawEventForEnrich = (taskData.raw_event as Record<string, string> | null) ?? {};
             const leadUidForEnrich = rawEventForEnrich['lead_uid'] ?? '';
-            const messageContent = rawEventForEnrich['message_content'] ?? '';
             const apiKey = tenantEnvForNotify['HOSTFULLY_API_KEY'] ?? '';
             if (leadUidForEnrich && apiKey) {
               enrichment = await fetchLeadEnrichment(leadUidForEnrich, apiKey);
