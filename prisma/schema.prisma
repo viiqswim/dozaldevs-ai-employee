@@ -149,9 +149,10 @@ model Feedback {
   corrected_decision Json?
   correction_reason  String?
   created_by         String?
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
-  tenant_id          String   @db.Uuid
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  consolidated_at    DateTime? @db.Timestamptz(6)
+  tenant_id          String    @db.Uuid
 
   // Relations
   tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
