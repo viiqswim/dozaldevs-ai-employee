@@ -65,9 +65,12 @@ function makeFetchMock({
     if (url.includes('/rest/v1/archetypes') && method === 'GET') {
       return { json: () => Promise.resolve(archetypes) };
     }
-    // Feedback GET — return empty to short-circuit the summarize-feedback step
+    // Feedback GET — return empty with content-range header to short-circuit the summarize-feedback step
     if (url.includes('/rest/v1/feedback') && method === 'GET') {
-      return { json: () => Promise.resolve([]) };
+      return {
+        json: () => Promise.resolve([]),
+        headers: { get: (name: string) => (name === 'content-range' ? '0-0/0' : null) },
+      };
     }
     // Learned rules GET (confirmed rules query for synthesis)
     if (url.includes('/rest/v1/learned_rules') && method === 'GET') {
