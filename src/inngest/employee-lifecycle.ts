@@ -1269,6 +1269,35 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
         }
 
+        // Delete nudge broadcast for superseded task (non-fatal)
+        try {
+          const oldNudgeFetchRes = await fetch(
+            `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
+            { headers },
+          );
+          const oldNudgeFetchRows = (await oldNudgeFetchRes.json()) as Array<{
+            metadata: Record<string, unknown> | null;
+          }>;
+          const oldNudgeMeta = (oldNudgeFetchRows[0]?.metadata as Record<string, unknown>) ?? {};
+          const supersededNudgeTs = oldNudgeMeta.nudge_ts as string | undefined;
+          const supersededNudgeChannel = oldNudgeMeta.nudge_channel as string | undefined;
+          if (supersededNudgeTs && supersededNudgeChannel) {
+            const prismaForNudgeDel = new PrismaClient();
+            const tenantEnvForNudgeDel = await loadTenantEnv(tenantId, {
+              tenantRepo: new TenantRepository(prismaForNudgeDel),
+              secretRepo: new TenantSecretRepository(prismaForNudgeDel),
+            });
+            await prismaForNudgeDel.$disconnect();
+            const nudgeDelBotToken = tenantEnvForNudgeDel.SLACK_BOT_TOKEN ?? '';
+            const { WebClient } = await import('@slack/web-api');
+            const web = new WebClient(nudgeDelBotToken);
+            await web.chat.delete({ channel: supersededNudgeChannel, ts: supersededNudgeTs });
+            log.info({ taskId, supersededNudgeTs }, 'Superseded nudge broadcast deleted');
+          }
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to delete superseded nudge broadcast (non-fatal)');
+        }
+
         // Fire superseded event to unblock old lifecycle's waitForEvent
         await inngest.send({
           name: 'employee/approval.received',
@@ -1487,6 +1516,19 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           tenantEnvForApproval['NOTIFICATION_CHANNEL'] ??
           tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
           '';
+        // Delete nudge broadcast if it exists (non-fatal)
+        const nudgeTs = metadata.nudge_ts as string | undefined;
+        const nudgeChannel = metadata.nudge_channel as string | undefined;
+        if (nudgeTs && nudgeChannel) {
+          try {
+            const { WebClient } = await import('@slack/web-api');
+            const web = new WebClient(botToken);
+            await web.chat.delete({ channel: nudgeChannel, ts: nudgeTs });
+            log.info({ taskId, nudgeTs }, 'Nudge broadcast deleted');
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to delete nudge broadcast (non-fatal)');
+          }
+        }
         if (!approvalEvent) {
           const expiryEnrichment = notifyMsgRef?.enrichment as
             | { guestName?: string; propertyName?: string; threadUid?: string; leadUid?: string }
