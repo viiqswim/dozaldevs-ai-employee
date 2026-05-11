@@ -28,3 +28,24 @@ const threadUidFromMetadata = !threadUidFromParsed && typeof deliverableMetadata
   ? deliverableMetadata['thread_uid'] : '';
 const threadUid = threadUidFromParsed || threadUidFromMetadata;
 ```
+# Learnings — fix-threaduid-delivery-bug
+
+## Task 1: add threadUid to get-messages output, rename reservationId → leadUid
+
+### Pattern: threadUid from env var, not API response
+- Hostfully GET /messages API does NOT return threadUid per message
+- THREAD_UID is injected as env var by the lifecycle from `tasks.raw_event.thread_uid`
+- Webhook schema requires thread_uid (z.string().min(1)), so always present for webhook-triggered tasks
+- Mock fixture uses hardcoded threadUid = "2f18249a-9523-4acd-a512-20ff06d5c3fa" (known test UUID)
+- Live path uses `process.env['THREAD_UID'] ?? ''`
+
+### Two call sites for threads.push()
+- Single-lead path (--lead-id, ~line 268) and multi-lead path (~line 372) must be kept identical
+- Both updated: reservationId → leadUid, added threadUid from env var
+
+### Mock fixture outputs directly (no env var substitution)
+- HOSTFULLY_MOCK=true path reads fixture JSON and outputs it verbatim
+- THREAD_UID env var does NOT affect mock output — fixture must have hardcoded threadUid
+
+### Build: pnpm build exits 0 after changes
+### No stale reservationId refs in src/worker-tools/hostfully/ (grep exit 1 = no matches)

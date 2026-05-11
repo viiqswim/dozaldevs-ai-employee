@@ -64,7 +64,8 @@ type MessageSummary = {
 };
 
 type ThreadSummary = {
-  reservationId: string;
+  leadUid: string;
+  threadUid: string;
   propertyUid: string | null;
   guestName: string | null;
   channel: string | null;
@@ -149,7 +150,8 @@ async function main(): Promise<void> {
         '  --help                 Show this help message\n\n' +
         'Output: JSON array of conversation threads. Each thread:\n' +
         '  {\n' +
-        '    "reservationId": "uuid",        \u2014 the lead/reservation ID\n' +
+        '    "leadUid": "uuid",              \u2014 the lead/reservation ID\n' +
+        '    "threadUid": "uuid",            \u2014 the Hostfully thread UID (from THREAD_UID env var)\n' +
         '    "propertyUid": "uuid",          \u2014 the property UID (use with get-property.ts)\n' +
         '    "guestName": "John Doe",        \u2014 guest\'s full name (or null)\n' +
         '    "channel": "AIRBNB",            \u2014 booking channel\n' +
@@ -266,7 +268,8 @@ async function main(): Promise<void> {
         );
       }
       threads.push({
-        reservationId: lead.uid,
+        leadUid: lead.uid,
+        threadUid: process.env['THREAD_UID'] ?? '',
         propertyUid: resolvedPropertyUid,
         guestName: formatGuestName(lead.guestInformation),
         channel: lead.channel ?? null,
@@ -370,7 +373,8 @@ async function main(): Promise<void> {
       );
     }
     threads.push({
-      reservationId: lead.uid,
+      leadUid: lead.uid,
+      threadUid: process.env['THREAD_UID'] ?? '',
       propertyUid: resolvedPropertyUid,
       guestName: formatGuestName(lead.guestInformation),
       channel: lead.channel ?? null,
