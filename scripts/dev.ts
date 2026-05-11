@@ -150,7 +150,7 @@ async function cleanup(): Promise<void> {
 
   for (const child of children) {
     try {
-      child.kill('SIGTERM');
+      if (child.pid) process.kill(-child.pid, 'SIGTERM');
     } catch {
       /* ignore */
     }
@@ -523,7 +523,7 @@ const inngestProc = spawn(
     '--port',
     '8288',
   ],
-  { stdio: 'pipe', detached: false },
+  { stdio: 'pipe', detached: true },
 );
 children.push(inngestProc);
 
@@ -561,7 +561,7 @@ const gatewayProc = spawn(
   ['tsx', 'watch', '--clear-screen=false', 'src/gateway/server.ts'],
   {
     stdio: 'pipe',
-    detached: false,
+    detached: true,
     env: gatewayEnv,
   },
 );
