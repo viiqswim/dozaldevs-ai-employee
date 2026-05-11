@@ -241,28 +241,40 @@ describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integrat
       run: vi.fn().mockImplementation((_name: string, fn: () => unknown) => fn()),
     };
 
+    const feedbackItem = {
+      id: 'fb-rejection-1',
+      correction_reason: rejectionText,
+      feedback_type: 'rejection_reason',
+      created_at: new Date().toISOString(),
+      task_id: null,
+    };
+
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if ((url as string).includes('archetypes')) {
-        return Promise.resolve({
-          json: () => Promise.resolve([{ id: 'arch-1', role_name: 'Test Employee' }]),
-        });
-      }
-      if ((url as string).includes('/rest/v1/feedback')) {
         return Promise.resolve({
           json: () =>
             Promise.resolve([
               {
-                id: 'fb-rejection-1',
-                correction_reason: rejectionText,
-                feedback_type: 'rejection_reason',
-                created_at: new Date().toISOString(),
-                task_id: null,
+                id: 'arch-1',
+                role_name: 'Test Employee',
+                tenant_id: 'tenant-1',
+                notification_channel: null,
               },
             ]),
         });
       }
+      if ((url as string).includes('/rest/v1/feedback')) {
+        return Promise.resolve({
+          ok: true,
+          headers: { get: (name: string) => (name === 'content-range' ? '0-9/10' : null) },
+          json: () => Promise.resolve([feedbackItem]),
+        });
+      }
       if ((url as string).includes('knowledge_bases')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
+      if ((url as string).includes('learned_rules')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
       return Promise.resolve({ json: () => Promise.resolve([]) });
     });
