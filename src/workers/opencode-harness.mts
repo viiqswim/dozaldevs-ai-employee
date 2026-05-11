@@ -438,8 +438,30 @@ async function main(): Promise<void> {
       let usedPreParse = false;
       try {
         const parsed = JSON.parse(deliverableContent) as Record<string, unknown>;
-        const leadUid = typeof parsed['leadUid'] === 'string' ? parsed['leadUid'] : '';
-        const threadUid = typeof parsed['threadUid'] === 'string' ? parsed['threadUid'] : '';
+        const leadUid =
+          typeof parsed['leadUid'] === 'string'
+            ? parsed['leadUid']
+            : typeof parsed['lead_uid'] === 'string'
+              ? parsed['lead_uid']
+              : '';
+        const deliverableMetadata = (deliverable.metadata ?? {}) as Record<string, unknown>;
+        const threadUidFromParsed =
+          typeof parsed['threadUid'] === 'string'
+            ? parsed['threadUid']
+            : typeof parsed['thread_uid'] === 'string'
+              ? parsed['thread_uid']
+              : '';
+        const threadUidFromMetadata =
+          !threadUidFromParsed && typeof deliverableMetadata['thread_uid'] === 'string'
+            ? deliverableMetadata['thread_uid']
+            : '';
+        if (threadUidFromMetadata) {
+          log.info(
+            { taskId: TASK_ID, source: 'metadata-fallback' },
+            '[opencode-harness] threadUid sourced from deliverable metadata',
+          );
+        }
+        const threadUid = threadUidFromParsed || threadUidFromMetadata;
         const draftResponse =
           typeof parsed['draftResponse'] === 'string' ? parsed['draftResponse'] : '';
         // Safety: leadUid must be non-empty and MUST NOT be the task ID
