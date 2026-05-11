@@ -632,7 +632,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/gateway/slack/handlers.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 7. Vitest tests for injection logic
+- [x] 7. Vitest tests for injection logic
 
   **What to do**:
   - Create `tests/inngest/feedback-injection.test.ts` with tests covering the new injection logic from Task 4
@@ -695,7 +695,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `tests/inngest/feedback-injection.test.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 8. Vitest tests for consolidation logic
+- [x] 8. Vitest tests for consolidation logic
 
   **What to do**:
   - Create `tests/inngest/feedback-consolidation.test.ts` with tests covering the new consolidation logic from Tasks 5 and 6
