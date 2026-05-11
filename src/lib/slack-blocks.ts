@@ -304,6 +304,90 @@ export function buildEnrichedTerminalBlocks(params: {
   return blocks;
 }
 
+export function buildCompactNotifyBlocks(params: {
+  status:
+    | 'processing'
+    | 'reviewing'
+    | 'done'
+    | 'rejected'
+    | 'failed'
+    | 'expired'
+    | 'delivery_failed'
+    | 'no_action'
+    | 'superseded';
+  guestName?: string;
+  propertyName?: string;
+  actorUserId?: string;
+  threadUid?: string;
+  leadUid?: string;
+  taskId: string;
+}): unknown[] {
+  const { status, guestName, propertyName, actorUserId, threadUid, leadUid, taskId } = params;
+
+  const identity = [guestName, propertyName].filter(Boolean).join(' · ');
+  const linkText =
+    threadUid && leadUid ? ` <${buildHostfullyLink(threadUid, leadUid)}|🔗 View>` : '';
+  const actorMention = actorUserId ? `<@${actorUserId}>` : 'Unknown';
+
+  let statusText: string;
+  switch (status) {
+    case 'processing':
+      statusText = `Processing${linkText}`;
+      break;
+    case 'reviewing':
+      statusText = `Awaiting approval${linkText}`;
+      break;
+    case 'done':
+      statusText = `Reply sent · ${actorMention}${linkText}`;
+      break;
+    case 'rejected':
+      statusText = `Rejected · ${actorMention}${linkText}`;
+      break;
+    case 'failed':
+      statusText = `Failed${linkText}`;
+      break;
+    case 'expired':
+      statusText = `Expired${linkText}`;
+      break;
+    case 'delivery_failed':
+      statusText = `Delivery failed${linkText}`;
+      break;
+    case 'no_action':
+      statusText = `No action needed${linkText}`;
+      break;
+    case 'superseded':
+      statusText = `Superseded${linkText}`;
+      break;
+  }
+
+  let emoji: string;
+  switch (status) {
+    case 'processing':
+    case 'reviewing':
+      emoji = '⏳';
+      break;
+    case 'done':
+    case 'no_action':
+      emoji = '✅';
+      break;
+    case 'expired':
+      emoji = '⏰';
+      break;
+    case 'superseded':
+      emoji = '⏭️';
+      break;
+    default:
+      emoji = '❌';
+  }
+
+  const mainText = identity ? `*${emoji} ${identity} — ${statusText}*` : `*${emoji} ${statusText}*`;
+
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: mainText } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+  ];
+}
+
 export function buildContextThreadBlocks(params: {
   action: 'approve' | 'edit' | 'reject';
   actorUserId?: string;
