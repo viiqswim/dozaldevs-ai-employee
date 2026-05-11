@@ -31,6 +31,8 @@ import {
 const log = createLogger('employee-lifecycle');
 
 export const MAX_LEARNED_RULES_CHARS = 8000;
+export const CONSOLIDATION_THRESHOLD = 5;
+export const MAX_FEEDBACK_CONTEXT_CHARS = 32000;
 
 async function patchTask(
   supabaseUrl: string,
@@ -503,15 +505,14 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         let feedbackContext = '';
         try {
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           const kbRes = await fetch(
-            `${supabaseUrl}/rest/v1/knowledge_bases?archetype_id=eq.${archetypeId}&created_at=gte.${thirtyDaysAgo}&select=source_config&order=created_at.desc&limit=3`,
+            `${supabaseUrl}/rest/v1/knowledge_bases?archetype_id=eq.${archetypeId}&select=source_config&order=created_at.desc`,
             { headers },
           );
           const kbRows = (await kbRes.json()) as Array<{ source_config: unknown }>;
 
           const fbRes = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${tenantId}&created_at=gte.${thirtyDaysAgo}&select=correction_reason,feedback_type,created_at&order=created_at.desc&limit=10`,
+            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${tenantId}&consolidated_at=is.null&select=correction_reason,feedback_type,created_at&order=created_at.desc`,
             { headers },
           );
           const fbRows = (await fbRes.json()) as Array<{
@@ -523,20 +524,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const parts: string[] = [];
 
           if (kbRows.length > 0) {
-            const themes = kbRows
-              .flatMap((kb) => {
-                const cfg = kb.source_config as {
-                  themes?: Array<{
-                    theme: string;
-                    representative_quote: string;
-                    frequency: number;
-                  }>;
-                } | null;
-                return cfg?.themes ?? [];
-              })
-              .slice(0, 5);
+            const themes = kbRows.flatMap((kb) => {
+              const cfg = kb.source_config as {
+                themes?: Array<{
+                  theme: string;
+                  representative_quote: string;
+                  frequency: number;
+                }>;
+              } | null;
+              return cfg?.themes ?? [];
+            });
             if (themes.length > 0) {
-              parts.push('Your recent feedback themes (last 30 days):');
+              parts.push('Your feedback themes (consolidated knowledge):');
               for (const t of themes) {
                 parts.push(
                   `- ${t.theme}: "${t.representative_quote}" (${t.frequency} occurrences)`,
@@ -546,10 +545,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
 
           if (fbRows.length > 0) {
-            const recent = fbRows.filter((f) => f.correction_reason).slice(0, 5);
-            if (recent.length > 0) {
-              parts.push('Recent specific feedback:');
-              for (const f of recent) {
+            const withReason = fbRows.filter((f) => f.correction_reason);
+            if (withReason.length > 0) {
+              parts.push('All unconsolidated feedback (newest first):');
+              for (const f of withReason) {
                 const date = new Date(f.created_at).toLocaleDateString();
                 parts.push(`- [${f.feedback_type}] "${f.correction_reason}" (${date})`);
               }
@@ -557,6 +556,28 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
 
           feedbackContext = parts.join('\n');
+
+          if (feedbackContext.length > MAX_FEEDBACK_CONTEXT_CHARS) {
+            log.warn(
+              {
+                taskId,
+                contextLen: feedbackContext.length,
+                maxLen: MAX_FEEDBACK_CONTEXT_CHARS,
+              },
+              'Feedback context truncated — consolidation needed',
+            );
+            feedbackContext = feedbackContext.slice(0, MAX_FEEDBACK_CONTEXT_CHARS);
+          }
+
+          log.info(
+            {
+              taskId,
+              feedbackItems: fbRows.filter((f) => f.correction_reason).length,
+              kbThemes: kbRows.length,
+              feedbackContextLen: feedbackContext.length,
+            },
+            'Feedback context assembled',
+          );
         } catch (err) {
           log.warn({ taskId, err }, 'Failed to load feedback context — proceeding without it');
         }

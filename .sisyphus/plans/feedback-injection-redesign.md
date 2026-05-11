@@ -382,7 +382,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 4. Rewrite feedback injection logic in employee-lifecycle.ts
+- [x] 4. Rewrite feedback injection logic in employee-lifecycle.ts
 
   **What to do**:
   - Replace the current feedback injection logic at lines 502-557 of `employee-lifecycle.ts`
