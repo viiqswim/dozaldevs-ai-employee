@@ -315,7 +315,7 @@ async function main() {
     'STEP 5: Write output files and post for approval.\n' +
     'Write the full enriched classification JSON to /tmp/summary.txt. The JSON MUST include ALL of these fields:\n' +
     '- classification, confidence, reasoning, draftResponse, summary, category, conversationSummary, urgency (original 8 fields)\n' +
-    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (CRITICAL: extract from the leadUid field in the message objects returned by get-messages.ts in Step 1 — this is the Hostfully reservation UID, e.g. looks like 37f5f58f-d308-42bf-8ed3-f0c2d70f16fb. Do NOT use the $TASK_ID environment variable as leadUid — they are different identifiers), threadUid (from the threadUid field in Step 1 output), messageUid (from the uid field of the specific message)\n' +
+    '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (CRITICAL: extract from the leadUid field in each thread object returned by get-messages.ts in Step 1 — this is the Hostfully reservation UID, e.g. looks like 37f5f58f-d308-42bf-8ed3-f0c2d70f16fb. Do NOT use the $TASK_ID environment variable as leadUid — they are different identifiers), threadUid (from the threadUid field in Step 1 output), messageUid (from the uid field of the specific message)\n' +
     '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
     'Post the rich approval card for PM review. Run this command EXACTLY ONCE — do NOT run it twice:\n' +
