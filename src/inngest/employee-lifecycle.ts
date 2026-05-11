@@ -1383,6 +1383,72 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           urgency: delivMeta.urgency as boolean | undefined,
         });
         log.info({ taskId, threadUidForTracking }, 'Pending approval tracked');
+
+        if (
+          (archetype.role_name as string) === 'guest-messaging' &&
+          notifyMsgRef?.ts &&
+          notifyMsgRef?.channel
+        ) {
+          try {
+            const prismaForNudge = new PrismaClient();
+            const tenantEnvForNudge = await loadTenantEnv(
+              tenantId,
+              {
+                tenantRepo: new TenantRepository(prismaForNudge),
+                secretRepo: new TenantSecretRepository(prismaForNudge),
+              },
+              (archetype.notification_channel as string | null) ?? null,
+            );
+            await prismaForNudge.$disconnect();
+            const botTokenForNudge = tenantEnvForNudge['SLACK_BOT_TOKEN'] ?? '';
+            if (botTokenForNudge) {
+              const rawEventForNudge = (taskData.raw_event as Record<string, unknown> | null) ?? {};
+              const nudgeGuestName = delivMeta.guest_name as string | undefined;
+              const nudgePropertyName = delivMeta.property_name as string | undefined;
+              const nudgeText = nudgeGuestName
+                ? `⏳ ${nudgeGuestName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''} — Needs your review`
+                : '⏳ Needs your review';
+
+              const { WebClient } = await import('@slack/web-api');
+              const web = new WebClient(botTokenForNudge);
+              const nudgeResult = await web.chat.postMessage({
+                channel: notifyMsgRef.channel,
+                text: nudgeText,
+                blocks: buildCompactNotifyBlocks({
+                  status: 'reviewing',
+                  guestName: nudgeGuestName,
+                  propertyName: nudgePropertyName,
+                  threadUid: rawEventForNudge['thread_uid'] as string | undefined,
+                  leadUid: rawEventForNudge['lead_uid'] as string | undefined,
+                  taskId,
+                }) as import('@slack/web-api').Block[],
+                thread_ts: notifyMsgRef.ts,
+                reply_broadcast: true,
+              });
+
+              if (nudgeResult.ts) {
+                const updatedMeta = {
+                  ...delivMeta,
+                  nudge_ts: nudgeResult.ts,
+                  nudge_channel: notifyMsgRef.channel,
+                };
+                await fetch(`${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}`, {
+                  method: 'PATCH',
+                  headers: {
+                    apikey: supabaseKey,
+                    Authorization: `Bearer ${supabaseKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=minimal',
+                  },
+                  body: JSON.stringify({ metadata: updatedMeta }),
+                });
+                log.info({ taskId, nudgeTs: nudgeResult.ts }, 'Nudge broadcast posted');
+              }
+            }
+          } catch (err) {
+            log.warn({ taskId, err }, 'Failed to post nudge broadcast (non-fatal)');
+          }
+        }
       });
 
       const approvalEvent = await step.waitForEvent('wait-for-approval', {
