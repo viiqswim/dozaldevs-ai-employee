@@ -216,7 +216,7 @@ describe('get-messages --lead-id flag', () => {
     expect(code).toBe(0);
     const data = JSON.parse(stdout) as Record<string, unknown>[];
     expect(data).toHaveLength(1);
-    expect(data[0]).toHaveProperty('reservationId', 'lead-abc');
+    expect(data[0]).toHaveProperty('leadUid', 'lead-abc');
   });
 
   it('output shape has all required ThreadSummary fields', async () => {
@@ -227,7 +227,7 @@ describe('get-messages --lead-id flag', () => {
     expect(code).toBe(0);
     const data = JSON.parse(stdout) as Record<string, unknown>[];
     const thread = data[0];
-    expect(thread).toHaveProperty('reservationId', 'lead-abc');
+    expect(thread).toHaveProperty('leadUid', 'lead-abc');
     expect(thread).toHaveProperty('propertyUid', 'prop-1');
     expect(thread).toHaveProperty('guestName', 'Maria Garcia');
     expect(thread).toHaveProperty('channel', 'AIRBNB');
@@ -273,9 +273,9 @@ describe('get-messages --lead-id flag', () => {
       HOSTFULLY_API_URL: `http://localhost:${port}`,
     });
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { reservationId: string }[];
+    const data = JSON.parse(stdout) as { leadUid: string }[];
     expect(data).toHaveLength(1);
-    expect(data[0].reservationId).toBe('lead-abc');
+    expect(data[0].leadUid).toBe('lead-abc');
   });
 
   it('--unresponded-only with --lead-id returns empty array when last message is from host', async () => {

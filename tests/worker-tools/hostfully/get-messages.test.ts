@@ -292,8 +292,8 @@ describe('get-messages shell tool', () => {
       HOSTFULLY_API_URL: `http://localhost:${port}`,
     });
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { reservationId: string }[];
-    const ids = data.map((t) => t.reservationId);
+    const data = JSON.parse(stdout) as { leadUid: string }[];
+    const ids = data.map((t) => t.leadUid);
     expect(ids).toContain('lead-1');
     expect(ids).toContain('lead-2');
     expect(ids).not.toContain('lead-3');
@@ -305,8 +305,8 @@ describe('get-messages shell tool', () => {
       { HOSTFULLY_API_KEY: 'testkey', HOSTFULLY_API_URL: `http://localhost:${port}` },
     );
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { reservationId: string; unresponded: boolean }[];
-    const ids = data.map((t) => t.reservationId);
+    const data = JSON.parse(stdout) as { leadUid: string; unresponded: boolean }[];
+    const ids = data.map((t) => t.leadUid);
     expect(ids).toContain('lead-1');
     expect(ids).not.toContain('lead-2');
     expect(data.every((t) => t.unresponded)).toBe(true);
@@ -340,10 +340,10 @@ describe('get-messages shell tool', () => {
     });
     expect(code).toBe(0);
     const data = JSON.parse(stdout) as {
-      reservationId: string;
+      leadUid: string;
       messages: { timestamp: string }[];
     }[];
-    const thread1 = data.find((t) => t.reservationId === 'lead-1');
+    const thread1 = data.find((t) => t.leadUid === 'lead-1');
     expect(thread1).toBeDefined();
     expect(thread1!.messages[0].timestamp).toBe('2026-04-20T10:00:00Z');
     expect(thread1!.messages[1].timestamp).toBe('2026-04-20T10:30:00Z');
@@ -366,8 +366,8 @@ describe('get-messages shell tool', () => {
       HOSTFULLY_API_URL: `http://localhost:${port}`,
     });
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { reservationId: string }[];
-    const ids = data.map((t) => t.reservationId);
+    const data = JSON.parse(stdout) as { leadUid: string }[];
+    const ids = data.map((t) => t.leadUid);
     expect(ids).not.toContain('zero-lead');
     expect(data).toHaveLength(0);
   });
@@ -414,9 +414,9 @@ describe('get-messages shell tool', () => {
     });
     expect(code).toBe(0);
     const data = JSON.parse(stdout) as Record<string, unknown>[];
-    const thread1 = data.find((t) => t['reservationId'] === 'lead-1');
+    const thread1 = data.find((t) => t['leadUid'] === 'lead-1');
     expect(thread1).toBeDefined();
-    expect(thread1).toHaveProperty('reservationId', 'lead-1');
+    expect(thread1).toHaveProperty('leadUid', 'lead-1');
     expect(thread1).toHaveProperty('propertyUid', 'VALID_PROPERTY');
     expect(thread1).toHaveProperty('guestName', 'John Doe');
     expect(thread1).toHaveProperty('channel', 'AIRBNB');
@@ -437,8 +437,8 @@ describe('get-messages shell tool', () => {
       HOSTFULLY_API_URL: `http://localhost:${port}`,
     });
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { reservationId: string; messages: { sender: string }[] }[];
-    const thread1 = data.find((t) => t.reservationId === 'lead-1');
+    const data = JSON.parse(stdout) as { leadUid: string; messages: { sender: string }[] }[];
+    const thread1 = data.find((t) => t.leadUid === 'lead-1');
     expect(thread1).toBeDefined();
     const hostMsg = thread1!.messages.find((m) => m.sender === 'host');
     expect(hostMsg).toBeDefined();
