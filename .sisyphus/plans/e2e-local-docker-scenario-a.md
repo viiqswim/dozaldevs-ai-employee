@@ -42,10 +42,10 @@ Verify the guest-messaging employee works end-to-end with local Docker dispatch 
 
 ### Definition of Done
 
-- [ ] Docker image rebuilt with latest worker code
-- [ ] Gateway running with `USE_LOCAL_DOCKER=1`
-- [ ] Full Scenario A completed: Airbnb message → approval card → approve → reply delivered
-- [ ] `task_status_log` shows complete state machine trace ending in `Done`
+- [x] Docker image rebuilt with latest worker code
+- [x] Gateway running with `USE_LOCAL_DOCKER=1`
+- [x] Full Scenario A completed: Airbnb message → approval card → approve → reply delivered
+- [x] `task_status_log` shows complete state machine trace ending in `Done`
 
 ### Must Have
 
@@ -147,12 +147,12 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - **Blocked By**: None
 
   **Acceptance Criteria**:
-  - [ ] Docker daemon running
-  - [ ] Inngest healthy at :8288
-  - [ ] PostgREST healthy at :54331
-  - [ ] No zombie tasks in Executing/Reviewing (or cleaned up)
-  - [ ] VLRE tenant_integrations row exists for Slack
-  - [ ] VLRE tenant_secrets has slack_bot_token
+  - [x] Docker daemon running
+  - [x] Inngest healthy at :8288
+  - [x] PostgREST healthy at :54331
+  - [x] No zombie tasks in Executing/Reviewing (or cleaned up)
+  - [x] VLRE tenant_integrations row exists for Slack
+  - [x] VLRE tenant_secrets has slack_bot_token
 
   **QA Scenarios**:
 
@@ -172,7 +172,7 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
 
   **Commit**: NO
 
-- [ ] 2. Docker image rebuild
+- [x] 2. Docker image rebuild
 
   **What to do**:
   - Build the Docker image with latest worker code:
@@ -212,8 +212,8 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - **Blocked By**: T1
 
   **Acceptance Criteria**:
-  - [ ] `docker build` exits with code 0
-  - [ ] `docker images ai-employee-worker:latest` shows timestamp within last 10 minutes
+  - [x] `docker build` exits with code 0
+  - [x] `docker images ai-employee-worker:latest` shows timestamp within last 10 minutes
 
   **QA Scenarios**:
 
@@ -289,10 +289,10 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - **Blocked By**: T2
 
   **Acceptance Criteria**:
-  - [ ] `curl -s http://localhost:7700/health` returns 200
-  - [ ] Gateway logs show `"Slack Bolt — Socket Mode connected"`
-  - [ ] Inngest at :8288 shows 5 registered functions
-  - [ ] Cloudflare tunnel log entries present (or named tunnel alive)
+  - [x] `curl -s http://localhost:7700/health` returns 200
+  - [x] Gateway logs show `"Slack Bolt — Socket Mode connected"`
+  - [x] Inngest at :8288 shows 5 registered functions
+  - [x] Cloudflare tunnel log entries present (or named tunnel alive)
 
   **QA Scenarios**:
 
@@ -355,10 +355,10 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - AGENTS.md § "Key behaviors to know" — Pre-check auto-completes behavior
 
   **Acceptance Criteria**:
-  - [ ] Airbnb message sent with unique epoch suffix (Playwright screenshot)
-  - [ ] Gateway log shows `POST /webhooks/hostfully 200` within 90s
-  - [ ] New task row exists in DB with status progressing past `Received`
-  - [ ] Task does NOT go to `Done` in <5s (pre-check guard passes)
+  - [x] Airbnb message sent with unique epoch suffix (Playwright screenshot)
+  - [x] Gateway log shows `POST /webhooks/hostfully 200` within 90s
+  - [x] New task row exists in DB with status progressing past `Received`
+  - [x] Task does NOT go to `Done` in <5s (pre-check guard passes)
 
   **QA Scenarios**:
 
@@ -440,12 +440,12 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - AGENTS.md § "Verified E2E flow" — Steps 7–9
 
   **Acceptance Criteria**:
-  - [ ] Docker container ran during `Executing` phase (docker ps evidence)
-  - [ ] Task reached `Reviewing` status in DB
-  - [ ] Approval card visible in Slack with guest name and task ID
-  - [ ] Approval card has all 3 action buttons
-  - [ ] After clicking Approve: card updates to approved message
-  - [ ] Gateway logs show `employee/approval.received` event processed
+  - [x] Docker container ran during `Executing` phase (docker ps evidence)
+  - [x] Task reached `Reviewing` status in DB
+  - [x] Approval card visible in Slack with guest name and task ID
+  - [x] Approval card has all 3 action buttons
+  - [x] After clicking Approve: card updates to approved message
+  - [x] Gateway logs show `employee/approval.received` event processed
 
   **QA Scenarios**:
 
@@ -530,11 +530,11 @@ Critical Path: T1 → T2 → T3 → T4 → T5 → T6
   - AGENTS.md § "Verified E2E flow" — Steps 10–12
 
   **Acceptance Criteria**:
-  - [ ] Task status = `Done` in DB
-  - [ ] `task_status_log` shows complete state machine sequence ending in `Done`
-  - [ ] Host reply visible in Airbnb thread (Playwright screenshot)
-  - [ ] Original "Task received" Slack message updated to Done (not frozen at ⏳)
-  - [ ] Evidence file written with summary
+  - [x] Task status = `Done` in DB
+  - [x] `task_status_log` shows complete state machine sequence ending in `Done`
+  - [x] Host reply visible in Airbnb thread (Playwright screenshot)
+  - [x] Original "Task received" Slack message updated to Done (not frozen at ⏳)
+  - [x] Evidence file written with summary
 
   **QA Scenarios**:
 
@@ -575,11 +575,11 @@ No commits in this plan — this is a verification-only run.
 
 ### Final Checklist
 
-- [ ] Docker image rebuilt with latest code
-- [ ] Gateway running with USE_LOCAL_DOCKER=1
-- [ ] Task dispatched to LOCAL Docker container (not Fly.io)
-- [ ] Approval card appeared in Slack with correct content
-- [ ] Approve button worked (or fallback curl used)
-- [ ] Reply delivered to Airbnb guest thread
-- [ ] Full state machine trace: Received → Done
-- [ ] All evidence screenshots saved to .sisyphus/evidence/e2e-scenario-a/
+- [x] Docker image rebuilt with latest code
+- [x] Gateway running with USE_LOCAL_DOCKER=1
+- [x] Task dispatched to LOCAL Docker container (not Fly.io)
+- [x] Approval card appeared in Slack with correct content
+- [x] Approve button worked (or fallback curl used)
+- [x] Reply delivered to Airbnb guest thread
+- [x] Full state machine trace: Received → Done
+- [x] All evidence screenshots saved to .sisyphus/evidence/e2e-scenario-a/
