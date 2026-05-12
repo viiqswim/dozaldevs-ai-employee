@@ -44,7 +44,6 @@ model Task {
   archetype         Archetype?         @relation(fields: [archetype_id], references: [id])
   project           Project?           @relation(fields: [project_id], references: [id])
   executions        Execution[]
-  feedback          Feedback[]
   statusLogs        TaskStatusLog[]
   clarifications    Clarification[]
   crossDeptTriggers CrossDeptTrigger[]
@@ -139,28 +138,6 @@ model Project {
 
   @@unique([jira_project_key, tenant_id])
   @@map("projects")
-}
-
-model Feedback {
-  id                 String   @id @default(uuid()) @db.Uuid
-  task_id            String?  @db.Uuid
-  agent_version_id   String?  @db.Uuid
-  feedback_type      String
-  original_decision  Json?
-  corrected_decision Json?
-  correction_reason  String?
-  created_by         String?
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-  consolidated_at    DateTime? @db.Timestamptz(6)
-  tenant_id          String    @db.Uuid
-
-  // Relations
-  tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
-  task         Task?         @relation(fields: [task_id], references: [id])
-  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
-
-  @@map("feedback")
 }
 
 model TaskStatusLog {
@@ -315,7 +292,6 @@ model AgentVersion {
   archetype        Archetype?  @relation("ArchetypeVersions", fields: [archetype_id], references: [id])
   activeArchetypes Archetype[] @relation("CurrentArchetypeVersion")
   executions       Execution[]
-  feedback         Feedback[]
   reviews          Review[]
   auditLogs        AuditLog[]
 
@@ -392,7 +368,6 @@ model Tenant {
   secrets        TenantSecret[]
   tasks          Task[]
   projects       Project[]
-  feedback       Feedback[]
   departments    Department[]
   archetypes     Archetype[]
   knowledgeBases        KnowledgeBase[]
@@ -400,7 +375,6 @@ model Tenant {
   integrations          TenantIntegration[]
   systemEvents   SystemEvent[]
   pendingApprovals      PendingApproval[]
-  learned_rules         LearnedRule[]
   propertyLocks         PropertyLock[]
   feedbackEvents        FeedbackEvent[]
   employeeRules         EmployeeRule[]
@@ -495,27 +469,6 @@ model PropertyLock {
 
   @@index([tenant_id, property_external_id])
   @@map("property_locks")
-}
-
-model LearnedRule {
-  id             String    @id @default(uuid()) @db.Uuid
-  tenant_id      String    @db.Uuid
-  entity_type    String?
-  entity_id      String?
-  scope          String
-  rule_text      String
-  source         String
-  status         String
-  source_task_id String?
-  slack_ts       String?
-  slack_channel  String?
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
-  confirmed_at   DateTime? @db.Timestamptz(6)
-
-  // Relations
-  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-
-  @@map("learned_rules")
 }
 
 // ============================================================
