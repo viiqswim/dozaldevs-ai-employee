@@ -144,7 +144,13 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
       let extractable = false;
       let ruleText: string | null = null;
       try {
-        const parsed = JSON.parse(llmResult.content) as { extractable: boolean; rule?: string };
+        // Strip markdown code fences if present (LLM sometimes wraps JSON in ```json...```)
+        const rawContent = llmResult.content.trim();
+        const jsonContent = rawContent
+          .replace(/^```(?:json)?\s*/i, '')
+          .replace(/\s*```\s*$/, '')
+          .trim();
+        const parsed = JSON.parse(jsonContent) as { extractable: boolean; rule?: string };
         extractable = parsed.extractable === true;
         ruleText = parsed.rule ?? null;
       } catch {
