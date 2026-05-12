@@ -1341,7 +1341,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 15. Create E2E test guide for redesigned feedback pipeline
+- [x] 15. Create E2E test guide for redesigned feedback pipeline
 
   **What to do**:
   Create a comprehensive E2E test guide document at `docs/YYYY-MM-DD-HHMM-feedback-pipeline-v2-e2e-test-guide.md` (run `date "+%Y-%m-%d-%H%M"` for the timestamp). This guide covers sequential scenarios that exercise the full redesigned feedback loop, similar in structure and depth to the original `docs/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md`.
@@ -1459,7 +1459,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 16. Full pipeline E2E verification
+- [x] 16. Full pipeline E2E verification
 
   **What to do**:
   Execute ALL scenarios from the E2E test guide created in Task 15 against the live local dev environment. Walk the full pipeline end-to-end, fixing any bugs found in-flight.

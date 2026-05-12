@@ -117,3 +117,37 @@ Import factory → call with inngest instance → add to functions array. Functi
 - Both local Docker env block and Fly.io machine env block updated identically
 - `CONSOLIDATION_THRESHOLD` and `SYNTHESIS_THRESHOLD` kept — still used by feedback-summarizer.ts and rule-synthesizer
 - `pnpm build` exits 0 with no errors
+
+## [2026-05-12] Task 16 — Full E2E Verification
+
+### Results Summary
+All 6 scenarios passed. No bugs found. Build clean.
+
+### Key findings
+
+**interaction-handler requires existing task_id**:
+- `resolveArchetypeFromTask(taskId)` queries the `tasks` table — task must exist in DB
+- Non-existent task ID logs "No archetype found for task — skipping" and exits silently
+
+**Intent classification is LLM-dependent**:
+- Instructional text like "Always mention X when Y" classifies as `task` (not `feedback`/`teaching`)
+- Use clearly evaluative feedback language ("your response was too brief") for reliable `feedback` classification
+- Text that starts with "Always" can be 'task' — not sufficient for Scenario C testing
+
+**rule.extract-requested with rejection_reason → awaiting_input**:
+- If the LLM returns `extractable: false` for any feedbackType, the fallback path creates `awaiting_input` rule
+- This happened with "The response needs to be more helpful and proactive. Always anticipate follow-up questions."
+- Ambiguous content can be non-extractable even with feedbackType='rejection_reason'
+
+**Dedup works via unique constraint**:
+- `employee_rules` unique constraint on `(source_task_id, source)` WHERE source != 'synthesis'
+- Second insert fails silently (no error thrown to caller) — Inngest step retries but constraint prevents duplicates
+
+**Synthesis fired directly**:
+- Can fire `employee/rule.synthesize-requested` without going through rule_confirm button
+- idempotency key `synthesis-${archetypeId}-${count}` prevents double-synthesis
+- Synthesis produced 2 merged rules + 1 contradiction flag for 5 confirmed rules
+
+**feedback_events table FK**:
+- `task_id` is nullable — can insert without a task ID
+- Cannot insert with a fake task_id that doesn't exist in `tasks` table (FK violation)
