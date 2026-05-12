@@ -6,7 +6,7 @@ This is a practical migration guide for moving the AI Employee Platform from ful
 
 This roadmap describes four independent migration phases. Each phase is self-contained: you can stop after any one of them and have a working system. The phases are ordered by dependency, not urgency. Do Phase A before Phase B, Phase B before Phase C, and Phase C before Phase D. But you don't have to do all four.
 
-For current architecture details, see [docs/architecture/2026-04-01-1726-system-overview.md](../architecture/2026-04-01-1726-system-overview.md).
+For current architecture details, see [docs/2026-04-01-1726-system-overview.md](./2026-04-01-1726-system-overview.md).
 
 ---
 
