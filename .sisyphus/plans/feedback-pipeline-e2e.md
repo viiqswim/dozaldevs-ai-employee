@@ -56,11 +56,11 @@ Verify the entire feedback pipeline works end-to-end by executing all 6 scenario
 
 ### Definition of Done
 
-- [ ] All 6 scenarios reach their expected final state
-- [ ] All DB checks from the guide produce expected results
-- [ ] Confirmed rules appear in `LEARNED_RULES_CONTEXT` env var on subsequent runs
-- [ ] Consolidated themes appear in `FEEDBACK_CONTEXT` env var on subsequent runs
-- [ ] `git status` is clean (all changes committed)
+- [x] All 6 scenarios reach their expected final state
+- [x] All DB checks from the guide produce expected results
+- [x] Confirmed rules appear in `LEARNED_RULES_CONTEXT` env var on subsequent runs
+- [x] Consolidated themes appear in `FEEDBACK_CONTEXT` env var on subsequent runs
+- [x] `git status` is clean (all changes committed)
 
 ### Must Have
 
@@ -230,7 +230,7 @@ Wave FINAL (Review + cleanup):
 
 ---
 
-- [ ] 2. Execute Scenarios A + B + C — Rule creation and confirmation
+- [x] 2. Execute Scenarios A + B + C — Rule creation and confirmation
 
   **What to do**:
   Execute the three rule-creation scenarios sequentially, following every step in the test guide. Fix any bugs found in-flight, then re-verify.
@@ -372,7 +372,7 @@ Wave FINAL (Review + cleanup):
 
 ---
 
-- [ ] 3. Execute Scenario D — Injection verification
+- [x] 3. Execute Scenario D — Injection verification
 
   **What to do**:
   Verify that confirmed rules from Scenarios A/B/C are injected into the next worker run via the `LEARNED_RULES_CONTEXT` and `FEEDBACK_CONTEXT` environment variables.
@@ -465,7 +465,7 @@ Wave FINAL (Review + cleanup):
 
 ---
 
-- [ ] 4. Execute Scenarios E + F — Feedback consolidation and rule synthesis
+- [x] 4. Execute Scenarios E + F — Feedback consolidation and rule synthesis
 
   **What to do**:
   Execute the consolidation and synthesis scenarios from the test guide. These run inside the same Inngest function (`trigger/feedback-summarizer`).
@@ -634,9 +634,9 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
 
 ### Final Checklist
 
-- [ ] All 6 scenarios (A–F) passed
-- [ ] All confirmed rules injected via LEARNED_RULES_CONTEXT
-- [ ] Consolidated themes injected via FEEDBACK_CONTEXT
-- [ ] All bugs fixed and committed
-- [ ] Evidence captured in `.sisyphus/evidence/`
-- [ ] `git status` clean
+- [x] All 6 scenarios (A–F) passed
+- [x] All confirmed rules injected via LEARNED_RULES_CONTEXT
+- [x] Consolidated themes injected via FEEDBACK_CONTEXT
+- [x] All bugs fixed and committed
+- [x] Evidence captured in `.sisyphus/evidence/`
+- [x] `git status` clean
