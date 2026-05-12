@@ -141,6 +141,7 @@ function makeGuestMessagingTaskData() {
     archetypes: {
       id: TEST_ARCHETYPE_ID,
       role_name: 'guest-messaging',
+      enrichment_adapter: 'hostfully',
       notification_channel: null,
       risk_model: { approval_required: true, timeout_hours: 24 },
       runtime: 'opencode',
@@ -420,7 +421,7 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
       { channel: string; text: string; blocks: unknown[] },
     ];
     const blocksStr = JSON.stringify(firstCall[0].blocks);
-    expect(blocksStr).toContain('Task received');
+    expect(blocksStr).toContain('daily-summarizer');
   });
 
   it('Test 3: all-null enrichment falls back to "Guest" as display name in blocks', async () => {
