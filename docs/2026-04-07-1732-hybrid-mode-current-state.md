@@ -15,7 +15,7 @@ This document covers:
 - Known limitations of the current state
 - What's next (link to the Phase A→D cloud migration roadmap)
 
-For the original system overview written before hybrid mode, see [`docs/architecture/2026-04-01-1726-system-overview.md`](../architecture/2026-04-01-1726-system-overview.md). For the Phase 8 E2E build that this work is layered on top of, see [`docs/phases/2026-04-01-1655-phase8-e2e.md`](../phases/2026-04-01-1655-phase8-e2e.md). For the cloud migration path forward, see [`docs/infrastructure/2026-04-06-2205-cloud-migration-roadmap.md`](./2026-04-06-2205-cloud-migration-roadmap.md).
+For the original system overview written before hybrid mode, see [`docs/2026-04-01-1726-system-overview.md`](./2026-04-01-1726-system-overview.md). For the Phase 8 E2E build that this work is layered on top of, see [`docs/2026-04-01-1655-phase8-e2e.md`](./2026-04-01-1655-phase8-e2e.md). For the cloud migration path forward, see [`docs/2026-04-06-2205-cloud-migration-roadmap.md`](./2026-04-06-2205-cloud-migration-roadmap.md).
 
 ---
 
@@ -823,11 +823,11 @@ These are tracked in the cloud migration roadmap's "What This Roadmap Does NOT C
 
 | Document                                                                             | Description                                                                             |
 | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| [System Overview (pre-hybrid)](../architecture/2026-04-01-1726-system-overview.md)   | The original architecture doc — still accurate for Phase 8 baseline                     |
-| [Phase 8: E2E](../phases/2026-04-01-1655-phase8-e2e.md)                              | The MVP build that established `USE_LOCAL_DOCKER` mode                                  |
+| [System Overview (pre-hybrid)](./2026-04-01-1726-system-overview.md)                 | The original architecture doc — still accurate for Phase 8 baseline                     |
+| [Phase 8: E2E](./2026-04-01-1655-phase8-e2e.md)                                      | The MVP build that established `USE_LOCAL_DOCKER` mode                                  |
 | [Cloud Migration Roadmap (Phases A→D)](./2026-04-06-2205-cloud-migration-roadmap.md) | What comes next                                                                         |
-| [Phase 7: Resilience](../phases/2026-04-01-0114-phase7-resilience.md)                | Watchdog, redispatch, error handling                                                    |
-| [Troubleshooting](../guides/2026-04-01-2110-troubleshooting.md)                      | Common E2E failures and fixes                                                           |
+| [Phase 7: Resilience](./2026-04-01-0114-phase7-resilience.md)                        | Watchdog, redispatch, error handling                                                    |
+| [Troubleshooting](./2026-04-01-2110-troubleshooting.md)                              | Common E2E failures and fixes                                                           |
 | `AGENTS.md` (project root)                                                           | Living instructions for agents working in this repo, including the hybrid mode workflow |
 
 ---

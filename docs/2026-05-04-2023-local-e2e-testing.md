@@ -286,7 +286,7 @@ YOUR_SERVICE_MOCK=true tsx src/worker-tools/{service}/{tool-name}.ts --required-
 
 The second command should print fixture JSON and exit 0 without any network calls.
 
-Full checklist: [docs/guides/2026-05-04-1645-adding-a-shell-tool.md](../guides/2026-05-04-1645-adding-a-shell-tool.md)
+Full checklist: [docs/2026-05-04-1645-adding-a-shell-tool.md](./2026-05-04-1645-adding-a-shell-tool.md)
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## What This Document Is
 
-A brief overview of what the worker system looks like **after** the worker-agent-delegation redesign is complete. This is the target state, not the current state. For the current state, see [`2026-04-07-1732-hybrid-mode-current-state.md`](../infrastructure/2026-04-07-1732-hybrid-mode-current-state.md). For the full redesign plan, see [`.sisyphus/plans/worker-agent-delegation-redesign.md`](../.sisyphus/plans/worker-agent-delegation-redesign.md).
+A brief overview of what the worker system looks like **after** the worker-agent-delegation redesign is complete. This is the target state, not the current state. For the current state, see [`2026-04-07-1732-hybrid-mode-current-state.md`](./2026-04-07-1732-hybrid-mode-current-state.md). For the full redesign plan, see [`.sisyphus/plans/worker-agent-delegation-redesign.md`](../.sisyphus/plans/worker-agent-delegation-redesign.md).
 
 ---
 
