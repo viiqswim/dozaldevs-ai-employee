@@ -149,6 +149,22 @@ beforeAll(async () => {
             guestInformation: { firstName: 'Limit', lastName: 'Test' },
           }),
         );
+      } else if (leadId === 'lead-wrapped') {
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            lead: {
+              uid: 'lead-wrapped',
+              propertyUid: 'prop-xyz',
+              type: 'BOOKING',
+              status: 'BOOKED',
+              channel: 'AIRBNB',
+              checkInLocalDateTime: '2026-05-01T15:00:00',
+              checkOutLocalDateTime: '2026-05-05T11:00:00',
+              guestInformation: { firstName: 'Maria', lastName: 'Garcia' },
+            },
+          }),
+        );
       } else {
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found' }));
@@ -166,6 +182,27 @@ beforeAll(async () => {
       } else if (leadUid === 'lead-responded') {
         res.writeHead(200);
         res.end(JSON.stringify(MESSAGES_LEAD_RESPONDED));
+      } else if (leadUid === 'lead-wrapped') {
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            messages: [
+              {
+                uid: 'msg-wrapped-1',
+                leadUid: 'lead-wrapped',
+                createdUtcDateTime: '2026-05-01T10:00:00Z',
+                status: 'CREATED',
+                type: 'AIRBNB',
+                senderType: 'GUEST',
+                content: { subject: null, text: 'Hello, is the place available?' },
+                threadUid: 'thread-wrapped',
+                attachments: [],
+              },
+            ],
+            _metadata: { count: 1 },
+            _paging: {},
+          }),
+        );
       } else if (leadUid === 'lead-limit-test') {
         res.writeHead(200);
         res.end(
@@ -335,5 +372,17 @@ describe('get-messages --lead-id flag', () => {
     expect(stdout).toContain('--lead-id');
     expect(stdout).toContain('--property-id');
     expect(stdout.toLowerCase()).toContain('mutually exclusive');
+  });
+
+  it('correctly resolves guestName when lead API returns a wrapped { lead: {...} } response', async () => {
+    const { stdout, code } = await runScript(['--lead-id', 'lead-wrapped'], {
+      HOSTFULLY_API_KEY: 'testkey',
+      HOSTFULLY_API_URL: `http://localhost:${port}`,
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as { guestName: string; leadUid: string }[];
+    expect(data).toHaveLength(1);
+    expect(data[0].leadUid).toBe('lead-wrapped');
+    expect(data[0].guestName).toBe('Maria Garcia');
   });
 });

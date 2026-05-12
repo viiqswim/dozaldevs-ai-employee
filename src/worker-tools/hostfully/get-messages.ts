@@ -244,7 +244,8 @@ async function main(): Promise<void> {
       process.stderr.write(`Error: Failed to fetch lead ${leadId}: ${leadRes.status}\n`);
       process.exit(1);
     }
-    const lead = (await leadRes.json()) as RawLead;
+    const leadJson = (await leadRes.json()) as { lead?: RawLead };
+    const lead = leadJson.lead ?? (leadJson as unknown as RawLead);
 
     const messagesUrl = `${baseUrl}/messages?leadUid=${encodeURIComponent(leadId)}&_limit=${encodeURIComponent(String(limit))}`;
     const msgRes = await fetch(messagesUrl, { headers });
