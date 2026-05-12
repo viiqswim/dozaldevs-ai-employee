@@ -145,6 +145,7 @@ async function main() {
     'hostfully_agency_uid',
     '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
   );
+  await seedSecret('00000000-0000-0000-0000-000000000003', 'hostfully_mock', 'true');
   await seedSecret(
     '00000000-0000-0000-0000-000000000003',
     'slack_bot_token',
@@ -3303,6 +3304,7 @@ No specific house rules provided.
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
         'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
+      enrichment_adapter: 'hostfully',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
     },
@@ -3334,6 +3336,7 @@ No specific house rules provided.
       agents_md: PLATFORM_AGENTS_MD,
       delivery_instructions:
         'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
+      enrichment_adapter: 'hostfully',
       department_id: '00000000-0000-0000-0000-000000000021',
       // NO tenant_id — immutable
     },
