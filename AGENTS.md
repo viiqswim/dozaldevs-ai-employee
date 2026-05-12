@@ -825,7 +825,31 @@ The `docs/` directory is organized into subdirectories by document type. Always 
 | `docs/testing/`        | E2E test guides, scenario docs, testing methodology | All testing documentation including per-employee scenario guides in subdirs |
 | `docs/external/`       | Non-platform documentation                          | Client-specific docs, external system references (e.g. snobahn)             |
 
-**Rule**: When creating any new markdown file, place it in the correct subdirectory based on its type — not in `docs/` root.
+### Adding New Docs — Criteria
+
+**1. Naming** — always `YYYY-MM-DD-HHMM-{slug}.md`. Run `date "+%Y-%m-%d-%H%M"` first. Never create a file without a timestamp prefix.
+
+**2. Subdirectory** — match the document's _primary purpose_, not its topic:
+
+| If the document is...                                          | Put it in                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| A new system design, vision, or architectural decision         | `docs/architecture/`                                         |
+| A historical phase build record                                | `docs/phases/` — note: closed archive, no new files expected |
+| A how-to, setup guide, troubleshooting, or employee overview   | `docs/guides/`                                               |
+| Infrastructure, deployment, or migration documentation         | `docs/infrastructure/`                                       |
+| A product roadmap or story map                                 | `docs/planning/`                                             |
+| A point-in-time system state snapshot                          | `docs/snapshots/` — never edit after creation                |
+| An E2E test guide or scenario document for a specific employee | `docs/testing/{employee-slug}/` (create subdir if needed)    |
+| A general testing methodology or cross-employee test guide     | `docs/testing/` (root level)                                 |
+| Client-specific or external system reference                   | `docs/external/`                                             |
+
+**3. After adding** — per [Documentation Freshness](#documentation-freshness-mandatory):
+
+- Add a row to the README.md Documentation table for any doc worth surfacing to developers
+- Add a row to the AGENTS.md Reference Documents table if agents should read it on demand
+- Never add to `docs/snapshots/` or `docs/phases/` without also noting it is immutable/archived
+
+**4. Never place files at `docs/` root** — every new markdown file must go into a subdirectory.
 
 ## Reference Documents
 
