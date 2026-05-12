@@ -223,6 +223,15 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
             .map((t) => `• *${t.theme}* (${t.frequency}x): _"${t.representative_quote}"_`)
             .join('\n');
 
+          // Slack section block text limit is 3000 chars — truncate if needed
+          const header = `📋 *Feedback consolidation ready* — ${feedbackItems.length} items for *${archetype.role_name ?? archetype.id}*\n\n*Recurring themes:*\n`;
+          const maxThemeChars = 2900 - header.length;
+          const truncatedThemeLines =
+            themeLines.length > maxThemeChars
+              ? themeLines.substring(0, maxThemeChars) +
+                '\n_[...more themes stored in knowledge base]_'
+              : themeLines;
+
           const feedbackIds = feedbackItems.map((f) => f.id);
           const batchValue = JSON.stringify({ feedbackIds, archetypeId: archetype.id });
 
@@ -231,7 +240,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `📋 *Feedback consolidation ready* — ${feedbackItems.length} items for *${archetype.role_name ?? archetype.id}*\n\n*Recurring themes:*\n${themeLines}`,
+                text: `${header}${truncatedThemeLines}`,
               },
             },
             { type: 'divider' },
