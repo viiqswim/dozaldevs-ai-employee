@@ -164,15 +164,13 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
 
       if (extractable && ruleText) {
         const storedRule = await step.run('store-proposed-rule', async () => {
-          const res = await fetch(`${supabaseUrl}/rest/v1/learned_rules`, {
+          const res = await fetch(`${supabaseUrl}/rest/v1/employee_rules`, {
             method: 'POST',
             headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               id: randomUUID(),
               tenant_id: tenantId,
-              entity_type: 'archetype',
-              entity_id: archetypeId,
-              scope: 'entity',
+              archetype_id: archetypeId,
               rule_text: ruleText,
               source,
               status: 'proposed',
@@ -256,7 +254,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
             log.warn({ ruleId }, 'No ts in Slack response — skipping slack_ts patch');
             return;
           }
-          await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+          await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
             method: 'PATCH',
             headers: { ...headers, Prefer: 'return=minimal' },
             body: JSON.stringify({
@@ -297,15 +295,13 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
             log.warn({ tenantId, error: data.error }, 'Failed to post awaiting-input to Slack');
           }
 
-          await fetch(`${supabaseUrl}/rest/v1/learned_rules`, {
+          await fetch(`${supabaseUrl}/rest/v1/employee_rules`, {
             method: 'POST',
             headers: { ...headers, Prefer: 'return=minimal' },
             body: JSON.stringify({
               id: randomUUID(),
               tenant_id: tenantId,
-              entity_type: 'archetype',
-              entity_id: archetypeId,
-              scope: 'entity',
+              archetype_id: archetypeId,
               rule_text: '',
               source,
               status: 'awaiting_input',

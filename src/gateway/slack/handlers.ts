@@ -3,6 +3,7 @@ import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
+import { SYNTHESIS_THRESHOLD } from '../../inngest/employee-lifecycle.js';
 
 const log = createLogger('slack-handlers');
 
@@ -998,19 +999,76 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
-      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+      const authHeaders = {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      };
+
+      const patchRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
         method: 'PATCH',
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
+        headers: authHeaders,
         body: JSON.stringify({ status: 'confirmed', confirmed_at: new Date().toISOString() }),
       });
+      const patchedRows = (await patchRes.json()) as Array<{
+        id: string;
+        tenant_id: string;
+        archetype_id: string;
+        source: string;
+        parent_rule_ids: string[];
+      }>;
+      const patchedRule = patchedRows[0];
+      if (!patchedRule) {
+        log.warn({ ruleId }, 'rule_confirm: no rule returned after PATCH');
+        return;
+      }
+
+      const {
+        tenant_id: tenantId,
+        archetype_id: archetypeId,
+        source,
+        parent_rule_ids: parentRuleIds,
+      } = patchedRule;
       log.info({ ruleId, userId: user.id }, 'Rule confirmed');
+
+      await inngest.send({
+        name: 'employee/rule.confirmed',
+        data: { ruleId, tenantId, archetypeId, confirmedBy: user.id },
+      });
+
+      const countRes = await fetch(
+        `${supabaseUrl}/rest/v1/employee_rules?status=eq.confirmed&archetype_id=eq.${archetypeId}&select=id`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+      );
+      const confirmedRules = (await countRes.json()) as Array<{ id: string }>;
+      const confirmedCount = confirmedRules.length;
+
+      if (confirmedCount > 0 && confirmedCount % SYNTHESIS_THRESHOLD === 0) {
+        await inngest.send({
+          name: 'employee/rule.synthesize-requested',
+          data: { tenantId, archetypeId, triggerRuleId: ruleId },
+          id: `synthesis-${archetypeId}-${confirmedCount}`,
+        });
+        log.info({ archetypeId, confirmedCount }, 'Synthesis triggered after rule confirmation');
+      }
+
+      if (source === 'synthesis' && parentRuleIds.length > 0) {
+        const idList = parentRuleIds.join(',');
+        await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=in.(${idList})`, {
+          method: 'PATCH',
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ status: 'archived' }),
+        });
+        log.info({ ruleId, parentRuleIds }, 'Parent rules archived after synthesis confirmation');
+      }
     } catch (err) {
-      log.error({ ruleId, err }, 'Failed to PATCH learned_rules on confirm');
+      log.error({ ruleId, err }, 'Failed to process rule_confirm');
     }
   });
 
@@ -1036,7 +1094,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
-      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+      await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
         method: 'PATCH',
         headers: {
           apikey: supabaseKey,
@@ -1048,7 +1106,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       });
       log.info({ ruleId, userId: user.id }, 'Rule rejected');
     } catch (err) {
-      log.error({ ruleId, err }, 'Failed to PATCH learned_rules on reject');
+      log.error({ ruleId, err }, 'Failed to PATCH employee_rules on reject');
     }
   });
 
@@ -1067,7 +1125,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
       const res = await fetch(
-        `${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}&select=rule_text`,
+        `${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}&select=rule_text`,
         {
           headers: {
             apikey: supabaseKey,
@@ -1144,7 +1202,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
 
-      await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+      await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
         method: 'PATCH',
         headers: {
           apikey: supabaseKey,
@@ -1157,7 +1215,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       log.info({ ruleId }, 'rule_text updated via rephrase');
 
       const metaRes = await fetch(
-        `${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}&select=slack_ts,slack_channel`,
+        `${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}&select=slack_ts,slack_channel`,
         {
           headers: {
             apikey: supabaseKey,
@@ -1221,84 +1279,6 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     } catch (err) {
       log.error({ ruleId, err }, 'Failed to process rule_rephrase_modal submission');
-    }
-  });
-
-  boltApp.action('batch_rules_confirm', async ({ ack, body, client }) => {
-    await ack();
-    const actionBody = body as ActionBody;
-    const rawValue = actionBody.actions[0]?.value;
-    const user = actionBody.user;
-    const channel = actionBody.channel?.id;
-    const messageTs = actionBody.message?.ts;
-
-    if (!rawValue) return;
-
-    let feedbackIds: string[] = [];
-    let archetypeId: string | undefined;
-    try {
-      const parsed = JSON.parse(rawValue) as { feedbackIds?: string[]; archetypeId?: string };
-      feedbackIds = parsed.feedbackIds ?? [];
-      archetypeId = parsed.archetypeId;
-    } catch {
-      log.error({ userId: user.id }, 'batch_rules_confirm: failed to parse action value');
-      return;
-    }
-
-    if (channel && messageTs) {
-      await client.chat.update({
-        channel,
-        ts: messageTs,
-        text: `✅ Feedback consolidated by <@${user.id}>`,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `✅ *Feedback consolidated by <@${user.id}>* — ${feedbackIds.length} items marked as reviewed`,
-            },
-          },
-          {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: archetypeId ? `Archetype \`${archetypeId}\`` : 'Batch consolidation',
-              },
-            ],
-          },
-        ],
-      });
-    }
-
-    if (feedbackIds.length === 0) {
-      log.warn({ userId: user.id }, 'batch_rules_confirm: no feedback IDs in payload');
-      return;
-    }
-
-    try {
-      const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
-      const now = new Date().toISOString();
-      const idList = feedbackIds.join(',');
-
-      await fetch(`${supabaseUrl}/rest/v1/feedback?id=in.(${idList})`, {
-        method: 'PATCH',
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ consolidated_at: now }),
-      });
-
-      log.info(
-        { userId: user.id, feedbackCount: feedbackIds.length, archetypeId },
-        'Batch feedback consolidated',
-      );
-    } catch (err) {
-      log.error({ err, userId: user.id }, 'Failed to PATCH feedback on batch_rules_confirm');
     }
   });
 }

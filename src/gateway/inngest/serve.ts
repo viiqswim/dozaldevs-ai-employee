@@ -10,6 +10,7 @@ import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycl
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
 import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
+import { createRuleSynthesizerFunction } from '../../inngest/rule-synthesizer.js';
 import { createReviewingWatchdogTrigger } from '../../inngest/triggers/reviewing-watchdog.js';
 // import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js'; // Deregistered: manual cleanup if needed
 // import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
@@ -38,6 +39,7 @@ export function inngestServeRoutes(): Router {
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
   const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
+  const ruleSynthesizerFn = createRuleSynthesizerFunction(inngest);
   const reviewingWatchdogFn = createReviewingWatchdogTrigger(inngest);
   // const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest); // Deregistered: manual cleanup if needed — DELETE FROM learned_rules WHERE expires_at < NOW();
   // const guestMessagePollFn = createGuestMessagePollTrigger(inngest); // Disabled: cron tasks have incomplete raw_event data, causing broken approval cards
@@ -53,6 +55,7 @@ export function inngestServeRoutes(): Router {
       interactionHandlerFn,
       feedbackSummarizerFn,
       ruleExtractorFn,
+      ruleSynthesizerFn,
       reviewingWatchdogFn,
       // learnedRulesExpiryFn, // Deregistered: manual cleanup if needed
       // guestMessagePollFn,

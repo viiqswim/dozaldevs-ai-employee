@@ -42,3 +42,58 @@
 - Inngest event idempotency key: `synthesis-${archetypeId}-${confirmedCount}`
 - Count is per-archetype confirmed rules
 - Count % SYNTHESIS_THRESHOLD === 0 triggers synthesis
+
+## Task 3 — Migration Script (migrate-feedback-data.ts)
+
+- Prisma client must be regenerated (`pnpm prisma generate`) after adding new models — the LSP errors for `employeeRule`/`feedbackEvent` were false positives from the language server using the wrong path; the pnpm-resolved path at `node_modules/.pnpm/@prisma+client@.../node_modules/.prisma/client/` has the correct types
+- `tsconfig.build.json` only includes `src/**/*` — scripts are excluded from the build, so `pnpm build` won't compile migration scripts (this is correct behavior)
+- `tsx` runs the script directly without compilation issues
+- Idempotency for `employee_rules`: check `source_task_id + source` unique constraint (matches the `@@unique` in schema)
+- Idempotency for `feedback_events`: check `task_id + event_type` (no unique constraint in schema, but sufficient for migration safety)
+- `LearnedRule.entity_id` is the archetype UUID — confirmed by `entity_type = 'archetype'` convention
+- `weekly_synthesis` source maps to `synthesis` in new schema
+- `Feedback` model has no direct `archetype_id` — must JOIN through `task.archetype_id`
+- `knowledge_bases` cleanup uses raw SQL since `source_config` is a JSON column (no Prisma filter for JSON path)
+
+## [2026-05-12] Task 7 — rule-synthesizer Inngest function
+
+### Pattern confirmed
+- Factory function pattern: `export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction.Any` — matches all other inngest functions in this codebase
+- Event trigger via `triggers: [{ event: 'employee/rule.synthesize-requested' }]` (not cron)
+- `employee_rules` table (not `learned_rules` — that's the old table used in feedback-summarizer synthesize step)
+- `parent_rule_ids` (uuid[]) stored as JSON array in PostgREST POST body
+- `source: 'synthesis'` on synthesized rules
+
+### Code fence stripping
+Pattern used in detect-overlaps step:
+```typescript
+const rawContent = llmResult.content.trim();
+const jsonContent = rawContent
+  .replace(/^```(?:json)?\s*/i, '')
+  .replace(/\s*```\s*$/, '')
+  .trim();
+```
+
+### Slack card format (4 blocks, mandatory)
+1. section (mrkdwn text with rule content)
+2. divider
+3. actions (Confirm/Reject/Rephrase buttons with rule_confirm/rule_reject/rule_rephrase action_ids)
+4. context (Rule `{ruleId}`)
+
+### Serve.ts registration pattern
+Import factory → call with inngest instance → add to functions array. Function count now 6 active.
+
+## [2026-05-12] Task 8 — handlers.ts migration to employee_rules
+
+### Changes made
+- Added `SYNTHESIS_THRESHOLD` import from `../../inngest/employee-lifecycle.js`
+- `rule_confirm`: PATCH `employee_rules` (return=representation), fires `employee/rule.confirmed`, counts confirmed rules per archetype, fires `employee/rule.synthesize-requested` with idempotency key `synthesis-${archetypeId}-${confirmedCount}` every 5th confirmation, archives parent rules when source='synthesis'
+- `rule_reject`: PATCH `employee_rules` (return=minimal)
+- `rule_rephrase` action: GET `employee_rules` for rule_text
+- `rule_rephrase_modal` view: PATCH `employee_rules`, GET `employee_rules` for slack_ts/slack_channel
+- `batch_rules_confirm` handler: REMOVED entirely (zero references remain)
+- `findTaskIdByThreadTs`: no learned_rules references (queries deliverables + tasks — unchanged)
+
+### PostgREST parent archiving pattern
+- `PATCH /rest/v1/employee_rules?id=in.(uuid1,uuid2)` — bulk status update to 'archived'
+- Only fires when `source === 'synthesis'` and `parent_rule_ids.length > 0`
