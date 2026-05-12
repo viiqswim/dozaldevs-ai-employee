@@ -1852,7 +1852,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
                   INNGEST_DEV: '1',
-                  HOSTFULLY_MOCK: process.env['HOSTFULLY_MOCK'] ?? '',
                 },
                 cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
               });
@@ -1869,7 +1868,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   EMPLOYEE_PHASE: 'delivery',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
-                  HOSTFULLY_MOCK: process.env['HOSTFULLY_MOCK'] ?? '',
                 },
               });
             }
