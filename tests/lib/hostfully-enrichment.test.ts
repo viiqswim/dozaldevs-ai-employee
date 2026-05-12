@@ -167,7 +167,32 @@ describe('fetchLeadEnrichment', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  // ─── 10. Custom apiBaseUrl is used ───────────────────────────────────────
+  // ─── 10. Wrapped lead response `{ lead: { ... } }` is unwrapped ─────────
+
+  it('unwraps wrapped lead response { lead: { ... } } and extracts all fields', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        makeResponse({
+          lead: {
+            uid: 'x',
+            guestInformation: { firstName: 'Jane', lastName: 'Smith' },
+            propertyUid: 'prop-1',
+            channel: 'AIRBNB',
+            checkInLocalDateTime: '2026-06-01T15:00:00',
+            checkOutLocalDateTime: '2026-06-03T11:00:00',
+          },
+        }),
+      ),
+    );
+    const result = await fetchLeadEnrichment('lead-123', 'fake-key');
+    expect(result.guestName).toBe('Jane Smith');
+    expect(result.bookingChannel).toBe('AIRBNB');
+    expect(result.checkIn).not.toBeNull();
+    expect(result.checkOut).not.toBeNull();
+  });
+
+  // ─── 11. Custom apiBaseUrl is used ───────────────────────────────────────
 
   it('uses the provided apiBaseUrl', async () => {
     const mockFetch = vi.fn().mockResolvedValue(makeResponse({ uid: 'x' }));

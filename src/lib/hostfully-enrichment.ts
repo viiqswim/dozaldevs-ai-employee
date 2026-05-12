@@ -53,7 +53,8 @@ export async function fetchLeadEnrichment(
       return { ...NULL_ENRICHMENT };
     }
 
-    const lead = (await res.json()) as RawLeadResponse;
+    const leadJson = (await res.json()) as { lead?: RawLeadResponse };
+    const lead = leadJson.lead ?? (leadJson as unknown as RawLeadResponse);
 
     const firstName = lead.guestInformation?.firstName ?? '';
     const lastName = lead.guestInformation?.lastName ?? '';
