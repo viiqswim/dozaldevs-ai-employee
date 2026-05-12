@@ -350,7 +350,12 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
           }> = [];
           let contradictions: Array<{ rule_ids: string[]; description: string }> = [];
           try {
-            const parsed = JSON.parse(llmResult.content) as {
+            const rawSynthContent = llmResult.content.trim();
+            const jsonSynthContent = rawSynthContent
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```\s*$/i, '')
+              .trim();
+            const parsed = JSON.parse(jsonSynthContent) as {
               merges?: typeof merges;
               contradictions?: typeof contradictions;
             };
