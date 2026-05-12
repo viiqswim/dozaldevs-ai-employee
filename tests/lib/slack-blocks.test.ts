@@ -8,6 +8,7 @@ import {
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
   buildCompactNotifyBlocks,
+  buildNotifyBlocks,
 } from '../../src/lib/slack-blocks.js';
 import { buildHostfullyLink } from '../../src/lib/enrichment-adapters/hostfully.js';
 
@@ -583,5 +584,163 @@ describe('buildCompactNotifyBlocks', () => {
     expect(text).toContain('<@U123>');
     expect(text).toContain('hostfully.com');
     expect(JSON.stringify(blocks)).toContain('task-c-full-01');
+  });
+});
+
+describe('buildNotifyBlocks', () => {
+  type Block = {
+    type: string;
+    text?: { type: string; text: string };
+    elements?: unknown[];
+    fields?: unknown[];
+  };
+
+  it('returns blocks without enrichment — section + context', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Test Employee',
+      taskId: 'task-nb-001',
+    });
+    expect(blocks.length).toBe(2);
+    expect((blocks[0] as Block).type).toBe('section');
+    expect((blocks[1] as Block).type).toBe('context');
+  });
+
+  it('section text contains archetypeName and state', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Executing',
+      archetypeName: 'Guest Messaging',
+      taskId: 'task-nb-002',
+    });
+    const sectionText = (blocks[0] as Block).text?.text ?? '';
+    expect(sectionText).toContain('Guest Messaging');
+    expect(sectionText).toContain('Executing');
+  });
+
+  it('task ID context block is always the last block', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Done',
+      archetypeName: 'Test',
+      taskId: 'task-nb-003',
+    });
+    const last = blocks[blocks.length - 1] as Block;
+    expect(last.type).toBe('context');
+    expect(JSON.stringify(last)).toContain('task-nb-003');
+  });
+
+  it('null enrichment is handled gracefully — same as no enrichment', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Failed',
+      archetypeName: 'Test',
+      taskId: 'task-nb-004',
+      enrichment: null,
+    });
+    expect(blocks.length).toBe(2);
+    expect(JSON.stringify(blocks)).toContain('task-nb-004');
+  });
+
+  it('includes displayName and subtitle as section fields when enrichment provided', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Guest Messaging',
+      taskId: 'task-nb-005',
+      enrichment: {
+        displayName: 'Guest: Olivia',
+        subtitle: 'Property: Casa del Sol',
+      },
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('Guest: Olivia');
+    expect(allText).toContain('Casa del Sol');
+  });
+
+  it('adds a fields section block when enrichment has displayName or subtitle', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Test',
+      taskId: 'task-nb-006',
+      enrichment: { displayName: 'Guest: Alice' },
+    });
+    const fieldsBlock = (blocks as Block[]).find((b) => b.type === 'section' && b.fields);
+    expect(fieldsBlock).toBeDefined();
+  });
+
+  it('adds metadata context block when enrichment.metadata is non-empty', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Test',
+      taskId: 'task-nb-007',
+      enrichment: {
+        metadata: { checkIn: 'Jun 1', checkOut: 'Jun 7' },
+      },
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('checkIn');
+    expect(allText).toContain('Jun 1');
+  });
+
+  it('adds contextUrl link block when enrichment.contextUrl is set', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Test',
+      taskId: 'task-nb-008',
+      enrichment: { contextUrl: 'https://example.com/thread' },
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('https://example.com/thread');
+    expect(allText).toContain('🔗 View');
+  });
+
+  it('uses default emoji ⏳ when none is specified', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Received',
+      archetypeName: 'Test',
+      taskId: 'task-nb-009',
+    });
+    const sectionText = (blocks[0] as Block).text?.text ?? '';
+    expect(sectionText).toContain('⏳');
+  });
+
+  it('uses the provided emoji when specified', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Done',
+      archetypeName: 'Test',
+      taskId: 'task-nb-010',
+      emoji: '✅',
+    });
+    const sectionText = (blocks[0] as Block).text?.text ?? '';
+    expect(sectionText).toContain('✅');
+    expect(sectionText).not.toContain('⏳');
+  });
+
+  it('adds extraText section before the final task ID context block', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Done',
+      archetypeName: 'Test',
+      taskId: 'task-nb-011',
+      extraText: 'Additional context here.',
+    });
+    const allText = JSON.stringify(blocks);
+    expect(allText).toContain('Additional context here.');
+    const last = blocks[blocks.length - 1] as Block;
+    expect(JSON.stringify(last)).toContain('task-nb-011');
+  });
+
+  it('task ID context block is last even when enrichment and extraText are both present', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Reviewing',
+      archetypeName: 'Guest Messaging',
+      taskId: 'task-nb-012',
+      enrichment: {
+        displayName: 'Guest: Bob',
+        subtitle: 'Property: Villa',
+        metadata: { checkIn: 'Jul 1' },
+        contextUrl: 'https://example.com',
+      },
+      extraText: 'Please review.',
+    });
+    const last = blocks[blocks.length - 1] as Block;
+    expect(last.type).toBe('context');
+    expect(JSON.stringify(last)).toContain('task-nb-012');
   });
 });
