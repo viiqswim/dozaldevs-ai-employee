@@ -1,45 +1,16 @@
-Task 1 — DB Baseline Snapshot (feedback-pipeline-e2e plan)
-Captured: 2026-05-12T00:25 UTC
-Tenant: VLRE (00000000-0000-0000-0000-000000000003)
-Archetype: guest-messaging (00000000-0000-0000-0000-000000000015)
+Task 1 — Baseline Evidence
+Generated: 2026-05-12
 
-=== FEEDBACK TABLE ===
-Query: SELECT COUNT(*) AS total_feedback FROM feedback WHERE tenant_id = '00000000-0000-0000-0000-000000000003';
-Result:
-  total_feedback: 32
+## Directories verified (8 total)
+docs/architecture   ✓ (new)
+docs/external       ✓ (new)
+docs/guides         ✓ (new)
+docs/infrastructure ✓ (new)
+docs/phases         ✓ (new)
+docs/planning       ✓ (existing)
+docs/snapshots      ✓ (existing)
+docs/testing        ✓ (existing)
 
-=== LEARNED RULES BY STATUS ===
-Query: SELECT status, COUNT(*) FROM learned_rules WHERE tenant_id = '00000000-0000-0000-0000-000000000003' GROUP BY status ORDER BY status;
-Result:
-  awaiting_input: 2
-  confirmed:      1
-  proposed:       1
-  rejected:       27
-  TOTAL:          31
-
-=== KNOWLEDGE BASES ===
-Query: SELECT COUNT(*) AS kb_count FROM knowledge_bases WHERE archetype_id = '00000000-0000-0000-0000-000000000015';
-Result:
-  kb_count: 1
-
-=== CONFIRMED RULES ===
-Query: SELECT COUNT(*) AS confirmed_rules FROM learned_rules WHERE tenant_id = '00000000-0000-0000-0000-000000000003' AND status = 'confirmed';
-Result:
-  confirmed_rules: 1
-
-=== UNCONSOLIDATED FEEDBACK (with correction_reason) ===
-Query: SELECT COUNT(*) AS unconsolidated FROM feedback WHERE tenant_id = '00000000-0000-0000-0000-000000000003' AND consolidated_at IS NULL AND correction_reason IS NOT NULL;
-Result:
-  unconsolidated: 32
-
-NOTE: All 32 feedback rows have correction_reason set and are unconsolidated (consolidated_at IS NULL).
-This means the consolidation threshold (5) is already exceeded — the feedback-summarizer cron
-should trigger consolidation when it next runs.
-
-=== COMPARISON TO PREVIOUS BASELINE (May 11) ===
-  total_feedback:    32 (unchanged from May 11)
-  confirmed_rules:    1 (unchanged — "always end in a friendly tone.")
-  kb_count:           1 (unchanged — May 7 consolidation)
-  unconsolidated:    32 (was 17 on May 11 — query now includes ALL feedback with correction_reason,
-                         not just those with consolidated_at IS NULL AND correction_reason IS NOT NULL
-                         — all 32 rows qualify)
+## Baseline file counts
+Total .md files in docs/ tree:  45
+.md files in docs/ root only:   30

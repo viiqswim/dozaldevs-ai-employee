@@ -38,7 +38,7 @@ A single-responsibility AI Employee Platform — deploys autonomous AI agents ("
 
 What changes per employee: **triggers** (what starts it), **tools** (what it can do), **knowledge base** (domain expertise), **model** (which LLM to use), and **approval gates** (risk thresholds).
 
-Full architecture, employee roadmap, archetype schema, lifecycle states, event routing, operating modes, integration map, and multi-tenancy design: `docs/2026-04-14-0104-full-system-vision.md`
+Full architecture, employee roadmap, archetype schema, lifecycle states, event routing, operating modes, integration map, and multi-tenancy design: `docs/architecture/2026-04-14-0104-full-system-vision.md`
 
 ## Current Implementation
 
@@ -46,7 +46,7 @@ One employee is active; one is deprecated and on hold:
 
 1. **Engineering** ⚠️ **DEPRECATED — ON HOLD** — receives Jira tickets via webhook, spawns a Docker/Fly.io worker running OpenCode, delivers a GitHub pull request. Do not add features or fix bugs in engineering-specific files. See Deprecated Components table.
 2. **Summarizer (Papi Chulo)** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
-3. **Guest-Messaging (VLRE)** — receives Hostfully `NEW_INBOX_MESSAGE` webhooks, fetches unresponded guest messages via Hostfully API, drafts replies using AI, posts a Slack approval card for PM review, delivers approved reply to guest via Hostfully. Rejects are stored as learned rules.
+3. **Guest-Messaging (VLRE)** — receives Hostfully `NEW_INBOX_MESSAGE` webhooks, fetches unresponded guest messages via Hostfully API, drafts replies using AI, posts a Slack approval card for PM review, delivers approved reply to guest via Hostfully. Corrections and rejections feed the feedback pipeline as `employee_rules`.
 
 **Stack**: TypeScript · Express · Inngest · Prisma · Docker · Supabase (PostgREST)
 
@@ -81,28 +81,28 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
 - **Inngest functions** (active — 5 registered):
   - `employee/universal-lifecycle` — universal employee lifecycle (all employees)
-  - `employee/interaction-handler` — unified handler for thread replies and @mentions; classifies intent, stores feedback, responds in-thread
-  - `employee/rule-extractor` — extracts behavioral rules from corrections/rejections; posts Slack confirmation cards for PM review; stores confirmed rules as `learned_rules`
-  - `trigger/feedback-summarizer` — weekly cron that generates a digest of recent feedback using Claude Haiku
+  - `employee/interaction-handler` — unified handler for thread replies and @mentions; classifies intent, writes `feedback_events` audit row, responds in-thread
+  - `employee/rule-extractor` — extracts behavioral rules from corrections/rejections; posts Slack confirmation cards for PM review; stores confirmed rules as `employee_rules`
+  - `employee/rule-synthesizer` — event-driven synthesis; fires when confirmed rule count hits a multiple of `SYNTHESIS_THRESHOLD` (5) per archetype; merges overlapping rules, flags contradictions, writes synthesized rules back to `employee_rules`
   - `trigger/reviewing-watchdog` — every-15-min cron; finds tasks stuck in `Reviewing` with no `pending_approvals` row for >30 min and marks them `Failed`
 
-- **Inngest functions** (deregistered — source preserved, not running):
+- **Inngest functions** (deregistered — source deleted or preserved, not running):
+  - `trigger/feedback-summarizer` — DELETED; replaced by event-driven `employee/rule-synthesizer`
   - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (deregistered; trigger manually via admin API: `POST /admin/tenants/:id/employees/daily-summarizer/trigger`)
-  - `trigger/learned-rules-expiry` — cron for learned rules expiry (deregistered; manual cleanup: `DELETE FROM learned_rules WHERE expires_at < NOW();`)
   - `trigger/guest-message-poll` — polls Hostfully for unresponded messages across ALL leads (deregistered; source preserved at `src/inngest/triggers/guest-message-poll.ts`)
 
   Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) are deregistered from Inngest — source files preserved; see Deprecated Components table.
 
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-29-2255-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
-- **Feedback context**: Harness optionally prepends `FEEDBACK_CONTEXT` (env var injected by the lifecycle from stored feedback) to the system prompt, allowing historical feedback to influence future runs.
+- **Feedback context**: Harness optionally prepends `EMPLOYEE_RULES` and `EMPLOYEE_KNOWLEDGE` (env vars injected by the lifecycle from confirmed rules and knowledge bases) to the system prompt, allowing historical feedback to influence future runs.
 
 **Cron timezone — CRITICAL**: The daily-summarizer cron `0 8 * * 1-5` fires at **8am UTC**, not 8am local time. Inngest has no timezone config on this function. The archetype's `trigger_sources.timezone: "America/Chicago"` is stored as documentation metadata only — the Inngest runtime never reads it. Do not use it to infer the actual trigger time.
 
 **Adding a new employee**:
 
 1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional fields: `agents_md` (per-archetype AGENTS.md content injected into worker context), `delivery_instructions` (instructions used during the delivery phase), `notification_channel` (per-archetype Slack notification channel, overrides tenant default).
-2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`). Follow the [Shell Tool Checklist](docs/2026-05-04-1645-adding-a-shell-tool.md).
+2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`). Follow the [Shell Tool Checklist](docs/guides/2026-05-04-1645-adding-a-shell-tool.md).
 3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
 
 **Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
@@ -117,24 +117,21 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 Thread replies and @mentions on employee Slack messages are captured and handled through a unified pipeline:
 
-- **Thread reply or @mention** → Slack Bolt fires `employee/interaction.received` (with `source: 'thread_reply'` or `source: 'mention'`) → `interaction-handler` classifies intent
-  - **Correction/teaching** → fires `employee/rule.extract-requested` → `rule-extractor` extracts a concrete behavioral rule → posts Slack confirmation card for PM review → confirmed rules stored in `learned_rules`
+- **Thread reply or @mention** → Slack Bolt fires `employee/interaction.received` (with `source: 'thread_reply'` or `source: 'mention'`) → `interaction-handler` classifies intent, writes a `feedback_events` audit row
+  - **Correction/teaching** → fires `employee/rule.extract-requested` → `rule-extractor` extracts a concrete behavioral rule → posts Slack confirmation card for PM review → confirmed rules stored in `employee_rules`
   - **Question/feedback** → responds in thread; stores if relevant
-- **Every-6-hour cron** (`trigger/feedback-summarizer`, `0 */6 * * *`) → checks each archetype for unconsolidated feedback (`consolidated_at IS NULL`). If count ≥ `CONSOLIDATION_THRESHOLD` (5), summarizes themes with Claude Haiku, writes to `knowledge_bases`, and posts ONE batch Slack card per archetype with a "✅ Confirm All & Consolidate" button (`batch_rules_confirm` action). PM clicks once to mark all feedback rows `consolidated_at = NOW()`.
+- **PM confirms rule** → fires `employee/rule.confirmed` → synthesis check: if confirmed rule count for that archetype hits a multiple of `SYNTHESIS_THRESHOLD` (5), fires `employee/rule.synthesize-requested` → `rule-synthesizer` merges overlapping confirmed rules, flags contradictions, writes synthesized rules back to `employee_rules`
 
-**Feedback injection into AI context** (`employee-lifecycle.ts` `dispatch-machine` step):
+**Context injection into AI context** (`employee-lifecycle.ts` `dispatch-machine` step):
 
-- Queries ALL feedback rows where `consolidated_at IS NULL` for the tenant — no date window, no row limit
-- Queries ALL `knowledge_bases` rows for the archetype — no date window, no row limit
-- Safety cap: if combined context exceeds `MAX_FEEDBACK_CONTEXT_CHARS` (32000), oldest items are truncated with a `warn` log (`'Feedback context truncated — consolidation needed'`)
-- Confirmed `learned_rules` are injected separately via `LEARNED_RULES_CONTEXT` env var (unchanged)
-- Raw feedback is the safety net (always injected until consolidated); consolidation is the optimization
+- Confirmed `employee_rules` injected via `EMPLOYEE_RULES` env var (cap: `MAX_EMPLOYEE_RULES_CHARS` = 8000)
+- `knowledge_bases` rows for the archetype injected via `EMPLOYEE_KNOWLEDGE` env var (cap: `MAX_EMPLOYEE_KNOWLEDGE_CHARS` = 32000)
 
 **Key constants** (exported from `employee-lifecycle.ts`):
 
-- `CONSOLIDATION_THRESHOLD = 5` — minimum unconsolidated items before batch consolidation runs
-- `MAX_FEEDBACK_CONTEXT_CHARS = 32000` — safety cap on raw feedback env var size
-- `MAX_LEARNED_RULES_CHARS = 8000` — cap on confirmed rules env var size (unchanged)
+- `SYNTHESIS_THRESHOLD = 5` — confirmed rules per archetype before synthesis fires
+- `MAX_EMPLOYEE_RULES_CHARS = 8000` — cap on confirmed rules env var size
+- `MAX_EMPLOYEE_KNOWLEDGE_CHARS = 32000` — cap on knowledge base env var size
 
 ## Tenants
 
@@ -313,7 +310,7 @@ During E2E testing sessions you can use the Playwright MCP browser to interact w
 - Channel ID: `C0AMGJQN05S`
 - Approval cards appear here; click **Approve** or **Reject** buttons directly in the browser
 
-**Verified E2E flow — Scenario A (approve / happy path only)** — full scenario library in `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`. Confirmed working 2026-05-07:
+**Verified E2E flow — Scenario A (approve / happy path only)** — full scenario library in `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`. Confirmed working 2026-05-07:
 
 | Step | What happens                                                                                                                                                                                                      | Where to observe                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -514,7 +511,7 @@ src/
 │   ├── services/     # Business logic: dispatcher, task creation, project registry, tenant/secret repos
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
-│   ├── triggers/     # Cron trigger functions (daily-summarizer, feedback-summarizer)
+│   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
@@ -761,10 +758,10 @@ Every plan for an AI employee feature must include a **real browser E2E validati
 
 Testing must go beyond the happy path. Two test guides define the full scenario library — **read the applicable guide and run all scenarios relevant to your change**:
 
-| Guide                                                      | Scenarios | Domain                                                                                    |
-| ---------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure |
-| `docs/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                   |
+| Guide                                                              | Scenarios | Domain                                                                                    |
+| ------------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------- |
+| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure |
+| `docs/testing/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                   |
 
 **Minimum for any guest-messaging change**: Scenario A (approve happy path). Use the **Quick-Reference table** at the end of each guide to identify which additional scenarios apply to your change.
 
@@ -776,7 +773,7 @@ Testing must go beyond the happy path. Two test guides define the full scenario 
 | Supersede logic                            | Scenario D                                                     |
 | `get-messages.ts` or guest name resolution | Scenario A — verify correct guest name in approval card header |
 | Feedback capture or rule extraction        | Feedback guide Scenarios A, B, C                               |
-| Rule injection (`LEARNED_RULES_CONTEXT`)   | Feedback guide Scenario D                                      |
+| Rule injection (`EMPLOYEE_RULES`)          | Feedback guide Scenario D                                      |
 | Feedback consolidation or synthesis        | Feedback guide Scenarios E, F                                  |
 
 ### What each verification step must confirm
@@ -786,7 +783,7 @@ For each scenario run, the plan step must document:
 1. **Trigger used** — exact message/webhook/cron invocation, with unique suffix (`[e2e-test-{epoch}]` for Airbnb messages)
 2. **Task ID** — the UUID from DB or the Slack context block at the bottom of the approval card
 3. **State machine trace** — `task_status_log` confirms the expected `from_status → to_status` sequence
-4. **DB state** — relevant table checks (`tasks`, `pending_approvals`, `learned_rules`, `feedback`) as called out in the guide
+4. **DB state** — relevant table checks (`tasks`, `pending_approvals`, `employee_rules`, `feedback_events`) as called out in the guide
 5. **Slack UI** — all message blocks render correctly; use Playwright browser automation for screenshots/interaction
 6. **Delivery** — final action reached the end destination (Airbnb reply, channel post, rule confirmed, etc.)
 
@@ -806,7 +803,7 @@ Every plan's Final Verification Wave must include E2E scenario steps before the 
 
 ```markdown
 - [ ] **N. E2E prerequisites** — Confirm services are live: gateway health (`curl localhost:7700/health`), Inngest health (`curl localhost:8288/health`), Socket Mode connected (`tail /tmp/ai-dev.log | grep "Socket Mode"`).
-- [ ] **N+1. Scenario A — Approve happy path** — Follow `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md` Scenario A steps 1–7. Document: task ID, state machine trace, guest name in approval card, delivery confirmed in Airbnb thread.
+- [ ] **N+1. Scenario A — Approve happy path** — Follow `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md` Scenario A steps 1–7. Document: task ID, state machine trace, guest name in approval card, delivery confirmed in Airbnb thread.
 - [ ] **N+2. Scenario {X} — {name}** — (add one task per additional applicable scenario; follow the guide step by step and document outcomes)
 - [ ] **N+3. Outcome summary** — Record all scenarios run, task IDs, and any deviations from the guide's expected behavior.
 ```
@@ -817,30 +814,35 @@ Every plan's Final Verification Wave must include E2E scenario steps before the 
 
 The `docs/` directory is organized into subdirectories by document type. Always file new documents in the correct location.
 
-| Directory         | Pattern                                  | Description                                                                                |
-| ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `docs/planning/`  | `*-product-roadmap.md`, `*-story-map.md` | Product roadmaps and phase story maps. File all future phase roadmaps and story maps here. |
-| `docs/snapshots/` | `*-current-system-state.md`              | Point-in-time system state snapshots. File all future system state documents here.         |
-| `docs/` (root)    | Everything else                          | Architecture overviews, guides, phase implementation docs, troubleshooting.                |
+| Directory              | Contents / Pattern                                  | Description                                                                 |
+| ---------------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `docs/architecture/`   | System design, vision, redesign overviews           | Architecture decisions, system overviews, vision documents                  |
+| `docs/phases/`         | `phase*-*.md`, `*-implementation-phases.md`         | Historical MVP build phases 1–8. Closed archive — no new files expected.    |
+| `docs/guides/`         | `*-guide.md`, `*-overview.md`, troubleshooting      | How-to guides, employee guides, setup instructions, troubleshooting         |
+| `docs/infrastructure/` | Infrastructure, deployment, migration docs          | Supabase, Docker, cloud migration, hybrid mode                              |
+| `docs/planning/`       | `*-product-roadmap.md`, `*-story-map.md`            | Product roadmaps and phase story maps                                       |
+| `docs/snapshots/`      | `*-current-system-state.md`                         | Point-in-time system state snapshots. Never edit after creation.            |
+| `docs/testing/`        | E2E test guides, scenario docs, testing methodology | All testing documentation including per-employee scenario guides in subdirs |
+| `docs/external/`       | Non-platform documentation                          | Client-specific docs, external system references (e.g. snobahn)             |
 
-**Rule**: When creating any new markdown file whose name matches one of the patterns above, place it in the corresponding subdirectory — not in `docs/` root.
+**Rule**: When creating any new markdown file, place it in the correct subdirectory based on its type — not in `docs/` root.
 
 ## Reference Documents
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                   | When to Read                                                                                                                                                                                                                                             |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`               | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`         | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md`    | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`      | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                                                                           |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`          | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                                                                     |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`              | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                                                                       |
-| `docs/snapshots/2026-04-29-2255-current-system-state.md`   | Point-in-time system state snapshot: full lifecycle, harness flow, all gateway routes, DB schema, shell tool CLI syntax, Docker services, shared libraries — includes interaction handler unification, guest messaging full flow, learned rules pipeline |
-| `docs/planning/2026-04-21-2202-phase1-story-map.md`        | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                                                                    |
-| `docs/planning/2026-04-21-1813-product-roadmap.md`         | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                                                                     |
-| `docs/2026-05-04-1645-adding-a-shell-tool.md`              | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                                                              |
-| `docs/2026-05-04-2023-local-e2e-testing.md`                | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                                                                 |
-| `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | Slack UX E2E test guide — 6 scenarios (A–F): approve, reject, edit & send, supersede, expiry, failure. Step-by-step with DB checks, Slack UI verification, Quick-Reference table                                                                         |
-| `docs/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | Feedback pipeline E2E test guide — 6 scenarios (A–F): rule extraction, @mention teaching, awaiting_input path, rule injection, feedback consolidation, rule synthesis                                                                                    |
+| Document                                                             | When to Read                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/architecture/2026-04-14-0104-full-system-vision.md`            | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
+| `docs/architecture/2026-03-22-2317-ai-employee-architecture.md`      | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
+| `docs/architecture/2026-04-14-0057-worker-post-redesign-overview.md` | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`                | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                                                                           |
+| `docs/guides/2026-04-16-0310-manual-employee-trigger.md`             | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                                                                     |
+| `docs/guides/2026-04-16-1655-multi-tenancy-guide.md`                 | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                                                                       |
+| `docs/snapshots/2026-04-29-2255-current-system-state.md`             | Point-in-time system state snapshot: full lifecycle, harness flow, all gateway routes, DB schema, shell tool CLI syntax, Docker services, shared libraries — includes interaction handler unification, guest messaging full flow, learned rules pipeline |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`                  | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                                                                    |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`                   | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                                                                     |
+| `docs/guides/2026-05-04-1645-adding-a-shell-tool.md`                 | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                                                              |
+| `docs/testing/2026-05-04-2023-local-e2e-testing.md`                  | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                                                                 |
+| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`            | Slack UX E2E test guide — 6 scenarios (A–F): approve, reject, edit & send, supersede, expiry, failure. Step-by-step with DB checks, Slack UI verification, Quick-Reference table                                                                         |
+| `docs/testing/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md`   | Feedback pipeline E2E test guide — 6 scenarios (A–F): rule extraction, @mention teaching, awaiting_input path, rule injection, feedback consolidation, rule synthesis                                                                                    |

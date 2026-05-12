@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { createFeedbackSummarizerTrigger } from '../../src/inngest/triggers/feedback-summarizer.js';
+import { createRuleSynthesizerFunction } from '../../src/inngest/rule-synthesizer.js';
 
 const { mockCallLLM, mockDecrypt } = vi.hoisted(() => ({
   mockCallLLM: vi.fn().mockResolvedValue({
     content: JSON.stringify({
       merges: [
         {
-          original_rule_ids: ['rule-1', 'rule-2'],
-          merged_rule_text: 'Always greet guests warmly and mention checkout time',
+          original_ids: ['rule-1', 'rule-2'],
+          merged_text: 'Always greet guests warmly and mention checkout time',
           rationale: 'Both rules address guest interaction',
         },
       ],
@@ -22,6 +22,14 @@ const { mockCallLLM, mockDecrypt } = vi.hoisted(() => ({
 
 vi.mock('../../src/lib/call-llm.js', () => ({ callLLM: mockCallLLM }));
 vi.mock('../../src/lib/encryption.js', () => ({ decrypt: mockDecrypt }));
+vi.mock('../../src/lib/logger.js', () => ({
+  createLogger: vi.fn().mockReturnValue({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
 
 let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -37,44 +45,32 @@ const CONFIRMED_RULES_3 = [
 
 const ARCHETYPE_WITH_CHANNEL = {
   id: 'arch-1',
-  role_name: 'Test Employee',
-  tenant_id: 'tenant-1',
   notification_channel: 'C123',
 };
 
 const ARCHETYPE_NO_CHANNEL = {
   id: 'arch-1',
-  role_name: 'Test Employee',
-  tenant_id: 'tenant-1',
   notification_channel: null,
 };
 
-type ArchetypeFixture = typeof ARCHETYPE_WITH_CHANNEL | typeof ARCHETYPE_NO_CHANNEL;
 type ConfirmedRule = { id: string; rule_text: string; confirmed_at: string };
 
 function makeFetchMock({
-  archetypes = [ARCHETYPE_WITH_CHANNEL] as ArchetypeFixture[],
   confirmedRules = CONFIRMED_RULES_3 as ConfirmedRule[],
+  archetypeRow = ARCHETYPE_WITH_CHANNEL as { id: string; notification_channel: string | null },
   mergedRuleId = 'merged-rule-id',
   slackTs = 'ts-123.456',
 } = {}) {
   return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
     const method = (init?.method ?? 'GET').toUpperCase();
 
-    // Archetypes GET
-    if (url.includes('/rest/v1/archetypes') && method === 'GET') {
-      return { json: () => Promise.resolve(archetypes) };
-    }
-    // Feedback GET — return empty with content-range header to short-circuit the summarize-feedback step
-    if (url.includes('/rest/v1/feedback') && method === 'GET') {
-      return {
-        json: () => Promise.resolve([]),
-        headers: { get: (name: string) => (name === 'content-range' ? '0-0/0' : null) },
-      };
-    }
-    // Learned rules GET (confirmed rules query for synthesis)
-    if (url.includes('/rest/v1/learned_rules') && method === 'GET') {
+    // employee_rules GET (confirmed rules query for synthesis)
+    if (url.includes('/rest/v1/employee_rules') && method === 'GET') {
       return { json: () => Promise.resolve(confirmedRules) };
+    }
+    // archetypes GET for notification_channel
+    if (url.includes('/rest/v1/archetypes') && method === 'GET') {
+      return { json: () => Promise.resolve([archetypeRow]) };
     }
     // Tenant secrets GET
     if (url.includes('/rest/v1/tenant_secrets') && method === 'GET') {
@@ -82,12 +78,12 @@ function makeFetchMock({
         json: () => Promise.resolve([{ ciphertext: 'cipher', iv: 'ivvalue', auth_tag: 'authtag' }]),
       };
     }
-    // Learned rules POST (insert merged rule — return=representation)
-    if (url.includes('/rest/v1/learned_rules') && method === 'POST') {
+    // employee_rules POST (insert merged rule — return=representation)
+    if (url.includes('/rest/v1/employee_rules') && method === 'POST') {
       return { json: () => Promise.resolve([{ id: mergedRuleId }]) };
     }
-    // Learned rules PATCH (slack_ts storage)
-    if (url.includes('/rest/v1/learned_rules') && method === 'PATCH') {
+    // employee_rules PATCH (slack_ts storage)
+    if (url.includes('/rest/v1/employee_rules') && method === 'PATCH') {
       return { json: () => Promise.resolve([]) };
     }
     // Slack postMessage
@@ -95,10 +91,6 @@ function makeFetchMock({
       return {
         json: () => Promise.resolve({ ok: true, ts: slackTs, channel: 'C123' }),
       };
-    }
-    // Knowledge bases POST (used by summarize step — won't be hit with empty feedback, but fallback)
-    if (url.includes('/rest/v1/knowledge_bases') && method === 'POST') {
-      return { ok: true, json: () => Promise.resolve([]) };
     }
 
     return { json: () => Promise.resolve([]) };
@@ -112,15 +104,26 @@ function makeStep() {
   };
 }
 
-async function invokeSummarizer(
-  fn: ReturnType<typeof createFeedbackSummarizerTrigger>,
-  step: ReturnType<typeof makeStep>,
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (fn as any).fn({ step });
+function makeEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      tenantId: 'tenant-1',
+      archetypeId: 'arch-1',
+      ...overrides,
+    },
+  };
 }
 
-describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
+async function invokeSynthesizer(
+  fn: ReturnType<typeof createRuleSynthesizerFunction>,
+  step: ReturnType<typeof makeStep>,
+  event = makeEvent(),
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (fn as any).fn({ event, step });
+}
+
+describe('createRuleSynthesizerFunction — synthesize-rules step', () => {
   let inngest: Inngest;
 
   beforeEach(() => {
@@ -132,8 +135,8 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
       content: JSON.stringify({
         merges: [
           {
-            original_rule_ids: ['rule-1', 'rule-2'],
-            merged_rule_text: 'Always greet guests warmly and mention checkout time',
+            original_ids: ['rule-1', 'rule-2'],
+            merged_text: 'Always greet guests warmly and mention checkout time',
             rationale: 'Both rules address guest interaction',
           },
         ],
@@ -155,27 +158,26 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
   });
 
   // ── Test 1: Merge detection ──
-  it('3 confirmed rules → LLM returns merge → learned_rules POSTed with source=weekly_synthesis + status=proposed → Slack posted with rule_confirm/rule_reject/rule_rephrase action_ids', async () => {
-    const fn = createFeedbackSummarizerTrigger(inngest);
+  it('3 confirmed rules → LLM returns merge → employee_rules POSTed with source=synthesis + status=proposed → Slack posted with rule_confirm/rule_reject/rule_rephrase action_ids', async () => {
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await invokeSummarizer(fn, step);
+    await invokeSynthesizer(fn, step);
 
     // callLLM should be called for the synthesis step
     expect(mockCallLLM).toHaveBeenCalled();
 
-    // Assert POST to learned_rules with required fields
+    // Assert POST to employee_rules with required fields
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeDefined();
     const insertBody = JSON.parse((insertCall![1] as RequestInit).body as string);
     expect(insertBody.status).toBe('proposed');
-    expect(insertBody.source).toBe('weekly_synthesis');
-    expect(insertBody.entity_type).toBe('archetype');
+    expect(insertBody.source).toBe('synthesis');
     expect(insertBody.rule_text).toBe('Always greet guests warmly and mention checkout time');
 
     // Assert Slack message posted with 3 action buttons
@@ -197,7 +199,7 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
     const patchCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules?id=eq.merged-rule-id') &&
+        args[0].includes('/rest/v1/employee_rules?id=eq.merged-rule-id') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
@@ -206,7 +208,7 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
   });
 
   // ── Test 2: Skip <2 rules ──
-  it('1 confirmed rule → callLLM NOT called → no new learned_rules row created', async () => {
+  it('1 confirmed rule → callLLM NOT called → no new employee_rules row created', async () => {
     mockFetch = makeFetchMock({
       confirmedRules: [
         {
@@ -218,19 +220,19 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    const fn = createFeedbackSummarizerTrigger(inngest);
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await invokeSummarizer(fn, step);
+    await invokeSynthesizer(fn, step);
 
     // callLLM must NOT be called — synthesis was skipped (<2 rules)
     expect(mockCallLLM).not.toHaveBeenCalled();
 
-    // No POST to learned_rules
+    // No POST to employee_rules
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeUndefined();
@@ -241,42 +243,34 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
     mockFetch = makeFetchMock({ confirmedRules: [] });
     vi.stubGlobal('fetch', mockFetch);
 
-    const fn = createFeedbackSummarizerTrigger(inngest);
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await expect(invokeSummarizer(fn, step)).resolves.not.toThrow();
+    await expect(invokeSynthesizer(fn, step)).resolves.not.toThrow();
 
     expect(mockCallLLM).not.toHaveBeenCalled();
 
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeUndefined();
   });
 
-  // ── Test 4: Null notification_channel ──
-  it('null notification_channel → merged rule IS created, Slack NOT called, tenant_secrets NOT queried', async () => {
-    mockFetch = makeFetchMock({ archetypes: [ARCHETYPE_NO_CHANNEL] });
+  // ── Test 4: Null notification_channel → skips (synthesizer returns early when no channel) ──
+  it('null notification_channel → skipped: true returned, Slack NOT called', async () => {
+    mockFetch = makeFetchMock({ archetypeRow: ARCHETYPE_NO_CHANNEL });
     vi.stubGlobal('fetch', mockFetch);
 
-    const fn = createFeedbackSummarizerTrigger(inngest);
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await invokeSummarizer(fn, step);
+    const result = await invokeSynthesizer(fn, step);
 
-    // Rule should still be created (POST to learned_rules)
-    const insertCall = mockFetch.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
-        (args[1] as RequestInit)?.method === 'POST',
-    );
-    expect(insertCall).toBeDefined();
-    const insertBody = JSON.parse((insertCall![1] as RequestInit).body as string);
-    expect(insertBody.status).toBe('proposed');
+    // Synthesizer returns skipped when no channel
+    expect(result).toMatchObject({ skipped: true });
 
     // Slack must NOT be called
     const slackCall = mockFetch.mock.calls.find(
@@ -301,19 +295,19 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
       estimatedCostUsd: 0.001,
     });
 
-    const fn = createFeedbackSummarizerTrigger(inngest);
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await invokeSummarizer(fn, step);
+    await invokeSynthesizer(fn, step);
 
     // callLLM WAS called (3 confirmed rules triggered synthesis)
     expect(mockCallLLM).toHaveBeenCalled();
 
-    // But no POST to learned_rules (nothing to merge)
+    // But no POST to employee_rules (nothing to merge)
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeUndefined();
@@ -326,19 +320,18 @@ describe('createFeedbackSummarizerTrigger — synthesize-rules step', () => {
     expect(slackCall).toBeUndefined();
   });
 
-  // ── Test 6: archetype select includes tenant_id and notification_channel ──
-  it('archetypes fetch URL contains tenant_id and notification_channel in select param', async () => {
-    const fn = createFeedbackSummarizerTrigger(inngest);
+  // ── Test 6: archetypes fetch URL contains notification_channel in select param ──
+  it('archetypes fetch URL contains notification_channel in select param', async () => {
+    const fn = createRuleSynthesizerFunction(inngest);
     const step = makeStep();
 
-    await invokeSummarizer(fn, step);
+    await invokeSynthesizer(fn, step);
 
     const archetypesFetch = mockFetch.mock.calls.find(
       (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('/rest/v1/archetypes'),
     );
     expect(archetypesFetch).toBeDefined();
     const url = archetypesFetch![0] as string;
-    expect(url).toContain('tenant_id');
     expect(url).toContain('notification_channel');
   });
 });

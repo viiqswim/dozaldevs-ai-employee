@@ -3,7 +3,7 @@ import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import {
   createEmployeeLifecycleFunction,
-  MAX_FEEDBACK_CONTEXT_CHARS,
+  MAX_EMPLOYEE_RULES_CHARS,
 } from '../../src/inngest/employee-lifecycle.js';
 
 const {
@@ -187,20 +187,19 @@ afterEach(() => {
   delete process.env.FLY_WORKER_APP;
 });
 
-describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
-  it('all unconsolidated feedback items are included in FEEDBACK_CONTEXT', async () => {
-    const feedbackItems = Array.from({ length: 20 }, (_, i) => ({
-      correction_reason: `Feedback item ${i + 1}`,
-      feedback_type: 'rejection_reason',
-      created_at: new Date(Date.now() - i * 1000).toISOString(),
+describe('feedback injection — EMPLOYEE_RULES env var', () => {
+  it('all confirmed employee_rules are included in EMPLOYEE_RULES', async () => {
+    const rulesItems = Array.from({ length: 5 }, (_, i) => ({
+      rule_text: `Rule item ${i + 1}`,
+      confirmed_at: new Date(Date.now() - i * 1000).toISOString(),
     }));
 
     const engine = makeEngine(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
         return { ok: true, json: () => Promise.resolve([]) };
-      if ((url as string).includes('/rest/v1/feedback')) {
-        return { ok: true, json: () => Promise.resolve(feedbackItems) };
+      if ((url as string).includes('/rest/v1/employee_rules')) {
+        return { ok: true, json: () => Promise.resolve(rulesItems) };
       }
       if (method === 'PATCH' || method === 'POST')
         return { ok: true, json: () => Promise.resolve([]) };
@@ -212,20 +211,18 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
     expect(mockCreateMachine).toHaveBeenCalledOnce();
 
     const machineConfig = mockCreateMachine.mock.calls[0][1] as { env: Record<string, string> };
-    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(
-      'All unconsolidated feedback (newest first):',
-    );
-    for (let i = 1; i <= 20; i++) {
-      expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(`Feedback item ${i}`);
+    expect(machineConfig.env.EMPLOYEE_RULES).toContain('## Behavioral Rules — follow these');
+    for (let i = 1; i <= 5; i++) {
+      expect(machineConfig.env.EMPLOYEE_RULES).toContain(`Rule item ${i}`);
     }
   });
 
-  it('feedback query uses consolidated_at=is.null filter', async () => {
+  it('employee_rules query uses status=eq.confirmed and archetype_id filter', async () => {
     const fetchSpy = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
         return { ok: true, json: () => Promise.resolve([]) };
-      if ((url as string).includes('/rest/v1/feedback'))
+      if ((url as string).includes('/rest/v1/employee_rules'))
         return { ok: true, json: () => Promise.resolve([]) };
       if (method === 'PATCH' || method === 'POST')
         return { ok: true, json: () => Promise.resolve([]) };
@@ -236,23 +233,22 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
     const engine = makeEngine(fetchSpy);
     await engine.execute(triggerEvent());
 
-    const feedbackCalls = fetchSpy.mock.calls.filter((args: unknown[]) => {
+    const rulesCalls = fetchSpy.mock.calls.filter((args: unknown[]) => {
       const url = args[0] as string;
-      return url.includes('/rest/v1/feedback') && !url.includes('learned_rules');
+      return url.includes('/rest/v1/employee_rules') && !url.includes('PATCH');
     });
-    expect(feedbackCalls.length).toBeGreaterThan(0);
-    const feedbackUrl = feedbackCalls[0][0] as string;
-    expect(feedbackUrl).toContain('consolidated_at=is.null');
-    expect(feedbackUrl).not.toContain('limit=');
-    expect(feedbackUrl).not.toContain('created_at=gte');
+    expect(rulesCalls.length).toBeGreaterThan(0);
+    const rulesUrl = rulesCalls[0][0] as string;
+    expect(rulesUrl).toContain('status=eq.confirmed');
+    expect(rulesUrl).toContain(`archetype_id=eq.${TEST_ARCHETYPE_ID}`);
   });
 
-  it('empty feedback results in empty FEEDBACK_CONTEXT', async () => {
+  it('empty employee_rules results in EMPLOYEE_RULES absent from machine env', async () => {
     const engine = makeEngine(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
         return { ok: true, json: () => Promise.resolve([]) };
-      if ((url as string).includes('/rest/v1/feedback'))
+      if ((url as string).includes('/rest/v1/employee_rules'))
         return { ok: true, json: () => Promise.resolve([]) };
       if (method === 'PATCH' || method === 'POST')
         return { ok: true, json: () => Promise.resolve([]) };
@@ -264,23 +260,22 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
     expect(mockCreateMachine).toHaveBeenCalledOnce();
 
     const machineConfig = mockCreateMachine.mock.calls[0][1] as { env: Record<string, string> };
-    expect(machineConfig.env.FEEDBACK_CONTEXT ?? '').toBe('');
+    expect(machineConfig.env.EMPLOYEE_RULES ?? '').toBe('');
   });
 
-  it('safety cap truncates context when it exceeds MAX_FEEDBACK_CONTEXT_CHARS', async () => {
+  it('safety cap truncates EMPLOYEE_RULES when it exceeds MAX_EMPLOYEE_RULES_CHARS', async () => {
     const longText = 'x'.repeat(2000);
-    const feedbackItems = Array.from({ length: 20 }, (_, i) => ({
-      correction_reason: longText,
-      feedback_type: 'rejection_reason',
-      created_at: new Date(Date.now() - i * 1000).toISOString(),
+    const rulesItems = Array.from({ length: 20 }, (_, i) => ({
+      rule_text: longText,
+      confirmed_at: new Date(Date.now() - i * 1000).toISOString(),
     }));
 
     const engine = makeEngine(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
         return { ok: true, json: () => Promise.resolve([]) };
-      if ((url as string).includes('/rest/v1/feedback'))
-        return { ok: true, json: () => Promise.resolve(feedbackItems) };
+      if ((url as string).includes('/rest/v1/employee_rules'))
+        return { ok: true, json: () => Promise.resolve(rulesItems) };
       if (method === 'PATCH' || method === 'POST')
         return { ok: true, json: () => Promise.resolve([]) };
       return { ok: true, json: () => Promise.resolve([]) };
@@ -291,11 +286,13 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
     expect(mockCreateMachine).toHaveBeenCalledOnce();
 
     const machineConfig = mockCreateMachine.mock.calls[0][1] as { env: Record<string, string> };
-    const ctx = machineConfig.env.FEEDBACK_CONTEXT ?? '';
-    expect(ctx.length).toBeLessThanOrEqual(MAX_FEEDBACK_CONTEXT_CHARS);
+    const ctx = machineConfig.env.EMPLOYEE_RULES ?? '';
+    const header = '## Behavioral Rules — follow these';
+    const rulesSection = ctx.slice(header.length + 2);
+    expect(rulesSection.length).toBeLessThanOrEqual(MAX_EMPLOYEE_RULES_CHARS);
   });
 
-  it('KB themes are injected without a slice cap', async () => {
+  it('KB themes are injected into EMPLOYEE_KNOWLEDGE without a slice cap', async () => {
     const kbEntries = Array.from({ length: 10 }, (_, i) => ({
       source_config: {
         themes: [
@@ -312,7 +309,7 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
         return { ok: true, json: () => Promise.resolve(kbEntries) };
-      if ((url as string).includes('/rest/v1/feedback'))
+      if ((url as string).includes('/rest/v1/employee_rules'))
         return { ok: true, json: () => Promise.resolve([]) };
       if (method === 'PATCH' || method === 'POST')
         return { ok: true, json: () => Promise.resolve([]) };
@@ -324,7 +321,7 @@ describe('feedback injection — FEEDBACK_CONTEXT env var', () => {
     expect(mockCreateMachine).toHaveBeenCalledOnce();
 
     const machineConfig = mockCreateMachine.mock.calls[0][1] as { env: Record<string, string> };
-    const ctx = machineConfig.env.FEEDBACK_CONTEXT ?? '';
+    const ctx = machineConfig.env.EMPLOYEE_KNOWLEDGE ?? '';
     for (let i = 1; i <= 10; i++) {
       expect(ctx).toContain(`Theme ${i}`);
     }

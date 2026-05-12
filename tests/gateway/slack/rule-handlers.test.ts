@@ -76,30 +76,36 @@ describe('rule_confirm handler', () => {
     expect(handler).toBeDefined();
 
     const ack = makeAck();
+    const client = makeClient();
     await handler({
       ack,
       body: {
         actions: [{ value: 'rule-abc-123' }],
         user: { id: 'U-APPROVER', name: 'approver' },
+        channel: { id: 'C-TEST' },
+        message: { ts: '1234567890.000001' },
       },
       respond: vi.fn(),
-      client: makeClient(),
+      client,
     });
 
     expect(ack).toHaveBeenCalledOnce();
-    const ackArg = (ack.mock.calls[0] as unknown[])[0] as {
-      replace_original: boolean;
+    expect(ack).toHaveBeenCalledWith();
+
+    expect(client.chat.update).toHaveBeenCalledOnce();
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      channel: string;
+      ts: string;
       blocks: Array<{ type: string; text?: { text: string }; elements?: unknown[] }>;
     };
-    expect(ackArg.replace_original).toBe(true);
-    const sectionBlock = ackArg.blocks.find((b) => b.type === 'section');
+    const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
     expect(sectionBlock?.text?.text).toContain('✅');
     expect(sectionBlock?.text?.text).toContain('<@U-APPROVER>');
 
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules?id=eq.rule-abc-123') &&
+        args[0].includes('employee_rules?id=eq.rule-abc-123') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
@@ -134,7 +140,7 @@ describe('rule_confirm handler', () => {
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules') &&
+        args[0].includes('employee_rules') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeUndefined();
@@ -155,30 +161,36 @@ describe('rule_reject handler', () => {
     expect(handler).toBeDefined();
 
     const ack = makeAck();
+    const client = makeClient();
     await handler({
       ack,
       body: {
         actions: [{ value: 'rule-xyz-456' }],
         user: { id: 'U-REJECTER', name: 'rejecter' },
+        channel: { id: 'C-TEST' },
+        message: { ts: '1234567890.000002' },
       },
       respond: vi.fn(),
-      client: makeClient(),
+      client,
     });
 
     expect(ack).toHaveBeenCalledOnce();
-    const ackArg = (ack.mock.calls[0] as unknown[])[0] as {
-      replace_original: boolean;
+    expect(ack).toHaveBeenCalledWith();
+
+    expect(client.chat.update).toHaveBeenCalledOnce();
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      channel: string;
+      ts: string;
       blocks: Array<{ type: string; text?: { text: string } }>;
     };
-    expect(ackArg.replace_original).toBe(true);
-    const sectionBlock = ackArg.blocks.find((b) => b.type === 'section');
+    const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
     expect(sectionBlock?.text?.text).toContain('❌');
     expect(sectionBlock?.text?.text).toContain('<@U-REJECTER>');
 
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules?id=eq.rule-xyz-456') &&
+        args[0].includes('employee_rules?id=eq.rule-xyz-456') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
@@ -222,7 +234,7 @@ describe('rule_rephrase handler', () => {
     const getFetch = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules?id=eq.rule-rephrase-789') &&
+        args[0].includes('employee_rules?id=eq.rule-rephrase-789') &&
         args[0].includes('select=rule_text'),
     );
     expect(getFetch).toBeDefined();
@@ -292,7 +304,7 @@ describe('rule_rephrase_modal view handler', () => {
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules?id=eq.rule-modal-001') &&
+        args[0].includes('employee_rules?id=eq.rule-modal-001') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
@@ -349,7 +361,7 @@ describe('rule_rephrase_modal view handler', () => {
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('learned_rules') &&
+        args[0].includes('employee_rules') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeUndefined();

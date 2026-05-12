@@ -3,12 +3,10 @@ import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import {
   createEmployeeLifecycleFunction,
-  MAX_LEARNED_RULES_CHARS,
+  MAX_EMPLOYEE_RULES_CHARS,
 } from '../../src/inngest/employee-lifecycle.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-// ── Module mocks ─────────────────────────────────────────────────────────────
 
 const { mockCreateMachine, mockDestroyMachine, mockGetTunnelUrl, mockLoadTenantEnv } = vi.hoisted(
   () => ({
@@ -64,8 +62,6 @@ vi.mock('../../src/lib/logger.js', () => ({
   }),
 }));
 
-// ── Test fixtures ─────────────────────────────────────────────────────────────
-
 const TEST_TASK_ID = '33333333-3333-3333-3333-333333333333';
 const TEST_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const TEST_ARCHETYPE_ID = '00000000-0000-0000-0000-000000000012';
@@ -74,9 +70,6 @@ const inngest = new Inngest({ id: 'ai-employee-learned-rules-injection-test' });
 
 type RuleRow = {
   rule_text: string;
-  entity_type: string | null;
-  entity_id: string | null;
-  scope: string;
   confirmed_at: string;
 };
 
@@ -105,36 +98,26 @@ function triggerEvent(): { events: [{ name: string; data: Record<string, unknown
   };
 }
 
-/**
- * Build a fetch mock that handles all PostgREST calls in the 'executing' step.
- * @param learnedRulesRows  Rules to return for the learned_rules GET
- * @param throwOnRules      When true, the learned_rules fetch throws instead of returning
- */
-function makeFetch(learnedRulesRows: RuleRow[], throwOnRules = false) {
+function makeFetch(rulesRows: RuleRow[], throwOnRules = false) {
   return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
     const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
 
     if ((url as string).includes('knowledge_bases')) {
       return { ok: true, json: () => Promise.resolve([]) };
     }
-    if ((url as string).includes('/rest/v1/feedback')) {
+    if ((url as string).includes('/rest/v1/feedback_events')) {
       return { ok: true, json: () => Promise.resolve([]) };
     }
-    if ((url as string).includes('/rest/v1/learned_rules') && method === 'GET') {
+    if ((url as string).includes('/rest/v1/employee_rules') && method === 'GET') {
       if (throwOnRules) {
         throw new Error('PostgREST error — network failure');
       }
-      return { ok: true, json: () => Promise.resolve(learnedRulesRows) };
+      return { ok: true, json: () => Promise.resolve(rulesRows) };
     }
-    // Catch-all: patchTask (PATCH /tasks), logStatusTransition (POST /task_status_log), etc.
     return { ok: true, json: () => Promise.resolve([]) };
   });
 }
 
-/**
- * InngestTestEngine that runs ONLY the 'executing' step; all others return mock values.
- * approval_required=false keeps the lifecycle from entering the approval wait loop.
- */
 function makeEngine() {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
@@ -151,7 +134,6 @@ function makeEngine() {
             case 'poll-completion':
               return 'Submitting';
             default:
-              // triaging, awaiting-input, ready, validating, submitting, complete, cleanup-* etc.
               return undefined;
           }
         });
@@ -160,7 +142,6 @@ function makeEngine() {
   });
 }
 
-/** Extract the env object passed to createMachine. */
 function getMachineEnv(): Record<string, string> {
   expect(mockCreateMachine).toHaveBeenCalledOnce();
   const machineConfig = mockCreateMachine.mock.calls[0][1] as {
@@ -169,8 +150,6 @@ function getMachineEnv(): Record<string, string> {
   return machineConfig.env;
 }
 
-// ── Setup / teardown ──────────────────────────────────────────────────────────
-
 beforeEach(() => {
   vi.clearAllMocks();
   mockCreateMachine.mockResolvedValue({ id: 'test-machine-id' });
@@ -178,7 +157,6 @@ beforeEach(() => {
   mockGetTunnelUrl.mockResolvedValue('http://localhost:54321');
   mockLoadTenantEnv.mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test-token' });
 
-  // Prevent the poll-completion loop's 15s sleeps from stalling tests
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
     fn();
     return 0 as unknown as NodeJS.Timeout;
@@ -196,35 +174,16 @@ afterEach(() => {
   delete process.env.FLY_WORKER_APP;
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Suite 1: Lifecycle — LEARNED_RULES_CONTEXT injection into machine env
-// ═════════════════════════════════════════════════════════════════════════════
-
 describe('learned-rules injection — lifecycle env assembly', () => {
-  // ── Test 1: Ranking ──────────────────────────────────────────────────────
-
-  it('archetype-scoped rules appear before tenant-wide rules in LEARNED_RULES_CONTEXT', async () => {
+  it('confirmed rules are included in EMPLOYEE_RULES env var', async () => {
     const rules: RuleRow[] = [
       {
-        rule_text: 'Common rule from tenant',
-        entity_type: 'tenant',
-        entity_id: null,
-        scope: 'common',
+        rule_text: 'Always greet guests by name',
         confirmed_at: '2026-01-01T00:00:00Z',
       },
       {
-        rule_text: 'Archetype-specific rule',
-        entity_type: 'archetype',
-        entity_id: TEST_ARCHETYPE_ID,
-        scope: 'entity',
+        rule_text: 'Mention checkout time in first message',
         confirmed_at: '2026-01-02T00:00:00Z',
-      },
-      {
-        rule_text: 'Another common rule',
-        entity_type: null,
-        entity_id: null,
-        scope: 'common',
-        confirmed_at: '2026-01-03T00:00:00Z',
       },
     ];
 
@@ -235,23 +194,14 @@ describe('learned-rules injection — lifecycle env assembly', () => {
     expect(error).toBeUndefined();
 
     const env = getMachineEnv();
-    expect(env).toHaveProperty('LEARNED_RULES_CONTEXT');
-
-    const ruleLines = env['LEARNED_RULES_CONTEXT']!.split('\n').filter((l) => l.startsWith('- '));
-    expect(ruleLines[0]).toContain('Archetype-specific rule');
-    expect(ruleLines[1]).toContain('Common rule from tenant');
-    expect(ruleLines[2]).toContain('Another common rule');
+    expect(env).toHaveProperty('EMPLOYEE_RULES');
+    expect(env['EMPLOYEE_RULES']).toContain('Always greet guests by name');
+    expect(env['EMPLOYEE_RULES']).toContain('Mention checkout time in first message');
   });
 
-  // ── Test 2: Token budget ─────────────────────────────────────────────────
-
-  it('token budget — rules exceeding MAX_LEARNED_RULES_CHARS are truncated; last included rule is complete', async () => {
-    // 40 rules × ~212-char lines = ~8480 chars total → must truncate
+  it('token budget — rules exceeding MAX_EMPLOYEE_RULES_CHARS are truncated; last included rule is complete', async () => {
     const rules: RuleRow[] = Array.from({ length: 40 }, (_, i) => ({
       rule_text: `Rule ${String(i).padStart(3, '0')}: ${'X'.repeat(200)}`,
-      entity_type: null,
-      entity_id: null,
-      scope: 'common',
       confirmed_at: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
     }));
 
@@ -262,28 +212,23 @@ describe('learned-rules injection — lifecycle env assembly', () => {
     expect(error).toBeUndefined();
 
     const env = getMachineEnv();
-    expect(env).toHaveProperty('LEARNED_RULES_CONTEXT');
+    expect(env).toHaveProperty('EMPLOYEE_RULES');
 
-    const context = env['LEARNED_RULES_CONTEXT']!;
-    const header = '## Learned Behaviors — follow these rules';
-    const rulesSection = context.slice(header.length + 2); // strip header + '\n\n'
+    const context = env['EMPLOYEE_RULES']!;
+    const header = '## Behavioral Rules — follow these';
+    const rulesSection = context.slice(header.length + 2);
 
-    // Rules section stays within the budget
-    expect(rulesSection.length).toBeLessThanOrEqual(MAX_LEARNED_RULES_CHARS);
+    expect(rulesSection.length).toBeLessThanOrEqual(MAX_EMPLOYEE_RULES_CHARS);
 
-    // Fewer rules than provided (truncation occurred)
     const ruleLines = rulesSection.split('\n').filter((l) => l.startsWith('- '));
     expect(ruleLines.length).toBeGreaterThan(0);
     expect(ruleLines.length).toBeLessThan(40);
 
-    // Last included rule is a complete line, not a mid-string cutoff
     const lastLine = ruleLines[ruleLines.length - 1];
     expect(lastLine).toMatch(/^- Rule \d{3}: X+$/);
   });
 
-  // ── Test 3: Empty rules omission ─────────────────────────────────────────
-
-  it('when PostgREST returns [], LEARNED_RULES_CONTEXT is absent from machine env', async () => {
+  it('when PostgREST returns [], EMPLOYEE_RULES is absent from machine env', async () => {
     vi.stubGlobal('fetch', makeFetch([]));
 
     const engine = makeEngine();
@@ -291,41 +236,29 @@ describe('learned-rules injection — lifecycle env assembly', () => {
     expect(error).toBeUndefined();
 
     const env = getMachineEnv();
-    expect(env).not.toHaveProperty('LEARNED_RULES_CONTEXT');
+    expect(env).not.toHaveProperty('EMPLOYEE_RULES');
   });
 
-  // ── Test 4: Error handling ────────────────────────────────────────────────
-
-  it('when fetch throws for learned_rules, lifecycle proceeds without exception and LEARNED_RULES_CONTEXT is absent', async () => {
-    vi.stubGlobal('fetch', makeFetch([], /* throwOnRules */ true));
+  it('when fetch throws for employee_rules, lifecycle proceeds without exception and EMPLOYEE_RULES is absent', async () => {
+    vi.stubGlobal('fetch', makeFetch([], true));
 
     const engine = makeEngine();
     const { error } = await engine.execute(triggerEvent());
 
-    // Lifecycle must not surface the error — the try/catch swallows it
     expect(error).toBeUndefined();
 
-    // Machine is still dispatched (lifecycle continues after the rules error)
     const env = getMachineEnv();
-    expect(env).not.toHaveProperty('LEARNED_RULES_CONTEXT');
+    expect(env).not.toHaveProperty('EMPLOYEE_RULES');
   });
-
-  // ── Test 5: Formatting ────────────────────────────────────────────────────
 
   it('output starts with the standard header and all rule entries use the "- rule_text" format', async () => {
     const rules: RuleRow[] = [
       {
         rule_text: 'Always greet with Hola Papi',
-        entity_type: 'archetype',
-        entity_id: TEST_ARCHETYPE_ID,
-        scope: 'entity',
         confirmed_at: '2026-01-01T00:00:00Z',
       },
       {
         rule_text: 'Mention checkout time at the end',
-        entity_type: null,
-        entity_id: null,
-        scope: 'common',
         confirmed_at: '2026-01-02T00:00:00Z',
       },
     ];
@@ -337,14 +270,12 @@ describe('learned-rules injection — lifecycle env assembly', () => {
     expect(error).toBeUndefined();
 
     const env = getMachineEnv();
-    expect(env).toHaveProperty('LEARNED_RULES_CONTEXT');
+    expect(env).toHaveProperty('EMPLOYEE_RULES');
 
-    const context = env['LEARNED_RULES_CONTEXT']!;
+    const context = env['EMPLOYEE_RULES']!;
 
-    // Must start with the exact header followed by a blank line
-    expect(context).toMatch(/^## Learned Behaviors — follow these rules\n\n/);
+    expect(context).toMatch(/^## Behavioral Rules — follow these\n\n/);
 
-    // Every non-empty, non-header line must be a bullet
     const bodyLines = context.split('\n').filter((l) => l.trim() !== '' && !l.startsWith('#'));
     expect(bodyLines.length).toBeGreaterThan(0);
     for (const line of bodyLines) {
@@ -353,59 +284,38 @@ describe('learned-rules injection — lifecycle env assembly', () => {
   });
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Suite 2: Harness — systemPrompt assembly
-// Mirrors the logic at src/workers/opencode-harness.mts lines 328-336.
-// The .mts file is not easily importable in tests; we verify the logic pattern.
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Local mirror of the prompt-assembly logic in opencode-harness.mts (lines 328-336):
- *   let systemPrompt = feedbackContext ? `${base}\n\n${feedbackContext}` : base;
- *   if (learnedRulesContext) systemPrompt = `${systemPrompt}\n\n${learnedRulesContext}`;
- */
-function buildSystemPrompt(
-  base: string,
-  feedbackContext: string,
-  learnedRulesContext: string,
-): string {
-  let systemPrompt = feedbackContext ? `${base}\n\n${feedbackContext}` : base;
-  if (learnedRulesContext) {
-    systemPrompt = `${systemPrompt}\n\n${learnedRulesContext}`;
+function buildSystemPrompt(base: string, employeeRules: string, employeeKnowledge: string): string {
+  let systemPrompt = employeeRules ? `${base}\n\n${employeeRules}` : base;
+  if (employeeKnowledge) {
+    systemPrompt = `${systemPrompt}\n\n${employeeKnowledge}`;
   }
   return systemPrompt;
 }
 
 describe('learned-rules injection — harness prompt assembly', () => {
-  // ── Test 6: Both FEEDBACK_CONTEXT and LEARNED_RULES_CONTEXT ──────────────
-
-  it('when both FEEDBACK_CONTEXT and LEARNED_RULES_CONTEXT are set, systemPrompt = base → feedback → rules in order', () => {
+  it('when both EMPLOYEE_RULES and EMPLOYEE_KNOWLEDGE are set, systemPrompt = base → rules → knowledge in order', () => {
     const base = 'You are Papi Chulo, a Spanish TV news correspondent.';
-    const feedback = 'Recent feedback:\n- Be more dramatic';
-    const rules = '## Learned Behaviors — follow these rules\n\n- Always say "Dios mío!"';
+    const rules = '## Behavioral Rules — follow these\n\n- Always say "Dios mío!"';
+    const knowledge = '## Reference Knowledge\n\n- Tone: "Be more dramatic" (3 occurrences)';
 
-    const result = buildSystemPrompt(base, feedback, rules);
+    const result = buildSystemPrompt(base, rules, knowledge);
 
-    expect(result).toBe(`${base}\n\n${feedback}\n\n${rules}`);
+    expect(result).toBe(`${base}\n\n${rules}\n\n${knowledge}`);
 
-    // Order: base appears first, then feedback, then rules
     const baseIdx = result.indexOf(base);
-    const feedbackIdx = result.indexOf(feedback);
     const rulesIdx = result.indexOf(rules);
-    expect(baseIdx).toBeLessThan(feedbackIdx);
-    expect(feedbackIdx).toBeLessThan(rulesIdx);
+    const knowledgeIdx = result.indexOf(knowledge);
+    expect(baseIdx).toBeLessThan(rulesIdx);
+    expect(rulesIdx).toBeLessThan(knowledgeIdx);
   });
 
-  // ── Test 7: Only LEARNED_RULES_CONTEXT (no feedback) ─────────────────────
-
-  it('when only LEARNED_RULES_CONTEXT is set, systemPrompt = base + rules without extra blank lines from absent feedback', () => {
+  it('when only EMPLOYEE_RULES is set, systemPrompt = base + rules without extra blank lines from absent knowledge', () => {
     const base = 'You are Papi Chulo, a Spanish TV news correspondent.';
-    const rules = '## Learned Behaviors — follow these rules\n\n- Always say "Dios mío!"';
+    const rules = '## Behavioral Rules — follow these\n\n- Always say "Dios mío!"';
 
-    const result = buildSystemPrompt(base, '', rules);
+    const result = buildSystemPrompt(base, rules, '');
 
     expect(result).toBe(`${base}\n\n${rules}`);
-    // No triple newline that would appear if empty feedback were concatenated
     expect(result).not.toContain('\n\n\n');
   });
 });

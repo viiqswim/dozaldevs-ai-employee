@@ -1157,7 +1157,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 12. Drop old tables — `feedback` and `learned_rules`
+- [x] 12. Drop old tables — `feedback` and `learned_rules`
 
   **What to do**:
   Create a Prisma migration that drops the `feedback` and `learned_rules` tables. This runs AFTER all code has been updated to use the new tables (Tasks 4-10) and data has been migrated (Task 3).
@@ -1216,7 +1216,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 13. Update AGENTS.md for redesigned feedback pipeline
+- [x] 13. Update AGENTS.md for redesigned feedback pipeline
 
   **What to do**:
   Update the `AGENTS.md` file to reflect the new feedback pipeline architecture. This is a documentation-only change.
@@ -1276,7 +1276,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 14. Rewrite test files for new schema
+- [x] 14. Rewrite test files for new schema
 
   **What to do**:
   Find all test files that reference old table names (`feedback`, `learned_rules`) or old env vars (`FEEDBACK_CONTEXT`, `LEARNED_RULES_CONTEXT`) and update them.

@@ -286,16 +286,16 @@ describe('employee-lifecycle — rejection feedback loop', () => {
       mockFetch.mock.calls as Array<[string, RequestInit | undefined]>
     ).filter(
       ([url, init]) =>
-        (url as string).includes('/rest/v1/feedback') &&
+        (url as string).includes('/rest/v1/feedback_events') &&
         ((init as RequestInit | undefined)?.method ?? '').toUpperCase() === 'POST',
     );
 
     const rejectionFeedbackPost = feedbackPostCalls.find(([, init]) => {
       try {
         const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
-          feedback_type?: string;
+          event_type?: string;
         };
-        return body.feedback_type === 'rejection_reason';
+        return body.event_type === 'rejection_reason';
       } catch {
         return false;
       }
@@ -306,8 +306,8 @@ describe('employee-lifecycle — rejection feedback loop', () => {
     const [, postInit] = rejectionFeedbackPost!;
     const postBody = JSON.parse(
       ((postInit as RequestInit | undefined)?.body as string) ?? '{}',
-    ) as { correction_reason?: string };
-    expect(postBody.correction_reason).toBe('Too casual tone');
+    ) as { correction_content?: string };
+    expect(postBody.correction_content).toBe('Too casual tone');
   });
 
   it('4. does NOT post to feedback table when rejectionReason is absent', async () => {
@@ -320,13 +320,13 @@ describe('employee-lifecycle — rejection feedback loop', () => {
     const rejectionFeedbackPost = (
       mockFetch.mock.calls as Array<[string, RequestInit | undefined]>
     ).find(([url, init]) => {
-      if (!(url as string).includes('/rest/v1/feedback')) return false;
+      if (!(url as string).includes('/rest/v1/feedback_events')) return false;
       if (((init as RequestInit | undefined)?.method ?? '').toUpperCase() !== 'POST') return false;
       try {
         const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
-          feedback_type?: string;
+          event_type?: string;
         };
-        return body.feedback_type === 'rejection_reason';
+        return body.event_type === 'rejection_reason';
       } catch {
         return false;
       }
@@ -478,7 +478,7 @@ describe('employee-lifecycle — rejection feedback loop', () => {
 
     const rulePost = (mockFetch.mock.calls as Array<[string, RequestInit | undefined]>).find(
       ([url, init]) => {
-        if (!(url as string).includes('/rest/v1/learned_rules')) return false;
+        if (!(url as string).includes('/rest/v1/employee_rules')) return false;
         if (((init as RequestInit | undefined)?.method ?? '').toUpperCase() !== 'POST')
           return false;
         try {
@@ -515,7 +515,7 @@ describe('employee-lifecycle — rejection feedback loop', () => {
     const awaitingInputPost = (
       mockFetch.mock.calls as Array<[string, RequestInit | undefined]>
     ).find(([url, init]) => {
-      if (!(url as string).includes('/rest/v1/learned_rules')) return false;
+      if (!(url as string).includes('/rest/v1/employee_rules')) return false;
       if (((init as RequestInit | undefined)?.method ?? '').toUpperCase() !== 'POST') return false;
       try {
         const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
