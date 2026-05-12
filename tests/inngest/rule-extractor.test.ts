@@ -197,8 +197,8 @@ describe('createRuleExtractorFunction', () => {
     expect(body.source).toBe('rejection');
   });
 
-  // ── Test 3: Happy path feedback with feedbackId (fetches content from feedback table) ──
-  it('feedback + feedbackId — fetches correction_reason from feedback table → extraction', async () => {
+  // ── Test 3: Happy path feedback with feedbackId — content comes from event payload ──
+  it('feedback + feedbackId — content from event payload → LLM extraction → DB insert', async () => {
     const fn = createRuleExtractorFunction(inngest);
     const step = makeStep();
 
@@ -206,22 +206,19 @@ describe('createRuleExtractorFunction', () => {
       fn,
       makeEvent({
         feedbackType: 'feedback',
-        content: null,
+        content: 'The tone was too casual',
         feedbackId: 'fb-uuid-999',
       }),
       step,
     );
 
-    // Should have fetched from feedback table
+    // Should NOT fetch from any feedback table (that table is dropped)
     const feedbackFetch = mockFetch.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/feedback') &&
-        args[0].includes('fb-uuid-999'),
+      (args: unknown[]) => typeof args[0] === 'string' && args[0].includes('/rest/v1/feedback'),
     );
-    expect(feedbackFetch).toBeDefined();
+    expect(feedbackFetch).toBeUndefined();
 
-    // Should still call LLM
+    // Should call LLM with content from payload
     expect(mockCallLLM).toHaveBeenCalledOnce();
 
     const insertCall = mockFetch.mock.calls.find(
