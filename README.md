@@ -189,16 +189,17 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 
 ## Documentation
 
-| Document                                                                       | Description                                                                                                                                   |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Full System Vision](docs/architecture/2026-04-14-0104-full-system-vision.md)  | Architecture, archetypes, lifecycle, event routing, multi-tenancy                                                                             |
-| [Current System State](docs/snapshots/2026-04-29-2255-current-system-state.md) | Latest verified snapshot: lifecycle, harness flow, all routes, DB schema — includes unified interaction handler and guest messaging full flow |
-| [Multi-Tenancy Guide](docs/guides/2026-04-16-1655-multi-tenancy-guide.md)      | Provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                           |
-| [Phase 1 Story Map](docs/planning/2026-04-21-2202-phase1-story-map.md)         | 58 stories across 5 releases — active development roadmap                                                                                     |
-| [Product Roadmap](docs/planning/2026-04-21-1813-product-roadmap.md)            | 4-phase product roadmap, design partner strategy                                                                                              |
-| [Troubleshooting](docs/guides/2026-04-01-2110-troubleshooting.md)              | Common failures with symptoms and fixes                                                                                                       |
-| [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md)      | File structure, CLI pattern, mock fixtures, Docker integration for new shell tools                                                            |
-| [Local E2E Testing](docs/testing/2026-05-04-2023-local-e2e-testing.md)         | Testing without real external APIs — mock conventions, fixture structure, env propagation                                                     |
+| Document                                                                       | Description                                                                                                                                    |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Full System Vision](docs/architecture/2026-04-14-0104-full-system-vision.md)  | Architecture, archetypes, lifecycle, event routing, multi-tenancy                                                                              |
+| [Current System State](docs/snapshots/2026-04-29-2255-current-system-state.md) | Latest verified snapshot: lifecycle, harness flow, all routes, DB schema — includes unified interaction handler and guest messaging full flow  |
+| [Multi-Tenancy Guide](docs/guides/2026-04-16-1655-multi-tenancy-guide.md)      | Provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                            |
+| [Phase 1 Story Map](docs/planning/2026-04-21-2202-phase1-story-map.md)         | 58 stories across 5 releases — active development roadmap                                                                                      |
+| [Product Roadmap](docs/planning/2026-04-21-1813-product-roadmap.md)            | 4-phase product roadmap, design partner strategy                                                                                               |
+| [Troubleshooting](docs/guides/2026-04-01-2110-troubleshooting.md)              | Common failures with symptoms and fixes                                                                                                        |
+| [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md)      | File structure, CLI pattern, mock fixtures, Docker integration for new shell tools                                                             |
+| [Local E2E Testing](docs/testing/2026-05-04-2023-local-e2e-testing.md)         | Testing without real external APIs — mock conventions, fixture structure, env propagation                                                      |
+| [Airbnb Integration Research](docs/architecture/airbnb-integration/)           | Research spike: go/no-go decision, Partner API analysis, credential custody, API reverse engineering, ecosystem landscape, next-steps playbook |
 
 ## Testing
 

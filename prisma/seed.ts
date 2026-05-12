@@ -275,9 +275,10 @@ async function main() {
     '  $PROPERTY_UID  — the property UID\n\n' +
     'Run the following steps to process the guest message:\n\n' +
     'STEP 1: Fetch the guest message thread.\n' +
-    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --unresponded-only --fallback-property-uid "$PROPERTY_UID"\n' +
-    'Output is a JSON array of unresponded threads (last message is from guest). ' +
-    'If the output is an empty array, the host has already responded — no action needed from the AI. ' +
+    'Run: tsx /tools/hostfully/get-messages.ts --lead-id "$LEAD_UID" --fallback-property-uid "$PROPERTY_UID"\n' +
+    'Output is a JSON array of conversation threads for this lead. ' +
+    'Check the "unresponded" field on each thread — if false (last message is from host), no action needed from the AI. ' +
+    'If the output is an empty array, no messages found — no action needed. ' +
     'Write "NO_ACTION_NEEDED: Thread already responded to. Last message is from host." to /tmp/summary.txt.\n' +
     'Then post a brief notification so the PM knows this task was processed:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "ℹ️ Guest message task processed — no unresponded messages found. No action needed. Task $TASK_ID"\n' +
