@@ -343,6 +343,19 @@ During E2E testing sessions you can use the Playwright MCP browser to interact w
 
 > For all approval paths (reject, edit & send, supersede, expiry, failure) and the full feedback pipeline (rule extraction, injection, consolidation, synthesis), see the E2E test guides in Reference Documents.
 
+## External API Integration — Mandatory Practices
+
+When adding a new external API endpoint or debugging a data quality issue from an API call, follow these rules:
+
+1. **Raw response first** — before reading application code, run a live `node -e` or `curl` call to inspect the actual JSON shape. Wrong data from an API is almost always a shape mismatch, and the raw response reveals it immediately.
+2. **Never bare `as T` on API JSON** — `(await res.json()) as RawType` silently accepts any shape at runtime. Use a wrapper-aware cast (`const json = await res.json() as { lead?: RawLead }; const lead = json.lead ?? (json as unknown as RawLead)`) or Zod validation.
+3. **Expect and document the response envelope** — many APIs (including Hostfully) wrap single-resource responses: `{ "lead": {...} }`, `{ "property": {...} }`. List endpoints often use a different shape: `{ "leads": [...] }`. Verify both before writing parsing code. Comment the shape at the parse site.
+4. **Scan existing patterns before adding new API calls** — a `?? fallback` or field rename near an API call documents a known quirk. Ask "why does this exist?" before writing similar code nearby.
+5. **Make critical null loud** — if a critical field comes back `undefined` after parsing, log a warning with `Object.keys(response)`. Silent null propagation turns a one-line bug into a multi-session investigation.
+6. **Add a shape smoke test** — when onboarding a new endpoint, add a manual integration test that asserts the live API returns the expected top-level shape.
+
+Full guide with code examples and rationale: `docs/guides/2026-05-12-1731-api-integration-practices.md`
+
 ## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
 
 Hostfully credentials are **tenant-level secrets stored in the database**, not `.env` variables. The `tenant-env-loader.ts` auto-uppercases and injects all `tenant_secrets` rows into the worker machine env — no code changes needed when adding new secrets.
@@ -873,3 +886,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/architecture/airbnb-integration/2026-05-12-1120-go-no-go-decision.md`      | Airbnb direct integration: definitive NO-GO decision with evidence matrix, re-evaluation triggers, and comparison to Hostfully path                                                                                                                      |
 | `docs/architecture/airbnb-integration/2026-05-12-1120-ecosystem-landscape.md`    | Airbnb integration market landscape: Tier 1 (official partners), Tier 2 (Repull middleware), Tier 3 (unofficial/stale OSS). Repull deep-dive. Implications for the platform.                                                                             |
 | `docs/architecture/airbnb-integration/2026-05-12-1120-partner-api-next-steps.md` | Playbook for pursuing Airbnb Partner API access when the platform reaches scale (50+ customers, 500+ listings, 6+ months track record)                                                                                                                   |
+| `docs/guides/2026-05-12-1731-api-integration-practices.md`                       | Adding or debugging any external API integration — response envelope patterns, safe casting, shape smoke tests, silent null tracing                                                                                                                      |
