@@ -122,9 +122,18 @@ function formatGuestName(
 }
 
 async function main(): Promise<void> {
-  const { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid } = parseArgs(
+  let { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid } = parseArgs(
     process.argv,
   );
+
+  // LEAD_UID env var fallback: if --lead-id was not provided but LEAD_UID is set,
+  // auto-use it (lifecycle injects LEAD_UID from webhook raw_event).
+  if (!leadId && process.env['LEAD_UID']) {
+    process.stderr.write(
+      `[get-messages] WARNING: --lead-id not provided, falling back to LEAD_UID env var: ${process.env['LEAD_UID']}\n`,
+    );
+    leadId = process.env['LEAD_UID'];
+  }
 
   if (help) {
     process.stdout.write(
@@ -223,8 +232,13 @@ async function main(): Promise<void> {
 
   const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
 
-  // --- Single-lead path (--lead-id) ---
+  // --- Single-lead path (--lead-id or LEAD_UID fallback) ---
   if (leadId) {
+    if (unrespondedOnly) {
+      process.stderr.write(
+        `[get-messages] WARNING: --unresponded-only is ignored when --lead-id is set — returning full conversation for lead ${leadId}\n`,
+      );
+    }
     const leadRes = await fetch(`${baseUrl}/leads/${encodeURIComponent(leadId)}`, { headers });
     if (!leadRes.ok) {
       process.stderr.write(`Error: Failed to fetch lead ${leadId}: ${leadRes.status}\n`);
@@ -281,8 +295,7 @@ async function main(): Promise<void> {
       });
     }
 
-    const results = unrespondedOnly ? threads.filter((t) => t.unresponded) : threads;
-    process.stdout.write(JSON.stringify(results) + '\n');
+    process.stdout.write(JSON.stringify(threads) + '\n');
     return;
   }
 
