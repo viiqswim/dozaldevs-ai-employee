@@ -49,6 +49,7 @@ model Task {
   clarifications    Clarification[]
   crossDeptTriggers CrossDeptTrigger[]
   auditLogs         AuditLog[]
+  feedbackEvents    FeedbackEvent[]
 
   @@unique([external_id, source_system, tenant_id])
   @@map("tasks")
@@ -227,6 +228,8 @@ model Archetype {
   knowledgeBases KnowledgeBase[]
   riskModels     RiskModel[]
   agentVersions  AgentVersion[]  @relation("ArchetypeVersions")
+  feedbackEvents FeedbackEvent[]
+  employeeRules  EmployeeRule[]
 
   @@unique([tenant_id, role_name])
   @@map("archetypes")
@@ -399,6 +402,8 @@ model Tenant {
   pendingApprovals      PendingApproval[]
   learned_rules         LearnedRule[]
   propertyLocks         PropertyLock[]
+  feedbackEvents        FeedbackEvent[]
+  employeeRules         EmployeeRule[]
 
   @@map("tenants")
 }
@@ -511,4 +516,53 @@ model LearnedRule {
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@map("learned_rules")
+}
+
+// ============================================================
+// Feedback System Redesign — New Tables
+// ============================================================
+
+model FeedbackEvent {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id          String   @db.Uuid
+  archetype_id       String   @db.Uuid
+  task_id            String?  @db.Uuid
+  event_type         String
+  actor_id           String?
+  correction_content String?
+  original_content   String?
+  metadata           Json?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  tenant    Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  archetype Archetype @relation(fields: [archetype_id], references: [id], onDelete: Cascade)
+  task      Task?     @relation(fields: [task_id], references: [id])
+
+  @@index([tenant_id, archetype_id, created_at(sort: Desc)])
+  @@map("feedback_events")
+}
+
+model EmployeeRule {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id       String    @db.Uuid
+  archetype_id    String    @db.Uuid
+  rule_text       String
+  source          String
+  status          String
+  source_task_id  String?   @db.Uuid
+  parent_rule_ids String[]  @default([]) @db.Uuid
+  slack_ts        String?
+  slack_channel   String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  confirmed_at    DateTime? @db.Timestamptz(6)
+
+  // Relations
+  tenant    Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  archetype Archetype @relation(fields: [archetype_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_task_id, source], name: "employee_rules_source_task_source_unique", map: "employee_rules_source_task_source_unique")
+  @@index([tenant_id, archetype_id, status])
+  @@index([status, archetype_id])
+  @@map("employee_rules")
 }
