@@ -75,15 +75,12 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         };
 
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/learned_rules?status=eq.awaiting_input&source_task_id=eq.${taskId}&select=id,tenant_id,entity_type,entity_id,scope,source`,
+          `${supabaseUrl}/rest/v1/employee_rules?status=eq.awaiting_input&source_task_id=eq.${taskId}&select=id,tenant_id,source`,
           { headers },
         );
         const rows = (await res.json()) as Array<{
           id: string;
           tenant_id: string;
-          entity_type: string | null;
-          entity_id: string | null;
-          scope: string;
           source: string;
         }>;
         return rows[0] ?? null;
@@ -130,19 +127,17 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             Prefer: 'return=representation',
           };
 
-          const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+          const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
               id: crypto.randomUUID(),
               task_id: taskId ?? null,
-              feedback_type: 'rejection_reason',
-              correction_reason: text,
-              created_by: userId,
+              event_type: 'rejection_reason',
+              correction_content: text,
+              actor_id: userId,
+              archetype_id: context.archetypeId ?? null,
               tenant_id: context.tenantId,
-              original_decision: null,
-              corrected_decision: null,
-              updated_at: new Date().toISOString(),
             }),
           });
           const feedbackRows = (await feedbackRes.json()) as Array<{ id: string }>;
@@ -193,7 +188,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             Prefer: 'return=minimal',
           };
 
-          await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${awaitingInputRule.id}`, {
+          await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${awaitingInputRule.id}`, {
             method: 'PATCH',
             headers,
             body: JSON.stringify({ rule_text: text, status: 'proposed' }),
@@ -278,7 +273,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             return;
           }
 
-          await fetch(`${supabaseUrl}/rest/v1/learned_rules?id=eq.${ruleId}`, {
+          await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
             method: 'PATCH',
             headers,
             body: JSON.stringify({
@@ -319,19 +314,17 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
                 ? 'thread_reply'
                 : 'mention_feedback';
           const newFeedbackId = crypto.randomUUID();
-          const res = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+          const res = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
               id: newFeedbackId,
               task_id: taskId ?? null,
-              feedback_type: feedbackType,
-              correction_reason: text,
-              created_by: userId,
+              event_type: feedbackType,
+              correction_content: text,
+              actor_id: userId,
+              archetype_id: context.archetypeId ?? null,
               tenant_id: context.tenantId,
-              original_decision: null,
-              corrected_decision: null,
-              updated_at: new Date().toISOString(),
             }),
           });
           if (!res.ok) {

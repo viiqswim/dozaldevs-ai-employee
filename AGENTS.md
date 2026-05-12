@@ -313,7 +313,7 @@ During E2E testing sessions you can use the Playwright MCP browser to interact w
 - Channel ID: `C0AMGJQN05S`
 - Approval cards appear here; click **Approve** or **Reject** buttons directly in the browser
 
-**Verified E2E flow** (confirmed working 2026-05-07):
+**Verified E2E flow — Scenario A (approve / happy path only)** — full scenario library in `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`. Confirmed working 2026-05-07:
 
 | Step | What happens                                                                                                                                                                                                      | Where to observe                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -343,6 +343,8 @@ During E2E testing sessions you can use the Playwright MCP browser to interact w
 - Read the last few Slack messages — they show task outcome ("No action needed", approval card, or failure)
 - Approval cards include the task ID in a context block at the bottom
 - A task that goes `Done` in under 5 seconds = pre-check fired (last message was from host)
+
+> For all approval paths (reject, edit & send, supersede, expiry, failure) and the full feedback pipeline (rule extraction, injection, consolidation, synthesis), see the E2E test guides in Reference Documents.
 
 ## Hostfully Tenant Configuration (CRITICAL — Read Before Any Hostfully Work)
 
@@ -753,17 +755,40 @@ If the plan already had a notification task that fired, the user receives two no
 
 ## Plan E2E Validation (MANDATORY)
 
-Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step. "The code works" is not sufficient — the full employee workflow must be exercised end-to-end in a real browser before the plan is considered done.
+Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step. "The code works" is not sufficient — every part of the system touched by the change must be exercised end-to-end in a real browser before the plan is considered done.
 
-### What this means
+### Scenario Coverage Requirements
 
-A plan is only complete when Playwright browser automation has walked the full trigger-to-delivery flow with real external services. This applies to every employee type. The verification wave must include:
+Testing must go beyond the happy path. Two test guides define the full scenario library — **read the applicable guide and run all scenarios relevant to your change**:
 
-1. **Trigger** — fire the real trigger (send a message, hit a webhook, invoke the cron)
-2. **Pipeline trace** — confirm each lifecycle state transition occurs (check DB or logs)
-3. **Worker output** — confirm the worker produced the expected draft/deliverable
-4. **Approval gate** — if `approval_required: true`, click Approve or Reject in the real Slack UI using Playwright browser automation
-5. **Delivery** — confirm the final action completed (message sent, channel updated, etc.)
+| Guide                                                      | Scenarios | Domain                                                                                    |
+| ---------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure |
+| `docs/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                   |
+
+**Minimum for any guest-messaging change**: Scenario A (approve happy path). Use the **Quick-Reference table** at the end of each guide to identify which additional scenarios apply to your change.
+
+| If your change touches...                  | Also run...                                                    |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| Approval card content or buttons           | Scenarios A, B (reject), C (edit & send)                       |
+| Terminal state message blocks              | Scenarios A, B, E (expiry), F (failure)                        |
+| Context thread reply content               | Scenarios A, B, C                                              |
+| Supersede logic                            | Scenario D                                                     |
+| `get-messages.ts` or guest name resolution | Scenario A — verify correct guest name in approval card header |
+| Feedback capture or rule extraction        | Feedback guide Scenarios A, B, C                               |
+| Rule injection (`LEARNED_RULES_CONTEXT`)   | Feedback guide Scenario D                                      |
+| Feedback consolidation or synthesis        | Feedback guide Scenarios E, F                                  |
+
+### What each verification step must confirm
+
+For each scenario run, the plan step must document:
+
+1. **Trigger used** — exact message/webhook/cron invocation, with unique suffix (`[e2e-test-{epoch}]` for Airbnb messages)
+2. **Task ID** — the UUID from DB or the Slack context block at the bottom of the approval card
+3. **State machine trace** — `task_status_log` confirms the expected `from_status → to_status` sequence
+4. **DB state** — relevant table checks (`tasks`, `pending_approvals`, `learned_rules`, `feedback`) as called out in the guide
+5. **Slack UI** — all message blocks render correctly; use Playwright browser automation for screenshots/interaction
+6. **Delivery** — final action reached the end destination (Airbnb reply, channel post, rule confirmed, etc.)
 
 ### Per-employee trigger reference
 
@@ -773,22 +798,20 @@ A plan is only complete when Playwright browser automation has walked the full t
 | **Summarizer (Papi Chulo)**  | `POST /admin/tenants/.../employees/daily-summarizer/trigger`                | Slack `#victor-tests` approval card → published to `#project-lighthouse`                       |
 | **Engineering (deprecated)** | N/A — on hold                                                               | N/A                                                                                            |
 
-For new employees, document the equivalent entry point when the archetype is added.
+For new employees, document the equivalent entry point when the archetype is added, and create a corresponding test guide in `docs/` following the same scenario format.
 
-### Plan template addition
+### Plan template (Final Verification Wave)
 
-Every plan's Final Verification Wave must include an E2E browser step before the Telegram notification task:
+Every plan's Final Verification Wave must include E2E scenario steps before the Telegram notification task. Expand `{SCENARIO_LIST}` based on the coverage table above:
 
 ```markdown
-- [ ] **N. E2E browser validation** — Walk the full trigger-to-delivery flow in a real browser:
-  - Fire the real trigger (not a mock)
-  - Confirm each lifecycle state in the DB (`Received → Executing → Reviewing → Done`)
-  - Interact with the approval gate in Slack (Playwright or manual click)
-  - Confirm delivery reached the end destination
-  - Document: trigger used, task ID, outcome observed
+- [ ] **N. E2E prerequisites** — Confirm services are live: gateway health (`curl localhost:7700/health`), Inngest health (`curl localhost:8288/health`), Socket Mode connected (`tail /tmp/ai-dev.log | grep "Socket Mode"`).
+- [ ] **N+1. Scenario A — Approve happy path** — Follow `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md` Scenario A steps 1–7. Document: task ID, state machine trace, guest name in approval card, delivery confirmed in Airbnb thread.
+- [ ] **N+2. Scenario {X} — {name}** — (add one task per additional applicable scenario; follow the guide step by step and document outcomes)
+- [ ] **N+3. Outcome summary** — Record all scenarios run, task IDs, and any deviations from the guide's expected behavior.
 ```
 
-**No plan passes its Final Verification Wave without this step completed.**
+**No plan passes its Final Verification Wave without all applicable scenarios completed and outcomes documented.**
 
 ## Docs Directory Structure
 
@@ -806,16 +829,18 @@ The `docs/` directory is organized into subdirectories by document type. Always 
 
 Read these on demand when you need deeper context — do not load preemptively.
 
-| Document                                                 | When to Read                                                                                                                                                                                                                                             |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/2026-04-14-0104-full-system-vision.md`             | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
-| `docs/2026-03-22-2317-ai-employee-architecture.md`       | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
-| `docs/2026-04-14-0057-worker-post-redesign-overview.md`  | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |
-| `.sisyphus/plans/worker-agent-delegation-redesign.md`    | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                                                                           |
-| `docs/2026-04-16-0310-manual-employee-trigger.md`        | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                                                                     |
-| `docs/2026-04-16-1655-multi-tenancy-guide.md`            | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                                                                       |
-| `docs/snapshots/2026-04-29-2255-current-system-state.md` | Point-in-time system state snapshot: full lifecycle, harness flow, all gateway routes, DB schema, shell tool CLI syntax, Docker services, shared libraries — includes interaction handler unification, guest messaging full flow, learned rules pipeline |
-| `docs/planning/2026-04-21-2202-phase1-story-map.md`      | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                                                                    |
-| `docs/planning/2026-04-21-1813-product-roadmap.md`       | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                                                                     |
-| `docs/2026-05-04-1645-adding-a-shell-tool.md`            | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                                                              |
-| `docs/2026-05-04-2023-local-e2e-testing.md`              | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                                                                 |
+| Document                                                   | When to Read                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/2026-04-14-0104-full-system-vision.md`               | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
+| `docs/2026-03-22-2317-ai-employee-architecture.md`         | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
+| `docs/2026-04-14-0057-worker-post-redesign-overview.md`    | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |
+| `.sisyphus/plans/worker-agent-delegation-redesign.md`      | Active redesign plan (14 tasks across 4 waves)                                                                                                                                                                                                           |
+| `docs/2026-04-16-0310-manual-employee-trigger.md`          | Manual employee trigger API — endpoints, curl examples, how it works                                                                                                                                                                                     |
+| `docs/2026-04-16-1655-multi-tenancy-guide.md`              | Multi-tenancy: provisioning tenants, Slack OAuth, per-tenant secrets, verification                                                                                                                                                                       |
+| `docs/snapshots/2026-04-29-2255-current-system-state.md`   | Point-in-time system state snapshot: full lifecycle, harness flow, all gateway routes, DB schema, shell tool CLI syntax, Docker services, shared libraries — includes interaction handler unification, guest messaging full flow, learned rules pipeline |
+| `docs/planning/2026-04-21-2202-phase1-story-map.md`        | Phase 1 story map: 58 stories across 5 releases + cleanup, all epics and dependencies                                                                                                                                                                    |
+| `docs/planning/2026-04-21-1813-product-roadmap.md`         | Product roadmap: 4 phases, design partner strategy, success criteria                                                                                                                                                                                     |
+| `docs/2026-05-04-1645-adding-a-shell-tool.md`              | Adding a new shell tool — file structure, CLI pattern, mock fixtures, Docker, documentation                                                                                                                                                              |
+| `docs/2026-05-04-2023-local-e2e-testing.md`                | Local E2E testing without real external APIs — mock convention, fixture structure, env propagation, running full lifecycle tests locally                                                                                                                 |
+| `docs/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | Slack UX E2E test guide — 6 scenarios (A–F): approve, reject, edit & send, supersede, expiry, failure. Step-by-step with DB checks, Slack UI verification, Quick-Reference table                                                                         |
+| `docs/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | Feedback pipeline E2E test guide — 6 scenarios (A–F): rule extraction, @mention teaching, awaiting_input path, rule injection, feedback consolidation, rule synthesis                                                                                    |

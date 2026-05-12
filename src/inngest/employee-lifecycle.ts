@@ -1685,6 +1685,38 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Error patching deliverable content with editedContent (non-fatal)',
               );
             }
+            try {
+              const feedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
+                method: 'POST',
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+                },
+                body: JSON.stringify({
+                  id: crypto.randomUUID(),
+                  tenant_id: tenantId,
+                  archetype_id: archetypeId,
+                  task_id: taskId,
+                  event_type: 'edit_diff',
+                  correction_content: editedContent,
+                  original_content: originalDraft ?? null,
+                  actor_id: actorUserId,
+                }),
+              });
+              if (!feedbackEvtRes.ok) {
+                const body = await feedbackEvtRes.text();
+                log.warn(
+                  { taskId, status: feedbackEvtRes.status, body },
+                  'Failed to write edit_diff feedback_event (non-fatal)',
+                );
+              } else {
+                log.info({ taskId }, 'edit_diff feedback_event written');
+              }
+            } catch (err) {
+              log.warn({ taskId, err }, 'Error writing edit_diff feedback_event (non-fatal)');
+            }
             await inngest.send({
               name: 'employee/rule.extract-requested',
               data: {
@@ -2146,38 +2178,64 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
 
-          // Store rejection reason in feedback table (in addition to task metadata)
+          // Store rejection reason in feedback_events table (in addition to task metadata)
           if (rejectionReason) {
             try {
-              const now = new Date().toISOString();
-              const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback`, {
+              const feedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
                 method: 'POST',
-                headers,
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+                },
                 body: JSON.stringify({
                   id: crypto.randomUUID(),
-                  task_id: taskId,
-                  feedback_type: 'rejection_reason',
-                  correction_reason: rejectionReason,
-                  created_by: actorUserId,
                   tenant_id: tenantId,
-                  original_decision: null,
-                  corrected_decision: null,
-                  updated_at: now,
+                  archetype_id: archetypeId,
+                  task_id: taskId,
+                  event_type: 'rejection_reason',
+                  correction_content: rejectionReason,
+                  actor_id: actorUserId,
                 }),
               });
-              if (!feedbackRes.ok) {
-                const body = await feedbackRes.text();
+              if (!feedbackEvtRes.ok) {
+                const body = await feedbackEvtRes.text();
                 log.warn(
-                  { taskId, status: feedbackRes.status, body },
-                  'Failed to store rejection reason in feedback table (non-fatal)',
+                  { taskId, status: feedbackEvtRes.status, body },
+                  'Failed to store rejection_reason in feedback_events (non-fatal)',
                 );
               } else {
-                log.info({ taskId }, 'Rejection reason stored in feedback table');
+                log.info({ taskId }, 'rejection_reason feedback_event written');
               }
             } catch (err) {
               log.warn(
                 { taskId, err },
-                'Failed to store rejection reason in feedback table (non-fatal)',
+                'Failed to store rejection_reason in feedback_events (non-fatal)',
+              );
+            }
+            try {
+              await inngest.send({
+                name: 'employee/rule.extract-requested',
+                data: {
+                  tenantId,
+                  feedbackId: null,
+                  feedbackType: 'rejection_reason',
+                  taskId,
+                  archetypeId,
+                  content: rejectionReason,
+                  originalContent: null,
+                  editedContent: null,
+                  actorUserId,
+                  approvalMsgTs,
+                  targetChannel,
+                },
+              });
+              log.info({ taskId }, 'rule.extract-requested fired for rejection_reason');
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to fire rule extraction for rejection_reason (non-fatal)',
               );
             }
           }
@@ -2349,28 +2407,70 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           if (!rejectionReason) {
             try {
-              await fetch(`${supabaseUrl}/rest/v1/learned_rules`, {
+              const rejFeedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
                 method: 'POST',
-                headers: { ...headers, Prefer: 'return=minimal' },
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+                },
                 body: JSON.stringify({
                   id: crypto.randomUUID(),
                   tenant_id: tenantId,
-                  entity_type: 'archetype',
-                  entity_id: archetypeId,
-                  scope: 'entity',
+                  archetype_id: archetypeId,
+                  task_id: taskId,
+                  event_type: 'rejection',
+                  actor_id: actorUserId,
+                }),
+              });
+              if (!rejFeedbackEvtRes.ok) {
+                const body = await rejFeedbackEvtRes.text();
+                log.warn(
+                  { taskId, status: rejFeedbackEvtRes.status, body },
+                  'Failed to write rejection feedback_event (non-fatal)',
+                );
+              } else {
+                log.info({ taskId }, 'rejection feedback_event written');
+              }
+            } catch (err) {
+              log.warn({ taskId, err }, 'Error writing rejection feedback_event (non-fatal)');
+            }
+            try {
+              const empRuleRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules`, {
+                method: 'POST',
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+                },
+                body: JSON.stringify({
+                  id: crypto.randomUUID(),
+                  tenant_id: tenantId,
+                  archetype_id: archetypeId,
                   rule_text: '',
                   source: 'rejection',
                   status: 'awaiting_input',
                   source_task_id: taskId,
-                  slack_ts: approvalMsgTs ?? null,
-                  slack_channel: targetChannel ?? null,
                 }),
               });
-              log.info({ taskId }, 'Awaiting-input rule created for rejection without reason');
+              if (!empRuleRes.ok) {
+                const body = await empRuleRes.text();
+                log.warn(
+                  { taskId, status: empRuleRes.status, body },
+                  'Failed to create awaiting_input employee_rule for rejection (non-fatal)',
+                );
+              } else {
+                log.info(
+                  { taskId },
+                  'awaiting_input employee_rule created for rejection without reason',
+                );
+              }
             } catch (err) {
               log.warn(
                 { taskId, err },
-                'Failed to create awaiting-input rule for rejection (non-fatal)',
+                'Failed to create awaiting_input employee_rule for rejection (non-fatal)',
               );
             }
           }

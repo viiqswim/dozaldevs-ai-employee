@@ -36,6 +36,12 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async ({ step }: { step: any }) => {
+      // Consolidation disabled — replaced by event-driven rule synthesis (Task 9/feedback-system-redesign)
+      return {
+        skipped: true,
+        reason: 'Consolidation disabled — replaced by event-driven synthesis',
+      };
+
       const supabaseUrl = process.env.SUPABASE_URL ?? '';
       const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
