@@ -2,6 +2,10 @@ import { fetchLeadEnrichment } from '../hostfully-enrichment.js';
 import type { NotificationEnrichment } from '../types/notification-enrichment.js';
 import { registerAdapter } from './index.js';
 
+export function buildHostfullyLink(threadUid: string, leadUid: string): string {
+  return `https://platform.hostfully.com/app/#/inbox?threadUid=${threadUid}&leadUid=${leadUid}`;
+}
+
 registerAdapter('hostfully', async (rawEvent, tenantSecrets) => {
   const leadUid = rawEvent['lead_uid'];
   const apiKey = tenantSecrets['HOSTFULLY_API_KEY'];
@@ -13,10 +17,7 @@ registerAdapter('hostfully', async (rawEvent, tenantSecrets) => {
   const enrichment = await fetchLeadEnrichment(leadUid, apiKey);
 
   const threadUid = typeof rawEvent['thread_uid'] === 'string' ? rawEvent['thread_uid'] : undefined;
-  const contextUrl =
-    threadUid && leadUid
-      ? `https://platform.hostfully.com/app/#/inbox?threadUid=${threadUid}&leadUid=${leadUid}`
-      : undefined;
+  const contextUrl = threadUid && leadUid ? buildHostfullyLink(threadUid, leadUid) : undefined;
 
   const result: NotificationEnrichment = {
     displayName: enrichment.guestName ? `Guest: ${enrichment.guestName}` : undefined,
