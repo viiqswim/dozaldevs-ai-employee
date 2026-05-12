@@ -91,7 +91,7 @@ function buildFetchMock(taskRows: Array<{ status: string; metadata: Record<strin
     if (url.includes('/rest/v1/tasks?id=eq.') && method === 'GET') {
       return { json: () => Promise.resolve(taskRows) };
     }
-    if (url.includes('/rest/v1/feedback') && method === 'POST') {
+    if (url.includes('/rest/v1/feedback_events') && method === 'POST') {
       return { ok: true, json: () => Promise.resolve([{ id: 'fb-uuid-1' }]) };
     }
     if (url.includes('/rest/v1/tasks?id=eq.') && method === 'PATCH') {
@@ -153,14 +153,14 @@ describe('interaction-handler — rejection feedback routing', () => {
 
     await invokeHandler(fn, makeEvent({ userId: 'U123', text: 'The tone was too casual' }), step);
 
-    const feedbackPost = findFetchCall('/rest/v1/feedback', 'POST');
+    const feedbackPost = findFetchCall('/rest/v1/feedback_events', 'POST');
     expect(feedbackPost).toBeDefined();
     const body = JSON.parse((feedbackPost![1] as RequestInit).body as string) as {
-      feedback_type: string;
-      correction_reason: string;
+      event_type: string;
+      correction_content: string;
     };
-    expect(body.feedback_type).toBe('rejection_reason');
-    expect(body.correction_reason).toBe('The tone was too casual');
+    expect(body.event_type).toBe('rejection_reason');
+    expect(body.correction_content).toBe('The tone was too casual');
 
     expect(mockClassifyIntent).not.toHaveBeenCalled();
 
@@ -184,12 +184,15 @@ describe('interaction-handler — rejection feedback routing', () => {
     const rejectionFeedbackPost = mockFetch.mock.calls.find((args) => {
       const url = args[0] as string;
       const init = args[1] as RequestInit | undefined;
-      if (!url.includes('/rest/v1/feedback') || (init?.method ?? 'GET').toUpperCase() !== 'POST') {
+      if (
+        !url.includes('/rest/v1/feedback_events') ||
+        (init?.method ?? 'GET').toUpperCase() !== 'POST'
+      ) {
         return false;
       }
       try {
-        const parsed = JSON.parse(init?.body as string) as { feedback_type: string };
-        return parsed.feedback_type === 'rejection_reason';
+        const parsed = JSON.parse(init?.body as string) as { event_type: string };
+        return parsed.event_type === 'rejection_reason';
       } catch {
         return false;
       }
@@ -211,12 +214,15 @@ describe('interaction-handler — rejection feedback routing', () => {
     const rejectionFeedbackPost = mockFetch.mock.calls.find((args) => {
       const url = args[0] as string;
       const init = args[1] as RequestInit | undefined;
-      if (!url.includes('/rest/v1/feedback') || (init?.method ?? 'GET').toUpperCase() !== 'POST') {
+      if (
+        !url.includes('/rest/v1/feedback_events') ||
+        (init?.method ?? 'GET').toUpperCase() !== 'POST'
+      ) {
         return false;
       }
       try {
-        const parsed = JSON.parse(init?.body as string) as { feedback_type: string };
-        return parsed.feedback_type === 'rejection_reason';
+        const parsed = JSON.parse(init?.body as string) as { event_type: string };
+        return parsed.event_type === 'rejection_reason';
       } catch {
         return false;
       }
@@ -238,12 +244,15 @@ describe('interaction-handler — rejection feedback routing', () => {
     const rejectionFeedbackPost = mockFetch.mock.calls.find((args) => {
       const url = args[0] as string;
       const init = args[1] as RequestInit | undefined;
-      if (!url.includes('/rest/v1/feedback') || (init?.method ?? 'GET').toUpperCase() !== 'POST') {
+      if (
+        !url.includes('/rest/v1/feedback_events') ||
+        (init?.method ?? 'GET').toUpperCase() !== 'POST'
+      ) {
         return false;
       }
       try {
-        const parsed = JSON.parse(init?.body as string) as { feedback_type: string };
-        return parsed.feedback_type === 'rejection_reason';
+        const parsed = JSON.parse(init?.body as string) as { event_type: string };
+        return parsed.event_type === 'rejection_reason';
       } catch {
         return false;
       }
@@ -304,12 +313,15 @@ describe('interaction-handler — rejection feedback routing', () => {
     const rejectionFeedbackPost = mockFetch.mock.calls.find((args) => {
       const url = args[0] as string;
       const init = args[1] as RequestInit | undefined;
-      if (!url.includes('/rest/v1/feedback') || (init?.method ?? 'GET').toUpperCase() !== 'POST') {
+      if (
+        !url.includes('/rest/v1/feedback_events') ||
+        (init?.method ?? 'GET').toUpperCase() !== 'POST'
+      ) {
         return false;
       }
       try {
-        const parsed = JSON.parse(init?.body as string) as { feedback_type: string };
-        return parsed.feedback_type === 'rejection_reason';
+        const parsed = JSON.parse(init?.body as string) as { event_type: string };
+        return parsed.event_type === 'rejection_reason';
       } catch {
         return false;
       }

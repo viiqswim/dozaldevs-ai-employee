@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import { createEmployeeLifecycleFunction } from '../../src/inngest/employee-lifecycle.js';
-import { createFeedbackSummarizerTrigger } from '../../src/inngest/triggers/feedback-summarizer.js';
 
 const {
   mockCreateMachine,
@@ -151,9 +150,9 @@ afterEach(() => {
   delete process.env.FLY_WORKER_APP;
 });
 
-describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integration', () => {
-  it('FEEDBACK_CONTEXT string includes rejection_reason feedback text when dispatch-machine runs', async () => {
-    const rejectionText = 'The tone was too formal';
+describe('confirmed employee_rules — EMPLOYEE_RULES injection', () => {
+  it('EMPLOYEE_RULES string includes confirmed rule text when dispatch-machine runs', async () => {
+    const ruleText = 'Always use a formal tone';
 
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
@@ -161,15 +160,14 @@ describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integrat
       if ((url as string).includes('knowledge_bases')) {
         return { ok: true, json: () => Promise.resolve([]) };
       }
-      if ((url as string).includes('/rest/v1/feedback')) {
+      if ((url as string).includes('/rest/v1/employee_rules')) {
         return {
           ok: true,
           json: () =>
             Promise.resolve([
               {
-                correction_reason: rejectionText,
-                feedback_type: 'rejection_reason',
-                created_at: '2026-04-29T00:00:00Z',
+                rule_text: ruleText,
+                confirmed_at: '2026-04-29T00:00:00Z',
               },
             ]),
         };
@@ -221,75 +219,8 @@ describe('rejection_reason feedback — FEEDBACK_CONTEXT and summarizer integrat
       env: Record<string, string>;
     };
 
-    expect(machineConfig.env).toHaveProperty('FEEDBACK_CONTEXT');
-    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(
-      'All unconsolidated feedback (newest first):',
-    );
-    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain('[rejection_reason]');
-    expect(machineConfig.env.FEEDBACK_CONTEXT).toContain(rejectionText);
-  });
-
-  it('feedback summarizer LLM prompt includes rejection_reason feedback text', async () => {
-    const rejectionText = 'Do not sound so stiff';
-
-    const mockInngest = {
-      createFunction: vi.fn().mockImplementation((_config: unknown, handler: unknown) => handler),
-    };
-    const handler = createFeedbackSummarizerTrigger(mockInngest as any);
-
-    const mockStep = {
-      run: vi.fn().mockImplementation((_name: string, fn: () => unknown) => fn()),
-    };
-
-    const feedbackItem = {
-      id: 'fb-rejection-1',
-      correction_reason: rejectionText,
-      feedback_type: 'rejection_reason',
-      created_at: new Date().toISOString(),
-      task_id: null,
-    };
-
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if ((url as string).includes('archetypes')) {
-        return Promise.resolve({
-          json: () =>
-            Promise.resolve([
-              {
-                id: 'arch-1',
-                role_name: 'Test Employee',
-                tenant_id: 'tenant-1',
-                notification_channel: null,
-              },
-            ]),
-        });
-      }
-      if ((url as string).includes('/rest/v1/feedback')) {
-        return Promise.resolve({
-          ok: true,
-          headers: { get: (name: string) => (name === 'content-range' ? '0-9/10' : null) },
-          json: () => Promise.resolve([feedbackItem]),
-        });
-      }
-      if ((url as string).includes('knowledge_bases')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      }
-      if ((url as string).includes('learned_rules')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      }
-      return Promise.resolve({ json: () => Promise.resolve([]) });
-    });
-
-    await (handler as unknown as (ctx: unknown) => Promise<unknown>)({ step: mockStep });
-
-    expect(mockCallLLM).toHaveBeenCalledOnce();
-
-    const messages = mockCallLLM.mock.calls[0][0].messages as Array<{
-      role: string;
-      content: string;
-    }>;
-    const userContent = messages[1].content;
-
-    expect(userContent).toContain('[rejection_reason]');
-    expect(userContent).toContain(rejectionText);
+    expect(machineConfig.env).toHaveProperty('EMPLOYEE_RULES');
+    expect(machineConfig.env.EMPLOYEE_RULES).toContain('## Behavioral Rules — follow these');
+    expect(machineConfig.env.EMPLOYEE_RULES).toContain(ruleText);
   });
 });

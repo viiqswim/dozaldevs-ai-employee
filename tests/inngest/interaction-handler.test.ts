@@ -146,7 +146,7 @@ describe('createInteractionHandlerFunction', () => {
     const feedbackCall = findFetchCall('/feedback');
     expect(feedbackCall).toBeDefined();
     const body = JSON.parse((feedbackCall![1] as RequestInit).body as string);
-    expect(body.feedback_type).toBe('thread_reply');
+    expect(body.event_type).toBe('thread_reply');
   });
 
   it('thread_reply + teaching intent: stores with feedback_type teaching', async () => {
@@ -159,7 +159,7 @@ describe('createInteractionHandlerFunction', () => {
     const feedbackCall = findFetchCall('/feedback');
     expect(feedbackCall).toBeDefined();
     const body = JSON.parse((feedbackCall![1] as RequestInit).body as string);
-    expect(body.feedback_type).toBe('teaching');
+    expect(body.event_type).toBe('teaching');
   });
 
   it('thread_reply + question intent: queries KB and posts answer', async () => {
@@ -205,7 +205,7 @@ describe('createInteractionHandlerFunction', () => {
     const feedbackCall = findFetchCall('/feedback');
     expect(feedbackCall).toBeDefined();
     const body = JSON.parse((feedbackCall![1] as RequestInit).body as string);
-    expect(body.feedback_type).toBe('mention_feedback');
+    expect(body.event_type).toBe('mention_feedback');
   });
 
   it('mention + teaching intent: stores with feedback_type teaching', async () => {
@@ -222,7 +222,7 @@ describe('createInteractionHandlerFunction', () => {
     const feedbackCall = findFetchCall('/feedback');
     expect(feedbackCall).toBeDefined();
     const body = JSON.parse((feedbackCall![1] as RequestInit).body as string);
-    expect(body.feedback_type).toBe('teaching');
+    expect(body.event_type).toBe('teaching');
   });
 
   it('mention + question intent: queries KB and posts answer', async () => {

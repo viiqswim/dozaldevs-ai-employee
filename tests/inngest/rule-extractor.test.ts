@@ -43,12 +43,12 @@ function makeFetchMock({
     if (url.includes('/rest/v1/tasks') && method === 'GET') {
       return { json: () => Promise.resolve([{ metadata: {} }]) };
     }
-    // Learned rules POST (insert)
-    if (url.includes('/rest/v1/learned_rules') && method === 'POST') {
+    // Employee rules POST (insert)
+    if (url.includes('/rest/v1/employee_rules') && method === 'POST') {
       return { json: () => Promise.resolve([{ id: ruleInsertId }]) };
     }
-    // Learned rules PATCH (slack_ts store or awaiting_input update)
-    if (url.includes('/rest/v1/learned_rules') && method === 'PATCH') {
+    // Employee rules PATCH (slack_ts store or awaiting_input update)
+    if (url.includes('/rest/v1/employee_rules') && method === 'PATCH') {
       return { json: () => Promise.resolve([]) };
     }
     // Slack postMessage
@@ -133,11 +133,10 @@ describe('createRuleExtractorFunction', () => {
       step,
     );
 
-    // Should INSERT to learned_rules with status 'proposed'
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeDefined();
@@ -145,7 +144,6 @@ describe('createRuleExtractorFunction', () => {
     expect(insertBody.status).toBe('proposed');
     expect(insertBody.rule_text).toBe('Always mention checkout time');
 
-    // Should POST to Slack with 3 action buttons
     const slackCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' && args[0].includes('slack.com/api/chat.postMessage'),
@@ -160,11 +158,10 @@ describe('createRuleExtractorFunction', () => {
       expect.arrayContaining(['rule_confirm', 'rule_reject', 'rule_rephrase']),
     );
 
-    // Should PATCH to store slack_ts
     const patchCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules?id=eq.') &&
+        args[0].includes('/rest/v1/employee_rules?id=eq.') &&
         (args[1] as RequestInit)?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
@@ -191,7 +188,7 @@ describe('createRuleExtractorFunction', () => {
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeDefined();
@@ -227,11 +224,10 @@ describe('createRuleExtractorFunction', () => {
     // Should still call LLM
     expect(mockCallLLM).toHaveBeenCalledOnce();
 
-    // Should INSERT proposed rule
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeDefined();
@@ -250,11 +246,10 @@ describe('createRuleExtractorFunction', () => {
 
     await invokeExtractor(fn, makeEvent(), step);
 
-    // Should NOT insert proposed rule (no POST with status 'proposed')
     const proposedInsert = mockFetch.mock.calls.find((args: unknown[]) => {
       if (
         typeof args[0] !== 'string' ||
-        !args[0].includes('/rest/v1/learned_rules') ||
+        !args[0].includes('/rest/v1/employee_rules') ||
         (args[1] as RequestInit)?.method !== 'POST'
       )
         return false;
@@ -267,7 +262,6 @@ describe('createRuleExtractorFunction', () => {
     });
     expect(proposedInsert).toBeUndefined();
 
-    // Should post "What should I learn?" Slack message
     const slackCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' && args[0].includes('slack.com/api/chat.postMessage'),
@@ -276,11 +270,10 @@ describe('createRuleExtractorFunction', () => {
     const slackBody = JSON.parse((slackCall![1] as RequestInit).body as string);
     expect(slackBody.text).toContain('What should I learn');
 
-    // Should INSERT awaiting_input row
     const awaitingInsert = mockFetch.mock.calls.find((args: unknown[]) => {
       if (
         typeof args[0] !== 'string' ||
-        !args[0].includes('/rest/v1/learned_rules') ||
+        !args[0].includes('/rest/v1/employee_rules') ||
         (args[1] as RequestInit)?.method !== 'POST'
       )
         return false;
@@ -315,7 +308,7 @@ describe('createRuleExtractorFunction', () => {
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeUndefined();
@@ -360,7 +353,7 @@ describe('createRuleExtractorFunction', () => {
     const insertCall = mockFetch.mock.calls.find(
       (args: unknown[]) =>
         typeof args[0] === 'string' &&
-        args[0].includes('/rest/v1/learned_rules') &&
+        args[0].includes('/rest/v1/employee_rules') &&
         (args[1] as RequestInit)?.method === 'POST',
     );
     expect(insertCall).toBeUndefined();
@@ -382,11 +375,10 @@ describe('createRuleExtractorFunction', () => {
     // LLM was called
     expect(mockCallLLM).toHaveBeenCalledOnce();
 
-    // Should insert awaiting_input (fallback path)
     const awaitingInsert = mockFetch.mock.calls.find((args: unknown[]) => {
       if (
         typeof args[0] !== 'string' ||
-        !args[0].includes('/rest/v1/learned_rules') ||
+        !args[0].includes('/rest/v1/employee_rules') ||
         (args[1] as RequestInit)?.method !== 'POST'
       )
         return false;
