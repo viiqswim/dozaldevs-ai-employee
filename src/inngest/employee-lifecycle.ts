@@ -30,9 +30,7 @@ import {
 
 const log = createLogger('employee-lifecycle');
 
-export const MAX_LEARNED_RULES_CHARS = 8000;
 export const CONSOLIDATION_THRESHOLD = 5;
-export const MAX_FEEDBACK_CONTEXT_CHARS = 32000;
 export const SYNTHESIS_THRESHOLD = 5;
 export const MAX_EMPLOYEE_RULES_CHARS = 8000;
 export const MAX_EMPLOYEE_KNOWLEDGE_CHARS = 32000;
@@ -490,25 +488,48 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             ? ['node', '/app/dist/workers/opencode-harness.mjs']
             : ['node', '/app/dist/workers/generic-harness.mjs'];
 
-        let feedbackContext = '';
+        let employeeRules = '';
+        try {
+          const rulesRes = await fetch(
+            `${supabaseUrl}/rest/v1/employee_rules?status=eq.confirmed&archetype_id=eq.${archetypeId}&select=rule_text,confirmed_at&order=confirmed_at.desc`,
+            { headers },
+          );
+          const rulesRows = (await rulesRes.json()) as Array<{
+            rule_text: string;
+            confirmed_at: string;
+          }>;
+
+          if (rulesRows.length > 0) {
+            const header = '## Behavioral Rules — follow these';
+            const lines: string[] = [];
+            let charCount = header.length + 2;
+            for (const rule of rulesRows) {
+              const line = `- ${rule.rule_text}`;
+              if (charCount + line.length + 1 > MAX_EMPLOYEE_RULES_CHARS) break;
+              lines.push(line);
+              charCount += line.length + 1;
+            }
+
+            if (lines.length > 0) {
+              employeeRules = `${header}\n\n${lines.join('\n')}`;
+            }
+          }
+
+          log.info(
+            { taskId, ruleCount: rulesRows.length, rulesLen: employeeRules.length },
+            'Employee rules assembled',
+          );
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to load employee rules — proceeding without them');
+        }
+
+        let employeeKnowledge = '';
         try {
           const kbRes = await fetch(
             `${supabaseUrl}/rest/v1/knowledge_bases?archetype_id=eq.${archetypeId}&select=source_config&order=created_at.desc`,
             { headers },
           );
           const kbRows = (await kbRes.json()) as Array<{ source_config: unknown }>;
-
-          const fbRes = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?tenant_id=eq.${tenantId}&consolidated_at=is.null&select=correction_reason,feedback_type,created_at&order=created_at.desc`,
-            { headers },
-          );
-          const fbRows = (await fbRes.json()) as Array<{
-            correction_reason: string | null;
-            feedback_type: string;
-            created_at: string;
-          }>;
-
-          const parts: string[] = [];
 
           if (kbRows.length > 0) {
             const themes = kbRows.flatMap((kb) => {
@@ -521,94 +542,30 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               } | null;
               return cfg?.themes ?? [];
             });
+
             if (themes.length > 0) {
-              parts.push('Your feedback themes (consolidated knowledge):');
+              const header = '## Reference Knowledge';
+              const lines: string[] = [];
+              let charCount = header.length + 2;
               for (const t of themes) {
-                parts.push(
-                  `- ${t.theme}: "${t.representative_quote}" (${t.frequency} occurrences)`,
-                );
+                const line = `- ${t.theme}: "${t.representative_quote}" (${t.frequency} occurrences)`;
+                if (charCount + line.length + 1 > MAX_EMPLOYEE_KNOWLEDGE_CHARS) break;
+                lines.push(line);
+                charCount += line.length + 1;
+              }
+
+              if (lines.length > 0) {
+                employeeKnowledge = `${header}\n\n${lines.join('\n')}`;
               }
             }
-          }
-
-          if (fbRows.length > 0) {
-            const withReason = fbRows.filter((f) => f.correction_reason);
-            if (withReason.length > 0) {
-              parts.push('All unconsolidated feedback (newest first):');
-              for (const f of withReason) {
-                const date = new Date(f.created_at).toLocaleDateString();
-                parts.push(`- [${f.feedback_type}] "${f.correction_reason}" (${date})`);
-              }
-            }
-          }
-
-          feedbackContext = parts.join('\n');
-
-          if (feedbackContext.length > MAX_FEEDBACK_CONTEXT_CHARS) {
-            log.warn(
-              {
-                taskId,
-                contextLen: feedbackContext.length,
-                maxLen: MAX_FEEDBACK_CONTEXT_CHARS,
-              },
-              'Feedback context truncated — consolidation needed',
-            );
-            feedbackContext = feedbackContext.slice(0, MAX_FEEDBACK_CONTEXT_CHARS);
           }
 
           log.info(
-            {
-              taskId,
-              feedbackItems: fbRows.filter((f) => f.correction_reason).length,
-              kbThemes: kbRows.length,
-              feedbackContextLen: feedbackContext.length,
-            },
-            'Feedback context assembled',
+            { taskId, kbCount: kbRows.length, knowledgeLen: employeeKnowledge.length },
+            'Employee knowledge assembled',
           );
         } catch (err) {
-          log.warn({ taskId, err }, 'Failed to load feedback context — proceeding without it');
-        }
-
-        let learnedRulesContext = '';
-        try {
-          const rulesRes = await fetch(
-            `${supabaseUrl}/rest/v1/learned_rules?status=eq.confirmed&tenant_id=eq.${tenantId}&or=(and(entity_type.eq.archetype,entity_id.eq.${archetypeId}),scope.eq.common)&select=rule_text,entity_type,entity_id,scope,confirmed_at&order=confirmed_at.desc`,
-            { headers },
-          );
-          const rulesRows = (await rulesRes.json()) as Array<{
-            rule_text: string;
-            entity_type: string | null;
-            entity_id: string | null;
-            scope: string;
-            confirmed_at: string;
-          }>;
-
-          if (rulesRows.length > 0) {
-            const sorted = [
-              ...rulesRows.filter(
-                (r) => r.entity_type === 'archetype' && r.entity_id === archetypeId,
-              ),
-              ...rulesRows.filter(
-                (r) => !(r.entity_type === 'archetype' && r.entity_id === archetypeId),
-              ),
-            ];
-
-            const header = '## Learned Behaviors — follow these rules';
-            const lines: string[] = [];
-            let charCount = 0;
-            for (const rule of sorted) {
-              const line = `- ${rule.rule_text}`;
-              if (charCount + line.length > MAX_LEARNED_RULES_CHARS) break;
-              lines.push(line);
-              charCount += line.length + 1;
-            }
-
-            if (lines.length > 0) {
-              learnedRulesContext = `${header}\n\n${lines.join('\n')}`;
-            }
-          }
-        } catch (err) {
-          log.warn({ taskId, err }, 'Failed to load learned rules context — proceeding without it');
+          log.warn({ taskId, err }, 'Failed to load employee knowledge — proceeding without it');
         }
 
         log.info({ taskId, runtime }, 'Dispatching worker machine');
@@ -630,8 +587,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               INNGEST_DEV: '1',
               NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
               ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
-              ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
-              ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
+              ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
+              ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
             },
             cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
           });
@@ -654,8 +611,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_SECRET_KEY: supabaseKey,
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
             ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
-            ...(feedbackContext ? { FEEDBACK_CONTEXT: feedbackContext } : {}),
-            ...(learnedRulesContext ? { LEARNED_RULES_CONTEXT: learnedRulesContext } : {}),
+            ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
+            ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
           },
         });
 
