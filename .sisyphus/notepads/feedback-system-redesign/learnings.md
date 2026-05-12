@@ -58,6 +58,7 @@
 ## [2026-05-12] Task 7 — rule-synthesizer Inngest function
 
 ### Pattern confirmed
+
 - Factory function pattern: `export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction.Any` — matches all other inngest functions in this codebase
 - Event trigger via `triggers: [{ event: 'employee/rule.synthesize-requested' }]` (not cron)
 - `employee_rules` table (not `learned_rules` — that's the old table used in feedback-summarizer synthesize step)
@@ -65,27 +66,32 @@
 - `source: 'synthesis'` on synthesized rules
 
 ### Code fence stripping
+
 Pattern used in detect-overlaps step:
-```typescript
+
+````typescript
 const rawContent = llmResult.content.trim();
 const jsonContent = rawContent
   .replace(/^```(?:json)?\s*/i, '')
   .replace(/\s*```\s*$/, '')
   .trim();
-```
+````
 
 ### Slack card format (4 blocks, mandatory)
+
 1. section (mrkdwn text with rule content)
 2. divider
 3. actions (Confirm/Reject/Rephrase buttons with rule_confirm/rule_reject/rule_rephrase action_ids)
 4. context (Rule `{ruleId}`)
 
 ### Serve.ts registration pattern
+
 Import factory → call with inngest instance → add to functions array. Function count now 6 active.
 
 ## [2026-05-12] Task 8 — handlers.ts migration to employee_rules
 
 ### Changes made
+
 - Added `SYNTHESIS_THRESHOLD` import from `../../inngest/employee-lifecycle.js`
 - `rule_confirm`: PATCH `employee_rules` (return=representation), fires `employee/rule.confirmed`, counts confirmed rules per archetype, fires `employee/rule.synthesize-requested` with idempotency key `synthesis-${archetypeId}-${confirmedCount}` every 5th confirmation, archives parent rules when source='synthesis'
 - `rule_reject`: PATCH `employee_rules` (return=minimal)
@@ -95,5 +101,19 @@ Import factory → call with inngest instance → add to functions array. Functi
 - `findTaskIdByThreadTs`: no learned_rules references (queries deliverables + tasks — unchanged)
 
 ### PostgREST parent archiving pattern
+
 - `PATCH /rest/v1/employee_rules?id=in.(uuid1,uuid2)` — bulk status update to 'archived'
 - Only fires when `source === 'synthesis'` and `parent_rule_ids.length > 0`
+
+## [2026-05-12] Task 10 — Injection refactor in employee-lifecycle.ts dispatch-machine step
+
+### Changes made
+
+- Removed exported constants `MAX_LEARNED_RULES_CHARS` and `MAX_FEEDBACK_CONTEXT_CHARS` (unused after refactor)
+- Removed entire old feedback block: queries to `feedback` + `knowledge_bases` → `FEEDBACK_CONTEXT`
+- Removed entire old learned_rules block: query to `learned_rules` → `LEARNED_RULES_CONTEXT`
+- Added `employeeRules` block: `GET /rest/v1/employee_rules?status=eq.confirmed&archetype_id=eq.{id}&select=rule_text,confirmed_at&order=confirmed_at.desc` → `EMPLOYEE_RULES` (8KB cap via `MAX_EMPLOYEE_RULES_CHARS`)
+- Added `employeeKnowledge` block: `GET /rest/v1/knowledge_bases?archetype_id=eq.{id}&select=source_config&order=created_at.desc` → `EMPLOYEE_KNOWLEDGE` (32KB cap via `MAX_EMPLOYEE_KNOWLEDGE_CHARS`)
+- Both local Docker env block and Fly.io machine env block updated identically
+- `CONSOLIDATION_THRESHOLD` and `SYNTHESIS_THRESHOLD` kept — still used by feedback-summarizer.ts and rule-synthesizer
+- `pnpm build` exits 0 with no errors

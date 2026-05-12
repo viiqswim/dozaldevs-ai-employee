@@ -8,7 +8,7 @@ import { createInngestClient } from './client.js';
 import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycle.js';
 // import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js'; // Deregistered: use manual trigger via admin API
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
-import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js';
+// import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js'; // Deregistered: replaced by event-driven rule-synthesizer
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
 import { createRuleSynthesizerFunction } from '../../inngest/rule-synthesizer.js';
 import { createReviewingWatchdogTrigger } from '../../inngest/triggers/reviewing-watchdog.js';
@@ -37,7 +37,7 @@ export function inngestServeRoutes(): Router {
   const employeeLifecycleFn = createEmployeeLifecycleFunction(inngest);
   // const summarizerTriggerFn = createSummarizerTrigger(inngest); // Deregistered: use manual trigger via admin API
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
-  const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest);
+  // const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest); // Deregistered: replaced by event-driven rule-synthesizer
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
   const ruleSynthesizerFn = createRuleSynthesizerFunction(inngest);
   const reviewingWatchdogFn = createReviewingWatchdogTrigger(inngest);
@@ -53,7 +53,7 @@ export function inngestServeRoutes(): Router {
       employeeLifecycleFn,
       // summarizerTriggerFn, // Deregistered: use manual trigger via admin API
       interactionHandlerFn,
-      feedbackSummarizerFn,
+      // feedbackSummarizerFn, // Deregistered: replaced by event-driven rule-synthesizer
       ruleExtractorFn,
       ruleSynthesizerFn,
       reviewingWatchdogFn,
