@@ -1,38 +1,45 @@
-## Baseline Test Failure Analysis — 2026-05-06
-## Source: explore agent deep analysis (pnpm test -- --run full run)
+Task 1 — DB Baseline Snapshot (feedback-pipeline-e2e plan)
+Captured: 2026-05-12T00:25 UTC
+Tenant: VLRE (00000000-0000-0000-0000-000000000003)
+Archetype: guest-messaging (00000000-0000-0000-0000-000000000015)
 
-Total failures: 20 tests across 5 files
-Total passing: ~1594 tests
+=== FEEDBACK TABLE ===
+Query: SELECT COUNT(*) AS total_feedback FROM feedback WHERE tenant_id = '00000000-0000-0000-0000-000000000003';
+Result:
+  total_feedback: 32
 
-### Failing Files and Root Causes
+=== LEARNED RULES BY STATUS ===
+Query: SELECT status, COUNT(*) FROM learned_rules WHERE tenant_id = '00000000-0000-0000-0000-000000000003' GROUP BY status ORDER BY status;
+Result:
+  awaiting_input: 2
+  confirmed:      1
+  proposed:       1
+  rejected:       27
+  TOTAL:          31
 
-GROUP A — interaction-handler.test.ts (9 failures)
-  Root cause: fetch mock missing .text() method
-  Tests: all 9 in createInteractionHandlerFunction describe block
+=== KNOWLEDGE BASES ===
+Query: SELECT COUNT(*) AS kb_count FROM knowledge_bases WHERE archetype_id = '00000000-0000-0000-0000-000000000015';
+Result:
+  kb_count: 1
 
-GROUP B — lifecycle.test.ts (6 failures)
-  Root cause: deprecated lifecycle.ts uses raw fetch to Fly API (not fly-client mock)
-  Tests: USE_FLY_HYBRID describe block (6 tests)
-  Action: DELETE entire file (all tests in file are for deprecated code)
+=== CONFIRMED RULES ===
+Query: SELECT COUNT(*) AS confirmed_rules FROM learned_rules WHERE tenant_id = '00000000-0000-0000-0000-000000000003' AND status = 'confirmed';
+Result:
+  confirmed_rules: 1
 
-GROUP C — lifecycle-rejection-feedback.test.ts (3 failures)
-  Root cause: inngest.send() called without Inngest server in test env
-  Tests:
-    - "posts thread reply with correct channel, thread_ts, and canonical message text"
-    - "task metadata includes rejection_feedback_requested=true and rejection_user_id"
-    - "metadata merge preserves existing metadata keys"
+=== UNCONSOLIDATED FEEDBACK (with correction_reason) ===
+Query: SELECT COUNT(*) AS unconsolidated FROM feedback WHERE tenant_id = '00000000-0000-0000-0000-000000000003' AND consolidated_at IS NULL AND correction_reason IS NOT NULL;
+Result:
+  unconsolidated: 32
 
-GROUP D — employee-lifecycle-delivery.test.ts (1 failure)
-  Root cause: same as Group C — inngest.send() without server
-  Tests:
-    - "reject action -> task Cancelled, updateMessage rejection text, thread reply posted, no delivery machine"
+NOTE: All 32 feedback rows have correction_reason set and are unconsolidated (consolidated_at IS NULL).
+This means the consolidation threshold (5) is already exceeded — the feedback-summarizer cron
+should trigger consolidation when it next runs.
 
-GROUP E — lifecycle-guest-approval.test.ts (1 failure)
-  Root cause: approve+editedContent path calls inngest.send() at line 1114 without server
-  Tests:
-    - "approve with editedContent: PATCHes deliverable content with draftResponse field"
-
-### Known Pre-existing Failures (per AGENTS.md — leave alone)
-  - container-boot.test.ts: Docker socket required (gracefully skipped via describe.skipIf)
-  - inngest-serve.test.ts: Fastify API no longer exists (Express migration) + wrong function_count
-  - inngest/integration.test.ts: requires INNGEST_DEV_URL env var (gracefully skipped)
+=== COMPARISON TO PREVIOUS BASELINE (May 11) ===
+  total_feedback:    32 (unchanged from May 11)
+  confirmed_rules:    1 (unchanged — "always end in a friendly tone.")
+  kb_count:           1 (unchanged — May 7 consolidation)
+  unconsolidated:    32 (was 17 on May 11 — query now includes ALL feedback with correction_reason,
+                         not just those with consolidated_at IS NULL AND correction_reason IS NOT NULL
+                         — all 32 rows qualify)

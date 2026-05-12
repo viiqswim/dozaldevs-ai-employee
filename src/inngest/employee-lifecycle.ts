@@ -1627,11 +1627,23 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.info({ taskId }, 'State: Delivering');
 
           if (editedContent) {
-            const originalDraft = deliverable?.content as string | undefined;
+            const rawDeliverableContent = deliverable?.content as string | undefined;
+            // Extract just the draftResponse text for rule extraction — passing the full JSON blob
+            // causes the LLM to fail to identify what changed between original and edited.
+            let originalDraft: string | undefined;
+            try {
+              const parsed = JSON.parse(rawDeliverableContent ?? '{}') as Record<string, unknown>;
+              originalDraft =
+                typeof parsed.draftResponse === 'string'
+                  ? parsed.draftResponse
+                  : rawDeliverableContent;
+            } catch {
+              originalDraft = rawDeliverableContent;
+            }
             try {
               const deliverableId = deliverable?.id as string | undefined;
               if (deliverableId) {
-                const currentContent = deliverable?.content as string | undefined;
+                const currentContent = rawDeliverableContent;
                 let updatedContent = currentContent ?? '{}';
                 try {
                   const parsed = JSON.parse(currentContent ?? '{}') as Record<string, unknown>;
