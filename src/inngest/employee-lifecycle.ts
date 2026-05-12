@@ -454,10 +454,16 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await logStatusTransition(supabaseUrl, headers, taskId, 'Executing', 'Ready');
         log.info({ taskId }, 'State: Executing — provisioning machine');
 
-        const vmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
+        const vmSize =
+          (archetype.vm_size as string | null) ??
+          process.env['WORKER_VM_SIZE'] ??
+          process.env['SUMMARIZER_VM_SIZE'] ??
+          'shared-cpu-1x';
         const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
         const flyApp =
-          process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+          process.env['FLY_WORKER_APP'] ??
+          process.env['FLY_SUMMARIZER_APP'] ??
+          'ai-employee-workers';
 
         const effectiveSupabaseUrl =
           process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
@@ -707,8 +713,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env.FLY_SUMMARIZER_APP ??
-                process.env.FLY_WORKER_APP ??
+                process.env['FLY_WORKER_APP'] ??
+                process.env['FLY_SUMMARIZER_APP'] ??
                 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
@@ -780,8 +786,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env.FLY_SUMMARIZER_APP ??
-                process.env.FLY_WORKER_APP ??
+                process.env['FLY_WORKER_APP'] ??
+                process.env['FLY_SUMMARIZER_APP'] ??
                 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
@@ -826,8 +832,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env.FLY_SUMMARIZER_APP ??
-                process.env.FLY_WORKER_APP ??
+                process.env['FLY_WORKER_APP'] ??
+                process.env['FLY_SUMMARIZER_APP'] ??
                 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
@@ -1822,11 +1828,17 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           }
 
-          const deliveryVmSize = process.env.SUMMARIZER_VM_SIZE ?? 'shared-cpu-1x';
+          const deliveryVmSize =
+            (archetype.vm_size as string | null) ??
+            process.env['WORKER_VM_SIZE'] ??
+            process.env['SUMMARIZER_VM_SIZE'] ??
+            'shared-cpu-1x';
           const deliveryImage =
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
           const deliveryFlyApp =
-            process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+            process.env['FLY_WORKER_APP'] ??
+            process.env['FLY_SUMMARIZER_APP'] ??
+            'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
             process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
 
@@ -2442,7 +2454,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
           } else {
             const flyApp =
-              process.env.FLY_SUMMARIZER_APP ?? process.env.FLY_WORKER_APP ?? 'ai-employee-workers';
+              process.env['FLY_WORKER_APP'] ??
+              process.env['FLY_SUMMARIZER_APP'] ??
+              'ai-employee-workers';
             await destroyMachine(flyApp, machineId as string);
           }
         } catch (err) {
