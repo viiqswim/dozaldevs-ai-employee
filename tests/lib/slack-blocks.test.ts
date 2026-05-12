@@ -5,11 +5,11 @@ import {
   buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
-  buildHostfullyLink,
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
   buildCompactNotifyBlocks,
 } from '../../src/lib/slack-blocks.js';
+import { buildHostfullyLink } from '../../src/lib/enrichment-adapters/hostfully.js';
 
 type Block = {
   type: string;

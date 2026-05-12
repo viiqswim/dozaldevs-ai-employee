@@ -1,4 +1,6 @@
 import type { KnownBlock } from '@slack/web-api';
+import { buildHostfullyLink } from './enrichment-adapters/hostfully.js';
+import type { NotificationEnrichment } from './types/notification-enrichment.js';
 
 export function buildSupersededBlocks(taskId: string): unknown[] {
   return [
@@ -150,10 +152,6 @@ export function buildOverrideCardBlocks(params: {
   });
 
   return blocks;
-}
-
-export function buildHostfullyLink(threadUid: string, leadUid: string): string {
-  return `https://platform.hostfully.com/app/#/inbox?threadUid=${threadUid}&leadUid=${leadUid}`;
 }
 
 export function buildEnrichedTerminalBlocks(params: {
@@ -386,6 +384,66 @@ export function buildCompactNotifyBlocks(params: {
     { type: 'section', text: { type: 'mrkdwn', text: mainText } },
     { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
   ];
+}
+
+export function buildNotifyBlocks(params: {
+  state: string;
+  archetypeName: string;
+  taskId: string;
+  enrichment?: NotificationEnrichment | null;
+  emoji?: string;
+  extraText?: string;
+}): KnownBlock[] {
+  const { state, archetypeName, taskId, enrichment, emoji = '⏳', extraText } = params;
+
+  const blocks: KnownBlock[] = [];
+
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `${emoji} *${archetypeName} — ${state}*` },
+  } as KnownBlock);
+
+  if (enrichment?.displayName || enrichment?.subtitle) {
+    const fields: { type: 'mrkdwn'; text: string }[] = [];
+    if (enrichment.displayName) {
+      fields.push({ type: 'mrkdwn', text: enrichment.displayName });
+    }
+    if (enrichment.subtitle) {
+      fields.push({ type: 'mrkdwn', text: enrichment.subtitle });
+    }
+    blocks.push({ type: 'section', fields } as KnownBlock);
+  }
+
+  if (enrichment?.metadata && Object.keys(enrichment.metadata).length > 0) {
+    const metadataText = Object.entries(enrichment.metadata)
+      .map(([key, value]) => `*${key}:* ${value}`)
+      .join(' · ');
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: metadataText }],
+    } as KnownBlock);
+  }
+
+  if (enrichment?.contextUrl) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `<${enrichment.contextUrl}|🔗 View>` }],
+    } as KnownBlock);
+  }
+
+  if (extraText) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: extraText },
+    } as KnownBlock);
+  }
+
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+  } as KnownBlock);
+
+  return blocks;
 }
 
 export function buildContextThreadBlocks(params: {
