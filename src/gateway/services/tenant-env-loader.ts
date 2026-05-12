@@ -66,15 +66,7 @@ export async function loadTenantEnv(
       ? legacyChannelIds
       : [];
   if (channelList.length > 0) {
-    const joined = (channelList as string[]).join(',');
-    env['SOURCE_CHANNELS'] = joined;
-    env['DAILY_SUMMARY_CHANNELS'] = joined; // backward compat alias
-  }
-
-  // Keep SUMMARY_TARGET_CHANNEL as alias for backward compat (lifecycle uses it as fallback)
-  const targetChannel = summary?.['target_channel'];
-  if (typeof targetChannel === 'string' && targetChannel) {
-    env['SUMMARY_TARGET_CHANNEL'] = targetChannel;
+    env['SOURCE_CHANNELS'] = (channelList as string[]).join(',');
   }
 
   // PUBLISH_CHANNEL — for delivery phase (may differ from notification channel)
