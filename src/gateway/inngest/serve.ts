@@ -6,7 +6,6 @@ import { createInngestClient } from './client.js';
 // import { createRedispatchFunction } from '../../inngest/redispatch.js'; // Deregistered: engineering employee on hold
 // import { createWatchdogFunction } from '../../inngest/watchdog.js'; // Deregistered: engineering employee on hold
 import { createEmployeeLifecycleFunction } from '../../inngest/employee-lifecycle.js';
-// import { createSummarizerTrigger } from '../../inngest/triggers/summarizer-trigger.js'; // Deregistered: use manual trigger via admin API
 import { createInteractionHandlerFunction } from '../../inngest/interaction-handler.js';
 // import { createFeedbackSummarizerTrigger } from '../../inngest/triggers/feedback-summarizer.js'; // Deregistered: replaced by event-driven rule-synthesizer
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
@@ -30,12 +29,11 @@ export function inngestServeRoutes(): Router {
 
   // === DEREGISTERED FUNCTIONS ===
   // Only guest-messaging (universal lifecycle) and its learning pipeline remain active.
-  // Engineering employee functions and summarizer trigger deregistered — source files preserved.
+  // Engineering employee functions deregistered — source files preserved.
   // const lifecycleFn = createLifecycleFunction(inngest, prisma, slackClient); // Deregistered: engineering employee on hold
   // const redispatchFn = createRedispatchFunction(inngest, prisma, slackClient); // Deregistered: engineering employee on hold
   // const watchdogFn = createWatchdogFunction(inngest, prisma, flyClient, slackClient); // Deregistered: engineering employee on hold
   const employeeLifecycleFn = createEmployeeLifecycleFunction(inngest);
-  // const summarizerTriggerFn = createSummarizerTrigger(inngest); // Deregistered: use manual trigger via admin API
   const interactionHandlerFn = createInteractionHandlerFunction(inngest);
   // const feedbackSummarizerFn = createFeedbackSummarizerTrigger(inngest); // Deregistered: replaced by event-driven rule-synthesizer
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
@@ -51,7 +49,6 @@ export function inngestServeRoutes(): Router {
       // redispatchFn, // Deregistered: engineering employee on hold
       // watchdogFn, // Deregistered: engineering employee on hold
       employeeLifecycleFn,
-      // summarizerTriggerFn, // Deregistered: use manual trigger via admin API
       interactionHandlerFn,
       // feedbackSummarizerFn, // Deregistered: replaced by event-driven rule-synthesizer
       ruleExtractorFn,
