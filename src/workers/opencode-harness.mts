@@ -548,14 +548,12 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const feedbackContext = process.env.FEEDBACK_CONTEXT ?? '';
-  const learnedRulesContext = process.env.LEARNED_RULES_CONTEXT ?? '';
+  const employeeRules = process.env.EMPLOYEE_RULES ?? '';
+  const employeeKnowledge = process.env.EMPLOYEE_KNOWLEDGE ?? '';
   const baseSystemPrompt = archetype.system_prompt ?? '';
-  let systemPrompt = feedbackContext
-    ? `${baseSystemPrompt}\n\n${feedbackContext}`
-    : baseSystemPrompt;
-  if (learnedRulesContext) {
-    systemPrompt = `${systemPrompt}\n\n${learnedRulesContext}`;
+  let systemPrompt = employeeRules ? `${baseSystemPrompt}\n\n${employeeRules}` : baseSystemPrompt;
+  if (employeeKnowledge) {
+    systemPrompt = `${systemPrompt}\n\n${employeeKnowledge}`;
   }
   const overrideDirection = process.env.OVERRIDE_DIRECTION ?? '';
   const instructions = overrideDirection

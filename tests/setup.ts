@@ -42,7 +42,6 @@ export async function cleanupTestData(): Promise<void> {
   await prisma.execution.deleteMany({});
   await prisma.clarification.deleteMany({});
   await prisma.crossDeptTrigger.deleteMany({});
-  await prisma.feedback.deleteMany({ where: { task_id: { not: null } } });
   await prisma.auditLog.deleteMany({});
   await prisma.task.deleteMany({});
   await prisma.project.deleteMany({

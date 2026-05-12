@@ -50,18 +50,6 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         if (feedbackType === 'edit_diff') {
           return null;
         }
-        if (
-          (feedbackType === 'feedback' || feedbackType === 'teaching') &&
-          content === null &&
-          feedbackId !== null
-        ) {
-          const res = await fetch(
-            `${supabaseUrl}/rest/v1/feedback?id=eq.${feedbackId}&select=correction_reason`,
-            { headers },
-          );
-          const rows = (await res.json()) as Array<{ correction_reason: string | null }>;
-          return rows[0]?.correction_reason ?? null;
-        }
         return content;
       });
 

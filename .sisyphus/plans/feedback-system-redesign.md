@@ -1507,7 +1507,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 17. Telegram notification
+- [x] 17. Telegram notification
 
   **What to do**:
   Send Telegram notification that the plan is complete.
