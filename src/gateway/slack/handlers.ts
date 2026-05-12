@@ -20,14 +20,23 @@ async function findTaskIdByThreadTs(threadTs: string): Promise<string | null> {
   const key = SUPABASE_KEY();
   if (!url || !key) return null;
   try {
+    // First: check deliverables by approval_message_ts (approval card ts)
     const res = await fetch(
       `${url}/rest/v1/deliverables?metadata->>approval_message_ts=eq.${threadTs}&select=external_ref&limit=1`,
       { headers: supabaseHeaders() },
     );
     const rows = (await res.json()) as Array<{ external_ref: string }>;
-    return rows[0]?.external_ref ?? null;
+    if (rows[0]?.external_ref) return rows[0].external_ref;
+
+    // Fallback: check tasks by notify_slack_ts (parent "Task received" message ts)
+    const taskRes = await fetch(
+      `${url}/rest/v1/tasks?metadata->>notify_slack_ts=eq.${threadTs}&select=id&limit=1`,
+      { headers: supabaseHeaders() },
+    );
+    const taskRows = (await taskRes.json()) as Array<{ id: string }>;
+    return taskRows[0]?.id ?? null;
   } catch (err) {
-    log.warn({ threadTs, err }, 'Failed to look up deliverable by thread_ts');
+    log.warn({ threadTs, err }, 'Failed to look up task by thread_ts');
     return null;
   }
 }
