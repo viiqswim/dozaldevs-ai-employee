@@ -212,7 +212,7 @@ Max Concurrent: 7 (Wave 2)
 
 ## TODOs
 
-- [ ] 1. Prisma migration — create `feedback_events` and `employee_rules` tables
+- [x] 1. Prisma migration — create `feedback_events` and `employee_rules` tables
 
   **What to do**:
   Create a new Prisma migration that adds two tables. Keep the old tables (`feedback`, `learned_rules`) — they'll be dropped later after all code is updated.
@@ -318,7 +318,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 2. Shared types, constants, and Inngest event definitions
+- [x] 2. Shared types, constants, and Inngest event definitions
 
   **What to do**:
   Create shared type definitions and constants for the new feedback pipeline. These are used by multiple files in Waves 2-3.
@@ -410,7 +410,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 3. Data migration script
+- [x] 3. Data migration script
 
   **What to do**:
   Create a TypeScript migration script that copies data from old tables to new tables. This runs ONCE after the schema migration (Task 1) and before old tables are dropped (Task 12).
@@ -500,7 +500,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 4. Lifecycle — uniform correction handling with feedback_events
+- [x] 4. Lifecycle — uniform correction handling with feedback_events
 
   **What to do**:
   Update `src/inngest/employee-lifecycle.ts` `handle-approval-result` step so that ALL correction types uniformly write a `feedback_events` row AND fire rule extraction. Currently:
@@ -607,7 +607,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 5. Rule extractor — write to `employee_rules` instead of `learned_rules`
+- [x] 5. Rule extractor — write to `employee_rules` instead of `learned_rules`
 
   **What to do**:
   Update `src/inngest/rule-extractor.ts` to write proposed rules to `employee_rules` instead of `learned_rules`. The logic stays the same — only the table name and column mapping change.
@@ -675,7 +675,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 6. Interaction handler — use `feedback_events` and `employee_rules`
+- [x] 6. Interaction handler — use `feedback_events` and `employee_rules`
 
   **What to do**:
   Update `src/inngest/interaction-handler.ts` to write to `feedback_events` and use `employee_rules` for the awaiting_input detection.
@@ -749,7 +749,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 7. Rule synthesizer — new event-driven Inngest function
+- [x] 7. Rule synthesizer — new event-driven Inngest function
 
   **What to do**:
   Create `src/inngest/rule-synthesizer.ts` — a new Inngest function that replaces the synthesis step from the old feedback-summarizer cron. It is triggered by an event (not a cron), fires when the Nth rule is confirmed for an archetype, and merges overlapping confirmed rules.
@@ -855,7 +855,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 8. Slack handlers — `employee_rules` + synthesis trigger on confirmation
+- [x] 8. Slack handlers — `employee_rules` + synthesis trigger on confirmation
 
   **What to do**:
   Update `src/gateway/slack/handlers.ts` to use `employee_rules` instead of `learned_rules` for all rule-related Slack actions, and add synthesis trigger on rule confirmation.
@@ -939,7 +939,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 9. Remove batch_rules_confirm Slack card posting from cron
+- [x] 9. Remove batch_rules_confirm Slack card posting from cron
 
   **What to do**:
   The batch consolidation card is posted by `feedback-summarizer.ts` during the consolidation step. Since consolidation is eliminated and the `batch_rules_confirm` handler is removed in Task 8, the card-posting code also needs to be disabled. Rather than rewriting the entire cron function now (it's deleted in Task 11), this task simply prevents the consolidation step from executing.
@@ -989,7 +989,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 10. Injection refactor — `EMPLOYEE_RULES` + `EMPLOYEE_KNOWLEDGE`
+- [x] 10. Injection refactor — `EMPLOYEE_RULES` + `EMPLOYEE_KNOWLEDGE`
 
   **What to do**:
   Replace the current injection logic in `src/inngest/employee-lifecycle.ts` `dispatch-machine` step. Currently it builds `FEEDBACK_CONTEXT` (from unconsolidated feedback + knowledge_bases themes) and `LEARNED_RULES_CONTEXT` (from confirmed learned_rules). Replace with:
@@ -1102,7 +1102,7 @@ Max Concurrent: 7 (Wave 2)
 
 ---
 
-- [ ] 11. Deregister feedback-summarizer and delete file
+- [x] 11. Deregister feedback-summarizer and delete file
 
   **What to do**:
   Remove the old feedback-summarizer cron function from the codebase.
