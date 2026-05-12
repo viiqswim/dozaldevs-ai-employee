@@ -339,7 +339,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
               },
               { role: 'user', content: `<rules>${rulesText}</rules>` },
             ],
-            maxTokens: 500,
+            maxTokens: 1500,
             temperature: 0,
           });
 
@@ -351,6 +351,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
           let contradictions: Array<{ rule_ids: string[]; description: string }> = [];
           try {
             const rawSynthContent = llmResult.content.trim();
+            log.info({ archetypeId: archetype.id, rawSynthContent }, 'Synthesis LLM raw response');
             const jsonSynthContent = rawSynthContent
               .replace(/^```(?:json)?\s*/i, '')
               .replace(/\s*```\s*$/i, '')
@@ -361,9 +362,9 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
             };
             merges = parsed.merges ?? [];
             contradictions = parsed.contradictions ?? [];
-          } catch {
+          } catch (err) {
             log.warn(
-              { archetypeId: archetype.id },
+              { archetypeId: archetype.id, err, rawContent: llmResult.content },
               'Failed to parse synthesis LLM response — skipping',
             );
             return;
@@ -402,6 +403,7 @@ export function createFeedbackSummarizerTrigger(inngest: Inngest): InngestFuncti
               method: 'POST',
               headers: { ...headers, Prefer: 'return=representation' },
               body: JSON.stringify({
+                id: crypto.randomUUID(),
                 tenant_id: archetype.tenant_id,
                 entity_type: 'archetype',
                 entity_id: archetype.id,
