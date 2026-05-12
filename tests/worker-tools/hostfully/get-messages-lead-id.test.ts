@@ -278,14 +278,16 @@ describe('get-messages --lead-id flag', () => {
     expect(data[0].leadUid).toBe('lead-abc');
   });
 
-  it('--unresponded-only with --lead-id returns empty array when last message is from host', async () => {
+  it('--unresponded-only with --lead-id is ignored — returns full thread regardless of last sender', async () => {
     const { stdout, code } = await runScript(
       ['--lead-id', 'lead-responded', '--unresponded-only'],
       { HOSTFULLY_API_KEY: 'testkey', HOSTFULLY_API_URL: `http://localhost:${port}` },
     );
     expect(code).toBe(0);
-    const data = JSON.parse(stdout) as unknown[];
-    expect(data).toEqual([]);
+    const data = JSON.parse(stdout) as { leadUid: string; unresponded: boolean }[];
+    expect(data).toHaveLength(1);
+    expect(data[0].leadUid).toBe('lead-responded');
+    expect(data[0].unresponded).toBe(false);
   });
 
   it('--limit is passed as _limit query param to messages endpoint', async () => {
