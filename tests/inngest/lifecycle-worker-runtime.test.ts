@@ -214,14 +214,14 @@ beforeEach(() => {
     return 0 as unknown as NodeJS.Timeout;
   });
 
-  process.env.USE_LOCAL_DOCKER = '1';
+  process.env.WORKER_RUNTIME = 'docker';
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-supabase-key';
   process.env.FLY_WORKER_APP = 'ai-employee-workers';
 });
 
 afterEach(() => {
-  delete process.env.USE_LOCAL_DOCKER;
+  delete process.env.WORKER_RUNTIME;
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
@@ -298,7 +298,7 @@ describe('employee-lifecycle — local Docker container management', () => {
     });
 
     it('Test 4: fly machineId → calls destroyMachine, NOT docker stop', async () => {
-      delete process.env.USE_LOCAL_DOCKER;
+      delete process.env.WORKER_RUNTIME;
 
       const { engine } = makeEngine({
         executing: 'machine-fly-123',
@@ -408,7 +408,7 @@ describe('employee-lifecycle — local Docker cleanup patterns in source (code i
     expect(sourceCode).toContain(
       'stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`)',
     );
-    expect(sourceCode).toContain("if (attempt > 0 && process.env.USE_LOCAL_DOCKER === '1')");
+    expect(sourceCode).toContain("if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly')");
 
     const stopDeliveryOccurrences = (
       sourceCode.match(/stopLocalDockerContainer\(`employee-delivery-/g) ?? []
