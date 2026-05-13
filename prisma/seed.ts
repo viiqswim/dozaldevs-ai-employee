@@ -3418,9 +3418,8 @@ No specific house rules provided.
         '          - If multiple matching permanent passcodes exist: keep the one with the highest keyboardPwdId, delete all others:\n' +
         '            tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId>\n' +
         '      iii. To set the new code on the lock:\n' +
-        '          - If a matching permanent passcode EXISTS: delete it first, then create a new one with the same name and new code:\n' +
-        '            tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId>\n' +
-        '            tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <lock_external_id> --name "<expected-name>" --code "<new-code>"\n' +
+        '          - If a matching permanent passcode EXISTS: update it in-place (do NOT delete and recreate):\n' +
+        '            tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId> --code "<new-code>"\n' +
         '          - If NO matching permanent passcode exists (first-time setup): create one:\n' +
         '            tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <lock_external_id> --name "<expected-name>" --code "<new-code>"\n' +
         '      iv. Verify: list passcodes again and confirm the new code appears under the expected name:\n' +
@@ -3452,6 +3451,7 @@ No specific house rules provided.
         '- Update Hostfully BEFORE updating any physical lock (PMS must always be ahead of physical state)\n' +
         '- On shared locks: only ever touch the passcode matching the expected name for the current property — leave all others untouched\n' +
         '- Use case-insensitive comparison when matching passcode names\n' +
+        '- UPDATE existing passcodes in-place using update-passcode --code — do NOT delete and recreate\n' +
         '- Only touch keyboardPwdType === 2 (PERMANENT) passcodes — never modify ONE_TIME or TIMED codes\n' +
         '- If a property fails at any step: document the failure and continue with remaining properties\n' +
         '- $TENANT_ID env var is available for the PostgREST query in Step 1',
@@ -3536,9 +3536,8 @@ No specific house rules provided.
         '          - If multiple matching permanent passcodes exist: keep the one with the highest keyboardPwdId, delete all others:\n' +
         '            tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId>\n' +
         '      iii. To set the new code on the lock:\n' +
-        '          - If a matching permanent passcode EXISTS: delete it first, then create a new one with the same name and new code:\n' +
-        '            tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId>\n' +
-        '            tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <lock_external_id> --name "<expected-name>" --code "<new-code>"\n' +
+        '          - If a matching permanent passcode EXISTS: update it in-place (do NOT delete and recreate):\n' +
+        '            tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <lock_external_id> --passcode-id <keyboardPwdId> --code "<new-code>"\n' +
         '          - If NO matching permanent passcode exists (first-time setup): create one:\n' +
         '            tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <lock_external_id> --name "<expected-name>" --code "<new-code>"\n' +
         '      iv. Verify: list passcodes again and confirm the new code appears under the expected name:\n' +
