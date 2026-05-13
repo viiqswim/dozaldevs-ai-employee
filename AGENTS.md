@@ -95,6 +95,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 - **Output contract**: OpenCode writes `/tmp/summary.txt` (deliverable content) and `/tmp/approval-message.json` (Slack message metadata). Absence of BOTH is a hard failure; either file alone is sufficient to proceed. See `docs/snapshots/2026-04-29-2255-current-system-state.md` for the full 15-step harness flow.
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
+- **Status log**: Harness writes `task_status_log` entries for `Delivering→Done` (actor: `opencode_harness`) and `→Failed` transitions. Both inserts are try/catch wrapped and non-fatal — a PostgREST failure will not block `process.exit`. If a `Delivering→Done` row is missing from the log, check for PostgREST connectivity issues from inside the delivery container.
 - **Feedback context**: Harness optionally prepends `EMPLOYEE_RULES` and `EMPLOYEE_KNOWLEDGE` (env vars injected by the lifecycle from confirmed rules and knowledge bases) to the system prompt, allowing historical feedback to influence future runs.
 
 **Cron timezone**: The daily-summarizer is now triggered by an external cron job on cron-job.org (not Inngest). cron-job.org supports per-job IANA timezone config, so the schedule can be set in the tenant's local timezone. The archetype's `trigger_sources.timezone` field is documentation metadata only — it does not configure any runtime behavior.
@@ -426,6 +427,8 @@ Both paths → universal lifecycle:
 
 **CRITICAL gotcha — lead type filter**: `get-messages.ts` includes all lead types except `BLOCK` (calendar blocks). This is intentional — Airbnb and other OTAs sometimes surface real stays as `INQUIRY` type in Hostfully, not `BOOKING`. Do not change the filter back to `type === 'BOOKING'`.
 
+**CRITICAL gotcha — lead UID ≠ thread UID**: The model frequently confuses `lead_uid` and `thread_uid` when calling `post-guest-approval.ts --lead-uid ... --thread-uid ...`. These are DIFFERENT UUIDs from DIFFERENT fields — `lead_uid` (e.g. `29a64abd-...`) identifies the reservation/guest lead; `thread_uid` (e.g. `aef3d0cf-...`) identifies the Hostfully message thread. They are NEVER the same value. The archetype instructions include a CRITICAL warning about this distinction, and `post-guest-approval.ts` logs a stderr warning when both flags receive identical values. If the Slack approval card URL shows the wrong `threadUid`, this confusion is the cause.
+
 **Simulate a webhook locally** (no auth required — no HMAC on this endpoint):
 
 ```bash
@@ -672,7 +675,7 @@ Stale tmux sessions accumulate zsh processes, gitstatus watchers, and kernel vno
 
 Cloudflare Tunnel is the permanent solution for hybrid mode.
 
-**PostgREST tunnel** (for Fly.io workers → local Supabase): `cloudflared tunnel --url http://localhost:54331` → copy the `trycloudflare.com` URL → set `TUNNEL_URL=<url>` in `.env`. This tunnel can be a quick (random-URL) tunnel since `TUNNEL_URL` is set at dispatch time.
+**PostgREST tunnel** (for Fly.io workers → local Supabase): The named tunnel `postgrest-ai-employee.dozaldevs.com` is already configured in `~/.cloudflared/ai-employee-local.yml` and is the primary path — it is stable across restarts. Set `TUNNEL_URL=https://postgrest-ai-employee.dozaldevs.com` in `.env`. `pnpm dev` detects this stable URL and skips spawning a quick tunnel. If `TUNNEL_URL` is unset or contains `trycloudflare.com`, `dev.ts` automatically falls back to spawning a quick tunnel (`cloudflared tunnel --url http://localhost:54331`) — useful for contributors who don't have the named tunnel configured.
 
 ### 2. Slack OAuth redirect URI requires a stable public URL
 
