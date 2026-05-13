@@ -368,7 +368,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           'ai-employee-workers';
 
         const effectiveSupabaseUrl =
-          process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+          process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
         const prismaClient = new PrismaClient();
         const tenantEnv = await loadTenantEnv(
@@ -477,7 +477,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         log.info({ taskId, runtime }, 'Dispatching worker machine');
 
-        if (process.env.USE_LOCAL_DOCKER === '1') {
+        if (process.env.WORKER_RUNTIME !== 'fly') {
           const localMachine = runLocalDockerContainer({
             taskId,
             name: `employee-${taskId.slice(0, 8)}`,
@@ -1674,15 +1674,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             process.env['FLY_SUMMARIZER_APP'] ??
             'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
-            process.env.USE_FLY_HYBRID === '1' ? await getTunnelUrl() : supabaseUrl;
+            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
           let deliveryFinalStatus = '';
           for (let attempt = 0; attempt < 3; attempt++) {
-            if (attempt > 0 && process.env.USE_LOCAL_DOCKER === '1') {
+            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
               stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
             }
             let deliveryMachine: { id: string };
-            if (process.env.USE_LOCAL_DOCKER === '1') {
+            if (process.env.WORKER_RUNTIME !== 'fly') {
               deliveryMachine = runLocalDockerContainer({
                 taskId,
                 name: `employee-delivery-${taskId.slice(0, 8)}`,
@@ -1737,7 +1737,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             deliveryFinalStatus = finalStatus;
 
-            if (process.env.USE_LOCAL_DOCKER !== '1') {
+            if (process.env.WORKER_RUNTIME === 'fly') {
               try {
                 await destroyMachine(deliveryFlyApp, deliveryMachine.id);
               } catch (err) {
