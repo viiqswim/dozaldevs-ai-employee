@@ -372,7 +372,7 @@ if (!triggerOnlyFlag) {
   // Start Event Gateway
   log('── Phase 3c: Starting Event Gateway ──');
   const gatewayLogStream = createWriteStream('/tmp/gateway.log');
-  const gatewayEnv: NodeJS.ProcessEnv = { ...process.env, USE_LOCAL_DOCKER: '1' };
+  const gatewayEnv: NodeJS.ProcessEnv = { ...process.env, WORKER_RUNTIME: 'docker' };
   const gatewayProc = spawn('node', ['--import', 'tsx/esm', 'src/gateway/server.ts'], {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
