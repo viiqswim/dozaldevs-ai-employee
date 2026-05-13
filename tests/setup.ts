@@ -135,4 +135,4 @@ getPrisma()
   .$connect()
   .catch(() => {});
 
-delete process.env.USE_LOCAL_DOCKER;
+delete process.env.WORKER_RUNTIME;
