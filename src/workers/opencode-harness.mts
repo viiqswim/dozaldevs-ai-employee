@@ -81,6 +81,16 @@ async function markFailed(reason: string, executionId: string | null): Promise<v
   } catch (err) {
     log.warn({ err }, '[opencode-harness] Failed to PATCH task status to Failed');
   }
+  try {
+    await db.post('task_status_log', {
+      task_id: TASK_ID,
+      from_status: 'Delivering',
+      to_status: 'Failed',
+      actor: 'opencode_harness',
+    });
+  } catch (err) {
+    log.warn({ err }, '[opencode-harness] Failed to log status transition to Failed (non-fatal)');
+  }
 
   if (executionId) {
     try {
@@ -498,6 +508,16 @@ async function main(): Promise<void> {
       status: 'Done',
       updated_at: new Date().toISOString(),
     });
+    try {
+      await db.post('task_status_log', {
+        task_id: TASK_ID,
+        from_status: 'Delivering',
+        to_status: 'Done',
+        actor: 'opencode_harness',
+      });
+    } catch (err) {
+      log.warn({ err }, '[opencode-harness] Failed to log Delivering→Done transition (non-fatal)');
+    }
     log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
     await fireCompletionEvent(TASK_ID);
     process.exit(0);
