@@ -59,10 +59,11 @@ The platform follows a single lifecycle pattern for all employees:
 
 ### Active employees
 
-| Employee                    | Trigger                               | Deliverable                                                   |
-| --------------------------- | ------------------------------------- | ------------------------------------------------------------- |
-| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval |
-| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval  |
+| Employee                    | Trigger                               | Deliverable                                                                |
+| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
+| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval              |
+| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval               |
+| **Code-Rotation (VLRE)**    | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary |
 
 > **Engineering employee** — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features.
 
