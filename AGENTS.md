@@ -75,7 +75,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Knowledge base tools**: `src/worker-tools/knowledge_base/` — pre-installed in Docker image at `/tools/knowledge_base/`. Knowledge base search tool (`search.ts`) for querying tenant-scoped learned knowledge.
 - **Platform tools**: `src/worker-tools/platform/` — pre-installed in Docker image at `/tools/platform/`. Platform infrastructure tool (`report-issue.ts`) for logging system events.
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31` (`opencode-linux-${ARCH}@1.14.31` native binary in Docker image). Version `1.14.33` has a confirmed 6-second exit regression (session bootstrap failure). **Never upgrade without explicit testing.**
-- **`USE_LOCAL_DOCKER` flag**: Set programmatically by `dev.ts` — the `.env` value is always overridden. Do not rely on `.env` to control local vs Fly.io dispatch.
+- **`WORKER_RUNTIME` flag**: Controls worker dispatch mode. `docker` = local Docker containers (default when unset), `fly` = Fly.io machines (requires `TUNNEL_URL`). Set programmatically by `dev.ts` — reads from `.env` and passes to the gateway process.
 - **Task-fetch-first**: The harness fetches the task from DB **before** starting OpenCode. A non-existent `TASK_ID` exits at "Task not found" — OpenCode never launches. Direct container tests with fake task IDs do not verify OpenCode startup.
 - **`autoupdate: false`**: Must be set in both `src/workers/config/opencode.json` (baked into Docker image) and `~/.config/opencode/opencode.json` (global) to prevent self-update on container startup.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — universal lifecycle with all states (Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done). States auto-pass where unambiguous (Triaging, AwaitingInput, Validating). Terminal states: `Failed` (machine poll timeout or unhandled error), `Cancelled` (reject action or 24h approval timeout).
@@ -511,7 +511,7 @@ Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
 ```
 
-For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm fly:image`. Hybrid mode requires a Cloudflare Tunnel exposing local PostgREST. Set `USE_FLY_HYBRID=1` and `TUNNEL_URL=<cloudflare-url>` when dispatching.
+For hybrid Fly.io mode (local Supabase + remote Fly.io worker), also run `pnpm fly:image`. Hybrid mode requires a Cloudflare Tunnel exposing local PostgREST. Set `WORKER_RUNTIME=fly` and `TUNNEL_URL=https://postgrest-ai-employee.dozaldevs.com` in `.env`. The named tunnel `postgrest-ai-employee.dozaldevs.com` is stable and survives restarts.
 
 ## Project Structure
 

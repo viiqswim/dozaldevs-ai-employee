@@ -1,5 +1,5 @@
 /**
- * Plain-fetch polling helper for the USE_FLY_HYBRID dispatch branch.
+ * Plain-fetch polling helper for the WORKER_RUNTIME=fly dispatch branch.
  * Polls a PostgREST endpoint until the task reaches a terminal status,
  * the poll limit is exhausted, or a break-condition status is detected.
  * Uses plain `fetch` and `setTimeout` (not Inngest step primitives).
