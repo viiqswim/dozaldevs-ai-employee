@@ -107,6 +107,8 @@ RUN mkdir -p /tools/locks
 COPY --from=builder /build/src/worker-tools/locks/sifely-client.ts /tools/locks/sifely-client.ts
 COPY --from=builder /build/src/worker-tools/locks/hostfully-door-code.ts /tools/locks/hostfully-door-code.ts
 COPY --from=builder /build/src/worker-tools/locks/diagnose-access.ts /tools/locks/diagnose-access.ts
+COPY --from=builder /build/src/worker-tools/locks/generate-code.ts /tools/locks/generate-code.ts
+COPY --from=builder /build/src/worker-tools/locks/update-door-code.ts /tools/locks/update-door-code.ts
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
