@@ -38,10 +38,10 @@ tail -20 /tmp/ai-dev.log | grep -i "socket mode"
 
 | Resource                     | Value                                                                       |
 | ---------------------------- | --------------------------------------------------------------------------- |
-| Airbnb guest thread          | `https://www.airbnb.com/guest/messages/2525238359`                          |
-| Thread UID                   | `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`                                      |
-| Lead UID                     | `29a64abd-d02c-44bc-8d5c-47df58a7ab14`                                      |
-| Property UID                 | `562695df-6a4f-40d6-990d-56fe043aa9e8`                                      |
+| Airbnb guest thread          | `https://www.airbnb.com/guest/messages/2530903609`                          |
+| Thread UID                   | `dc2c8f5e-b83d-4078-b709-cc03bf47dd4a`                                      |
+| Lead UID                     | `f83d431f-0985-457b-a535-60c2991b7c83`                                      |
+| Property UID                 | `51ec272e-8819-4c8e-b8a3-9a2286b3ed65`                                      |
 | Slack approval channel       | `#cs-guest-communication` (`C0AMGJQN05S`) — approval cards and edit threads |
 | Slack notification channel   | `C0960S2Q8RL` — rule review cards and synthesis cards                       |
 | VLRE tenant ID               | `00000000-0000-0000-0000-000000000003`                                      |
@@ -74,7 +74,7 @@ to prevent dedup collisions. Generate with: `date +%s`
 
 | Action                                                         | Where              |
 | -------------------------------------------------------------- | ------------------ |
-| Navigate to `https://www.airbnb.com/guest/messages/2525238359` | Playwright browser |
+| Navigate to `https://www.airbnb.com/guest/messages/2530903609` | Playwright browser |
 | Click `textbox "Write a message..."`                           | Compose bar        |
 | Type: `What time is checkout? [e2e-test-{epoch}]`              | Compose bar        |
 | Click `button "Send"`                                          | Airbnb thread      |

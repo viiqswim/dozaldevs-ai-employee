@@ -28,10 +28,10 @@ tail -20 /tmp/ai-dev.log | grep -i "socket mode"
 
 | Resource               | Value                                                        |
 | ---------------------- | ------------------------------------------------------------ |
-| Airbnb guest thread    | `https://www.airbnb.com/guest/messages/2525238359`           |
-| Thread UID             | `aef3d0cf-bc61-4f05-a3ce-1a4199ca336d`                       |
-| Lead UID               | `29a64abd-d02c-44bc-8d5c-47df58a7ab14`                       |
-| Property UID           | `562695df-6a4f-40d6-990d-56fe043aa9e8`                       |
+| Airbnb guest thread    | `https://www.airbnb.com/guest/messages/2530903609`           |
+| Thread UID             | `dc2c8f5e-b83d-4078-b709-cc03bf47dd4a`                       |
+| Lead UID               | `f83d431f-0985-457b-a535-60c2991b7c83`                       |
+| Property UID           | `51ec272e-8819-4c8e-b8a3-9a2286b3ed65`                       |
 | Slack approval channel | `#cs-guest-communication` (`C0AMGJQN05S`)                    |
 | VLRE tenant ID         | `00000000-0000-0000-0000-000000000003`                       |
 | DB                     | `postgresql://postgres:postgres@localhost:54322/ai_employee` |
@@ -55,7 +55,7 @@ reply (`buildContextThreadBlocks` action `approve`).
 
 | Action                                                                                   | Where                     |
 | ---------------------------------------------------------------------------------------- | ------------------------- |
-| Navigate to `https://www.airbnb.com/guest/messages/2525238359`                           | Playwright browser        |
+| Navigate to `https://www.airbnb.com/guest/messages/2530903609`                           | Playwright browser        |
 | Click `textbox "Write a message..."`                                                     | Airbnb thread compose bar |
 | Type: `Is there air conditioning? [e2e-test-{epoch}]`                                    | Compose bar               |
 | Click `button "Send"` (`ref=e1568` or `data-testid="messaging_compose_bar_send_button"`) | Airbnb thread             |
@@ -78,7 +78,7 @@ Expected line: `POST /webhooks/hostfully 200` followed by `employee/task.dispatc
 psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT id, status, metadata->>'guest_name', raw_event->>'thread_uid'
    FROM tasks
-   WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY created_at DESC LIMIT 1;"
 ```
 
@@ -118,7 +118,7 @@ The threaded approval card (`post-guest-approval.ts`) must contain:
 | **Lead Status**          | `📙 INQUIRY` (or `📗 BOOKED` / `📕 CLOSED` / `📘 NEW`)                                                                                                                | `fields` section — **new field**     |
 | Original message         | Quoted guest message                                                                                                                                                  | `section` block                      |
 | Draft response           | Quoted AI draft                                                                                                                                                       | `section` block                      |
-| **🔗 View in Hostfully** | Clickable URL button — opens `https://platform.hostfully.com/app/#/inbox?threadUid=aef3d0cf-bc61-4f05-a3ce-1a4199ca336d&leadUid=29a64abd-d02c-44bc-8d5c-47df58a7ab14` | `actions` block, after Reject button |
+| **🔗 View in Hostfully** | Clickable URL button — opens `https://platform.hostfully.com/app/#/inbox?threadUid=dc2c8f5e-b83d-4078-b709-cc03bf47dd4a&leadUid=f83d431f-0985-457b-a535-60c2991b7c83` | `actions` block, after Reject button |
 | Action buttons           | `✅ Approve & Send`, `✏️ Edit & Send`, `❌ Reject`, `🔗 View in Hostfully`                                                                                            | `actions` block                      |
 
 **Internal check — `/tmp/approval-message.json` inside the worker container:**
@@ -127,7 +127,7 @@ The threaded approval card (`post-guest-approval.ts`) must contain:
 CONTAINER=$(docker ps -q --filter name=employee-)
 docker exec $CONTAINER cat /tmp/approval-message.json 2>/dev/null || \
   cat /tmp/employee-$(psql postgresql://postgres:postgres@localhost:54322/ai_employee -t -c \
-    "SELECT id FROM tasks WHERE raw_event->>'thread_uid'='aef3d0cf-bc61-4f05-a3ce-1a4199ca336d' ORDER BY created_at DESC LIMIT 1" \
+    "SELECT id FROM tasks WHERE raw_event->>'thread_uid'='dc2c8f5e-b83d-4078-b709-cc03bf47dd4a' ORDER BY created_at DESC LIMIT 1" \
     | tr -d ' ' | head -c 8).log 2>/dev/null | grep "approval-message"
 ```
 
@@ -141,7 +141,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT t.id, t.status, pa.slack_ts, pa.guest_name, pa.property_name
    FROM tasks t
    JOIN pending_approvals pa ON pa.task_id = t.id::text
-   WHERE t.raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE t.raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY t.created_at DESC LIMIT 1;"
 ```
 
@@ -247,7 +247,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
      metadata->>'check_out'        AS check_out,
      metadata->>'booking_channel'  AS booking_channel
    FROM tasks
-   WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY created_at DESC LIMIT 1;"
 ```
 
@@ -266,7 +266,7 @@ Switch to the Airbnb browser tab. The thread must show a new reply from "Leo" ma
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT id, status, updated_at FROM tasks
-   WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY created_at DESC LIMIT 1;"
 ```
 
@@ -278,7 +278,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
    FROM task_status_log
    WHERE task_id = (
      SELECT id FROM tasks
-     WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+     WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
      ORDER BY created_at DESC LIMIT 1
    )
    ORDER BY created_at;"
@@ -294,7 +294,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT COUNT(*) FROM pending_approvals
    WHERE task_id = (
      SELECT id::text FROM tasks
-     WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+     WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
      ORDER BY created_at DESC LIMIT 1
    );"
 ```
@@ -374,7 +374,7 @@ section. This is controlled by the `action === 'reject'` branch in `buildContext
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT id, status FROM tasks
-   WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY created_at DESC LIMIT 1;"
 ```
 
@@ -470,7 +470,7 @@ task ID.
 ```bash
 psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
   "SELECT id, status FROM tasks
-   WHERE raw_event->>'thread_uid' = 'aef3d0cf-bc61-4f05-a3ce-1a4199ca336d'
+   WHERE raw_event->>'thread_uid' = 'dc2c8f5e-b83d-4078-b709-cc03bf47dd4a'
    ORDER BY created_at DESC LIMIT 2;"
 ```
 
