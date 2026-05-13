@@ -3591,7 +3591,7 @@ No specific house rules provided.
       delivery_instructions: null,
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021',
-      // NO tenant_id — immutable
+      tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE — explicitly set on update to fix prior wrong-tenant seed
     },
   });
 
