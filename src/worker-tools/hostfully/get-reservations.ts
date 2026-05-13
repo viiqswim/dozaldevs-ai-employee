@@ -155,7 +155,9 @@ async function main(): Promise<void> {
   // (CLOSED leads) who may still be messaging. Without this, the AI model can't
   // find reservation details for guests who checked out yesterday.
   if (!from && !to) {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
     queryBase += `&checkInFrom=${thirtyDaysAgo}`;
   }
 
@@ -163,7 +165,7 @@ async function main(): Promise<void> {
   const allLeads: RawLead[] = [];
   let cursor: string | undefined = undefined;
 
-  do {
+  for (;;) {
     const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
 
     const res = await fetch(url, { headers });
@@ -189,7 +191,7 @@ async function main(): Promise<void> {
 
     cursor = json._paging?._nextCursor;
     if (!hasNew || !cursor) break;
-  } while (true);
+  }
 
   // CONFIRMED_STATUSES: active/upcoming bookings a guest will actually show up for.
   //   BOOKED / BOOKED_BY_AGENT / BOOKED_BY_CUSTOMER / BOOKED_EXTERNALLY — reservation confirmed

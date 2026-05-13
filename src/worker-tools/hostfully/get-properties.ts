@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   const allProperties: PropertySummary[] = [];
   let cursor: string | undefined = undefined;
 
-  do {
+  for (;;) {
     const url = cursor
       ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&cursor=${encodeURIComponent(cursor)}`
       : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
 
     cursor = json._paging?._nextCursor;
     if (!hasNew || !cursor) break;
-  } while (true);
+  }
 
   process.stdout.write(JSON.stringify(allProperties) + '\n');
 }

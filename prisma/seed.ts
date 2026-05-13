@@ -146,11 +146,15 @@ async function main() {
     '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
   );
   await seedSecret('00000000-0000-0000-0000-000000000003', 'hostfully_mock', 'true');
-  await seedSecret(
-    '00000000-0000-0000-0000-000000000003',
-    'slack_bot_token',
-    'xoxb-6661458697890-9224761438049-WvI5MGhekSqT5XYs03esTvxN',
-  );
+  const vlreSlackBotToken = process.env.VLRE_SLACK_BOT_TOKEN;
+  if (!vlreSlackBotToken) {
+    console.warn(
+      '⚠️  VLRE_SLACK_BOT_TOKEN is not set — skipping slack_bot_token seed. ' +
+        'Add it to .env and re-run the seed, or run the OAuth flow at /slack/install?tenant=00000000-0000-0000-0000-000000000003',
+    );
+  } else {
+    await seedSecret('00000000-0000-0000-0000-000000000003', 'slack_bot_token', vlreSlackBotToken);
+  }
 
   await prisma.tenantIntegration.upsert({
     where: {

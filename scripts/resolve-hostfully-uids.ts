@@ -124,7 +124,7 @@ async function fetchAllProperties(
 
   process.stderr.write('[INFO] Fetching properties from Hostfully...\n');
 
-  do {
+  for (;;) {
     const url = cursor
       ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&cursor=${encodeURIComponent(cursor)}`
       : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
@@ -152,7 +152,7 @@ async function fetchAllProperties(
 
     cursor = json._paging?._nextCursor;
     if (!hasNew || !cursor) break;
-  } while (true);
+  }
 
   process.stderr.write(`[INFO] Fetched ${allProperties.length} properties from Hostfully\n`);
   return allProperties;

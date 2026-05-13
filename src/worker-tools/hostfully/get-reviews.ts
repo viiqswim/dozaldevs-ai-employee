@@ -119,7 +119,7 @@ async function main(): Promise<void> {
     const allReviews: RawReview[] = [];
     let cursor: string | undefined = undefined;
 
-    do {
+    for (;;) {
       const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
 
       const res = await fetch(url, { headers });
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
 
       cursor = json._paging?._nextCursor;
       if (!hasNew || !cursor) break;
-    } while (true);
+    }
 
     let results: ReviewSummary[] = allReviews.map((r) => ({
       uid: r.uid,
@@ -176,7 +176,7 @@ async function main(): Promise<void> {
     const propertyUids: string[] = [];
     let propCursor: string | undefined = undefined;
 
-    do {
+    for (;;) {
       const url = propCursor
         ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&cursor=${encodeURIComponent(propCursor)}`
         : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
 
       propCursor = json._paging?._nextCursor;
       if (!hasNew || !propCursor) break;
-    } while (true);
+    }
 
     const allReviews: ReviewSummary[] = [];
 
@@ -219,7 +219,7 @@ async function main(): Promise<void> {
       let cursor: string | undefined = undefined;
       let fetchError = false;
 
-      do {
+      for (;;) {
         const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
 
         const res = await fetch(url, { headers });
@@ -248,7 +248,7 @@ async function main(): Promise<void> {
 
         cursor = json._paging?._nextCursor;
         if (!hasNew || !cursor) break;
-      } while (true);
+      }
 
       if (!fetchError) {
         for (const r of propReviews) {

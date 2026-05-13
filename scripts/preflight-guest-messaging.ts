@@ -302,7 +302,7 @@ async function main(): Promise<void> {
     const secrets = body.secrets ?? [];
 
     const apiKeyEntry = secrets.find((s) => s.key === 'hostfully_api_key');
-    let apiKeyOk = apiKeyEntry?.is_set === true;
+    const apiKeyOk = apiKeyEntry?.is_set === true;
     if (apiKeyOk) {
       ok('hostfully_api_key stored');
     } else {
@@ -375,7 +375,9 @@ async function main(): Promise<void> {
           config: { guest_messaging?: { hostfully_agency_uid?: string } };
         }>;
         agencyUid = cfgRows[0]?.config?.guest_messaging?.hostfully_agency_uid ?? '';
-      } catch {}
+      } catch {
+        // no-op: agencyUid stays empty if config fetch fails
+      }
     }
 
     if (apiKeyOk && agencyUidOk && anyFixed) {
@@ -438,7 +440,9 @@ async function main(): Promise<void> {
           config: { guest_messaging?: { hostfully_agency_uid?: string } };
         }>;
         agencyUid = cfgRows[0]?.config?.guest_messaging?.hostfully_agency_uid ?? '';
-      } catch {}
+      } catch {
+        // no-op: agencyUid stays empty if config fetch fails
+      }
     }
 
     if (!agencyUid) {
