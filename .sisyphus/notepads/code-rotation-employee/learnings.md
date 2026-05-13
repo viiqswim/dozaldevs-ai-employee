@@ -171,3 +171,12 @@
 ### Evidence
 
 - Full evidence saved: `.sisyphus/evidence/task-8-e2e-full.txt`
+
+## [2026-05-13] F3 Blocker — Final Status
+
+F3 (Real Manual QA) remains blocked. Checked credentials 4 times across multiple boulder continuation cycles. `sifely_username` and `sifely_password` are NOT in VLRE tenant_secrets as of this check. Plan is at 12/13. No further progress possible without user action.
+
+Required user actions:
+1. `curl -X PUT .../secrets/sifely_username -d '{"value":"<creds>"}'`
+2. `curl -X PUT .../secrets/sifely_password -d '{"value":"<creds>"}'`
+3. Re-add VLRE Slack bot to channel C0960S2Q8RL
