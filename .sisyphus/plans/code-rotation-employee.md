@@ -965,7 +965,7 @@ Max Concurrent: 3 (Wave 1)
 
   **Commit**: NO (validation step)
 
-- [ ] 9. Notify completion
+- [x] 9. Notify completion
 
   Send Telegram notification: plan `code-rotation-employee` complete, all tasks done, come back to review results.
 
