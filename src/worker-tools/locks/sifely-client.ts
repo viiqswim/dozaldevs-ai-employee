@@ -6,7 +6,7 @@
  *   tsx sifely-client.ts --action list-access-records --lock-id <id> --start-date <ms> --end-date <ms>
  *   tsx sifely-client.ts --action list-locks
  *   tsx sifely-client.ts --action create-passcode --lock-id <id> --name <name> --code <digits>
- *   tsx sifely-client.ts --action update-passcode --lock-id <id> --passcode-id <id> [--name <name>]
+ *   tsx sifely-client.ts --action update-passcode --lock-id <id> --passcode-id <id> [--name <name>] [--code <digits>]
  *   tsx sifely-client.ts --action delete-passcode --lock-id <id> --passcode-id <id>
  *
  * API quirks:
@@ -371,6 +371,7 @@ async function updatePasscode(
   name?: string,
   startDate?: number,
   endDate?: number,
+  newCode?: string,
 ): Promise<{ ok: true }> {
   const params = new URLSearchParams({
     clientId,
@@ -389,6 +390,9 @@ async function updatePasscode(
   }
   if (endDate !== undefined) {
     params.set('endDate', String(endDate));
+  }
+  if (newCode !== undefined) {
+    params.set('newKeyboardPwd', newCode);
   }
 
   const response = await fetch(`${baseUrl}/v3/keyboardPwd/change`, {
@@ -482,7 +486,7 @@ async function main(): Promise<void> {
         '  --start-date <ms>      (required for list-access-records / timed create) Start date as epoch ms\n' +
         '  --end-date <ms>        (required for list-access-records / timed create) End date as epoch ms\n' +
         '  --name <name>          Passcode name (required for create-passcode, optional for update-passcode)\n' +
-        '  --code <digits>        4-9 numeric digits (required for create-passcode)\n' +
+        '  --code <digits>        4-9 numeric digits (required for create-passcode, optional for update-passcode to change the code)\n' +
         '  --passcode-id <id>     Passcode ID (required for update-passcode and delete-passcode)\n' +
         '  --type <type>          Passcode type: permanent (default) or timed (requires --start-date/--end-date)\n' +
         '  --help                 Show this help message\n\n' +
@@ -500,6 +504,7 @@ async function main(): Promise<void> {
         '  tsx sifely-client.ts --action create-passcode --lock-id 12345 --name "Front Door" --code 123456\n' +
         '  tsx sifely-client.ts --action create-passcode --lock-id 12345 --name "Guest" --code 987654 --type timed --start-date 1700000000000 --end-date 1700086400000\n' +
         '  tsx sifely-client.ts --action update-passcode --lock-id 12345 --passcode-id 99 --name "New Name"\n' +
+        '  tsx sifely-client.ts --action update-passcode --lock-id 12345 --passcode-id 99 --code 654321\n' +
         '  tsx sifely-client.ts --action delete-passcode --lock-id 12345 --passcode-id 99\n',
     );
     process.exit(0);
@@ -632,6 +637,7 @@ async function main(): Promise<void> {
       name || undefined,
       updateStartDate,
       updateEndDate,
+      code || undefined,
     );
     process.stdout.write(JSON.stringify({ ok: true }) + '\n');
   } else if (action === 'delete-passcode') {
