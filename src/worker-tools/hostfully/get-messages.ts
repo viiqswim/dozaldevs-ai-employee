@@ -122,9 +122,9 @@ function formatGuestName(
 }
 
 async function main(): Promise<void> {
-  let { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid } = parseArgs(
-    process.argv,
-  );
+  const parsed = parseArgs(process.argv);
+  const { propertyId, unrespondedOnly, limit, help, fallbackPropertyUid } = parsed;
+  let leadId = parsed.leadId;
 
   // LEAD_UID env var fallback: if --lead-id was not provided but LEAD_UID is set,
   // auto-use it (lifecycle injects LEAD_UID from webhook raw_event).
@@ -311,7 +311,7 @@ async function main(): Promise<void> {
   const allLeads: RawLead[] = [];
   let cursor: string | undefined = undefined;
 
-  do {
+  for (;;) {
     const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
 
     const res = await fetch(url, { headers });
@@ -337,7 +337,7 @@ async function main(): Promise<void> {
 
     cursor = json._paging?._nextCursor;
     if (!hasNew || !cursor) break;
-  } while (true);
+  }
 
   // Exclude calendar blocks only — include BOOKING, INQUIRY, BOOKING_REQUEST, etc.
   // Airbnb and other OTAs may surface real stays as INQUIRY type, not just BOOKING.
