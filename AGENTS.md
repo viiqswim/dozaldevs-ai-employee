@@ -71,6 +71,8 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — create a timed passcode
   - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
+  - `tsx /tools/locks/generate-code.ts --property-uid <uid> --guest-name "Name" --check-in <ISO> --check-out <ISO>` — generate a deterministic 6-digit door code for a guest reservation; output: JSON `{"code":"123456","propertyUid":"...","guestName":"...","checkIn":"...","checkOut":"..."}`
+  - `tsx /tools/locks/update-door-code.ts --lock-id <id> --property-uid <uid> --guest-name "Name" --passcode "123456" --check-in <ISO> --check-out <ISO>` — update or create a timed passcode on a Sifely lock for a guest; finds existing passcode by name pattern and updates in-place, or creates new if none found; output: JSON `{"action":"updated"|"created","keyboardPwdId":"...","lockId":"...","passcode":"..."}`
 - **Hostfully tools**: `src/worker-tools/hostfully/` — pre-installed in Docker image at `/tools/hostfully/`. Hostfully API integration: message retrieval (`get-messages.ts --lead-id <uid>`), message sending (`send-message.ts`), property/reservation/review lookups, webhook registration, environment validation. `get-messages.ts` output includes `reservationId`, `propertyUid`, `guestName`, `channel`, `checkIn`, `checkOut`, `leadStatus`, `unresponded`, and `messages[]` per thread — `propertyUid` is used to call `get-property.ts` and `get-reservations.ts` in Step 2 of the guest-messaging workflow.
 - **Knowledge base tools**: `src/worker-tools/knowledge_base/` — pre-installed in Docker image at `/tools/knowledge_base/`. Knowledge base search tool (`search.ts`) for querying tenant-scoped learned knowledge.
 - **Platform tools**: `src/worker-tools/platform/` — pre-installed in Docker image at `/tools/platform/`. Platform infrastructure tool (`report-issue.ts`) for logging system events.
@@ -283,6 +285,25 @@ Use these VLRE resources for all Hostfully-related testing:
 | Property     | `https://platform.hostfully.com/app/#/property/c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                     |
 | Property UID | `c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                                                                   |
 
+## Code-Rotation Testing
+
+Use these VLRE resources for all code-rotation testing. **ALL E2E and manual testing of code rotation MUST use ONLY this property and lock. No other properties or locks should be touched until the process is fully verified and working as expected.**
+
+| Resource         | ID / URL                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| Property         | `https://platform.hostfully.com/app/#/calendar?propertyUid=c960c8d2-9a51-49d8-bb48-355a7bfbe7e2` |
+| Property UID     | `c960c8d2-9a51-49d8-bb48-355a7bfbe7e2`                                                           |
+| Sifely lock name | `5306-kin-Home Front (PERSONAL)`                                                                 |
+| Sifely lock ID   | `24572672`                                                                                       |
+
+**Trigger manually** (admin API):
+
+```bash
+curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/code-rotation/trigger" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
 **Owner's Airbnb guest test account**: Messages from the following thread are sent by the repo owner using a personal Airbnb guest test account — not a real guest. Do not treat these as production inquiries. Useful for end-to-end testing of the guest-messaging employee with a live Airbnb-sourced lead.
 
 | Resource          | ID / URL                                                                                                                                 |
@@ -445,6 +466,26 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 ```
 
 `message_uid` must be unique per request (dedup key). For a real E2E test, there must be an actual unresponded message in Hostfully first — otherwise the model returns `NO_ACTION_NEEDED`.
+
+## Code-Rotation Employee (VLRE)
+
+- **Archetype ID**: `00000000-0000-0000-0000-000000000016`
+- **Tenant**: VLRE (`00000000-0000-0000-0000-000000000003`)
+- **role_name**: `code-rotation` · **model**: `minimax/minimax-m2.7` · **approval_required**: false (fully automated)
+- **Notification channel**: `C0960S2Q8RL` · **concurrency_limit**: 1
+- **Trigger**: Manual only via admin API
+
+**What it does**: Fetches all active VLRE reservations from Hostfully, generates a deterministic 6-digit door code per reservation using `generate-code.ts`, then updates the corresponding Sifely lock passcode via `update-door-code.ts`. Posts a Slack summary to the notification channel when done.
+
+**Trigger manually** (admin API):
+
+```bash
+curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/code-rotation/trigger" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+**No approval gate**: `approval_required: false` — the lifecycle short-circuits from `Submitting` directly to `Done`. No Slack approval card is posted; only a completion summary is sent to the notification channel.
 
 ## Admin API
 
