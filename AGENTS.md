@@ -69,10 +69,10 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action list-passcodes --lock-id <id>` — list passcodes for a lock
   - `tsx /tools/locks/sifely-client.ts --action list-access-records --lock-id <id>` — list access records for a lock
   - `tsx /tools/locks/sifely-client.ts --action create-passcode --lock-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — create a timed passcode
-  - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --keyboard-pwd-id <id> --name "Name" --passcode "1234" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode
+  - `tsx /tools/locks/sifely-client.ts --action update-passcode --lock-id <id> --passcode-id <id> --code "<digits>" --name "Name" --start-date <epoch-ms> --end-date <epoch-ms>` — update an existing passcode; use `--code` to change the code digits in-place
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --keyboard-pwd-id <id>` — delete a passcode
-  - `tsx /tools/locks/generate-code.ts --property-uid <uid> --guest-name "Name" --check-in <ISO> --check-out <ISO>` — generate a deterministic 6-digit door code for a guest reservation; output: JSON `{"code":"123456","propertyUid":"...","guestName":"...","checkIn":"...","checkOut":"..."}`
-  - `tsx /tools/locks/update-door-code.ts --lock-id <id> --property-uid <uid> --guest-name "Name" --passcode "123456" --check-in <ISO> --check-out <ISO>` — update or create a timed passcode on a Sifely lock for a guest; finds existing passcode by name pattern and updates in-place, or creates new if none found; output: JSON `{"action":"updated"|"created","keyboardPwdId":"...","lockId":"...","passcode":"..."}`
+  - `tsx /tools/locks/generate-code.ts [--length 4|5|6] [--exclude-codes "1221,2332"]` — generate a memorable lock code using mirror (ABBA) or rhythm (ABAB) patterns; output: JSON `{"code":"1221","pattern":"mirror","length":4,"description":"..."}`
+  - `tsx /tools/locks/update-door-code.ts --property-id <hostfully-property-uid> --code <new-door-code>` — write a new door_code value to a Hostfully property's custom data field; output: JSON `{"success":true,"propertyId":"...","previousCode":"...","newCode":"..."}`
 - **Hostfully tools**: `src/worker-tools/hostfully/` — pre-installed in Docker image at `/tools/hostfully/`. Hostfully API integration: message retrieval (`get-messages.ts --lead-id <uid>`), message sending (`send-message.ts`), property/reservation/review lookups, webhook registration, environment validation. `get-messages.ts` output includes `reservationId`, `propertyUid`, `guestName`, `channel`, `checkIn`, `checkOut`, `leadStatus`, `unresponded`, and `messages[]` per thread — `propertyUid` is used to call `get-property.ts` and `get-reservations.ts` in Step 2 of the guest-messaging workflow.
 - **Knowledge base tools**: `src/worker-tools/knowledge_base/` — pre-installed in Docker image at `/tools/knowledge_base/`. Knowledge base search tool (`search.ts`) for querying tenant-scoped learned knowledge.
 - **Platform tools**: `src/worker-tools/platform/` — pre-installed in Docker image at `/tools/platform/`. Platform infrastructure tool (`report-issue.ts`) for logging system events.
@@ -475,7 +475,7 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 - **Notification channel**: `C0960S2Q8RL` · **concurrency_limit**: 1
 - **Trigger**: Manual only via admin API
 
-**What it does**: Fetches all active VLRE reservations from Hostfully, generates a deterministic 6-digit door code per reservation using `generate-code.ts`, then updates the corresponding Sifely lock passcode via `update-door-code.ts`. Posts a Slack summary to the notification channel when done.
+**What it does**: Fetches all property-lock mappings from the `property_locks` DB table, generates a memorable code per property using `generate-code.ts` (mirror/rhythm patterns, 4-6 digits), updates the Hostfully door code first via `update-door-code.ts`, then rotates the matching Sifely lock passcode in-place via `sifely-client.ts`. Posts a Slack summary with per-property results to the notification channel when done.
 
 **Trigger manually** (admin API):
 
