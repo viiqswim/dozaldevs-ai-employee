@@ -6,9 +6,7 @@ import { describe, expect, it } from 'vitest';
 const HARNESS_SOURCE_PATH = join(import.meta.dirname, '../../src/workers/opencode-harness.mts');
 
 describe('opencode-harness — task_status_log inserts (source inspection)', () => {
-  let sourceCode: string;
-
-  sourceCode = readFileSync(HARNESS_SOURCE_PATH, 'utf8');
+  const sourceCode = readFileSync(HARNESS_SOURCE_PATH, 'utf8');
 
   it('contains at least 2 task_status_log post calls', () => {
     const occurrences = (sourceCode.match(/task_status_log/g) ?? []).length;
