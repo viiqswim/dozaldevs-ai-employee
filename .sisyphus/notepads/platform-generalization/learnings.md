@@ -91,3 +91,78 @@
 - `pnpm build` → exit 0 ✅
 - `lifecycle-enriched-notify.test.ts` → 6/6 pass ✅
 - No new test failures introduced
+
+## Task 9 — Harness Delivery Pre-Parse Extraction (2026-05-12)
+
+### What was done
+- Created `src/workers/lib/delivery-adapters/index.mts` — DeliveryContext interface, DeliveryAdapter type, registry (registerDeliveryAdapter, getDeliveryAdapter)
+- Created `src/workers/lib/delivery-adapters/guest-messaging.mts` — Hostfully adapter registered as `'hostfully'` via side-effect import
+- Removed the 60-line `role_name === 'guest-messaging'` block from `opencode-harness.mts`
+- Added `enrichment_adapter?: string | null` to `ArchetypeRow` interface
+- Harness now dispatches via `archetype.enrichment_adapter` using the registry
+
+### Key design decision: richer context vs string->string
+- Task spec suggested `(deliverable: string) => string` adapter type
+- Actual logic needs: deliverableMetadata (for threadUid fallback), taskId (for safety check), deliveryInstructions (to build full prompt)
+- Used `DeliveryContext` interface to pass all needed context
+- Adapter returns `string | null`: full deliveryPrompt on success, null for raw fallback
+
+### Grep audit
+- `role_name.*guest-messaging` in harness: 0 ✅
+- `enrichment_adapter` in harness: 2 ✅
+
+### Build & verification
+- `pnpm build` → EXIT_CODE:0 ✅
+- Evidence: `.sisyphus/evidence/task-9-harness-cleanup.txt`
+
+## Task 10 — External Cron Service Evaluation (2026-05-12)
+
+### Decision: cron-job.org
+
+- Completely free, unlimited jobs
+- Per-job IANA timezone support (critical for future "2am Mountain Time" use cases)
+- Full HTTP POST support: custom headers (X-Admin-Key) + JSON body
+- 1-minute minimum interval
+- Simple UI + REST API (`api.cron-job.org`)
+
+### Why NOT GitHub Actions
+
+- UTC only — no native timezone support (breaks DST-aware scheduling)
+- Known 15–60 min schedule delays during GitHub high load (documented, unfixed since 2021)
+- 5-minute minimum interval
+
+### guest-message-poll stays in Inngest
+
+The poll function decrypts secrets, calls Hostfully API, scans N leads, creates N tasks — cannot be expressed as a single admin API trigger call. It is infrastructure polling, not a "scheduled employee". Keep as `trigger/guest-message-poll` Inngest internal cron forever.
+
+### What moves to external cron
+
+Only `trigger/daily-summarizer` → one cron-job.org job per tenant that has a `daily-summarizer` archetype.
+Currently: only DozalDevs (tenant `00000000-0000-0000-0000-000000000002`).
+Full configs in `.sisyphus/notepads/external-cron-evaluation.md`.
+
+## Task 11 — External Cron Configs Documentation (2026-05-12)
+
+- Created `.sisyphus/notepads/external-cron-configs.md` with complete cron-job.org configuration
+- One job per tenant per employee schedule (not one job that discovers all tenants — that was the old Inngest pattern)
+- `requestMethod: 1` = POST in cron-job.org REST API enum
+- `wdays: [-1]` = every day; `mdays: [-1]` = every day of month; `months: [-1]` = every month
+- `saveResponses: true` recommended — lets you inspect execution history and response bodies in cron-job.org UI
+- Dry-run endpoint (`?dry_run=true`) is the right way to verify config before enabling the live job
+- `guest-message-poll` stays in Inngest forever — it's infrastructure polling (decrypt secrets, scan N leads, create N tasks), not a "trigger this employee" pattern
+
+## Task 13 — summarizer-trigger cleanup (2026-05-12)
+
+- `summarizer-trigger.ts` was already commented out in `serve.ts` before deletion — safe to delete without breaking anything
+- `git status` shows `D` (uppercase) for staged deletions — `git rm --cached` is not needed when file is already deleted from disk and `git add` was run on the directory
+- `guest-message-poll.ts` uses `createDecipheriv` (Node crypto) to decrypt per-tenant secrets — this is the definitive marker that it cannot be an external cron; it requires internal DB access
+- Evidence directory `.sisyphus/evidence/` is gitignored — save evidence there but don't try to commit it
+
+## Task 14 — Tests for enrichment adapter registry + buildNotifyBlocks (2026-05-12)
+
+- Created `tests/lib/enrichment-adapters.test.ts` (13 tests): registry CRUD + Hostfully adapter logic
+- `vi.mock` hoisting pattern: mock `hostfully-enrichment.js` before any adapter imports; `hostfully.ts` self-registers via side-effect import — all 3 null-guard cases (missing lead_uid, empty lead_uid, missing apiKey) confirmed
+- Updated `tests/lib/slack-blocks.test.ts`: added `buildNotifyBlocks` to imports + 12 new tests; total now 66 passing
+- `buildNotifyBlocks` always appends a `context` block with task ID as last block — confirmed by `blocks[blocks.length - 1]` assertion pattern
+- Section separator comments (`// ─── `) are unnecessary — `describe` blocks provide grouping; removed per hook
+- Both files committed: `test(platform): add tests for enrichment adapter registry and generic block builder`
