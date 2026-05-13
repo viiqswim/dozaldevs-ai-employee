@@ -1188,9 +1188,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
             | string
             | undefined;
-          const reviewingPropertyName = reviewingDelivRows[0]?.metadata?.['property_name'] as
-            | string
-            | undefined;
           const reviewingText = reviewingGuestName
             ? `Awaiting approval — reply drafted for ${reviewingGuestName}`
             : 'Awaiting approval — reply drafted';
