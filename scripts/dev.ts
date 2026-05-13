@@ -63,10 +63,10 @@ if (args.includes('--help')) {
   log('  • Docker worker image build (default, skip with --skip-build)');
   log('  • Hostfully webhook auto-registration (non-fatal if missing secrets)');
   log('');
-  log('Fly.io hybrid mode (USE_FLY_HYBRID=1 in .env):');
-  log('  • PostgREST quick tunnel is auto-started (cloudflared → localhost:54331)');
-  log('  • TUNNEL_URL in .env is updated with the new trycloudflare.com URL');
-  log('  • Gateway passes USE_FLY_HYBRID=1 so workers dispatch to Fly.io');
+  log('Fly.io hybrid mode (WORKER_RUNTIME=fly in .env):');
+  log('  • If TUNNEL_URL is a stable URL (not trycloudflare.com), it is used directly');
+  log('  • Otherwise a PostgREST quick tunnel is auto-started (cloudflared → localhost:54331)');
+  log('  • Gateway receives WORKER_RUNTIME=fly so workers dispatch to Fly.io');
   log('');
   log('Options:');
   log('  --reset       Wipe database and re-seed before starting');
@@ -444,65 +444,73 @@ log('');
 // ─────────────────────────────────────────────────────
 // Step 4c: PostgREST Supabase Tunnel (Fly.io hybrid mode)
 // ─────────────────────────────────────────────────────
-if (process.env.USE_FLY_HYBRID === '1') {
+if (process.env.WORKER_RUNTIME === 'fly') {
   log('── Step 4c: PostgREST Supabase Tunnel (Fly.io hybrid mode) ──');
 
-  let postgrestTunnelAlive = false;
   const existingTunnelUrl = process.env.TUNNEL_URL?.trim();
+  const isStableUrl = existingTunnelUrl && !existingTunnelUrl.includes('trycloudflare.com');
 
-  if (existingTunnelUrl) {
-    try {
-      const r =
-        await $`curl -s --max-time 5 -o /dev/null -w "%{http_code}" ${existingTunnelUrl}/rest/v1/`;
-      const code = parseInt(r.stdout.trim(), 10);
-      postgrestTunnelAlive = code >= 200 && code < 500;
-    } catch {
-      /* dead or unreachable */
-    }
-  }
-
-  if (postgrestTunnelAlive) {
-    ok(`Existing PostgREST tunnel alive: ${existingTunnelUrl}`);
+  if (isStableUrl) {
+    ok(
+      `PostgREST tunnel: using stable URL from TUNNEL_URL (skipping quick tunnel): ${existingTunnelUrl}`,
+    );
   } else {
-    info('Starting PostgREST quick tunnel...');
-    const postgrestTunnelLog = '/tmp/postgrest-tunnel.log';
-    const tunnelLogStream = fs.createWriteStream(postgrestTunnelLog);
+    let postgrestTunnelAlive = false;
 
-    const postgrestProc = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:54331'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false,
-    });
-    postgrestProc.stdout?.pipe(tunnelLogStream);
-    postgrestProc.stderr?.pipe(tunnelLogStream);
-    children.push(postgrestProc);
-
-    const newTunnelUrl = await new Promise<string | null>((resolve) => {
-      const timeout = setTimeout(() => resolve(null), 30_000);
-      const urlPattern = /https:\/\/\S+\.trycloudflare\.com/;
-
-      function scan(data: Buffer): void {
-        const match = data.toString().match(urlPattern);
-        if (match) {
-          clearTimeout(timeout);
-          resolve(match[0]);
-        }
+    if (existingTunnelUrl) {
+      try {
+        const r =
+          await $`curl -s --max-time 5 -o /dev/null -w "%{http_code}" ${existingTunnelUrl}/rest/v1/`;
+        const code = parseInt(r.stdout.trim(), 10);
+        postgrestTunnelAlive = code >= 200 && code < 500;
+      } catch {
+        /* dead or unreachable */
       }
+    }
 
-      postgrestProc.stdout?.on('data', scan);
-      postgrestProc.stderr?.on('data', scan);
-    });
-
-    if (!newTunnelUrl) {
-      warn(`PostgREST tunnel URL not captured within 30s — logs at ${postgrestTunnelLog}`);
+    if (postgrestTunnelAlive) {
+      ok(`Existing PostgREST tunnel alive: ${existingTunnelUrl}`);
     } else {
-      const envPath = '.env';
-      const envContent = readFileSync(envPath, 'utf8');
-      const updated = envContent.match(/^TUNNEL_URL=/m)
-        ? envContent.replace(/^TUNNEL_URL=.*/m, `TUNNEL_URL=${newTunnelUrl}`)
-        : `${envContent}\nTUNNEL_URL=${newTunnelUrl}`;
-      writeFileSync(envPath, updated);
-      process.env.TUNNEL_URL = newTunnelUrl;
-      ok(`PostgREST tunnel: ${newTunnelUrl} (updated .env)`);
+      info('Starting PostgREST quick tunnel...');
+      const postgrestTunnelLog = '/tmp/postgrest-tunnel.log';
+      const tunnelLogStream = fs.createWriteStream(postgrestTunnelLog);
+
+      const postgrestProc = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:54331'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      });
+      postgrestProc.stdout?.pipe(tunnelLogStream);
+      postgrestProc.stderr?.pipe(tunnelLogStream);
+      children.push(postgrestProc);
+
+      const newTunnelUrl = await new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => resolve(null), 30_000);
+        const urlPattern = /https:\/\/\S+\.trycloudflare\.com/;
+
+        function scan(data: Buffer): void {
+          const match = data.toString().match(urlPattern);
+          if (match) {
+            clearTimeout(timeout);
+            resolve(match[0]);
+          }
+        }
+
+        postgrestProc.stdout?.on('data', scan);
+        postgrestProc.stderr?.on('data', scan);
+      });
+
+      if (!newTunnelUrl) {
+        warn(`PostgREST tunnel URL not captured within 30s — logs at ${postgrestTunnelLog}`);
+      } else {
+        const envPath = '.env';
+        const envContent = readFileSync(envPath, 'utf8');
+        const updated = envContent.match(/^TUNNEL_URL=/m)
+          ? envContent.replace(/^TUNNEL_URL=.*/m, `TUNNEL_URL=${newTunnelUrl}`)
+          : `${envContent}\nTUNNEL_URL=${newTunnelUrl}`;
+        writeFileSync(envPath, updated);
+        process.env.TUNNEL_URL = newTunnelUrl;
+        ok(`PostgREST tunnel: ${newTunnelUrl} (updated .env)`);
+      }
     }
   }
   log('');
@@ -553,7 +561,7 @@ log('── Step 6: Starting Event Gateway ──');
 
 const gatewayEnv: NodeJS.ProcessEnv = {
   ...process.env,
-  USE_LOCAL_DOCKER: process.env.USE_FLY_HYBRID === '1' ? '0' : '1',
+  WORKER_RUNTIME: process.env.WORKER_RUNTIME || 'docker',
 };
 
 const gatewayProc = spawn(
@@ -763,7 +771,7 @@ log(`  Gateway:    http://localhost:${GATEWAY_PORT} (auto-restart enabled)`);
 if (!noTunnelFlag && tunnelAvailable) {
   log(`  Tunnel:     ${TUNNEL_URL}`);
 }
-if (process.env.USE_FLY_HYBRID === '1') {
+if (process.env.WORKER_RUNTIME === 'fly') {
   log(`  PostgREST Tunnel: ${process.env.TUNNEL_URL ?? '(not captured)'} [Fly.io hybrid mode]`);
 }
 log('');
