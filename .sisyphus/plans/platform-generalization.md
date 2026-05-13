@@ -205,7 +205,7 @@ Max Concurrent: 5 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Define generic NotificationEnrichment type + enrichment adapter registry
+- [x] 1. Define generic NotificationEnrichment type + enrichment adapter registry
 
   **What to do**:
   - Create `src/lib/types/notification-enrichment.ts` with:
@@ -316,7 +316,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/lib/types/notification-enrichment.ts`, `src/lib/enrichment-adapters/index.ts`, `src/lib/enrichment-adapters/hostfully.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Prisma migration — add vm_size and enrichment_adapter to archetypes
+- [x] 2. Prisma migration — add vm_size and enrichment_adapter to archetypes
 
   **What to do**:
   - Add two new fields to the `Archetype` model in `prisma/schema.prisma`:
@@ -383,7 +383,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `prisma/schema.prisma`, `prisma/migrations/*/`, `prisma/seed.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 3. Trace target_channel / publish_channel data flow — document findings
+- [x] 3. Trace target_channel / publish_channel data flow — document findings
 
   **What to do**:
   - This is a **research task** with no code changes. The output is a documented data flow that Task 8 will use.
@@ -443,7 +443,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (research task, no code changes)
 
-- [ ] 4. Move HOSTFULLY_MOCK to VLRE tenant secrets
+- [x] 4. Move HOSTFULLY_MOCK to VLRE tenant secrets
 
   **What to do**:
   - Remove `HOSTFULLY_MOCK` from the `PLATFORM_ENV_WHITELIST` in `tenant-env-loader.ts` (if present)
@@ -506,7 +506,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/inngest/employee-lifecycle.ts`, `prisma/seed.ts`, `.env.example`
   - Pre-commit: `pnpm build`
 
-- [ ] 5. Build generic buildNotifyBlocks() function in slack-blocks.ts
+- [x] 5. Build generic buildNotifyBlocks() function in slack-blocks.ts
 
   **What to do**:
   - Add a new function `buildNotifyBlocks()` to `src/lib/slack-blocks.ts` that accepts:
@@ -588,7 +588,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/lib/slack-blocks.ts`, `src/lib/enrichment-adapters/hostfully.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 6. Refactor lifecycle — replace 10 notification block forks with generic enrichment
+- [x] 6. Refactor lifecycle — replace 10 notification block forks with generic enrichment
 
   **What to do**:
   - This is the core refactoring task. In `src/inngest/employee-lifecycle.ts`:
@@ -689,7 +689,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build && pnpm test -- --run`
 
-- [ ] 7. Fix env var naming — WORKER_VM_SIZE + FLY_WORKER_APP primary
+- [x] 7. Fix env var naming — WORKER_VM_SIZE + FLY_WORKER_APP primary
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`:
@@ -757,7 +757,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/inngest/employee-lifecycle.ts`, `.env.example`
   - Pre-commit: `pnpm build`
 
-- [ ] 8. Clean up tenant-env-loader.ts — generic config reads
+- [x] 8. Clean up tenant-env-loader.ts — generic config reads
 
   **What to do**:
   - Read the findings from Task 3 (`.sisyphus/notepads/target-channel-dataflow.md`) FIRST
@@ -810,7 +810,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/gateway/services/tenant-env-loader.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 9. Clean up opencode-harness.mts — extract delivery pre-parse to adapter
+- [x] 9. Clean up opencode-harness.mts — extract delivery pre-parse to adapter
 
   **What to do**:
   - In `src/workers/opencode-harness.mts` at lines ~437-498, there's a `role_name === 'guest-messaging'` branch that pre-parses the deliverable JSON to extract `leadUid`/`threadUid` and constructs the exact `send-message.ts` shell command
@@ -881,7 +881,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/workers/opencode-harness.mts`, `src/workers/lib/delivery-adapters/index.mts`, `src/workers/lib/delivery-adapters/guest-messaging.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 10. Research and select external cron service
+- [x] 10. Research and select external cron service
 
   **What to do**:
   - This is a **research task**. Evaluate external cron services that can trigger employees via the admin API endpoint.
@@ -950,7 +950,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (research task)
 
-- [ ] 11. Set up external cron for daily-summarizer
+- [x] 11. Set up external cron for daily-summarizer
 
   **What to do**:
   - Using the service recommended in Task 10, configure a cron job for the daily-summarizer
@@ -1008,7 +1008,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (external service config, but document in `.sisyphus/notepads/`)
 
-- [ ] 12. Set up external cron for guest-message-poll
+- [x] 12. Set up external cron for guest-message-poll
 
   **What to do**:
   - Using the service recommended in Task 10, configure a cron job for guest-message-poll
@@ -1060,7 +1060,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (external service config)
 
-- [ ] 13. Clean up dead Inngest trigger files + update serve.ts
+- [x] 13. Clean up dead Inngest trigger files + update serve.ts
 
   **What to do**:
   - Remove the cron trigger definitions from the deregistered Inngest functions:
@@ -1120,7 +1120,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `src/inngest/triggers/*.ts`, `src/gateway/inngest/serve.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 14. Write tests for enrichment interface + generic block builder
+- [x] 14. Write tests for enrichment interface + generic block builder
 
   **What to do**:
   - Create `tests/lib/enrichment-adapters.test.ts`:
@@ -1178,7 +1178,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `tests/lib/enrichment-adapters.test.ts`, `tests/lib/slack-blocks.test.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 15. Run full regression suite + fix any breakage
+- [x] 15. Run full regression suite + fix any breakage
 
   **What to do**:
   - Run the full test and build pipeline:
