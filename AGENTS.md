@@ -88,8 +88,8 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 - **Inngest functions** (deregistered — source deleted or preserved, not running):
   - `trigger/feedback-summarizer` — DELETED; replaced by event-driven `employee/rule-synthesizer`
-  - `trigger/daily-summarizer` — daily cron trigger for Papi Chulo (deregistered; trigger manually via admin API: `POST /admin/tenants/:id/employees/daily-summarizer/trigger`)
-  - `trigger/guest-message-poll` — polls Hostfully for unresponded messages across ALL leads (deregistered; source preserved at `src/inngest/triggers/guest-message-poll.ts`)
+  - `trigger/daily-summarizer` — DELETED; replaced by external cron on cron-job.org. Trigger manually via admin API: `POST /admin/tenants/:id/employees/daily-summarizer/trigger`
+  - `trigger/guest-message-poll` — polls Hostfully for unresponded messages across ALL leads (source preserved at `src/inngest/triggers/guest-message-poll.ts`; stays as Inngest internal cron — decrypts secrets, scans all leads, cannot be an external cron)
 
   Three deprecated engineering functions (`engineering/task-lifecycle`, `engineering/task-redispatch`, `engineering/watchdog-cron`) are deregistered from Inngest — source files preserved; see Deprecated Components table.
 
@@ -97,13 +97,14 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **SIGTERM handling**: Harness registers a `SIGTERM` handler that PATCHes the task to `Failed` on termination — explains why tasks show as Failed after machine preemption.
 - **Feedback context**: Harness optionally prepends `EMPLOYEE_RULES` and `EMPLOYEE_KNOWLEDGE` (env vars injected by the lifecycle from confirmed rules and knowledge bases) to the system prompt, allowing historical feedback to influence future runs.
 
-**Cron timezone — CRITICAL**: The daily-summarizer cron `0 8 * * 1-5` fires at **8am UTC**, not 8am local time. Inngest has no timezone config on this function. The archetype's `trigger_sources.timezone: "America/Chicago"` is stored as documentation metadata only — the Inngest runtime never reads it. Do not use it to infer the actual trigger time.
+**Cron timezone**: The daily-summarizer is now triggered by an external cron job on cron-job.org (not Inngest). cron-job.org supports per-job IANA timezone config, so the schedule can be set in the tenant's local timezone. The archetype's `trigger_sources.timezone` field is documentation metadata only — it does not configure any runtime behavior.
 
 **Adding a new employee**:
 
-1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional fields: `agents_md` (per-archetype AGENTS.md content injected into worker context), `delivery_instructions` (instructions used during the delivery phase), `notification_channel` (per-archetype Slack notification channel, overrides tenant default).
+1. Seed a new `archetypes` record with `role_name`, `system_prompt`, `instructions` (natural language), `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional fields: `agents_md` (per-archetype AGENTS.md content injected into worker context), `delivery_instructions` (instructions used during the delivery phase), `notification_channel` (per-archetype Slack notification channel, overrides tenant default), `enrichment_adapter` (e.g. `'hostfully'` — enables Hostfully-enriched notification blocks with guest name, property, check-in/out), `vm_size` (e.g. `'shared-cpu-2x'` — per-archetype VM size override for memory-intensive workers).
 2. If shell tools needed, add TypeScript scripts to `src/worker-tools/{service}/` (copied into Docker image at `/tools/{service}/`, executed via `tsx`). Follow the [Shell Tool Checklist](docs/guides/2026-05-04-1645-adding-a-shell-tool.md).
-3. Add a trigger (cron or webhook) in `src/inngest/triggers/`
+3. For **scheduled triggers**: configure an external cron job on cron-job.org to call `POST /admin/tenants/:tenantId/employees/:slug/trigger` with `X-Admin-Key` header. No new Inngest function file needed.
+4. For **webhook triggers**: add a route handler in `src/gateway/routes/` that creates a task and emits `employee/task.dispatched`.
 
 **Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, the lifecycle short-circuits from `Submitting` directly to `Done`, skipping `Reviewing → Approved → Delivering` entirely. For the approval-required path, the lifecycle posts the approved summary directly to the publish channel — no separate delivery machine is spawned.
 
@@ -223,20 +224,20 @@ VLRE alternative: run the Slack OAuth flow for VLRE (see install URL above).
 `loadTenantEnv()` (`src/gateway/services/tenant-env-loader.ts`) builds the Fly.io machine environment:
 
 - `tenant_secrets.slack_bot_token` → `SLACK_BOT_TOKEN` in machine env
-- `tenant.config.summary.channel_ids` → `DAILY_SUMMARY_CHANNELS`
-- `tenant.config.summary.target_channel` → `SUMMARY_TARGET_CHANNEL`
-- `tenant.config.summary.publish_channel` → `SUMMARY_PUBLISH_CHANNEL`
+- `tenant.config.summary.channel_ids` → `SOURCE_CHANNELS`
+- `tenant.config.summary.publish_channel` → `PUBLISH_CHANNEL`
+- `archetype.notification_channel` (or `tenant.config.notification_channel`) → `NOTIFICATION_CHANNEL`
 
 **Fly.io app-level secrets are NOT inherited by spawned machines.** Only what `loadTenantEnv` returns (+ explicit `TASK_ID`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`) reaches the worker.
 
 ### Summarizer failure diagnostic
 
-| Symptom                                                 | Cause                                                       | Fix                                                     |
-| ------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
-| Task → Reviewing in <30s, deliverable content empty     | `SLACK_BOT_TOKEN` missing from machine env                  | Re-run OAuth for that tenant                            |
-| `No installation for team: T...` in gateway logs        | `tenant_integrations` row missing for that Slack workspace  | Re-run OAuth for that tenant                            |
-| `Out of memory: Killed process (.opencode)` in Fly logs | OpenCode OOM on small VM                                    | Increase `SUMMARIZER_VM_SIZE`                           |
-| `channel_not_found` from Slack API                      | Bot token belongs to a different workspace than the channel | Wrong token stored — re-run OAuth for correct workspace |
+| Symptom                                                 | Cause                                                       | Fix                                                           |
+| ------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| Task → Reviewing in <30s, deliverable content empty     | `SLACK_BOT_TOKEN` missing from machine env                  | Re-run OAuth for that tenant                                  |
+| `No installation for team: T...` in gateway logs        | `tenant_integrations` row missing for that Slack workspace  | Re-run OAuth for that tenant                                  |
+| `Out of memory: Killed process (.opencode)` in Fly logs | OpenCode OOM on small VM                                    | Increase `WORKER_VM_SIZE` (or set `vm_size` on the archetype) |
+| `channel_not_found` from Slack API                      | Bot token belongs to a different workspace than the channel | Wrong token stored — re-run OAuth for correct workspace       |
 
 Fly.io worker logs: `fly logs -a ai-employee-workers` (NOT `ai-employee-summarizer` — that app does not exist).
 
@@ -608,7 +609,7 @@ Summarizer-specific vars (required for Papi Chulo):
 ```
 SLACK_SIGNING_SECRET       # Verifies Slack interaction webhooks (HMAC-SHA256)
 FLY_WORKER_APP             # Fly.io app for all worker machines (currently: ai-employee-workers)
-SUMMARIZER_VM_SIZE         # VM size for summarizer machines (default: shared-cpu-1x)
+WORKER_VM_SIZE             # VM size for all employee workers (default: shared-cpu-1x); SUMMARIZER_VM_SIZE is a deprecated alias
 ```
 
 See `.env.example` for the full list.

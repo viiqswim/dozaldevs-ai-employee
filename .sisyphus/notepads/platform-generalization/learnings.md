@@ -166,3 +166,28 @@ Full configs in `.sisyphus/notepads/external-cron-evaluation.md`.
 - `buildNotifyBlocks` always appends a `context` block with task ID as last block — confirmed by `blocks[blocks.length - 1]` assertion pattern
 - Section separator comments (`// ─── `) are unnecessary — `describe` blocks provide grouping; removed per hook
 - Both files committed: `test(platform): add tests for enrichment adapter registry and generic block builder`
+
+## Task 16 — AGENTS.md + .env.example Documentation Update (2026-05-12)
+
+### Changes made to AGENTS.md
+
+1. **Inngest functions section**: `trigger/daily-summarizer` moved from active to deregistered list. Updated description: "DELETED; replaced by external cron on cron-job.org." Added note that `trigger/guest-message-poll` stays as Inngest internal cron (decrypts secrets, scans all leads — cannot be external).
+
+2. **Adding a new employee section**: Updated step 1 to include new optional archetype fields (`enrichment_adapter`, `vm_size`). Replaced step 3 ("Add a trigger in `src/inngest/triggers/`") with two separate steps: one for scheduled triggers (external cron on cron-job.org, no new Inngest function file) and one for webhook triggers (route handler in `src/gateway/routes/`).
+
+3. **Env var section**: Updated `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE` as primary var with note that `SUMMARIZER_VM_SIZE` is a deprecated alias.
+
+4. **Per-Tenant Slack Token Architecture**: Removed `DAILY_SUMMARY_CHANNELS` and `SUMMARY_TARGET_CHANNEL` (removed from `tenant-env-loader.ts`). Updated to show `SOURCE_CHANNELS`, `PUBLISH_CHANNEL`, and `NOTIFICATION_CHANNEL` as the actual injected vars.
+
+5. **Summarizer failure diagnostic**: Updated OOM fix from `Increase SUMMARIZER_VM_SIZE` to `Increase WORKER_VM_SIZE (or set vm_size on the archetype)`.
+
+6. **Cron timezone note**: Replaced stale Inngest cron note ("fires at 8am UTC, Inngest has no timezone config") with accurate external cron note (cron-job.org supports per-job IANA timezone).
+
+### .env.example verification
+
+Already correct from previous tasks:
+- `WORKER_VM_SIZE` present as primary (line 93)
+- `FLY_SUMMARIZER_APP` and `SUMMARIZER_VM_SIZE` marked DEPRECATED (lines 140-144)
+- `VLRE_SLACK_BOT_TOKEN` present (line 109)
+- `HOSTFULLY_MOCK` documented as tenant secret, not global env var (lines 152-153)
+- No changes needed to `.env.example`
