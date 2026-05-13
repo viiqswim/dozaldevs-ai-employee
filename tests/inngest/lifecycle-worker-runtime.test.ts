@@ -415,4 +415,28 @@ describe('employee-lifecycle — local Docker cleanup patterns in source (code i
     ).length;
     expect(stopDeliveryOccurrences).toBeGreaterThanOrEqual(2);
   });
+
+  it('Test 6: WORKER_RUNTIME unset defaults to docker — dispatch condition uses !== fly', () => {
+    expect(sourceCode).toContain("process.env.WORKER_RUNTIME !== 'fly'");
+  });
+});
+
+describe('employee-lifecycle — WORKER_RUNTIME default dispatch (behavioral)', () => {
+  it('Test 7: WORKER_RUNTIME unset → uses docker dispatch (execSync called, createMachine not called)', async () => {
+    delete process.env.WORKER_RUNTIME;
+
+    const { engine } = makeEngine({
+      executing: 'fn',
+      'poll-completion': 'Submitting',
+    });
+
+    const { error } = await engine.execute(triggerEvent());
+
+    expect(error).toBeUndefined();
+
+    const calls = mockExecSync.mock.calls.map((c) => c[0] as string);
+    const runIdx = calls.findIndex((cmd) => cmd.includes('docker run -d'));
+    expect(runIdx).toBeGreaterThanOrEqual(0);
+    expect(mockCreateMachine).not.toHaveBeenCalled();
+  });
 });
