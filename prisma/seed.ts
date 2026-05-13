@@ -324,6 +324,10 @@ async function main() {
     '- guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid (CRITICAL: extract from the leadUid field in each thread object returned by get-messages.ts in Step 1 — this is the Hostfully reservation UID, e.g. looks like 37f5f58f-d308-42bf-8ed3-f0c2d70f16fb. Do NOT use the $TASK_ID environment variable as leadUid — they are different identifiers), threadUid (from the threadUid field in Step 1 output), messageUid (from the uid field of the specific message)\n' +
     '- diagnosisSummary (if Step 3.5 was run; otherwise omit or set to null)\n\n' +
     'Extract these values from the reservation and message data gathered in Steps 1-2.\n\n' +
+    'CRITICAL: --lead-uid and --thread-uid are DIFFERENT UUIDs from DIFFERENT fields.\n' +
+    '- --lead-uid = threadObj.leadUid (the reservation/lead identifier, e.g. 29a64abd-d02c-44bc-8d5c-47df58a7ab14)\n' +
+    '- --thread-uid = threadObj.threadUid (the message thread identifier, e.g. aef3d0cf-bc61-4f05-a3ce-1a4199ca336d)\n' +
+    'These are NEVER the same value. If you find yourself passing the same UUID to both flags, STOP — you have the wrong value. Look more carefully at the threadObj fields.\n\n' +
     'Post the rich approval card for PM review. Run this command EXACTLY ONCE — do NOT run it twice:\n' +
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-guest-approval.ts \\\n' +
     '  --channel "$NOTIFICATION_CHANNEL" \\\n' +
@@ -338,10 +342,10 @@ async function main() {
     '  --draft-response "<draftResponse>" \\\n' +
     '  --confidence <confidence> \\\n' +
     '  --category "<category>" \\\n' +
-    '  --lead-uid "<leadUid>" \\\n' +
-    '  --thread-uid "<threadUid>" \\\n' +
+    '  --lead-uid "<leadUid from threadObj.leadUid — the LEAD identifier, NOT the thread>" \\\n' +
+    '  --thread-uid "<threadUid from threadObj.threadUid — the THREAD identifier, NOT the lead>" \\\n' +
     '  --message-uid "<messageUid>" \\\n' +
-    '  --conversation-ref "<threadUid>" \\\n' +
+    '  --conversation-ref "<threadUid from threadObj.threadUid>" \\\n' +
     '  --reply-broadcast "$REPLY_BROADCAST"\n\n' +
     'If Step 3.5 was run (access/lock message), add the --diagnosis flag:\n' +
     "  --diagnosis '<full diagnosis JSON from Step 3.5>'\n" +

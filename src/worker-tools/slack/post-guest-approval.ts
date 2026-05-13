@@ -356,6 +356,12 @@ export async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (params.leadUid && params.threadUid && params.leadUid === params.threadUid) {
+    process.stderr.write(
+      `[post-guest-approval] WARNING: --lead-uid and --thread-uid are identical (${params.leadUid}). This is likely a model error — these should be different UUIDs.\n`,
+    );
+  }
+
   const blocks = buildGuestApprovalBlocks(params);
 
   if (params.dryRun) {
