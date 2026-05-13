@@ -1237,7 +1237,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: varies
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 16. Update AGENTS.md + .env.example + docs
+- [x] 16. Update AGENTS.md + .env.example + docs
 
   **What to do**:
   - Update `AGENTS.md`:
@@ -1298,7 +1298,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `AGENTS.md`, `.env.example`
   - Pre-commit: —
 
-- [ ] 17. Send Telegram notification that plan is complete
+- [x] 17. Send Telegram notification that plan is complete
 
   **What to do**:
   - Run: `tsx scripts/telegram-notify.ts "✅ platform-generalization complete — All tasks done. Come back to review results."`
