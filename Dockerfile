@@ -97,6 +97,8 @@ COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools
 COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
 COPY --from=builder /build/src/worker-tools/hostfully/get-reviews.ts /tools/hostfully/get-reviews.ts
 COPY --from=builder /build/src/worker-tools/hostfully/send-message.ts /tools/hostfully/send-message.ts
+COPY --from=builder /build/src/worker-tools/hostfully/get-door-code.ts /tools/hostfully/get-door-code.ts
+COPY --from=builder /build/src/worker-tools/hostfully/update-door-code.ts /tools/hostfully/update-door-code.ts
 COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-messages/default.json /tools/hostfully/fixtures/get-messages/default.json
 COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-reservations/default.json /tools/hostfully/fixtures/get-reservations/default.json
 COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-property/default.json /tools/hostfully/fixtures/get-property/default.json
@@ -107,13 +109,17 @@ COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/plat
 RUN mkdir -p /tools/knowledge_base
 COPY --from=builder /build/src/worker-tools/knowledge_base/search.ts /tools/knowledge_base/search.ts
 
-RUN mkdir -p /tools/locks
-COPY --from=builder /build/src/worker-tools/locks/sifely-client.ts /tools/locks/sifely-client.ts
-COPY --from=builder /build/src/worker-tools/locks/hostfully-door-code.ts /tools/locks/hostfully-door-code.ts
-COPY --from=builder /build/src/worker-tools/locks/diagnose-access.ts /tools/locks/diagnose-access.ts
-COPY --from=builder /build/src/worker-tools/locks/generate-code.ts /tools/locks/generate-code.ts
-COPY --from=builder /build/src/worker-tools/locks/update-door-code.ts /tools/locks/update-door-code.ts
-COPY --from=builder /build/src/worker-tools/locks/rotate-property-code.ts /tools/locks/rotate-property-code.ts
+RUN mkdir -p /tools/sifely /tools/sifely/lib
+COPY --from=builder /build/src/worker-tools/sifely/lib/api.ts /tools/sifely/lib/api.ts
+COPY --from=builder /build/src/worker-tools/sifely/list-locks.ts /tools/sifely/list-locks.ts
+COPY --from=builder /build/src/worker-tools/sifely/list-passcodes.ts /tools/sifely/list-passcodes.ts
+COPY --from=builder /build/src/worker-tools/sifely/list-access-records.ts /tools/sifely/list-access-records.ts
+COPY --from=builder /build/src/worker-tools/sifely/create-passcode.ts /tools/sifely/create-passcode.ts
+COPY --from=builder /build/src/worker-tools/sifely/update-passcode.ts /tools/sifely/update-passcode.ts
+COPY --from=builder /build/src/worker-tools/sifely/delete-passcode.ts /tools/sifely/delete-passcode.ts
+COPY --from=builder /build/src/worker-tools/sifely/diagnose-access.ts /tools/sifely/diagnose-access.ts
+COPY --from=builder /build/src/worker-tools/sifely/rotate-property-code.ts /tools/sifely/rotate-property-code.ts
+COPY --from=builder /build/src/worker-tools/sifely/generate-code.ts /tools/sifely/generate-code.ts
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"

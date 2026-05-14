@@ -3,7 +3,7 @@ import * as http from 'http';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'path';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/locks/diagnose-access.ts');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/sifely/diagnose-access.ts');
 
 function runScript(
   args: string[],
@@ -321,9 +321,6 @@ describe('diagnose-access shell tool', () => {
     });
     expect(code).toBe(1);
     expect(stderr).toContain('HOSTFULLY_API_KEY');
-    expect(stderr).toContain('SIFELY_CLIENT_ID');
-    expect(stderr).toContain('SIFELY_USERNAME');
-    expect(stderr).toContain('SIFELY_PASSWORD');
     expect(stderr).toContain('SUPABASE_SECRET_KEY');
     expect(stderr).toContain('TENANT_ID');
   }, 15000);

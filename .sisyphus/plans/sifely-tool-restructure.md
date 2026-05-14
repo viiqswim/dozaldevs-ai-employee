@@ -245,7 +245,7 @@ Task 27: Notify completion via Telegram
 
 ## TODOs
 
-- [ ] 1. Rename `locks/` → `sifely/` directory
+- [x] 1. Rename `locks/` → `sifely/` directory
 
   **What to do**:
   - Run `git mv src/worker-tools/locks/ src/worker-tools/sifely/`
@@ -289,7 +289,7 @@ Task 27: Notify completion via Telegram
   - Message: `refactor(worker-tools): rename locks/ to sifely/`
   - Files: `src/worker-tools/sifely/*`
 
-- [ ] 2. Create shared `sifely/lib/api.ts`
+- [x] 2. Create shared `sifely/lib/api.ts`
 
   **What to do**:
   - Create `src/worker-tools/sifely/lib/api.ts`
@@ -361,7 +361,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 3. Move Hostfully tools to `hostfully/` directory
+- [x] 3. Move Hostfully tools to `hostfully/` directory
 
   **What to do**:
   - `git mv src/worker-tools/sifely/hostfully-door-code.ts src/worker-tools/hostfully/get-door-code.ts`
@@ -409,7 +409,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 4. Clean up `generate-code.ts` — merge duplicate functions
+- [x] 4. Clean up `generate-code.ts` — merge duplicate functions
 
   **What to do**:
   - In `src/worker-tools/sifely/generate-code.ts`, make `generateMemorableCode()` call `generateMemorableCodeWithMeta()` and return only `.code`
@@ -457,7 +457,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 5. Create `list-locks.ts` — standalone tool
+- [x] 5. Create `list-locks.ts` — standalone tool
 
   **What to do**:
   - Create `src/worker-tools/sifely/list-locks.ts`
@@ -513,7 +513,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 6. Create `list-passcodes.ts` — standalone tool
+- [x] 6. Create `list-passcodes.ts` — standalone tool
 
   **What to do**:
   - Create `src/worker-tools/sifely/list-passcodes.ts`
@@ -555,7 +555,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 7. Create `list-access-records.ts` — standalone tool
+- [x] 7. Create `list-access-records.ts` — standalone tool
 
   **What to do**:
   - Create `src/worker-tools/sifely/list-access-records.ts`
@@ -596,7 +596,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 8. Create `create-passcode.ts` — standalone tool (PERMANENT ONLY)
+- [x] 8. Create `create-passcode.ts` — standalone tool (PERMANENT ONLY)
 
   **What to do**:
   - Create `src/worker-tools/sifely/create-passcode.ts`
@@ -660,7 +660,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 9. Create `update-passcode.ts` — standalone tool
+- [x] 9. Create `update-passcode.ts` — standalone tool
 
   **What to do**:
   - Create `src/worker-tools/sifely/update-passcode.ts`
@@ -701,7 +701,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 10. Create `delete-passcode.ts` — standalone tool
+- [x] 10. Create `delete-passcode.ts` — standalone tool
 
   **What to do**:
   - Create `src/worker-tools/sifely/delete-passcode.ts`
@@ -741,7 +741,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 11. Rewrite `diagnose-access.ts` to import from `lib/api.ts`
+- [x] 11. Rewrite `diagnose-access.ts` to import from `lib/api.ts`
 
   **What to do**:
   - Rewrite `src/worker-tools/sifely/diagnose-access.ts` to:
@@ -806,7 +806,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 3+4)
 
-- [ ] 12. Rewrite `rotate-property-code.ts` + delete `sifely-client.ts`
+- [x] 12. Rewrite `rotate-property-code.ts` + delete `sifely-client.ts`
 
   **What to do**:
   - Update `src/worker-tools/sifely/rotate-property-code.ts`:

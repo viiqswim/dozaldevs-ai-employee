@@ -12,7 +12,7 @@ Covers: emergency code restoration, passcode type remediation, API rules, known 
 
 ---
 
-## Known Bugs in `sifely-client.ts` (All Fixed)
+## Known Bugs in Sifely Tools (All Fixed)
 
 ### 1 — Missing `Bearer` prefix on Authorization header
 
@@ -33,7 +33,7 @@ The `endDate` field behavior has changed over time:
 
 **Fixed** — `createPasscode` now always sends `endDate=0` for permanent codes.
 
-If creates return HTTP 500 with body `"Required request parameter 'endDate' for method parameter type Long is not present"`, the endDate field is being omitted again — check `sifely-client.ts`.
+If creates return HTTP 500 with body `"Required request parameter 'endDate' for method parameter type Long is not present"`, the endDate field is being omitted again — check `create-passcode.ts`.
 
 **Confirmed API behavior (2026-05-13):**
 
@@ -77,8 +77,8 @@ Check a single lock:
 ```bash
 SIFELY_USERNAME=admin@vlrealestate.co \
 SIFELY_PASSWORD=<password> \
-  npx tsx src/worker-tools/locks/sifely-client.ts \
-  --action list-passcodes --lock-id <lock-id>
+  npx tsx src/worker-tools/sifely/list-passcodes.ts \
+  --lock-id <lock-id>
 ```
 
 Bulk-audit all locks for any `permanent-visitor-*` code that is not type 2:
@@ -86,7 +86,7 @@ Bulk-audit all locks for any `permanent-visitor-*` code that is not type 2:
 ```bash
 CREDS="SIFELY_USERNAME=admin@vlrealestate.co SIFELY_PASSWORD=<password>"
 for lock in <space-separated lock IDs>; do
-  result=$(eval "$CREDS npx tsx src/worker-tools/locks/sifely-client.ts --action list-passcodes --lock-id $lock 2>&1")
+  result=$(eval "$CREDS npx tsx src/worker-tools/sifely/list-passcodes.ts --lock-id $lock 2>&1")
   bad=$(echo "$result" | node -e "
     let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
       const codes = JSON.parse(d);
@@ -136,7 +136,7 @@ Check the check-in message sent to the guest in the Hostfully message thread. Th
 
 ```bash
 HOSTFULLY_API_KEY=... HOSTFULLY_MOCK='' \
-  npx tsx src/worker-tools/locks/update-door-code.ts \
+  npx tsx src/worker-tools/hostfully/update-door-code.ts \
   --property-id <hostfully-uid> --code <code>
 ```
 
@@ -158,20 +158,20 @@ Type 3 codes are broken even if the digits are correct — `update-passcode` **c
 ### Step 5 — Fix wrong digits (type already 2)
 
 ```bash
-npx tsx src/worker-tools/locks/sifely-client.ts \
-  --action update-passcode --lock-id <X> --passcode-id <Y> --code <ZZZZ>
+npx tsx src/worker-tools/sifely/update-passcode.ts \
+  --lock-id <X> --passcode-id <Y> --code <ZZZZ>
 ```
 
 ### Step 6 — Fix wrong type (type 3, any digits)
 
 ```bash
 # Delete first
-npx tsx src/worker-tools/locks/sifely-client.ts \
-  --action delete-passcode --lock-id <X> --passcode-id <Y>
+npx tsx src/worker-tools/sifely/delete-passcode.ts \
+  --lock-id <X> --passcode-id <Y>
 
 # Wait 3-5 seconds, then recreate
-npx tsx src/worker-tools/locks/sifely-client.ts \
-  --action create-passcode --lock-id <X> --name "permanent-visitor-room-N" --code <ZZZZ>
+npx tsx src/worker-tools/sifely/create-passcode.ts \
+  --lock-id <X> --name "permanent-visitor-room-N" --code <ZZZZ>
 ```
 
 The client defaults to permanent (`keyboardPwdType=2`, `endDate=0`) — do not pass `--type`.
@@ -179,8 +179,8 @@ The client defaults to permanent (`keyboardPwdType=2`, `endDate=0`) — do not p
 ### Step 7 — Create missing passcodes
 
 ```bash
-npx tsx src/worker-tools/locks/sifely-client.ts \
-  --action create-passcode --lock-id <X> --name "permanent-visitor-room-N" --code <ZZZZ>
+npx tsx src/worker-tools/sifely/create-passcode.ts \
+  --lock-id <X> --name "permanent-visitor-room-N" --code <ZZZZ>
 ```
 
 `create-passcode` checks for an existing passcode with the same name before creating — it will exit with `{ existed: true }` if already present.
@@ -211,7 +211,7 @@ This tool only manages the `permanent-visitor-home` named passcode. **Do not use
 To check lock metadata including `hasGateway`:
 
 ```bash
-npx tsx src/worker-tools/locks/sifely-client.ts --action list-locks
+npx tsx src/worker-tools/sifely/list-locks.ts
 ```
 
 ---
@@ -220,7 +220,7 @@ npx tsx src/worker-tools/locks/sifely-client.ts --action list-locks
 
 **Rate limiting (HTTP 429)**: Sifely limits bulk API calls. Symptoms: `Sifely listPasscodes HTTP error: 429`, `Sifely deletePasscode HTTP error: 429`. Add `sleep 2` to `sleep 5` between sequential calls. `withRetry` does **not** retry 429s — if you hit one, wait a few seconds and re-run manually.
 
-**`withRetry` in `sifely-client.ts`** wraps `create-passcode` with exponential backoff:
+**`withRetry` in `create-passcode.ts`** wraps `create-passcode` with exponential backoff:
 
 - Max attempts: 5
 - Base delay: 2 s (doubles each attempt: 2 s, 4 s, 8 s, 16 s)
@@ -379,12 +379,16 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 
 ## Related Files
 
-| File                                             | Purpose                                                                |
-| ------------------------------------------------ | ---------------------------------------------------------------------- |
-| `src/worker-tools/locks/sifely-client.ts`        | Primary Sifely API shell tool — list, create, update, delete passcodes |
-| `src/worker-tools/locks/rotate-property-code.ts` | Automated rotation — manages `permanent-visitor-home` codes only       |
-| `src/worker-tools/locks/generate-code.ts`        | Generates memorable lock codes (ABBA/ABAB patterns)                    |
-| `src/worker-tools/locks/update-door-code.ts`     | Updates Hostfully `door_code` field only — no Sifely interaction       |
+| File                                              | Purpose                                                          |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| `src/worker-tools/sifely/list-locks.ts`           | List all Sifely locks with metadata (hasGateway, etc.)           |
+| `src/worker-tools/sifely/list-passcodes.ts`       | List passcodes for a lock                                        |
+| `src/worker-tools/sifely/create-passcode.ts`      | Create a permanent passcode on a lock                            |
+| `src/worker-tools/sifely/update-passcode.ts`      | Update passcode digits or name                                   |
+| `src/worker-tools/sifely/delete-passcode.ts`      | Delete a passcode from a lock                                    |
+| `src/worker-tools/sifely/rotate-property-code.ts` | Automated rotation — manages `permanent-visitor-home` codes only |
+| `src/worker-tools/sifely/generate-code.ts`        | Generates memorable lock codes (ABBA/ABAB patterns)              |
+| `src/worker-tools/hostfully/update-door-code.ts`  | Updates Hostfully `door_code` field only — no Sifely interaction |
 
 ## Reference: Old VLRE App
 

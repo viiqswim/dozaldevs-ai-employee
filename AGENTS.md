@@ -62,7 +62,20 @@ A single-responsibility AI Employee Platform — deploys autonomous AI agents ("
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 - **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects `instructions` + available tools, monitors until completion
-- **Shell tools** at `/tools/` in Docker image: `slack/` (post messages, read channels), `locks/` (Sifely management, code rotation), `hostfully/` (messages, properties, reservations), `knowledge_base/` (search), `platform/` (logging). Full CLI syntax: load `tool-usage-reference` skill.
+- **Shell tools** at `/tools/` in Docker image: `slack/` (post messages, read channels), `sifely/` (lock management, code rotation), `hostfully/` (messages, properties, reservations), `knowledge_base/` (search), `platform/` (logging). Full CLI syntax: load `tool-usage-reference` skill.
+- **Sifely tools** (`/tools/sifely/`):
+  - `tsx /tools/sifely/list-locks.ts` — list all locks
+  - `tsx /tools/sifely/list-passcodes.ts --lock-id <id>` — list passcodes for a lock
+  - `tsx /tools/sifely/list-access-records.ts --lock-id <id> --start-date <ms> --end-date <ms>` — list access records
+  - `tsx /tools/sifely/create-passcode.ts --lock-id <id> --name "Name" --code "1234"` — create permanent passcode
+  - `tsx /tools/sifely/update-passcode.ts --lock-id <id> --passcode-id <id> [--code "digits"] [--name "Name"]` — update passcode
+  - `tsx /tools/sifely/delete-passcode.ts --lock-id <id> --passcode-id <id>` — delete passcode
+  - `tsx /tools/sifely/generate-code.ts [--length 4|5|6] [--exclude-codes "1221,2332"]` — generate memorable code
+  - `tsx /tools/sifely/rotate-property-code.ts --property-id <uid>` — rotate all lock codes for a property
+  - `tsx /tools/sifely/diagnose-access.ts --property-id <uid>` — diagnose lock access issues
+- **Hostfully tools** (`/tools/hostfully/`):
+  - `tsx /tools/hostfully/get-door-code.ts --property-id <uid>` — read door code from Hostfully
+  - `tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>` — update door code
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31`. Version `1.14.33` has a confirmed 6-second exit regression. **Never upgrade without explicit testing.**
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.
@@ -89,10 +102,10 @@ Skills are on-demand knowledge modules loaded by OpenCode agents. Before any non
 
 **Employee skills** (baked into Docker image via `COPY src/workers/skills/ /app/.opencode/skills/`):
 
-| Skill                  | Description                                                                                                                                                                                                            |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tool-usage-reference` | Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container (`/tools/slack/`, `/tools/hostfully/`, `/tools/locks/`, `/tools/knowledge_base/`, `/tools/platform/`) |
-| `uuid-disambiguation`  | All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value          |
+| Skill                  | Description                                                                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool-usage-reference` | Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container (`/tools/slack/`, `/tools/hostfully/`, `/tools/sifely/`, `/tools/knowledge_base/`, `/tools/platform/`) |
+| `uuid-disambiguation`  | All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value           |
 
 **Dev skills** (project-level at `.opencode/skills/`):
 
