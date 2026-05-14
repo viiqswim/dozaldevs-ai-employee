@@ -1,4 +1,5 @@
 import { Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -9,17 +10,61 @@ import {
 } from '@/components/ui/select';
 import { useTenant } from '@/hooks/use-tenant';
 import { TENANTS } from '@/lib/constants';
+import type { PreflightStatus } from '@/hooks/use-preflight-status';
 
 interface HeaderProps {
   onOpenApiKey: () => void;
+  preflightStatus: PreflightStatus;
 }
 
-export function Header({ onOpenApiKey }: HeaderProps) {
+function HealthChip({ status }: { status: PreflightStatus }) {
+  const { allOk, hasError, failingNames, checking } = status;
+
+  let label: string;
+  let dotClass: string;
+  let chipClass: string;
+
+  if (checking) {
+    label = 'Checking…';
+    dotClass = 'bg-slate-400 animate-pulse';
+    chipClass = 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+  } else if (hasError) {
+    const count = failingNames.length;
+    const shortName = failingNames[0]?.replace(/\s*\(:[^)]+\)$/, '') ?? '';
+    label = count === 1 ? `${shortName} failing` : `${count} down`;
+    dotClass = 'bg-red-500';
+    chipClass = 'bg-red-100 text-red-700 hover:bg-red-200';
+  } else if (allOk) {
+    label = 'All systems OK';
+    dotClass = 'bg-emerald-500';
+    chipClass = 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+  } else {
+    label = 'Status unknown';
+    dotClass = 'bg-slate-300';
+    chipClass = 'bg-slate-100 text-slate-500 hover:bg-slate-200';
+  }
+
+  return (
+    <Link
+      to="/dashboard/preflight"
+      title={hasError ? `Failing: ${failingNames.join(', ')}` : undefined}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors no-underline ${chipClass}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${dotClass}`} />
+      {label}
+    </Link>
+  );
+}
+
+export function Header({ onOpenApiKey, preflightStatus }: HeaderProps) {
   const { tenantId, setTenantId } = useTenant();
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-4">
-      <h1 className="text-sm font-semibold text-foreground">AI Employee Dashboard</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-sm font-semibold text-foreground">AI Employee Dashboard</h1>
+        <HealthChip status={preflightStatus} />
+      </div>
       <div className="flex items-center gap-2">
         <Select value={tenantId} onValueChange={setTenantId}>
           <SelectTrigger className="w-36 h-8 text-xs">
