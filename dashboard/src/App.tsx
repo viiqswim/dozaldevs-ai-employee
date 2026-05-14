@@ -6,10 +6,7 @@ import { Layout } from './components/layout/Layout';
 import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
-
-function TriggerPlaceholder() {
-  return <div className="p-6">Trigger Panel — coming soon</div>;
-}
+import { TriggerPanel } from './panels/trigger/TriggerPanel';
 
 function TenantsPlaceholder() {
   return <div className="p-6">Tenant Overview — coming soon</div>;
@@ -70,7 +67,7 @@ export default function App() {
             <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
               <Route path="/dashboard" element={<TaskFeed />} />
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
-              <Route path="/dashboard/trigger" element={<TriggerPlaceholder />} />
+              <Route path="/dashboard/trigger" element={<TriggerPanel />} />
               <Route path="/dashboard/tenants" element={<TenantsPlaceholder />} />
               <Route path="/dashboard/rules" element={<RulesPlaceholder />} />
               <Route path="/dashboard/preflight" element={<PreflightPlaceholder />} />
