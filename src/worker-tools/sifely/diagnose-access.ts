@@ -16,26 +16,14 @@
  *   - Auth header: "Authorization: Bearer {token}"
  */
 
-interface LockPasscode {
-  keyboardPwdId: number;
-  lockId: string;
-  keyboardPwd: string;
-  keyboardPwdName: string;
-  keyboardPwdType: number; // 1=ONE_TIME, 2=PERMANENT, 3=TIMED
-  startDate: number;
-  endDate: number;
-  status: number;
-}
-
-interface AccessRecord {
-  recordId: number;
-  lockId: number;
-  recordType: number; // 4=passcode
-  success: number; // 1=success, 0=failed
-  keyboardPwd: string;
-  lockDate: number;
-  serverDate: number;
-}
+import { login, resolveConfig, withRetry, assertListSuccess } from './lib/api.js';
+import type {
+  LockPasscode,
+  AccessRecord,
+  SifelyListResponse,
+  SifelyPasscodeRaw,
+  SifelyAccessRecordRaw,
+} from './lib/api.js';
 
 interface PropertyLock {
   id: string;
@@ -71,42 +59,6 @@ interface DiagnosisOutput {
   locks: LockDiagnosisResult[];
   hasMismatch: boolean;
   diagnosisSummary: string;
-}
-
-interface SifelyLoginResponse {
-  code: number;
-  msg?: string;
-  data?: {
-    token: string;
-  };
-}
-
-interface SifelyListResponse<T> {
-  list?: T[];
-  pageNo?: number;
-  pageSize?: number;
-  code?: number;
-  msg?: string;
-}
-
-interface SifelyPasscodeRaw {
-  keyboardPwdId: number;
-  keyboardPwd: string;
-  keyboardPwdName: string;
-  keyboardPwdType: number;
-  startDate: number;
-  endDate: number;
-  status: number;
-}
-
-interface SifelyAccessRecordRaw {
-  recordId: number;
-  lockId: number;
-  recordType: number;
-  success: number;
-  keyboardPwd: string;
-  lockDate: number;
-  serverDate: number;
 }
 
 interface CustomDataField {
@@ -211,132 +163,6 @@ async function queryPropertyLocks(
   return (await response.json()) as PropertyLock[];
 }
 
-async function sifelyLogin(
-  baseUrl: string,
-  clientId: string,
-  username: string,
-  password: string,
-): Promise<string> {
-  const params = new URLSearchParams({
-    client_id: clientId,
-    username,
-    password,
-    date: String(Date.now()),
-  });
-
-  const response = await fetch(`${baseUrl}/system/smart/login?${params.toString()}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json;charset=UTF-8',
-      Origin: 'https://manager.sifely.com',
-      Referer: 'https://manager.sifely.com/',
-      isToken: 'false',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Sifely login HTTP error: ${response.status} ${response.statusText}`);
-  }
-
-  const body = (await response.json()) as SifelyLoginResponse;
-
-  // CRITICAL: Sifely returns HTTP 200 even on auth failure — must check body.code
-  if (body.code !== 200 || !body.data?.token) {
-    throw new Error(`Sifely authentication failed: ${body.msg ?? `code ${body.code}`}`);
-  }
-
-  return body.data.token;
-}
-
-async function sifelyListPasscodes(
-  baseUrl: string,
-  token: string,
-  lockId: string,
-): Promise<LockPasscode[]> {
-  const params = new URLSearchParams({
-    lockId,
-    pageNo: '1',
-    pageSize: '100',
-    date: String(Date.now()),
-  });
-
-  const response = await fetch(`${baseUrl}/v3/lock/listKeyboardPwd?${params.toString()}`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Sifely listPasscodes HTTP error: ${response.status} ${response.statusText}`);
-  }
-
-  const body = (await response.json()) as SifelyListResponse<SifelyPasscodeRaw>;
-
-  // CRITICAL: list success omits `code` entirely — presence of `code` means error
-  if (body.code !== undefined) {
-    throw new Error(`Sifely listPasscodes error: ${body.msg ?? `code ${body.code}`}`);
-  }
-
-  return (body.list ?? []).map(
-    (item): LockPasscode => ({
-      keyboardPwdId: item.keyboardPwdId,
-      lockId,
-      keyboardPwd: item.keyboardPwd,
-      keyboardPwdName: item.keyboardPwdName,
-      keyboardPwdType: item.keyboardPwdType,
-      startDate: item.startDate,
-      endDate: item.endDate,
-      status: item.status,
-    }),
-  );
-}
-
-async function sifelyListAccessRecords(
-  baseUrl: string,
-  token: string,
-  lockId: string,
-  startDate: number,
-  endDate: number,
-): Promise<AccessRecord[]> {
-  const params = new URLSearchParams({
-    lockId,
-    startDate: String(startDate),
-    endDate: String(endDate),
-    pageNo: '1',
-    pageSize: '20',
-    date: String(Date.now()),
-  });
-
-  const response = await fetch(`${baseUrl}/v3/lockRecord/list?${params.toString()}`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Sifely listAccessRecords HTTP error: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  const body = (await response.json()) as SifelyListResponse<SifelyAccessRecordRaw>;
-
-  // CRITICAL: list success omits `code` entirely — presence of `code` means error
-  if (body.code !== undefined) {
-    throw new Error(`Sifely listAccessRecords error: ${body.msg ?? `code ${body.code}`}`);
-  }
-
-  return (body.list ?? []).map(
-    (item): AccessRecord => ({
-      recordId: item.recordId,
-      lockId: item.lockId,
-      recordType: item.recordType,
-      success: item.success,
-      keyboardPwd: item.keyboardPwd,
-      lockDate: item.lockDate,
-      serverDate: item.serverDate,
-    }),
-  );
-}
-
 function buildDiagnosisSummary(
   hostfullyDoorCode: string,
   lockResults: LockDiagnosisResult[],
@@ -430,18 +256,12 @@ async function main(): Promise<void> {
   }
 
   const hostfullyApiKey = process.env['HOSTFULLY_API_KEY'];
-  const sifelyClientId = process.env['SIFELY_CLIENT_ID'];
-  const sifelyUsername = process.env['SIFELY_USERNAME'];
-  const sifelyPassword = process.env['SIFELY_PASSWORD'];
   const supabaseUrl = process.env['SUPABASE_URL'];
   const supabaseKey = process.env['SUPABASE_SECRET_KEY'];
   const tenantId = process.env['TENANT_ID'];
 
   const missingVars: string[] = [];
   if (!hostfullyApiKey) missingVars.push('HOSTFULLY_API_KEY');
-  if (!sifelyClientId) missingVars.push('SIFELY_CLIENT_ID');
-  if (!sifelyUsername) missingVars.push('SIFELY_USERNAME');
-  if (!sifelyPassword) missingVars.push('SIFELY_PASSWORD');
   if (!supabaseUrl) missingVars.push('SUPABASE_URL');
   if (!supabaseKey) missingVars.push('SUPABASE_SECRET_KEY');
   if (!tenantId) missingVars.push('TENANT_ID');
@@ -454,9 +274,6 @@ async function main(): Promise<void> {
   }
 
   const apiKey = hostfullyApiKey as string;
-  const clientId = sifelyClientId as string;
-  const username = sifelyUsername as string;
-  const password = sifelyPassword as string;
   const postgrestUrl = supabaseUrl as string;
   const postgrestKey = supabaseKey as string;
   const tenant = tenantId as string;
@@ -464,9 +281,7 @@ async function main(): Promise<void> {
   const hostfullyBaseUrl = (
     process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com'
   ).replace(/\/$/, '');
-  const sifelyBaseUrl = (
-    process.env['SIFELY_BASE_URL'] ?? 'https://app-smart-server.sifely.com'
-  ).replace(/\/$/, '');
+  const config = resolveConfig();
 
   let hostfullyDoorCode: string | null = null;
   try {
@@ -509,7 +324,7 @@ async function main(): Promise<void> {
 
   let sifelyToken: string;
   try {
-    sifelyToken = await sifelyLogin(sifelyBaseUrl, clientId, username, password);
+    sifelyToken = await login(config.baseUrl, config.clientId, config.username, config.password);
   } catch (err) {
     process.stderr.write(`Error: Sifely authentication failed: ${String(err)}\n`);
     process.exit(1);
@@ -526,7 +341,37 @@ async function main(): Promise<void> {
       let fetchError: string | undefined;
 
       try {
-        allPasscodes = await sifelyListPasscodes(sifelyBaseUrl, sifelyToken, lock.lock_external_id);
+        allPasscodes = await withRetry<LockPasscode[]>(async () => {
+          const params = new URLSearchParams({
+            lockId: lock.lock_external_id,
+            pageNo: '1',
+            pageSize: '100',
+            date: String(Date.now()),
+          });
+          const response = await fetch(
+            `${config.baseUrl}/v3/lock/listKeyboardPwd?${params.toString()}`,
+            { method: 'GET', headers: { Authorization: `Bearer ${sifelyToken}` } },
+          );
+          if (!response.ok) {
+            throw new Error(
+              `Sifely listPasscodes HTTP error: ${response.status} ${response.statusText}`,
+            );
+          }
+          const body = (await response.json()) as SifelyListResponse<SifelyPasscodeRaw>;
+          assertListSuccess(body, 'listPasscodes');
+          return (body.list ?? []).map(
+            (item: SifelyPasscodeRaw): LockPasscode => ({
+              keyboardPwdId: item.keyboardPwdId,
+              lockId: lock.lock_external_id,
+              keyboardPwd: item.keyboardPwd,
+              keyboardPwdName: item.keyboardPwdName,
+              keyboardPwdType: item.keyboardPwdType,
+              startDate: item.startDate,
+              endDate: item.endDate,
+              status: item.status,
+            }),
+          );
+        });
       } catch (err) {
         fetchError = String(err);
         process.stderr.write(
@@ -535,13 +380,38 @@ async function main(): Promise<void> {
       }
 
       try {
-        accessRecords = await sifelyListAccessRecords(
-          sifelyBaseUrl,
-          sifelyToken,
-          lock.lock_external_id,
-          twoHoursAgo,
-          now,
-        );
+        accessRecords = await withRetry<AccessRecord[]>(async () => {
+          const params = new URLSearchParams({
+            lockId: lock.lock_external_id,
+            startDate: String(twoHoursAgo),
+            endDate: String(now),
+            pageNo: '1',
+            pageSize: '20',
+            date: String(Date.now()),
+          });
+          const response = await fetch(
+            `${config.baseUrl}/v3/lockRecord/list?${params.toString()}`,
+            { method: 'GET', headers: { Authorization: `Bearer ${sifelyToken}` } },
+          );
+          if (!response.ok) {
+            throw new Error(
+              `Sifely listAccessRecords HTTP error: ${response.status} ${response.statusText}`,
+            );
+          }
+          const body = (await response.json()) as SifelyListResponse<SifelyAccessRecordRaw>;
+          assertListSuccess(body, 'listAccessRecords');
+          return (body.list ?? []).map(
+            (item: SifelyAccessRecordRaw): AccessRecord => ({
+              recordId: item.recordId,
+              lockId: item.lockId,
+              recordType: item.recordType,
+              success: item.success,
+              keyboardPwd: item.keyboardPwd,
+              lockDate: item.lockDate,
+              serverDate: item.serverDate,
+            }),
+          );
+        });
       } catch (err) {
         process.stderr.write(
           `Warning: Failed to fetch access records for lock ${lock.lock_external_id}: ${String(err)}\n`,
