@@ -649,15 +649,45 @@ ADMIN_API_KEY        # Admin API key for all /admin/* endpoints (auto-generated 
 ENCRYPTION_KEY       # AES-256-GCM key for tenant secrets (validated at gateway startup)
 ```
 
-Summarizer-specific vars (required for Papi Chulo):
+Slack vars (required for all employees that use approval cards):
 
 ```
-SLACK_SIGNING_SECRET       # Verifies Slack interaction webhooks (HMAC-SHA256)
-FLY_WORKER_APP             # Fly.io app for all worker machines (currently: ai-employee-workers)
-WORKER_VM_SIZE             # VM size for all employee workers (default: shared-cpu-1x); SUMMARIZER_VM_SIZE is a deprecated alias
+SLACK_SIGNING_SECRET  # Verifies Slack interaction webhook payloads (HMAC-SHA256)
+SLACK_APP_TOKEN       # xapp-... Socket Mode token — opens Bolt WebSocket for button clicks (scope: connections:write)
+FLY_WORKER_APP        # Fly.io app name for all worker machines (currently: ai-employee-workers)
+WORKER_VM_SIZE        # VM size for all employee workers (default: shared-cpu-1x); SUMMARIZER_VM_SIZE is a deprecated alias
 ```
 
-See `.env.example` for the full list.
+See `.env.example` for the full list with descriptions.
+
+## Environment File Conventions
+
+`.env` and `.env.example` must stay in sync and organized. Follow these rules whenever adding, removing, or renaming any env var.
+
+### Section Order (mandatory — maintain in both files)
+
+1. **Database** — `DATABASE_URL`, `DATABASE_URL_DIRECT`
+2. **Supabase (PostgREST + Auth)** — `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_ANON_KEY`
+3. **Platform Core** — `ENCRYPTION_KEY`, `ADMIN_API_KEY`, `PORT`
+4. **Inngest (Event Queue)** — `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
+5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
+6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE`, `WORKER_VM_SIZE`
+7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
+8. **GitHub** — `GITHUB_TOKEN`
+9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
+10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
+11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+12. **Cost Control** — `COST_LIMIT_USD_PER_DEPT_PER_DAY`, `AGENT_VERSION_ID`
+13. **TENANT SECRETS** — reference-only comment block; never real values here
+14. **DEPRECATED** — commented-out superseded vars; always at the bottom
+
+### Rules
+
+- **`.env.example` is the source of truth** — every var in `.env` must have a matching entry in `.env.example` with a description. A var in `.env` with no entry in `.env.example` is a bug.
+- **Tenant secrets never go in `.env`** — Hostfully, Sifely, and per-tenant Slack tokens are stored via the admin API (`tenant_secrets` table). The only exception is `VLRE_SLACK_BOT_TOKEN` (seed-only: used by `prisma/seed.ts` on DB reset). See the `TENANT SECRETS` block in `.env.example` for the full list.
+- **Deprecated vars go to the DEPRECATED section** — when a var is superseded, move the old name to the `DEPRECATED` block at the bottom of `.env.example` (commented out with a note of what replaced it). Remove it from `.env` entirely. Never leave deprecated vars active in either file.
+- **Keep both files in sync** — after adding, removing, or renaming any var, update both files in the same commit.
+- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
 
 ## Long-Running Commands
 
