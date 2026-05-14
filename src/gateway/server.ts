@@ -1,4 +1,7 @@
 import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
@@ -54,6 +57,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   const prisma = new PrismaClient();
   const app = express();
+
+  app.use(cors({ origin: true, credentials: true }));
 
   let boltApp: App | undefined;
 
@@ -166,6 +171,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminPropertyLockRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
+
+  // Dashboard static file serving (local dev tool)
+  const dashboardDist = path.resolve(process.cwd(), 'dashboard/dist');
+  if (fs.existsSync(dashboardDist)) {
+    app.use('/dashboard', express.static(dashboardDist));
+    app.get('/dashboard', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
+    app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
+  } else {
+    logger.warn('dashboard/dist not found — run pnpm dashboard:build to enable the dashboard UI');
+  }
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not Found' });
