@@ -155,6 +155,7 @@ async function writeOpencodeAuth(): Promise<void> {
 
   const configDir = join(process.cwd(), '.opencode');
   await mkdir(configDir, { recursive: true });
+  // The "*": "allow" wildcard covers all permission types including "skill" — no explicit skill permission needed
   const configJson = JSON.stringify(
     { permission: { '*': 'allow', question: 'deny' }, autoupdate: false },
     null,
@@ -169,6 +170,17 @@ async function writeOpencodeAuth(): Promise<void> {
   const globalConfigJson = JSON.stringify({ autoupdate: false }, null, 2);
   await writeFile(join(globalConfigDir, 'opencode.json'), globalConfigJson, 'utf8');
   log.info('[opencode-harness] global opencode.json written (autoupdate: false)');
+
+  // Log available skills baked into the container image
+  const skillsDir = '/app/.opencode/skills';
+  try {
+    const { readdirSync } = await import('fs');
+    const entries = readdirSync(skillsDir, { withFileTypes: true });
+    const skills = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    log.info({ skills }, '[opencode-harness] Skills available in container');
+  } catch {
+    log.info('[opencode-harness] No skills directory found — container has no baked-in skills');
+  }
 }
 
 async function runOpencodeSession(
