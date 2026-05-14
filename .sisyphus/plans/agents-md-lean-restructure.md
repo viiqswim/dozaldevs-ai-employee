@@ -1079,7 +1079,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
       For each task: read "What to do", read actual changes. Verify 1:1 — everything in spec was done, nothing beyond spec was done. Check "Must NOT do" compliance (no rewrites during extraction, no README restructuring, no agents-md-resolver changes). Flag any unaccounted changes.
       Output: `Tasks [N/N compliant] | Must NOT violations [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
-- [ ] N. **Notify completion** — Send Telegram notification: plan `agents-md-lean-restructure` complete, all tasks done, come back to review results.
+- [x] N. **Notify completion** — Send Telegram notification: plan `agents-md-lean-restructure` complete, all tasks done, come back to review results.
 
 ---
 
