@@ -70,11 +70,11 @@ Enable native OpenCode skill discovery in worker containers and create domain-sp
 
 ### Definition of Done
 
-- [ ] `pnpm test -- --run` passes (515+ existing + new skill tests)
-- [ ] `pnpm build` succeeds
-- [ ] Docker image builds with skills at `/app/.opencode/skills/`
-- [ ] OpenCode in container discovers and lists skills (verified via log output)
-- [ ] Dev agents can load skills via `skill(name="...")` in local sessions
+- [x] `pnpm test -- --run` passes (515+ existing + new skill tests)
+- [x] `pnpm build` succeeds
+- [x] Docker image builds with skills at `/app/.opencode/skills/`
+- [x] OpenCode in container discovers and lists skills (verified via log output)
+- [x] Dev agents can load skills via `skill(name="...")` in local sessions
 
 ### Must Have
 
@@ -1257,7 +1257,7 @@ Wave FINAL (4 parallel reviews, then user okay):
 
   **Commit**: NO (verification only — no file changes)
 
-- [ ] 15. Notify completion
+- [x] 15. Notify completion
 
   Send Telegram notification: plan `ai-agent-skills` complete, all tasks done, come back to review results.
 
@@ -1273,19 +1273,19 @@ Wave FINAL (4 parallel reviews, then user okay):
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check structure, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify all SKILL.md files have valid YAML frontmatter with `name` and `description` fields.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Build Docker image. Run container with `docker run --rm ai-employee-worker:latest ls -la /app/.opencode/skills/` — verify all employee skills present. Verify each SKILL.md has valid frontmatter via `node -e` parsing. Check `.opencode/skills/` in repo has all 5 dev skills. Run `pnpm test -- --run` and verify new tests pass. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Docker Skills [N/N present] | Frontmatter [N/N valid] | Dev Skills [N/N present] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance: no oh-my-openagent in containers, no remote URLs, no per-archetype filtering, no DB migrations, no feedback pipeline changes. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -1318,9 +1318,9 @@ ls .opencode/skills/        # Expected: 5 skill directories
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All tests pass
-- [ ] Docker image builds with skills
-- [ ] Dev skills discoverable in repo
-- [ ] AGENTS.md updated
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All tests pass
+- [x] Docker image builds with skills
+- [x] Dev skills discoverable in repo
+- [x] AGENTS.md updated
