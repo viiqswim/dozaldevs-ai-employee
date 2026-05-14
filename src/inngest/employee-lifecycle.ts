@@ -1,4 +1,7 @@
 import { execSync, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
@@ -87,7 +90,17 @@ function runLocalDockerContainer(opts: {
   const envArgs = Object.entries(opts.env)
     .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
     .join(' ');
-  const dockerCmd = `docker run -d --rm --add-host=host.docker.internal:host-gateway --name ${JSON.stringify(opts.name)} ${envArgs} ai-employee-worker:latest ${cmd.join(' ')}`;
+  const workerToolsPath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../src/worker-tools',
+  );
+  let volumeFlag = '';
+  if (existsSync(workerToolsPath)) {
+    volumeFlag = `-v "${workerToolsPath}:/tools"`;
+  } else {
+    log.warn({ workerToolsPath }, 'worker-tools path not found — skipping bind mount');
+  }
+  const dockerCmd = `docker run -d --rm --add-host=host.docker.internal:host-gateway ${volumeFlag} --name ${JSON.stringify(opts.name)} ${envArgs} ai-employee-worker:latest ${cmd.join(' ')}`;
   const containerId = execSync(dockerCmd, { encoding: 'utf8' }).trim();
   const logFile = `/tmp/${opts.name}.log`;
   const logProc = spawn('sh', ['-c', `docker logs -f ${containerId} > ${logFile} 2>&1`], {

@@ -608,7 +608,18 @@ const watchWorkerDirs = (dir: string) => {
   });
 };
 watchWorkerDirs('src/workers');
-watchWorkerDirs('src/worker-tools');
+
+let workerToolsInfoDebounce: ReturnType<typeof setTimeout> | null = null;
+if (existsSync('src/worker-tools')) {
+  fs.watch('src/worker-tools', { recursive: true }, () => {
+    if (workerToolsInfoDebounce) clearTimeout(workerToolsInfoDebounce);
+    workerToolsInfoDebounce = setTimeout(() => {
+      info(
+        'Worker tools changed — changes are live in the next task run (no Docker rebuild needed)',
+      );
+    }, 500);
+  });
+}
 
 // ─────────────────────────────────────────────────────
 // Step 6c: Hostfully webhook registration
