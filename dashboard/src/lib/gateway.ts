@@ -1,5 +1,5 @@
 import { GATEWAY_URL, INNGEST_URL } from './constants';
-import type { Archetype, Task, TenantSecret } from './types';
+import type { Archetype, Task, TenantSecret, ToolMetadata } from './types';
 
 export function getAdminApiKey(): string | null {
   return localStorage.getItem('admin_api_key');
@@ -119,4 +119,12 @@ export async function fireApprovalEvent(
     const text = await response.text();
     throw new Error(`Inngest approval event error ${response.status}: ${text}`);
   }
+}
+
+export async function fetchTools(): Promise<{ tools: ToolMetadata[] }> {
+  return gatewayFetch<{ tools: ToolMetadata[] }>('/admin/tools');
+}
+
+export async function fetchTool(service: string, toolName: string): Promise<ToolMetadata> {
+  return gatewayFetch<ToolMetadata>(`/admin/tools/${service}/${toolName}`);
 }

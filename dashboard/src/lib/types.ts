@@ -143,3 +143,29 @@ export interface TenantIntegration {
   updated_at: string;
   deleted_at: string | null;
 }
+
+export interface ToolFlag {
+  name: string;
+  type: 'string' | 'number' | 'boolean';
+  required: boolean;
+  description?: string;
+  default?: string;
+}
+
+export interface ToolEnvVar {
+  name: string;
+  required: boolean;
+}
+
+export interface ToolMetadata {
+  name: string;
+  service: string;
+  containerPath: string;
+  description: string;
+  flags: ToolFlag[];
+  envVars: ToolEnvVar[];
+  outputShape?: string;
+  notes?: string;
+  example?: string;
+  sourceLength: number;
+}
