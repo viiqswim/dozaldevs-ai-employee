@@ -496,7 +496,7 @@ Max Concurrent: 3 (Wave 1)
 
   **Commit**: NO (verification only — no files changed)
 
-- [ ] 5. Scenario A E2E — full happy path with real Hostfully data
+- [x] 5. Scenario A E2E — full happy path with real Hostfully data
 
   **What to do**:
   - Follow `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md` Scenario A steps 1–7 exactly
