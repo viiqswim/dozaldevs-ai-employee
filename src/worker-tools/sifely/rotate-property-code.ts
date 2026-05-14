@@ -65,6 +65,22 @@ function runTool(cmd: string): ToolResult {
   }
 }
 
+function runToolWithRetry(cmd: string, maxAttempts = 3): ToolResult {
+  let lastResult: ToolResult = { stdout: '', success: false, exitCode: 1 };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    lastResult = runTool(cmd);
+    if (lastResult.success) return lastResult;
+    const isRetryable = /\b5\d{2}\b/.test(lastResult.error ?? lastResult.stdout);
+    if (!isRetryable || attempt === maxAttempts) return lastResult;
+    // 3s delay between retries
+    const start = Date.now();
+    while (Date.now() - start < 3000) {
+      /* spin wait */
+    }
+  }
+  return lastResult;
+}
+
 function parseArgs(argv: string[]): { propertyId: string; code: string | null; help: boolean } {
   const args = argv.slice(2);
   let propertyId = '';
@@ -103,6 +119,10 @@ function validateEnv(): void {
 
 function toolPath(name: string): string {
   return path.join(__dirname, name);
+}
+
+function hostfullyToolPath(name: string): string {
+  return path.join(__dirname, '..', 'hostfully', name);
 }
 
 async function main(): Promise<void> {
@@ -203,7 +223,7 @@ async function main(): Promise<void> {
 
   for (const lockId of uniqueLockIds) {
     const listResult = runTool(
-      `pnpm exec tsx ${toolPath('sifely-client.ts')} --action list-passcodes --lock-id ${lockId}`,
+      `pnpm exec tsx ${toolPath('list-passcodes.ts')} --lock-id ${lockId}`,
     );
     if (listResult.success && listResult.stdout.trim()) {
       try {
@@ -267,7 +287,7 @@ async function main(): Promise<void> {
   let hostfullyError: string | null = null;
 
   const hostfullyResult = runTool(
-    `pnpm exec tsx ${toolPath('update-door-code.ts')} --property-id ${propertyId} --code ${newCode}`,
+    `pnpm exec tsx ${hostfullyToolPath('update-door-code.ts')} --property-id ${propertyId} --code ${newCode}`,
   );
 
   if (hostfullyResult.success) {
@@ -288,7 +308,7 @@ async function main(): Promise<void> {
     const lockName = lockRow?.lock_name ?? lockId;
 
     const listResult = runTool(
-      `pnpm exec tsx ${toolPath('sifely-client.ts')} --action list-passcodes --lock-id ${lockId}`,
+      `pnpm exec tsx ${toolPath('list-passcodes.ts')} --lock-id ${lockId}`,
     );
 
     let passcodes: SifelyPasscode[] = [];
@@ -322,8 +342,8 @@ async function main(): Promise<void> {
     );
 
     if (match) {
-      const updateResult = runTool(
-        `pnpm exec tsx ${toolPath('sifely-client.ts')} --action update-passcode --lock-id ${lockId} --passcode-id ${String(match.keyboardPwdId)} --code ${newCode}`,
+      const updateResult = runToolWithRetry(
+        `pnpm exec tsx ${toolPath('update-passcode.ts')} --lock-id ${lockId} --passcode-id ${String(match.keyboardPwdId)} --code ${newCode}`,
       );
 
       if (updateResult.success) {
@@ -343,8 +363,8 @@ async function main(): Promise<void> {
         });
       }
     } else {
-      const createResult = runTool(
-        `pnpm exec tsx ${toolPath('sifely-client.ts')} --action create-passcode --lock-id ${lockId} --name "${expectedPasscodeName}" --code ${newCode}`,
+      const createResult = runToolWithRetry(
+        `pnpm exec tsx ${toolPath('create-passcode.ts')} --lock-id ${lockId} --name "${expectedPasscodeName}" --code ${newCode}`,
       );
 
       if (createResult.success && createResult.stdout.trim()) {
