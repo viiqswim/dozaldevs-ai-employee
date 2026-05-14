@@ -6,7 +6,8 @@ import { Layout } from './components/layout/Layout';
 import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
-import { TriggerPanel } from './panels/trigger/TriggerPanel';
+import { EmployeeList } from './panels/employees/EmployeeList';
+import { EmployeeDetail } from './panels/employees/EmployeeDetail';
 import { TenantOverview } from './panels/tenants/TenantOverview';
 import { PreflightPanel } from './panels/preflight/PreflightPanel';
 import { RulesPanel } from './panels/rules/RulesPanel';
@@ -58,7 +59,8 @@ export default function App() {
             <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
               <Route path="/dashboard" element={<TaskFeed />} />
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
-              <Route path="/dashboard/trigger" element={<TriggerPanel />} />
+              <Route path="/dashboard/employees" element={<EmployeeList />} />
+              <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
               <Route path="/dashboard/tenants" element={<TenantOverview />} />
               <Route path="/dashboard/rules" element={<RulesPanel />} />
               <Route path="/dashboard/preflight" element={<PreflightPanel />} />
