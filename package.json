@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "dashboard:build": "cd dashboard && pnpm install && pnpm build",
     "dev": "tsx scripts/dev.ts",
     "start": "node dist/gateway/server.js",
     "lint": "eslint .",

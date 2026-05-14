@@ -177,7 +177,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   if (fs.existsSync(dashboardDist)) {
     app.use('/dashboard', express.static(dashboardDist));
     app.get('/dashboard', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
-    app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
+    app.get('/dashboard/*path', (_req, res) =>
+      res.sendFile(path.join(dashboardDist, 'index.html')),
+    );
   } else {
     logger.warn('dashboard/dist not found — run pnpm dashboard:build to enable the dashboard UI');
   }
