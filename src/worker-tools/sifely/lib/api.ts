@@ -13,10 +13,15 @@ export interface AccessRecord {
   recordId: number;
   lockId: number;
   recordType: number; // 4=passcode
+  recordTypeFromLock: number;
   success: number; // 1=success, 0=failed
   keyboardPwd: string;
   lockDate: number; // ms since epoch
   serverDate: number;
+  username: string;
+  hotelUsername: string;
+  keyName: string;
+  recordTypeLabel?: string;
 }
 
 export interface SifelyLoginResponse {
@@ -31,8 +36,22 @@ export interface SifelyListResponse<T> {
   list?: T[];
   pageNo?: number;
   pageSize?: number;
+  pages?: number;
+  total?: number;
   code?: number;
   msg?: string;
+}
+
+export interface SifelyPaginatedResponse<T> {
+  code: number;
+  msg?: string;
+  data?: {
+    total: number;
+    pages: number;
+    pageNo: number;
+    pageSize: number;
+    list: T[];
+  };
 }
 
 export interface SifelyPasscodeRaw {
@@ -49,10 +68,14 @@ export interface SifelyAccessRecordRaw {
   recordId: number;
   lockId: number;
   recordType: number;
+  recordTypeFromLock: number;
   success: number;
   keyboardPwd: string;
   lockDate: number;
   serverDate: number;
+  username: string;
+  hotelUsername: string;
+  keyName: string;
 }
 
 export interface SifelyLock {
@@ -174,6 +197,18 @@ export async function withRetry<T>(
 export function assertListSuccess<T>(body: SifelyListResponse<T>, operationName: string): void {
   if (body.code !== undefined) {
     throw new Error(`Sifely ${operationName} error: ${body.msg ?? `code ${body.code}`}`);
+  }
+}
+
+export function assertPaginatedListSuccess<T>(
+  body: SifelyPaginatedResponse<T>,
+  operationName: string,
+): void {
+  if (body.code !== 200) {
+    throw new Error(`Sifely ${operationName} error: ${body.msg ?? `code ${body.code}`}`);
+  }
+  if (!body.data) {
+    throw new Error(`Sifely ${operationName} error: response missing data field`);
   }
 }
 
