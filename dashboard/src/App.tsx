@@ -1,9 +1,11 @@
 import { Component, type ReactNode, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { TenantProvider } from './hooks/use-tenant';
 import { Layout } from './components/layout/Layout';
 import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
+import { TaskDetail } from './panels/tasks/TaskDetail';
 
 function TriggerPlaceholder() {
   return <div className="p-6">Trigger Panel — coming soon</div>;
@@ -62,10 +64,12 @@ export default function App() {
     <ErrorBoundary>
       <TenantProvider>
         <BrowserRouter>
+          <Toaster richColors position="top-right" />
           <ApiKeyPrompt open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
           <Routes>
             <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
               <Route path="/dashboard" element={<TaskFeed />} />
+              <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
               <Route path="/dashboard/trigger" element={<TriggerPlaceholder />} />
               <Route path="/dashboard/tenants" element={<TenantsPlaceholder />} />
               <Route path="/dashboard/rules" element={<RulesPlaceholder />} />
