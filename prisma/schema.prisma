@@ -196,6 +196,8 @@ model Archetype {
   notification_channel   String?  @db.Text
   vm_size             String?   // Per-archetype VM size override (e.g. 'shared-cpu-1x', 'shared-cpu-2x')
   enrichment_adapter  String?   // Name of enrichment adapter to use (e.g. 'hostfully', null for none)
+  pre_check_adapter String?
+  worker_env        Json?
   model             String?
   deliverable_type  String?
 
@@ -442,8 +444,8 @@ model PendingApproval {
   created_at        DateTime  @default(now())
   reminder_sent_at  DateTime? @map("reminder_sent_at")
   urgency           Boolean   @default(false) @map("urgency")
-  guest_name        String?   @map("guest_name")
-  property_name     String?   @map("property_name")
+  recipient_name    String?   @map("recipient_name")
+  context_label     String?   @map("context_label")
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
 
