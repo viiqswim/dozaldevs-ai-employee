@@ -37,3 +37,9 @@ docker/volumes/pooler/
 
 # Playwright MCP browser session artifacts
 .playwright-mcp/
+
+# Dashboard build output and secrets
+dashboard/dist/
+dashboard/.env
+dashboard/vite.config.d.ts
+dashboard/vite.config.js
