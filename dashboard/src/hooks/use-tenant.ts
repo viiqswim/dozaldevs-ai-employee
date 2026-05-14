@@ -15,7 +15,12 @@ interface TenantProviderProps {
 
 export function TenantProvider({ children }: TenantProviderProps) {
   const [tenantId, setTenantIdState] = useState<string>(() => {
-    return localStorage.getItem('selected_tenant_id') ?? DEFAULT_TENANT_ID;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('tenant');
+    if (fromUrl && TENANTS[fromUrl]) return fromUrl;
+    const fromStorage = localStorage.getItem('selected_tenant_id');
+    if (fromStorage && TENANTS[fromStorage]) return fromStorage;
+    return DEFAULT_TENANT_ID;
   });
 
   const setTenantId = (id: string) => {
