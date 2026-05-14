@@ -12,7 +12,7 @@
  * API quirks:
  *   - HTTP 200 on auth failure — MUST check body.code, NOT HTTP status
  *   - List success omits `code` field entirely — presence of `code` = error
- *   - Auth header: "Authorization: Bearer {token}"
+ *   - Auth header: "Authorization: {token}" (no Bearer prefix for write operations)
  */
 
 interface LockPasscode {
@@ -277,22 +277,18 @@ async function listAccessRecords(
   );
 }
 
-async function listLocks(baseUrl: string, token: string, clientId: string): Promise<SifelyLock[]> {
+async function listLocks(baseUrl: string, token: string): Promise<SifelyLock[]> {
   const params = new URLSearchParams({
-    clientId,
-    accessToken: token,
     pageNo: '1',
     pageSize: '1000',
     date: String(Date.now()),
   });
 
-  const response = await fetch(`${baseUrl}/v3/lock/list`, {
+  const response = await fetch(`${baseUrl}/v3/lock/list?${params.toString()}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: token,
     },
-    body: params.toString(),
   });
 
   if (!response.ok) {
@@ -316,7 +312,6 @@ async function listLocks(baseUrl: string, token: string, clientId: string): Prom
 async function createPasscode(
   baseUrl: string,
   token: string,
-  clientId: string,
   lockId: string,
   code: string,
   name: string,
@@ -324,25 +319,21 @@ async function createPasscode(
   endDate: number,
 ): Promise<{ keyboardPwdId: number }> {
   const params = new URLSearchParams({
-    clientId,
-    accessToken: token,
     lockId,
     keyboardPwd: code,
     keyboardPwdName: name,
     startDate: String(startDate),
     endDate: String(endDate),
-    addType: '2',
-    keyboardPwdType: '2',
+    addType: '1',
+    keyboardPwdType: '1',
     date: String(Date.now()),
   });
 
-  const response = await fetch(`${baseUrl}/v3/keyboardPwd/add`, {
+  const response = await fetch(`${baseUrl}/v3/keyboardPwd/add?${params.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${token}`,
+      Authorization: token,
     },
-    body: params.toString(),
   });
 
   if (!response.ok) {
@@ -366,7 +357,6 @@ async function createPasscode(
 async function updatePasscode(
   baseUrl: string,
   token: string,
-  clientId: string,
   lockId: string,
   passcodeId: string,
   name?: string,
@@ -375,11 +365,9 @@ async function updatePasscode(
   newCode?: string,
 ): Promise<{ ok: true }> {
   const params = new URLSearchParams({
-    clientId,
-    accessToken: token,
     lockId,
     keyboardPwdId: passcodeId,
-    changeType: '2',
+    changeType: '1',
     date: String(Date.now()),
   });
 
@@ -396,13 +384,11 @@ async function updatePasscode(
     params.set('newKeyboardPwd', newCode);
   }
 
-  const response = await fetch(`${baseUrl}/v3/keyboardPwd/change`, {
+  const response = await fetch(`${baseUrl}/v3/keyboardPwd/change?${params.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${token}`,
+      Authorization: token,
     },
-    body: params.toString(),
   });
 
   if (!response.ok) {
@@ -426,26 +412,21 @@ async function updatePasscode(
 async function deletePasscode(
   baseUrl: string,
   token: string,
-  clientId: string,
   lockId: string,
   passcodeId: string,
 ): Promise<{ ok: true }> {
   const params = new URLSearchParams({
-    clientId,
-    accessToken: token,
     lockId,
     keyboardPwdId: passcodeId,
-    deleteType: '2',
+    deleteType: '1',
     date: String(Date.now()),
   });
 
-  const response = await fetch(`${baseUrl}/v3/keyboardPwd/delete`, {
+  const response = await fetch(`${baseUrl}/v3/keyboardPwd/delete?${params.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${token}`,
+      Authorization: token,
     },
-    body: params.toString(),
   });
 
   if (!response.ok) {
@@ -573,7 +554,7 @@ async function main(): Promise<void> {
     const records = await listAccessRecords(baseUrl, token, lockId, startMs, endMs);
     process.stdout.write(JSON.stringify(records) + '\n');
   } else if (action === 'list-locks') {
-    const locks = await listLocks(baseUrl, token, clientId);
+    const locks = await listLocks(baseUrl, token);
     process.stdout.write(JSON.stringify(locks) + '\n');
   } else if (action === 'create-passcode') {
     let createStartDate: number;
@@ -612,7 +593,6 @@ async function main(): Promise<void> {
     const result = await createPasscode(
       baseUrl,
       token,
-      clientId,
       lockId,
       code,
       name,
@@ -632,7 +612,6 @@ async function main(): Promise<void> {
     await updatePasscode(
       baseUrl,
       token,
-      clientId,
       lockId,
       passcodeId,
       name || undefined,
@@ -647,7 +626,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    await deletePasscode(baseUrl, token, clientId, lockId, passcodeId);
+    await deletePasscode(baseUrl, token, lockId, passcodeId);
     process.stdout.write(JSON.stringify({ ok: true }) + '\n');
   } else {
     process.stderr.write(
