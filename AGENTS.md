@@ -118,6 +118,33 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 **OpenCode harness CMD** (Fly.io dispatch): `["node", "/app/dist/workers/opencode-harness.mjs"]`
 
+## Skills System
+
+Skills are on-demand knowledge modules loaded by OpenCode agents. Two tiers exist: **employee skills** baked into the Docker image (available to every worker container) and **dev skills** committed to the repo (available to dev-agent sessions).
+
+**How loading works**: OpenCode v1.14.31 uses two-phase loading. Skill names and descriptions are always present in the system prompt (~50 tokens each), giving the agent routing signals. Full skill content is loaded on-demand when the agent calls the `skill` tool. This keeps baseline token cost low while making deep knowledge available when needed.
+
+**Employee skills** — baked into Docker image via `COPY src/workers/skills/ /app/.opencode/skills/`. Shared across all archetypes; no per-archetype filtering.
+
+| Skill                  | Description                                                                                                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool-usage-reference` | Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container (`/tools/slack/`, `/tools/hostfully/`, `/tools/locks/`, `/tools/knowledge_base/`, `/tools/platform/`) |
+| `uuid-disambiguation`  | All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value          |
+
+**Dev skills** — project-level at `.opencode/skills/`, discovered natively by OpenCode from the repo root. Available to dev-agent sessions (not worker containers).
+
+| Skill                 | Description                                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adding-shell-tools`  | File structure, CLI pattern, TypeScript conventions, mock fixture support, Docker integration, and AGENTS.md documentation requirements for new shell tool scripts                                                              |
+| `debugging-lifecycle` | All 13 lifecycle states, auto-pass vs blocking states, stuck-state diagnostics, approval flow debugging, reviewing-watchdog behavior, and admin API commands for task status checking                                           |
+| `creating-archetypes` | All archetype schema fields, seed data patterns, trigger setup, the `loadTenantEnv()` injection pipeline, approved models, and the 4-step checklist for deploying a new employee end-to-end                                     |
+| `hostfully-api`       | Response envelope patterns, known API quirks, shell tool CLI syntax, and UUID disambiguation for Hostfully message retrieval, sending, and property/reservation lookups                                                         |
+| `e2e-testing`         | Prerequisites checklist, per-employee trigger methods, Playwright browser automation via CDP, state verification via `task_status_log`, and the full scenario library (Slack UX scenarios A–F, Feedback Pipeline scenarios A–F) |
+
+**Adding an employee skill**: Create `src/workers/skills/{name}/SKILL.md` with frontmatter (`name` matching the directory, `description` 1–1024 chars). Rebuild the Docker image — the `COPY` instruction picks it up automatically. Name pattern: `^[a-z0-9]+(-[a-z0-9]+)*$`.
+
+**Adding a dev skill**: Create `.opencode/skills/{name}/SKILL.md` with the same frontmatter format. Commit to git — OpenCode discovers it from the project root on the next session.
+
 ## Feedback Pipeline
 
 Thread replies and @mentions on employee Slack messages are captured and handled through a unified pipeline:

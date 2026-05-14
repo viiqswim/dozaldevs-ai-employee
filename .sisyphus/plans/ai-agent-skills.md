@@ -185,7 +185,7 @@ Wave FINAL (4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Create employee skill directory structure (`src/workers/skills/`)
+- [x] 1. Create employee skill directory structure (`src/workers/skills/`)
 
   **What to do**:
   - Create directory `src/workers/skills/` with two subdirectories: `tool-usage-reference/` and `uuid-disambiguation/`
@@ -254,7 +254,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `src/workers/skills/`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Create dev-agent skill directory structure (`.opencode/skills/`)
+- [x] 2. Create dev-agent skill directory structure (`.opencode/skills/`)
 
   **What to do**:
   - Create directory `.opencode/skills/` at the repo root with five subdirectories:
@@ -313,7 +313,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/`
   - Pre-commit: `pnpm build`
 
-- [ ] 3. Update harness `writeOpencodeAuth()` for skill awareness
+- [x] 3. Update harness `writeOpencodeAuth()` for skill awareness
 
   **What to do**:
   - In `src/workers/opencode-harness.mts`, update the `writeOpencodeAuth()` function to:
@@ -390,7 +390,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `src/workers/opencode-harness.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 4. Update Dockerfile to copy skills into container
+- [x] 4. Update Dockerfile to copy skills into container
 
   **What to do**:
   - Add a `COPY` instruction to the Dockerfile that copies `src/workers/skills/` to `/app/.opencode/skills/` in the image
@@ -461,7 +461,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `Dockerfile`
   - Pre-commit: `pnpm build`
 
-- [ ] 5. Dev Skill: adding-shell-tools
+- [x] 5. Dev Skill: adding-shell-tools
 
   **What to do**:
   - Write the full SKILL.md content at `.opencode/skills/adding-shell-tools/SKILL.md`
@@ -540,7 +540,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/adding-shell-tools/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 6. Dev Skill: debugging-lifecycle
+- [x] 6. Dev Skill: debugging-lifecycle
 
   **What to do**:
   - Write the full SKILL.md content at `.opencode/skills/debugging-lifecycle/SKILL.md`
@@ -626,7 +626,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/debugging-lifecycle/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 7. Dev Skill: creating-archetypes
+- [x] 7. Dev Skill: creating-archetypes
 
   **What to do**:
   - Write the full SKILL.md content at `.opencode/skills/creating-archetypes/SKILL.md`
@@ -712,7 +712,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/creating-archetypes/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 8. Dev Skill: hostfully-api
+- [x] 8. Dev Skill: hostfully-api
 
   **What to do**:
   - Write the full SKILL.md content at `.opencode/skills/hostfully-api/SKILL.md`
@@ -786,7 +786,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/hostfully-api/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 9. Dev Skill: e2e-testing
+- [x] 9. Dev Skill: e2e-testing
 
   **What to do**:
   - Write the full SKILL.md content at `.opencode/skills/e2e-testing/SKILL.md`
@@ -858,7 +858,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `.opencode/skills/e2e-testing/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 10. Employee Skill: tool-usage-reference
+- [x] 10. Employee Skill: tool-usage-reference
 
   **What to do**:
   - Write the full SKILL.md content at `src/workers/skills/tool-usage-reference/SKILL.md`
@@ -965,7 +965,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `src/workers/skills/tool-usage-reference/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 11. Employee Skill: uuid-disambiguation
+- [x] 11. Employee Skill: uuid-disambiguation
 
   **What to do**:
   - Write the full SKILL.md content at `src/workers/skills/uuid-disambiguation/SKILL.md`
@@ -1049,7 +1049,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `src/workers/skills/uuid-disambiguation/SKILL.md`
   - Pre-commit: `pnpm lint`
 
-- [ ] 12. Vitest tests for harness skill injection
+- [x] 12. Vitest tests for harness skill injection
 
   **What to do**:
   - Create test file at `tests/workers/skill-injection.test.ts`
@@ -1126,7 +1126,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `tests/workers/skill-injection.test.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 13. Update AGENTS.md with skill system documentation
+- [x] 13. Update AGENTS.md with skill system documentation
 
   **What to do**:
   - Add a new section to `AGENTS.md` documenting the skill system. Place it after the "OpenCode Worker" section (logical location — skills extend the worker capability).
@@ -1189,7 +1189,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `AGENTS.md`
   - Pre-commit: —
 
-- [ ] 14. Docker build + skill discovery verification
+- [x] 14. Docker build + skill discovery verification
 
   **What to do**:
   - Build the Docker image with skills baked in

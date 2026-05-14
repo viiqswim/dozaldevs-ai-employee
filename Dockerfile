@@ -77,6 +77,8 @@ COPY --from=builder /build/package.json ./
 COPY src/workers/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 COPY src/workers/config/opencode.json /app/opencode.json
+# Skills: baked into image for native OpenCode skill discovery
+COPY src/workers/skills/ /app/.opencode/skills/
 COPY src/workers/config/agents.md /app/AGENTS.md
 
 RUN mkdir -p /tools/slack
