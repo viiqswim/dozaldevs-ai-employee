@@ -325,7 +325,7 @@ async function createPasscode(
     startDate: String(startDate),
     endDate: String(endDate),
     addType: '1',
-    keyboardPwdType: '1',
+    keyboardPwdType: '2',
     date: String(Date.now()),
   });
 
