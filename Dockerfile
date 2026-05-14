@@ -83,7 +83,9 @@ RUN mkdir -p /tools/slack
 COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/read-channels.ts
 COPY --from=builder /build/src/worker-tools/slack/post-message.ts /tools/slack/post-message.ts
 COPY --from=builder /build/src/worker-tools/slack/post-guest-approval.ts /tools/slack/post-guest-approval.ts
-RUN npm install --prefix /tools/slack @slack/web-api@^7.15.1
+RUN mkdir -p /tool-deps/slack
+RUN npm install --prefix /tool-deps/slack @slack/web-api@^7.15.1
+ENV NODE_PATH=/tool-deps/slack/node_modules
 
 RUN mkdir -p /tools/hostfully/fixtures/get-messages /tools/hostfully/fixtures/get-reservations /tools/hostfully/fixtures/get-property
 COPY --from=builder /build/src/worker-tools/hostfully/validate-env.ts /tools/hostfully/validate-env.ts
