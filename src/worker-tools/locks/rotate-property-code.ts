@@ -146,6 +146,7 @@ async function main(): Promise<void> {
   try {
     const response = await fetch(url, {
       headers: {
+        apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
       },
@@ -333,7 +334,7 @@ async function main(): Promise<void> {
       }
     } else {
       const createResult = runTool(
-        `pnpm exec tsx ${toolPath('sifely-client.ts')} --action create-passcode --lock-id ${lockId} --name ${expectedPasscodeName} --code ${newCode}`,
+        `pnpm exec tsx ${toolPath('sifely-client.ts')} --action create-passcode --lock-id ${lockId} --name "${expectedPasscodeName}" --code ${newCode}`,
       );
 
       if (createResult.success && createResult.stdout.trim()) {
@@ -379,6 +380,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
+  process.stdout.write(
+    JSON.stringify({ success: false, error: String(err), propertyId: '' }) + '\n',
+  );
   process.stderr.write(`Fatal: ${String(err)}\n`);
   process.exit(1);
 });

@@ -108,22 +108,15 @@ beforeAll(async () => {
       res.writeHead(200);
       res.end(JSON.stringify({ list: [MOCK_LOCK] }));
     } else if (pathname === '/v3/keyboardPwd/add') {
-      let body = '';
-      req.on('data', (chunk) => {
-        body += chunk;
-      });
-      req.on('end', () => {
-        const params = new URLSearchParams(body);
-        const keyboardPwd = params.get('keyboardPwd');
-        res.writeHead(200);
-        if (keyboardPwd === '987654') {
-          res.end(JSON.stringify({ keyboardPwdId: 99999 }));
-        } else if (keyboardPwd === '000000') {
-          res.end(JSON.stringify({ code: 400, msg: 'test error' }));
-        } else {
-          res.end(JSON.stringify({ keyboardPwdId: 77777 }));
-        }
-      });
+      const keyboardPwd = parsedUrl.searchParams.get('keyboardPwd');
+      res.writeHead(200);
+      if (keyboardPwd === '987654') {
+        res.end(JSON.stringify({ keyboardPwdId: 99999 }));
+      } else if (keyboardPwd === '000000') {
+        res.end(JSON.stringify({ code: 400, msg: 'test error' }));
+      } else {
+        res.end(JSON.stringify({ keyboardPwdId: 77777 }));
+      }
     } else if (pathname === '/v3/keyboardPwd/change') {
       let body = '';
       req.on('data', (chunk) => {
