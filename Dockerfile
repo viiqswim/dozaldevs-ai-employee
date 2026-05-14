@@ -109,6 +109,7 @@ COPY --from=builder /build/src/worker-tools/locks/hostfully-door-code.ts /tools/
 COPY --from=builder /build/src/worker-tools/locks/diagnose-access.ts /tools/locks/diagnose-access.ts
 COPY --from=builder /build/src/worker-tools/locks/generate-code.ts /tools/locks/generate-code.ts
 COPY --from=builder /build/src/worker-tools/locks/update-door-code.ts /tools/locks/update-door-code.ts
+COPY --from=builder /build/src/worker-tools/locks/rotate-property-code.ts /tools/locks/rotate-property-code.ts
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
