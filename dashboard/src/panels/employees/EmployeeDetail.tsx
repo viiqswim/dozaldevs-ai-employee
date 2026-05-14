@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MarkdownEditorField } from '../../components/MarkdownEditorField';
+import { MarkdownPreview } from '../../components/MarkdownPreview';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Table,
@@ -394,26 +395,14 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
         <dl className="space-y-4">
           <div>
             <FieldLabel>Instructions</FieldLabel>
-            <dd className="mt-1">
-              {archetype.instructions ? (
-                <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
-                  {archetype.instructions}
-                </pre>
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
+            <dd className="mt-1 rounded-md border bg-muted/10 p-4">
+              <MarkdownPreview content={archetype.instructions ?? ''} />
             </dd>
           </div>
           <div>
             <FieldLabel>System Prompt</FieldLabel>
-            <dd className="mt-1">
-              {archetype.system_prompt ? (
-                <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
-                  {archetype.system_prompt}
-                </pre>
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
+            <dd className="mt-1 rounded-md border bg-muted/10 p-4">
+              <MarkdownPreview content={archetype.system_prompt ?? ''} />
             </dd>
           </div>
           <div>
