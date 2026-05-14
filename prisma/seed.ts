@@ -300,7 +300,7 @@ async function main() {
     'Output the JSON classification.\n\n' +
     'STEP 3.5: Smart lock diagnosis (access/door/lock messages only).\n' +
     'If the guest message category is "access" OR the message text contains any of these keywords: "door", "lock", "code", "can\'t get in", "doesn\'t work", "access", "locked out", "entry", "enter", "open" — run the lock diagnosis tool BEFORE finalizing your draft response.\n\n' +
-    'Run: tsx /tools/locks/diagnose-access.ts --property-id "<hostfully-property-uid from Step 2>"\n\n' +
+    'Run: tsx /tools/sifely/diagnose-access.ts --property-id "<hostfully-property-uid from Step 2>"\n\n' +
     'The tool outputs JSON with this shape:\n' +
     '{\n' +
     '  "hasMismatch": boolean,\n' +
@@ -356,9 +356,9 @@ async function main() {
     'Post an info-only error notification (no approval buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --title "Guest Message Error" --text "Error processing guest message: <error details>"\n' +
     'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n' +
     '--- TOOL REFERENCE: diagnose-access ---\n' +
-    'Tool: tsx /tools/locks/diagnose-access.ts\n' +
+    'Tool: tsx /tools/sifely/diagnose-access.ts\n' +
     'Purpose: Compares the access code stored in Hostfully against the code programmed on the physical smart lock (via Sifely/lock API). Detects mismatches that would cause a guest to be locked out even with the "correct" code.\n' +
-    'CLI usage: tsx /tools/locks/diagnose-access.ts --property-id "<hostfully-property-uid>"\n' +
+    'CLI usage: tsx /tools/sifely/diagnose-access.ts --property-id "<hostfully-property-uid>"\n' +
     'The property-uid comes from the Hostfully message/reservation data (property_id field).\n' +
     'Output shape (JSON to stdout):\n' +
     '  hasMismatch: boolean — true if Hostfully code differs from lock code\n' +
@@ -3301,7 +3301,7 @@ No specific house rules provided.
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
-          '/tools/locks/diagnose-access.ts',
+          '/tools/sifely/diagnose-access.ts',
         ],
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
@@ -3333,7 +3333,7 @@ No specific house rules provided.
           '/tools/slack/read-channels.ts',
           '/tools/platform/report-issue.ts',
           '/tools/knowledge_base/search.ts',
-          '/tools/locks/diagnose-access.ts',
+          '/tools/sifely/diagnose-access.ts',
         ],
       },
       trigger_sources: { type: 'cron_and_webhook', cron_expression: '*/5 * * * *' },
@@ -3393,7 +3393,7 @@ No specific house rules provided.
         'If response.leads is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
         'STEP 4: Rotate the code for each qualifying property SEQUENTIALLY (never in parallel).\n' +
         'For each property that has a checkout today:\n' +
-        '  NODE_NO_WARNINGS=1 tsx /tools/locks/rotate-property-code.ts --property-id <property_external_id>\n' +
+        '  NODE_NO_WARNINGS=1 tsx /tools/sifely/rotate-property-code.ts --property-id <property_external_id>\n' +
         'The tool outputs a single JSON object on stdout. Parse and store it per property.\n' +
         'Output contract:\n' +
         '  {\n' +
@@ -3446,7 +3446,7 @@ No specific house rules provided.
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
-        tools: ['/tools/locks/rotate-property-code.ts', '/tools/slack/post-message.ts'],
+        tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
       },
       trigger_sources: { type: 'manual' },
       risk_model: { approval_required: false, timeout_hours: 2 },
@@ -3494,7 +3494,7 @@ No specific house rules provided.
         'If response.leads is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
         'STEP 4: Rotate the code for each qualifying property SEQUENTIALLY (never in parallel).\n' +
         'For each property that has a checkout today:\n' +
-        '  NODE_NO_WARNINGS=1 tsx /tools/locks/rotate-property-code.ts --property-id <property_external_id>\n' +
+        '  NODE_NO_WARNINGS=1 tsx /tools/sifely/rotate-property-code.ts --property-id <property_external_id>\n' +
         'The tool outputs a single JSON object on stdout. Parse and store it per property.\n' +
         'Output contract:\n' +
         '  {\n' +
@@ -3547,7 +3547,7 @@ No specific house rules provided.
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
-        tools: ['/tools/locks/rotate-property-code.ts', '/tools/slack/post-message.ts'],
+        tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
       },
       trigger_sources: { type: 'manual' },
       risk_model: { approval_required: false, timeout_hours: 2 },

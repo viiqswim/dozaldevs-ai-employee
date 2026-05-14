@@ -20,7 +20,7 @@ Place the file at `src/worker-tools/{service}/{verb}-{noun}.ts`.
 
 - Use the service name as the directory (e.g., `hostfully`, `slack`, `locks`).
 - Use a verb-noun filename that describes the single action (e.g., `get-property.ts`, `send-message.ts`, `list-passcodes.ts`).
-- One file = one primary action. Multi-action tools (like `sifely-client.ts`) are the exception, not the rule — use them only when actions share significant auth/setup logic.
+- One file = one primary action. Each action gets its own file (e.g., `list-passcodes.ts`, `create-passcode.ts`). Avoid multi-action dispatch tools.
 - Do not create subdirectories inside `src/worker-tools/{service}/`.
 
 ### 2. Implement the standard script pattern
@@ -199,7 +199,7 @@ Run these checks in order before considering the tool complete:
 | -------------------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
 | `src/worker-tools/hostfully/get-property.ts` | Simple single-action tool   | Canonical pattern: parseArgs, env validation, parallel fetch, JSON output  |
 | `src/worker-tools/slack/post-message.ts`     | Complex tool with Block Kit | Shows optional args, conditional block generation, `@slack/web-api` import |
-| `src/worker-tools/locks/sifely-client.ts`    | Multi-action tool           | Shows `--action` dispatch pattern for tools with shared auth/setup         |
+| `src/worker-tools/sifely/list-passcodes.ts`  | Single-action tool          | Shows Sifely auth pattern; each action is its own file under `sifely/`     |
 
 ---
 

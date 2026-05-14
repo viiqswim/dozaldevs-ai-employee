@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const TOOL_PATH = '../../src/worker-tools/locks/update-door-code.ts';
+const TOOL_PATH = '../../../src/worker-tools/hostfully/update-door-code.ts';
 
 const PROPERTY_ID = 'prop-uid-test-1234';
 const FIELD_UID = 'field-uid-abc-5678';

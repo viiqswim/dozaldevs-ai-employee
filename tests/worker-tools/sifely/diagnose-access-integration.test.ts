@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/locks/diagnose-access.ts');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../src/worker-tools/sifely/diagnose-access.ts');
 
 const VLRE_TENANT_ID = '00000000-0000-0000-0000-000000000003';
 

@@ -8085,7 +8085,7 @@
           "sifelyDataAvailable": true
         }
       ],
-      "note": "Locks exist on same Sifely account (admin@vlrealestate.co) but only visible via pro-server.sifely.com/v3, not app-smart-server.sifely.com. Our sifely-client.ts uses the latter endpoint."
+      "note": "Locks exist on same Sifely account (admin@vlrealestate.co) but only visible via pro-server.sifely.com/v3, not app-smart-server.sifely.com. The sifely tools under src/worker-tools/sifely/ use the latter endpoint."
     },
     "7213-NUT-4": {
       "hostfullyId": "14f5b23d-8614-4595-a20c-2c783dc408bb",

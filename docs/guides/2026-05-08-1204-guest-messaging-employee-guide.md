@@ -80,7 +80,7 @@ The archetype is seeded in `prisma/seed.ts` (lines 3272-3338). These values driv
 | `read-channels.ts`       | `/tools/slack/read-channels.ts`        | Read Slack channel history               |
 | `report-issue.ts`        | `/tools/platform/report-issue.ts`      | Log platform events                      |
 | `search.ts`              | `/tools/knowledge_base/search.ts`      | Query learned knowledge base             |
-| `diagnose-access.ts`     | `/tools/locks/diagnose-access.ts`      | Diagnose lock/access issues              |
+| `diagnose-access.ts`     | `/tools/sifely/diagnose-access.ts`     | Diagnose lock/access issues              |
 
 **System prompt** (`prisma/prompts/guest-messaging.ts`, 217 lines): Defines the model as a professional guest communication specialist. Includes classification rules (when to use `NEEDS_APPROVAL` vs `NO_ACTION_NEEDED`), tone and style guidelines, formatting rules, polite reply guidance, acknowledgment detection, confidence scoring, and door access handling.
 
@@ -826,7 +826,7 @@ The tenant env loader builds the worker machine environment in this order:
 | `src/worker-tools/hostfully/get-reservations.ts`    | Fetch reservation list                                 |
 | `src/worker-tools/hostfully/send-message.ts`        | Send reply to guest via Hostfully API                  |
 | `src/worker-tools/slack/post-guest-approval.ts`     | Post approval card to Slack                            |
-| `src/worker-tools/locks/diagnose-access.ts`         | Diagnose lock/access issues (conditional)              |
+| `src/worker-tools/sifely/diagnose-access.ts`        | Diagnose lock/access issues (conditional)              |
 | `prisma/seed.ts` (lines 3272-3338)                  | Archetype seed data                                    |
 | `prisma/prompts/guest-messaging.ts`                 | System prompt (217 lines)                              |
 

@@ -6,7 +6,7 @@ import {
   isValidCode,
   describeCode,
   type CodeLength,
-} from '../../src/worker-tools/locks/generate-code.js';
+} from '../../../src/worker-tools/sifely/generate-code.js';
 
 describe('generate-code', () => {
   describe('generateMemorableCode', () => {
