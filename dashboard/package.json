@@ -10,21 +10,27 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@uiw/codemirror-theme-github": "^4.23.10",
+    "@uiw/react-codemirror": "^4.23.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.15.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

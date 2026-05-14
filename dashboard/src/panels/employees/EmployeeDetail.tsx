@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { MarkdownEditorField } from '../../components/MarkdownEditorField';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Table,
@@ -504,28 +505,18 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
       <Separator />
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Instructions
-          </label>
-          <textarea
-            className={textareaClass}
-            rows={10}
-            value={editValues.instructions}
-            onChange={(e) => set('instructions')(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            System Prompt
-          </label>
-          <textarea
-            className={textareaClass}
-            rows={6}
-            value={editValues.system_prompt}
-            onChange={(e) => set('system_prompt')(e.target.value)}
-          />
-        </div>
+        <MarkdownEditorField
+          label="Instructions"
+          value={editValues.instructions}
+          onChange={(v) => set('instructions')(v)}
+          minHeight={400}
+        />
+        <MarkdownEditorField
+          label="System Prompt"
+          value={editValues.system_prompt}
+          onChange={(v) => set('system_prompt')(v)}
+          minHeight={250}
+        />
         <div className="space-y-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Risk Model (JSON)
