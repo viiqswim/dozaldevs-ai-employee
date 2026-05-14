@@ -65,20 +65,23 @@ function runTool(cmd: string): ToolResult {
   }
 }
 
-function parseArgs(argv: string[]): { propertyId: string; help: boolean } {
+function parseArgs(argv: string[]): { propertyId: string; code: string | null; help: boolean } {
   const args = argv.slice(2);
   let propertyId = '';
+  let code: string | null = null;
   let help = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--property-id' && args[i + 1]) {
       propertyId = args[++i] ?? '';
+    } else if (args[i] === '--code' && args[i + 1]) {
+      code = args[++i] ?? null;
     } else if (args[i] === '--help') {
       help = true;
     }
   }
 
-  return { propertyId, help };
+  return { propertyId, code, help };
 }
 
 const REQUIRED_ENV = [
@@ -103,14 +106,16 @@ function toolPath(name: string): string {
 }
 
 async function main(): Promise<void> {
-  const { propertyId, help } = parseArgs(process.argv);
+  const { propertyId, code: overrideCode, help } = parseArgs(process.argv);
 
   if (help) {
     process.stdout.write(
-      'Usage: tsx rotate-property-code.ts --property-id <hostfully-property-uid>\n' +
-        'Rotates the lock code for a single Hostfully property and its Sifely locks.\n\n' +
+      'Usage: tsx rotate-property-code.ts --property-id <hostfully-property-uid> [--code <code>]\n' +
+        'Rotates the lock code for a single Hostfully property and its Sifely locks.\n' +
+        'If --code is provided, that code is used directly (no new code is generated).\n\n' +
         'Options:\n' +
         '  --property-id <uid>  Hostfully property UID (required)\n' +
+        '  --code <code>        Use this specific code instead of generating a new one\n' +
         '  --help               Show this help message\n\n' +
         'Environment variables:\n' +
         '  SUPABASE_URL         PostgREST base URL\n' +
@@ -220,37 +225,42 @@ async function main(): Promise<void> {
     }
   }
 
-  const excludeArg =
-    allCurrentCodes.length > 0 ? `--exclude-codes "${allCurrentCodes.join(',')}"` : '';
-  const generateResult = runTool(
-    `pnpm exec tsx ${toolPath('generate-code.ts')} ${excludeArg}`.trim(),
-  );
-
-  if (!generateResult.success || !generateResult.stdout.trim()) {
-    process.stdout.write(
-      JSON.stringify({
-        success: false,
-        error: `Failed to generate code: ${generateResult.error ?? generateResult.stdout}`,
-        propertyId,
-      }) + '\n',
-    );
-    process.exit(1);
-  }
-
   let newCode: string;
-  try {
-    const genOutput = JSON.parse(generateResult.stdout.trim()) as { code: string };
-    newCode = genOutput.code;
-    if (!newCode) throw new Error('code field missing');
-  } catch {
-    process.stdout.write(
-      JSON.stringify({
-        success: false,
-        error: `Failed to parse generate-code output: ${generateResult.stdout}`,
-        propertyId,
-      }) + '\n',
+
+  if (overrideCode) {
+    newCode = overrideCode;
+  } else {
+    const excludeArg =
+      allCurrentCodes.length > 0 ? `--exclude-codes "${allCurrentCodes.join(',')}"` : '';
+    const generateResult = runTool(
+      `pnpm exec tsx ${toolPath('generate-code.ts')} ${excludeArg}`.trim(),
     );
-    process.exit(1);
+
+    if (!generateResult.success || !generateResult.stdout.trim()) {
+      process.stdout.write(
+        JSON.stringify({
+          success: false,
+          error: `Failed to generate code: ${generateResult.error ?? generateResult.stdout}`,
+          propertyId,
+        }) + '\n',
+      );
+      process.exit(1);
+    }
+
+    try {
+      const genOutput = JSON.parse(generateResult.stdout.trim()) as { code: string };
+      newCode = genOutput.code;
+      if (!newCode) throw new Error('code field missing');
+    } catch {
+      process.stdout.write(
+        JSON.stringify({
+          success: false,
+          error: `Failed to parse generate-code output: ${generateResult.stdout}`,
+          propertyId,
+        }) + '\n',
+      );
+      process.exit(1);
+    }
   }
 
   let hostfullyUpdated = false;

@@ -328,7 +328,7 @@ FINAL:  F1, F2, F3 — parallel
   - **Blocks**: F1-F3
   - **Blocked By**: Task 4
 
-- [ ] 6. Notify completion — Send Telegram notification: plan `code-rotation-fix` complete.
+- [x] 6. Notify completion — Send Telegram notification: plan `code-rotation-fix` complete.
 
 ---
 
@@ -336,15 +336,15 @@ FINAL:  F1, F2, F3 — parallel
 
 > 3 review agents run in PARALLEL. ALL must APPROVE.
 
-- [ ] F1. **Code Quality Review** — `oracle`
+- [x] F1. **Code Quality Review** — `oracle`
       Read all changed/new files. Verify: no stubs, no TODOs, error handling is complete, JSON output contract is correct, child process calls are properly wrapped. Check that `sifely-client.ts` fix actually sends `keyboardPwdType: '2'`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Build + Test Verification** — `unspecified-high`
+- [x] F2. **Build + Test Verification** — `unspecified-high`
       Run `pnpm lint`, `pnpm build`, `pnpm test -- --run`. All must pass. Check for new TypeScript errors via `lsp_diagnostics`.
       Output: `Lint [PASS/FAIL] | Build [PASS/FAIL] | Tests [N pass, N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Trigger code-rotation via admin API. Verify: task reaches Done, lock 24572672 has a new code (different from before), Hostfully door_code updated, Slack notification posted. The employee should ONLY process properties with checkout today (not all 46+). If no properties have checkout today, the employee should complete quickly with "no properties need rotation" summary.
       Output: `Scenarios [N/N pass] | VERDICT`
 
