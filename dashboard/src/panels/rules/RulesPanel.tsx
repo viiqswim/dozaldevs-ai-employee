@@ -1,7 +1,14 @@
-import { useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -14,7 +21,7 @@ import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
-import type { EmployeeRule, FeedbackEvent } from '@/lib/types';
+import type { Archetype, EmployeeRule, FeedbackEvent } from '@/lib/types';
 
 function is403(err: Error): boolean {
   return err.message.includes('403') || err.message.toLowerCase().includes('permission denied');
@@ -127,17 +134,18 @@ function EventTypeBadge({ type }: { type: FeedbackEvent['event_type'] }) {
   );
 }
 
-function RulesTab() {
+function RulesTab({ archetypeId }: { archetypeId: string }) {
   const { tenantId } = useTenant();
 
   const fetchRules = useCallback(
     () =>
       postgrestFetch<EmployeeRule>('employee_rules', {
         ...scopeByTenant(tenantId),
+        archetype_id: `eq.${archetypeId}`,
         order: 'created_at.desc',
         limit: '100',
       }),
-    [tenantId],
+    [tenantId, archetypeId],
   );
 
   const { data: rules, error, loading, refresh } = usePoll(fetchRules);
@@ -206,17 +214,18 @@ function RulesTab() {
   );
 }
 
-function FeedbackEventsTab() {
+function FeedbackEventsTab({ archetypeId }: { archetypeId: string }) {
   const { tenantId } = useTenant();
 
   const fetchEvents = useCallback(
     () =>
       postgrestFetch<FeedbackEvent>('feedback_events', {
         ...scopeByTenant(tenantId),
+        archetype_id: `eq.${archetypeId}`,
         order: 'created_at.desc',
         limit: '100',
       }),
-    [tenantId],
+    [tenantId, archetypeId],
   );
 
   const { data: events, error, loading, refresh } = usePoll(fetchEvents);
@@ -286,20 +295,77 @@ function FeedbackEventsTab() {
 }
 
 export function RulesPanel() {
+  const { tenantId } = useTenant();
+  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>('');
+
+  const fetchArchetypes = useCallback(
+    () =>
+      postgrestFetch<Pick<Archetype, 'id' | 'role_name'>>('archetypes', {
+        ...scopeByTenant(tenantId),
+        select: 'id,role_name',
+        order: 'role_name.asc',
+      }),
+    [tenantId],
+  );
+
+  const { data: archetypes, loading: archetypesLoading } = usePoll(fetchArchetypes);
+
+  useEffect(() => {
+    if (archetypes && archetypes.length > 0 && !selectedArchetypeId) {
+      setSelectedArchetypeId(archetypes[0].id);
+    }
+  }, [archetypes, selectedArchetypeId]);
+
+  useEffect(() => {
+    setSelectedArchetypeId('');
+  }, [tenantId]);
+
   return (
-    <div className="p-6">
-      <Tabs defaultValue="rules">
-        <TabsList className="mb-4">
-          <TabsTrigger value="rules">Rules</TabsTrigger>
-          <TabsTrigger value="feedback">Feedback Events</TabsTrigger>
-        </TabsList>
-        <TabsContent value="rules">
-          <RulesTab />
-        </TabsContent>
-        <TabsContent value="feedback">
-          <FeedbackEventsTab />
-        </TabsContent>
-      </Tabs>
+    <div className="space-y-4 p-6">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-muted-foreground">Employee:</span>
+        {archetypesLoading ? (
+          <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+        ) : archetypes && archetypes.length > 0 ? (
+          <Select value={selectedArchetypeId} onValueChange={setSelectedArchetypeId}>
+            <SelectTrigger className="h-8 w-48 text-xs">
+              <SelectValue placeholder="Select employee" />
+            </SelectTrigger>
+            <SelectContent>
+              {archetypes.map((a) => (
+                <SelectItem key={a.id} value={a.id} className="text-xs">
+                  {a.role_name ?? a.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm text-muted-foreground">No archetypes found for this tenant</span>
+        )}
+      </div>
+
+      {selectedArchetypeId ? (
+        <Tabs defaultValue="rules">
+          <TabsList className="mb-4">
+            <TabsTrigger value="rules">Rules</TabsTrigger>
+            <TabsTrigger value="feedback">Feedback Events</TabsTrigger>
+          </TabsList>
+          <TabsContent value="rules">
+            <RulesTab archetypeId={selectedArchetypeId} />
+          </TabsContent>
+          <TabsContent value="feedback">
+            <FeedbackEventsTab archetypeId={selectedArchetypeId} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        !archetypesLoading && (
+          <div className="flex items-center justify-center py-16 text-center">
+            <p className="text-sm text-muted-foreground">
+              Select an employee above to view rules and feedback
+            </p>
+          </div>
+        )
+      )}
     </div>
   );
 }
