@@ -7,17 +7,11 @@ import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
 import { TriggerPanel } from './panels/trigger/TriggerPanel';
+import { PreflightPanel } from './panels/preflight/PreflightPanel';
+import { RulesPanel } from './panels/rules/RulesPanel';
 
 function TenantsPlaceholder() {
   return <div className="p-6">Tenant Overview — coming soon</div>;
-}
-
-function RulesPlaceholder() {
-  return <div className="p-6">Rules &amp; Feedback — coming soon</div>;
-}
-
-function PreflightPlaceholder() {
-  return <div className="p-6">Preflight Check — coming soon</div>;
 }
 
 interface ErrorBoundaryProps {
@@ -69,8 +63,8 @@ export default function App() {
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
               <Route path="/dashboard/trigger" element={<TriggerPanel />} />
               <Route path="/dashboard/tenants" element={<TenantsPlaceholder />} />
-              <Route path="/dashboard/rules" element={<RulesPlaceholder />} />
-              <Route path="/dashboard/preflight" element={<PreflightPlaceholder />} />
+              <Route path="/dashboard/rules" element={<RulesPanel />} />
+              <Route path="/dashboard/preflight" element={<PreflightPanel />} />
             </Route>
           </Routes>
         </BrowserRouter>
