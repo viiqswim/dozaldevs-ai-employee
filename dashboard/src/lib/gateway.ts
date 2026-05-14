@@ -1,5 +1,5 @@
 import { GATEWAY_URL, INNGEST_URL } from './constants';
-import type { Task, TenantSecret } from './types';
+import type { Archetype, Task, TenantSecret } from './types';
 
 export function getAdminApiKey(): string | null {
   return localStorage.getItem('admin_api_key');
@@ -68,6 +68,30 @@ export async function setSecret(tenantId: string, key: string, value: string): P
   await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/secrets/${key}`, {
     method: 'PUT',
     body: JSON.stringify({ value }),
+  });
+}
+
+export async function patchArchetype(
+  tenantId: string,
+  archetypeId: string,
+  data: Partial<
+    Pick<
+      Archetype,
+      | 'role_name'
+      | 'model'
+      | 'runtime'
+      | 'instructions'
+      | 'system_prompt'
+      | 'notification_channel'
+      | 'vm_size'
+      | 'deliverable_type'
+      | 'concurrency_limit'
+    > & { risk_model?: Record<string, unknown> }
+  >,
+): Promise<Archetype> {
+  return gatewayFetch<Archetype>(`/admin/tenants/${tenantId}/archetypes/${archetypeId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 }
 
