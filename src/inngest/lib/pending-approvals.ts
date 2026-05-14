@@ -8,8 +8,8 @@ export interface PendingApproval {
   slackTs: string;
   channelId: string;
   createdAt: string;
-  guestName?: string;
-  propertyName?: string;
+  recipientName?: string;
+  contextLabel?: string;
   urgency?: boolean;
 }
 
@@ -19,8 +19,8 @@ export interface PendingApprovalData {
   taskId: string;
   slackTs: string;
   channelId: string;
-  guestName?: string;
-  propertyName?: string;
+  recipientName?: string;
+  contextLabel?: string;
   urgency?: boolean;
 }
 
@@ -53,8 +53,8 @@ export async function getPendingApproval(
     slackTs: row['slack_ts'] as string,
     channelId: row['channel_id'] as string,
     createdAt: row['created_at'] as string,
-    guestName: row['guest_name'] as string | undefined,
-    propertyName: row['property_name'] as string | undefined,
+    recipientName: row['recipient_name'] as string | undefined,
+    contextLabel: row['context_label'] as string | undefined,
     urgency: row['urgency'] as boolean | undefined,
   };
 }
@@ -77,8 +77,8 @@ export async function trackPendingApproval(
       task_id: data.taskId,
       slack_ts: data.slackTs,
       channel_id: data.channelId,
-      guest_name: data.guestName ?? null,
-      property_name: data.propertyName ?? null,
+      recipient_name: data.recipientName ?? null,
+      context_label: data.contextLabel ?? null,
       urgency: data.urgency ?? false,
     }),
   });
@@ -134,8 +134,8 @@ export async function getStaleApprovals(
     slackTs: row['slack_ts'] as string,
     channelId: row['channel_id'] as string,
     createdAt: row['created_at'] as string,
-    guestName: row['guest_name'] as string | undefined,
-    propertyName: row['property_name'] as string | undefined,
+    recipientName: row['recipient_name'] as string | undefined,
+    contextLabel: row['context_label'] as string | undefined,
     urgency: row['urgency'] as boolean | undefined,
   }));
 }
