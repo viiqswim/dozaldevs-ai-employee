@@ -122,6 +122,18 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 Skills are on-demand knowledge modules loaded by OpenCode agents. Two tiers exist: **employee skills** baked into the Docker image (available to every worker container) and **dev skills** committed to the repo (available to dev-agent sessions).
 
+**How to use skills (READ THIS FIRST)**: Before starting any non-trivial task, scan the skill list below and ask: "Does this skill's domain overlap with what I'm about to do?" If yes, call `skill(name="skill-name")` at the start of your work to load the full content. Skills are free to load — they exist specifically to prevent the most common errors and misunderstandings in this codebase. When in doubt, load the skill.
+
+| If you are about to…                                              | Load this skill        |
+| ----------------------------------------------------------------- | ---------------------- |
+| Create or modify a shell tool in `src/worker-tools/`              | `adding-shell-tools`   |
+| Debug a stuck or failed task in the lifecycle                     | `debugging-lifecycle`  |
+| Add or configure a new employee archetype                         | `creating-archetypes`  |
+| Call any Hostfully API or fix a Hostfully integration             | `hostfully-api`        |
+| Run or write E2E tests                                            | `e2e-testing`          |
+| Call any shell tool inside a worker container                     | `tool-usage-reference` |
+| Pass UUIDs (lead_uid, thread_uid, property_uid, etc.) to any tool | `uuid-disambiguation`  |
+
 **How loading works**: OpenCode v1.14.31 uses two-phase loading. Skill names and descriptions are always present in the system prompt (~50 tokens each), giving the agent routing signals. Full skill content is loaded on-demand when the agent calls the `skill` tool. This keeps baseline token cost low while making deep knowledge available when needed.
 
 **Employee skills** — baked into Docker image via `COPY src/workers/skills/ /app/.opencode/skills/`. Shared across all archetypes; no per-archetype filtering.
