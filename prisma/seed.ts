@@ -3387,10 +3387,11 @@ No specific house rules provided.
         'If the array is empty, write "No property-lock mappings found." to /tmp/summary.txt and stop.\n\n' +
         'STEP 3: For each unique property_external_id, check if there is a checkout today.\n' +
         'Call the Hostfully leads API:\n' +
-        '  curl -s -H "Authorization: Bearer $HOSTFULLY_API_KEY" \\\n' +
-        '    "https://api.hostfully.com/v3.2/leads?propertyUid=<property_external_id>&checkOutDate=<TODAY>"\n' +
-        'If the response JSON array is empty → this property has no checkout today → SKIP it (do not rotate).\n' +
-        'If the response array is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
+        '  curl -s -H "X-HOSTFULLY-APIKEY: $HOSTFULLY_API_KEY" \\\n' +
+        '    "https://api.hostfully.com/api/v3.2/leads?propertyUid=<property_external_id>&checkOutDate=<TODAY>"\n' +
+        'The response is a JSON object with a "leads" array: { "leads": [...], "_metadata": {...} }\n' +
+        'If response.leads is empty or missing → this property has no checkout today → SKIP it (do not rotate).\n' +
+        'If response.leads is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
         'STEP 4: Rotate the code for each qualifying property SEQUENTIALLY (never in parallel).\n' +
         'For each property that has a checkout today:\n' +
         '  NODE_NO_WARNINGS=1 tsx /tools/locks/rotate-property-code.ts --property-id <property_external_id>\n' +
@@ -3487,10 +3488,11 @@ No specific house rules provided.
         'If the array is empty, write "No property-lock mappings found." to /tmp/summary.txt and stop.\n\n' +
         'STEP 3: For each unique property_external_id, check if there is a checkout today.\n' +
         'Call the Hostfully leads API:\n' +
-        '  curl -s -H "Authorization: Bearer $HOSTFULLY_API_KEY" \\\n' +
-        '    "https://api.hostfully.com/v3.2/leads?propertyUid=<property_external_id>&checkOutDate=<TODAY>"\n' +
-        'If the response JSON array is empty → this property has no checkout today → SKIP it (do not rotate).\n' +
-        'If the response array is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
+        '  curl -s -H "X-HOSTFULLY-APIKEY: $HOSTFULLY_API_KEY" \\\n' +
+        '    "https://api.hostfully.com/api/v3.2/leads?propertyUid=<property_external_id>&checkOutDate=<TODAY>"\n' +
+        'The response is a JSON object with a "leads" array: { "leads": [...], "_metadata": {...} }\n' +
+        'If response.leads is empty or missing → this property has no checkout today → SKIP it (do not rotate).\n' +
+        'If response.leads is non-empty → this property has at least one checkout today → it qualifies for rotation.\n\n' +
         'STEP 4: Rotate the code for each qualifying property SEQUENTIALLY (never in parallel).\n' +
         'For each property that has a checkout today:\n' +
         '  NODE_NO_WARNINGS=1 tsx /tools/locks/rotate-property-code.ts --property-id <property_external_id>\n' +
