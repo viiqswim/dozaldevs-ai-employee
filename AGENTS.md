@@ -73,6 +73,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/locks/sifely-client.ts --action delete-passcode --lock-id <id> --passcode-id <id>` — delete a passcode
   - `tsx /tools/locks/generate-code.ts [--length 4|5|6] [--exclude-codes "1221,2332"]` — generate a memorable lock code using mirror (ABBA) or rhythm (ABAB) patterns; output: JSON `{"code":"1221","pattern":"mirror","length":4,"description":"..."}`
   - `tsx /tools/locks/update-door-code.ts --property-id <hostfully-property-uid> --code <new-door-code>` — write a new door_code value to a Hostfully property's custom data field; output: JSON `{"success":true,"propertyId":"...","previousCode":"...","newCode":"..."}`
+  - `tsx /tools/locks/rotate-property-code.ts --property-id <hostfully-property-uid>` — rotate the lock code for a single property: generates a new memorable code, updates the Hostfully door_code field, and rotates the Sifely passcode for all associated locks; output: JSON `{"success":true,"propertyId":"...","newCode":"1221","hostfullyUpdated":true,"locks":[...]}`
 - **Hostfully tools**: `src/worker-tools/hostfully/` — pre-installed in Docker image at `/tools/hostfully/`. Hostfully API integration: message retrieval (`get-messages.ts --lead-id <uid>`), message sending (`send-message.ts`), property/reservation/review lookups, webhook registration, environment validation. `get-messages.ts` output includes `reservationId`, `propertyUid`, `guestName`, `channel`, `checkIn`, `checkOut`, `leadStatus`, `unresponded`, and `messages[]` per thread — `propertyUid` is used to call `get-property.ts` and `get-reservations.ts` in Step 2 of the guest-messaging workflow.
 - **Knowledge base tools**: `src/worker-tools/knowledge_base/` — pre-installed in Docker image at `/tools/knowledge_base/`. Knowledge base search tool (`search.ts`) for querying tenant-scoped learned knowledge.
 - **Platform tools**: `src/worker-tools/platform/` — pre-installed in Docker image at `/tools/platform/`. Platform infrastructure tool (`report-issue.ts`) for logging system events.
@@ -475,7 +476,7 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 - **Notification channel**: `C0960S2Q8RL` · **concurrency_limit**: 1
 - **Trigger**: Manual only via admin API
 
-**What it does**: Fetches all property-lock mappings from the `property_locks` DB table, generates a memorable code per property using `generate-code.ts` (mirror/rhythm patterns, 4-6 digits), updates the Hostfully door code first via `update-door-code.ts`, then rotates the matching Sifely lock passcode in-place via `sifely-client.ts`. Posts a Slack summary with per-property results to the notification channel when done.
+**What it does**: Gets today's date, queries Hostfully for properties with a checkout today, then calls `rotate-property-code.ts` once per qualifying property. Each call generates a new memorable code, updates the Hostfully door_code, and rotates the matching Sifely passcode. Posts a Slack summary with per-property results when done. Properties with no checkout today are skipped entirely.
 
 **Trigger manually** (admin API):
 

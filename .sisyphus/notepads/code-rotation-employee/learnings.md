@@ -177,6 +177,48 @@
 F3 (Real Manual QA) remains blocked. Checked credentials 4 times across multiple boulder continuation cycles. `sifely_username` and `sifely_password` are NOT in VLRE tenant_secrets as of this check. Plan is at 12/13. No further progress possible without user action.
 
 Required user actions:
+
 1. `curl -X PUT .../secrets/sifely_username -d '{"value":"<creds>"}'`
 2. `curl -X PUT .../secrets/sifely_password -d '{"value":"<creds>"}'`
 3. Re-add VLRE Slack bot to channel C0960S2Q8RL
+
+## [2026-05-13] CRITICAL CORRECTIONS — User Feedback
+
+### Architectural Error: Employee Rotates ALL Properties
+
+The archetype instructions tell the employee to query ALL property_locks rows and process every single property. This is WRONG:
+
+- Rotating ALL properties on every run would change codes for active guests mid-stay
+- Employee should ONLY rotate codes for properties with a checkout TODAY
+- The employee ran against all 46+ VLRE property-lock mappings, taking 20-30 min per run
+
+### Sifely API: createPasscode Returns Type 3 (Timed), Not Type 2 (Permanent)
+
+- `createPasscode()` sends `addType: '2'` and `startDate: Date.now(), endDate: 0`
+- Sifely API returns passcode with `keyboardPwdType: 3` (timed) instead of 2 (permanent)
+- Likely cause: `endDate: 0` with non-zero `startDate` is interpreted as timed by the API
+- The employee's instructions filter for `keyboardPwdType === 2` only — so it never finds passcodes it just created
+- Need to investigate: what params produce actual type 2? Does `startDate: 0, endDate: 0` work?
+
+### User's Directive: Single-Property Rotation Tool
+
+User explicitly requested:
+
+1. Create a SINGLE shell tool that rotates codes for ONE property at a time
+2. The tool must handle Sifely errors gracefully and REPORT them (not swallow)
+3. Must be tested until it actually works before touching the employee
+4. Only properties with checkout today should be processed
+
+### Test Data State After Multiple Runs
+
+- Lock 24572672: `permanent-visitor-home` passcode (ID 75577894) was DELETED by one of the runs
+- Lock 5447540: some codes changed (home 8686→80508, room-2 3464→591195, room-3 1010→3553)
+- Lock 4302846: some codes changed (home 8686→80508, room-1 69096→10101, room-2 9559→591195)
+- Hostfully door_code for c960c8d2: now exists (user created it), value was `4545`, accidentally overwritten to "CHECK" then restored to `4545`
+- Lock 24572672 added to property_locks in seed.ts (commit pending)
+
+### DB Changes Made
+
+- Lock 24572672 added to `property_locks` via SQL INSERT (runtime)
+- Lock 24572672 added to `prisma/seed.ts` (file edit, not yet committed)
+- `scripts/decrypt-secret.ts` deleted (stray file from earlier subagent)
