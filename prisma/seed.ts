@@ -145,7 +145,6 @@ async function main() {
     'hostfully_agency_uid',
     '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
   );
-  await seedSecret('00000000-0000-0000-0000-000000000003', 'hostfully_mock', 'true');
   const vlreSlackBotToken = process.env.VLRE_SLACK_BOT_TOKEN;
   if (!vlreSlackBotToken) {
     console.warn(
