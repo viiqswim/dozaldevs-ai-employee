@@ -875,7 +875,7 @@ Task 27: Notify completion via Telegram
   - Message: `refactor(worker-tools): split sifely-client into individual tools`
   - Files: 6 new tools, diagnose-access.ts, rotate-property-code.ts, deleted sifely-client.ts
 
-- [ ] 13. Update + move test files
+- [x] 13. Update + move test files
 
   **What to do**:
   - Move test directory: `git mv tests/worker-tools/locks/ tests/worker-tools/sifely/`
@@ -932,7 +932,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 14. Update Dockerfile
+- [x] 14. Update Dockerfile
 
   **What to do**:
   - Replace lines 106-112 in `Dockerfile`:
@@ -988,7 +988,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 15. Update `prisma/seed.ts` — archetype instructions + tools arrays
+- [x] 15. Update `prisma/seed.ts` — archetype instructions + tools arrays
 
   **What to do**:
   - Find-and-replace all `/tools/locks/` → `/tools/sifely/` in archetype `instructions` strings and `tools[]` arrays
@@ -1040,7 +1040,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 16. Update AGENTS.md
+- [x] 16. Update AGENTS.md
 
   **What to do**:
   - Replace the "Lock tools" section (lines 67-76) with a "Sifely tools" section
@@ -1092,7 +1092,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 17. Update documentation files
+- [x] 17. Update documentation files
 
   **What to do**:
   - Update these 4 docs (none are snapshots — all editable):
@@ -1133,7 +1133,7 @@ Task 27: Notify completion via Telegram
   - Files: Dockerfile, seed.ts, AGENTS.md, test files, doc files
   - Pre-commit: `pnpm lint`
 
-- [ ] 18. Re-seed DB + Docker rebuild + full test suite
+- [x] 18. Re-seed DB + Docker rebuild + full test suite
 
   **What to do**:
   - Run `pnpm prisma db seed` to update archetype instructions in the dev database
@@ -1216,7 +1216,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only — no new code)
 
-- [ ] 19. Live test `list-locks.ts` against Sifely API
+- [x] 19. Live test `list-locks.ts` against Sifely API
 
   **What to do**:
   - **SAFETY**: Use ONLY the designated test lock (`24572672`) for verification. Do NOT modify any lock.
@@ -1272,7 +1272,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 20. Live test `list-passcodes.ts` against Sifely API
+- [x] 20. Live test `list-passcodes.ts` against Sifely API
 
   **What to do**:
   - Set Sifely credentials as env vars
@@ -1324,7 +1324,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 21. Live test `list-access-records.ts` against Sifely API
+- [x] 21. Live test `list-access-records.ts` against Sifely API
 
   **What to do**:
   - Set Sifely credentials as env vars
@@ -1375,7 +1375,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 22. Live test `generate-code.ts` (no API — local generation)
+- [x] 22. Live test `generate-code.ts` (no API — local generation)
 
   **What to do**:
   - No Sifely credentials needed — this tool generates codes locally
@@ -1427,7 +1427,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 23. Live test `diagnose-access.ts` against Sifely + Hostfully API
+- [x] 23. Live test `diagnose-access.ts` against Sifely + Hostfully API
 
   **What to do**:
   - Requires BOTH Sifely credentials AND Hostfully credentials
@@ -1493,7 +1493,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 24. Live test `create-passcode.ts` — create permanent passcode on test lock
+- [x] 24. Live test `create-passcode.ts` — create permanent passcode on test lock
 
   **What to do**:
   - **SAFETY**: Use ONLY lock ID `24572672`. No other lock.
@@ -1553,7 +1553,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 25. Live test `update-passcode.ts` — update the test passcode
+- [x] 25. Live test `update-passcode.ts` — update the test passcode
 
   **What to do**:
   - **SAFETY**: Use ONLY lock ID `24572672`. No other lock.
@@ -1615,7 +1615,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 26. Live test `delete-passcode.ts` — delete the test passcode + verify cleanup
+- [x] 26. Live test `delete-passcode.ts` — delete the test passcode + verify cleanup
 
   **What to do**:
   - **SAFETY**: Use ONLY lock ID `24572672`. No other lock.
@@ -1675,7 +1675,7 @@ Task 27: Notify completion via Telegram
 
   **Commit**: NO (verification only)
 
-- [ ] 27. **Notify completion** — Send Telegram notification: plan `sifely-tool-restructure` complete, all tasks done, come back to review results.
+- [x] 27. **Notify completion** — Send Telegram notification: plan `sifely-tool-restructure` complete, all tasks done, come back to review results.
 
 ---
 
@@ -1683,19 +1683,19 @@ Task 27: Notify completion via Telegram
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + linter + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify every `lib/api.ts` import resolves correctly.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Run `--help` on EVERY new tool inside Docker container. Run `pnpm prisma db seed` twice (idempotency). Verify `rotate-property-code.ts --help` still works. Verify `diagnose-access.ts --help` still works. Check no orphaned files in old `locks/` directory. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Tools [N/N help pass] | Seed [idempotent/broken] | Orphans [CLEAN/N files] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Verify no `--type timed` anywhere in new tools. Verify no files remain at `src/worker-tools/locks/`. Verify `sifely-client.ts` is fully deleted.
       Output: `Tasks [N/N compliant] | Guardrails [N/N clean] | Orphans [CLEAN/N] | VERDICT`
 
