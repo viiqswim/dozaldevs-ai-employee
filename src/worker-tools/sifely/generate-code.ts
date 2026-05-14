@@ -196,28 +196,7 @@ const AVAILABLE_FAMILIES: CodePatternFamily[] = ['mirror', 'rhythm'];
  * @throws Error if no valid code could be generated within `maxAttempts`
  */
 export function generateMemorableCode(options: GenerateCodeOptions = {}): string {
-  const { length, excludeCodes = [], maxAttempts = 100 } = options;
-  const excludeSet = new Set(excludeCodes);
-
-  for (let i = 0; i < maxAttempts; i++) {
-    const chosenLength: CodeLength =
-      length ??
-      (AVAILABLE_LENGTHS[Math.floor(Math.random() * AVAILABLE_LENGTHS.length)] as CodeLength);
-
-    const family: CodePatternFamily = AVAILABLE_FAMILIES[
-      Math.floor(Math.random() * AVAILABLE_FAMILIES.length)
-    ] as CodePatternFamily;
-
-    const code = GENERATORS[chosenLength][family]();
-
-    if (isValidCode(code, chosenLength) && !isWeakCode(code) && !excludeSet.has(code)) {
-      return code;
-    }
-  }
-
-  throw new Error(
-    `Failed to generate a valid memorable code after ${String(maxAttempts)} attempts`,
-  );
+  return generateMemorableCodeWithMeta(options).code;
 }
 
 /**
