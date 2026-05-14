@@ -13,10 +13,12 @@
 > - `docs/guides/slack-tenant-integration.md` — Slack OAuth + per-tenant token architecture
 > - Updated README.md with onboarding content migrated from AGENTS.md
 > - Updated `prisma/seed.ts` to stay in sync
+> - DB verification proving lean content reaches agents
+> - Success metrics report with before/after stats
 >
 > **Estimated Effort**: Medium
-> **Parallel Execution**: YES — 4 waves
-> **Critical Path**: Task 1 → Wave 2 extractions → Task 8 (core rewrite) → Task 9 (seed.ts) → Verification
+> **Parallel Execution**: YES — 4 waves (12 tasks + 4 final verification)
+> **Critical Path**: Task 1 → Wave 2 extractions → Task 9 (core rewrite) → Task 10 (seed.ts) → Task 11 (DB verify) → Task 12 (metrics) → Verification
 
 ---
 
@@ -153,7 +155,9 @@ Wave 2 (After Wave 1 — verbatim extraction, MAX PARALLEL):
 
 Wave 3 (After Wave 2 — core rewrite, SEQUENTIAL):
 ├── Task 9: Rewrite AGENTS.md as lean hub (depends: 2, 4-8) [deep]
-└── Task 10: Update seed.ts + run validation (depends: 9) [quick]
+├── Task 10: Update seed.ts + run validation (depends: 9) [quick]
+├── Task 11: Verify DB content reaches agents (depends: 10) [unspecified-high]
+└── Task 12: Compile success metrics report (depends: 11) [unspecified-high]
 
 Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 ├── Task F1: Plan compliance audit (oracle)
@@ -163,8 +167,8 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 -> Present results -> Get explicit user okay
 ```
 
-**Critical Path**: Task 1 → Task 4-8 (parallel) → Task 9 → Task 10 → F1-F4 → user okay
-**Parallel Speedup**: ~60% faster than sequential
+**Critical Path**: Task 1 → Task 4-8 (parallel) → Task 9 → Task 10 → Task 11 → Task 12 → F1-F4 → user okay
+**Parallel Speedup**: ~55% faster than sequential
 **Max Concurrent**: 5 (Wave 2)
 
 ### Dependency Matrix
@@ -180,20 +184,22 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 | 7 (Slack extract)         | 3          | 9          |
 | 8 (README append)         | —          | 9          |
 | 9 (AGENTS.md rewrite)     | 1, 2, 4-8  | 10         |
-| 10 (seed.ts sync)         | 9          | F1-F4      |
+| 10 (seed.ts sync)         | 9          | 11         |
+| 11 (DB verification)      | 10         | 12         |
+| 12 (Metrics report)       | 11         | F1-F4      |
 
 ### Agent Dispatch Summary
 
 - **Wave 1**: **3 tasks** — T1 → `quick`, T2 → `quick`, T3 → `quick`
 - **Wave 2**: **5 tasks** — T4-T8 → `unspecified-low`
-- **Wave 3**: **2 tasks** — T9 → `deep`, T10 → `quick`
+- **Wave 3**: **4 tasks** — T9 → `deep`, T10 → `quick`, T11 → `unspecified-high`, T12 → `unspecified-high`
 - **FINAL**: **4 tasks** — F1 → `oracle`, F2 → `unspecified-high`, F3 → `unspecified-high`, F4 → `deep`
 
 ---
 
 ## TODOs
 
-- [ ] 1. Measure baseline metrics
+- [x] 1. Measure baseline metrics
 
   **What to do**:
   - Count lines in current AGENTS.md: `wc -l AGENTS.md`
@@ -237,7 +243,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 2. Cross-reference audit
+- [x] 2. Cross-reference audit
 
   **What to do**:
   - Grep AGENTS.md for all section headers (lines starting with `##`)
@@ -301,7 +307,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 3. Create docs/employees/ directory
+- [x] 3. Create docs/employees/ directory
 
   **What to do**:
   - Create `docs/employees/` directory
@@ -347,7 +353,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 4. Extract Guest-Messaging content → `docs/employees/guest-messaging.md`
+- [x] 4. Extract Guest-Messaging content → `docs/employees/guest-messaging.md`
 
   **What to do**:
   - Create `docs/employees/guest-messaging.md` by extracting content VERBATIM from AGENTS.md
@@ -419,7 +425,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 5. Extract Code-Rotation content → `docs/employees/code-rotation.md`
+- [x] 5. Extract Code-Rotation content → `docs/employees/code-rotation.md`
 
   **What to do**:
   - Create `docs/employees/code-rotation.md` by extracting content VERBATIM from AGENTS.md
@@ -471,7 +477,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 6. Gather & extract Summarizer content → `docs/employees/daily-summarizer.md`
+- [x] 6. Gather & extract Summarizer content → `docs/employees/daily-summarizer.md`
 
   **What to do**:
   - Create `docs/employees/daily-summarizer.md` by GATHERING scattered Summarizer content from AGENTS.md
@@ -532,7 +538,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 7. Extract Slack OAuth + Token Architecture → `docs/guides/`
+- [x] 7. Extract Slack OAuth + Token Architecture → `docs/guides/`
 
   **What to do**:
   - Get the current timestamp: `date "+%Y-%m-%d-%H%M"`
@@ -588,7 +594,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 8. Append onboarding content to README.md
+- [x] 8. Append onboarding content to README.md
 
   **What to do**:
   - Read current README.md (213 lines) to understand existing structure
@@ -658,7 +664,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 9. Rewrite AGENTS.md as lean hub
+- [x] 9. Rewrite AGENTS.md as lean hub
 
   **What to do**:
   This is the central task. Rewrite AGENTS.md to be a lean ~350-400 line hub that:
@@ -815,7 +821,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 10. Update seed.ts + run validation
+- [x] 10. Update seed.ts + run validation
 
   **What to do**:
   - `prisma/seed.ts` reads `AGENTS.md` via `PLATFORM_AGENTS_MD` (line 23) and stores it in every tenant's `default_agents_md` and every archetype's `agents_md`
@@ -878,23 +884,198 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
+- [x] 11. Verify DB content reaches agents (proof of impact)
+
+  **What to do**:
+  - After seed runs (Task 10), query the database to PROVE the lean AGENTS.md is what agents will receive
+  - Use PostgREST to check actual DB content:
+    1. Query `archetypes` table for each active archetype and measure the `agents_md` field character length
+    2. Query `tenants` table for each tenant and measure `default_agents_md` field character length
+    3. Compare these to the BASELINE character counts (original 965-line content vs new lean content)
+  - Additionally, inspect the `agents-md-resolver.mts` source to document the full injection chain:
+    - What the resolver reads (platform file → tenant `default_agents_md` → archetype `agents_md`)
+    - What gets concatenated into the worker's context
+    - Prove the DB content IS what reaches the worker
+  - Save a comprehensive report to `.sisyphus/evidence/task-11-agent-content-verification.md`
+
+  **The report MUST include**:
+  - Table: archetype name | old agents_md size (chars) | new agents_md size (chars) | reduction %
+  - Table: tenant name | old default_agents_md size (chars) | new size (chars) | reduction %
+  - Diagram of the injection chain: AGENTS.md file → seed.ts → DB → resolver → worker context
+  - Confirmation: "The content in the DB after seeding matches the new lean AGENTS.md — verified by comparing file content hash to DB content hash"
+
+  **Must NOT do**:
+  - Modify any code or DB records
+  - This is a read-only verification task
+
+  **Recommended Agent Profile**:
+  - **Category**: `unspecified-high`
+    - Reason: Requires DB queries, source code reading, and producing a structured verification report. Not trivial but not architecturally complex.
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: NO
+  - **Parallel Group**: Wave 3 (after Task 10)
+  - **Blocks**: Task 12, F1-F4
+  - **Blocked By**: Task 10
+
+  **References**:
+  - `prisma/seed.ts:23` — where AGENTS.md is read into `PLATFORM_AGENTS_MD`
+  - `prisma/seed.ts:67,81,102,126` — where `default_agents_md` is set on tenants
+  - `prisma/seed.ts:3209,3227,3254,3272,3312,3344,3456,3557` — where `agents_md` is set on archetypes
+  - `src/workers/lib/agents-md-resolver.mts` — the resolver that concatenates platform + tenant + archetype content at runtime (READ ONLY — do not modify)
+  - PostgREST endpoint: `http://localhost:54331` — query archetypes and tenants tables
+
+  **Acceptance Criteria**:
+
+  **QA Scenarios (MANDATORY):**
+
+  ```
+  Scenario: DB content matches lean AGENTS.md
+    Tool: Bash (curl + node)
+    Steps:
+      1. Read the new AGENTS.md content and compute its character count: `wc -c AGENTS.md`
+      2. Query PostgREST for each archetype's agents_md field size:
+         `curl -s "http://localhost:54331/archetypes?select=role_name,agents_md" -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); d.forEach(a => console.log(a.role_name, ':', a.agents_md?.length || 0, 'chars'))"`
+      3. Verify each archetype's agents_md character count is significantly smaller than the old baseline
+    Expected Result: Every archetype shows agents_md size ≈ new AGENTS.md size (≤ 400 lines worth of chars), NOT the old 965-line size
+    Failure Indicators: Any archetype showing agents_md size close to the old baseline = seed didn't update properly
+    Evidence: .sisyphus/evidence/task-11-agent-content-verification.md
+
+  Scenario: Injection chain documented
+    Tool: Bash (grep on source files)
+    Steps:
+      1. Read `src/workers/lib/agents-md-resolver.mts` — document how it resolves content
+      2. Read `src/workers/opencode-harness.mts` — find where resolver output is used
+      3. Document the full chain in the evidence file
+    Expected Result: Evidence file contains: file → seed → DB → resolver → worker context chain
+    Evidence: .sisyphus/evidence/task-11-agent-content-verification.md
+  ```
+
+  **Commit**: NO (verification only)
+
+---
+
+- [x] 12. Compile success metrics report
+
+  **What to do**:
+  - Create a comprehensive metrics report that proves the restructure was successful
+  - Compile data from ALL evidence files into a single summary
+  - Save to `.sisyphus/evidence/task-12-success-metrics-report.md`
+
+  **The report MUST include these sections**:
+
+  ### A. Token Cost Reduction
+
+  | Metric               | Before        | After          | Reduction |
+  | -------------------- | ------------- | -------------- | --------- |
+  | AGENTS.md lines      | (from Task 1) | (from Task 9)  | N%        |
+  | AGENTS.md tokens     | (from Task 1) | (from Task 10) | N%        |
+  | AGENTS.md characters | (from Task 1) | (measured)     | N%        |
+
+  ### B. Per-Agent Noise Reduction
+
+  For each employee type, calculate how much irrelevant content they NO LONGER receive:
+  | Employee | Before: total agent context | After: total agent context | Irrelevant content eliminated |
+  |----------|---------------------------|--------------------------|-------------------------------|
+  | guest-messaging | 965 lines (everything) | ~350 lines (lean hub only) | Guest sees 0 lines about summarizer channels |
+  | daily-summarizer | 965 lines (everything) | ~350 lines (lean hub only) | Summarizer sees 0 lines about Hostfully gotchas |
+  | code-rotation | 965 lines (everything) | ~350 lines (lean hub only) | Code-rotation sees 0 lines about guest-messaging flow |
+
+  ### C. DB Content Verification
+  - From Task 11: table of archetype agents_md sizes before vs after
+  - Confirmation that resolver chain delivers lean content to workers
+
+  ### D. Guardrail Preservation Audit
+  - From Task 9 QA: all grep assertions and their results
+  - List of every CRITICAL gotcha and where it now lives (AGENTS.md or which employee doc)
+
+  ### E. Content Completeness Check
+  - Lines extracted to employee docs: N
+  - Lines extracted to README: N
+  - Lines extracted to Slack guide: N
+  - Lines trimmed (redundant/verbose): N
+  - Lines remaining in AGENTS.md: N
+  - Total: should equal original 965 lines (no content lost, just reorganized + trimmed)
+
+  ### F. Quality Score
+  - Token reduction target (≥40%): PASS/FAIL
+  - Line count target (≤400): PASS/FAIL
+  - Guardrails preserved: N/N
+  - Tests passing: PASS/FAIL
+  - Seed passing: PASS/FAIL
+  - Cross-references intact: PASS/FAIL
+  - Employee docs reachable: N/N
+  - **Overall: PASS/FAIL**
+
+  **Must NOT do**:
+  - Fabricate or estimate numbers — use actual evidence from previous tasks
+  - Modify any files
+
+  **Recommended Agent Profile**:
+  - **Category**: `unspecified-high`
+    - Reason: Data compilation and report generation from multiple sources. Needs to read all evidence files and produce structured output.
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: NO
+  - **Parallel Group**: Wave 3 (after Task 11)
+  - **Blocks**: F1-F4
+  - **Blocked By**: Task 11
+
+  **References**:
+  - `.sisyphus/evidence/task-1-baseline-metrics.txt` — baseline measurements
+  - `.sisyphus/evidence/task-2-cross-reference-audit.txt` — cross-reference data
+  - `.sisyphus/evidence/task-9-*.txt` — all Task 9 QA evidence files
+  - `.sisyphus/evidence/task-10-*.txt` — seed and test results
+  - `.sisyphus/evidence/task-11-agent-content-verification.md` — DB verification data
+  - `AGENTS.md` — final lean file
+  - `docs/employees/*.md` — all employee docs
+  - `README.md` — updated README
+
+  **Acceptance Criteria**:
+
+  **QA Scenarios (MANDATORY):**
+
+  ```
+  Scenario: Report is comprehensive
+    Tool: Bash (grep)
+    Steps:
+      1. Verify report exists: `ls .sisyphus/evidence/task-12-success-metrics-report.md`
+      2. Verify all sections present:
+         - `grep -c "Token Cost Reduction" .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+         - `grep -c "Per-Agent Noise Reduction" .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+         - `grep -c "DB Content Verification" .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+         - `grep -c "Guardrail Preservation" .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+         - `grep -c "Quality Score" .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+         - `grep -c "Overall: " .sisyphus/evidence/task-12-success-metrics-report.md` → 1
+      3. Verify numbers are real (not placeholders):
+         - `grep -c "N%" .sisyphus/evidence/task-12-success-metrics-report.md` → 0 (no unfilled placeholders)
+    Expected Result: Report complete with all sections filled in using real data
+    Evidence: .sisyphus/evidence/task-12-success-metrics-report.md (self-referencing)
+  ```
+
+  **Commit**: NO (evidence file only)
+
+---
+
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (grep AGENTS.md for guardrail phrases, verify docs/employees/ files exist, check Reference Documents table). For each "Must NOT Have": search codebase for forbidden patterns. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm test -- --run` + `pnpm prisma db seed`. Check all new markdown files for: broken links, orphaned references, inconsistent formatting, duplicate content between AGENTS.md and extracted docs. Verify no content was lost during extraction (compare line counts).
       Output: `Tests [PASS/FAIL] | Seed [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Verify token count reduction: run tokenizer on old vs new AGENTS.md. Verify every employee doc is reachable from AGENTS.md (grep for file path references). Read each extracted doc end-to-end — confirm all CRITICAL gotchas are preserved. Verify README additions don't break existing README structure.
       Output: `Token reduction [N%] | Employee docs [N/N reachable] | Gotchas [N/N preserved] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual changes. Verify 1:1 — everything in spec was done, nothing beyond spec was done. Check "Must NOT do" compliance (no rewrites during extraction, no README restructuring, no agents-md-resolver changes). Flag any unaccounted changes.
       Output: `Tasks [N/N compliant] | Must NOT violations [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
