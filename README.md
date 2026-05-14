@@ -211,3 +211,100 @@ pnpm build    # TypeScript compile
 ```
 
 One pre-existing test failure is expected: `inngest-serve.test.ts` (function count check hardcodes `2` but 9 functions are registered; stale assertion). `container-boot.test.ts` skips all 4 tests when Docker is unavailable (not a failure).
+
+## Environment File Conventions
+
+`.env` and `.env.example` must stay in sync and organized. Follow these rules whenever adding, removing, or renaming any env var.
+
+### Section Order (mandatory — maintain in both files)
+
+1. **Database** — `DATABASE_URL`, `DATABASE_URL_DIRECT`
+2. **Supabase (PostgREST + Auth)** — `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_ANON_KEY`
+3. **Platform Core** — `ENCRYPTION_KEY`, `ADMIN_API_KEY`, `PORT`
+4. **Inngest (Event Queue)** — `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
+5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
+6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE`, `WORKER_VM_SIZE`
+7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
+8. **GitHub** — `GITHUB_TOKEN`
+9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
+10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
+11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+12. **Cost Control** — `COST_LIMIT_USD_PER_DEPT_PER_DAY`, `AGENT_VERSION_ID`
+13. **TENANT SECRETS** — reference-only comment block; never real values here
+14. **DEPRECATED** — commented-out superseded vars; always at the bottom
+
+### Rules
+
+- **`.env.example` is the source of truth** — every var in `.env` must have a matching entry in `.env.example` with a description. A var in `.env` with no entry in `.env.example` is a bug.
+- **Tenant secrets never go in `.env`** — Hostfully, Sifely, and per-tenant Slack tokens are stored via the admin API (`tenant_secrets` table). The only exception is `VLRE_SLACK_BOT_TOKEN` (seed-only: used by `prisma/seed.ts` on DB reset). See the `TENANT SECRETS` block in `.env.example` for the full list.
+- **Deprecated vars go to the DEPRECATED section** — when a var is superseded, move the old name to the `DEPRECATED` block at the bottom of `.env.example` (commented out with a note of what replaced it). Remove it from `.env` entirely. Never leave deprecated vars active in either file.
+- **Keep both files in sync** — after adding, removing, or renaming any var, update both files in the same commit.
+- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
+
+## Docs Directory Structure
+
+The `docs/` directory is organized into subdirectories by document type. Always file new documents in the correct location.
+
+| Directory              | Contents / Pattern                                  | Description                                                                 |
+| ---------------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `docs/architecture/`   | System design, vision, redesign overviews           | Architecture decisions, system overviews, vision documents                  |
+| `docs/phases/`         | `phase*-*.md`, `*-implementation-phases.md`         | Historical MVP build phases 1–8. Closed archive — no new files expected.    |
+| `docs/guides/`         | `*-guide.md`, `*-overview.md`, troubleshooting      | How-to guides, employee guides, setup instructions, troubleshooting         |
+| `docs/infrastructure/` | Infrastructure, deployment, migration docs          | Supabase, Docker, cloud migration, hybrid mode                              |
+| `docs/planning/`       | `*-product-roadmap.md`, `*-story-map.md`            | Product roadmaps and phase story maps                                       |
+| `docs/snapshots/`      | `*-current-system-state.md`                         | Point-in-time system state snapshots. Never edit after creation.            |
+| `docs/testing/`        | E2E test guides, scenario docs, testing methodology | All testing documentation including per-employee scenario guides in subdirs |
+| `docs/external/`       | Non-platform documentation                          | Client-specific docs, external system references (e.g. snobahn)             |
+
+### Adding New Docs — Criteria
+
+**1. Naming** — always `YYYY-MM-DD-HHMM-{slug}.md`. Run `date "+%Y-%m-%d-%H%M"` first. Never create a file without a timestamp prefix.
+
+**2. Subdirectory** — match the document's _primary purpose_, not its topic:
+
+| If the document is...                                          | Put it in                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| A new system design, vision, or architectural decision         | `docs/architecture/`                                         |
+| A historical phase build record                                | `docs/phases/` — note: closed archive, no new files expected |
+| A how-to, setup guide, troubleshooting, or employee overview   | `docs/guides/`                                               |
+| Infrastructure, deployment, or migration documentation         | `docs/infrastructure/`                                       |
+| A product roadmap or story map                                 | `docs/planning/`                                             |
+| A point-in-time system state snapshot                          | `docs/snapshots/` — never edit after creation                |
+| An E2E test guide or scenario document for a specific employee | `docs/testing/{employee-slug}/` (create subdir if needed)    |
+| A general testing methodology or cross-employee test guide     | `docs/testing/` (root level)                                 |
+| Client-specific or external system reference                   | `docs/external/`                                             |
+
+**3. After adding** — per [Documentation Freshness](AGENTS.md):
+
+- Add a row to the README.md Documentation table for any doc worth surfacing to developers
+- Add a row to the AGENTS.md Reference Documents table if agents should read it on demand
+- Never add to `docs/snapshots/` or `docs/phases/` without also noting it is immutable/archived
+
+**4. Never place files at `docs/` root** — every new markdown file must go into a subdirectory.
+
+## Git Rules
+
+- Never use `--no-verify`
+- Never add `Co-authored-by` lines to commits
+- Never reference AI tools (claude, opencode, etc.) in commit messages
+- Markdown filenames: `YYYY-MM-DD-HHMM-{name}.md` (run `date "+%Y-%m-%d-%H%M"` first)
+
+## Git Cleanup on Plan Completion (MANDATORY)
+
+When a plan's implementation work is fully complete (all tasks done, final wave passed), Atlas **must** run `git status` and resolve every outstanding item before declaring done:
+
+```bash
+git status --short
+```
+
+Handle each category:
+
+| Status                                                           | Action                                                                      |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `M` modified — source/test files                                 | Stage and commit with an appropriate message                                |
+| `??` untracked — `.sisyphus/plans/` or `.sisyphus/notepads/`     | Stage and commit: `chore(sisyphus): add plans and notepads for <plan-name>` |
+| `??` untracked — generated/build artifacts (`dist/`, `*.js.map`) | Add to `.gitignore` if not already ignored                                  |
+| `??` untracked — temp/scratch files                              | Delete them                                                                 |
+| `D` deleted files that should stay deleted                       | Stage the deletion and commit                                               |
+
+**Rule**: `git status` must show an empty output (or only entries that are intentionally gitignored) before the plan is considered truly complete. Do not skip this step even if you believe everything was committed during task execution — subagents frequently leave orphaned files.
