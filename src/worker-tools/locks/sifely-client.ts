@@ -12,7 +12,8 @@
  * API quirks:
  *   - HTTP 200 on auth failure — MUST check body.code, NOT HTTP status
  *   - List success omits `code` field entirely — presence of `code` = error
- *   - Auth header: "Authorization: {token}" (no Bearer prefix for write operations)
+ *   - Auth header: "Authorization: Bearer {token}" for ALL operations (the critical fix)
+ *   - addType=1 / changeType=1 / deleteType=1 work universally (gateway + non-gateway locks)
  */
 
 interface LockPasscode {
@@ -287,7 +288,7 @@ async function listLocks(baseUrl: string, token: string): Promise<SifelyLock[]> 
   const response = await fetch(`${baseUrl}/v3/lock/list?${params.toString()}`, {
     method: 'POST',
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -332,7 +333,7 @@ async function createPasscode(
   const response = await fetch(`${baseUrl}/v3/keyboardPwd/add?${params.toString()}`, {
     method: 'POST',
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -387,7 +388,7 @@ async function updatePasscode(
   const response = await fetch(`${baseUrl}/v3/keyboardPwd/change?${params.toString()}`, {
     method: 'POST',
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -425,7 +426,7 @@ async function deletePasscode(
   const response = await fetch(`${baseUrl}/v3/keyboardPwd/delete?${params.toString()}`, {
     method: 'POST',
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   });
 
