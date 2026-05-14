@@ -548,7 +548,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 
 Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start`. The Supabase CLI hardcodes `database: postgres` in its Go source — PostgREST would connect to the wrong database. Docker Compose uses `${POSTGRES_DB}` throughout, so `POSTGRES_DB=ai_employee` in `docker/.env` makes all services use the right database.
 
-**CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` or `src/worker-tools/` requires rebuilding the Docker image before the fix takes effect. Gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild.
+**CRITICAL — Rebuild after every worker change**: Any modification to files under `src/workers/` (the OpenCode harness) requires rebuilding the Docker image before the fix takes effect. Files under `src/worker-tools/` are bind-mounted into the container in local Docker mode (`WORKER_RUNTIME=docker`) and are available immediately — no rebuild needed for tool changes in local dev. For Fly.io deploys, all changes (both `src/workers/` and `src/worker-tools/`) require a new image push. Gateway and Inngest code (`src/gateway/`, `src/inngest/`) do NOT require a rebuild.
 
 **Gateway auto-restarts on file change**: `pnpm dev` runs the gateway with `tsx watch`, which automatically detects file changes and restarts the server process. After editing any file under `src/gateway/` or `src/inngest/`, the change is live immediately — do NOT tell the user to manually restart the server. Verify by confirming the node process start time matches the file's modification time.
 

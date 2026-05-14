@@ -4,13 +4,13 @@
 
 ## Quick Reference
 
-| Property          | Value                                                                  |
-| ----------------- | ---------------------------------------------------------------------- |
-| Source path       | `src/worker-tools/{service}/{verb}-{noun}.ts`                          |
-| Container path    | `/tools/{service}/{verb}-{noun}.ts`                                    |
-| Execution pattern | `NODE_NO_WARNINGS=1 tsx /tools/{service}/{verb}-{noun}.ts --arg val`   |
-| Output format     | JSON to stdout, errors/warnings to stderr, non-zero exit on failure    |
-| Rebuild required  | Yes — `docker build -t ai-employee-worker:latest .` after every change |
+| Property          | Value                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Source path       | `src/worker-tools/{service}/{verb}-{noun}.ts`                                                         |
+| Container path    | `/tools/{service}/{verb}-{noun}.ts`                                                                   |
+| Execution pattern | `NODE_NO_WARNINGS=1 tsx /tools/{service}/{verb}-{noun}.ts --arg val`                                  |
+| Output format     | JSON to stdout, errors/warnings to stderr, non-zero exit on failure                                   |
+| Rebuild required  | Local Docker: No (bind-mounted, live immediately). Fly.io: Yes — `docker build` + image push required |
 
 ---
 
@@ -142,7 +142,8 @@ COPY src/worker-tools/ /tools/
 This means:
 
 - **No Dockerfile changes needed** when adding a new tool or a new service directory.
-- **Rebuild is always required** after any change to `src/worker-tools/`: `docker build -t ai-employee-worker:latest .`
+- **Local Docker mode** (`WORKER_RUNTIME=docker`): `src/worker-tools/` is bind-mounted into the container, so new or modified tool files are available immediately — no image rebuild required.
+- **Fly.io production deploys**: A rebuild and image push (`docker build` + `pnpm fly:image`) is still required for all `src/worker-tools/` changes.
 - New npm dependencies used by the tool must be added to the root `package.json` and will be included in the image on the next build.
 - The tool is available in the container at `/tools/{service}/{verb}-{noun}.ts`.
 
@@ -187,7 +188,7 @@ Run these checks in order before considering the tool complete:
 2. **Mock mode**: `{SERVICE}_MOCK=true tsx src/worker-tools/{service}/{verb}-{noun}.ts --required-arg val` — must print fixture JSON and exit 0.
 3. **Missing arg**: `tsx src/worker-tools/{service}/{verb}-{noun}.ts` — must print error to stderr and exit 1.
 4. **Missing env var**: Run without the required env var set — must print error to stderr and exit 1.
-5. **Docker rebuild**: `docker build -t ai-employee-worker:latest .` — must succeed.
+5. **Docker rebuild** (Fly.io only): `docker build -t ai-employee-worker:latest .` — must succeed. In local Docker mode, the bind-mount makes the tool available immediately without a rebuild.
 6. **E2E trigger**: `pnpm trigger-task` (or simulate the relevant webhook) — verify the agent calls the tool and produces the expected output.
 
 ---
