@@ -65,6 +65,8 @@ export interface Archetype {
   pre_check_adapter: string | null;
   department_id: string | null;
   agent_version_id: string | null;
+  instructions: string | null;
+  system_prompt: string | null;
   trigger_sources: Record<string, unknown> | null;
   tool_registry: Record<string, unknown> | null;
   worker_env: Record<string, unknown> | null;
