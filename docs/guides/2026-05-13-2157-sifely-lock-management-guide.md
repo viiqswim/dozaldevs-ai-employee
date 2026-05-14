@@ -361,13 +361,7 @@ SUPABASE_SECRET_KEY=<from tenant_secrets>
 TENANT_ID=00000000-0000-0000-0000-000000000003
 ```
 
-Sifely credentials are stored as tenant secrets in the database, not in `.env`. Retrieve them with the helper script:
-
-```bash
-npx tsx scripts/get-sifely-creds.ts
-```
-
-Or query all tenant secrets directly:
+Sifely credentials are stored as tenant secrets in the database, not in `.env`. Query all tenant secrets directly:
 
 ```bash
 curl -s "http://localhost:54331/rest/v1/tenant_secrets?tenant_id=eq.00000000-0000-0000-0000-000000000003&select=key,value" \
@@ -391,7 +385,6 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 | `src/worker-tools/locks/rotate-property-code.ts` | Automated rotation — manages `permanent-visitor-home` codes only       |
 | `src/worker-tools/locks/generate-code.ts`        | Generates memorable lock codes (ABBA/ABAB patterns)                    |
 | `src/worker-tools/locks/update-door-code.ts`     | Updates Hostfully `door_code` field only — no Sifely interaction       |
-| `scripts/get-sifely-creds.ts`                    | Decrypts and prints Sifely credentials from `tenant_secrets`           |
 
 ## Reference: Old VLRE App
 
