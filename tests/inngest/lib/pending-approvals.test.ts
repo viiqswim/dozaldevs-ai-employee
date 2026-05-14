@@ -239,8 +239,8 @@ describe('getStaleApprovals', () => {
       slack_ts: 'msg-ts-stale.000100',
       channel_id: 'C-STALE-123',
       created_at: '2026-04-28T00:00:00Z',
-      guest_name: 'John Doe',
-      property_name: 'Beach House',
+      recipient_name: 'John Doe',
+      context_label: 'Beach House',
       urgency: true,
     };
     mockFetch.mockResolvedValue(makeJsonResponse([row]));
@@ -255,8 +255,8 @@ describe('getStaleApprovals', () => {
     expect(result[0]!.slackTs).toBe('msg-ts-stale.000100');
     expect(result[0]!.channelId).toBe('C-STALE-123');
     expect(result[0]!.createdAt).toBe('2026-04-28T00:00:00Z');
-    expect(result[0]!.guestName).toBe('John Doe');
-    expect(result[0]!.propertyName).toBe('Beach House');
+    expect(result[0]!.recipientName).toBe('John Doe');
+    expect(result[0]!.contextLabel).toBe('Beach House');
     expect(result[0]!.urgency).toBe(true);
   });
 
