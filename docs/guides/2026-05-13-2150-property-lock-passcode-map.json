@@ -1,15 +1,26 @@
 {
-  "generatedAt": "2026-05-14T04:26:19.305Z",
+  "generatedAt": "2026-05-14T04:56:16.019Z",
   "dataSources": {
-    "structure": "vlre-hub/apps/api/src/data/properties.json",
-    "enrichment": "Sifely API query (2026-05-14)"
+    "structure": "vlre-hub/apps/api/src/data/properties.json + interview corrections",
+    "enrichment": "Sifely API query (2026-05-14) via app-smart-server.sifely.com"
   },
+  "interviewCorrections": [
+    "Replaced 219-PAU front door: 5280922 → 25762100",
+    "Replaced 407-GEV loft door: 8500612 → 31136280",
+    "Added 407-GEV back door (12756118) to HOME + BUNDLE",
+    "Added listings: 7213-NUT-4, 7213-NUT-5 (rooms not in vlre-hub)",
+    "Added listings: 5306A-KIN-HOME, 5306-KIN-BUNDLE (property not in vlre-hub)",
+    "Added 7213-NUT rooms 4+5 to 7213-NUT-HOME",
+    "Added patio locks to HOME + all rooms for 7213-NUT and 3420-HOV",
+    "1602-BLU locks confirmed on same account but different API endpoint (pro-server)",
+    "Orphaned locks (3) confirmed as spare/test",
+    "Utility locks (non-patio) intentionally excluded from listings"
+  ],
   "summary": {
-    "totalListings": 40,
-    "totalSifelyLocks": 73,
-    "locksAssignedToListings": 44,
-    "locksNotInAnyListing": 29,
-    "listingsWithoutSifelyData": 4,
+    "totalListings": 45,
+    "totalSifelyLocksQueried": 77,
+    "uniqueLocksAssignedWithData": 56,
+    "unassignedLocks": 21,
     "replacedLocks": 4
   },
   "listings": {
@@ -19,15 +30,67 @@
       "type": "home",
       "locks": [
         {
-          "sifelyLockId": 5280922,
+          "sifelyLockId": 25762100,
           "assignedName": "219-PAU-HOME-FRONT-DOOR",
           "lockRole": "FRONT_DOOR",
-          "sifelyAlias": null,
-          "battery": null,
-          "hasGateway": null,
-          "lockMac": null,
-          "passcodes": [],
-          "sifelyDataAvailable": false
+          "sifelyAlias": "219-pau Front door (new)",
+          "battery": 80,
+          "hasGateway": true,
+          "lockMac": "85:D3:86:39:88:65",
+          "passcodes": [
+            {
+              "id": 63726770,
+              "code": "0206",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-29T18:31:42.176Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 59161540,
+              "code": "9041",
+              "name": "Zeneida",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-11T01:14:15.943Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 39689404,
+              "code": "7579",
+              "name": "Norma",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-07T02:37:45.391Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 58308418,
+              "code": "7473",
+              "name": "Permanent_Visitor_Home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-07T02:25:32.247Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 56372286,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-02-27T00:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true,
+          "replacedOldLockId": 5280922
         },
         {
           "sifelyLockId": 5197968,
@@ -3300,6 +3363,78 @@
             }
           ],
           "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5556588,
+          "assignedName": "3420-HOV-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "3420-Hovenweep - Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "43:7C:23:FC:CB:41",
+          "passcodes": [
+            {
+              "id": 63974634,
+              "code": "3993",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T17:47:39.552Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 26253450,
+              "code": "575758",
+              "name": "victor-test-timed",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-10-08T13:58:28.593Z",
+              "endDate": "2025-10-10T05:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 26253104,
+              "code": "767678",
+              "name": "victor-test-permanent",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-10-08T13:57:12.977Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791556,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627385876,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 249314092,
+              "code": "5758",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-03-13T15:00:00.000Z",
+              "endDate": "2023-03-13T15:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -3491,6 +3626,78 @@
             }
           ],
           "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5556588,
+          "assignedName": "3420-HOV-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "3420-Hovenweep - Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "43:7C:23:FC:CB:41",
+          "passcodes": [
+            {
+              "id": 63974634,
+              "code": "3993",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T17:47:39.552Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 26253450,
+              "code": "575758",
+              "name": "victor-test-timed",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-10-08T13:58:28.593Z",
+              "endDate": "2025-10-10T05:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 26253104,
+              "code": "767678",
+              "name": "victor-test-permanent",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-10-08T13:57:12.977Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791556,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627385876,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 249314092,
+              "code": "5758",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-03-13T15:00:00.000Z",
+              "endDate": "2023-03-13T15:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -3638,6 +3845,78 @@
               "typeId": 3,
               "startDate": "2025-07-14T17:06:44.362Z",
               "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5556588,
+          "assignedName": "3420-HOV-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "3420-Hovenweep - Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "43:7C:23:FC:CB:41",
+          "passcodes": [
+            {
+              "id": 63974634,
+              "code": "3993",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T17:47:39.552Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 26253450,
+              "code": "575758",
+              "name": "victor-test-timed",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-10-08T13:58:28.593Z",
+              "endDate": "2025-10-10T05:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 26253104,
+              "code": "767678",
+              "name": "victor-test-permanent",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-10-08T13:57:12.977Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791556,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627385876,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 249314092,
+              "code": "5758",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-03-13T15:00:00.000Z",
+              "endDate": "2023-03-13T15:00:00.000Z",
               "status": 1
             }
           ],
@@ -3953,6 +4232,78 @@
               "typeId": 3,
               "startDate": "2025-07-14T17:06:44.362Z",
               "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5556588,
+          "assignedName": "3420-HOV-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "3420-Hovenweep - Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "43:7C:23:FC:CB:41",
+          "passcodes": [
+            {
+              "id": 63974634,
+              "code": "3993",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T17:47:39.552Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 26253450,
+              "code": "575758",
+              "name": "victor-test-timed",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-10-08T13:58:28.593Z",
+              "endDate": "2025-10-10T05:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 26253104,
+              "code": "767678",
+              "name": "victor-test-permanent",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-10-08T13:57:12.977Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791556,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627385876,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 249314092,
+              "code": "5758",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-03-13T15:00:00.000Z",
+              "endDate": "2023-03-13T15:00:00.000Z",
               "status": 1
             }
           ],
@@ -4702,15 +5053,169 @@
           "sifelyDataAvailable": true
         },
         {
-          "sifelyLockId": 8500612,
+          "sifelyLockId": 31136280,
           "assignedName": "407-GEV-LOFT-FRONT-DOOR",
           "lockRole": "FRONT_DOOR",
-          "sifelyAlias": null,
-          "battery": null,
-          "hasGateway": null,
-          "lockMac": null,
-          "passcodes": [],
-          "sifelyDataAvailable": false
+          "sifelyAlias": "407-Gev-Loft-official",
+          "battery": 45,
+          "hasGateway": true,
+          "lockMac": "44:7B:DC:2F:0A:E7",
+          "passcodes": [
+            {
+              "id": 71404970,
+              "code": "7579",
+              "name": "Norma",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 71404846,
+              "code": "9598",
+              "name": "permanent-visitor-bundle",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 71404726,
+              "code": "9041",
+              "name": "Zenaida",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927588,
+              "code": "353637",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927496,
+              "code": "0802",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927456,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true,
+          "replacedOldLockId": 8500612
+        },
+        {
+          "sifelyLockId": 12756118,
+          "assignedName": "407-GEV-BACK-DOOR",
+          "lockRole": "BACK_DOOR",
+          "sifelyAlias": "407-GEV-BackDoor",
+          "battery": 65,
+          "hasGateway": false,
+          "lockMac": "99:96:26:73:68:5F",
+          "passcodes": [
+            {
+              "id": 706905148,
+              "code": "1234",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-02-11T18:00:16.123Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 704175856,
+              "code": "2828",
+              "name": "permanent-visitor-bundle",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-02-08T18:01:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 691905564,
+              "code": "0215",
+              "name": "Elsa Cleaning",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-23T21:18:22.699Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627384230,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 581744108,
+              "code": "7579",
+              "name": "norma",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 445725754,
+              "code": "4646",
+              "name": "visitor-home",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2024-09-21T17:00:00.000Z",
+              "endDate": "2026-09-30T17:00:59.000Z",
+              "status": 1
+            },
+            {
+              "id": 442497868,
+              "code": "2727",
+              "name": "visitor-bundle",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2024-08-04T17:00:00.000Z",
+              "endDate": "2026-10-31T17:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 401805652,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-10T00:00:00.000Z",
+              "endDate": "2024-01-10T00:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -4810,6 +5315,98 @@
             }
           ],
           "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 12756118,
+          "assignedName": "407-GEV-BACK-DOOR",
+          "lockRole": "BACK_DOOR",
+          "sifelyAlias": "407-GEV-BackDoor",
+          "battery": 65,
+          "hasGateway": false,
+          "lockMac": "99:96:26:73:68:5F",
+          "passcodes": [
+            {
+              "id": 706905148,
+              "code": "1234",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-02-11T18:00:16.123Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 704175856,
+              "code": "2828",
+              "name": "permanent-visitor-bundle",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-02-08T18:01:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 691905564,
+              "code": "0215",
+              "name": "Elsa Cleaning",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-23T21:18:22.699Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 627384230,
+              "code": "7342",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-11-01T03:43:35.835Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 581744108,
+              "code": "7579",
+              "name": "norma",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 445725754,
+              "code": "4646",
+              "name": "visitor-home",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2024-09-21T17:00:00.000Z",
+              "endDate": "2026-09-30T17:00:59.000Z",
+              "status": 1
+            },
+            {
+              "id": 442497868,
+              "code": "2727",
+              "name": "visitor-bundle",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2024-08-04T17:00:00.000Z",
+              "endDate": "2026-10-31T17:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 401805652,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-10T00:00:00.000Z",
+              "endDate": "2024-01-10T00:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -4819,15 +5416,77 @@
       "type": "multiHome",
       "locks": [
         {
-          "sifelyLockId": 8500612,
+          "sifelyLockId": 31136280,
           "assignedName": "407-GEV-LOFT-FRONT-DOOR",
           "lockRole": "FRONT_DOOR",
-          "sifelyAlias": null,
-          "battery": null,
-          "hasGateway": null,
-          "lockMac": null,
-          "passcodes": [],
-          "sifelyDataAvailable": false
+          "sifelyAlias": "407-Gev-Loft-official",
+          "battery": 45,
+          "hasGateway": true,
+          "lockMac": "44:7B:DC:2F:0A:E7",
+          "passcodes": [
+            {
+              "id": 71404970,
+              "code": "7579",
+              "name": "Norma",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 71404846,
+              "code": "9598",
+              "name": "permanent-visitor-bundle",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 71404726,
+              "code": "9041",
+              "name": "Zenaida",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-28T19:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927588,
+              "code": "353637",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927496,
+              "code": "0802",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70927456,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-26T22:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true,
+          "replacedOldLockId": 8500612
         }
       ]
     },
@@ -5867,6 +6526,138 @@
           "lockMac": "C5:A3:3B:2F:82:0E",
           "passcodes": [],
           "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -6098,6 +6889,138 @@
             }
           ],
           "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
     },
@@ -6325,6 +7248,138 @@
               "typeId": 3,
               "startDate": "2025-07-14T16:43:55.011Z",
               "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
               "status": 1
             }
           ],
@@ -7016,7 +8071,7 @@
           "hasGateway": null,
           "lockMac": null,
           "passcodes": [],
-          "sifelyDataAvailable": false
+          "sifelyDataAvailable": true
         },
         {
           "sifelyLockId": 16559224,
@@ -7027,324 +8082,1649 @@
           "hasGateway": null,
           "lockMac": null,
           "passcodes": [],
-          "sifelyDataAvailable": false
+          "sifelyDataAvailable": true
+        }
+      ],
+      "note": "Locks exist on same Sifely account (admin@vlrealestate.co) but only visible via pro-server.sifely.com/v3, not app-smart-server.sifely.com. Our sifely-client.ts uses the latter endpoint."
+    },
+    "7213-NUT-4": {
+      "hostfullyId": "14f5b23d-8614-4595-a20c-2c783dc408bb",
+      "address": "7213 Nutria Run, Austin, TX, 78744",
+      "type": "room",
+      "locks": [
+        {
+          "sifelyLockId": 3391760,
+          "assignedName": "7213-NUT-FRONT-DOOR",
+          "lockRole": "FRONT_DOOR",
+          "sifelyAlias": "7213-NUT-Frontdoor",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "DF:9E:95:1E:D3:F6",
+          "passcodes": [
+            {
+              "id": 69323396,
+              "code": "5094",
+              "name": "permanent-visitor-room-3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.352Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 67521464,
+              "code": "5048",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.348Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323336,
+              "code": "3096",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.132Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322776,
+              "code": "2959",
+              "name": "permanent-visitor-room-1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:17:22.448Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322398,
+              "code": "8562",
+              "name": "permanent-visitor-room-2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:15:03.420Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920372,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:25:39.700Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953240,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 101766334,
+              "code": "1808",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:37.427Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 121221194,
+              "code": "5151",
+              "name": "universal",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:26.603Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 571278036,
+              "code": "9030",
+              "name": "yesica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:16.131Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 689790958,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:03.975Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 3750228,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:55:52.815Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 6138964,
+          "assignedName": "7213-NUT-4-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-nut-Room4",
+          "battery": 25,
+          "hasGateway": true,
+          "lockMac": "B4:75:C5:BA:2F:9A",
+          "passcodes": [
+            {
+              "id": 69323502,
+              "code": "3096",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:20.251Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920710,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:27:51.408Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 66093646,
+              "code": "7810",
+              "name": "Diana",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-08T04:01:36.197Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953852,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 36726702,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-26T17:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 28986654,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 228579194,
+              "code": "1222",
+              "name": "vyo2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-01-12T19:00:00.000Z",
+              "endDate": "2023-01-12T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 228579170,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-01-12T19:00:00.000Z",
+              "endDate": "2023-01-12T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
         }
       ]
+    },
+    "7213-NUT-5": {
+      "hostfullyId": "1d3baecb-dce2-495f-a242-2536ab55bf2e",
+      "address": "7213 Nutria Run, Austin, TX, 78744",
+      "type": "room",
+      "locks": [
+        {
+          "sifelyLockId": 3391760,
+          "assignedName": "7213-NUT-FRONT-DOOR",
+          "lockRole": "FRONT_DOOR",
+          "sifelyAlias": "7213-NUT-Frontdoor",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "DF:9E:95:1E:D3:F6",
+          "passcodes": [
+            {
+              "id": 69323396,
+              "code": "5094",
+              "name": "permanent-visitor-room-3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.352Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 67521464,
+              "code": "5048",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.348Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323336,
+              "code": "3096",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.132Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322776,
+              "code": "2959",
+              "name": "permanent-visitor-room-1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:17:22.448Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322398,
+              "code": "8562",
+              "name": "permanent-visitor-room-2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:15:03.420Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920372,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:25:39.700Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953240,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 101766334,
+              "code": "1808",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:37.427Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 121221194,
+              "code": "5151",
+              "name": "universal",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:26.603Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 571278036,
+              "code": "9030",
+              "name": "yesica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:16.131Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 689790958,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:03.975Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 3750228,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:55:52.815Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 13044074,
+          "assignedName": "7213-NUT-5-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-Nut-Room5",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "21:DB:30:1C:BB:5A",
+          "passcodes": [
+            {
+              "id": 69323546,
+              "code": "5048",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:26.264Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920774,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:28:20.925Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 66093740,
+              "code": "7810",
+              "name": "Diana",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-08T04:02:00.220Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953908,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 36726780,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-26T17:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 28986550,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 410060924,
+              "code": "151413",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-25T04:00:00.000Z",
+              "endDate": "2024-01-25T04:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 410060756,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-25T04:00:00.000Z",
+              "endDate": "2024-01-25T04:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        }
+      ]
+    },
+    "7213-NUT-HOME": {
+      "hostfullyId": "17b4dca8-24a1-4a7d-ae1e-faaa1dd41257",
+      "address": "7213 Nutria Run, Austin, TX, 78744",
+      "type": "home",
+      "locks": [
+        {
+          "sifelyLockId": 3391760,
+          "assignedName": "7213-NUT-FRONT-DOOR",
+          "lockRole": "FRONT_DOOR",
+          "sifelyAlias": "7213-NUT-Frontdoor",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "DF:9E:95:1E:D3:F6",
+          "passcodes": [
+            {
+              "id": 69323396,
+              "code": "5094",
+              "name": "permanent-visitor-room-3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.352Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 67521464,
+              "code": "5048",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.348Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323336,
+              "code": "3096",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:19:53.132Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322776,
+              "code": "2959",
+              "name": "permanent-visitor-room-1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:17:22.448Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69322398,
+              "code": "8562",
+              "name": "permanent-visitor-room-2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:15:03.420Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920372,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:25:39.700Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953240,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 101766334,
+              "code": "1808",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:37.427Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 121221194,
+              "code": "5151",
+              "name": "universal",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:26.603Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 571278036,
+              "code": "9030",
+              "name": "yesica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:16.131Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 689790958,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:56:03.975Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 3750228,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:55:52.815Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 13328394,
+          "assignedName": "7213-NUT-1-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-NUT-Room1",
+          "battery": 60,
+          "hasGateway": true,
+          "lockMac": "C5:A3:3B:2F:82:0E",
+          "passcodes": [],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 3385978,
+          "assignedName": "7213-NUT-2-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-NUT-Room2",
+          "battery": 40,
+          "hasGateway": true,
+          "lockMac": "F1:09:DB:4C:A6:4F",
+          "passcodes": [
+            {
+              "id": 69322560,
+              "code": "8562",
+              "name": "permanent-visitor-room-2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:15:49.899Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920556,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:26:33.546Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953648,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 14624932,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-08-17T16:47:15.195Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 120010442,
+              "code": "1808",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:54:15.615Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 121221246,
+              "code": "5151",
+              "name": "universal",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:54:01.787Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 571277790,
+              "code": "9030",
+              "name": "yessica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:53:52.374Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 689791270,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:45:19.650Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 3385868,
+          "assignedName": "7213-NUT-3-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-NUT-Room3",
+          "battery": 40,
+          "hasGateway": true,
+          "lockMac": "C0:E6:78:C7:BC:32",
+          "passcodes": [
+            {
+              "id": 69323578,
+              "code": "5094",
+              "name": "permanent-visitor-room-3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:32.845Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920616,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:27:19.054Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953758,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3750512,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-26T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 110243608,
+              "code": "1808",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:44:32.268Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 121221276,
+              "code": "5151",
+              "name": "universal",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:44:25.409Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 571277910,
+              "code": "9030",
+              "name": "yessica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:44:12.078Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 689791326,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-07-14T16:43:55.011Z",
+              "endDate": "2026-07-14T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 6138964,
+          "assignedName": "7213-NUT-4-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-nut-Room4",
+          "battery": 25,
+          "hasGateway": true,
+          "lockMac": "B4:75:C5:BA:2F:9A",
+          "passcodes": [
+            {
+              "id": 69323502,
+              "code": "3096",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:20.251Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920710,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:27:51.408Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 66093646,
+              "code": "7810",
+              "name": "Diana",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-08T04:01:36.197Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953852,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 36726702,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-26T17:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 28986654,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 228579194,
+              "code": "1222",
+              "name": "vyo2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-01-12T19:00:00.000Z",
+              "endDate": "2023-01-12T19:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 228579170,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2023-01-12T19:00:00.000Z",
+              "endDate": "2023-01-12T19:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 13044074,
+          "assignedName": "7213-NUT-5-ROOM-DOOR",
+          "lockRole": "ROOM_DOOR",
+          "sifelyAlias": "7213-Nut-Room5",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "21:DB:30:1C:BB:5A",
+          "passcodes": [
+            {
+              "id": 69323546,
+              "code": "5048",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:26.264Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920774,
+              "code": "38610",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:28:20.925Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 66093740,
+              "code": "7810",
+              "name": "Diana",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-08T04:02:00.220Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 63953908,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-30T16:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 36726780,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-26T17:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 28986550,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 410060924,
+              "code": "151413",
+              "name": "extra",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-25T04:00:00.000Z",
+              "endDate": "2024-01-25T04:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 410060756,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2024-01-25T04:00:00.000Z",
+              "endDate": "2024-01-25T04:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 5440142,
+          "assignedName": "7213-NUT-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "7213-NUT-Patio",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "E9:B9:67:BA:C6:EA",
+          "passcodes": [
+            {
+              "id": 69323730,
+              "code": "6363",
+              "name": "permanent-visitor-room-5",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:21:04.933Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 69323710,
+              "code": "42424",
+              "name": "permanent-visitor-room-4",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-20T17:20:59.355Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 68920124,
+              "code": "8907",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-19T00:23:53.360Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 46027140,
+              "code": "13417304",
+              "name": "Berenice",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-01-10T04:50:21.290Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4002062,
+              "code": "8616",
+              "name": "permanent-visitor room2",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:28:14.648Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001684,
+              "code": "6612",
+              "name": "permanent- visitor- room 1",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:24:49.766Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 4001346,
+              "code": "070409",
+              "name": "permanent-vistor room 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-30T18:23:46.168Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 3761560,
+              "code": "2249",
+              "name": "Angela",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-06-29T16:46:19.989Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 689791010,
+              "code": "7810",
+              "name": "Diana Cleaning team",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-01-21T02:40:29.650Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 606813510,
+              "code": "9030",
+              "name": "yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 513171914,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 162331330,
+              "code": "5151",
+              "name": "universal",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2022-05-11T03:00:00.000Z",
+              "endDate": "2022-05-11T03:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        }
+      ]
+    },
+    "5306A-KIN-HOME": {
+      "hostfullyId": "dbcfdc5c-b09d-4fa6-999d-fe902aa192a9",
+      "address": "5306 Kin, San Antonio, TX",
+      "type": "home",
+      "locks": [
+        {
+          "sifelyLockId": 24572924,
+          "assignedName": "5306A-KIN-HOME-FRONT-DOOR",
+          "lockRole": "FRONT_DOOR",
+          "sifelyAlias": "5306A-kin-Home",
+          "battery": 55,
+          "hasGateway": true,
+          "lockMac": "6E:C6:7B:98:29:07",
+          "passcodes": [
+            {
+              "id": 66092748,
+              "code": "2249",
+              "name": "Angelita",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-04-08T03:53:28.504Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 59671082,
+              "code": "7925",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-14T03:44:22.442Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 59672696,
+              "code": "026563",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-03-13T06:19:54.590Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 37445554,
+              "code": "1428",
+              "name": "Berenice",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-11-29T19:00:00.000Z",
+              "endDate": "2027-11-30T21:29:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 33599868,
+              "code": "8387",
+              "name": "Diana",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-12T02:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 33599804,
+              "code": "9030",
+              "name": "Yessica",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-11-12T02:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 11132938,
+              "code": "1808",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-08-01T20:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        }
+      ]
+    },
+    "5306-KIN-BUNDLE": {
+      "hostfullyId": "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2",
+      "address": "5306 Kin, San Antonio, TX",
+      "type": "bundle",
+      "locks": [
+        {
+          "sifelyLockId": 24572818,
+          "assignedName": "5306-KIN-PATIO-DOOR",
+          "lockRole": "PATIO_DOOR",
+          "sifelyAlias": "5306-kin-Home Patio (PERSONAL)",
+          "battery": 55,
+          "hasGateway": true,
+          "lockMac": "17:D0:B8:95:C0:BF",
+          "passcodes": [
+            {
+              "id": 37445910,
+              "code": "232323",
+              "name": "Brenda",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-11-29T21:32:21.393Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 11130476,
+              "code": "0909",
+              "name": "extra",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-08-01T20:00:00.000Z",
+              "endDate": "2025-09-15T20:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 11130438,
+              "code": "0103",
+              "name": "staff",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-08-01T20:00:00.000Z",
+              "endDate": "2025-09-27T20:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 11130386,
+              "code": "1222",
+              "name": "vyo",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2025-08-01T20:00:00.000Z",
+              "endDate": null,
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        },
+        {
+          "sifelyLockId": 24572672,
+          "assignedName": "5306-KIN-FRONT-DOOR",
+          "lockRole": "FRONT_DOOR",
+          "sifelyAlias": "5306-kin-Home Front (PERSONAL)",
+          "battery": 100,
+          "hasGateway": true,
+          "lockMac": "D9:7E:46:05:18:5F",
+          "passcodes": [
+            {
+              "id": 75599554,
+              "code": "8080",
+              "name": "permanent-visitor-home",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": "2026-05-14T00:35:40.098Z",
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 70729026,
+              "code": "161718",
+              "name": "yessica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2026-04-26T15:00:00.000Z",
+              "endDate": "2026-04-28T01:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 58951072,
+              "code": "9698",
+              "name": "test olivia 3",
+              "type": "PERMANENT",
+              "typeId": 2,
+              "startDate": null,
+              "endDate": null,
+              "status": 1
+            },
+            {
+              "id": 58951038,
+              "code": "9697",
+              "name": "test olivia 2",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2026-03-10T08:05:00.000Z",
+              "endDate": "2026-03-17T08:05:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 43778000,
+              "code": "0606",
+              "name": "yessica",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-12-30T10:00:00.000Z",
+              "endDate": "2026-01-23T11:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 11126676,
+              "code": "1222",
+              "name": "vyo",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2026-03-08T20:35:49.565Z",
+              "endDate": "2036-03-06T20:35:49.585Z",
+              "status": 1
+            },
+            {
+              "id": 11126622,
+              "code": "161618",
+              "name": "extra",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-08-02T00:00:00.000Z",
+              "endDate": "2026-10-18T05:00:00.000Z",
+              "status": 1
+            },
+            {
+              "id": 11126590,
+              "code": "0103",
+              "name": "staff",
+              "type": "TIMED",
+              "typeId": 3,
+              "startDate": "2025-08-01T19:00:00.000Z",
+              "endDate": "2025-10-30T15:00:00.000Z",
+              "status": 1
+            }
+          ],
+          "sifelyDataAvailable": true
+        }
+      ],
+      "note": "Test property used for code-rotation testing"
     }
   },
   "unassignedLocks": [
     {
-      "lockId": 13044074,
-      "lockAlias": "7213-Nut-Room5",
-      "inferredProperty": "7213-nut",
-      "category": "room",
-      "battery": 100,
-      "hasGateway": true,
-      "lockMac": "21:DB:30:1C:BB:5A",
-      "passcodes": [
-        {
-          "id": 69323546,
-          "code": "5048",
-          "name": "permanent-visitor-room-5",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-20T17:20:26.264Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 68920774,
-          "code": "38610",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-19T00:28:20.925Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 66093740,
-          "code": "7810",
-          "name": "Diana",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-08T04:02:00.220Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 63953908,
-          "code": "2249",
-          "name": "Angela",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-30T16:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 36726780,
-          "code": "1428",
-          "name": "Berenice",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-11-26T17:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 28986550,
-          "code": "9030",
-          "name": "yessica",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 410060924,
-          "code": "151413",
-          "name": "extra",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2024-01-25T04:00:00.000Z",
-          "endDate": "2024-01-25T04:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 410060756,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2024-01-25T04:00:00.000Z",
-          "endDate": "2024-01-25T04:00:00.000Z",
-          "status": 1
-        }
-      ]
+      "lockId": 5280922,
+      "lockAlias": "unknown-5280922",
+      "inferredProperty": null,
+      "category": "unknown",
+      "battery": null,
+      "hasGateway": null,
+      "lockMac": null,
+      "passcodes": []
     },
     {
-      "lockId": 6138964,
-      "lockAlias": "7213-nut-Room4",
-      "inferredProperty": "7213-nut",
-      "category": "room",
-      "battery": 25,
-      "hasGateway": true,
-      "lockMac": "B4:75:C5:BA:2F:9A",
-      "passcodes": [
-        {
-          "id": 69323502,
-          "code": "3096",
-          "name": "permanent-visitor-room-4",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-20T17:20:20.251Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 68920710,
-          "code": "38610",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-19T00:27:51.408Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 66093646,
-          "code": "7810",
-          "name": "Diana",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-08T04:01:36.197Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 63953852,
-          "code": "2249",
-          "name": "Angela",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-30T16:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 36726702,
-          "code": "1428",
-          "name": "Berenice",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-11-26T17:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 28986654,
-          "code": "9030",
-          "name": "yessica",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 228579194,
-          "code": "1222",
-          "name": "vyo2",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2023-01-12T19:00:00.000Z",
-          "endDate": "2023-01-12T19:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 228579170,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2023-01-12T19:00:00.000Z",
-          "endDate": "2023-01-12T19:00:00.000Z",
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 5440142,
-      "lockAlias": "7213-NUT-Patio",
-      "inferredProperty": "7213-nut",
-      "category": "patio",
-      "battery": 100,
-      "hasGateway": true,
-      "lockMac": "E9:B9:67:BA:C6:EA",
-      "passcodes": [
-        {
-          "id": 69323730,
-          "code": "6363",
-          "name": "permanent-visitor-room-5",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-20T17:21:04.933Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 69323710,
-          "code": "42424",
-          "name": "permanent-visitor-room-4",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-20T17:20:59.355Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 68920124,
-          "code": "8907",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-19T00:23:53.360Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 46027140,
-          "code": "13417304",
-          "name": "Berenice",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-01-10T04:50:21.290Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 4002062,
-          "code": "8616",
-          "name": "permanent-visitor room2",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-06-30T18:28:14.648Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 4001684,
-          "code": "6612",
-          "name": "permanent- visitor- room 1",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-06-30T18:24:49.766Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 4001346,
-          "code": "070409",
-          "name": "permanent-vistor room 3",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-06-30T18:23:46.168Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 3761560,
-          "code": "2249",
-          "name": "Angela",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-06-29T16:46:19.989Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 689791010,
-          "code": "7810",
-          "name": "Diana Cleaning team",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-01-21T02:40:29.650Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 606813510,
-          "code": "9030",
-          "name": "yessica",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 513171914,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 162331330,
-          "code": "5151",
-          "name": "universal",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2022-05-11T03:00:00.000Z",
-          "endDate": "2022-05-11T03:00:00.000Z",
-          "status": 1
-        }
-      ]
+      "lockId": 8500612,
+      "lockAlias": "unknown-8500612",
+      "inferredProperty": null,
+      "category": "unknown",
+      "battery": null,
+      "hasGateway": null,
+      "lockMac": null,
+      "passcodes": []
     },
     {
       "lockId": 5204376,
@@ -7590,77 +9970,6 @@
       ]
     },
     {
-      "lockId": 5556588,
-      "lockAlias": "3420-Hovenweep - Patio",
-      "inferredProperty": "3420-hov",
-      "category": "patio",
-      "battery": 100,
-      "hasGateway": true,
-      "lockMac": "43:7C:23:FC:CB:41",
-      "passcodes": [
-        {
-          "id": 63974634,
-          "code": "3993",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-30T17:47:39.552Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 26253450,
-          "code": "575758",
-          "name": "victor-test-timed",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-10-08T13:58:28.593Z",
-          "endDate": "2025-10-10T05:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 26253104,
-          "code": "767678",
-          "name": "victor-test-permanent",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-10-08T13:57:12.977Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 689791556,
-          "code": "7810",
-          "name": "Diana Cleaning team",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-01-21T02:40:29.650Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 627385876,
-          "code": "7342",
-          "name": "extra",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2024-11-01T03:43:35.835Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 249314092,
-          "code": "5758",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2023-03-13T15:00:00.000Z",
-          "endDate": "2023-03-13T15:00:00.000Z",
-          "status": 1
-        }
-      ]
-    },
-    {
       "lockId": 5071172,
       "lockAlias": "271-GIN-Laundry",
       "inferredProperty": "271-gin",
@@ -7763,168 +10072,6 @@
       ]
     },
     {
-      "lockId": 31136280,
-      "lockAlias": "407-Gev-Loft-official",
-      "inferredProperty": "407-gev",
-      "category": "loft",
-      "battery": 45,
-      "hasGateway": true,
-      "lockMac": "44:7B:DC:2F:0A:E7",
-      "passcodes": [
-        {
-          "id": 71404970,
-          "code": "7579",
-          "name": "Norma",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-28T19:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 71404846,
-          "code": "9598",
-          "name": "permanent-visitor-bundle",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-28T19:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 71404726,
-          "code": "9041",
-          "name": "Zenaida",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-28T19:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 70927588,
-          "code": "353637",
-          "name": "extra",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-26T22:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 70927496,
-          "code": "0802",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-26T22:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 70927456,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-26T22:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 12756118,
-      "lockAlias": "407-GEV-BackDoor",
-      "inferredProperty": "407-gev",
-      "category": "back-door",
-      "battery": 65,
-      "hasGateway": false,
-      "lockMac": "99:96:26:73:68:5F",
-      "passcodes": [
-        {
-          "id": 706905148,
-          "code": "1234",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-02-11T18:00:16.123Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 704175856,
-          "code": "2828",
-          "name": "permanent-visitor-bundle",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-02-08T18:01:46.168Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 691905564,
-          "code": "0215",
-          "name": "Elsa Cleaning",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-01-23T21:18:22.699Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 627384230,
-          "code": "7342",
-          "name": "extra",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2024-11-01T03:43:35.835Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 581744108,
-          "code": "7579",
-          "name": "norma",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 445725754,
-          "code": "4646",
-          "name": "visitor-home",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2024-09-21T17:00:00.000Z",
-          "endDate": "2026-09-30T17:00:59.000Z",
-          "status": 1
-        },
-        {
-          "id": 442497868,
-          "code": "2727",
-          "name": "visitor-bundle",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2024-08-04T17:00:00.000Z",
-          "endDate": "2026-10-31T17:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 401805652,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2024-01-10T00:00:00.000Z",
-          "endDate": "2024-01-10T00:00:00.000Z",
-          "status": 1
-        }
-      ]
-    },
-    {
       "lockId": 5204692,
       "lockAlias": "407-GEV-Pantry",
       "inferredProperty": "407-gev",
@@ -7971,67 +10118,6 @@
           "typeId": 2,
           "startDate": "2022-04-11T01:00:00.000Z",
           "endDate": "2022-04-11T01:00:00.000Z",
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 25762100,
-      "lockAlias": "219-pau Front door (new)",
-      "inferredProperty": "219-pau",
-      "category": "front-door",
-      "battery": 80,
-      "hasGateway": true,
-      "lockMac": "85:D3:86:39:88:65",
-      "passcodes": [
-        {
-          "id": 63726770,
-          "code": "0206",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-29T18:31:42.176Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 59161540,
-          "code": "9041",
-          "name": "Zeneida",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-11T01:14:15.943Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 39689404,
-          "code": "7579",
-          "name": "Norma",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-07T02:37:45.391Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 58308418,
-          "code": "7473",
-          "name": "Permanent_Visitor_Home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-07T02:25:32.247Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 56372286,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-02-27T00:00:00.000Z",
-          "endDate": null,
           "status": 1
         }
       ]
@@ -8194,229 +10280,6 @@
           "typeId": 2,
           "startDate": "2023-08-05T00:00:00.000Z",
           "endDate": "2023-08-05T00:00:00.000Z",
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 24572924,
-      "lockAlias": "5306A-kin-Home",
-      "inferredProperty": null,
-      "category": "unknown",
-      "battery": 55,
-      "hasGateway": true,
-      "lockMac": "6E:C6:7B:98:29:07",
-      "passcodes": [
-        {
-          "id": 66092748,
-          "code": "2249",
-          "name": "Angelita",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-04-08T03:53:28.504Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 59671082,
-          "code": "7925",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-14T03:44:22.442Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 59672696,
-          "code": "026563",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-03-13T06:19:54.590Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 37445554,
-          "code": "1428",
-          "name": "Berenice",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-11-29T19:00:00.000Z",
-          "endDate": "2027-11-30T21:29:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 33599868,
-          "code": "8387",
-          "name": "Diana",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-11-12T02:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 33599804,
-          "code": "9030",
-          "name": "Yessica",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-11-12T02:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 11132938,
-          "code": "1808",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-08-01T20:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 24572818,
-      "lockAlias": "5306-kin-Home Patio (PERSONAL)",
-      "inferredProperty": "5306-kin",
-      "category": "patio",
-      "battery": 55,
-      "hasGateway": true,
-      "lockMac": "17:D0:B8:95:C0:BF",
-      "passcodes": [
-        {
-          "id": 37445910,
-          "code": "232323",
-          "name": "Brenda",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-11-29T21:32:21.393Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 11130476,
-          "code": "0909",
-          "name": "extra",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-08-01T20:00:00.000Z",
-          "endDate": "2025-09-15T20:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 11130438,
-          "code": "0103",
-          "name": "staff",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-08-01T20:00:00.000Z",
-          "endDate": "2025-09-27T20:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 11130386,
-          "code": "1222",
-          "name": "vyo",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2025-08-01T20:00:00.000Z",
-          "endDate": null,
-          "status": 1
-        }
-      ]
-    },
-    {
-      "lockId": 24572672,
-      "lockAlias": "5306-kin-Home Front (PERSONAL)",
-      "inferredProperty": "5306-kin",
-      "category": "personal",
-      "battery": 100,
-      "hasGateway": true,
-      "lockMac": "D9:7E:46:05:18:5F",
-      "passcodes": [
-        {
-          "id": 75599554,
-          "code": "8080",
-          "name": "permanent-visitor-home",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": "2026-05-14T00:35:40.098Z",
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 70729026,
-          "code": "161718",
-          "name": "yessica",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2026-04-26T15:00:00.000Z",
-          "endDate": "2026-04-28T01:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 58951072,
-          "code": "9698",
-          "name": "test olivia 3",
-          "type": "PERMANENT",
-          "typeId": 2,
-          "startDate": null,
-          "endDate": null,
-          "status": 1
-        },
-        {
-          "id": 58951038,
-          "code": "9697",
-          "name": "test olivia 2",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2026-03-10T08:05:00.000Z",
-          "endDate": "2026-03-17T08:05:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 43778000,
-          "code": "0606",
-          "name": "yessica",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-12-30T10:00:00.000Z",
-          "endDate": "2026-01-23T11:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 11126676,
-          "code": "1222",
-          "name": "vyo",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2026-03-08T20:35:49.565Z",
-          "endDate": "2036-03-06T20:35:49.585Z",
-          "status": 1
-        },
-        {
-          "id": 11126622,
-          "code": "161618",
-          "name": "extra",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-08-02T00:00:00.000Z",
-          "endDate": "2026-10-18T05:00:00.000Z",
-          "status": 1
-        },
-        {
-          "id": 11126590,
-          "code": "0103",
-          "name": "staff",
-          "type": "TIMED",
-          "typeId": 3,
-          "startDate": "2025-08-01T19:00:00.000Z",
-          "endDate": "2025-10-30T15:00:00.000Z",
           "status": 1
         }
       ]
@@ -8650,35 +10513,37 @@
   "replacedLocks": [
     {
       "listing": "219-PAU-HOME",
-      "hubLockId": 5280922,
-      "hubLockName": "219-PAU-HOME-FRONT-DOOR",
-      "probableReplacementId": 25762100,
-      "probableReplacementAlias": "219-pau Front door (new)",
-      "reason": "Lock alias contains \"(new)\", original ID not found on Sifely"
+      "oldLockId": 5280922,
+      "oldLockName": "219-PAU-HOME-FRONT-DOOR",
+      "newLockId": 25762100,
+      "newLockAlias": "219-pau Front door (new)",
+      "status": "confirmed-replaced"
     },
     {
-      "listing": "407-GEV-BUNDLE",
-      "hubLockId": 8500612,
-      "hubLockName": "407-GEV-LOFT-FRONT-DOOR",
-      "probableReplacementId": 31136280,
-      "probableReplacementAlias": "407-Gev-Loft-official",
-      "reason": "Lock alias contains \"official\", original ID not found on Sifely"
-    },
-    {
-      "listing": "1602-BLU-HOME",
-      "hubLockId": 16559198,
-      "hubLockName": "1602-BLU-FRONT-DOOR",
-      "probableReplacementId": null,
-      "probableReplacementAlias": null,
-      "reason": "Lock ID not found on Sifely — possibly on a different Sifely account"
+      "listing": "407-GEV-BUNDLE / 407-GEV-LOFT",
+      "oldLockId": 8500612,
+      "oldLockName": "407-GEV-LOFT-FRONT-DOOR",
+      "newLockId": 31136280,
+      "newLockAlias": "407-Gev-Loft-official",
+      "status": "confirmed-replaced"
     },
     {
       "listing": "1602-BLU-HOME",
-      "hubLockId": 16559224,
-      "hubLockName": "1602-BLU-BACK-DOOR",
-      "probableReplacementId": null,
-      "probableReplacementAlias": null,
-      "reason": "Lock ID not found on Sifely — possibly on a different Sifely account"
+      "oldLockId": 16559198,
+      "oldLockName": "1602-BLU-FRONT-DOOR",
+      "newLockId": null,
+      "newLockAlias": null,
+      "status": "exists-on-different-api-endpoint",
+      "note": "Visible via pro-server.sifely.com/v3 but not app-smart-server.sifely.com"
+    },
+    {
+      "listing": "1602-BLU-HOME",
+      "oldLockId": 16559224,
+      "oldLockName": "1602-BLU-BACK-DOOR",
+      "newLockId": null,
+      "newLockAlias": null,
+      "status": "exists-on-different-api-endpoint",
+      "note": "Visible via pro-server.sifely.com/v3 but not app-smart-server.sifely.com"
     }
   ]
 }
