@@ -216,7 +216,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
 ## TODOs
 
-- [ ] 1. Scaffold Vite + React + Tailwind + shadcn/ui project
+- [x] 1. Scaffold Vite + React + Tailwind + shadcn/ui project
 
   **What to do**:
   - Create `dashboard/` directory at repo root with its own `package.json`
@@ -294,7 +294,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 2. Express CORS middleware + static file serving + SPA catch-all
+- [x] 2. Express CORS middleware + static file serving + SPA catch-all
 
   **What to do**:
   - Install `cors` and `@types/cors` in the root project (NOT in dashboard/)
@@ -386,7 +386,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `src/gateway/server.ts`, `package.json`
   - Pre-commit: `pnpm build`
 
-- [ ] 3. TypeScript types & shared constants
+- [x] 3. TypeScript types & shared constants
 
   **What to do**:
   - Create `dashboard/src/lib/types.ts` with TypeScript interfaces matching the Prisma models that the UI needs:
@@ -470,7 +470,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/lib/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 4. PostgREST client + Gateway API client + usePoll hook
+- [x] 4. PostgREST client + Gateway API client + usePoll hook
 
   **What to do**:
   - Create `dashboard/src/lib/postgrest.ts` — a thin fetch wrapper for PostgREST:
@@ -568,7 +568,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/lib/*`, `dashboard/src/hooks/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 5. App shell — layout, sidebar navigation, tenant selector, routing, API key prompt
+- [x] 5. App shell — layout, sidebar navigation, tenant selector, routing, API key prompt
 
   **What to do**:
   - Create `dashboard/src/App.tsx` — the root component with:
@@ -676,7 +676,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/App.tsx`, `dashboard/src/main.tsx`, `dashboard/src/components/layout/*`, `dashboard/src/components/ApiKeyPrompt.tsx`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 6. Task Feed panel — task list with status badges and auto-polling
+- [x] 6. Task Feed panel — task list with status badges and auto-polling
 
   **What to do**:
   - Create `dashboard/src/panels/tasks/TaskFeed.tsx` — the main task list component:
@@ -770,7 +770,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/tasks/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 7. Task Detail panel — status timeline + approve/reject + raw event viewer
+- [x] 7. Task Detail panel — status timeline + approve/reject + raw event viewer
 
   **What to do**:
   - Create `dashboard/src/panels/tasks/TaskDetail.tsx` — a detail view/slide-out/page for a single task:
@@ -874,7 +874,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/tasks/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 8. Trigger Panel — employee selector + fire button + dry run
+- [x] 8. Trigger Panel — employee selector + fire button + dry run
 
   **What to do**:
   - Create `dashboard/src/panels/trigger/TriggerPanel.tsx`:
@@ -972,7 +972,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/trigger/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 9. Tenant Overview panel — config viewer + secrets manager + OAuth status
+- [x] 9. Tenant Overview panel — config viewer + secrets manager + OAuth status
 
   **What to do**:
   - Create `dashboard/src/panels/tenants/TenantOverview.tsx`:
@@ -1059,7 +1059,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/tenants/*`, `dashboard/src/panels/rules/*`, `dashboard/src/panels/preflight/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 10. Rules & Feedback panel — per-archetype rules + feedback events feed
+- [x] 10. Rules & Feedback panel — per-archetype rules + feedback events feed
 
   **What to do**:
   - Create `dashboard/src/panels/rules/RulesPanel.tsx`:
@@ -1148,7 +1148,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/rules/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 11. Preflight Check panel — health diagnostics
+- [x] 11. Preflight Check panel — health diagnostics
 
   **What to do**:
   - Create `dashboard/src/panels/preflight/PreflightPanel.tsx`:
@@ -1231,7 +1231,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/panels/preflight/*`
   - Pre-commit: `cd dashboard && pnpm build`
 
-- [ ] 12. Smoke tests
+- [x] 12. Smoke tests
 
   **What to do**:
   - Install `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom` as dev dependencies in `dashboard/`
@@ -1298,7 +1298,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `dashboard/src/__tests__/*`, `dashboard/src/test-setup.ts`, `dashboard/vite.config.ts`, `dashboard/package.json`
   - Pre-commit: `cd dashboard && pnpm test --run`
 
-- [ ] 13. Build script + npm script integration
+- [x] 13. Build script + npm script integration
 
   **What to do**:
   - Add npm scripts to root `package.json`:
@@ -1375,7 +1375,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
   - Files: `package.json`, `dashboard/vite.config.ts`, `.gitignore`, `dashboard/README.md`
   - Pre-commit: `pnpm dashboard:build`
 
-- [ ] 14. E2E Prerequisites — Start services, build dashboard, verify readiness
+- [x] 14. E2E Prerequisites — Start services, build dashboard, verify readiness
 
   **What to do**:
   This task sets up the complete environment for the E2E test. The executing agent must:
@@ -1440,7 +1440,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
   **Commit**: NO
 
-- [ ] 15. E2E Scenario A Step 1 — Trigger guest-messaging from Dashboard + Send Airbnb message
+- [x] 15. E2E Scenario A Step 1 — Trigger guest-messaging from Dashboard + Send Airbnb message
 
   **What to do**:
   This task performs Scenario A Steps 1-2: trigger a guest-messaging task and confirm it appears in the Dashboard Task Feed. The executing agent must:
@@ -1547,7 +1547,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
   **Commit**: NO
 
-- [ ] 16. E2E Scenario A Steps 3-5 — Wait for Reviewing state + Approve from Dashboard
+- [x] 16. E2E Scenario A Steps 3-5 — Wait for Reviewing state + Approve from Dashboard
 
   **What to do**:
   This task performs Scenario A Steps 3-5: wait for the task to reach `Reviewing`, approve it from the Dashboard (NOT Slack), and verify it progresses to `Done`. The executing agent must:
@@ -1660,7 +1660,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
   **Commit**: NO
 
-- [ ] 17. E2E Scenario A Steps 6-7 — Full cross-system verification + Slack + Delivery
+- [x] 17. E2E Scenario A Steps 6-7 — Full cross-system verification + Slack + Delivery
 
   **What to do**:
   This is the final verification step of the E2E flow. The executing agent must verify the complete system state across all subsystems to confirm the Dashboard-driven approval produced the same outcome as a Slack-driven approval would.
@@ -1772,7 +1772,7 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
   **Commit**: NO
 
-- [ ] 18. Notify completion
+- [x] 18. Notify completion
 
   **What to do**:
   - Send Telegram notification: plan `local-ops-dashboard` complete, all tasks done including E2E validation, come back to review results.
@@ -1808,19 +1808,19 @@ Max Concurrent: 4 (Wave 1 and Wave 2)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (navigate to `/dashboard`, check each panel loads, verify approve/reject fires event, verify trigger creates task). For each "Must NOT Have": search codebase for forbidden patterns (WebSocket, SERVICE_ROLE_KEY in dashboard/, modifications to src/inngest/). Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm --filter dashboard build` (no errors). Check for: `as any`, empty catches, console.log in production components, unused imports, hardcoded secrets beyond ANON_KEY. Check shadcn/ui component count ≤10. Verify no modifications to `tsconfig.json` or `tsconfig.build.json`.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state (services running). Navigate to `http://localhost:7700/dashboard`. Execute: (1) verify all 5 panels load, (2) trigger daily-summarizer for VLRE, see task appear in feed, (3) navigate to Task Detail for any task, verify timeline renders, (4) check Preflight panel shows green for all services, (5) verify tenant selector switches context. Save screenshots to `.sisyphus/evidence/final-qa/`.
       Output: `Panels [5/5] | Trigger [PASS/FAIL] | Detail [PASS/FAIL] | Preflight [PASS/FAIL] | Tenant Switch [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual implementation. Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Flag: any new Express routes beyond static+catch-all, any WebSocket code, any modifications to inngest/workers/worker-tools directories, any shadcn components beyond 10. Detect unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
