@@ -66,7 +66,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Sifely tools** (`/tools/sifely/`):
   - `tsx /tools/sifely/list-locks.ts` — list all locks
   - `tsx /tools/sifely/list-passcodes.ts --lock-id <id>` — list passcodes for a lock
-  - `tsx /tools/sifely/list-access-records.ts --lock-id <id> --start-date <ms> --end-date <ms>` — list access records
+  - `tsx /tools/sifely/list-access-records.ts --lock-id <id> [--start-date <ms>] [--end-date <ms>] [--human]` — list access records; `--start-date`/`--end-date` optional (defaults: last 7 days → now); `--human` adds `recordTypeLabel` field (e.g. "Fingerprint", "Passcode", "Auto-Lock"); auto-paginates to fetch ALL records
   - `tsx /tools/sifely/create-passcode.ts --lock-id <id> --name "Name" --code "1234"` — create permanent passcode
   - `tsx /tools/sifely/update-passcode.ts --lock-id <id> --passcode-id <id> [--code "digits"] [--name "Name"]` — update passcode
   - `tsx /tools/sifely/delete-passcode.ts --lock-id <id> --passcode-id <id>` — delete passcode

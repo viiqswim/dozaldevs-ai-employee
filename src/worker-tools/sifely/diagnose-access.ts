@@ -405,10 +405,14 @@ async function main(): Promise<void> {
               recordId: item.recordId,
               lockId: item.lockId,
               recordType: item.recordType,
+              recordTypeFromLock: item.recordTypeFromLock,
               success: item.success,
               keyboardPwd: item.keyboardPwd,
               lockDate: item.lockDate,
               serverDate: item.serverDate,
+              username: item.username,
+              hotelUsername: item.hotelUsername,
+              keyName: item.keyName,
             }),
           );
         });
