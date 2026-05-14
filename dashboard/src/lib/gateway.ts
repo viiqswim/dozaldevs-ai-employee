@@ -58,7 +58,10 @@ export async function getTaskStatus(tenantId: string, taskId: string): Promise<T
 }
 
 export async function listSecrets(tenantId: string): Promise<TenantSecret[]> {
-  return gatewayFetch<TenantSecret[]>(`/admin/tenants/${tenantId}/secrets`);
+  const data = await gatewayFetch<{ secrets: TenantSecret[] }>(
+    `/admin/tenants/${tenantId}/secrets`,
+  );
+  return data.secrets ?? [];
 }
 
 export async function setSecret(tenantId: string, key: string, value: string): Promise<void> {
