@@ -310,6 +310,25 @@ async function listLocks(baseUrl: string, token: string): Promise<SifelyLock[]> 
   return body.list ?? [];
 }
 
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number = 5,
+  baseDelayMs: number = 2000,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const isRetryable = err instanceof Error && /\b5\d{2}\b/.test(err.message);
+      if (!isRetryable || attempt === maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** (attempt - 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function createPasscode(
   baseUrl: string,
   token: string,
@@ -319,40 +338,44 @@ async function createPasscode(
   startDate: number,
   endDate: number,
 ): Promise<{ keyboardPwdId: number }> {
-  const params = new URLSearchParams({
-    lockId,
-    keyboardPwd: code,
-    keyboardPwdName: name,
-    startDate: String(startDate),
-    endDate: String(endDate),
-    addType: '1',
-    keyboardPwdType: '2',
-    date: String(Date.now()),
+  return withRetry(async () => {
+    // Build params inside the retry lambda so `date` is fresh on every attempt.
+    // Sifely returns 500 on stale timestamps, so this must not be built outside.
+    const params = new URLSearchParams({
+      lockId,
+      keyboardPwd: code,
+      keyboardPwdName: name,
+      keyboardPwdType: '2',
+      startDate: String(startDate),
+      endDate: String(endDate),
+      addType: '1',
+      date: String(Date.now()),
+    });
+
+    const response = await fetch(`${baseUrl}/v3/keyboardPwd/add?${params.toString()}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Sifely createPasscode HTTP error: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const body = (await response.json()) as SifelyCreatePasscodeResponse;
+
+    if (
+      (body.code !== undefined && body.code !== 200) ||
+      (body.errcode !== undefined && body.errcode !== 0)
+    ) {
+      throw new Error(
+        `Sifely createPasscode error: ${body.msg ?? body.errmsg ?? `code ${body.code ?? body.errcode}`}`,
+      );
+    }
+
+    return { keyboardPwdId: body.keyboardPwdId ?? 0 };
   });
-
-  const response = await fetch(`${baseUrl}/v3/keyboardPwd/add?${params.toString()}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Sifely createPasscode HTTP error: ${response.status} ${response.statusText}`);
-  }
-
-  const body = (await response.json()) as SifelyCreatePasscodeResponse;
-
-  if (
-    (body.code !== undefined && body.code !== 200) ||
-    (body.errcode !== undefined && body.errcode !== 0)
-  ) {
-    throw new Error(
-      `Sifely createPasscode error: ${body.msg ?? body.errmsg ?? `code ${body.code ?? body.errcode}`}`,
-    );
-  }
-
-  return { keyboardPwdId: body.keyboardPwdId ?? 0 };
 }
 
 async function updatePasscode(
