@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx src/gateway/server.ts",
+    "dev": "tsx scripts/dev.ts",
     "start": "node dist/gateway/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -17,7 +17,6 @@
     "setup": "tsx scripts/setup.ts",
     "trigger-task": "tsx scripts/trigger-task.ts",
     "register-project": "tsx scripts/register-project.ts",
-    "dev": "tsx scripts/dev.ts",
     "dev:e2e": "tsx scripts/dev-e2e.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
     "fly:setup": "tsx scripts/fly-setup.ts",
@@ -43,6 +42,7 @@
     "@prisma/client": "^6.0.0",
     "@slack/bolt": "^4.7.0",
     "@slack/web-api": "^7.15.1",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "inngest": "^4.1.0",
     "pino": "^10.3.1",
@@ -51,6 +51,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@inngest/test": "^1.0.0",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "@types/pino": "^7.0.5",
