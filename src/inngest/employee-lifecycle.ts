@@ -506,7 +506,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
               INNGEST_DEV: '1',
               NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-              ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
+              ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
               ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
               ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
             },
@@ -530,7 +530,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_URL: effectiveSupabaseUrl,
             SUPABASE_SECRET_KEY: supabaseKey,
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-            ...(rawEvent['superseded_notify_ts'] ? { REPLY_BROADCAST: 'true' } : {}),
+            ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
             ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
             ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
           },
@@ -1254,8 +1254,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
-          guestName: delivMeta.guest_name as string | undefined,
-          propertyName: delivMeta.property_name as string | undefined,
+          recipientName: delivMeta.guest_name as string | undefined,
+          contextLabel: delivMeta.property_name as string | undefined,
           urgency: delivMeta.urgency as boolean | undefined,
         });
         log.info({ taskId, threadUidForTracking }, 'Pending approval tracked');
