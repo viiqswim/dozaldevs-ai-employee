@@ -537,11 +537,7 @@ async function main(): Promise<void> {
 
   const employeeRules = process.env.EMPLOYEE_RULES ?? '';
   const employeeKnowledge = process.env.EMPLOYEE_KNOWLEDGE ?? '';
-  const baseSystemPrompt = archetype.system_prompt ?? '';
-  let systemPrompt = employeeRules ? `${baseSystemPrompt}\n\n${employeeRules}` : baseSystemPrompt;
-  if (employeeKnowledge) {
-    systemPrompt = `${systemPrompt}\n\n${employeeKnowledge}`;
-  }
+  const systemPrompt = archetype.system_prompt ?? '';
   const overrideDirection = process.env.OVERRIDE_DIRECTION ?? '';
   const instructions = overrideDirection
     ? `OVERRIDE DIRECTION FROM HUMAN:\n${overrideDirection}\n\n---\nOriginal instructions:\n${archetype.instructions ?? ''}`
@@ -604,7 +600,13 @@ async function main(): Promise<void> {
     }
     const { readFile, writeFile } = await import('node:fs/promises');
     const platformContent = await readFile('/app/AGENTS.md', 'utf8');
-    const agentsMdContent = resolveAgentsMd(platformContent, tenantConfig, archetype);
+    const agentsMdContent = resolveAgentsMd(
+      platformContent,
+      tenantConfig,
+      archetype,
+      employeeRules,
+      employeeKnowledge,
+    );
     await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
     log.info('Wrote concatenated AGENTS.md (platform + tenant + archetype)');
   } catch (err) {
