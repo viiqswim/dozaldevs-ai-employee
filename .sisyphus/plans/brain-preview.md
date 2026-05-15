@@ -276,25 +276,25 @@ Wave FINAL:
   - Verify no secret values are visible
   - Screenshot evidence
 
-- [ ] 8. Notify completion — `npx tsx scripts/telegram-notify.ts "✅ brain-preview complete — Brain Preview tab done. Come back to review results."`
+- [x] 8. Notify completion — `npx tsx scripts/telegram-notify.ts "✅ brain-preview complete — Brain Preview tab done. Come back to review results."`
 
 ---
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Check evidence files.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run tests/gateway/admin-brain-preview.test.ts`. Review changed files for `as any`, empty catches, console.log, AI slop.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Navigate to employee detail page, click Brain Preview tab, verify all sections, toggle raw/rendered, screenshot.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `oracle`
+- [x] F4. **Scope Fidelity Check** — `oracle`
       Verify each task diff matches its spec. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/ISSUES] | VERDICT`
 
