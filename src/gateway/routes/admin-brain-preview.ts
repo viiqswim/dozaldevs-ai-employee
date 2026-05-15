@@ -96,6 +96,19 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         });
         const ruleTexts = rules.map((r) => r.rule_text);
 
+        const kbRows = await prisma.knowledgeBase.findMany({
+          where: { archetype_id: archetypeId, tenant_id: tenantId },
+          orderBy: { created_at: 'desc' },
+        });
+        const knowledgeThemes: string[] = kbRows.flatMap((kb) => {
+          const cfg = kb.source_config as {
+            themes?: Array<{ theme: string; representative_quote: string; frequency: number }>;
+          } | null;
+          return (cfg?.themes ?? []).map(
+            (t) => `- ${t.theme}: "${t.representative_quote}" (${t.frequency} occurrences)`,
+          );
+        });
+
         const tenant = await prisma.tenant.findFirst({ where: { id: tenantId } });
         const tenantConfig = (tenant?.config as Record<string, unknown> | null) ?? null;
 
@@ -334,7 +347,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
             ],
           },
           employee_rules: ruleTexts,
-          employee_knowledge: [],
+          employee_knowledge: knowledgeThemes,
         });
       } catch (err) {
         logger.error({ err }, 'Failed to assemble brain preview');
