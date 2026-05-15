@@ -14,6 +14,8 @@ function resolveAgentsMd(
   platformContent: string,
   tenantConfig: Record<string, unknown> | null,
   archetype: { agents_md?: string | null } | null,
+  employeeRules?: string,
+  employeeKnowledge?: string,
 ): string {
   const sections: string[] = [];
   sections.push(`# Platform Policy\n\n${platformContent}`);
@@ -24,6 +26,12 @@ function resolveAgentsMd(
   const archetypeMd = archetype?.agents_md;
   if (archetypeMd != null && archetypeMd.trim().length > 0) {
     sections.push(`# Employee Instructions\n\n${archetypeMd}`);
+  }
+  if (employeeRules != null && employeeRules.trim().length > 0) {
+    sections.push(`# Behavioral Rules (Learned)\n\n${employeeRules}`);
+  }
+  if (employeeKnowledge != null && employeeKnowledge.trim().length > 0) {
+    sections.push(`# Employee Knowledge\n\n${employeeKnowledge}`);
   }
   return sections.join('\n\n');
 }
@@ -113,7 +121,15 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const tenantConfig = (tenant?.config as Record<string, unknown> | null) ?? null;
 
         const platformMd = getPlatformAgentsMd();
-        const fullAgentsMd = resolveAgentsMd(platformMd, tenantConfig, archetype);
+        const rulesForMd = ruleTexts.length > 0 ? ruleTexts.join('\n') : '';
+        const knowledgeForMd = knowledgeThemes.length > 0 ? knowledgeThemes.join('\n') : '';
+        const fullAgentsMd = resolveAgentsMd(
+          platformMd,
+          tenantConfig,
+          archetype,
+          rulesForMd,
+          knowledgeForMd,
+        );
         const tenantLayer = (tenantConfig?.default_agents_md as string | undefined)?.trim() || null;
         const employeeLayer = archetype.agents_md?.trim() || null;
 
@@ -269,18 +285,12 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           ...HARNESS_VARS,
         ];
 
-        let systemPrompt = archetype.system_prompt ?? '';
-
-        if (ruleTexts.length > 0) {
-          const ruleBlock = ruleTexts.map((r) => `- ${r}`).join('\n');
-          systemPrompt += `\n\n## Behavioral Rules — follow these\n\n${ruleBlock}`;
-        }
-
+        const systemPrompt = archetype.system_prompt ?? '';
         const instructions = archetype.instructions ?? '';
         const executionPrompt = `${systemPrompt}\n\n${instructions}\n\nTask ID: <dynamic at runtime>`;
 
         const deliveryPrompt = archetype.delivery_instructions
-          ? `${archetype.system_prompt ?? ''}\n\n${archetype.delivery_instructions}\n\nTask ID: <dynamic at runtime>`
+          ? `${archetype.delivery_instructions}\n\nTask ID: <dynamic at runtime>`
           : null;
 
         const basePath = path.join(process.cwd(), 'src/worker-tools');
@@ -307,6 +317,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
               platform: platformMd,
               tenant: tenantLayer,
               employee: employeeLayer,
+              rules: ruleTexts.length > 0 ? ruleTexts.map((r) => `- ${r}`).join('\n') : null,
+              knowledge: knowledgeThemes.length > 0 ? knowledgeThemes.join('\n') : null,
             },
           },
           env_vars,

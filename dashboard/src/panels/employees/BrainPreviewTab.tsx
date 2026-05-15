@@ -122,7 +122,7 @@ const SOURCE_ORDER: BrainPreviewEnvVar['source'][] = [
 ];
 
 const SECTION_NAV = [
-  { id: 'brain-execution-prompt', label: 'Execution Prompt', phase: 'execution' },
+  { id: 'brain-execution-prompt', label: 'Task Prompt', phase: 'execution' },
   { id: 'brain-agents-md', label: 'AGENTS.md', phase: 'execution' },
   { id: 'brain-env-vars', label: 'Env Vars', phase: 'execution' },
   { id: 'brain-tools', label: 'Tools', phase: 'execution' },
@@ -150,9 +150,9 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
   const [executionRaw, setExecutionRaw] = useState(false);
   const [deliveryRaw, setDeliveryRaw] = useState(false);
   const [agentsMdRaw, setAgentsMdRaw] = useState(true);
-  const [agentsMdTab, setAgentsMdTab] = useState<'platform' | 'tenant' | 'employee' | 'full'>(
-    'full',
-  );
+  const [agentsMdTab, setAgentsMdTab] = useState<
+    'platform' | 'tenant' | 'employee' | 'full' | 'rules' | 'knowledge'
+  >('full');
   const [activeSection, setActiveSection] = useState('brain-execution-prompt');
 
   const handleNavClick = (id: string) => {
@@ -287,17 +287,29 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
       <PromptSection
         id="brain-execution-prompt"
         defaultOpen={true}
-        title="Execution Prompt"
+        title="Task Prompt"
         content={data.execution_prompt}
         rawState={executionRaw}
         onToggleRaw={() => setExecutionRaw((r) => !r)}
-        badge={rulesBadge}
+        badge={
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-mono">
+              {data.execution_prompt.length.toLocaleString()} chars
+            </span>
+            {rulesBadge}
+          </div>
+        }
       />
 
       <Card id="brain-agents-md">
         <details>
           <summary className="flex cursor-pointer select-none items-center justify-between p-6 pb-3">
-            <CardTitle className="text-base">AGENTS.md</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">AGENTS.md</CardTitle>
+              <span className="text-xs text-muted-foreground font-mono">
+                {(data.agents_md.full || '').length.toLocaleString()} chars
+              </span>
+            </div>
             <span className="text-xs text-muted-foreground">click to toggle</span>
           </summary>
           <CardContent>
@@ -309,7 +321,9 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
             <Tabs
               value={agentsMdTab}
               onValueChange={(v) =>
-                setAgentsMdTab(v as 'platform' | 'tenant' | 'employee' | 'full')
+                setAgentsMdTab(
+                  v as 'platform' | 'tenant' | 'employee' | 'full' | 'rules' | 'knowledge',
+                )
               }
             >
               <TabsList>
@@ -317,6 +331,8 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
                 <TabsTrigger value="platform">Platform</TabsTrigger>
                 <TabsTrigger value="tenant">Tenant</TabsTrigger>
                 <TabsTrigger value="employee">Employee</TabsTrigger>
+                <TabsTrigger value="rules">Rules</TabsTrigger>
+                <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
               </TabsList>
 
               <TabsContent value="full">
@@ -374,6 +390,34 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
                   <p className="text-muted-foreground text-sm italic">
                     Not configured for this employee
                   </p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="rules">
+                {data.agents_md.layers.rules ? (
+                  agentsMdRaw ? (
+                    <pre className="font-mono text-xs bg-muted rounded p-4 overflow-auto max-h-96 whitespace-pre-wrap">
+                      {data.agents_md.layers.rules}
+                    </pre>
+                  ) : (
+                    <MarkdownPreview content={data.agents_md.layers.rules} />
+                  )
+                ) : (
+                  <p className="text-muted-foreground text-sm italic">No rules learned yet</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="knowledge">
+                {data.agents_md.layers.knowledge ? (
+                  agentsMdRaw ? (
+                    <pre className="font-mono text-xs bg-muted rounded p-4 overflow-auto max-h-96 whitespace-pre-wrap">
+                      {data.agents_md.layers.knowledge}
+                    </pre>
+                  ) : (
+                    <MarkdownPreview content={data.agents_md.layers.knowledge} />
+                  )
+                ) : (
+                  <p className="text-muted-foreground text-sm italic">No knowledge base entries</p>
                 )}
               </TabsContent>
             </Tabs>
@@ -454,7 +498,10 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
                 <>
                   <Separator />
                   <div>
-                    <p className="mb-2 text-sm font-semibold">Pre-loaded Skills</p>
+                    <p className="mb-2 text-sm font-semibold">On-demand Skills</p>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      (agent calls <code>skill(name)</code> to load)
+                    </p>
                     <ul className="space-y-1">
                       {data.skills.map((skill) => (
                         <li key={skill.name} className="flex items-start gap-2 text-sm">
