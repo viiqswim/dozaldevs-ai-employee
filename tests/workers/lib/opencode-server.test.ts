@@ -19,6 +19,16 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
+vi.mock('net', () => ({
+  default: {
+    createConnection: vi.fn(() => ({
+      destroyed: false,
+      destroy: vi.fn(),
+      on: vi.fn(),
+    })),
+  },
+}));
+
 import {
   startOpencodeServer,
   stopOpencodeServer,
@@ -58,11 +68,18 @@ describe('opencode-server', () => {
 
       const promise = startOpencodeServer();
 
-      expect(mockSpawn).toHaveBeenCalledWith('opencode', ['serve', '--port', '4096'], {
-        cwd: '/workspace',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false,
-      });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'opencode',
+        ['serve', '--port', '4096', '--hostname', '0.0.0.0', '--print-logs'],
+        expect.objectContaining({
+          cwd: '/workspace',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false,
+          env: expect.objectContaining({
+            OPENCODE_IDLE_TIMEOUT: expect.any(String),
+          }),
+        }),
+      );
 
       // Cleanup
       mockProc.emit('error', new Error('cleanup'));
@@ -76,11 +93,18 @@ describe('opencode-server', () => {
 
       const promise = startOpencodeServer({ port: 5000 });
 
-      expect(mockSpawn).toHaveBeenCalledWith('opencode', ['serve', '--port', '5000'], {
-        cwd: '/workspace',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false,
-      });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'opencode',
+        ['serve', '--port', '5000', '--hostname', '0.0.0.0', '--print-logs'],
+        expect.objectContaining({
+          cwd: '/workspace',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false,
+          env: expect.objectContaining({
+            OPENCODE_IDLE_TIMEOUT: expect.any(String),
+          }),
+        }),
+      );
 
       mockProc.emit('error', new Error('cleanup'));
       await promise;
@@ -93,30 +117,39 @@ describe('opencode-server', () => {
 
       const promise = startOpencodeServer({ cwd: '/custom/path' });
 
-      expect(mockSpawn).toHaveBeenCalledWith('opencode', ['serve', '--port', '4096'], {
-        cwd: '/custom/path',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false,
-      });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'opencode',
+        ['serve', '--port', '4096', '--hostname', '0.0.0.0', '--print-logs'],
+        expect.objectContaining({
+          cwd: '/custom/path',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false,
+          env: expect.objectContaining({
+            OPENCODE_IDLE_TIMEOUT: expect.any(String),
+          }),
+        }),
+      );
 
       mockProc.emit('error', new Error('cleanup'));
       await promise;
     });
 
-    it('returns handle with correct url and kill function on successful health check', async () => {
+    it('returns handle with correct url and kill function when stdout emits listening', async () => {
       const mockProc = createMockProcess();
       mockSpawn.mockReturnValue(mockProc);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ body: null }));
 
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ healthy: true }),
-      });
-      vi.stubGlobal('fetch', mockFetch);
-
+      vi.useFakeTimers();
       const promise = startOpencodeServer({ port: 4096 });
 
-      // Trigger health check success
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Trigger resolve by emitting 'listening' on stdout — the actual detection mechanism
+      (mockProc.stdout as EventEmitter).emit(
+        'data',
+        Buffer.from('opencode listening on port 4096'),
+      );
+
+      // Advance past the 200ms delay in source after detecting 'listening'
+      vi.advanceTimersByTime(201);
 
       const result = await promise;
 
@@ -124,6 +157,9 @@ describe('opencode-server', () => {
       expect(result?.url).toBe('http://localhost:4096');
       expect(result?.process).toBe(mockProc);
       expect(typeof result?.kill).toBe('function');
+
+      result?.stopKeepalive();
+      vi.useRealTimers();
     });
 
     it('returns null when process emits error on spawn', async () => {
@@ -169,67 +205,56 @@ describe('opencode-server', () => {
       vi.useRealTimers();
     });
 
-    it('polls health endpoint until server is ready', async () => {
+    it('resolves when listening appears after initial stdout output', async () => {
       const mockProc = createMockProcess();
       mockSpawn.mockReturnValue(mockProc);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ body: null }));
 
-      let callCount = 0;
-      const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount < 3) {
-          // First two calls fail
-          return Promise.reject(new Error('Not ready'));
-        }
-        // Third call succeeds
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ healthy: true }),
-        });
-      });
-      vi.stubGlobal('fetch', mockFetch);
-
+      vi.useFakeTimers();
       const promise = startOpencodeServer();
 
-      // Wait for polling to succeed
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      // First emit non-listening output
+      (mockProc.stdout as EventEmitter).emit('data', Buffer.from('Starting server...\n'));
+      (mockProc.stdout as EventEmitter).emit('data', Buffer.from('Initializing...\n'));
+
+      // Then emit the listening signal
+      (mockProc.stdout as EventEmitter).emit(
+        'data',
+        Buffer.from('Server listening on port 4096\n'),
+      );
+      vi.advanceTimersByTime(201);
 
       const result = await promise;
 
       expect(result).not.toBeNull();
       expect(result?.url).toBe('http://localhost:4096');
-      expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+      result?.stopKeepalive();
+      vi.useRealTimers();
     });
 
-    it('handles health check response with healthy=false', async () => {
+    it('resolves when listening is embedded in multi-line stdout chunk', async () => {
       const mockProc = createMockProcess();
       mockSpawn.mockReturnValue(mockProc);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ body: null }));
 
-      let callCount = 0;
-      const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount < 2) {
-          // First call returns healthy=false
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ healthy: false }),
-          });
-        }
-        // Second call returns healthy=true
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ healthy: true }),
-        });
-      });
-      vi.stubGlobal('fetch', mockFetch);
-
+      vi.useFakeTimers();
       const promise = startOpencodeServer();
 
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      // Emit a single chunk containing multiple lines, one of which has 'listening'
+      (mockProc.stdout as EventEmitter).emit(
+        'data',
+        Buffer.from('init\nserver listening on 4096\ndone\n'),
+      );
+      vi.advanceTimersByTime(201);
 
       const result = await promise;
 
       expect(result).not.toBeNull();
       expect(result?.url).toBe('http://localhost:4096');
+
+      result?.stopKeepalive();
+      vi.useRealTimers();
     });
   });
 
@@ -239,12 +264,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-                    process: mockProc,
-                    url: 'http://localhost:4096',
-                    kill: async () => {},
-                    onExit: Promise.resolve(null),
-                    stopKeepalive: () => {},
-                  };
+        process: mockProc,
+        url: 'http://localhost:4096',
+        kill: async () => {},
+        onExit: Promise.resolve(null),
+        stopKeepalive: () => {},
+      };
 
       const promise = stopOpencodeServer(handle);
 
@@ -263,24 +288,29 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-                    process: mockProc,
-                    url: 'http://localhost:4096',
-                    kill: async () => {},
-                    onExit: Promise.resolve(null),
-                    stopKeepalive: () => {},
-                  };
+        process: mockProc,
+        url: 'http://localhost:4096',
+        kill: async () => {},
+        onExit: Promise.resolve(null),
+        stopKeepalive: () => {},
+      };
 
+      vi.useFakeTimers();
       const promise = stopOpencodeServer(handle);
 
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
 
-      // Wait for the 5s timeout to trigger SIGKILL
+      // Advance past the 5s timeout to trigger SIGKILL
+      vi.advanceTimersByTime(5001);
+
       await promise;
 
       expect(mockProc.kill).toHaveBeenCalledWith('SIGKILL');
       expect(mockLogger.warn).toHaveBeenCalledWith(
         '[opencode-server] Process did not exit within 5s — sending SIGKILL',
       );
+
+      vi.useRealTimers();
     });
 
     it('returns immediately if process is already killed', async () => {
@@ -288,12 +318,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = true;
 
       const handle = {
-                    process: mockProc,
-                    url: 'http://localhost:4096',
-                    kill: async () => {},
-                    onExit: Promise.resolve(null),
-                    stopKeepalive: () => {},
-                  };
+        process: mockProc,
+        url: 'http://localhost:4096',
+        kill: async () => {},
+        onExit: Promise.resolve(null),
+        stopKeepalive: () => {},
+      };
 
       await stopOpencodeServer(handle);
 
@@ -305,12 +335,12 @@ describe('opencode-server', () => {
       (mockProc as unknown as { killed: boolean }).killed = false;
 
       const handle = {
-                    process: mockProc,
-                    url: 'http://localhost:4096',
-                    kill: async () => {},
-                    onExit: Promise.resolve(null),
-                    stopKeepalive: () => {},
-                  };
+        process: mockProc,
+        url: 'http://localhost:4096',
+        kill: async () => {},
+        onExit: Promise.resolve(null),
+        stopKeepalive: () => {},
+      };
 
       vi.useFakeTimers();
 
@@ -346,21 +376,26 @@ describe('opencode-server', () => {
       });
 
       const handle = {
-                    process: mockProc,
-                    url: 'http://localhost:4096',
-                    kill: async () => {},
-                    onExit: Promise.resolve(null),
-                    stopKeepalive: () => {},
-                  };
+        process: mockProc,
+        url: 'http://localhost:4096',
+        kill: async () => {},
+        onExit: Promise.resolve(null),
+        stopKeepalive: () => {},
+      };
 
+      vi.useFakeTimers();
       const promise = stopOpencodeServer(handle);
 
-      // Wait for the 5s timeout to trigger SIGKILL attempt
+      // Advance past the 5s timeout to trigger SIGKILL attempt
+      vi.advanceTimersByTime(5001);
+
       await promise;
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         '[opencode-server] SIGKILL failed: Permission denied',
       );
+
+      vi.useRealTimers();
     });
   });
 
@@ -368,25 +403,27 @@ describe('opencode-server', () => {
     it('calls stopOpencodeServer when handle.kill() is invoked', async () => {
       const mockProc = createMockProcess();
       mockSpawn.mockReturnValue(mockProc);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ body: null }));
 
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ healthy: true }),
-      });
-      vi.stubGlobal('fetch', mockFetch);
-
+      vi.useFakeTimers();
       const promise = startOpencodeServer();
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Emit listening to get the handle
+      (mockProc.stdout as EventEmitter).emit('data', Buffer.from('listening on port 4096'));
+      vi.advanceTimersByTime(201);
 
       const handle = await promise;
-
       expect(handle).not.toBeNull();
 
       // Call handle.kill()
-      await handle!.kill();
-
+      const killPromise = handle!.kill();
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
+
+      // Let the process exit gracefully to resolve the kill promise
+      mockProc.emit('exit', 0, null);
+      await killPromise;
+
+      vi.useRealTimers();
     });
   });
 });
