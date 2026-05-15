@@ -186,6 +186,8 @@ export interface BrainPreviewResponse {
       platform: string;
       tenant: string | null;
       employee: string | null;
+      rules: string | null;
+      knowledge: string | null;
     };
   };
   env_vars: BrainPreviewEnvVar[];
