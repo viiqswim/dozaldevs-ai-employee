@@ -1,14 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -17,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ChevronDown, Search, X } from 'lucide-react';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
@@ -30,6 +25,13 @@ function is403(err: Error): boolean {
 function truncate(text: string | null | undefined, max: number): string {
   if (!text) return '—';
   return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function buildArchetypeFilter(selectedIdsKey: string): Record<string, string> {
+  if (!selectedIdsKey) return {};
+  const ids = selectedIdsKey.split(',');
+  if (ids.length === 1) return { archetype_id: `eq.${ids[0]}` };
+  return { archetype_id: `in.(${ids.join(',')})` };
 }
 
 function SkeletonRow({ cols }: { cols: number }) {
@@ -134,21 +136,191 @@ function EventTypeBadge({ type }: { type: FeedbackEvent['event_type'] }) {
   );
 }
 
-function RulesTab({ archetypeId }: { archetypeId: string }) {
+interface MultiSelectOption {
+  value: string;
+  label: string;
+  badgeClass?: string;
+}
+
+function MultiSelectDropdown({
+  options,
+  selected,
+  onToggle,
+  placeholder,
+  width,
+}: {
+  options: MultiSelectOption[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+  placeholder: string;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()));
+
+  const label =
+    selected.size === 0
+      ? placeholder
+      : selected.size === 1
+        ? (options.find((o) => selected.has(o.value))?.label ?? placeholder)
+        : `${selected.size} selected`;
+
+  return (
+    <div className={`relative ${width ?? 'w-44'}`} ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-max rounded-md border border-border bg-popover shadow-md">
+          <div className="p-2">
+            <Input
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">No options found</p>
+            ) : (
+              filtered.map((opt) => {
+                const checked = selected.has(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onToggle(opt.value)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <div
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        checked
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-input bg-background'
+                      }`}
+                    >
+                      {checked && (
+                        <svg
+                          viewBox="0 0 12 12"
+                          className="h-3 w-3 fill-current"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 3L5 8.5 2 5.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    {opt.badgeClass ? (
+                      <Badge
+                        variant="outline"
+                        className={`${opt.badgeClass} pointer-events-none text-xs`}
+                      >
+                        {opt.label}
+                      </Badge>
+                    ) : (
+                      <span>{opt.label}</span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const RULE_STATUS_OPTIONS: MultiSelectOption[] = [
+  { value: 'confirmed', label: 'confirmed', badgeClass: RULE_STATUS_CLASSES.confirmed },
+  { value: 'proposed', label: 'proposed', badgeClass: RULE_STATUS_CLASSES.proposed },
+  {
+    value: 'awaiting_input',
+    label: 'awaiting_input',
+    badgeClass: RULE_STATUS_CLASSES.awaiting_input,
+  },
+];
+
+function RulesTab({
+  selectedIdsKey,
+  archetypeMap,
+}: {
+  selectedIdsKey: string;
+  archetypeMap: Map<string, string>;
+}) {
   const { tenantId } = useTenant();
+  const [query, setQuery] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
 
   const fetchRules = useCallback(
     () =>
       postgrestFetch<EmployeeRule>('employee_rules', {
         ...scopeByTenant(tenantId),
-        archetype_id: `eq.${archetypeId}`,
+        ...buildArchetypeFilter(selectedIdsKey),
         order: 'created_at.desc',
         limit: '100',
       }),
-    [tenantId, archetypeId],
+    [tenantId, selectedIdsKey],
   );
 
   const { data: rules, error, loading, refresh } = usePoll(fetchRules);
+
+  const filteredRules = useMemo(() => {
+    if (!rules) return [];
+    const q = query.toLowerCase();
+    return rules.filter((r) => {
+      const matchesQuery = !q || r.rule_text.toLowerCase().includes(q);
+      const matchesStatus = selectedStatuses.size === 0 || selectedStatuses.has(r.status);
+      return matchesQuery && matchesStatus;
+    });
+  }, [rules, query, selectedStatuses]);
+
+  const toggleStatus = (v: string) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) {
+        next.delete(v);
+      } else {
+        next.add(v);
+      }
+      return next;
+    });
+  };
+
+  const hasFilters = query !== '' || selectedStatuses.size > 0;
+
+  const clearFilters = () => {
+    setQuery('');
+    setSelectedStatuses(new Set());
+  };
 
   if (loading) {
     return (
@@ -156,6 +328,7 @@ function RulesTab({ archetypeId }: { archetypeId: string }) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-36">Status</TableHead>
+            <TableHead className="w-36">Employee</TableHead>
             <TableHead>Rule</TableHead>
             <TableHead className="w-40">Source</TableHead>
             <TableHead className="w-32">Created</TableHead>
@@ -163,7 +336,7 @@ function RulesTab({ archetypeId }: { archetypeId: string }) {
         </TableHeader>
         <TableBody>
           {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonRow key={i} cols={4} />
+            <SkeletonRow key={i} cols={5} />
           ))}
         </TableBody>
       </Table>
@@ -174,61 +347,149 @@ function RulesTab({ archetypeId }: { archetypeId: string }) {
     return <ErrorState error={error} table="employee_rules" onRetry={refresh} />;
   }
 
-  if (!rules || rules.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-16 text-center">
-        <p className="text-sm text-muted-foreground">
-          No rules yet — rules are extracted from PM feedback in Slack
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-36">Status</TableHead>
-          <TableHead>Rule</TableHead>
-          <TableHead className="w-40">Source</TableHead>
-          <TableHead className="w-32">Created</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rules.map((rule) => (
-          <TableRow key={rule.id}>
-            <TableCell>
-              <RuleStatusBadge status={rule.status} />
-            </TableCell>
-            <TableCell className="max-w-md text-sm" title={rule.rule_text}>
-              {truncate(rule.rule_text, 120)}
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">{rule.source ?? '—'}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {formatRelativeTime(rule.created_at)}
-            </TableCell>
+    <>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search rules..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <MultiSelectDropdown
+          options={RULE_STATUS_OPTIONS}
+          selected={selectedStatuses}
+          onToggle={toggleStatus}
+          placeholder="All statuses"
+        />
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X className="mr-1 h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
+        <span className="shrink-0 text-sm text-muted-foreground">
+          {hasFilters
+            ? `${filteredRules.length} of ${(rules ?? []).length}`
+            : `${(rules ?? []).length}`}{' '}
+          {(rules ?? []).length === 1 ? 'rule' : 'rules'}
+        </span>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-36">Status</TableHead>
+            <TableHead className="w-36">Employee</TableHead>
+            <TableHead>Rule</TableHead>
+            <TableHead className="w-40">Source</TableHead>
+            <TableHead className="w-32">Created</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {filteredRules.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-16 text-center text-sm text-muted-foreground">
+                {hasFilters
+                  ? 'No rules match the current filters'
+                  : 'No rules yet — rules are extracted from PM feedback in Slack'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredRules.map((rule) => (
+              <TableRow key={rule.id}>
+                <TableCell>
+                  <RuleStatusBadge status={rule.status} />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {archetypeMap.get(rule.archetype_id) ?? truncate(rule.archetype_id, 8)}
+                </TableCell>
+                <TableCell className="max-w-md text-sm" title={rule.rule_text}>
+                  {truncate(rule.rule_text, 120)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {rule.source ?? '—'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatRelativeTime(rule.created_at)}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </>
   );
 }
 
-function FeedbackEventsTab({ archetypeId }: { archetypeId: string }) {
+const EVENT_TYPE_OPTIONS: MultiSelectOption[] = [
+  { value: 'teaching', label: 'teaching', badgeClass: EVENT_TYPE_CLASSES.teaching },
+  { value: 'feedback', label: 'feedback', badgeClass: EVENT_TYPE_CLASSES.feedback },
+  {
+    value: 'rejection_reason',
+    label: 'rejection_reason',
+    badgeClass: EVENT_TYPE_CLASSES.rejection_reason,
+  },
+  { value: 'rejection', label: 'rejection', badgeClass: EVENT_TYPE_CLASSES.rejection },
+  { value: 'edit_diff', label: 'edit_diff', badgeClass: EVENT_TYPE_CLASSES.edit_diff },
+];
+
+function FeedbackEventsTab({
+  selectedIdsKey,
+  archetypeMap,
+}: {
+  selectedIdsKey: string;
+  archetypeMap: Map<string, string>;
+}) {
   const { tenantId } = useTenant();
+  const [query, setQuery] = useState('');
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
 
   const fetchEvents = useCallback(
     () =>
       postgrestFetch<FeedbackEvent>('feedback_events', {
         ...scopeByTenant(tenantId),
-        archetype_id: `eq.${archetypeId}`,
+        ...buildArchetypeFilter(selectedIdsKey),
         order: 'created_at.desc',
         limit: '100',
       }),
-    [tenantId, archetypeId],
+    [tenantId, selectedIdsKey],
   );
 
   const { data: events, error, loading, refresh } = usePoll(fetchEvents);
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    const q = query.toLowerCase();
+    return events.filter((e) => {
+      const content = e.correction_content ?? e.original_content ?? '';
+      const matchesQuery = !q || content.toLowerCase().includes(q);
+      const matchesType = selectedTypes.size === 0 || selectedTypes.has(e.event_type);
+      return matchesQuery && matchesType;
+    });
+  }, [events, query, selectedTypes]);
+
+  const toggleType = (v: string) => {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) {
+        next.delete(v);
+      } else {
+        next.add(v);
+      }
+      return next;
+    });
+  };
+
+  const hasFilters = query !== '' || selectedTypes.size > 0;
+
+  const clearFilters = () => {
+    setQuery('');
+    setSelectedTypes(new Set());
+  };
 
   if (loading) {
     return (
@@ -236,6 +497,7 @@ function FeedbackEventsTab({ archetypeId }: { archetypeId: string }) {
         <TableHeader>
           <TableRow>
             <TableHead className="w-36">Type</TableHead>
+            <TableHead className="w-36">Employee</TableHead>
             <TableHead>Content</TableHead>
             <TableHead className="w-40">Actor</TableHead>
             <TableHead className="w-32">Created</TableHead>
@@ -243,7 +505,7 @@ function FeedbackEventsTab({ archetypeId }: { archetypeId: string }) {
         </TableHeader>
         <TableBody>
           {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonRow key={i} cols={4} />
+            <SkeletonRow key={i} cols={5} />
           ))}
         </TableBody>
       </Table>
@@ -254,49 +516,206 @@ function FeedbackEventsTab({ archetypeId }: { archetypeId: string }) {
     return <ErrorState error={error} table="feedback_events" onRetry={refresh} />;
   }
 
-  if (!events || events.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-16 text-center">
-        <p className="text-sm text-muted-foreground">No feedback events yet</p>
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search events..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <MultiSelectDropdown
+          options={EVENT_TYPE_OPTIONS}
+          selected={selectedTypes}
+          onToggle={toggleType}
+          placeholder="All types"
+        />
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X className="mr-1 h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
+        <span className="shrink-0 text-sm text-muted-foreground">
+          {hasFilters
+            ? `${filteredEvents.length} of ${(events ?? []).length}`
+            : `${(events ?? []).length}`}{' '}
+          {(events ?? []).length === 1 ? 'event' : 'events'}
+        </span>
       </div>
-    );
-  }
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-36">Type</TableHead>
+            <TableHead className="w-36">Employee</TableHead>
+            <TableHead>Content</TableHead>
+            <TableHead className="w-40">Actor</TableHead>
+            <TableHead className="w-32">Created</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredEvents.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-16 text-center text-sm text-muted-foreground">
+                {hasFilters ? 'No events match the current filters' : 'No feedback events yet'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredEvents.map((event) => (
+              <TableRow key={event.id}>
+                <TableCell>
+                  <EventTypeBadge type={event.event_type} />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {archetypeMap.get(event.archetype_id) ?? truncate(event.archetype_id, 8)}
+                </TableCell>
+                <TableCell className="max-w-md text-sm text-muted-foreground">
+                  {truncate(event.correction_content ?? event.original_content, 100)}
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {event.actor_id ?? '—'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatRelativeTime(event.created_at)}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </>
+  );
+}
+
+function EmployeeMultiSelect({
+  archetypes,
+  selectedIds,
+  onToggle,
+  onClearAll,
+}: {
+  archetypes: Pick<Archetype, 'id' | 'role_name'>[];
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onClearAll: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = archetypes.filter((a) =>
+    (a.role_name ?? '').toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const label =
+    selectedIds.size === 0
+      ? 'All employees'
+      : selectedIds.size === 1
+        ? (archetypes.find((a) => selectedIds.has(a.id))?.role_name ?? 'Unknown')
+        : `${selectedIds.size} employees`;
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-36">Type</TableHead>
-          <TableHead>Content</TableHead>
-          <TableHead className="w-40">Actor</TableHead>
-          <TableHead className="w-32">Created</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {events.map((event) => (
-          <TableRow key={event.id}>
-            <TableCell>
-              <EventTypeBadge type={event.event_type} />
-            </TableCell>
-            <TableCell className="max-w-md text-sm text-muted-foreground">
-              {truncate(event.correction_content ?? event.original_content, 100)}
-            </TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">
-              {event.actor_id ?? '—'}
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {formatRelativeTime(event.created_at)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="relative w-56" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[14rem] rounded-md border border-border bg-popover shadow-md">
+          <div className="p-2">
+            <Input
+              placeholder="Search employees..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+            />
+          </div>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                onClearAll();
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <X className="h-3 w-3" />
+              Show all employees
+            </button>
+          )}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">No employees found</p>
+            ) : (
+              filtered.map((a) => {
+                const checked = selectedIds.has(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onToggle(a.id)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <div
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        checked
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-input bg-background'
+                      }`}
+                    >
+                      {checked && (
+                        <svg
+                          viewBox="0 0 12 12"
+                          className="h-3 w-3 fill-current"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 3L5 8.5 2 5.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <span>{a.role_name ?? a.id}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
 export function RulesPanel() {
   const { tenantId } = useTenant();
-  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchArchetypes = useCallback(
     () =>
@@ -310,62 +729,73 @@ export function RulesPanel() {
 
   const { data: archetypes, loading: archetypesLoading } = usePoll(fetchArchetypes);
 
-  useEffect(() => {
-    if (archetypes && archetypes.length > 0 && !selectedArchetypeId) {
-      setSelectedArchetypeId(archetypes[0].id);
-    }
-  }, [archetypes, selectedArchetypeId]);
+  const archetypeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    archetypes?.forEach((a) => {
+      map.set(a.id, a.role_name ?? a.id);
+    });
+    return map;
+  }, [archetypes]);
 
   useEffect(() => {
-    setSelectedArchetypeId('');
+    setSelectedIds(new Set());
   }, [tenantId]);
+
+  const selectedIdsKey = Array.from(selectedIds).sort().join(',');
+
+  const toggleEmployee = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-muted-foreground">Employee:</span>
         {archetypesLoading ? (
-          <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+          <div className="h-9 w-56 animate-pulse rounded-md bg-muted" />
         ) : archetypes && archetypes.length > 0 ? (
-          <Select value={selectedArchetypeId} onValueChange={setSelectedArchetypeId}>
-            <SelectTrigger className="h-8 w-48 text-xs">
-              <SelectValue placeholder="Select employee" />
-            </SelectTrigger>
-            <SelectContent>
-              {archetypes.map((a) => (
-                <SelectItem key={a.id} value={a.id} className="text-xs">
-                  {a.role_name ?? a.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EmployeeMultiSelect
+            archetypes={archetypes}
+            selectedIds={selectedIds}
+            onToggle={toggleEmployee}
+            onClearAll={() => setSelectedIds(new Set())}
+          />
         ) : (
           <span className="text-sm text-muted-foreground">No archetypes found for this tenant</span>
         )}
+        {selectedIds.size > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+            className="h-9 text-xs"
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
       </div>
 
-      {selectedArchetypeId ? (
-        <Tabs defaultValue="rules">
-          <TabsList className="mb-4">
-            <TabsTrigger value="rules">Rules</TabsTrigger>
-            <TabsTrigger value="feedback">Feedback Events</TabsTrigger>
-          </TabsList>
-          <TabsContent value="rules">
-            <RulesTab archetypeId={selectedArchetypeId} />
-          </TabsContent>
-          <TabsContent value="feedback">
-            <FeedbackEventsTab archetypeId={selectedArchetypeId} />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        !archetypesLoading && (
-          <div className="flex items-center justify-center py-16 text-center">
-            <p className="text-sm text-muted-foreground">
-              Select an employee above to view rules and feedback
-            </p>
-          </div>
-        )
-      )}
+      <Tabs defaultValue="rules">
+        <TabsList className="mb-4">
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="feedback">Feedback Events</TabsTrigger>
+        </TabsList>
+        <TabsContent value="rules">
+          <RulesTab selectedIdsKey={selectedIdsKey} archetypeMap={archetypeMap} />
+        </TabsContent>
+        <TabsContent value="feedback">
+          <FeedbackEventsTab selectedIdsKey={selectedIdsKey} archetypeMap={archetypeMap} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
