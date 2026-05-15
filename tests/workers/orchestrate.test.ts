@@ -705,7 +705,7 @@ describe('orchestrate.mts', () => {
   it('happy path: all mocks succeed → execution completed, process.exit(0)', async () => {
     setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
@@ -713,7 +713,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(parseTaskContext).mockReturnValue(null);
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
@@ -721,7 +721,7 @@ describe('orchestrate.mts', () => {
     const { mockHeartbeat } = setupHappyPath();
     vi.mocked(startOpencodeServer).mockResolvedValue(null);
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
   });
@@ -733,7 +733,7 @@ describe('orchestrate.mts', () => {
       createSession: vi.fn().mockResolvedValue(null),
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockServerHandle.kill).toHaveBeenCalled();
   });
@@ -742,7 +742,7 @@ describe('orchestrate.mts', () => {
     const { mockHeartbeat } = setupHappyPath();
     vi.mocked(runWithFixLoop).mockResolvedValue({ success: false, totalIterations: 3 });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
   });
@@ -753,14 +753,14 @@ describe('orchestrate.mts', () => {
       throw new Error('ENOENT');
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
   it('heartbeat.updateStage called: executing then validating stages', async () => {
     const { mockHeartbeat } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mockHeartbeat.updateStage).toHaveBeenCalledWith('executing');
     expect(mockHeartbeat.updateStage).toHaveBeenCalledWith('validating');
@@ -769,7 +769,7 @@ describe('orchestrate.mts', () => {
   it('patchExecution called: execution record updated with stage changes', async () => {
     const { mockPostgREST } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(0);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
     const stageUpdates = patchCalls.filter((call) => call[2]?.current_stage);
@@ -784,7 +784,7 @@ describe('orchestrate.mts', () => {
   it('cleanup on success: heartbeat.stop() and serverHandle.kill() both called', async () => {
     const { mockHeartbeat, mockServerHandle } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
     expect(mockServerHandle.kill).toHaveBeenCalled();
@@ -794,14 +794,14 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(runPlanningPhase).mockRejectedValue(new Error('Unexpected error'));
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('happy path includes Steps 12-16: completing stage set, branch ensured, push done, PR created, completion called', async () => {
     const { mockHeartbeat } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mockHeartbeat.updateStage).toHaveBeenCalledWith('completing');
@@ -820,7 +820,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(fetchProjectConfig).mockResolvedValue(null);
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(buildBranchName).toHaveBeenCalled();
@@ -836,7 +836,7 @@ describe('orchestrate.mts', () => {
       error: 'checkout failed',
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
@@ -847,7 +847,7 @@ describe('orchestrate.mts', () => {
     const { mockHeartbeat, mockServerHandle } = setupHappyPath();
     vi.mocked(commitAndPush).mockResolvedValue({ pushed: false, error: 'remote rejected' });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
@@ -858,7 +858,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(commitAndPush).mockResolvedValue({ pushed: false, reason: 'no_changes' });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(createOrUpdatePR).toHaveBeenCalled();
@@ -868,7 +868,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(createOrUpdatePR).mockRejectedValue(new Error('GitHub API error'));
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mockLogger.warn).toHaveBeenCalled();
@@ -882,7 +882,7 @@ describe('orchestrate.mts', () => {
     const { mockHeartbeat, mockServerHandle } = setupHappyPath();
     vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: false, inngestSent: false });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(mockHeartbeat.stop).toHaveBeenCalled();
@@ -893,7 +893,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     vi.mocked(runCompletionFlow).mockResolvedValue({ supabaseWritten: true, inngestSent: false });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('watchdog will recover'));
@@ -903,7 +903,7 @@ describe('orchestrate.mts', () => {
     setupHappyPath();
     delete process.env.GITHUB_TOKEN;
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(createOrUpdatePR).not.toHaveBeenCalled();
@@ -913,7 +913,7 @@ describe('orchestrate.mts', () => {
   it('patchExecution includes completing stage in success path', async () => {
     const { mockPostgREST } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -933,7 +933,7 @@ describe('orchestrate.mts', () => {
       primaryModelId: 'minimax/minimax-m2.7',
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -955,7 +955,7 @@ describe('orchestrate.mts', () => {
       primaryModelId: '',
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -973,7 +973,7 @@ describe('orchestrate.mts', () => {
       primaryModelId: 'minimax/minimax-m2.7',
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -996,7 +996,7 @@ describe('orchestrate.mts', () => {
       primaryModelId: '',
     });
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -1007,7 +1007,7 @@ describe('orchestrate.mts', () => {
   it('agent_version_id included in starting PATCH', async () => {
     const { mockPostgREST } = setupHappyPath();
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const patchCalls = vi.mocked(mockPostgREST.patch).mock.calls;
@@ -1021,7 +1021,7 @@ describe('orchestrate.mts', () => {
     const { mockPostgREST } = setupHappyPath();
     vi.mocked(mockPostgREST.get).mockResolvedValue([{ id: 'existing-version-id' }]);
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const postCalls = vi.mocked(mockPostgREST.post).mock.calls;
@@ -1036,7 +1036,7 @@ describe('orchestrate.mts', () => {
     const { mockSessionManager } = setupHappyPath();
     process.env.ORCHESTRATE_TIMEOUT_MINS = '120';
     await main().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     const monitorCalls = vi.mocked(mockSessionManager.monitorSession).mock.calls;
@@ -1060,7 +1060,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(runPlanningPhase).not.toHaveBeenCalled();
@@ -1069,7 +1069,7 @@ describe('orchestrate.mts', () => {
     it('heartbeat continues during Phase 1 — still active, stages updated', async () => {
       const { mockHeartbeat } = setupHappyPath();
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(startHeartbeat).toHaveBeenCalledOnce();
@@ -1081,7 +1081,7 @@ describe('orchestrate.mts', () => {
       const parsePlanSpy = vi.mocked(parsePlan);
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(parsePlanSpy).toHaveBeenCalled();
@@ -1110,7 +1110,7 @@ describe('orchestrate.mts', () => {
       });
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(1);
       expect(createFallbackPr).toHaveBeenCalled();
@@ -1119,7 +1119,7 @@ describe('orchestrate.mts', () => {
     it('fallback PR NOT called on success path', async () => {
       setupHappyPath();
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(createFallbackPr).not.toHaveBeenCalled();
@@ -1146,7 +1146,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockDispatcher.dispatchContinuation).toHaveBeenCalledOnce();
@@ -1182,7 +1182,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(callCount.count).toBe(2);
@@ -1206,7 +1206,7 @@ describe('orchestrate.mts', () => {
         await import('../../src/workers/lib/install-runner.js');
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(vi.mocked(mockInstall)).toHaveBeenCalledTimes(2);
@@ -1218,7 +1218,7 @@ describe('orchestrate.mts', () => {
         await import('../../src/workers/lib/install-runner.js');
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(vi.mocked(mockInstall)).toHaveBeenCalledOnce();
@@ -1227,7 +1227,7 @@ describe('orchestrate.mts', () => {
     it('between-wave push: pushBetweenWaves called after each successful wave', async () => {
       setupHappyPath();
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(pushBetweenWaves).toHaveBeenCalledWith(
@@ -1253,7 +1253,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockBreaker.shouldStop).not.toHaveBeenCalledWith(1);
@@ -1289,7 +1289,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockBreaker.shouldStop).toHaveBeenCalledWith(2);
@@ -1320,7 +1320,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(escalate).toHaveBeenCalled();
     });
@@ -1343,7 +1343,7 @@ describe('orchestrate.mts', () => {
       });
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(createFallbackPr).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(1);
@@ -1361,7 +1361,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockPlanSync.updateWaveState).toHaveBeenCalledWith(
@@ -1384,7 +1384,7 @@ describe('orchestrate.mts', () => {
       );
 
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockPlanSync.savePlanAfterPhase1).toHaveBeenCalledWith(
@@ -1395,7 +1395,7 @@ describe('orchestrate.mts', () => {
     it('heartbeat stage set to planning during phase 1', async () => {
       const { mockHeartbeat } = setupHappyPath();
       await main().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
       expect(mockHeartbeat.updateStage).toHaveBeenCalledWith('planning');
