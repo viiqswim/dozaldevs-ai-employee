@@ -32,6 +32,33 @@ function runWithRetry(
   throw lastError;
 }
 
+function isMigrationCurrent(projectDir: string, testEnv: NodeJS.ProcessEnv): boolean {
+  try {
+    const output = execSync('pnpm prisma migrate status', {
+      cwd: projectDir,
+      env: testEnv,
+      stdio: 'pipe',
+    }).toString();
+    return output.includes('Database schema is up to date!');
+  } catch {
+    // Non-zero exit means pending migrations — return false to trigger deploy
+    return false;
+  }
+}
+
+function isSeedPresent(): boolean {
+  try {
+    const output = execSync(
+      `PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres ai_employee_test -t -c "SELECT COUNT(*) FROM tenants" 2>/dev/null`,
+      { stdio: 'pipe' },
+    ).toString();
+    const count = parseInt(output.trim(), 10);
+    return count > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function setup() {
   const projectDir = resolve(__dirname, '../..');
 
@@ -49,8 +76,29 @@ export function setup() {
   // so DATABASE_URL from .env will NOT override the test URL we set above.
   const testEnv = { ...process.env, DATABASE_URL: TEST_DB_URL, DATABASE_URL_DIRECT: TEST_DB_URL };
 
-  runWithRetry('pnpm prisma migrate deploy', { cwd: projectDir, stdio: 'inherit', env: testEnv });
-  runWithRetry('pnpm db:seed', { cwd: projectDir, stdio: 'inherit', env: testEnv });
+  if (isMigrationCurrent(projectDir, testEnv)) {
+    console.log('✅ Migrations already up to date — skipping migrate deploy');
+  } else {
+    console.log('🔄 Pending migrations detected — running migrate deploy...');
+    runWithRetry('pnpm prisma migrate deploy', { cwd: projectDir, stdio: 'inherit', env: testEnv });
+  }
+
+  if (isSeedPresent()) {
+    console.log('✅ Seed data already present — skipping db:seed');
+  } else {
+    console.log('🌱 No seed data found — running db:seed...');
+    runWithRetry('pnpm db:seed', { cwd: projectDir, stdio: 'inherit', env: testEnv });
+  }
 }
 
-export function teardown() {}
+export async function teardown() {
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient({
+    datasources: { db: { url: TEST_DB_URL } },
+  });
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // Ignore disconnect errors — process is exiting anyway
+  }
+}
