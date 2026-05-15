@@ -165,6 +165,7 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-supabase-key';
   process.env.FLY_WORKER_APP = 'ai-employee-workers';
+  process.env.WORKER_RUNTIME = 'fly';
 });
 
 afterEach(() => {
@@ -172,6 +173,7 @@ afterEach(() => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
+  delete process.env.WORKER_RUNTIME;
 });
 
 describe('learned-rules injection — lifecycle env assembly', () => {

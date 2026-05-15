@@ -178,6 +178,7 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-supabase-key';
   process.env.FLY_WORKER_APP = 'ai-employee-workers';
+  process.env.WORKER_RUNTIME = 'fly';
 });
 
 afterEach(() => {
@@ -185,10 +186,11 @@ afterEach(() => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
+  delete process.env.WORKER_RUNTIME;
 });
 
 describe('feedback injection — EMPLOYEE_RULES env var', () => {
-  it.skip('all confirmed employee_rules are included in EMPLOYEE_RULES', async () => {
+  it('all confirmed employee_rules are included in EMPLOYEE_RULES', async () => {
     const rulesItems = Array.from({ length: 5 }, (_, i) => ({
       rule_text: `Rule item ${i + 1}`,
       confirmed_at: new Date(Date.now() - i * 1000).toISOString(),
@@ -243,7 +245,7 @@ describe('feedback injection — EMPLOYEE_RULES env var', () => {
     expect(rulesUrl).toContain(`archetype_id=eq.${TEST_ARCHETYPE_ID}`);
   });
 
-  it.skip('empty employee_rules results in EMPLOYEE_RULES absent from machine env', async () => {
+  it('empty employee_rules results in EMPLOYEE_RULES absent from machine env', async () => {
     const engine = makeEngine(async (url: string, init?: RequestInit) => {
       const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
       if ((url as string).includes('knowledge_bases'))
@@ -263,7 +265,7 @@ describe('feedback injection — EMPLOYEE_RULES env var', () => {
     expect(machineConfig.env.EMPLOYEE_RULES ?? '').toBe('');
   });
 
-  it.skip('safety cap truncates EMPLOYEE_RULES when it exceeds MAX_EMPLOYEE_RULES_CHARS', async () => {
+  it('safety cap truncates EMPLOYEE_RULES when it exceeds MAX_EMPLOYEE_RULES_CHARS', async () => {
     const longText = 'x'.repeat(2000);
     const rulesItems = Array.from({ length: 20 }, (_, i) => ({
       rule_text: longText,
@@ -292,7 +294,7 @@ describe('feedback injection — EMPLOYEE_RULES env var', () => {
     expect(rulesSection.length).toBeLessThanOrEqual(MAX_EMPLOYEE_RULES_CHARS);
   });
 
-  it.skip('KB themes are injected into EMPLOYEE_KNOWLEDGE without a slice cap', async () => {
+  it('KB themes are injected into EMPLOYEE_KNOWLEDGE without a slice cap', async () => {
     const kbEntries = Array.from({ length: 10 }, (_, i) => ({
       source_config: {
         themes: [
