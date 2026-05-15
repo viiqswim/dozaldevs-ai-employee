@@ -17,6 +17,7 @@ import { adminTenantsRoutes } from './routes/admin-tenants.js';
 import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
 import { adminArchetypesRoutes } from './routes/admin-archetypes.js';
+import { adminBrainPreviewRoutes } from './routes/admin-brain-preview.js';
 import { adminToolsRoutes } from './routes/admin-tools.js';
 import { adminKbRoutes } from './routes/admin-kb.js';
 import { adminPropertyLockRoutes } from './routes/admin-property-locks.js';
@@ -170,6 +171,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminTenantSecretsRoutes({ prisma }));
   app.use(adminTenantConfigRoutes({ prisma }));
   app.use(adminArchetypesRoutes({ prisma }));
+  app.use(adminBrainPreviewRoutes({ prisma }));
   app.use(adminToolsRoutes());
   app.use(adminKbRoutes({ prisma }));
   app.use(adminPropertyLockRoutes({ prisma }));

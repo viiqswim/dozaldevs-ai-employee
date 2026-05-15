@@ -169,3 +169,38 @@ export interface ToolMetadata {
   example?: string;
   sourceLength: number;
 }
+
+export interface BrainPreviewEnvVar {
+  name: string;
+  source: 'platform' | 'tenant_secret' | 'tenant_config' | 'lifecycle' | 'raw_event' | 'harness';
+  category: 'always' | 'conditional';
+  is_set: boolean;
+}
+
+export interface BrainPreviewResponse {
+  execution_prompt: string;
+  delivery_prompt: string | null;
+  agents_md: {
+    full: string;
+    layers: {
+      platform: string;
+      tenant: string | null;
+      employee: string | null;
+    };
+  };
+  env_vars: BrainPreviewEnvVar[];
+  tools: Array<{ name: string; service: string; description: string; containerPath: string }>;
+  skills: Array<{ name: string; description: string }>;
+  config: {
+    model: string;
+    runtime: string;
+    bash_timeout_ms: number;
+    permissions: string;
+    opencode_version: string;
+  };
+  output_contract: {
+    required_files: Array<{ path: string; description: string; required: boolean }>;
+  };
+  employee_rules: string[];
+  employee_knowledge: string[];
+}
