@@ -24,6 +24,7 @@ import { formatRelativeTime, formatDuration } from '@/lib/utils';
 import type { Archetype, Task, EmployeeRule } from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { toast } from 'sonner';
+import { BrainPreviewTab } from './BrainPreviewTab';
 
 const WEBHOOK_FIXTURES = {
   agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
@@ -684,6 +685,7 @@ export function EmployeeDetail() {
           <TabsTrigger value="config">Config</TabsTrigger>
           <TabsTrigger value="tasks">Recent Tasks</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="brain">Brain Preview</TabsTrigger>
         </TabsList>
 
         <TabsContent value="config">
@@ -696,6 +698,10 @@ export function EmployeeDetail() {
 
         <TabsContent value="rules">
           <RulesSection archetypeId={archetype.id} />
+        </TabsContent>
+
+        <TabsContent value="brain">
+          <BrainPreviewTab archetype={archetype} tenantId={tenantId} />
         </TabsContent>
       </Tabs>
     </div>

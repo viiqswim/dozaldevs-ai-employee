@@ -1,5 +1,5 @@
 import { GATEWAY_URL, INNGEST_URL } from './constants';
-import type { Archetype, Task, TenantSecret, ToolMetadata } from './types';
+import type { Archetype, Task, TenantSecret, ToolMetadata, BrainPreviewResponse } from './types';
 
 export function getAdminApiKey(): string | null {
   return localStorage.getItem('admin_api_key');
@@ -127,4 +127,20 @@ export async function fetchTools(): Promise<{ tools: ToolMetadata[] }> {
 
 export async function fetchTool(service: string, toolName: string): Promise<ToolMetadata> {
   return gatewayFetch<ToolMetadata>(`/admin/tools/${service}/${toolName}`);
+}
+
+export async function fetchBrainPreview(
+  tenantId: string,
+  archetypeId: string,
+): Promise<BrainPreviewResponse | null> {
+  try {
+    return await gatewayFetch<BrainPreviewResponse>(
+      `/admin/tenants/${tenantId}/archetypes/${archetypeId}/brain-preview`,
+    );
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('404')) {
+      return null;
+    }
+    throw err;
+  }
 }
