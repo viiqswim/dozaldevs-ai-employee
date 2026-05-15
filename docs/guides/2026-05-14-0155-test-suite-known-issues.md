@@ -1,6 +1,8 @@
 # Test Suite Known Issues
 
 > Created: 2026-05-14. These are known pre-existing or deferred test failures. Do NOT attempt to fix these without a dedicated investigation ticket.
+>
+> Updated: 2026-05-14 — All 8 issues resolved or deferred as part of `test-suite-fixes` plan (T1–T11).
 
 ---
 
@@ -20,20 +22,15 @@
 - Check for `process.exit` calls in test files (already seen in `trigger-task.test.ts`)
 - Check for open handles with `--detectOpenHandles`
 
+**Status: RESOLVED** — Fixed process listener leak in `opencode-server.ts` (T1), optimized globalSetup with migration/seed skip checks (T2), rewrote opencode-server tests with fake timers (T6), reduced orchestrate.test.ts delays from 50ms to 1ms (T11).
+
 ---
 
 ## 2. `feedback-injection.test.ts` — 4 Tests Skipped (mockCreateMachine never called)
 
 **File**: `tests/inngest/feedback-injection.test.ts`
 
-**Status**: 4 tests marked `it.skip` as of 2026-05-14
-
 **Root Cause**: Tests set `FLY_WORKER_APP = 'ai-employee-workers'` but do NOT set `WORKER_RUNTIME=fly`. The lifecycle's executing step checks `if (process.env.WORKER_RUNTIME !== 'fly')` first — so it takes the local Docker path (`runLocalDockerContainer`) instead of the Fly path (`createMachine`). The tests assert `mockCreateMachine` was called, but it never is.
-
-**Fix Required**: Either:
-
-- Add `process.env.WORKER_RUNTIME = 'fly'` to the test `beforeEach`
-- Or mock `runLocalDockerContainer` instead of `createMachine`
 
 **Skipped Tests**:
 
@@ -42,17 +39,17 @@
 - `safety cap truncates EMPLOYEE_RULES when it exceeds MAX_EMPLOYEE_RULES_CHARS`
 - `KB themes are injected into EMPLOYEE_KNOWLEDGE without a slice cap`
 
+**Status: RESOLVED** — Added `WORKER_RUNTIME=fly` to `beforeEach`/`afterEach`, un-skipped all 4 tests (T7).
+
 ---
 
 ## 3. `learned-rules-injection.test.ts` — 5 Tests Failing (same root cause as #2)
 
 **File**: `tests/inngest/learned-rules-injection.test.ts`
 
-**Status**: 5 tests failing with "spy called 0 times"
-
 **Root Cause**: Same as issue #2 — tests expect `createMachine` to be called but lifecycle takes local Docker path.
 
-**Fix Required**: Same as issue #2.
+**Status: RESOLVED** — Added `WORKER_RUNTIME=fly` to `beforeEach`/`afterEach` (T8).
 
 ---
 
@@ -64,9 +61,9 @@
 
 **Error**: `expected undefined to be 'C001,C002'`
 
-**Status**: Pre-existing failure, unrelated to schema sync changes.
+**Root Cause**: Test assertions used old env var names. The `tenant-env-loader.ts` uses `SOURCE_CHANNELS` and `PUBLISH_CHANNEL` (not `summary.channel_ids`/`target_channel`).
 
-**To Investigate**: Check `tenant-env-loader.ts` — the `summary.channel_ids` flattening logic may have been removed or renamed.
+**Status: RESOLVED** — Updated test assertions to use `SOURCE_CHANNELS` and `PUBLISH_CHANNEL` (T4).
 
 ---
 
@@ -74,9 +71,9 @@
 
 **File**: `tests/workers/opencode-harness-delivery.test.ts`
 
-**Status**: Pre-existing failures (9/15 tests fail)
+**Root Cause**: Mock archetype was missing `enrichment_adapter: 'hostfully'` field; `process.exit` mock was not throwing on first call, causing test flow issues.
 
-**Root Cause**: Unknown — likely requires Docker socket or specific environment setup.
+**Status: RESOLVED** — Added `enrichment_adapter: 'hostfully'` to mock archetype, fixed `process.exit` mock to throw on first call (T9).
 
 ---
 
@@ -84,9 +81,9 @@
 
 **File**: `tests/inngest/employee-lifecycle-delivery.test.ts`
 
-**Status**: Pre-existing failures (3/9 tests fail)
+**Root Cause**: Mock archetype was missing `NOTIFICATION_CHANNEL`; tests did not set `WORKER_RUNTIME=fly`.
 
-**Root Cause**: Unknown — likely related to delivery machine mocking.
+**Status: RESOLVED** — Added `NOTIFICATION_CHANNEL` to mock and `WORKER_RUNTIME=fly` to `beforeEach` (T10).
 
 ---
 
@@ -96,7 +93,9 @@
 
 **Failing Tests**: TDD RED phase tests (intentionally failing — marked as future work)
 
-**Status**: Expected failures — these are TDD RED phase tests that document desired behavior not yet implemented.
+**Root Cause**: These tests document desired behavior (delivery card Slack update) not yet implemented.
+
+**Status: DEFERRED** — 2 TDD RED tests marked `.skip` with TODO comment; delivery card Slack update feature not yet implemented (T5). Will be un-skipped when the feature is built.
 
 ---
 
@@ -104,20 +103,21 @@
 
 **File**: `tests/gateway/routes/admin-property-locks.test.ts`
 
-**Status**: Pre-existing failures (2/14 tests fail)
+**Root Cause**: Test assertions used exact object matching for `where` clause, but the implementation uses a superset of fields.
 
-**Root Cause**: Unknown.
+**Status: RESOLVED** — Updated assertions to use `expect.objectContaining()` for `where` clause (T3).
 
 ---
 
 ## Summary Table
 
-| File                                  | Failing     | Cause                                       | Action                        |
-| ------------------------------------- | ----------- | ------------------------------------------- | ----------------------------- |
-| `feedback-injection.test.ts`          | 4 (skipped) | WORKER_RUNTIME not set to 'fly' in test env | Fix test setup                |
-| `learned-rules-injection.test.ts`     | 5           | Same as above                               | Fix test setup                |
-| `multi-tenancy.test.ts`               | 1           | channel_ids flattening broken               | Investigate tenant-env-loader |
-| `opencode-harness-delivery.test.ts`   | 9           | Pre-existing                                | Investigate                   |
-| `employee-lifecycle-delivery.test.ts` | 3           | Pre-existing                                | Investigate                   |
-| `lifecycle-guest-delivery.test.ts`    | 2           | TDD RED (intentional)                       | Implement feature             |
-| `admin-property-locks.test.ts`        | 2           | Pre-existing                                | Investigate                   |
+| File                                  | Was Failing | Resolution                                                                 | Status   |
+| ------------------------------------- | ----------- | -------------------------------------------------------------------------- | -------- |
+| `feedback-injection.test.ts`          | 4 (skipped) | Added `WORKER_RUNTIME=fly` to beforeEach/afterEach, un-skipped 4 tests     | RESOLVED |
+| `learned-rules-injection.test.ts`     | 5           | Added `WORKER_RUNTIME=fly` to beforeEach/afterEach                         | RESOLVED |
+| `multi-tenancy.test.ts`               | 1           | Updated assertions to use `SOURCE_CHANNELS` and `PUBLISH_CHANNEL`          | RESOLVED |
+| `opencode-harness-delivery.test.ts`   | 9           | Added `enrichment_adapter`, fixed `process.exit` mock                      | RESOLVED |
+| `employee-lifecycle-delivery.test.ts` | 3           | Added `NOTIFICATION_CHANNEL` + `WORKER_RUNTIME=fly` to beforeEach          | RESOLVED |
+| `lifecycle-guest-delivery.test.ts`    | 2           | Marked `.skip` with TODO — feature not yet implemented                     | DEFERRED |
+| `admin-property-locks.test.ts`        | 2           | Updated assertions to use `expect.objectContaining()`                      | RESOLVED |
+| Full suite hangs                      | N/A         | Fixed process listener leak, fake timers, reduced delays in orchestrate.ts | RESOLVED |
