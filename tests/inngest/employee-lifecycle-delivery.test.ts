@@ -250,8 +250,10 @@ beforeEach(() => {
   });
   mockLoadTenantEnv.mockResolvedValue({
     SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
+    NOTIFICATION_CHANNEL: 'C-FALLBACK',
     SUMMARY_TARGET_CHANNEL: 'C-FALLBACK',
   });
+  process.env.WORKER_RUNTIME = 'fly';
 
   // Make setTimeout resolve immediately so the 15-second delivery polling
   // loop does not block tests
@@ -272,6 +274,7 @@ afterEach(() => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
+  delete process.env.WORKER_RUNTIME;
 });
 
 describe('employee-lifecycle — delivery flow (handle-approval-result step)', () => {
