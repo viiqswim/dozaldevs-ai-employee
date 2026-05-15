@@ -86,6 +86,7 @@ function buildMockFetch(opts: {
     archetypes: {
       id: 'arch-id',
       role_name: roleName,
+      enrichment_adapter: roleName === 'guest-messaging' ? 'hostfully' : null,
       system_prompt: 'You are a helpful Slack assistant.',
       model: 'minimax/minimax-m2.7',
       delivery_instructions: deliveryInstructions,
@@ -167,7 +168,11 @@ describe('opencode-harness — delivery phase', () => {
     delete process.env.INNGEST_BASE_URL;
     delete process.env.INNGEST_EVENT_KEY;
 
-    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    let exitCallCount = 0;
+    vi.spyOn(process, 'exit').mockImplementation((_code) => {
+      if (++exitCallCount === 1) throw new Error('process.exit called');
+      return undefined as never;
+    });
 
     mockReadFile.mockImplementation((path: string) => {
       if (path === '/tmp/summary.txt') return Promise.resolve(JSON.stringify({ delivered: true }));
