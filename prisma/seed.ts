@@ -99,7 +99,7 @@ async function main() {
           target_channel: 'C0960S2Q8RL',
           publish_channel: 'C0960S2Q8RL',
         },
-        default_agents_md: PLATFORM_AGENTS_MD,
+        default_agents_md: `VLRE (VL Real Estate) manages short-term vacation rental properties. Communicate casually and warmly — like a knowledgeable friend who happens to manage the property, not a corporate customer service rep. No formalities, no corporate language. Primary guest languages are English and Spanish — always match the guest's language in your reply.`,
         guest_messaging: {
           poll_interval_minutes: 30,
           alert_threshold_minutes: 30,
@@ -123,7 +123,7 @@ async function main() {
           target_channel: 'C0960S2Q8RL',
           publish_channel: 'C0960S2Q8RL',
         },
-        default_agents_md: PLATFORM_AGENTS_MD,
+        default_agents_md: `VLRE (VL Real Estate) manages short-term vacation rental properties. Communicate casually and warmly — like a knowledgeable friend who happens to manage the property, not a corporate customer service rep. No formalities, no corporate language. Primary guest languages are English and Spanish — always match the guest's language in your reply.`,
         guest_messaging: {
           poll_interval_minutes: 30,
           alert_threshold_minutes: 30,
@@ -270,6 +270,26 @@ async function main() {
     'NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<your summary>" --title "Daily Summary" --task-id <TASK_ID from end of prompt> > /tmp/approval-message.json ' +
     'Both /tmp/summary.txt and /tmp/approval-message.json MUST exist when you finish — the system reads them.';
 
+  const GUEST_MESSAGING_AGENTS_MD = `TONE: Write like a property manager texting a guest — casual, warm, direct. Use contractions. Acknowledge feelings before solving problems. Never sound corporate or like a customer service bot. Match the guest's energy.
+
+FORMAT: Plain text only. No markdown (no bold, italic, backticks, headers). No numbered lists or bullet points. No em dashes. Weave multiple pieces of info into natural prose sentences.
+
+SIGNATURE: Never add sign-offs, closings, or signatures of any kind. End naturally after your last point.
+
+CLASSIFICATION:
+- NEEDS_APPROVAL: any question, request, or message with gratitude or warmth — anything that deserves a response.
+- NO_ACTION_NEEDED: purely transactional bare confirmations with no warmth (ok, got it, noted, will do, k, understood, entendido, listo). Set draftResponse to null and category to "acknowledgment".
+- When in doubt, use NEEDS_APPROVAL.
+
+POLITE REPLIES: For thanks or warmth, draft 1-2 sentences. Use the guest's name. One casual emoji is fine.
+- "Thanks!" → "You're welcome! 😊"
+- "Gracias!" → "De nada, {name}! Cualquier cosa nos avisas."
+- "See you Friday!" → "See you then, {name}! Safe travels."
+
+ACKNOWLEDGMENT EDGE CASES: Spanish question tags (¿cierto?, ¿verdad?, ¿no?, ¿está bien?) are QUESTIONS, not acknowledgments — always NEEDS_APPROVAL.
+
+DOOR ACCESS: For access/lock issues, set category "access". Set urgency true if guest is currently locked out. Always include the door code in the response when available from property data.`;
+
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
     'CONTEXT: This task was triggered by a Hostfully NEW_INBOX_MESSAGE webhook for a specific guest message.\n' +
     'The following env vars identify the exact message to process:\n' +
@@ -354,20 +374,7 @@ async function main() {
     'If any Hostfully tool exits with a non-zero code, do NOT silently ignore it. ' +
     'Write the error to /tmp/summary.txt. ' +
     'Post an info-only error notification (no approval buttons): NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --title "Guest Message Error" --text "Error processing guest message: <error details>"\n' +
-    'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n' +
-    '--- TOOL REFERENCE: diagnose-access ---\n' +
-    'Tool: tsx /tools/sifely/diagnose-access.ts\n' +
-    'Purpose: Compares the access code stored in Hostfully against the code programmed on the physical smart lock (via Sifely/lock API). Detects mismatches that would cause a guest to be locked out even with the "correct" code.\n' +
-    'CLI usage: tsx /tools/sifely/diagnose-access.ts --property-id "<hostfully-property-uid>"\n' +
-    'The property-uid comes from the Hostfully message/reservation data (property_id field).\n' +
-    'Output shape (JSON to stdout):\n' +
-    '  hasMismatch: boolean — true if Hostfully code differs from lock code\n' +
-    '  diagnosisSummary: string — human-readable summary of the diagnosis result\n' +
-    '  hostfullyCode: string | null — the code stored in Hostfully\n' +
-    '  lockCode: string | null — the code programmed on the physical lock\n' +
-    '  propertyId: string — the property UID that was checked\n' +
-    'Exit codes: 0 = success (even if mismatch found), non-zero = tool error (API failure, property not found, etc.)\n' +
-    "Approval card flag: --diagnosis '<JSON string>' — pass the full JSON output to post-guest-approval.ts so the PM sees the diagnosis inline on the approval card.";
+    'If the error looks like a tool bug, report it: tsx /tools/platform/report-issue.ts --task-id "<TASK_ID from end of prompt>" --tool-name "<failing-tool>" --description "<error details>"\n\n';
 
   const VLRE_COMMON_KB_CONTENT = `# VL Real Estate — Common Knowledge Base
 
@@ -3308,7 +3315,7 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
-      agents_md: PLATFORM_AGENTS_MD,
+      agents_md: GUEST_MESSAGING_AGENTS_MD,
       delivery_instructions:
         'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       enrichment_adapter: 'hostfully',
@@ -3340,7 +3347,7 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
-      agents_md: PLATFORM_AGENTS_MD,
+      agents_md: GUEST_MESSAGING_AGENTS_MD,
       delivery_instructions:
         'The harness has pre-parsed the deliverable JSON and will construct the exact send-message.ts command. Execute that command exactly as shown — do not modify the --lead-id, --thread-id, or --message values. After delivery, write your results to /tmp/summary.txt as JSON with a "delivered" boolean and the send-message.ts output.',
       enrichment_adapter: 'hostfully',
