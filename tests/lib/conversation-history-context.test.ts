@@ -1,26 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { GUEST_MESSAGING_SYSTEM_PROMPT } from '../../prisma/prompts/guest-messaging.js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
-describe('GUEST_MESSAGING_SYSTEM_PROMPT — conversation history context', () => {
-  it('includes CONVERSATION HISTORY CONTEXT section heading', () => {
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('CONVERSATION HISTORY CONTEXT');
+function getGuestMessagingAgentsMd(): string {
+  const seedContent = readFileSync(resolve(__dirname, '../../prisma/seed.ts'), 'utf8');
+  const match = seedContent.match(/const GUEST_MESSAGING_AGENTS_MD = `([\s\S]*?)`;/);
+  if (!match) throw new Error('GUEST_MESSAGING_AGENTS_MD not found in seed.ts');
+  return match[1];
+}
+
+describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
+  it('includes Conversation History section heading', () => {
+    expect(getGuestMessagingAgentsMd()).toContain('Conversation History');
   });
 
   it('forbids contradicting prior host messages', () => {
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('NEVER contradict');
+    expect(getGuestMessagingAgentsMd()).toContain('NEVER contradict');
   });
 
   it('requires referencing prior context when helpful', () => {
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('Reference prior context');
+    expect(getGuestMessagingAgentsMd()).toContain('Reference prior context');
   });
 
   it('requires conversationSummary to cover the full thread', () => {
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('conversationSummary');
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('full thread');
+    const agentsMd = getGuestMessagingAgentsMd();
+    expect(agentsMd).toContain('conversationSummary');
+    expect(agentsMd).toContain('full thread');
   });
 
   it('sets conversationSummary to null for single-message threads', () => {
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('single-message');
-    expect(GUEST_MESSAGING_SYSTEM_PROMPT).toContain('conversationSummary to null');
+    const agentsMd = getGuestMessagingAgentsMd();
+    expect(agentsMd).toContain('single-message');
+    expect(agentsMd).toContain('conversationSummary to null');
   });
 });
