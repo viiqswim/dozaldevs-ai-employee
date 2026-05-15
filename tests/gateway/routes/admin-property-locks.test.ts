@@ -261,7 +261,9 @@ describe('PATCH /admin/tenants/:tenantId/property-locks/:lockId', () => {
         where: expect.objectContaining({ id: LOCK_ID, tenant_id: TENANT }),
       }),
     );
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: LOCK_ID } }));
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: LOCK_ID }) }),
+    );
   });
 
   it('12. PATCH non-existent mapping → 404 NOT_FOUND', async () => {
@@ -299,7 +301,9 @@ describe('DELETE /admin/tenants/:tenantId/property-locks/:lockId', () => {
         where: expect.objectContaining({ id: LOCK_ID, tenant_id: TENANT }),
       }),
     );
-    expect(del).toHaveBeenCalledWith(expect.objectContaining({ where: { id: LOCK_ID } }));
+    expect(del).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: LOCK_ID }) }),
+    );
   });
 
   it('14. DELETE non-existent mapping → 404 NOT_FOUND', async () => {

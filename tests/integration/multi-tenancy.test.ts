@@ -281,15 +281,15 @@ describe('Multi-tenancy integration', () => {
 
   describe('9. Tenant env loader: config flattening', () => {
     it('summary.channel_ids and target_channel are flattened into env', async () => {
-      const config = { summary: { channel_ids: ['C001', 'C002'], target_channel: 'C_TARGET' } };
+      const config = { summary: { channel_ids: ['C001', 'C002'], publish_channel: 'C_TARGET' } };
       const findById = vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, null, config));
       const listKeys = vi.fn().mockResolvedValue([]);
       const tenantRepo = { findById } as never;
       const secretRepo = { listKeys } as never;
 
       const env = await loadTenantEnv(TENANT_A_ID, { tenantRepo, secretRepo });
-      expect(env['DAILY_SUMMARY_CHANNELS']).toBe('C001,C002');
-      expect(env['SUMMARY_TARGET_CHANNEL']).toBe('C_TARGET');
+      expect(env['SOURCE_CHANNELS']).toBe('C001,C002');
+      expect(env['PUBLISH_CHANNEL']).toBe('C_TARGET');
     });
   });
 
