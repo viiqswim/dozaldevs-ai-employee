@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MarkdownEditorField } from '../../components/MarkdownEditorField';
 import { MarkdownPreview } from '../../components/MarkdownPreview';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -523,10 +523,28 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
   );
 }
 
+const VALID_TABS = ['config', 'tasks', 'rules', 'brain'] as const;
+
 export function EmployeeDetail() {
   const { archetypeId } = useParams<{ archetypeId: string }>();
   const { tenantId } = useTenant();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const tabParam = searchParams.get('tab');
+  const activeTab = VALID_TABS.includes(tabParam as (typeof VALID_TABS)[number])
+    ? tabParam!
+    : 'config';
+
+  const handleTabChange = (newTab: string) => {
+    setSearchParams(
+      (prev) => {
+        prev.set('tab', newTab);
+        return prev;
+      },
+      { replace: true },
+    );
+  };
 
   const [triggering, setTriggering] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
@@ -680,7 +698,7 @@ export function EmployeeDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="config">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6">
           <TabsTrigger value="config">Config</TabsTrigger>
           <TabsTrigger value="tasks">Recent Tasks</TabsTrigger>
