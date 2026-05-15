@@ -4,6 +4,8 @@ import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('opencode-server');
 
+const exitListenerRegistry = new WeakMap<ChildProcess, () => void>();
+
 export interface OpencodeServerHandle {
   process: ChildProcess;
   url: string;
@@ -143,6 +145,7 @@ export async function startOpencodeServer(
         listeningDetected = true;
         startKeepaliveOnce();
         setTimeout(() => {
+          exitListenerRegistry.set(childProcess, removeExitListeners);
           const handle: OpencodeServerHandle = {
             process: childProcess,
             url: `http://localhost:${port}`,
@@ -164,6 +167,8 @@ export async function startOpencodeServer(
 
     childProcess.on('exit', (code) => {
       log.warn(`[opencode-server] opencode serve exited with code ${code}`);
+      removeExitListeners();
+      exitListenerRegistry.delete(childProcess);
       onExitResolve(code);
       if (!listeningDetected) {
         resolveOnce(null);
@@ -180,6 +185,10 @@ export async function startOpencodeServer(
       if (!childProcess.killed) {
         childProcess.kill('SIGTERM');
       }
+    };
+    const removeExitListeners = () => {
+      process.removeListener('exit', exitCleanup);
+      process.removeListener('SIGTERM', exitCleanup);
     };
     process.on('exit', exitCleanup);
     process.on('SIGTERM', exitCleanup);
@@ -198,6 +207,8 @@ export async function startOpencodeServer(
 
 export async function stopOpencodeServer(handle: OpencodeServerHandle): Promise<void> {
   handle.stopKeepalive();
+  exitListenerRegistry.get(handle.process)?.();
+  exitListenerRegistry.delete(handle.process);
 
   if (handle.process.killed) return;
 
