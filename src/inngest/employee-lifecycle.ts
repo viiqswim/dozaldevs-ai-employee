@@ -1366,6 +1366,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const deliverables = (await delivRes.json()) as Array<Record<string, unknown>>;
         const deliverable = deliverables[0];
 
+        const taskRawEventRes = await fetch(
+          `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=raw_event`,
+          { headers },
+        );
+        const taskRawEventRows = (await taskRawEventRes.json()) as Array<{
+          raw_event?: Record<string, string> | null;
+        }>;
+        const taskRawEvent = taskRawEventRows[0]?.raw_event ?? {};
+
         const metadata = (deliverable?.metadata as Record<string, unknown>) ?? {};
         const approvalMsgTs = metadata.approval_message_ts as string | undefined;
         const targetChannel =
@@ -1727,6 +1736,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
                   INNGEST_DEV: '1',
+                  ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
+                  ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
+                  ...(taskRawEvent['property_uid']
+                    ? { PROPERTY_UID: taskRawEvent['property_uid'] }
+                    : {}),
                 },
                 cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
               });
@@ -1743,6 +1757,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   EMPLOYEE_PHASE: 'delivery',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
+                  ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
+                  ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
+                  ...(taskRawEvent['property_uid']
+                    ? { PROPERTY_UID: taskRawEvent['property_uid'] }
+                    : {}),
                 },
               });
             }

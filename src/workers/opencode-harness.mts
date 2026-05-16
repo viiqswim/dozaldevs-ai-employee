@@ -169,11 +169,39 @@ async function tryAutoPostApprovalCard(
       token,
     });
 
+    // Build rich metadata so the lifecycle can render context thread replies,
+    // Done-state notifications, and delivery without null fields.
+    const agentMeta = parsedOutput.metadata ?? {};
     const approvalMeta: Record<string, unknown> = {
       ts: result.ts,
       channel: result.channel,
       approval_message_ts: result.ts,
       target_channel: result.channel,
+      // Delivery payload
+      ...(parsedOutput.draft !== undefined && { draft_response: parsedOutput.draft }),
+      // Confidence as a 0–1 number (not a percentage string)
+      ...(parsedOutput.confidence !== undefined && { confidence: parsedOutput.confidence }),
+      // Thread / conversation routing (from env vars injected by lifecycle)
+      ...(process.env.THREAD_UID && {
+        thread_uid: process.env.THREAD_UID,
+        conversation_ref: process.env.THREAD_UID,
+      }),
+      ...(process.env.LEAD_UID && { lead_uid: process.env.LEAD_UID }),
+      // Rich display fields written by the agent into StandardOutput.metadata
+      ...(agentMeta['guest_name'] !== undefined && { guest_name: agentMeta['guest_name'] }),
+      ...(agentMeta['property_name'] !== undefined && {
+        property_name: agentMeta['property_name'],
+      }),
+      ...(agentMeta['original_message'] !== undefined && {
+        original_message: agentMeta['original_message'],
+      }),
+      ...(agentMeta['check_in'] !== undefined && { check_in: agentMeta['check_in'] }),
+      ...(agentMeta['check_out'] !== undefined && { check_out: agentMeta['check_out'] }),
+      ...(agentMeta['booking_channel'] !== undefined && {
+        booking_channel: agentMeta['booking_channel'],
+      }),
+      ...(agentMeta['lead_status'] !== undefined && { lead_status: agentMeta['lead_status'] }),
+      ...(agentMeta['category'] !== undefined && { category: agentMeta['category'] }),
     };
 
     const { writeFile } = await import('fs/promises');

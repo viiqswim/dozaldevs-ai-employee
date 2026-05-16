@@ -246,6 +246,28 @@ CLASSIFICATION RULES:
 - Write NO_ACTION_NEEDED if the thread is already resolved, the last message is from the host, or no response is needed.
 - Use confidence 0.9+ when the situation is clear, 0.5-0.8 when uncertain.
 
+OUTPUT FORMAT (write to /tmp/summary.txt):
+{
+  "summary": "One-sentence description of the guest's message and your action",
+  "classification": "NEEDS_APPROVAL",
+  "draft": "Your full drafted response to the guest",
+  "confidence": 0.92,
+  "reasoning": "Why you chose this response",
+  "metadata": {
+    "guest_name": "Guest's first name",
+    "property_name": "Property name from Hostfully",
+    "original_message": "The exact guest message you are responding to",
+    "thread_uid": "The Hostfully thread UUID (from THREAD_UID env var or from get-messages.ts output)",
+    "check_in": "YYYY-MM-DD",
+    "check_out": "YYYY-MM-DD",
+    "booking_channel": "AIRBNB or HOSTFULLY",
+    "lead_status": "INQUIRY or BOOKED",
+    "category": "amenities or access or checkin or checkout or general"
+  }
+}
+
+IMPORTANT: Always populate the metadata fields above. They are required for the approval workflow to display correctly and for delivery to work. The thread_uid field is critical — without it, the reply cannot be sent. Get it from the THREAD_UID environment variable (echo $THREAD_UID) or from the get-messages.ts output. If a field is unknown, omit it rather than guessing.
+
 TOOLS AVAILABLE TO YOU:
 - Hostfully tools: read guest messages, get property details, check reservations
 - Sifely tools: check lock access, manage door codes
@@ -3245,8 +3267,21 @@ No specific house rules provided.
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: GUEST_MESSAGING_AGENTS_MD,
-      delivery_instructions:
-        'Send the approved reply to the guest via the Hostfully send-message tool. Use the conversation thread from the original task. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
+      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The APPROVED CONTENT below is a JSON object from the previous phase.
+
+STEPS:
+1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
+   a. Environment variables (PREFERRED): run "echo $LEAD_UID" and "echo $THREAD_UID" in bash
+   b. Parse the APPROVED CONTENT JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
+2. Get the message to send: parse the APPROVED CONTENT JSON and extract the "draft" field.
+3. Send the message using the Hostfully send-message tool:
+   tsx /tools/hostfully/send-message.ts --lead-id <lead_uid> --thread-id <thread_uid> --message "<draft text>"
+4. If send succeeds, write to /tmp/summary.txt:
+   {"delivered": true}
+5. If send fails, write to /tmp/summary.txt:
+   {"delivered": false, "error": "<reason>"}
+
+CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when available. Do NOT search for unresponded messages.`,
       enrichment_adapter: 'hostfully',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
@@ -3277,11 +3312,23 @@ No specific house rules provided.
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
       agents_md: GUEST_MESSAGING_AGENTS_MD,
-      delivery_instructions:
-        'Send the approved reply to the guest via the Hostfully send-message tool. Use the conversation thread from the original task. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
+      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The APPROVED CONTENT below is a JSON object from the previous phase.
+
+STEPS:
+1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
+   a. Environment variables (PREFERRED): run "echo $LEAD_UID" and "echo $THREAD_UID" in bash
+   b. Parse the APPROVED CONTENT JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
+2. Get the message to send: parse the APPROVED CONTENT JSON and extract the "draft" field.
+3. Send the message using the Hostfully send-message tool:
+   tsx /tools/hostfully/send-message.ts --lead-id <lead_uid> --thread-id <thread_uid> --message "<draft text>"
+4. If send succeeds, write to /tmp/summary.txt:
+   {"delivered": true}
+5. If send fails, write to /tmp/summary.txt:
+   {"delivered": false, "error": "<reason>"}
+
+CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when available. Do NOT search for unresponded messages.`,
       enrichment_adapter: 'hostfully',
       department_id: '00000000-0000-0000-0000-000000000021',
-      // NO tenant_id — immutable
     },
   });
 
