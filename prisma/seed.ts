@@ -388,15 +388,7 @@ For access/lock issues, set category "access". Set urgency true if guest is curr
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
     'A guest sent a new message. Process it following your Employee Instructions in AGENTS.md.\n\n' +
-    'Environment variables available:\n' +
-    '  $LEAD_UID        — lead/reservation UID\n' +
-    '  $THREAD_UID      — message thread UID\n' +
-    '  $MESSAGE_UID     — specific inbound message UID\n' +
-    '  $PROPERTY_UID    — property UID\n' +
-    '  $NOTIFICATION_CHANNEL — Slack channel for notifications\n' +
-    '  $NOTIFY_MSG_TS   — Slack thread timestamp for replies\n' +
-    "  $TASK_ID         — this task's ID\n" +
-    '  $REPLY_BROADCAST — reply broadcast flag\n';
+    'Env: $LEAD_UID $THREAD_UID $MESSAGE_UID $PROPERTY_UID $NOTIFICATION_CHANNEL $NOTIFY_MSG_TS $TASK_ID $REPLY_BROADCAST';
 
   const DOZALDEVS_SUMMARIZER_AGENTS_MD =
     'You are a daily Slack channel summarizer for DozalDevs, a software development team.\n\n' +
