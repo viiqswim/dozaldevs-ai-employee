@@ -95,3 +95,39 @@
 - Step numbering in delivery phase updated: 5=AGENTS.md, 6=run session, 7=verify, 8=mark Done
 - Build: clean (EXIT_CODE:0)
 - Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 10: Guest-messaging archetype → 3-field plain English
+
+- GUEST_MESSAGING_AGENTS_MD replaced: 114 lines of engineering-artifact content → 22 lines of plain English
+- VLRE_GUEST_MESSAGING_INSTRUCTIONS: removed trailing `+ 'Env: $LEAD_UID ...'` line — now 86 chars (under 100 limit)
+- system_prompt: '' in both create and update blocks (removed GUEST_MESSAGING_SYSTEM_PROMPT import)
+- delivery_instructions: plain English in both blocks — no CLI syntax, no file path artifacts
+- CRITICAL: tests/lib/conversation-history-context.test.ts tested OLD engineering-artifact content from agents_md → had to update to test new plain English content (5 test rewrites)
+- New tests check: "Read the full conversation thread", "match the guest's language", NEEDS_APPROVAL, NO_ACTION_NEEDED, tool-usage-reference skill reference
+- Build: clean (EXIT_CODE:0)
+- Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 11: Daily-summarizer archetype → 3-field plain English
+
+- Two archetype entries: DozalDevs (id: 00000000-0000-0000-0000-000000000012) and VLRE (id: 00000000-0000-0000-0000-000000000013)
+- Each has create + update blocks → 4 system_prompt changes, 4 delivery_instructions changes total
+- PAPI_CHULO_SYSTEM_PROMPT const (line 27) left as dead code — prisma/seed.ts excluded from tsconfig.build.json (only src/**/* compiled), so no build error
+- DOZALDEVS_SUMMARIZER_INSTRUCTIONS and VLRE_SUMMARIZER_INSTRUCTIONS simplified to identical 84-char strings (under 100 limit)
+- agents_md: separate content for each tenant (DozalDevs = tech digest, VLRE = Papi Chulo dramatic style) — both follow same WORKFLOW/CLASSIFICATION RULES/TOOLS pattern
+- delivery_instructions: plain English referencing /tmp/summary.txt output contract only — no CLI syntax, no $PUBLISH_CHANNEL env var
+- No test rewrites needed — no tests check summarizer agents_md/instructions content directly
+- Build: clean (EXIT_CODE:0)
+- Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 12: Code-rotation archetype → 3-field plain English
+
+- One archetype entry: VLRE (id: 00000000-0000-0000-0000-000000000016)
+- Each has create + update blocks → 2 system_prompt changes, 2 instructions changes total
+- CODE_ROTATION_AGENTS_MD const (line 308) replaced: old 5-line security-focused content → 20-line plain English with WORKFLOW/CLASSIFICATION RULES/TOOLS pattern
+- instructions: 'Rotate all lock codes for VLRE properties. Check your Employee Instructions in AGENTS.md.' (86 chars, under 100 limit)
+- system_prompt: '' in both create and update blocks
+- delivery_instructions: null in both blocks (code-rotation has approval_required: false — no delivery phase)
+- No test rewrites needed — no tests check code-rotation agents_md/instructions content directly
+- admin-property-locks-integration.test.ts has 1 pre-existing failure (integration test requires live DB — unrelated to seed changes)
+- Build: clean (EXIT_CODE:0)
+- Tests: 1310 passed, 3 failures (2 pre-existing migration-agents-md.test.ts + 1 pre-existing admin-property-locks-integration.test.ts requiring live DB) — no new failures
