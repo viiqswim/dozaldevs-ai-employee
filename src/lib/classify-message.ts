@@ -23,8 +23,70 @@ export interface ClassifyResult {
  * Pure parser for LLM classification responses.
  * No network calls, no side effects — takes raw LLM text and returns a validated ClassifyResult.
  * Handles markdown code fences, non-JSON early-exit strings, parse failures, and field normalization.
+ *
+ * Parse order:
+ * 1. Try JSON parse → if has `classification` field (NEEDS_APPROVAL | NO_ACTION_NEEDED) → standard schema path
+ * 2. Check for `NO_ACTION_NEEDED:` prefix → legacy plain text path
+ * 3. Try JSON parse → legacy JSON path (existing logic with draftResponse, guestName, etc.)
+ * 4. Parse failure fallback
  */
 export function parseClassifyResponse(responseText: string): ClassifyResult {
+  // 1. Try standard JSON schema first (has `classification` field but no legacy-specific fields)
+  const jsonMatchEarly =
+    responseText.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? responseText.match(/(\{[\s\S]+\})/);
+  const jsonStringEarly = jsonMatchEarly?.[1] ?? responseText;
+
+  const legacyFields = [
+    'draftResponse',
+    'guestName',
+    'propertyName',
+    'checkIn',
+    'checkOut',
+    'bookingChannel',
+    'conversationSummary',
+    'category',
+    'displayContext',
+  ];
+
+  try {
+    const parsedEarly = JSON.parse(jsonStringEarly) as Record<string, unknown>;
+    const cls = parsedEarly['classification'];
+    const hasLegacyFields = legacyFields.some((f) => f in parsedEarly);
+    if ((cls === 'NEEDS_APPROVAL' || cls === 'NO_ACTION_NEEDED') && !hasLegacyFields) {
+      const isNoAction = cls === 'NO_ACTION_NEEDED';
+      const confidence =
+        typeof parsedEarly['confidence'] === 'number'
+          ? Math.min(1.0, Math.max(0.0, parsedEarly['confidence']))
+          : 0.5;
+      const reasoning =
+        typeof parsedEarly['reasoning'] === 'string'
+          ? parsedEarly['reasoning']
+          : 'No reasoning provided';
+      const summary =
+        typeof parsedEarly['summary'] === 'string'
+          ? parsedEarly['summary']
+          : 'Guest message requires review';
+      const draft = typeof parsedEarly['draft'] === 'string' ? parsedEarly['draft'] : undefined;
+      const urgency = parsedEarly['urgency'] === true;
+
+      return {
+        classification: isNoAction ? 'NO_ACTION_NEEDED' : 'NEEDS_APPROVAL',
+        confidence,
+        reasoning,
+        draftResponse: isNoAction
+          ? null
+          : (draft ?? 'Thank you for your message. Our team will be in touch shortly.'),
+        summary,
+        category: isNoAction ? 'acknowledgment' : 'other',
+        conversationSummary: null,
+        urgency,
+      };
+    }
+  } catch {
+    // Not valid JSON — fall through to legacy handling
+  }
+
+  // 2. Legacy plain text: NO_ACTION_NEEDED: prefix
   if (responseText.trim().startsWith('NO_ACTION_NEEDED:')) {
     return {
       classification: 'NO_ACTION_NEEDED',
@@ -42,6 +104,7 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     };
   }
 
+  // 3. Legacy JSON path (draftResponse, guestName, etc.)
   const jsonMatch =
     responseText.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? responseText.match(/(\{[\s\S]+\})/);
   const jsonString = jsonMatch?.[1] ?? responseText;
