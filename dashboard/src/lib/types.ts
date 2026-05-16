@@ -205,4 +205,14 @@ export interface BrainPreviewResponse {
   };
   employee_rules: string[];
   employee_knowledge: string[];
+  humanFields: {
+    taskTrigger: string;
+    employeeManual: string;
+    afterApprovalAction: string;
+  };
+  autoInjectedSections: {
+    securityPreamble: string;
+    outputContract: string;
+    envManifest: string;
+  };
 }
