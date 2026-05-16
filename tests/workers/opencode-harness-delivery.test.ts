@@ -396,7 +396,7 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
   });
 
-  it('guest-messaging: valid JSON → pre-parsed command with correct --lead-id and --thread-id', async () => {
+  it('guest-messaging: valid JSON deliverable passed through in approved content block', async () => {
     const deliverableContent = JSON.stringify({
       leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
       threadUid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
@@ -417,13 +417,13 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
 
     const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
-    expect(promptArg).toContain('--lead-id "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"');
-    expect(promptArg).not.toContain('--lead-id "test-task-id"');
-    expect(promptArg).toContain('--thread-id "2f18249a-9523-4acd-a512-20ff06d5c3fa"');
-    expect(promptArg).toContain('pre-parsed');
+    expect(promptArg).toContain('--- APPROVED CONTENT ---');
+    expect(promptArg).toContain(deliverableContent);
+    expect(promptArg).not.toContain('--lead-id');
+    expect(promptArg).not.toContain('--thread-id');
   });
 
-  it('guest-messaging: missing threadUid → command omits --thread-id', async () => {
+  it('guest-messaging: JSON without threadUid passed through in approved content block', async () => {
     const deliverableContent = JSON.stringify({
       leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
       draftResponse: 'Thank you!',
@@ -443,9 +443,10 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
 
     const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
-    expect(promptArg).toContain('--lead-id "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"');
+    expect(promptArg).toContain('--- APPROVED CONTENT ---');
+    expect(promptArg).toContain(deliverableContent);
+    expect(promptArg).not.toContain('--lead-id');
     expect(promptArg).not.toContain('--thread-id');
-    expect(promptArg).toContain('pre-parsed');
   });
 
   it('guest-messaging: non-JSON deliverable → raw passthrough', async () => {
@@ -467,8 +468,8 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
 
     const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
-    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
-    expect(promptArg).not.toContain('pre-parsed');
+    expect(promptArg).toContain('--- APPROVED CONTENT ---');
+    expect(promptArg).not.toContain('--lead-id');
   });
 
   it('guest-messaging: JSON missing leadUid → raw passthrough', async () => {
@@ -488,11 +489,11 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
 
     const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
-    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
-    expect(promptArg).not.toContain('pre-parsed');
+    expect(promptArg).toContain('--- APPROVED CONTENT ---');
+    expect(promptArg).not.toContain('--lead-id');
   });
 
-  it('non-guest-messaging archetype: pre-parse NOT triggered, raw passthrough', async () => {
+  it('non-guest-messaging archetype: content passed through in approved content block', async () => {
     const deliverableContent = JSON.stringify({
       leadUid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
       draftResponse: 'Hello',
@@ -512,7 +513,7 @@ describe('opencode-harness — delivery phase', () => {
     expect(lastBody).toMatchObject({ status: 'Done' });
 
     const promptArg = sessionManagerMock.injectTaskPrompt.mock.calls[0]?.[1] as string;
-    expect(promptArg).toContain('--- DELIVERABLE CONTENT ---');
-    expect(promptArg).not.toContain('pre-parsed');
+    expect(promptArg).toContain('--- APPROVED CONTENT ---');
+    expect(promptArg).not.toContain('--lead-id');
   });
 });

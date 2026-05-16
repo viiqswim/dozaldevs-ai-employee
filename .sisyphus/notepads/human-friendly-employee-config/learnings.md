@@ -73,3 +73,25 @@
 - The `writeFile` import inside `tryAutoPostApprovalCard` via dynamic `import('fs/promises')` — avoids top-level import for a function that may never be called
 - Build: clean (EXIT_CODE:0)
 - Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 8: Harness delivery phase AGENTS.md enrichment + remove delivery adapter
+
+- Removed `getDeliveryAdapter` import from line 6 of opencode-harness.mts
+- Removed the entire `if (archetype.enrichment_adapter)` adapter block
+- New delivery prompt: `${deliveryInstructions}\n\n--- APPROVED CONTENT ---\n${deliverableContent}\n--- END APPROVED CONTENT ---\n\nTask ID: ${TASK_ID}`
+  - Header changed from `--- DELIVERABLE CONTENT ---` to `--- APPROVED CONTENT ---`
+  - The `const deliveryPrompt = ...` replaces `let deliveryPrompt = ''` + adapter block + `if (!deliveryPrompt)` fallback
+- Added AGENTS.md resolution block between `writeOpencodeAuth()` and `runOpencodeSession()` (steps 4 and 6)
+  - Uses `{ agents_md: archetype.delivery_instructions ?? null }` as the archetype arg → appears as `# Employee Instructions`
+  - Does NOT pass employeeRules or employeeKnowledge (delivery phase has no learned rules)
+  - Uses `import('node:fs/promises')` for readFile/writeFile (consistent with execution phase)
+  - Full try/catch: any failure logs warning and proceeds with bare AGENTS.md
+  - deliveryRuntimeSections: security boundary (always) + env manifest (if set)
+- Test file `opencode-harness-delivery.test.ts` updated:
+  - 5 tests rewrote to use `--- APPROVED CONTENT ---` instead of `--- DELIVERABLE CONTENT ---`
+  - Adapter pre-parse tests (tests 1 & 2) rewrote to verify raw passthrough behavior (no `--lead-id`, `--thread-id`)
+  - `vi.mock('fs/promises')` covers `node:fs/promises` too (or catch handles ENOENT either way)
+- delivery-adapters/ directory left intact (just no longer imported)
+- Step numbering in delivery phase updated: 5=AGENTS.md, 6=run session, 7=verify, 8=mark Done
+- Build: clean (EXIT_CODE:0)
+- Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
