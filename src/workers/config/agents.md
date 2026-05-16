@@ -73,6 +73,84 @@ If you need data that no tool currently provides, report it as a missing capabil
 
 ---
 
+## 7. Output Format
+
+Before this session ends, you MUST write `/tmp/summary.txt` as a JSON object. The platform reads this file to determine the outcome of your task. If the file is absent, the task is treated as a hard failure.
+
+**Required fields:**
+
+- `summary` (string) — a human-readable description of what you did and what the outcome was
+- `classification` (string) — exactly `"NEEDS_APPROVAL"` or `"NO_ACTION_NEEDED"`
+
+**Optional fields:**
+
+- `draft` (string) — the deliverable text (e.g. a message draft) if one was produced
+- `confidence` (number, 0–1) — how confident you are in the output
+- `reasoning` (string) — brief explanation of why you chose this classification
+- `urgency` (boolean) — set to `true` if the situation requires immediate human attention
+- `metadata` (object) — any additional structured data relevant to the task
+
+**`classification` rules:**
+
+- Use `"NEEDS_APPROVAL"` when a human must review or act before the deliverable is sent.
+- Use `"NO_ACTION_NEEDED"` when the task is complete and no human action is required.
+
+**Example:**
+
+```json
+{
+  "summary": "Task completed successfully. Reviewed the situation and drafted a response.",
+  "classification": "NEEDS_APPROVAL",
+  "draft": "Your response text here",
+  "confidence": 0.92,
+  "reasoning": "Clear situation, standard response applies.",
+  "urgency": false
+}
+```
+
+`/tmp/summary.txt` MUST exist before the session ends. Do NOT write `/tmp/approval-message.json` — the platform constructs approval cards automatically from `/tmp/summary.txt`.
+
+---
+
+## 8. Error Handling
+
+If any tool throws an error or the task cannot be completed for any reason, you MUST still write `/tmp/summary.txt`. Never silently fail or leave the file unwritten.
+
+When writing an error outcome:
+
+- Set `classification` to `"NEEDS_APPROVAL"` so a human can review the failure.
+- Describe the error clearly in `reasoning`.
+- Set `urgency` to `true` if the failure may have real-world consequences.
+
+**Example:**
+
+```json
+{
+  "summary": "Task encountered an error and could not complete.",
+  "classification": "NEEDS_APPROVAL",
+  "reasoning": "Tool X failed with error: <error message>. Manual review required.",
+  "urgency": true
+}
+```
+
+Writing a partial or error summary is always better than writing nothing. The platform cannot recover a task that produces no output file.
+
+---
+
+## 9. Tool Discovery
+
+At the start of your session, load the `tool-usage-reference` skill to discover all available tools and their exact CLI syntax:
+
+```
+load skill: tool-usage-reference
+```
+
+The skill documents every tool under `/tools/` — exact flags, required arguments, environment variables, and output shapes. Never guess tool syntax. If you are unsure how to invoke a tool, consult the skill before running it.
+
+Your Employee Instructions (in AGENTS.md) tell you **which** tools are relevant to your job. The `tool-usage-reference` skill tells you **how** to use them.
+
+---
+
 ## Summary
 
 - Read `/tools/` source freely when debugging.
@@ -81,3 +159,6 @@ If you need data that no tool currently provides, report it as a missing capabil
 - Report every tool issue before the task ends, even if you fixed it.
 - Never touch `/app/dist/`, `/app/node_modules/`, or anything outside `/tools/`.
 - Never access the database directly — always use the tools.
+- Always write `/tmp/summary.txt` as JSON before the session ends — absence is a hard failure.
+- On error, still write `/tmp/summary.txt` with `classification: "NEEDS_APPROVAL"` and describe the error.
+- Load the `tool-usage-reference` skill at session start to discover exact tool syntax.

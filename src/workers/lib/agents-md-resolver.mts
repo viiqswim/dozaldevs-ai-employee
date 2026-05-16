@@ -1,10 +1,11 @@
 /**
  * Resolves AGENTS.md content by concatenating all levels:
  * 1. Platform AGENTS.md (always included)
- * 2. tenantConfig.default_agents_md (if non-empty)
- * 3. archetype.agents_md (if non-empty)
- * 4. employeeRules (if non-empty) — learned behavioral rules from feedback pipeline
- * 5. employeeKnowledge (if non-empty) — employee knowledge base content
+ * 2. platformRuntimeSections (if provided) — platform-generated runtime context
+ * 3. tenantConfig.default_agents_md (if non-empty)
+ * 4. archetype.agents_md (if non-empty)
+ * 5. employeeRules (if non-empty) — learned behavioral rules from feedback pipeline
+ * 6. employeeKnowledge (if non-empty) — employee knowledge base content
  */
 export function resolveAgentsMd(
   platformContent: string,
@@ -12,9 +13,13 @@ export function resolveAgentsMd(
   archetype: { agents_md?: string | null } | null,
   employeeRules?: string,
   employeeKnowledge?: string,
+  platformRuntimeSections?: string[],
 ): string {
   const sections: string[] = [];
   sections.push(`# Platform Policy\n\n${platformContent}`);
+  if (platformRuntimeSections && platformRuntimeSections.length > 0) {
+    sections.push(`# Platform Runtime Context\n\n${platformRuntimeSections.join('\n\n')}`);
+  }
   const tenantDefault = tenantConfig?.default_agents_md;
   if (typeof tenantDefault === 'string' && tenantDefault.trim().length > 0) {
     sections.push(`# Tenant Conventions\n\n${tenantDefault}`);

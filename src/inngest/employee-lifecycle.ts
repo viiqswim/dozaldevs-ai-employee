@@ -491,49 +491,65 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         log.info({ taskId, runtime }, 'Dispatching worker machine');
 
         if (process.env.WORKER_RUNTIME !== 'fly') {
+          const localWorkerEnv: Record<string, string> = {
+            ...tenantEnv,
+            ...rawEventEnv,
+            TASK_ID: taskId,
+            TENANT_ID: tenantId,
+            ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
+            SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
+            SUPABASE_SECRET_KEY: supabaseKey,
+            INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+            INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+            INNGEST_DEV: '1',
+            NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+            ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
+            ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
+            ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
+          };
+          if (localWorkerEnv['PLATFORM_ENV_MANIFEST']) {
+            const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST'].filter((k) => localWorkerEnv[k]);
+            if (extra.length > 0) {
+              localWorkerEnv['PLATFORM_ENV_MANIFEST'] =
+                `${localWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
+            }
+          }
           const localMachine = runLocalDockerContainer({
             taskId,
             name: `employee-${taskId.slice(0, 8)}`,
-            env: {
-              ...tenantEnv,
-              ...rawEventEnv,
-              TASK_ID: taskId,
-              TENANT_ID: tenantId,
-              ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-              SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
-              SUPABASE_SECRET_KEY: supabaseKey,
-              INNGEST_BASE_URL: 'http://host.docker.internal:8288',
-              INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
-              INNGEST_DEV: '1',
-              NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-              ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
-              ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
-              ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
-            },
+            env: localWorkerEnv,
             cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
           });
           return localMachine.id;
         }
 
+        const flyWorkerEnv: Record<string, string> = {
+          ...tenantEnv,
+          ...rawEventEnv,
+          TASK_ID: taskId,
+          TENANT_ID: tenantId,
+          ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
+          SUPABASE_URL: effectiveSupabaseUrl,
+          SUPABASE_SECRET_KEY: supabaseKey,
+          NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+          ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
+          ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
+          ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
+        };
+        if (flyWorkerEnv['PLATFORM_ENV_MANIFEST']) {
+          const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST'].filter((k) => flyWorkerEnv[k]);
+          if (extra.length > 0) {
+            flyWorkerEnv['PLATFORM_ENV_MANIFEST'] =
+              `${flyWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
+          }
+        }
         const machine = await createMachine(flyApp, {
           image,
           vm_size: vmSize,
           auto_destroy: true,
           kill_timeout: 1800,
           cmd,
-          env: {
-            ...tenantEnv,
-            ...rawEventEnv,
-            TASK_ID: taskId,
-            TENANT_ID: tenantId,
-            ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
-            SUPABASE_URL: effectiveSupabaseUrl,
-            SUPABASE_SECRET_KEY: supabaseKey,
-            NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-            ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
-            ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
-            ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
-          },
+          env: flyWorkerEnv,
         });
 
         return machine.id;
