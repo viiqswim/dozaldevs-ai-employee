@@ -35,3 +35,28 @@
 - `postApprovalCard` throws on failure (no silent swallow)
 - Build: clean (EXIT_CODE:0)
 - Tests: 1310 passed, 2 pre-existing failures in migration-agents-md.test.ts
+
+## Task 6: Harness slim fullPrompt + security via AGENTS.md
+
+- `runOpencodeSession` signature changed from `(systemPrompt, instructions, model)` → `(instructions, model)`
+- `fullPrompt` is now simply `${instructions}\n\nTask ID: ${TASK_ID}` — no system_prompt prefix
+- `platformRuntimeSections` built in execution phase (NOT delivery phase) with 3 possible entries:
+  1. Security preamble — always present (## Security Boundary)
+  2. Env manifest — only when `process.env.PLATFORM_ENV_MANIFEST` is set and non-empty
+  3. Legacy system_prompt — only when `archetype.system_prompt` is non-empty (backward compat)
+- `resolveAgentsMd()` 6th arg `platformRuntimeSections` passed at execution phase resolveAgentsMd call
+- Delivery phase call updated to remove systemPrompt arg: `runOpencodeSession(deliveryPrompt, model)`
+- `systemPrompt` variable at line ~540 kept (used for backward compat in platformRuntimeSections)
+- Build: clean (EXIT_CODE:0)
+- Tests: 371 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 9: parseClassifyResponse standard JSON schema handling
+
+- Standard schema detection: JSON with `classification` field but NO legacy-specific fields
+- Legacy fields list: `draftResponse`, `guestName`, `propertyName`, `checkIn`, `checkOut`, `bookingChannel`, `conversationSummary`, `category`, `displayContext`
+- Key insight: legacy JSON payloads also have `classification` field — must distinguish by absence of legacy fields
+- Standard schema maps: `draft` → `draftResponse`, `summary` → `summary`, `confidence` → `confidence`, `reasoning` → `reasoning`, `urgency` → `urgency`
+- Standard schema path sets `category: 'acknowledgment'` for NO_ACTION_NEEDED, `'other'` for NEEDS_APPROVAL
+- Standard schema path sets `conversationSummary: null` (not in standard schema)
+- Parse order: (1) standard JSON, (2) legacy plain text `NO_ACTION_NEEDED:`, (3) legacy JSON, (4) parse failure fallback
+- Tests: 219 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
