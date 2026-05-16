@@ -150,7 +150,7 @@ async function fireCompletionEvent(taskId: string): Promise<void> {
 async function tryAutoPostApprovalCard(
   parsedOutput: StandardOutput,
 ): Promise<Record<string, unknown>> {
-  const token = process.env.SLACK_BOT_TOKEN ?? process.env.VLRE_SLACK_BOT_TOKEN;
+  const token = process.env.SLACK_BOT_TOKEN;
   const channel = process.env.NOTIFICATION_CHANNEL;
 
   if (!token || !channel) {
@@ -325,7 +325,7 @@ async function runOpencodeSession(
           PLACEHOLDER_PATTERN.test(tsVal) ||
           PLACEHOLDER_PATTERN.test(channelVal)
         ) {
-          const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of calling post-guest-approval.ts. Failing task.`;
+          const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of a real Slack ts/channel. Failing task.`;
           log.error({ taskId: TASK_ID }, msg);
           throw new Error(msg);
         }
@@ -439,7 +439,7 @@ async function runOpencodeSession(
       PLACEHOLDER_PATTERN.test(tsVal) ||
       PLACEHOLDER_PATTERN.test(channelVal)
     ) {
-      const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of calling post-guest-approval.ts. Failing task.`;
+      const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of a real Slack ts/channel. Failing task.`;
       log.error({ taskId: TASK_ID }, msg);
       throw new Error(msg);
     }
