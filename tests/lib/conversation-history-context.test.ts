@@ -10,27 +10,25 @@ function getGuestMessagingAgentsMd(): string {
 }
 
 describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
-  it('includes Conversation History section heading', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('Conversation History');
+  it('reads the full conversation thread as first workflow step', () => {
+    expect(getGuestMessagingAgentsMd()).toContain('Read the full conversation thread');
   });
 
-  it('forbids contradicting prior host messages', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('NEVER contradict');
+  it('includes language matching instruction', () => {
+    expect(getGuestMessagingAgentsMd()).toContain("match the guest's language");
   });
 
-  it('requires referencing prior context when helpful', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('Reference prior context');
+  it('includes NEEDS_APPROVAL classification rule', () => {
+    expect(getGuestMessagingAgentsMd()).toContain('NEEDS_APPROVAL');
   });
 
-  it('requires conversationSummary to cover the full thread', () => {
+  it('includes NO_ACTION_NEEDED classification rule', () => {
+    expect(getGuestMessagingAgentsMd()).toContain('NO_ACTION_NEEDED');
+  });
+
+  it('references tool-usage-reference skill for CLI syntax', () => {
     const agentsMd = getGuestMessagingAgentsMd();
-    expect(agentsMd).toContain('conversationSummary');
-    expect(agentsMd).toContain('full thread');
-  });
-
-  it('sets conversationSummary to null for single-message threads', () => {
-    const agentsMd = getGuestMessagingAgentsMd();
-    expect(agentsMd).toContain('single-message');
-    expect(agentsMd).toContain('conversationSummary to null');
+    expect(agentsMd).toContain('tool-usage-reference');
+    expect(agentsMd).toContain('CLI syntax');
   });
 });
