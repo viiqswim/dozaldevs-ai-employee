@@ -1,0 +1,136 @@
+import type { KnownBlock } from '@slack/web-api';
+import { WebClient } from '@slack/web-api';
+import type { StandardOutput } from './output-schema.mjs';
+
+export interface ApprovalBlockData {
+  summary: string;
+  draft?: string;
+  classification: string;
+  confidence?: number;
+  urgency?: boolean;
+  taskId: string;
+}
+
+export interface PostApprovalCardParams {
+  data: Omit<StandardOutput, 'classification'> & { classification: string };
+  taskId: string;
+  channel: string;
+  token: string;
+  threadTs?: string;
+}
+
+export interface PostApprovalCardResult {
+  ts: string;
+  channel: string;
+}
+
+/**
+ * Build Slack Block Kit blocks for a generic employee approval card.
+ * Employee-agnostic — no guest, property, or domain-specific language.
+ */
+export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
+  const headerPrefix = data.urgency ? '⚠️ ' : '📝 ';
+  const headerText = `${headerPrefix}${data.summary.slice(0, 150)}`;
+
+  const blocks: KnownBlock[] = [
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: headerText,
+        emoji: true,
+      },
+    } as KnownBlock,
+  ];
+
+  if (data.draft) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Draft response:*\n${data.draft.slice(0, 3000)}`,
+      },
+    } as KnownBlock);
+  }
+
+  // Classification badge + confidence + urgency context
+  const classificationBadge =
+    data.classification === 'NO_ACTION_NEEDED' ? '✅ NO_ACTION_NEEDED' : '🔔 NEEDS_APPROVAL';
+  const contextParts: string[] = [classificationBadge];
+  if (data.confidence !== undefined) {
+    contextParts.push(`${Math.round(data.confidence * 100)}% confidence`);
+  }
+  if (data.urgency) {
+    contextParts.push('🚨 URGENT');
+  }
+
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: contextParts.join(' · ') }],
+  } as KnownBlock);
+
+  // Action buttons — action_ids must match handlers.ts button handler registrations
+  blocks.push({
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✅ Approve', emoji: true },
+        action_id: 'approve_task',
+        value: data.taskId,
+        style: 'primary',
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '❌ Reject', emoji: true },
+        action_id: 'reject_task',
+        value: data.taskId,
+        style: 'danger',
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
+        action_id: 'edit_task',
+        value: data.taskId,
+      },
+    ],
+  } as KnownBlock);
+
+  // Mandatory task ID context block (Slack Message Standards)
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `Task \`${data.taskId}\`` }],
+  } as KnownBlock);
+
+  return blocks;
+}
+
+/**
+ * Post a generic approval card to Slack and return the message timestamp + channel.
+ * Throws on failure — callers must handle errors.
+ */
+export async function postApprovalCard(
+  params: PostApprovalCardParams,
+): Promise<PostApprovalCardResult> {
+  const client = new WebClient(params.token);
+
+  const blocks = buildApprovalBlocks({
+    ...params.data,
+    taskId: params.taskId,
+  });
+
+  const response = await client.chat.postMessage({
+    channel: params.channel,
+    blocks,
+    text: params.data.summary,
+    ...(params.threadTs ? { thread_ts: params.threadTs } : {}),
+  });
+
+  if (!response.ok || !response.ts || !response.channel) {
+    throw new Error(
+      `Slack postMessage failed: ${response.error ?? 'missing ts/channel in response'}`,
+    );
+  }
+
+  return { ts: response.ts, channel: response.channel };
+}

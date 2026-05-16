@@ -75,5 +75,13 @@ export async function loadTenantEnv(
     env['PUBLISH_CHANNEL'] = publishChannel;
   }
 
+  // Manifest of business env vars available to the worker (excludes platform infrastructure)
+  const manifestKeys = Object.keys(env).filter(
+    (k) => !PLATFORM_ENV_WHITELIST.includes(k) && k !== 'PLATFORM_ENV_MANIFEST',
+  );
+  if (manifestKeys.length > 0) {
+    env['PLATFORM_ENV_MANIFEST'] = manifestKeys.join(',');
+  }
+
   return env;
 }

@@ -229,6 +229,36 @@ describe('loadTenantEnv', () => {
     expect(env['SOURCE_CHANNELS']).toBeUndefined();
   });
 
+  it('PLATFORM_ENV_MANIFEST contains business var names but not infrastructure var names', async () => {
+    const config = { notification_channel: 'C_NOTIFY', source_channels: ['C001', 'C002'] };
+    const deps = makeDeps({
+      findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)),
+      listKeys: vi
+        .fn()
+        .mockResolvedValue([{ key: 'hostfully_api_key', is_set: true, updated_at: new Date() }]),
+      getMany: vi.fn().mockResolvedValue({ hostfully_api_key: 'hf-secret' }),
+    });
+    process.env.DATABASE_URL = 'postgresql://localhost/test';
+    process.env.SUPABASE_URL = 'http://localhost:54331';
+    process.env.OPENROUTER_API_KEY = 'sk-or-test';
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['PLATFORM_ENV_MANIFEST']).toBeDefined();
+    const manifest = env['PLATFORM_ENV_MANIFEST']!.split(',');
+    expect(manifest).toContain('HOSTFULLY_API_KEY');
+    expect(manifest).toContain('NOTIFICATION_CHANNEL');
+    expect(manifest).toContain('SOURCE_CHANNELS');
+    expect(manifest).not.toContain('DATABASE_URL');
+    expect(manifest).not.toContain('SUPABASE_URL');
+    expect(manifest).not.toContain('OPENROUTER_API_KEY');
+    expect(manifest).not.toContain('PLATFORM_ENV_MANIFEST');
+  });
+
+  it('PLATFORM_ENV_MANIFEST is absent when no business vars are present', async () => {
+    const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID)) });
+    const env = await loadTenantEnv(TENANT_A_ID, deps);
+    expect(env['PLATFORM_ENV_MANIFEST']).toBeUndefined();
+  });
+
   it('SUMMARY_PUBLISH_CHANNEL is NOT present in env output (removed)', async () => {
     const config = {
       summary: {
