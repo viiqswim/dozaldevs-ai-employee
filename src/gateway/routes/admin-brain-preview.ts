@@ -3,7 +3,6 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import path from 'path';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
@@ -57,7 +56,7 @@ function getPlatformAgentsMd(): string {
   if (!_platformAgentsMd) {
     try {
       _platformAgentsMd = readFileSync(
-        resolve(process.cwd(), 'src/workers/config/agents.md'),
+        path.resolve(process.cwd(), 'src/workers/config/agents.md'),
         'utf-8',
       );
     } catch {
