@@ -131,3 +131,25 @@
 - admin-property-locks-integration.test.ts has 1 pre-existing failure (integration test requires live DB — unrelated to seed changes)
 - Build: clean (EXIT_CODE:0)
 - Tests: 1310 passed, 3 failures (2 pre-existing migration-agents-md.test.ts + 1 pre-existing admin-property-locks-integration.test.ts requiring live DB) — no new failures
+
+## Task 14: Brain tab — Human Configuration & Auto-Injected sections
+
+- `humanFields` and `autoInjectedSections` added to `admin-brain-preview.ts` response (after `employee_knowledge` in the `res.status(200).json({...})` block)
+- `BrainPreviewResponse` type in `dashboard/src/lib/types.ts` extended with `humanFields` and `autoInjectedSections` nested objects
+- `BrainPreviewTab.tsx`: two new sections inserted BEFORE the nav bar (top of the return statement):
+  - "Human Configuration" — Card with 3 fields: Task Trigger, Employee Manual (truncated at 800 chars), After-Approval Action
+  - "Auto-Injected by Platform" — Card with 3 badge rows: Security (blue), Output (purple), Env (green)
+- Employee Manual truncation: `slice(0, 800) + '\n… (truncated)'` — prevents agents_md from overwhelming the view
+- Security preamble displayed text uses `split('\n\n')[1]` to skip the `## Security Boundary` header line
+- Build: clean (EXIT_CODE:0) — `pnpm build` compiles both gateway TS and dashboard
+
+## Task 13: Test suite update — output-schema + approval-card-poster tests
+
+- vitest.config.ts excludes ALL tests/workers/lib/ files except opencode-server and postgrest-client — must add new files to the negation pattern `!(opencode-server|postgrest-client|output-schema|approval-card-poster)`
+- Import .mts files in tests using .mjs extension: `from '../../../src/workers/lib/output-schema.mjs'`
+- `buildApprovalBlocks` is a pure function — no mocking needed, tests all paths synchronously
+- `postApprovalCard` requires Slack WebClient mock — not tested here (pure function coverage sufficient)
+- Pre-existing failures before T13: only 2 in migration-agents-md.test.ts
+- Final counts: 132 test files, 1378 total tests, 1333 passing, 2 failing (pre-existing), 43 skipped
+- seed-guest-messaging.test.ts system_prompt test checks DB values — passes because test DB still has old seed (tests run against ai_employee_test DB, not re-seeded)
+- No test assertions needed updating — all T1-T12 changes produced 0 new test failures

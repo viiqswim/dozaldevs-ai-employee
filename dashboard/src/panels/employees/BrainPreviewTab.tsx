@@ -242,6 +242,118 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-3 pt-2 pb-2">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Human Configuration
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                Task Trigger
+              </p>
+              {data.humanFields.taskTrigger ? (
+                <pre className="font-mono text-xs bg-muted rounded p-3 overflow-auto max-h-48 whitespace-pre-wrap">
+                  {data.humanFields.taskTrigger}
+                </pre>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Not configured</p>
+              )}
+            </div>
+            <Separator />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                Employee Manual
+              </p>
+              {data.humanFields.employeeManual ? (
+                <pre className="font-mono text-xs bg-muted rounded p-3 overflow-auto max-h-48 whitespace-pre-wrap">
+                  {data.humanFields.employeeManual.length > 800
+                    ? data.humanFields.employeeManual.slice(0, 800) + '\n… (truncated)'
+                    : data.humanFields.employeeManual}
+                </pre>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Not configured</p>
+              )}
+            </div>
+            <Separator />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                After-Approval Action
+              </p>
+              {data.humanFields.afterApprovalAction ? (
+                <pre className="font-mono text-xs bg-muted rounded p-3 overflow-auto max-h-48 whitespace-pre-wrap">
+                  {data.humanFields.afterApprovalAction}
+                </pre>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Not configured</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center gap-3 pt-4 pb-2">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Auto-Injected by Platform
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
+                  Security
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-0.5">Security Preamble</p>
+                <p className="text-xs text-muted-foreground">
+                  {data.autoInjectedSections.securityPreamble.split('\n\n')[1] ??
+                    data.autoInjectedSections.securityPreamble}
+                </p>
+              </div>
+            </div>
+            <Separator />
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs">
+                  Output
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-0.5">Output Contract</p>
+                <p className="text-xs text-muted-foreground">
+                  {data.autoInjectedSections.outputContract}
+                </p>
+              </div>
+            </div>
+            <Separator />
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+                  Env
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-0.5">Environment Variables</p>
+                <p className="text-xs text-muted-foreground">
+                  {data.autoInjectedSections.envManifest}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <nav className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b py-2 -mx-1 px-1">
         <div className="flex items-center gap-1 overflow-x-auto">
           {SECTION_NAV.filter((item) => item.phase === 'execution').map((item) => (
