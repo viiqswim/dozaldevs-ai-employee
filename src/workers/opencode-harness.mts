@@ -4,6 +4,12 @@ import { resolveAgentsMd } from './lib/agents-md-resolver.mjs';
 import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager } from './lib/session-manager.js';
 import { getDeliveryAdapter } from './lib/delivery-adapters/index.mjs';
+import {
+  parseStandardOutput,
+  isApprovalRequired,
+  type StandardOutput,
+} from './lib/output-schema.mjs';
+import { postApprovalCard } from './lib/approval-card-poster.mjs';
 
 const log = createLogger('opencode-harness');
 
@@ -138,6 +144,57 @@ async function fireCompletionEvent(taskId: string): Promise<void> {
   }
 }
 
+/**
+ * Auto-post an approval card to Slack when the agent wrote a standard-schema summary.txt
+ * with NEEDS_APPROVAL but did not post a card itself. Wrapped in try/catch — never throws.
+ */
+async function tryAutoPostApprovalCard(
+  parsedOutput: StandardOutput,
+): Promise<Record<string, unknown>> {
+  const token = process.env.SLACK_BOT_TOKEN ?? process.env.VLRE_SLACK_BOT_TOKEN;
+  const channel = process.env.NOTIFICATION_CHANNEL;
+
+  if (!token || !channel) {
+    log.warn(
+      { taskId: TASK_ID, hasToken: !!token, hasChannel: !!channel },
+      '[opencode-harness] Cannot auto-post approval card — missing SLACK_BOT_TOKEN or NOTIFICATION_CHANNEL',
+    );
+    return {};
+  }
+
+  try {
+    const result = await postApprovalCard({
+      data: parsedOutput,
+      taskId: TASK_ID,
+      channel,
+      token,
+    });
+
+    const approvalMeta: Record<string, unknown> = {
+      ts: result.ts,
+      channel: result.channel,
+      approval_message_ts: result.ts,
+      target_channel: result.channel,
+    };
+
+    const { writeFile } = await import('fs/promises');
+    await writeFile('/tmp/approval-message.json', JSON.stringify(approvalMeta), 'utf8');
+
+    log.info(
+      { taskId: TASK_ID, ts: result.ts, channel: result.channel },
+      '[opencode-harness] Auto-posted approval card and wrote /tmp/approval-message.json',
+    );
+
+    return approvalMeta;
+  } catch (err) {
+    log.error(
+      { taskId: TASK_ID, err },
+      '[opencode-harness] Failed to auto-post approval card — continuing without card',
+    );
+    return {};
+  }
+}
+
 async function writeOpencodeAuth(): Promise<void> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -256,6 +313,7 @@ async function runOpencodeSession(
       } catch {
         // not written
       }
+      let approvalJsonExists = false;
       try {
         const approvalJson = await readFile('/tmp/approval-message.json', 'utf8');
         const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
@@ -280,6 +338,7 @@ async function runOpencodeSession(
             conversation_ref: approvalData.conversationRef,
           }),
         };
+        approvalJsonExists = true;
         log.info(
           { taskId: TASK_ID },
           '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
@@ -289,6 +348,16 @@ async function runOpencodeSession(
           throw err; // re-throw validation errors
         }
         // not written — swallow file-not-found errors only
+      }
+      // Auto-post approval card if summary has NEEDS_APPROVAL but agent did not post a card
+      if (!approvalJsonExists && content !== 'completed') {
+        const parsedOutput = parseStandardOutput(content);
+        if (parsedOutput && isApprovalRequired(parsedOutput)) {
+          const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
+          if (Object.keys(autoMeta).length > 0) {
+            extraMetadata = autoMeta;
+          }
+        }
       }
       return { content, extraMetadata };
     };
@@ -308,7 +377,7 @@ async function runOpencodeSession(
         return { content, metadata: { ...extraMetadata } };
       }
       throw new Error(
-        '[opencode-harness] opencode serve exited before producing output — no /tmp/summary.txt or /tmp/approval-message.json found',
+        '[opencode-harness] opencode serve exited before producing output — neither /tmp/summary.txt nor /tmp/approval-message.json was found',
       );
     }
 
@@ -358,6 +427,7 @@ async function runOpencodeSession(
     // not written
   }
 
+  let approvalJsonExists = false;
   try {
     const approvalJson = await readFileFinal('/tmp/approval-message.json', 'utf8');
     const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
@@ -382,6 +452,7 @@ async function runOpencodeSession(
         conversation_ref: approvalData.conversationRef,
       }),
     };
+    approvalJsonExists = true;
     log.info(
       { taskId: TASK_ID },
       '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
@@ -391,6 +462,17 @@ async function runOpencodeSession(
       throw err; // re-throw validation errors
     }
     // not written — swallow file-not-found errors only
+  }
+
+  // Auto-post approval card if summary has NEEDS_APPROVAL but agent did not post a card
+  if (!approvalJsonExists && content !== 'completed') {
+    const parsedOutput = parseStandardOutput(content);
+    if (parsedOutput && isApprovalRequired(parsedOutput)) {
+      const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
+      if (Object.keys(autoMeta).length > 0) {
+        extraMetadata = autoMeta;
+      }
+    }
   }
 
   if (content === 'completed' && Object.keys(extraMetadata).length === 0) {

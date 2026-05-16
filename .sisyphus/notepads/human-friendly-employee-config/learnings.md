@@ -60,3 +60,16 @@
 - Standard schema path sets `conversationSummary: null` (not in standard schema)
 - Parse order: (1) standard JSON, (2) legacy plain text `NO_ACTION_NEEDED:`, (3) legacy JSON, (4) parse failure fallback
 - Tests: 219 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
+
+## Task 7: Harness auto-post approval card
+
+- `tryAutoPostApprovalCard` is a module-level async function (not inside runOpencodeSession) — can be called from both code paths
+- Function uses `process.env.SLACK_BOT_TOKEN ?? process.env.VLRE_SLACK_BOT_TOKEN` for token, `NOTIFICATION_CHANNEL` for channel
+- Wrapped in try/catch — NEVER throws; if card post fails, returns `{}` (task continues)
+- On success: writes `/tmp/approval-message.json` with `{ ts, channel, approval_message_ts, target_channel }` — `approval_message_ts` is the exact key lifecycle reads
+- Both code paths updated: `checkOutputFiles` (early-exit path) AND normal completion path (post-`finally`)
+- Pattern: track `approvalJsonExists` bool; after reading summary.txt, if `!approvalJsonExists && content !== 'completed'` → parse → if NEEDS_APPROVAL → tryAutoPost
+- If classification is NO_ACTION_NEEDED: no card posted (parsedOutput exists but `isApprovalRequired` returns false)
+- The `writeFile` import inside `tryAutoPostApprovalCard` via dynamic `import('fs/promises')` — avoids top-level import for a function that may never be called
+- Build: clean (EXIT_CODE:0)
+- Tests: 1311 passed, 2 pre-existing failures in migration-agents-md.test.ts — no new failures
