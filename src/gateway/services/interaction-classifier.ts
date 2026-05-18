@@ -51,7 +51,7 @@ export async function resolveArchetypeFromChannel(
   const headers = getPostgrestHeaders();
 
   try {
-    const url1 = `${supabaseUrl}/rest/v1/archetypes?notification_channel=eq.${channelId}&tenant_id=eq.${tenantId}&select=id,role_name,notification_channel&limit=1`;
+    const url1 = `${supabaseUrl}/rest/v1/archetypes?notification_channel=eq.${channelId}&tenant_id=eq.${tenantId}&status=eq.active&select=id,role_name,notification_channel&limit=1`;
     const res1 = await fetch(url1, { headers });
     const data1 = (await res1.json()) as Array<{
       id: string;
@@ -63,7 +63,7 @@ export async function resolveArchetypeFromChannel(
       return data1[0];
     }
 
-    const url2 = `${supabaseUrl}/rest/v1/archetypes?tenant_id=eq.${tenantId}&select=id,role_name,notification_channel&order=created_at.asc&limit=1`;
+    const url2 = `${supabaseUrl}/rest/v1/archetypes?tenant_id=eq.${tenantId}&status=eq.active&select=id,role_name,notification_channel&order=created_at.asc&limit=1`;
     const res2 = await fetch(url2, { headers });
     const data2 = (await res2.json()) as Array<{
       id: string;

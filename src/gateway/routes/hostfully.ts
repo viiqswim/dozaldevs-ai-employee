@@ -63,12 +63,11 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
 
     const tenant_id = matchedTenant.id;
 
-    const archetype = await prisma.archetype.findUnique({
+    const archetype = await prisma.archetype.findFirst({
       where: {
-        tenant_id_role_name: {
-          tenant_id,
-          role_name: 'guest-messaging',
-        },
+        tenant_id,
+        role_name: 'guest-messaging',
+        status: 'active',
       },
     });
 
