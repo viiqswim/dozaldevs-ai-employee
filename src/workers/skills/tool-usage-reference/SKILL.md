@@ -190,6 +190,7 @@ tsx /tools/slack/post-guest-approval.ts \
   --lead-uid "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb" \
   --thread-uid "2f18249a-9523-4acd-a512-20ff06d5c3fa" \
   --message-uid "msg-uid-here" \
+  --thread-ts "$NOTIFY_MSG_TS" \
   [--lead-status "BOOKED"] \
   [--urgency] \
   [--conversation-summary "Guest asking about check-in time"] \
@@ -221,7 +222,7 @@ tsx /tools/slack/post-guest-approval.ts \
 - `--diagnosis <json>` — JSON string `{"hasMismatch":bool,"diagnosisSummary":"..."}` for lock diagnosis block
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection (defaults to `--thread-uid`)
 - `--dry-run` — Print blocks JSON to stdout without posting to Slack
-- `--thread-ts <ts>` — Post as reply in an existing Slack thread
+- `--thread-ts <ts>` — **ALWAYS REQUIRED** for guest-messaging. Pass `"$NOTIFY_MSG_TS"` (env var injected by the lifecycle) to post the approval card as a thread reply under the task's notification message. Omitting this causes the card to post as a new top-level message in the channel.
 - `--reply-broadcast [true|false]` — Whether to broadcast the thread reply to the channel
 
 **Environment variables:**

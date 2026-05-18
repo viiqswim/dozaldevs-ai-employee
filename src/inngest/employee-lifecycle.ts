@@ -567,10 +567,73 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           });
           const rows = (await res.json()) as Array<{ status: string }>;
           const status = rows[0]?.status;
-          if (status === 'Submitting' || status === 'Failed') return status;
+          if (status === 'Submitting' || status === 'Failed' || status === 'Cancelled')
+            return status;
         }
         return 'Failed';
       });
+
+      if (finalStatus === 'Cancelled') {
+        log.info({ taskId }, 'Task was cancelled (superseded) — stopping ghost worker');
+        await step.run('mark-cancelled', async () => {
+          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+            try {
+              const prismaForCancelled = new PrismaClient();
+              const tenantEnvForCancelled = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForCancelled),
+                  secretRepo: new TenantSecretRepository(prismaForCancelled),
+                },
+                (archetype.notification_channel as string | null) ?? null,
+              );
+              await prismaForCancelled.$disconnect();
+              const botTokenForCancelled = tenantEnvForCancelled['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForCancelled) {
+                const slackForCancelled = createSlackClient({
+                  botToken: botTokenForCancelled,
+                  defaultChannel: '',
+                });
+                const supersededText = `⏭️ Superseded`;
+                const supersededNotifyBlocks = buildNotifyBlocks({
+                  state: 'Superseded',
+                  archetypeName: (archetype.role_name as string) ?? 'unknown',
+                  taskId,
+                  enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+                  emoji: '⏭️',
+                });
+                await slackForCancelled.updateMessage(
+                  notifyMsgRef.channel,
+                  notifyMsgRef.ts,
+                  supersededText,
+                  supersededNotifyBlocks,
+                );
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to update notify-received on cancellation (non-fatal)',
+              );
+            }
+          }
+        });
+        await step.run('cleanup-on-cancellation', async () => {
+          try {
+            if ((machineId as string).startsWith('docker_')) {
+              stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+            } else {
+              const flyApp =
+                process.env['FLY_WORKER_APP'] ??
+                process.env['FLY_SUMMARIZER_APP'] ??
+                'ai-employee-workers';
+              await destroyMachine(flyApp, machineId as string);
+            }
+          } catch (err) {
+            log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+          }
+        });
+        return;
+      }
 
       if (finalStatus === 'Failed') {
         log.error({ taskId }, 'Task failed in machine');

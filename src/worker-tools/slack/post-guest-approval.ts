@@ -233,6 +233,7 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
   }
 
   const normalizedMessage = params.originalMessage.replace(/\\n/g, '\n');
+  const normalizedDraft = params.draftResponse.replace(/\\n/g, '\n');
   const quotedMessage = normalizedMessage
     .split('\n')
     .map((line) => `>${line}`)
@@ -250,7 +251,7 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Proposed Response:*\n${params.draftResponse}`,
+        text: `*Proposed Response:*\n${normalizedDraft}`,
       },
     },
     {

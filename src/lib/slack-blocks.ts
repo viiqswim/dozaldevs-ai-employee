@@ -205,7 +205,9 @@ export function buildEnrichedTerminalBlocks(params: {
     });
 
     if (sentSnippet) {
-      const snippet = sentSnippet.length > 150 ? `${sentSnippet.slice(0, 150)}…` : sentSnippet;
+      const normalizedSnippet = sentSnippet.replace(/\\n/g, '\n');
+      const snippet =
+        normalizedSnippet.length > 150 ? `${normalizedSnippet.slice(0, 150)}…` : normalizedSnippet;
       blocks.push({
         type: 'section',
         text: { type: 'mrkdwn', text: `> ${snippet}` },
