@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import pino from 'pino';
-import { PrismaClient } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
@@ -22,28 +21,6 @@ const ArchetypeParamSchema = TenantIdParamSchema.extend({
   archetypeId: uuidField(),
 });
 
-const PatchArchetypeBodySchema = z
-  .object({
-    role_name: z.string().min(1).max(200).optional(),
-    model: z.string().min(1).max(200).optional(),
-    runtime: z.string().min(1).max(100).optional(),
-    instructions: z.string().optional(),
-    system_prompt: z.string().optional(),
-    risk_model: z.record(z.string(), z.unknown()).optional(),
-    concurrency_limit: z.number().int().positive().optional(),
-    notification_channel: z.string().optional(),
-    vm_size: z.string().optional(),
-    deliverable_type: z.string().optional(),
-  })
-  .superRefine((obj, ctx) => {
-    if (Object.keys(obj).length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'At least one field is required for update',
-      });
-    }
-  });
-
 const TriggerSourceSchema = z.union([
   z.object({ type: z.literal('manual') }),
   z.object({
@@ -56,6 +33,38 @@ const TriggerSourceSchema = z.union([
     event_type: z.string().optional(),
   }),
 ]);
+
+const PatchArchetypeBodySchema = z
+  .object({
+    role_name: z.string().min(1).max(200).optional(),
+    model: z.string().min(1).max(200).optional(),
+    runtime: z.string().min(1).max(100).optional(),
+    instructions: z.string().optional(),
+    system_prompt: z.string().optional(),
+    risk_model: z.record(z.string(), z.unknown()).optional(),
+    concurrency_limit: z.number().int().positive().optional(),
+    notification_channel: z.string().optional(),
+    vm_size: z.string().optional(),
+    deliverable_type: z.string().optional(),
+    agents_md: z.string().min(1).max(50000).optional(),
+    delivery_instructions: z.string().max(10000).nullable().optional(),
+    trigger_sources: TriggerSourceSchema.nullable().optional(),
+    tool_registry: z
+      .object({ tools: z.array(z.string()) })
+      .nullable()
+      .optional(),
+    status: z.enum(['active', 'draft', 'superseded']).optional(),
+    overview: z.any().nullable().optional(),
+    parent_draft_id: z.string().uuid().nullable().optional(),
+  })
+  .superRefine((obj, ctx) => {
+    if (Object.keys(obj).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field is required for update',
+      });
+    }
+  });
 
 const CreateArchetypeBodySchema = z.object({
   role_name: z
@@ -163,12 +172,43 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           return;
         }
 
-        const { risk_model, ...rest } = bodyResult.data;
+        const { risk_model, trigger_sources, tool_registry, overview, status, ...rest } =
+          bodyResult.data;
+
+        if (status === 'active') {
+          const conflict = await prisma.archetype.findFirst({
+            where: {
+              tenant_id: tenantId,
+              role_name: rest.role_name ?? existing.role_name ?? undefined,
+              status: 'active',
+              NOT: { id: archetypeId },
+            },
+          });
+          if (conflict) {
+            res.status(409).json({ error: 'role_name already taken by an active employee' });
+            return;
+          }
+        }
+
         const updated = await prisma.archetype.update({
           where: { id: archetypeId },
           data: {
             ...rest,
+            ...(status !== undefined && { status }),
             ...(risk_model !== undefined && { risk_model: risk_model as Prisma.InputJsonValue }),
+            ...(trigger_sources !== undefined && {
+              trigger_sources:
+                trigger_sources === null
+                  ? Prisma.JsonNull
+                  : (trigger_sources as Prisma.InputJsonValue),
+            }),
+            ...(tool_registry !== undefined && {
+              tool_registry:
+                tool_registry === null ? Prisma.JsonNull : (tool_registry as Prisma.InputJsonValue),
+            }),
+            ...(overview !== undefined && {
+              overview: overview === null ? Prisma.JsonNull : (overview as Prisma.InputJsonValue),
+            }),
           },
         });
 
