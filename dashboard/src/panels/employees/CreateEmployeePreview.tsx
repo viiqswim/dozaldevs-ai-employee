@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { MarkdownEditorField } from '@/components/MarkdownEditorField';
+import { MarkdownPreview } from '@/components/MarkdownPreview';
 import {
   Select,
   SelectContent,
@@ -89,7 +90,9 @@ export function CreateEmployeePreview({
         <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           What it does
         </label>
-        <p className="mt-1 text-sm text-muted-foreground">{config.instructions}</p>
+        <div className="mt-1">
+          <MarkdownPreview content={config.instructions} />
+        </div>
       </div>
 
       <div>
@@ -330,18 +333,34 @@ export function CreateEmployeePreview({
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Tools
           </label>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {config.tool_registry.tools.map((toolPath) => {
-              const pathSegments = toolPath.split('/');
-              const serviceSegment = pathSegments[2] ?? toolPath;
-              const label = serviceSegment.charAt(0).toUpperCase() + serviceSegment.slice(1);
-              return (
-                <Badge key={toolPath} variant="outline" className="text-xs">
-                  {label}
-                </Badge>
-              );
-            })}
+          <div className="mt-2 space-y-2">
+            {Object.entries(
+              config.tool_registry.tools.reduce<Record<string, string[]>>((acc, toolPath) => {
+                const segments = toolPath.split('/');
+                const service = segments[2] ?? 'other';
+                const toolName = (segments[segments.length - 1] ?? toolPath).replace(/\.ts$/, '');
+                if (!acc[service]) acc[service] = [];
+                acc[service].push(toolName);
+                return acc;
+              }, {}),
+            ).map(([service, tools]) => (
+              <div key={service}>
+                <span className="text-xs font-medium text-muted-foreground capitalize">
+                  {service}
+                </span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {tools.map((tool) => (
+                    <Badge key={tool} variant="outline" className="text-xs font-mono">
+                      {tool}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+          <p className="mt-2 text-xs text-muted-foreground italic">
+            These are recommended tools. The employee has access to all available tools.
+          </p>
         </div>
       )}
 
@@ -387,17 +406,12 @@ export function CreateEmployeePreview({
               minHeight={300}
             />
 
-            <div>
-              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Trigger Instructions
-              </label>
-              <Input
-                value={config.instructions}
-                onChange={(e) => onConfigChange({ ...config, instructions: e.target.value })}
-                className="mt-1"
-                placeholder="Step-by-step instructions for the employee..."
-              />
-            </div>
+            <MarkdownEditorField
+              label="Trigger Instructions"
+              value={config.instructions}
+              onChange={(val) => onConfigChange({ ...config, instructions: val })}
+              minHeight={200}
+            />
 
             {config.risk_model.approval_required && (
               <MarkdownEditorField
@@ -409,18 +423,6 @@ export function CreateEmployeePreview({
                 minHeight={200}
               />
             )}
-
-            <div>
-              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                System Prompt
-              </label>
-              <Input
-                value={config.system_prompt}
-                onChange={(e) => onConfigChange({ ...config, system_prompt: e.target.value })}
-                className="mt-1"
-                placeholder="Usually empty — the brain lives in agents_md"
-              />
-            </div>
           </div>
         )}
       </div>
