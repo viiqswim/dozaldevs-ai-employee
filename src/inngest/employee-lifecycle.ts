@@ -1354,6 +1354,22 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             await prismaForNudge.$disconnect();
             const botTokenForNudge = tenantEnvForNudge['SLACK_BOT_TOKEN'] ?? '';
             if (botTokenForNudge) {
+              const preNudgeStatusRes = await fetch(
+                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+                { headers },
+              );
+              const preNudgeStatusRows = (await preNudgeStatusRes.json()) as Array<{
+                status: string;
+              }>;
+              const preNudgeStatus = preNudgeStatusRows[0]?.status;
+              if (preNudgeStatus !== 'Reviewing') {
+                log.info(
+                  { taskId, preNudgeStatus },
+                  'Task no longer Reviewing before nudge — skipping nudge broadcast',
+                );
+                return;
+              }
+
               const nudgeGuestName = delivMeta.guest_name as string | undefined;
               const nudgePropertyName = delivMeta.property_name as string | undefined;
               const nudgeText = nudgeGuestName
@@ -1394,6 +1410,33 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   body: JSON.stringify({ metadata: updatedMeta }),
                 });
                 log.info({ taskId, nudgeTs: nudgeResult.ts }, 'Nudge broadcast posted');
+
+                const postNudgeStatusRes = await fetch(
+                  `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+                  { headers },
+                );
+                const postNudgeStatusRows = (await postNudgeStatusRes.json()) as Array<{
+                  status: string;
+                }>;
+                const postNudgeStatus = postNudgeStatusRows[0]?.status;
+                if (postNudgeStatus !== 'Reviewing') {
+                  log.warn(
+                    { taskId, postNudgeStatus, nudgeTs: nudgeResult.ts },
+                    'Task superseded during nudge posting — deleting nudge immediately',
+                  );
+                  try {
+                    await web.chat.delete({
+                      channel: notifyMsgRef.channel,
+                      ts: nudgeResult.ts,
+                    });
+                    log.info(
+                      { taskId, nudgeTs: nudgeResult.ts },
+                      'Orphaned nudge deleted after post-check',
+                    );
+                  } catch (delErr) {
+                    log.warn({ taskId, delErr }, 'Failed to delete orphaned nudge (non-fatal)');
+                  }
+                }
               }
             }
           } catch (err) {
@@ -2041,6 +2084,32 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
           log.info({ taskId }, 'State: Cancelled (superseded)');
           await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+          try {
+            const nudgeRetryRes = await fetch(
+              `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+              { headers },
+            );
+            const nudgeRetryRows = (await nudgeRetryRes.json()) as Array<{
+              metadata: Record<string, unknown> | null;
+            }>;
+            const nudgeRetryMeta = (nudgeRetryRows[0]?.metadata as Record<string, unknown>) ?? {};
+            const retryNudgeTs = nudgeRetryMeta.nudge_ts as string | undefined;
+            const retryNudgeChannel = nudgeRetryMeta.nudge_channel as string | undefined;
+            if (retryNudgeTs && retryNudgeChannel) {
+              const { WebClient } = await import('@slack/web-api');
+              const web = new WebClient(botToken);
+              await web.chat.delete({ channel: retryNudgeChannel, ts: retryNudgeTs });
+              log.info(
+                { taskId, retryNudgeTs },
+                'Supersede branch: orphaned nudge deleted on re-read',
+              );
+            }
+          } catch (err) {
+            log.warn(
+              { taskId, err },
+              'Supersede branch: failed to clean up nudge on re-read (non-fatal)',
+            );
+          }
         } else {
           if (rejectionReason) {
             try {
