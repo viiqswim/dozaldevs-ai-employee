@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
     exclude: [
       // Deprecated engineering worker lib tests (keep opencode-server, postgrest-client, output-schema, approval-card-poster — active)
       'tests/workers/lib/!(opencode-server|postgrest-client|output-schema|approval-card-poster).test.ts',
