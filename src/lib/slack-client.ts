@@ -15,6 +15,7 @@ export interface SlackMessageParams {
   channel?: string; // optional — uses defaultChannel if not specified
   blocks?: unknown[]; // optional rich blocks
   thread_ts?: string; // optional — reply in thread if provided
+  unfurl_links?: boolean; // optional — suppress URL previews when false
 }
 
 export interface SlackMessageResult {
@@ -46,6 +47,7 @@ export function createSlackClient(config: SlackClientConfig): SlackClient {
               text: params.text,
               ...(params.blocks ? { blocks: params.blocks } : {}),
               ...(params.thread_ts ? { thread_ts: params.thread_ts } : {}),
+              ...(params.unfurl_links !== undefined ? { unfurl_links: params.unfurl_links } : {}),
             }),
           });
 
