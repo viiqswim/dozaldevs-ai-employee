@@ -17,6 +17,8 @@ import { adminTenantsRoutes } from './routes/admin-tenants.js';
 import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
 import { adminArchetypesRoutes } from './routes/admin-archetypes.js';
+import { adminArchetypeGenerateRoutes } from './routes/admin-archetype-generate.js';
+import { callLLM } from '../lib/call-llm.js';
 import { adminBrainPreviewRoutes } from './routes/admin-brain-preview.js';
 import { adminToolsRoutes } from './routes/admin-tools.js';
 import { adminKbRoutes } from './routes/admin-kb.js';
@@ -170,6 +172,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminTenantsRoutes({ prisma }));
   app.use(adminTenantSecretsRoutes({ prisma }));
   app.use(adminTenantConfigRoutes({ prisma }));
+  app.use(adminArchetypeGenerateRoutes({ callLLM }));
   app.use(adminArchetypesRoutes({ prisma }));
   app.use(adminBrainPreviewRoutes({ prisma }));
   app.use(adminToolsRoutes());
