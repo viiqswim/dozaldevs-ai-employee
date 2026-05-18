@@ -326,7 +326,7 @@ export function buildCompactNotifyBlocks(params: {
 
   const identity = [guestName, propertyName].filter(Boolean).join(' · ');
   const linkText =
-    threadUid && leadUid ? ` <${buildHostfullyLink(threadUid, leadUid)}|🔗 View>` : '';
+    threadUid && leadUid ? ` <${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>` : '';
   const actorMention = actorUserId ? `<@${actorUserId}>` : 'Unknown';
 
   let statusText: string;
@@ -395,8 +395,19 @@ export function buildNotifyBlocks(params: {
   enrichment?: NotificationEnrichment | null;
   emoji?: string;
   extraText?: string;
+  sentSnippet?: string;
+  threadHint?: boolean;
 }): KnownBlock[] {
-  const { state, archetypeName, taskId, enrichment, emoji = '⏳', extraText } = params;
+  const {
+    state,
+    archetypeName,
+    taskId,
+    enrichment,
+    emoji = '⏳',
+    extraText,
+    sentSnippet,
+    threadHint,
+  } = params;
 
   const blocks: KnownBlock[] = [];
 
@@ -429,7 +440,7 @@ export function buildNotifyBlocks(params: {
   if (enrichment?.contextUrl) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `<${enrichment.contextUrl}|🔗 View>` }],
+      elements: [{ type: 'mrkdwn', text: `<${enrichment.contextUrl}|🔗 View in Hostfully>` }],
     } as KnownBlock);
   }
 
@@ -437,6 +448,21 @@ export function buildNotifyBlocks(params: {
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: extraText },
+    } as KnownBlock);
+  }
+
+  if (sentSnippet) {
+    const snippet = sentSnippet.length > 150 ? `${sentSnippet.slice(0, 150)}…` : sentSnippet;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `> ${snippet}` },
+    } as KnownBlock);
+  }
+
+  if (threadHint) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '_See thread for full details_' }],
     } as KnownBlock);
   }
 
