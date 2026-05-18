@@ -60,7 +60,8 @@ export function EmployeeList() {
     () =>
       postgrestFetch<Archetype>('archetypes', {
         ...scopeByTenant(tenantId),
-        order: 'role_name.asc',
+        status: 'neq.superseded',
+        order: 'status.asc,role_name.asc',
         limit: '50',
       }),
     [tenantId],
@@ -215,16 +216,33 @@ export function EmployeeList() {
         <TableBody>
           {archetypes.map((archetype) => {
             const isGuestMessaging = archetype.role_name === 'guest-messaging';
+            const isDraft = archetype.status === 'draft';
             return (
               <TableRow
                 key={archetype.id}
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => navigate(`/dashboard/employees/${archetype.id}`)}
+                onClick={() =>
+                  navigate(
+                    isDraft
+                      ? `/dashboard/employees/${archetype.id}/edit`
+                      : `/dashboard/employees/${archetype.id}`,
+                  )
+                }
               >
                 <TableCell className="font-medium">
-                  {archetype.role_name ?? (
-                    <span className="text-muted-foreground">{archetype.id}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {archetype.role_name ?? (
+                      <span className="text-muted-foreground">{archetype.id}</span>
+                    )}
+                    {isDraft && (
+                      <Badge
+                        variant="outline"
+                        className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                      >
+                        Draft
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {shortModel(archetype.model)}
@@ -251,34 +269,36 @@ export function EmployeeList() {
                   {archetype.concurrency_limit}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
-                      onClick={(e) => void handleTrigger(e, archetype)}
-                    >
-                      {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
-                      onClick={(e) => void handleDryRun(e, archetype)}
-                    >
-                      {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
-                    </Button>
-                    {isGuestMessaging && (
+                  {!isDraft && (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="sm"
-                        variant="secondary"
-                        disabled={isRowLoading(archetype.id, 'webhook')}
-                        onClick={(e) => void handleFireWebhook(e, archetype)}
+                        variant="outline"
+                        disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
+                        onClick={(e) => void handleTrigger(e, archetype)}
                       >
-                        {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                        {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
                       </Button>
-                    )}
-                  </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
+                        onClick={(e) => void handleDryRun(e, archetype)}
+                      >
+                        {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
+                      </Button>
+                      {isGuestMessaging && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={isRowLoading(archetype.id, 'webhook')}
+                          onClick={(e) => void handleFireWebhook(e, archetype)}
+                        >
+                          {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             );
