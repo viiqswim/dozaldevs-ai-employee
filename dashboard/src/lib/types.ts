@@ -222,3 +222,38 @@ export interface BrainPreviewResponse {
     envManifest: string;
   };
 }
+
+export interface SlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+}
+
+export interface GenerateArchetypeResponse {
+  role_name: string;
+  model: 'minimax/minimax-m2.7';
+  runtime: 'opencode';
+  system_prompt: string;
+  instructions: string;
+  agents_md: string;
+  delivery_instructions: string | null;
+  deliverable_type: string | null;
+  risk_model: {
+    approval_required: boolean;
+    timeout_hours: number;
+  };
+  trigger_sources:
+    | { type: 'manual' }
+    | { type: 'scheduled'; cron: string; timezone?: string }
+    | { type: 'webhook'; event_type?: string };
+  tool_registry: {
+    tools: string[];
+  };
+  concurrency_limit: number;
+}
+
+export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {
+  model: string;
+  runtime: string;
+  notification_channel?: string | null;
+};
