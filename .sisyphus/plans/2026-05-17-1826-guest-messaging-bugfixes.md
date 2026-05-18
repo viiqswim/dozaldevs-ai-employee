@@ -164,7 +164,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Bug 1 — Ghost Worker: Make Cancelled Tasks Stop Immediately
+- [x] 1. Bug 1 — Ghost Worker: Make Cancelled Tasks Stop Immediately
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, find the INLINE poll loop (around line 570) inside the `step.run('poll-completion', ...)` block. This loop currently only exits when the task status is `Submitting` or `Failed`. Add `Cancelled` as a third exit condition.
@@ -241,7 +241,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `fix(guest-messaging): stop ghost workers, protect delivery, fix formatting and card threading`
   - Files: `src/inngest/employee-lifecycle.ts`
 
-- [ ] 2. Bug 2 — Hard-Block Delivering and Approved States from Supersede
+- [x] 2. Bug 2 — Hard-Block Delivering and Approved States from Supersede
 
   **What to do**:
   - In `src/gateway/routes/hostfully.ts`, find the hard-block status array (around line 109) that currently contains `['Executing', 'Validating']`.
@@ -304,7 +304,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `fix(guest-messaging): stop ghost workers, protect delivery, fix formatting and card threading`
   - Files: `src/gateway/routes/hostfully.ts`
 
-- [ ] 3. Bug 3 — Fix Literal \n in Slack Messages
+- [x] 3. Bug 3 — Fix Literal \n in Slack Messages
 
   **What to do**:
   - In `src/lib/slack-blocks.ts`, find `buildEnrichedTerminalBlocks` (around line 208) where `sentSnippet` is rendered. Add `.replace(/\\n/g, '\n')` to `sentSnippet` BEFORE the truncation logic (`sentSnippet.length > 150`). This ensures the "✅ Approved" notification shows proper line breaks.
@@ -369,7 +369,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `fix(guest-messaging): stop ghost workers, protect delivery, fix formatting and card threading`
   - Files: `src/lib/slack-blocks.ts`, `src/worker-tools/slack/post-guest-approval.ts`
 
-- [ ] 4. Bugs 4+5 — Approval Card Threading + Consistent Format
+- [x] 4. Bugs 4+5 — Approval Card Threading + Consistent Format
 
   **What to do**:
 
@@ -467,7 +467,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `fix(guest-messaging): stop ghost workers, protect delivery, fix formatting and card threading`
   - Files: `src/workers/opencode-harness.mts`, `src/workers/skills/tool-usage-reference/SKILL.md`, `prisma/seed.ts`
 
-- [ ] 5. Reseed DB + Rebuild Docker + Run Tests
+- [x] 5. Reseed DB + Rebuild Docker + Run Tests
 
   **What to do**:
   - Run `pnpm prisma db seed` to apply the updated archetype instructions from Task 4's `seed.ts` changes.
@@ -542,7 +542,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: All files from Tasks 1-4
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 6. Notify Completion
+- [x] 6. Notify Completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "📋 guest-messaging-bugfixes complete — All 5 bugs fixed. Come back to review results."`
@@ -579,19 +579,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + linter + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
