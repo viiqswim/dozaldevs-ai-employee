@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CreateEmployeeDialog } from './CreateEmployeeDialog';
 import {
   Table,
   TableBody,
@@ -47,6 +48,7 @@ export function EmployeeList() {
   const { tenantId } = useTenant();
   const navigate = useNavigate();
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
 
   const setRowLoading = (archetypeId: string, action: string, val: boolean) => {
@@ -133,6 +135,10 @@ export function EmployeeList() {
   if (loading) {
     return (
       <div className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Employees</h2>
+          <Button onClick={() => setCreateOpen(true)}>+ New Employee</Button>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -150,6 +156,12 @@ export function EmployeeList() {
             ))}
           </TableBody>
         </Table>
+        <CreateEmployeeDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          tenantId={tenantId}
+          onCreated={refresh}
+        />
       </div>
     );
   }
@@ -175,14 +187,34 @@ export function EmployeeList() {
 
   if (!archetypes || archetypes.length === 0) {
     return (
-      <div className="flex items-center justify-center p-16 text-center">
-        <p className="text-muted-foreground">No employees found for this tenant</p>
+      <div className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Employees</h2>
+          <Button onClick={() => setCreateOpen(true)}>+ New Employee</Button>
+        </div>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-lg font-medium mb-1">No employees yet</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Create your first AI employee to get started.
+          </p>
+          <Button onClick={() => setCreateOpen(true)}>Create Employee</Button>
+        </div>
+        <CreateEmployeeDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          tenantId={tenantId}
+          onCreated={refresh}
+        />
       </div>
     );
   }
 
   return (
     <div className="p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Employees</h2>
+        <Button onClick={() => setCreateOpen(true)}>+ New Employee</Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -267,6 +299,12 @@ export function EmployeeList() {
           })}
         </TableBody>
       </Table>
+      <CreateEmployeeDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        tenantId={tenantId}
+        onCreated={refresh}
+      />
     </div>
   );
 }
