@@ -200,6 +200,9 @@ model Archetype {
   worker_env        Json?
   model             String?
   deliverable_type  String?
+  status            String   @default("active")
+  overview          Json?
+  parent_draft_id   String?
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -212,7 +215,6 @@ model Archetype {
   feedbackEvents FeedbackEvent[]
   employeeRules  EmployeeRule[]
 
-  @@unique([tenant_id, role_name])
   @@map("archetypes")
 }
 
