@@ -50,6 +50,15 @@ export interface TaskStatusLog {
   updated_at: string;
 }
 
+export interface ArchetypeOverview {
+  role: string;
+  trigger: string;
+  workflow: string[];
+  tools_used: string;
+  output: string;
+  approval: string;
+}
+
 export interface Archetype {
   id: string;
   tenant_id: string;
@@ -76,6 +85,9 @@ export interface Archetype {
     | null;
   tool_registry: { tools: string[] } | null;
   worker_env: Record<string, unknown> | null;
+  status: string;
+  overview: ArchetypeOverview | null;
+  parent_draft_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -250,10 +262,14 @@ export interface GenerateArchetypeResponse {
     tools: string[];
   };
   concurrency_limit: number;
+  overview: ArchetypeOverview;
 }
 
 export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {
   model: string;
   runtime: string;
   notification_channel?: string | null;
+  status?: string;
+  overview?: ArchetypeOverview | null;
+  parent_draft_id?: string | null;
 };
