@@ -6,6 +6,10 @@ import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 
+function isPrismaError(err: unknown): err is { code: string } {
+  return typeof err === 'object' && err !== null && 'code' in err;
+}
+
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
 }
@@ -40,10 +44,96 @@ const PatchArchetypeBodySchema = z
     }
   });
 
+const TriggerSourceSchema = z.union([
+  z.object({ type: z.literal('manual') }),
+  z.object({
+    type: z.literal('scheduled'),
+    cron: z.string(),
+    timezone: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal('webhook'),
+    event_type: z.string().optional(),
+  }),
+]);
+
+const CreateArchetypeBodySchema = z.object({
+  role_name: z
+    .string()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'role_name must be kebab-case slug')
+    .min(2)
+    .max(60),
+  model: z.enum(['minimax/minimax-m2.7', 'anthropic/claude-haiku-4-5']),
+  runtime: z.literal('opencode'),
+  instructions: z.string().min(1).max(5000),
+  agents_md: z.string().min(1).max(50000),
+  system_prompt: z.string().max(10000).default(''),
+  delivery_instructions: z.string().max(10000).nullable().default(null),
+  deliverable_type: z.string().max(100).nullable().default(null),
+  risk_model: z
+    .object({
+      approval_required: z.boolean(),
+      timeout_hours: z.number().positive(),
+    })
+    .default({ approval_required: false, timeout_hours: 2 }),
+  notification_channel: z.string().max(50).nullable().default(null),
+  concurrency_limit: z.number().int().min(1).max(20).default(3),
+  trigger_sources: TriggerSourceSchema.nullable().default(null),
+  tool_registry: z
+    .object({ tools: z.array(z.string()) })
+    .nullable()
+    .default(null),
+});
+
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
+
+  router.post('/admin/tenants/:tenantId/archetypes', requireAdminKey, async (req, res) => {
+    const paramResult = TenantIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      return;
+    }
+
+    const bodyResult = CreateArchetypeBodySchema.safeParse(req.body);
+    if (!bodyResult.success) {
+      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      return;
+    }
+
+    const { tenantId } = paramResult.data;
+    const { risk_model, trigger_sources, tool_registry, ...rest } = bodyResult.data;
+
+    try {
+      const newArchetype = await prisma.archetype.create({
+        data: {
+          ...rest,
+          tenant_id: tenantId,
+          risk_model: risk_model as Prisma.InputJsonValue,
+          ...(trigger_sources !== null && {
+            trigger_sources: trigger_sources as Prisma.InputJsonValue,
+          }),
+          ...(tool_registry !== null && {
+            tool_registry: tool_registry as Prisma.InputJsonValue,
+          }),
+        },
+      });
+
+      res.status(201).json(newArchetype);
+    } catch (err) {
+      if (isPrismaError(err) && err.code === 'P2002') {
+        res.status(409).json({
+          error: 'ROLE_NAME_TAKEN',
+          message: 'An employee with this name already exists for this tenant',
+        });
+        return;
+      }
+      logger.error({ err }, 'Failed to create archetype');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
 
   router.patch(
     '/admin/tenants/:tenantId/archetypes/:archetypeId',
