@@ -65,8 +65,20 @@ beforeEach(() => {
 });
 
 describe('rule_confirm handler', () => {
-  it('ack called with replace_original ✅ message and PATCH status: confirmed + confirmed_at', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
+  it('ack called with replace_original ✅ message (including rule text) and PATCH status: confirmed + confirmed_at', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve([
+          {
+            id: 'rule-abc-123',
+            tenant_id: 'tenant-1',
+            archetype_id: 'arch-1',
+            source: 'extraction',
+            parent_rule_ids: [],
+            rule_text: 'Never discuss pricing with guests',
+          },
+        ]),
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     const boltApp = makeMockBoltApp();
@@ -101,6 +113,7 @@ describe('rule_confirm handler', () => {
     const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
     expect(sectionBlock?.text?.text).toContain('✅');
     expect(sectionBlock?.text?.text).toContain('<@U-APPROVER>');
+    expect(sectionBlock?.text?.text).toContain('Never discuss pricing with guests');
 
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
@@ -113,6 +126,40 @@ describe('rule_confirm handler', () => {
     expect(patchBody.status).toBe('confirmed');
     expect(typeof patchBody.confirmed_at).toBe('string');
 
+    vi.unstubAllGlobals();
+  });
+
+  it('confirm message falls back to name-only when rule_text is absent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const boltApp = makeMockBoltApp();
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+
+    const handler = boltApp._getAction('rule_confirm');
+    const ack = makeAck();
+    const client = makeClient();
+    await handler({
+      ack,
+      body: {
+        actions: [{ value: 'rule-abc-123' }],
+        user: { id: 'U-APPROVER', name: 'approver' },
+        channel: { id: 'C-TEST' },
+        message: { ts: '1234567890.000001' },
+      },
+      respond: vi.fn(),
+      client,
+    });
+
+    expect(ack).toHaveBeenCalledOnce();
+    expect(client.chat.update).toHaveBeenCalledOnce();
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      blocks: Array<{ type: string; text?: { text: string } }>;
+    };
+    const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
+    expect(sectionBlock?.text?.text).toContain('✅');
+    expect(sectionBlock?.text?.text).toContain('<@U-APPROVER>');
+    expect(sectionBlock?.text?.text).not.toContain('\n\n>');
     vi.unstubAllGlobals();
   });
 
@@ -150,8 +197,10 @@ describe('rule_confirm handler', () => {
 });
 
 describe('rule_reject handler', () => {
-  it('ack called with replace_original ❌ message and PATCH status: rejected', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
+  it('ack called with replace_original ❌ message (including rule text) and PATCH status: rejected', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve([{ rule_text: 'Always greet guests by first name' }]),
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     const boltApp = makeMockBoltApp();
@@ -186,6 +235,7 @@ describe('rule_reject handler', () => {
     const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
     expect(sectionBlock?.text?.text).toContain('❌');
     expect(sectionBlock?.text?.text).toContain('<@U-REJECTER>');
+    expect(sectionBlock?.text?.text).toContain('Always greet guests by first name');
 
     const patchCall = fetchMock.mock.calls.find(
       (args: unknown[]) =>
@@ -197,6 +247,41 @@ describe('rule_reject handler', () => {
     const patchBody = JSON.parse((patchCall![1] as RequestInit).body as string);
     expect(patchBody.status).toBe('rejected');
     expect(patchBody).not.toHaveProperty('confirmed_at');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('reject message falls back to name-only when rule_text is absent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const boltApp = makeMockBoltApp();
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+
+    const handler = boltApp._getAction('rule_reject');
+    const ack = makeAck();
+    const client = makeClient();
+    await handler({
+      ack,
+      body: {
+        actions: [{ value: 'rule-xyz-456' }],
+        user: { id: 'U-REJECTER', name: 'rejecter' },
+        channel: { id: 'C-TEST' },
+        message: { ts: '1234567890.000002' },
+      },
+      respond: vi.fn(),
+      client,
+    });
+
+    expect(ack).toHaveBeenCalledOnce();
+    expect(client.chat.update).toHaveBeenCalledOnce();
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      blocks: Array<{ type: string; text?: { text: string } }>;
+    };
+    const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
+    expect(sectionBlock?.text?.text).toContain('❌');
+    expect(sectionBlock?.text?.text).toContain('<@U-REJECTER>');
+    expect(sectionBlock?.text?.text).not.toContain('\n\n>');
 
     vi.unstubAllGlobals();
   });
