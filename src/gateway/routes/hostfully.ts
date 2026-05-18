@@ -83,12 +83,14 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
 
     // ── Thread-level dedup with supersede ───────────────────────────────────
     // Hostfully fires NEW_INBOX_MESSAGE for both guest messages and AI's own
-    // outgoing replies. If a worker is actively running (Executing/Validating),
-    // block the duplicate to avoid parallel workers on the same thread. For all
-    // other non-terminal states (e.g. Reviewing, Submitting), supersede the old
-    // task so the new one sees the latest messages. Echo-loop webhooks (AI reply
-    // triggers) are handled by the lifecycle pre-check, which auto-completes
-    // tasks where the last message is already from the host.
+    // outgoing replies. Hard-block when the task is actively running, being
+    // delivered, or already approved (Executing, Validating, Delivering,
+    // Approved) — do not interrupt mid-flight delivery or an approved reply
+    // waiting to be sent. For all other non-terminal states (e.g. Reviewing,
+    // Submitting), supersede the old task so the new one sees the latest
+    // messages. Echo-loop webhooks (AI reply triggers) are handled by the
+    // lifecycle pre-check, which auto-completes tasks where the last message
+    // is already from the host.
     let supersededNotifyTs: string | undefined;
     let supersededNotifyChannel: string | undefined;
     if (payload.thread_uid) {
@@ -106,14 +108,14 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       });
 
       if (activeTask) {
-        if (['Executing', 'Validating'].includes(activeTask.status)) {
+        if (['Executing', 'Validating', 'Delivering', 'Approved'].includes(activeTask.status)) {
           logger.info(
             {
               thread_uid: payload.thread_uid,
               existingTaskId: activeTask.id,
               existingStatus: activeTask.status,
             },
-            'Active task is executing for thread — skipping webhook',
+            'Active task is executing, delivering, or approved for thread — skipping webhook',
           );
           res.json({ ok: true, active_task_exists: true, existing_task_id: activeTask.id });
           return;

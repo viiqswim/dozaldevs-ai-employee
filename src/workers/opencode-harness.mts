@@ -167,6 +167,7 @@ async function tryAutoPostApprovalCard(
       taskId: TASK_ID,
       channel,
       token,
+      threadTs: process.env['NOTIFY_MSG_TS'] || undefined,
     });
 
     // Build rich metadata so the lifecycle can render context thread replies,

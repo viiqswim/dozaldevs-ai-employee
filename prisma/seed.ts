@@ -273,7 +273,10 @@ TOOLS AVAILABLE TO YOU:
 - Sifely tools: check lock access, manage door codes
 - Slack tools: send notifications if needed
 - Knowledge Base: search for property-specific information
-Load the tool-usage-reference skill for exact CLI syntax.`;
+Load the tool-usage-reference skill for exact CLI syntax.
+
+CRITICAL — APPROVAL CARD POSTING:
+When classification is NEEDS_APPROVAL, you MUST call tsx /tools/slack/post-guest-approval.ts to post the approval card to Slack. ALWAYS pass --thread-ts "$NOTIFY_MSG_TS" so the card appears as a thread reply under the task notification. Never omit --thread-ts. Never skip this tool call.`;
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS =
     'A guest sent a new message. Process it following your Employee Instructions in AGENTS.md.';
