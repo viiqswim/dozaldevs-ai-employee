@@ -193,7 +193,17 @@ export async function createArchetype(
 export async function fetchSlackChannels(
   tenantId: string,
 ): Promise<{ channels: SlackChannel[]; error?: string }> {
-  return gatewayFetch<{ channels: SlackChannel[]; error?: string }>(
-    `/admin/tenants/${tenantId}/slack/channels`,
-  );
+  const key = getAdminApiKey();
+  if (!key) return { channels: [], error: 'SLACK_NOT_CONFIGURED' };
+
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/slack/channels`;
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { channels: [], error: (body as { error?: string }).error ?? 'SLACK_ERROR' };
+  }
+  return body as { channels: SlackChannel[]; error?: string };
 }

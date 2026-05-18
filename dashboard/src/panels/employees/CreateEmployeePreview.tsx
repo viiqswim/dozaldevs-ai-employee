@@ -325,6 +325,11 @@ export function CreateEmployeePreview({
               Slack not configured for this tenant. Enter a channel ID manually.
             </p>
           )}
+          {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Could not load channels — enter a channel ID manually.
+            </p>
+          )}
         </div>
       </div>
 
