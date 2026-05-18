@@ -222,10 +222,10 @@ afterEach(() => {
 });
 
 describe('employee-lifecycle — editedContent path', () => {
-  it('approve with editedContent: PATCHes deliverable content with draftResponse field', async () => {
+  it('approve with editedContent: PATCHes deliverable content with draft field', async () => {
     const mockFetch = buildFetchMockWithDeliverable({
       taskStatuses: ['Done'],
-      deliverableContent: JSON.stringify({ draftResponse: 'Original draft.' }),
+      deliverableContent: JSON.stringify({ draft: 'Original draft.' }),
     });
     vi.stubGlobal('fetch', mockFetch);
 
@@ -256,8 +256,8 @@ describe('employee-lifecycle — editedContent path', () => {
           content?: string;
         };
         if (!body.content) return false;
-        const parsed = JSON.parse(body.content) as { draftResponse?: string };
-        return parsed.draftResponse === 'Edited response text.';
+        const parsed = JSON.parse(body.content) as { draft?: string };
+        return parsed.draft === 'Edited response text.';
       } catch {
         return false;
       }

@@ -304,6 +304,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             channel,
             text: `⏳ Task received — processing (${roleName})`,
             blocks,
+            unfurl_links: false,
           });
           if (result.ts) {
             try {
@@ -1373,6 +1374,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 }) as import('@slack/web-api').Block[],
                 thread_ts: notifyMsgRef.ts,
                 reply_broadcast: true,
+                unfurl_links: false,
               });
 
               if (nudgeResult.ts) {
@@ -1544,9 +1546,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             try {
               const parsed = JSON.parse(rawDeliverableContent ?? '{}') as Record<string, unknown>;
               originalDraft =
-                typeof parsed.draftResponse === 'string'
-                  ? parsed.draftResponse
-                  : rawDeliverableContent;
+                typeof parsed.draft === 'string' ? parsed.draft : rawDeliverableContent;
             } catch {
               originalDraft = rawDeliverableContent;
             }
@@ -1557,11 +1557,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 let updatedContent = currentContent ?? '{}';
                 try {
                   const parsed = JSON.parse(currentContent ?? '{}') as Record<string, unknown>;
-                  parsed.draftResponse = editedContent;
+                  parsed.draft = editedContent;
                   updatedContent = JSON.stringify(parsed);
                 } catch {
                   // If content is not valid JSON, replace entirely with a minimal object
-                  updatedContent = JSON.stringify({ draftResponse: editedContent });
+                  updatedContent = JSON.stringify({ draft: editedContent });
                 }
                 const patchRes = await fetch(
                   `${supabaseUrl}/rest/v1/deliverables?id=eq.${deliverableId}`,
@@ -1590,6 +1590,27 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn(
                 { taskId, err },
                 'Error patching deliverable content with editedContent (non-fatal)',
+              );
+            }
+            try {
+              const currentMetaRows = (await fetch(
+                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
+                { headers },
+              ).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>;
+              const existingMeta = currentMetaRows[0]?.metadata ?? {};
+              await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                  metadata: { ...existingMeta, draft_response: editedContent },
+                  updated_at: new Date().toISOString(),
+                }),
+              });
+              log.info({ taskId }, 'Task metadata draft_response updated with editedContent');
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                'Failed to update task metadata draft_response (non-fatal)',
               );
             }
             try {
@@ -1926,7 +1947,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 propertyName: metadata['property_name'] as string | undefined,
                 threadUid: metadata['thread_uid'] as string | undefined,
                 leadUid: metadata['lead_uid'] as string | undefined,
-                sentSnippet: (metadata['draft_response'] as string | undefined)?.slice(0, 150),
+                sentSnippet: (
+                  editedContent ?? (metadata['draft_response'] as string | undefined)
+                )?.slice(0, 150),
                 taskId,
               });
               await slackClient.updateMessage(
@@ -1954,6 +1977,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '✅',
                   extraText: `Approved by <@${actorUserId}>`,
+                  sentSnippet: (
+                    editedContent ?? (metadata['draft_response'] as string | undefined)
+                  )?.slice(0, 150),
+                  threadHint: true,
                 });
                 await slackClient.updateMessage(
                   notifyMsgRef.channel,
