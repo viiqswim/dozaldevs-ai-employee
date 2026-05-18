@@ -207,7 +207,7 @@ export function CreateEmployeePage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 border-t pt-4 mt-2">
             <Button
               variant="outline"
               onClick={() => {
