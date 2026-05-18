@@ -91,10 +91,15 @@ export async function patchArchetype(
       | 'runtime'
       | 'instructions'
       | 'system_prompt'
+      | 'agents_md'
+      | 'delivery_instructions'
       | 'notification_channel'
       | 'vm_size'
       | 'deliverable_type'
       | 'concurrency_limit'
+      | 'status'
+      | 'parent_draft_id'
+      | 'overview'
     > & { risk_model?: Record<string, unknown> }
   >,
 ): Promise<Archetype> {
