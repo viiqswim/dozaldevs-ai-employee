@@ -132,7 +132,7 @@ Wave FINAL (After ALL tasks):
 
 ## TODOs
 
-- [ ] 1. Show rule text in `rule_confirm` and `rule_reject` confirmation messages
+- [x] 1. Show rule text in `rule_confirm` and `rule_reject` confirmation messages
 
   **What to do**:
 
@@ -353,7 +353,7 @@ Wave FINAL (After ALL tasks):
   - Files: `src/gateway/slack/handlers.ts`, `tests/gateway/slack/rule-handlers.test.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Build, test, Docker rebuild
+- [x] 2. Build, test, Docker rebuild
 
   **What to do**:
   - Run `pnpm build` — must succeed with 0 errors
@@ -405,7 +405,7 @@ Wave FINAL (After ALL tasks):
 
   **Commit**: NO (no code changes in this task)
 
-- [ ] 3. Notify completion via Telegram
+- [x] 3. Notify completion via Telegram
 
   **What to do**:
   - Run: `npx tsx scripts/telegram-notify.ts "📋 rule-confirm-show-text complete — All tasks done. Come back to review results."`
@@ -425,19 +425,19 @@ Wave FINAL (After ALL tasks):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review changed files for type errors, unused imports, `as any` casts.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Grep for rule text patterns in confirm/reject handlers. Verify fallback exists. Run test suite.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Verify only `handlers.ts` and `rule-handlers.test.ts` were modified. No card builders touched. No unrelated changes.
       Output: `Tasks [N/N compliant] | VERDICT`
 
@@ -463,8 +463,8 @@ pnpm test -- --run  # Expected: 1333+ passing, known pre-existing failures only
 
 ### Final Checklist
 
-- [ ] Confirm message shows rule text after `✅ Rule confirmed by @User`
-- [ ] Reject message shows rule text after `❌ Rule rejected by @User`
-- [ ] Graceful fallback to UUID-only if rule_text unavailable
-- [ ] Tests updated and passing
+- [x] Confirm message shows rule text after `✅ Rule confirmed by @User`
+- [x] Reject message shows rule text after `❌ Rule rejected by @User`
+- [x] Graceful fallback to UUID-only if rule_text unavailable
+- [x] Tests updated and passing
 - [ ] Docker image rebuilt
