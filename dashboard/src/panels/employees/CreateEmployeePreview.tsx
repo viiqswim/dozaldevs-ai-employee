@@ -24,6 +24,12 @@ interface CreateEmployeePreviewProps {
 
 const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+function normalizeInstructions(text: string): string {
+  return text
+    .replace(/\.\s+(\d+)\.\s+/g, '.\n$1. ') // ". 2. " → ".\n2. "
+    .trim();
+}
+
 export function CreateEmployeePreview({
   config,
   onConfigChange,
@@ -91,7 +97,7 @@ export function CreateEmployeePreview({
           What it does
         </label>
         <div className="mt-1">
-          <MarkdownPreview content={config.instructions} />
+          <MarkdownPreview content={normalizeInstructions(config.instructions)} />
         </div>
       </div>
 
