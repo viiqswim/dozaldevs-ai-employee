@@ -99,7 +99,7 @@ describe('Archetype unique constraint (tenant_id, role_name)', () => {
     expect(second.tenant_id).toBe(TENANT_B);
   });
 
-  it('findUnique by tenant_id_role_name compound key works', async () => {
+  it('findFirst by tenant_id, role_name, and status works', async () => {
     const prisma = getPrisma();
 
     const created = await prisma.archetype.create({
@@ -111,12 +111,11 @@ describe('Archetype unique constraint (tenant_id, role_name)', () => {
     });
     createdIds.push(created.id);
 
-    const found = await prisma.archetype.findUnique({
+    const found = await prisma.archetype.findFirst({
       where: {
-        tenant_id_role_name: {
-          tenant_id: TENANT_A,
-          role_name: `findunique-${RUN_ID}`,
-        },
+        tenant_id: TENANT_A,
+        role_name: `findunique-${RUN_ID}`,
+        status: 'active',
       },
     });
 
