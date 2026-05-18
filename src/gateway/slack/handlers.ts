@@ -126,6 +126,26 @@ async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
   }
 }
 
+async function getTaskStatusMessage(taskId: string): Promise<string> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !supabaseKey) return '⚠️ This task has already been processed.';
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    const rows = (await res.json()) as Array<{ status: string }>;
+    const status = rows[0]?.status;
+    if (status === 'Done') return '✅ This task has already been approved and delivered.';
+    if (status === 'Cancelled')
+      return '⏭️ This task is no longer active — it may have been superseded by a newer message.';
+    if (status === 'Failed') return '❌ This task has failed.';
+    return '⚠️ This task has already been processed.';
+  } catch {
+    return '⚠️ This task has already been processed.';
+  }
+}
+
 const GUEST_BUTTON_BLOCKS = (taskId: string) => [
   {
     type: 'actions',
@@ -299,14 +319,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate approve');
         try {
+          const statusMsg = await getTaskStatusMessage(taskId);
           await respond({
             replace_original: true,
-            text: '⚠️ This task has already been processed.',
+            text: statusMsg,
             blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
-              },
+              { type: 'section', text: { type: 'mrkdwn', text: statusMsg } },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
@@ -379,14 +397,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject');
         try {
+          const statusMsg = await getTaskStatusMessage(taskId);
           await respond({
             replace_original: true,
-            text: '⚠️ This task has already been processed.',
+            text: statusMsg,
             blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
-              },
+              { type: 'section', text: { type: 'mrkdwn', text: statusMsg } },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
@@ -459,14 +475,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate guest_approve');
         try {
+          const statusMsg = await getTaskStatusMessage(taskId);
           await respond({
             replace_original: true,
-            text: '⚠️ This task has already been processed.',
+            text: statusMsg,
             blocks: [
-              {
-                type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ This task has already been processed.' },
-              },
+              { type: 'section', text: { type: 'mrkdwn', text: statusMsg } },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
@@ -609,6 +623,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       });
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate edit submit');
+        if (channelId && messageTs) {
+          const statusMsg = await getTaskStatusMessage(taskId);
+          try {
+            await client.chat.update({
+              channel: channelId,
+              ts: messageTs,
+              text: statusMsg,
+              blocks: [
+                { type: 'section', text: { type: 'mrkdwn', text: statusMsg } },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ],
+            });
+          } catch (updateErr) {
+            log.warn(
+              { taskId, updateErr },
+              'Failed to update already-processed message after edit submit (non-fatal)',
+            );
+          }
+        }
         return;
       }
 
@@ -915,15 +948,16 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       if (!stillAwaiting) {
         log.warn({ taskId }, 'Task no longer awaiting approval — ignoring duplicate reject submit');
         if (channelId && messageTs) {
+          const statusMsg = await getTaskStatusMessage(taskId);
           try {
             await client.chat.update({
               channel: channelId,
               ts: messageTs,
-              text: '⚠️ This response has already been processed.',
+              text: statusMsg,
               blocks: [
                 {
                   type: 'section',
-                  text: { type: 'mrkdwn', text: '⚠️ This response has already been processed.' },
+                  text: { type: 'mrkdwn', text: statusMsg },
                 },
                 { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
               ],
