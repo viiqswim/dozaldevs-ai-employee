@@ -92,6 +92,9 @@ const CreateArchetypeBodySchema = z.object({
     .object({ tools: z.array(z.string()) })
     .nullable()
     .default(null),
+  status: z.enum(['active', 'draft']).default('active'),
+  overview: z.any().nullable().optional().default(null),
+  parent_draft_id: z.string().uuid().nullable().optional().default(null),
 });
 
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
@@ -113,7 +116,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     }
 
     const { tenantId } = paramResult.data;
-    const { risk_model, trigger_sources, tool_registry, ...rest } = bodyResult.data;
+    const { risk_model, trigger_sources, tool_registry, overview, ...rest } = bodyResult.data;
 
     try {
       const newArchetype = await prisma.archetype.create({
@@ -127,6 +130,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           ...(tool_registry !== null && {
             tool_registry: tool_registry as Prisma.InputJsonValue,
           }),
+          overview: overview !== null ? (overview as Prisma.InputJsonValue) : Prisma.JsonNull,
         },
       });
 
