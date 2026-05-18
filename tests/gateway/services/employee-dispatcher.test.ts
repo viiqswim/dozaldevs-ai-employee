@@ -58,7 +58,7 @@ function makeTask(taskId = 'task-uuid-1234') {
 function makePrisma(archetype: ReturnType<typeof makeArchetype> | null, task = makeTask()) {
   return {
     archetype: {
-      findUnique: vi.fn().mockResolvedValue(archetype),
+      findFirst: vi.fn().mockResolvedValue(archetype),
     },
     task: {
       create: vi.fn().mockResolvedValue(task),
