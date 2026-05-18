@@ -593,19 +593,19 @@ Wave FINAL (After ALL tasks):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review all changed files for type errors, unused imports, `as any` casts, console.log in prod.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Grep for the status guard pattern, verify the supersede branch has nudge cleanup, verify handler messages are differentiated.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: verify 1:1 match between spec and diff. Check no files outside scope were touched. Verify lifecycle changes are employee-agnostic.
       Output: `Tasks [N/N compliant] | VERDICT`
 
@@ -631,10 +631,10 @@ pnpm test -- --run  # Expected: 1333+ passing, known pre-existing failures only
 
 ### Final Checklist
 
-- [ ] Pre-posting status guard present in `track-pending-approval`
-- [ ] Post-posting re-check + immediate nudge deletion on status mismatch
-- [ ] Supersede branch in `handle-approval-result` re-reads metadata and deletes nudge
-- [ ] "Already processed" messages differentiate supersede from duplicate
-- [ ] All changes are employee-agnostic
-- [ ] All tests pass
-- [ ] Docker image rebuilt
+- [x] Pre-posting status guard present in `track-pending-approval`
+- [x] Post-posting re-check + immediate nudge deletion on status mismatch
+- [x] Supersede branch in `handle-approval-result` re-reads metadata and deletes nudge
+- [x] "Already processed" messages differentiate supersede from duplicate
+- [x] All changes are employee-agnostic
+- [x] All tests pass
+- [x] Docker image rebuilt
