@@ -26,6 +26,14 @@ export interface GenerateArchetypeResponse {
     tools: string[];
   };
   concurrency_limit: number;
+  overview: {
+    role: string;
+    trigger: string;
+    workflow: string[];
+    tools_used: string;
+    output: string;
+    approval: string;
+  };
 }
 
 const INJECTION_BOUNDARY =
@@ -95,8 +103,18 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "tool_registry": {
     "tools": ["/tools/slack/post-message.ts"]
   },
-  "concurrency_limit": 3
+  "concurrency_limit": 3,
+  "overview": {
+    "role": "Plain English description of what this employee is and does",
+    "trigger": "When and what causes this employee to start working",
+    "workflow": ["Step 1 description", "Step 2 description", "..."],
+    "tools_used": "Which external systems or tools this employee uses",
+    "output": "What the employee produces or delivers",
+    "approval": "Whether human approval is required before delivering"
+  }
 }
+
+The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
 For trigger_sources.type:
 - "manual" — if triggered on demand
@@ -118,6 +136,9 @@ ${INJECTION_BOUNDARY}
 - \`system_prompt\` is ALWAYS an empty string \`""\`
 - Preserve all fields that are not affected by the refinement instruction
 - Only modify what the refinement instruction asks to change
+- Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated instructions, agents_md, trigger_sources, and risk_model
+
+The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
 Return ONLY valid JSON with the same shape as the input configuration (no markdown fences, no prose).
 `;
@@ -150,6 +171,17 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     result.role_name = toKebabCase(result.role_name as string);
   }
 
+  if (!result.overview || typeof result.overview !== 'object') {
+    result.overview = {
+      role: '',
+      trigger: '',
+      workflow: [],
+      tools_used: '',
+      output: '',
+      approval: '',
+    };
+  }
+
   return result as unknown as GenerateArchetypeResponse;
 }
 
@@ -163,7 +195,7 @@ export class ArchetypeGenerator {
       model: 'anthropic/claude-haiku-4-5',
       taskType: 'review',
       temperature: 0.3,
-      maxTokens: 4000,
+      maxTokens: 6000,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `<user_description>${description}</user_description>` },
@@ -196,7 +228,7 @@ export class ArchetypeGenerator {
       model: 'anthropic/claude-haiku-4-5',
       taskType: 'review',
       temperature: 0.3,
-      maxTokens: 4000,
+      maxTokens: 6000,
       messages: [
         { role: 'system', content: REFINE_SYSTEM_PROMPT },
         {
