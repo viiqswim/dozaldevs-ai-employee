@@ -1019,17 +1019,6 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
-    if (channel && messageTs) {
-      await client.chat.update({
-        channel,
-        ts: messageTs,
-        text: `✅ Rule confirmed by <@${user.id}>`,
-        blocks: [
-          { type: 'section', text: { type: 'mrkdwn', text: `✅ Rule confirmed by <@${user.id}>` } },
-          { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
-        ],
-      });
-    }
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -1051,8 +1040,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         archetype_id: string;
         source: string;
         parent_rule_ids: string[];
+        rule_text: string;
       }>;
       const patchedRule = patchedRows[0];
+
+      if (channel && messageTs) {
+        const ruleText = patchedRule?.rule_text ?? '';
+        const displayText = ruleText
+          ? `✅ Rule confirmed by <@${user.id}>\n\n> ${ruleText}`
+          : `✅ Rule confirmed by <@${user.id}>`;
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: displayText,
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: displayText } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      }
+
       if (!patchedRule) {
         log.warn({ ruleId }, 'rule_confirm: no rule returned after PATCH');
         return;
@@ -1103,6 +1110,27 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     } catch (err) {
       log.error({ ruleId, err }, 'Failed to process rule_confirm');
+      if (channel && messageTs) {
+        try {
+          await client.chat.update({
+            channel,
+            ts: messageTs,
+            text: `✅ Rule confirmed by <@${user.id}>`,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: `✅ Rule confirmed by <@${user.id}>` },
+              },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn(
+            { ruleId, updateErr },
+            'Failed to update Slack message after rule_confirm error (non-fatal)',
+          );
+        }
+      }
     }
   });
 
@@ -1114,33 +1142,60 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
-    if (channel && messageTs) {
-      await client.chat.update({
-        channel,
-        ts: messageTs,
-        text: `❌ Rule rejected by <@${user.id}>`,
-        blocks: [
-          { type: 'section', text: { type: 'mrkdwn', text: `❌ Rule rejected by <@${user.id}>` } },
-          { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
-        ],
-      });
-    }
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
-      await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
+      const patchRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
         method: 'PATCH',
         headers: {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
+          Prefer: 'return=representation',
         },
         body: JSON.stringify({ status: 'rejected' }),
       });
+      const patchedRows = (await patchRes.json()) as Array<{ rule_text: string }>;
+      const ruleText = patchedRows[0]?.rule_text ?? '';
       log.info({ ruleId, userId: user.id }, 'Rule rejected');
+
+      if (channel && messageTs) {
+        const displayText = ruleText
+          ? `❌ Rule rejected by <@${user.id}>\n\n> ${ruleText}`
+          : `❌ Rule rejected by <@${user.id}>`;
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: displayText,
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: displayText } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      }
     } catch (err) {
       log.error({ ruleId, err }, 'Failed to PATCH employee_rules on reject');
+      if (channel && messageTs) {
+        try {
+          await client.chat.update({
+            channel,
+            ts: messageTs,
+            text: `❌ Rule rejected by <@${user.id}>`,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: `❌ Rule rejected by <@${user.id}>` },
+              },
+              { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+            ],
+          });
+        } catch (updateErr) {
+          log.warn(
+            { ruleId, updateErr },
+            'Failed to update Slack message after rule_reject error (non-fatal)',
+          );
+        }
+      }
     }
   });
 
