@@ -27,7 +27,7 @@ export function adminSlackChannelsRoutes(opts: AdminSlackChannelsRouteOptions = 
 
     let token: string | null;
     try {
-      token = await secretRepo.get(tenantId, 'SLACK_BOT_TOKEN');
+      token = await secretRepo.get(tenantId, 'slack_bot_token');
     } catch (err) {
       logger.error({ err, tenantId }, 'Failed to read SLACK_BOT_TOKEN from tenant secrets');
       res.status(500).json({ error: 'INTERNAL_ERROR' });

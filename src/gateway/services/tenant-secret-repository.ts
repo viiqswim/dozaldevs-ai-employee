@@ -11,6 +11,7 @@ export class TenantSecretRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async set(tenantId: string, key: string, plaintext: string): Promise<SecretMeta> {
+    key = key.toLowerCase();
     const payload = encrypt(plaintext);
     const record = await this.prisma.tenantSecret.upsert({
       where: { tenant_id_key: { tenant_id: tenantId, key } },
@@ -31,6 +32,7 @@ export class TenantSecretRepository {
   }
 
   async get(tenantId: string, key: string): Promise<string | null> {
+    key = key.toLowerCase();
     const record = await this.prisma.tenantSecret.findUnique({
       where: { tenant_id_key: { tenant_id: tenantId, key } },
     });
@@ -48,6 +50,7 @@ export class TenantSecretRepository {
   }
 
   async delete(tenantId: string, key: string): Promise<boolean> {
+    key = key.toLowerCase();
     const existing = await this.prisma.tenantSecret.findUnique({
       where: { tenant_id_key: { tenant_id: tenantId, key } },
     });
@@ -59,6 +62,7 @@ export class TenantSecretRepository {
   }
 
   async getMany(tenantId: string, keys: string[]): Promise<Record<string, string>> {
+    keys = keys.map((k) => k.toLowerCase());
     const records = await this.prisma.tenantSecret.findMany({
       where: { tenant_id: tenantId, key: { in: keys } },
     });
