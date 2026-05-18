@@ -1,5 +1,14 @@
 import { GATEWAY_URL, INNGEST_URL } from './constants';
-import type { Archetype, Task, TenantSecret, ToolMetadata, BrainPreviewResponse } from './types';
+import type {
+  Archetype,
+  Task,
+  TenantSecret,
+  ToolMetadata,
+  BrainPreviewResponse,
+  GenerateArchetypeResponse,
+  CreateArchetypePayload,
+  SlackChannel,
+} from './types';
 
 export function getAdminApiKey(): string | null {
   return localStorage.getItem('admin_api_key');
@@ -143,4 +152,48 @@ export async function fetchBrainPreview(
     }
     throw err;
   }
+}
+
+export async function generateArchetype(
+  tenantId: string,
+  description: string,
+): Promise<GenerateArchetypeResponse> {
+  return gatewayFetch<GenerateArchetypeResponse>(`/admin/tenants/${tenantId}/archetypes/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ description }),
+  });
+}
+
+export async function refineArchetype(
+  tenantId: string,
+  description: string,
+  previousConfig: GenerateArchetypeResponse,
+  refinementInstruction: string,
+): Promise<GenerateArchetypeResponse> {
+  return gatewayFetch<GenerateArchetypeResponse>(`/admin/tenants/${tenantId}/archetypes/generate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      description,
+      previous_config: previousConfig,
+      refinement_instruction: refinementInstruction,
+    }),
+  });
+}
+
+export async function createArchetype(
+  tenantId: string,
+  config: CreateArchetypePayload,
+): Promise<Archetype> {
+  return gatewayFetch<Archetype>(`/admin/tenants/${tenantId}/archetypes`, {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export async function fetchSlackChannels(
+  tenantId: string,
+): Promise<{ channels: SlackChannel[]; error?: string }> {
+  return gatewayFetch<{ channels: SlackChannel[]; error?: string }>(
+    `/admin/tenants/${tenantId}/slack/channels`,
+  );
 }
