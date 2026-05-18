@@ -109,7 +109,7 @@ function buildFetchMock(
           metadata: includeApprovalMsgTs
             ? { approval_message_ts: APPROVAL_MSG_TS, target_channel: TARGET_CHANNEL }
             : { target_channel: TARGET_CHANNEL },
-          content: JSON.stringify({ draftResponse: 'Test draft.' }),
+          content: JSON.stringify({ draft: 'Test draft.' }),
           external_ref: TEST_TASK_ID,
         },
       ]);

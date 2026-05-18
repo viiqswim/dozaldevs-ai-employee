@@ -122,7 +122,7 @@ function buildFetchMock(
         {
           id: 'del-uuid-guest-1234',
           metadata: { approval_message_ts: APPROVAL_MSG_TS, target_channel: TARGET_CHANNEL },
-          content: '{"draftResponse":"Hello guest"}',
+          content: '{"draft":"Hello guest"}',
           external_ref: TEST_TASK_ID,
         },
       ]);
@@ -269,7 +269,7 @@ describe('employee-lifecycle — guest delivery Slack card updates (TDD RED phas
         return makeOkFetchResponse([
           {
             metadata: { target_channel: TARGET_CHANNEL }, // no approval_message_ts
-            content: '{"draftResponse":"Hello guest"}',
+            content: '{"draft":"Hello guest"}',
             external_ref: TEST_TASK_ID,
           },
         ]);
@@ -325,7 +325,7 @@ describe('employee-lifecycle — guest delivery Slack card updates (TDD RED phas
     const body = JSON.parse(
       ((deliverablePatch![1] as RequestInit | undefined)?.body as string) ?? '{}',
     ) as { content?: string };
-    const content = JSON.parse(body.content ?? '{}') as { draftResponse?: string };
-    expect(content.draftResponse).toBe('Edited guest response text');
+    const content = JSON.parse(body.content ?? '{}') as { draft?: string };
+    expect(content.draft).toBe('Edited guest response text');
   });
 });
