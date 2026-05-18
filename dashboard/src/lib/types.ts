@@ -67,8 +67,14 @@ export interface Archetype {
   agent_version_id: string | null;
   instructions: string | null;
   system_prompt: string | null;
-  trigger_sources: Record<string, unknown> | null;
-  tool_registry: Record<string, unknown> | null;
+  agents_md: string | null;
+  delivery_instructions: string | null;
+  trigger_sources:
+    | { type: 'manual' }
+    | { type: 'scheduled'; cron: string; timezone?: string }
+    | { type: 'webhook'; event_type?: string }
+    | null;
+  tool_registry: { tools: string[] } | null;
   worker_env: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
