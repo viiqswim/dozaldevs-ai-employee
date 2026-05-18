@@ -28,8 +28,8 @@ export async function dispatchEmployee(
 ): Promise<DispatchEmployeeResult> {
   const { tenantId, slug, dryRun, prisma, inngest } = params;
 
-  const archetype = await prisma.archetype.findUnique({
-    where: { tenant_id_role_name: { tenant_id: tenantId, role_name: slug } },
+  const archetype = await prisma.archetype.findFirst({
+    where: { tenant_id: tenantId, role_name: slug, status: 'active' },
   });
 
   if (!archetype) {
