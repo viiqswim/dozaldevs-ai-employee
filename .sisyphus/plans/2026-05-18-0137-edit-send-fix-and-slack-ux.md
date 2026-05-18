@@ -656,19 +656,19 @@ Wave FINAL (After ALL tasks):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review all changed files for type errors, unused imports, `as any` casts, console.log in prod.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Inspect the DB deliverable content for a recent Edit & Send task to verify the `draft` field was patched (not `draftResponse`). Check Slack snapshot for: no unfurl on notify, snippet visible in Done parent, thread hint visible.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: verify 1:1 match between spec and diff. Check no files outside scope were touched. Verify `slack-client.ts` changes are employee-agnostic.
       Output: `Tasks [N/N compliant] | VERDICT`
 
