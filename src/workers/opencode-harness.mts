@@ -382,9 +382,16 @@ async function runOpencodeSession(
       if (!approvalJsonExists && content !== 'completed') {
         const parsedOutput = parseStandardOutput(content);
         if (parsedOutput && isApprovalRequired(parsedOutput)) {
-          const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
-          if (Object.keys(autoMeta).length > 0) {
-            extraMetadata = autoMeta;
+          if (process.env.APPROVAL_REQUIRED === 'false') {
+            log.info(
+              { taskId: TASK_ID },
+              '[opencode-harness] Skipping auto-post approval card — approval not required',
+            );
+          } else {
+            const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
+            if (Object.keys(autoMeta).length > 0) {
+              extraMetadata = autoMeta;
+            }
           }
         }
       }
@@ -497,9 +504,16 @@ async function runOpencodeSession(
   if (!approvalJsonExists && content !== 'completed') {
     const parsedOutput = parseStandardOutput(content);
     if (parsedOutput && isApprovalRequired(parsedOutput)) {
-      const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
-      if (Object.keys(autoMeta).length > 0) {
-        extraMetadata = autoMeta;
+      if (process.env.APPROVAL_REQUIRED === 'false') {
+        log.info(
+          { taskId: TASK_ID },
+          '[opencode-harness] Skipping auto-post approval card — approval not required',
+        );
+      } else {
+        const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
+        if (Object.keys(autoMeta).length > 0) {
+          extraMetadata = autoMeta;
+        }
       }
     }
   }
