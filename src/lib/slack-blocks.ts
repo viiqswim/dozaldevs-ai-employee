@@ -61,8 +61,9 @@ export function buildNotifyStateBlocks(params: {
   emoji: string;
   text: string;
   taskId: string;
+  runId?: string;
 }): unknown[] {
-  const { emoji, text, taskId } = params;
+  const { emoji, text, taskId, runId } = params;
   return [
     {
       type: 'section',
@@ -70,7 +71,10 @@ export function buildNotifyStateBlocks(params: {
     },
     {
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+      elements: [
+        { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+        ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+      ],
     },
   ];
 }
@@ -392,6 +396,7 @@ export function buildNotifyBlocks(params: {
   state: string;
   archetypeName: string;
   taskId: string;
+  runId?: string;
   enrichment?: NotificationEnrichment | null;
   emoji?: string;
   extraText?: string;
@@ -402,6 +407,7 @@ export function buildNotifyBlocks(params: {
     state,
     archetypeName,
     taskId,
+    runId,
     enrichment,
     emoji = '⏳',
     extraText,
@@ -468,10 +474,23 @@ export function buildNotifyBlocks(params: {
 
   blocks.push({
     type: 'context',
-    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+    elements: [
+      { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+      ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+    ],
   } as KnownBlock);
 
   return blocks;
+}
+
+export function createTaskNotifyBuilders({ taskId, runId }: { taskId: string; runId?: string }) {
+  return {
+    notifyBlocks: (params: Omit<Parameters<typeof buildNotifyBlocks>[0], 'taskId' | 'runId'>) =>
+      buildNotifyBlocks({ ...params, taskId, runId }),
+    notifyStateBlocks: (
+      params: Omit<Parameters<typeof buildNotifyStateBlocks>[0], 'taskId' | 'runId'>,
+    ) => buildNotifyStateBlocks({ ...params, taskId, runId }),
+  };
 }
 
 export function buildContextThreadBlocks(params: {
