@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseStandardOutput,
   isApprovalRequired,
+  standardOutputSchema,
 } from '../../../src/workers/lib/output-schema.mjs';
 
 describe('parseStandardOutput', () => {
@@ -89,6 +90,63 @@ describe('parseStandardOutput', () => {
   });
 });
 
+describe('standardOutputSchema', () => {
+  it('safeParse with APPROVED classification → success: true', () => {
+    const result = standardOutputSchema.safeParse({
+      summary: 'test',
+      classification: 'APPROVED',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('safeParse with NEEDS_APPROVAL classification → success: true', () => {
+    const result = standardOutputSchema.safeParse({
+      summary: 'test',
+      classification: 'NEEDS_APPROVAL',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('safeParse with NO_ACTION_NEEDED classification → success: true', () => {
+    const result = standardOutputSchema.safeParse({
+      summary: 'test',
+      classification: 'NO_ACTION_NEEDED',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('safeParse with INVALID classification → success: false', () => {
+    const result = standardOutputSchema.safeParse({
+      summary: 'test',
+      classification: 'INVALID',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('safeParse missing summary → success: false', () => {
+    const result = standardOutputSchema.safeParse({ classification: 'APPROVED' });
+    expect(result.success).toBe(false);
+  });
+
+  it('safeParse with all optional fields → success: true and data has all fields', () => {
+    const result = standardOutputSchema.safeParse({
+      summary: 'summary text',
+      classification: 'NEEDS_APPROVAL',
+      draft: 'draft reply',
+      confidence: 0.9,
+      reasoning: 'because',
+      urgency: true,
+      metadata: { key: 'value' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.draft).toBe('draft reply');
+      expect(result.data.confidence).toBe(0.9);
+      expect(result.data.urgency).toBe(true);
+    }
+  });
+});
+
 describe('isApprovalRequired', () => {
   it('NEEDS_APPROVAL → returns true', () => {
     const output = {
@@ -102,6 +160,14 @@ describe('isApprovalRequired', () => {
     const output = {
       summary: 'Thread already resolved',
       classification: 'NO_ACTION_NEEDED' as const,
+    };
+    expect(isApprovalRequired(output)).toBe(false);
+  });
+
+  it('APPROVED → returns false', () => {
+    const output = {
+      summary: 'Auto-approved task',
+      classification: 'APPROVED' as const,
     };
     expect(isApprovalRequired(output)).toBe(false);
   });
