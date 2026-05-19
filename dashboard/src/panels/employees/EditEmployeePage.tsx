@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmployeeOverview } from '@/components/EmployeeOverview';
 import { MarkdownEditorField } from '@/components/MarkdownEditorField';
+import { InputSchemaEditor } from '@/components/InputSchemaEditor';
 import { postgrestFetch } from '@/lib/postgrest';
 import { patchArchetype, refineArchetype, createArchetype } from '@/lib/gateway';
 import { useTenant } from '@/hooks/use-tenant';
-import type { Archetype, GenerateArchetypeResponse } from '@/lib/types';
+import type { Archetype, GenerateArchetypeResponse, InputSchemaItem } from '@/lib/types';
 import { toast } from 'sonner';
 
 type EditState =
@@ -115,10 +116,15 @@ export function EditEmployeePage() {
       output: '',
       approval: '',
     },
+    input_schema: archetype.input_schema ?? [],
   };
 
   const handleRefine = async () => {
     if (refinementCount >= 3 || !refinementInput.trim()) return;
+    if (archetype.input_schema && archetype.input_schema.length > 0) {
+      const confirmed = window.confirm('Regenerating will replace the current inputs. Continue?');
+      if (!confirmed) return;
+    }
     setEditState({ phase: 'refining' });
     try {
       const refined = await refineArchetype(
@@ -275,6 +281,23 @@ export function EditEmployeePage() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-border p-4">
+        <h3 className="text-sm font-semibold">Detected Inputs</h3>
+        <p className="text-xs text-muted-foreground">
+          Inputs auto-detected from your description. Review and edit before activating.
+        </p>
+        <InputSchemaEditor
+          value={archetype.input_schema ?? []}
+          onChange={(schema: InputSchemaItem[]) => {
+            setEditState({
+              phase: 'ready',
+              archetype: { ...archetype, input_schema: schema },
+            });
+            void patch({ input_schema: schema });
+          }}
+        />
       </div>
 
       <details className="group rounded-lg border border-border">

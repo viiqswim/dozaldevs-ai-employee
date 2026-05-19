@@ -10,6 +10,7 @@ import { EmployeeList } from './panels/employees/EmployeeList';
 import { EmployeeDetail } from './panels/employees/EmployeeDetail';
 import { CreateEmployeePage } from './panels/employees/CreateEmployeePage';
 import { EditEmployeePage } from './panels/employees/EditEmployeePage';
+import { TriggerEmployeePage } from './panels/employees/TriggerEmployeePage';
 import { TenantOverview } from './panels/tenants/TenantOverview';
 import { PreflightPanel } from './panels/preflight/PreflightPanel';
 import { RulesPanel } from './panels/rules/RulesPanel';
@@ -66,6 +67,10 @@ export default function App() {
               <Route path="/dashboard/employees" element={<EmployeeList />} />
               <Route path="/dashboard/employees/new" element={<CreateEmployeePage />} />
               <Route path="/dashboard/employees/:archetypeId/edit" element={<EditEmployeePage />} />
+              <Route
+                path="/dashboard/employees/:archetypeId/trigger"
+                element={<TriggerEmployeePage />}
+              />
               <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
               <Route path="/dashboard/tenants" element={<TenantOverview />} />
               <Route path="/dashboard/rules" element={<RulesPanel />} />

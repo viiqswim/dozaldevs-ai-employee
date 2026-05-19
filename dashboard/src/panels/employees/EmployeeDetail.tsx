@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MarkdownEditorField } from '../../components/MarkdownEditorField';
 import { MarkdownPreview } from '../../components/MarkdownPreview';
+import { InputSchemaEditor } from '../../components/InputSchemaEditor';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Table,
@@ -21,7 +22,7 @@ import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime, formatDuration } from '@/lib/utils';
-import type { Archetype, Task, EmployeeRule } from '@/lib/types';
+import type { Archetype, Task, EmployeeRule, InputSchemaItem } from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { toast } from 'sonner';
 import { BrainPreviewTab } from './BrainPreviewTab';
@@ -45,6 +46,8 @@ type PatchData = Partial<
     | 'vm_size'
     | 'deliverable_type'
     | 'concurrency_limit'
+    | 'input_schema'
+    | 'worker_env'
   > & { risk_model?: Record<string, unknown> }
 >;
 
@@ -251,17 +254,27 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
   const { tenantId } = useTenant();
   const [editMode, setEditMode] = useState(false);
   const [editValues, setEditValues] = useState<EditValues>(() => archetypeToEditValues(archetype));
+  const [editedInputSchema, setEditedInputSchema] = useState<InputSchemaItem[]>(
+    () => archetype.input_schema ?? [],
+  );
+  const [editedWorkerEnv, setEditedWorkerEnv] = useState<Record<string, string>>(
+    () => (archetype.worker_env as Record<string, string>) ?? {},
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!editMode) {
       setEditValues(archetypeToEditValues(archetype));
+      setEditedInputSchema(archetype.input_schema ?? []);
+      setEditedWorkerEnv((archetype.worker_env as Record<string, string>) ?? {});
     }
   }, [archetype, editMode]);
 
   const handleEdit = () => {
     setEditValues(archetypeToEditValues(archetype));
+    setEditedInputSchema(archetype.input_schema ?? []);
+    setEditedWorkerEnv((archetype.worker_env as Record<string, string>) ?? {});
     setSaveError(null);
     setEditMode(true);
   };
@@ -306,6 +319,14 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
     if (JSON.stringify(parsedRiskModel) !== JSON.stringify(archetype.risk_model ?? {})) {
       changes.risk_model = parsedRiskModel;
     }
+
+    if (JSON.stringify(editedInputSchema) !== JSON.stringify(archetype.input_schema ?? []))
+      changes.input_schema = editedInputSchema;
+    if (
+      JSON.stringify(editedWorkerEnv) !==
+      JSON.stringify((archetype.worker_env as Record<string, string>) ?? {})
+    )
+      changes.worker_env = editedWorkerEnv;
 
     if (Object.keys(changes).length === 0) {
       setEditMode(false);
@@ -389,6 +410,21 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
               )}
             </FieldValue>
           </dl>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Inputs
+          </p>
+          {!archetype.input_schema || archetype.input_schema.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No inputs configured. This employee runs without any user-provided data.
+            </p>
+          ) : (
+            <InputSchemaEditor value={archetype.input_schema} onChange={() => {}} readOnly={true} />
+          )}
         </div>
 
         <Separator />
@@ -490,6 +526,33 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
             onChange={(e) => set('concurrency_limit')(parseInt(e.target.value, 10) || 1)}
           />
         </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Inputs</p>
+        <InputSchemaEditor
+          value={editedInputSchema}
+          onChange={setEditedInputSchema}
+          readOnly={false}
+        />
+        {editedInputSchema
+          .filter((item) => item.frequency === 'once')
+          .map((item) => (
+            <div key={item.key} className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Value for {item.label}
+              </label>
+              <Input
+                value={editedWorkerEnv[item.key] ?? ''}
+                onChange={(e) =>
+                  setEditedWorkerEnv((prev) => ({ ...prev, [item.key]: e.target.value }))
+                }
+                placeholder={item.description ?? `Enter ${item.label}`}
+              />
+            </div>
+          ))}
       </div>
 
       <Separator />
@@ -673,7 +736,16 @@ export function EmployeeDetail() {
             size="sm"
             variant="outline"
             disabled={triggering || !archetype.role_name}
-            onClick={() => void handleTrigger()}
+            onClick={() => {
+              const hasEveryRunInputs = (archetype.input_schema ?? []).some(
+                (item) => item.frequency === 'every_run',
+              );
+              if (hasEveryRunInputs) {
+                navigate(`/dashboard/employees/${archetype.id}/trigger?tenant=${tenantId}`);
+              } else {
+                void handleTrigger();
+              }
+            }}
           >
             {triggering ? 'Triggering…' : 'Trigger'}
           </Button>
