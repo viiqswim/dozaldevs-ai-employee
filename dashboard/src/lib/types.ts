@@ -59,6 +59,17 @@ export interface ArchetypeOverview {
   approval: string;
 }
 
+export interface InputSchemaItem {
+  key: string;
+  label: string;
+  type: 'text' | 'long_text' | 'date' | 'number' | 'url' | 'select';
+  frequency: 'once' | 'every_run';
+  required: boolean;
+  description?: string;
+  options?: string[];
+  default_value?: string;
+}
+
 export interface Archetype {
   id: string;
   tenant_id: string;
@@ -85,6 +96,7 @@ export interface Archetype {
     | null;
   tool_registry: { tools: string[] } | null;
   worker_env: Record<string, unknown> | null;
+  input_schema: InputSchemaItem[] | null;
   status: string;
   overview: ArchetypeOverview | null;
   parent_draft_id: string | null;
@@ -263,6 +275,7 @@ export interface GenerateArchetypeResponse {
   };
   concurrency_limit: number;
   overview: ArchetypeOverview;
+  input_schema?: InputSchemaItem[];
 }
 
 export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {

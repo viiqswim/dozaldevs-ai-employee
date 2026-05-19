@@ -50,8 +50,12 @@ export async function triggerEmployee(
   tenantId: string,
   slug: string,
   dryRun?: boolean,
+  inputs?: Record<string, string>,
 ): Promise<{ task_id: string; status_url: string }> {
-  const body = dryRun ? { dry_run: true } : {};
+  const body: Record<string, unknown> = dryRun ? { dry_run: true } : {};
+  if (inputs !== undefined) {
+    body.inputs = inputs;
+  }
   const query = dryRun ? '?dry_run=true' : '';
   return gatewayFetch<{ task_id: string; status_url: string }>(
     `/admin/tenants/${tenantId}/employees/${slug}/trigger${query}`,
@@ -100,6 +104,8 @@ export async function patchArchetype(
       | 'status'
       | 'parent_draft_id'
       | 'overview'
+      | 'input_schema'
+      | 'worker_env'
     > & { risk_model?: Record<string, unknown> }
   >,
 ): Promise<Archetype> {
