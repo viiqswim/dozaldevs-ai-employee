@@ -4,6 +4,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, InputSchemaSchema } from '../validation/schemas.js';
+import { ArchetypeRepository, ActiveTasksError } from '../services/archetype-repository.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -105,6 +106,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
+  const repo = new ArchetypeRepository(prisma);
 
   router.post('/admin/tenants/:tenantId/archetypes', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
@@ -252,6 +254,69 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         res.status(200).json(updated);
       } catch (err) {
         logger.error({ err }, 'Failed to update archetype');
+        res.status(500).json({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
+
+  router.delete(
+    '/admin/tenants/:tenantId/archetypes/:archetypeId',
+    requireAdminKey,
+    async (req, res) => {
+      const paramResult = ArchetypeParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        return;
+      }
+      const { tenantId, archetypeId } = paramResult.data;
+      try {
+        const deleted = await repo.softDelete(archetypeId, tenantId);
+        res.status(200).json({ id: deleted.id, deleted_at: deleted.deleted_at });
+      } catch (err) {
+        if (err instanceof ActiveTasksError) {
+          res.status(409).json({
+            error: 'ACTIVE_TASKS',
+            message: `Cannot delete: ${err.activeTaskCount} active task(s)`,
+            activeTaskCount: err.activeTaskCount,
+          });
+          return;
+        }
+        if (err instanceof Error && err.message.includes('not found')) {
+          res.status(404).json({ error: 'NOT_FOUND' });
+          return;
+        }
+        logger.error({ err }, 'Failed to soft-delete archetype');
+        res.status(500).json({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
+
+  router.post(
+    '/admin/tenants/:tenantId/archetypes/:archetypeId/restore',
+    requireAdminKey,
+    async (req, res) => {
+      const paramResult = ArchetypeParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        return;
+      }
+      const { tenantId, archetypeId } = paramResult.data;
+      try {
+        const restored = await repo.restore(archetypeId, tenantId);
+        res.status(200).json(restored);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not found')) {
+          res.status(404).json({ error: 'NOT_FOUND' });
+          return;
+        }
+        if (err instanceof Error && err.message.includes('role_name')) {
+          res.status(409).json({
+            error: 'CONFLICT',
+            message: 'An active archetype with the same role_name already exists',
+          });
+          return;
+        }
+        logger.error({ err }, 'Failed to restore archetype');
         res.status(500).json({ error: 'INTERNAL_ERROR' });
       }
     },
