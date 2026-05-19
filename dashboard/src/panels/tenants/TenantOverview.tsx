@@ -162,7 +162,11 @@ export function TenantOverview() {
   } = usePoll(fetchSecrets);
 
   const fetchArchetypes = useCallback(
-    () => postgrestFetch<Archetype>('archetypes', { tenant_id: `eq.${tenantId}` }),
+    () =>
+      postgrestFetch<Archetype>('archetypes', {
+        tenant_id: `eq.${tenantId}`,
+        deleted_at: 'is.null',
+      }),
     [tenantId],
   );
   const {

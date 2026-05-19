@@ -19,7 +19,15 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee } from '@/lib/gateway';
+import { triggerEmployee, deleteArchetype } from '@/lib/gateway';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
@@ -87,6 +95,8 @@ export function EmployeeList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const setRowLoading = (archetypeId: string, action: string, val: boolean) => {
     setLoadingStates((prev) => ({ ...prev, [`${archetypeId}-${action}`]: val }));
@@ -100,6 +110,7 @@ export function EmployeeList() {
       postgrestFetch<Archetype>('archetypes', {
         ...scopeByTenant(tenantId),
         status: 'neq.superseded',
+        deleted_at: 'is.null',
         order: 'status.asc,role_name.asc',
         limit: '50',
       }),
@@ -141,6 +152,21 @@ export function EmployeeList() {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setRowLoading(archetype.id, 'dryrun', false);
+    }
+  };
+
+  const handleDelete = async (archetype: Archetype) => {
+    if (!tenantId) return;
+    setDeleteLoading(true);
+    try {
+      await deleteArchetype(tenantId, archetype.id);
+      toast.success('Employee deleted');
+      setDeletingId(null);
+      refresh();
+    } catch (err) {
+      toast.error('Failed to delete employee');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -339,36 +365,45 @@ export function EmployeeList() {
                     {archetype.concurrency_limit}
                   </TableCell>
                   <TableCell>
-                    {!isDraft && (
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
-                          onClick={(e) => void handleTrigger(e, archetype)}
-                        >
-                          {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
-                          onClick={(e) => void handleDryRun(e, archetype)}
-                        >
-                          {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
-                        </Button>
-                        {isGuestMessaging && (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {!isDraft && (
+                        <>
                           <Button
                             size="sm"
-                            variant="secondary"
-                            disabled={isRowLoading(archetype.id, 'webhook')}
-                            onClick={(e) => void handleFireWebhook(e, archetype)}
+                            variant="outline"
+                            disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
+                            onClick={(e) => void handleTrigger(e, archetype)}
                           >
-                            {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                            {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
                           </Button>
-                        )}
-                      </div>
-                    )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
+                            onClick={(e) => void handleDryRun(e, archetype)}
+                          >
+                            {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
+                          </Button>
+                          {isGuestMessaging && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={isRowLoading(archetype.id, 'webhook')}
+                              onClick={(e) => void handleFireWebhook(e, archetype)}
+                            >
+                              {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDeletingId(archetype.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -376,6 +411,35 @@ export function EmployeeList() {
           )}
         </TableBody>
       </Table>
+
+      <Dialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Delete {archetypes.find((a) => a.id === deletingId)?.role_name}?
+            </DialogTitle>
+            <DialogDescription>
+              This employee will be soft-deleted. You can restore it later from the &ldquo;Show
+              deleted&rdquo; view.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteLoading}
+              onClick={() => {
+                const archetype = archetypes.find((a) => a.id === deletingId);
+                if (archetype) void handleDelete(archetype);
+              }}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

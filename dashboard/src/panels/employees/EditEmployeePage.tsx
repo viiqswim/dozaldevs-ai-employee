@@ -33,6 +33,7 @@ export function EditEmployeePage() {
     postgrestFetch<Archetype>('archetypes', {
       id: `eq.${archetypeId}`,
       select: '*',
+      deleted_at: 'is.null',
     })
       .then((result) => {
         if (!result.length || result[0].status !== 'draft') {

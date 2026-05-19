@@ -15,7 +15,15 @@ import {
   AccordionContent,
 } from '@/components/ui/accordion';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, patchArchetype } from '@/lib/gateway';
+import { triggerEmployee, patchArchetype, deleteArchetype } from '@/lib/gateway';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
@@ -689,12 +697,15 @@ export function EmployeeDetail() {
   const [triggering, setTriggering] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [firingWebhook, setFiringWebhook] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchArchetype = useCallback(
     () =>
       postgrestFetch<Archetype>('archetypes', {
         id: `eq.${archetypeId ?? ''}`,
         ...scopeByTenant(tenantId),
+        deleted_at: 'is.null',
       }).then((arr) => arr[0] ?? null),
     [archetypeId, tenantId],
   );
@@ -732,6 +743,21 @@ export function EmployeeDetail() {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setDryRunning(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!archetype || !tenantId) return;
+    setDeleteLoading(true);
+    try {
+      await deleteArchetype(tenantId, archetype.id);
+      toast.success('Employee deleted');
+      setDeleteDialogOpen(false);
+      navigate('/dashboard/employees?tenant=' + tenantId);
+    } catch (err) {
+      toast.error('Failed to delete employee');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -874,6 +900,9 @@ export function EmployeeDetail() {
               {firingWebhook ? 'Firing…' : 'Fire Webhook'}
             </Button>
           )}
+          <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -901,6 +930,30 @@ export function EmployeeDetail() {
           <BrainPreviewTab archetype={archetype} tenantId={tenantId} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {archetype.role_name}?</DialogTitle>
+            <DialogDescription>
+              This employee will be soft-deleted. You can restore it later from the &ldquo;Show
+              deleted&rdquo; view.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteLoading}
+              onClick={() => void handleDelete()}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
