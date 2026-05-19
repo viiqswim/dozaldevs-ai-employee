@@ -516,6 +516,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
             INNGEST_DEV: '1',
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+            INNGEST_RUN_ID: runId,
             EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
             APPROVAL_REQUIRED: String(approvalRequired),
             ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
@@ -523,7 +524,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
           };
           if (localWorkerEnv['PLATFORM_ENV_MANIFEST']) {
-            const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST'].filter((k) => localWorkerEnv[k]);
+            const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST', 'INNGEST_RUN_ID'].filter(
+              (k) => localWorkerEnv[k],
+            );
             if (extra.length > 0) {
               localWorkerEnv['PLATFORM_ENV_MANIFEST'] =
                 `${localWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
@@ -548,6 +551,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           SUPABASE_URL: effectiveSupabaseUrl,
           SUPABASE_SECRET_KEY: supabaseKey,
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+          INNGEST_RUN_ID: runId,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
           APPROVAL_REQUIRED: String(approvalRequired),
           ...(rawEvent['thread_uid'] ? { REPLY_BROADCAST: 'true' } : {}),
@@ -555,7 +559,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
         };
         if (flyWorkerEnv['PLATFORM_ENV_MANIFEST']) {
-          const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST'].filter((k) => flyWorkerEnv[k]);
+          const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST', 'INNGEST_RUN_ID'].filter(
+            (k) => flyWorkerEnv[k],
+          );
           if (extra.length > 0) {
             flyWorkerEnv['PLATFORM_ENV_MANIFEST'] =
               `${flyWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
