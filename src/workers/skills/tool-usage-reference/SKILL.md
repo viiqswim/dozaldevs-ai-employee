@@ -63,17 +63,25 @@ NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
 - `--channel <id>` — Slack channel ID (e.g. `C0960S2Q8RL`)
 - `--text <string>` — Message text (plain text fallback for notifications)
 
+**Automatic behaviors (no flags needed):**
+
+- **Auto-threading**: Automatically reads `NOTIFY_MSG_TS` from the environment and threads the message under the task notification. No `--thread-ts` flag needed unless you want to override.
+- **Auto-Run-ID**: Automatically reads `INNGEST_RUN_ID` from the environment and includes it in the context block alongside the Task ID. No explicit flag needed.
+
 **Optional flags:**
 
 - `--task-id <uuid>` — When provided, auto-generates approval blocks with header, text, task context block, Approve & Post / Reject buttons. Omit `--blocks` when using this.
 - `--title <string>` — Custom header title for the approval card (default: `"Task Review — <date>"`)
 - `--blocks <json>` — Raw Block Kit JSON array. Mutually exclusive with `--task-id` auto-blocks.
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection. Included in output if provided.
-- `--thread-ts <ts>` — Thread the message under an existing Slack message. Pass `"$NOTIFY_MSG_TS"` to reply under the task notification. Omitting this posts a new top-level message.
+- `--thread-ts <ts>` — Override thread timestamp. If omitted, auto-reads `NOTIFY_MSG_TS` from env to thread under the task notification.
+- `--no-thread` — Suppress auto-threading. Posts a new top-level message even when `NOTIFY_MSG_TS` is set in the environment.
 
 **Environment variables:**
 
 - `SLACK_BOT_TOKEN` (required)
+- `NOTIFY_MSG_TS` (auto-read) — task notification timestamp; used for auto-threading
+- `INNGEST_RUN_ID` (auto-read) — included in context block alongside Task ID
 
 **Output (stdout):**
 
@@ -94,11 +102,18 @@ Or with `--conversation-ref`:
 **Example:**
 
 ```bash
+# Threading is automatic — NOTIFY_MSG_TS and INNGEST_RUN_ID are read from env automatically
 NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
   --channel "C0960S2Q8RL" \
   --text "Daily summary ready for review" \
   --task-id "$TASK_ID" \
-  --thread-ts "$NOTIFY_MSG_TS" \
+  > /tmp/approval-message.json
+
+# Override thread (explicit --thread-ts) or suppress threading (--no-thread):
+NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
+  --channel "C0960S2Q8RL" \
+  --text "Standalone message" \
+  --no-thread \
   > /tmp/approval-message.json
 ```
 
