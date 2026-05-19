@@ -54,10 +54,8 @@ export function CreateEmployeePage() {
     }
   };
 
-  const state = pageState;
-
   const pageTitle = (): string => {
-    switch (state.phase) {
+    switch (pageState.phase) {
       case 'generating':
         return 'Generating Configuration…';
       case 'saving':
@@ -81,7 +79,7 @@ export function CreateEmployeePage() {
         <h1 className="text-lg font-semibold">{pageTitle()}</h1>
       </div>
 
-      {state.phase === 'idle' && (
+      {pageState.phase === 'idle' && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Describe what you want your AI employee to do. Be specific about its tasks, schedule,
@@ -121,7 +119,7 @@ export function CreateEmployeePage() {
         </div>
       )}
 
-      {state.phase === 'generating' && (
+      {pageState.phase === 'generating' && (
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground text-center">
@@ -130,18 +128,18 @@ export function CreateEmployeePage() {
         </div>
       )}
 
-      {state.phase === 'saving' && (
+      {pageState.phase === 'saving' && (
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground text-center">Saving draft…</p>
         </div>
       )}
 
-      {state.phase === 'error' && (
+      {pageState.phase === 'error' && (
         <div className="space-y-4">
           <div className="rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
             <p className="font-semibold">Generation Failed</p>
-            <p className="mt-1 text-destructive/80">{state.message}</p>
+            <p className="mt-1 text-destructive/80">{pageState.message}</p>
           </div>
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setPageState({ phase: 'idle' })}>
