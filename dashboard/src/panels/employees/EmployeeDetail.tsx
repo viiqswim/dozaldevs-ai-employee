@@ -47,8 +47,6 @@ type PatchData = Partial<
   Pick<
     Archetype,
     | 'role_name'
-    | 'model'
-    | 'runtime'
     | 'instructions'
     | 'system_prompt'
     | 'notification_channel'
@@ -62,29 +60,23 @@ type PatchData = Partial<
 
 interface EditValues {
   role_name: string;
-  model: string;
-  runtime: string;
   instructions: string;
   system_prompt: string;
   notification_channel: string;
-  vm_size: string;
-  deliverable_type: string;
   concurrency_limit: number;
-  risk_model_json: string;
+  approval_required: boolean;
+  timeout_hours: number;
 }
 
 function archetypeToEditValues(a: Archetype): EditValues {
   return {
     role_name: a.role_name ?? '',
-    model: a.model ?? '',
-    runtime: a.runtime ?? '',
     instructions: a.instructions ?? '',
     system_prompt: a.system_prompt ?? '',
     notification_channel: a.notification_channel ?? '',
-    vm_size: a.vm_size ?? '',
-    deliverable_type: a.deliverable_type ?? '',
     concurrency_limit: a.concurrency_limit,
-    risk_model_json: JSON.stringify(a.risk_model ?? {}, null, 2),
+    approval_required: a.risk_model?.approval_required ?? false,
+    timeout_hours: a.risk_model?.timeout_hours ?? 0,
   };
 }
 
@@ -315,32 +307,25 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
 
     if (editValues.role_name !== (archetype.role_name ?? ''))
       changes.role_name = editValues.role_name || null;
-    if (editValues.model !== (archetype.model ?? '')) changes.model = editValues.model || null;
-    if (editValues.runtime !== (archetype.runtime ?? ''))
-      changes.runtime = editValues.runtime || null;
     if (editValues.instructions !== (archetype.instructions ?? ''))
       changes.instructions = editValues.instructions || null;
     if (editValues.system_prompt !== (archetype.system_prompt ?? ''))
       changes.system_prompt = editValues.system_prompt || null;
     if (editValues.notification_channel !== (archetype.notification_channel ?? ''))
       changes.notification_channel = editValues.notification_channel || null;
-    if (editValues.vm_size !== (archetype.vm_size ?? ''))
-      changes.vm_size = editValues.vm_size || null;
-    if (editValues.deliverable_type !== (archetype.deliverable_type ?? ''))
-      changes.deliverable_type = editValues.deliverable_type || null;
     if (editValues.concurrency_limit !== archetype.concurrency_limit)
       changes.concurrency_limit = editValues.concurrency_limit;
 
-    let parsedRiskModel: Record<string, unknown>;
-    try {
-      parsedRiskModel = JSON.parse(editValues.risk_model_json) as Record<string, unknown>;
-    } catch {
-      setSaveError('Invalid JSON in risk model');
-      setSaving(false);
-      return;
-    }
-    if (JSON.stringify(parsedRiskModel) !== JSON.stringify(archetype.risk_model ?? {})) {
-      changes.risk_model = parsedRiskModel;
+    const existingApproval = archetype.risk_model?.approval_required ?? false;
+    const existingTimeout = archetype.risk_model?.timeout_hours ?? 0;
+    if (
+      editValues.approval_required !== existingApproval ||
+      editValues.timeout_hours !== existingTimeout
+    ) {
+      changes.risk_model = {
+        approval_required: editValues.approval_required,
+        timeout_hours: editValues.timeout_hours,
+      };
     }
 
     if (JSON.stringify(editedInputSchema) !== JSON.stringify(archetype.input_schema ?? []))
@@ -370,12 +355,9 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
     }
   };
 
-  const set = (field: keyof EditValues) => (value: string | number) => {
+  const set = (field: keyof EditValues) => (value: string | number | boolean) => {
     setEditValues((prev) => ({ ...prev, [field]: value }));
   };
-
-  const textareaClass =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y';
 
   if (!editMode) {
     return (
@@ -538,53 +520,68 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
     );
   }
 
+  const SaveCancelBar = () => (
+    <div className="flex items-center gap-2">
+      <Button size="sm" disabled={saving} onClick={() => void handleSave()}>
+        {saving ? 'Saving…' : 'Save'}
+      </Button>
+      <Button variant="outline" size="sm" disabled={saving} onClick={handleCancel}>
+        Cancel
+      </Button>
+      {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button size="sm" disabled={saving} onClick={() => void handleSave()}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-        <Button variant="outline" size="sm" disabled={saving} onClick={handleCancel}>
-          Cancel
-        </Button>
-        {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+      <SaveCancelBar />
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Role Name
+        </label>
+        <Input value={editValues.role_name} onChange={(e) => set('role_name')(e.target.value)} />
       </div>
+
+      <MarkdownEditorField
+        label="Task Instructions"
+        value={editValues.instructions}
+        onChange={(v) => set('instructions')(v)}
+        minHeight={400}
+      />
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-4">
         <div className="space-y-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Role Name
+            Approval Required
           </label>
-          <Input value={editValues.role_name} onChange={(e) => set('role_name')(e.target.value)} />
+          <div className="flex items-center gap-2 pt-1">
+            <Switch
+              checked={editValues.approval_required}
+              onCheckedChange={(checked) => set('approval_required')(checked)}
+              aria-label="Approval required"
+            />
+            <span className="text-sm text-muted-foreground">
+              {editValues.approval_required ? 'Requires approval' : 'Auto-approved'}
+            </span>
+          </div>
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Model
-          </label>
-          <Input
-            value={editValues.model}
-            onChange={(e) => set('model')(e.target.value)}
-            className="font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Runtime
-          </label>
-          <Input value={editValues.runtime} onChange={(e) => set('runtime')(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Deliverable Type
+            Maximum Duration (hours)
           </label>
           <Input
-            value={editValues.deliverable_type}
-            onChange={(e) => set('deliverable_type')(e.target.value)}
+            type="number"
+            min={0}
+            value={editValues.timeout_hours}
+            onChange={(e) => set('timeout_hours')(parseFloat(e.target.value) || 0)}
           />
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Notification Channel
+            Slack Channel
           </label>
           <Input
             value={editValues.notification_channel}
@@ -592,15 +589,10 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
             className="font-mono text-xs"
           />
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            VM Size
-          </label>
-          <Input value={editValues.vm_size} onChange={(e) => set('vm_size')(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Concurrency Limit
+            Simultaneous Tasks
           </label>
           <Input
             type="number"
@@ -640,31 +632,25 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
 
       <Separator />
 
-      <div className="space-y-4">
-        <MarkdownEditorField
-          label="Instructions"
-          value={editValues.instructions}
-          onChange={(v) => set('instructions')(v)}
-          minHeight={400}
-        />
-        <MarkdownEditorField
-          label="System Prompt"
-          value={editValues.system_prompt}
-          onChange={(v) => set('system_prompt')(v)}
-          minHeight={250}
-        />
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Risk Model (JSON)
-          </label>
-          <textarea
-            className={textareaClass}
-            rows={4}
-            value={editValues.risk_model_json}
-            onChange={(e) => set('risk_model_json')(e.target.value)}
-          />
-        </div>
-      </div>
+      <Accordion type="single" collapsible>
+        <AccordionItem value="advanced" className="border-none">
+          <AccordionTrigger className="py-2 text-sm font-medium text-muted-foreground hover:no-underline">
+            Advanced
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4 pt-2">
+              <MarkdownEditorField
+                label="System Prompt"
+                value={editValues.system_prompt}
+                onChange={(v) => set('system_prompt')(v)}
+                minHeight={250}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <SaveCancelBar />
     </div>
   );
 }
