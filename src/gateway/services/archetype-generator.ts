@@ -1,5 +1,6 @@
 import type { callLLM } from '../../lib/call-llm.js';
 import { createLogger } from '../../lib/logger.js';
+import type { InputSchemaItem } from '../validation/schemas.js';
 
 const log = createLogger('archetype-generator');
 
@@ -12,6 +13,7 @@ export interface GenerateArchetypeResponse {
   agents_md: string;
   delivery_instructions: string | null;
   deliverable_type: string | null;
+  input_schema?: InputSchemaItem[];
   risk_model: {
     approval_required: boolean;
     timeout_hours: number;
@@ -50,12 +52,43 @@ ${INJECTION_BOUNDARY}
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
 - \`agents_md\` must be 50-200 lines of structured markdown — this is the most important field
 
+## Input Detection (CRITICAL)
+Carefully read the description and identify any values the user must supply at runtime. Classify each as:
+- **\`every_run\`** — varies per execution (dates, report periods, specific names or IDs for that run)
+- **\`once\`** — static configuration set up one time (API endpoints, workspace URLs, database IDs, channel names)
+
+For each detected input, create an \`input_schema\` item with:
+- \`key\`: snake_case identifier (e.g. \`report_date\`, \`notion_page_url\`)
+- \`label\`: human-readable label (e.g. "Report Date", "Notion Page URL")
+- \`type\`: one of \`text\`, \`long_text\`, \`date\`, \`number\`, \`url\`, \`select\`
+- \`frequency\`: \`every_run\` or \`once\`
+- \`required\`: \`true\` for values needed to run; \`false\` for optional enhancements
+- \`description\`: brief explanation of what the value is used for
+
+If no runtime inputs are needed, omit \`input_schema\` entirely (do not include an empty array).
+
+## Template Syntax in instructions
+Use \`{{key}}\` syntax in the \`instructions\` field for every detected input (matching the \`key\` in \`input_schema\`).
+Example: "Check Hostfully bookings for {{check_date}} and post results to {{slack_channel}}."
+The key must exactly match the snake_case \`key\` in the \`input_schema\` item.
+
+## instructions Field Rules (CRITICAL)
+The \`instructions\` field MUST be human-readable — describe WHAT the employee does in plain English, using \`{{key}}\` placeholders for runtime inputs. At minimum 3 concrete steps.
+
+DO NOT include in instructions:
+- File paths like \`/tmp/summary.txt\` or \`/tmp/approval-message.json\`
+- JSON format details or output contract specifics
+- Shell commands or technical tool invocations
+- Any internal implementation details
+
+Those technical details belong exclusively in \`agents_md\`.
+
 ## agents_md Structure (follow this exactly)
 The agents_md field is the employee's brain. It MUST include these sections:
 1. **Opening sentence** — "You are [role description]."
 2. **WORKFLOW section** — numbered steps (1, 2, 3...) describing the exact procedure
 3. **CLASSIFICATION RULES section** — when to use NO_ACTION_NEEDED vs NEEDS_APPROVAL vs APPROVED
-4. **OUTPUT FORMAT section** — what to write to /tmp/summary.txt
+4. **OUTPUT FORMAT section** — what to write to /tmp/summary.txt (technical details go HERE, not in instructions)
 5. **TOOLS AVAILABLE section** — list the shell tools the employee uses
 
 Example agents_md structure:
@@ -77,6 +110,9 @@ OUTPUT FORMAT:
 Write to /tmp/summary.txt:
 { "classification": "NEEDS_APPROVAL", "confidence": 0.9, "summary": "...", "details": {...} }
 
+Also write to /tmp/approval-message.json:
+{ "message": "..." }
+
 TOOLS AVAILABLE TO YOU:
 - [Tool category]: [tool description]
 - Load the tool-usage-reference skill for exact CLI syntax.
@@ -89,10 +125,20 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "model": "minimax/minimax-m2.7",
   "runtime": "opencode",
   "system_prompt": "",
-  "instructions": "Step-by-step instructions referencing $ENV_VARS and tool invocations. At minimum 3 concrete steps. Must include: write output to /tmp/summary.txt",
-  "agents_md": "50-200 lines of structured markdown with WORKFLOW, CLASSIFICATION RULES, OUTPUT FORMAT, TOOLS sections",
+  "instructions": "Human-readable description of WHAT the employee does, using {{key}} placeholders for runtime inputs. At minimum 3 concrete steps. No file paths, no JSON format details, no shell commands.",
+  "agents_md": "50-200 lines of structured markdown with WORKFLOW, CLASSIFICATION RULES, OUTPUT FORMAT (including /tmp/summary.txt and /tmp/approval-message.json paths), TOOLS sections",
   "delivery_instructions": null,
   "deliverable_type": "slack_message",
+  "input_schema": [
+    {
+      "key": "snake_case_key",
+      "label": "Human Readable Label",
+      "type": "text",
+      "frequency": "every_run",
+      "required": true,
+      "description": "What this input is used for"
+    }
+  ],
   "risk_model": {
     "approval_required": true,
     "timeout_hours": 24
@@ -114,7 +160,9 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   }
 }
 
-The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
+Notes on the JSON shape:
+- Omit \`input_schema\` entirely if no runtime inputs are detected (do not include an empty array).
+- The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
 For trigger_sources.type:
 - "manual" — if triggered on demand
