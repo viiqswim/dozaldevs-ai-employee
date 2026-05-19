@@ -32,6 +32,9 @@ import type { Archetype, Task, EmployeeRule, InputSchemaItem } from '@/lib/types
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { toast } from 'sonner';
 import { BrainPreviewTab } from './BrainPreviewTab';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
 
 const WEBHOOK_FIXTURES = {
   agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
@@ -95,6 +98,20 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 function FieldValue({ children }: { children: React.ReactNode }) {
   return <dd className="mt-0.5 text-sm">{children}</dd>;
+}
+
+function LabelWithTooltip({ children, tip }: { children: React.ReactNode; tip: string }) {
+  return (
+    <dt className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {children}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="h-3 w-3 cursor-help" />
+        </TooltipTrigger>
+        <TooltipContent side="top">{tip}</TooltipContent>
+      </Tooltip>
+    </dt>
+  );
 }
 
 function is403(err: Error): boolean {
@@ -399,57 +416,74 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
 
         <Separator />
 
-        <div className="space-y-5">
-          <h3 className="text-sm font-semibold">Behavior &amp; Settings</h3>
+        <TooltipProvider>
+          <div className="space-y-5">
+            <h3 className="text-sm font-semibold">Behavior &amp; Settings</h3>
 
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-            <dl>
-              <FieldLabel>Approval</FieldLabel>
-              <FieldValue>
-                {archetype.risk_model?.approval_required ? (
-                  <Badge
-                    variant="outline"
-                    className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                  >
-                    Approval Required
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-                  >
-                    Auto-Approved
-                  </Badge>
-                )}
-              </FieldValue>
-            </dl>
-            <dl>
-              <FieldLabel>Slack Channel</FieldLabel>
-              <FieldValue>
-                <span className="font-mono text-xs">{archetype.notification_channel ?? '—'}</span>
-              </FieldValue>
-            </dl>
-            <dl>
-              <FieldLabel>Simultaneous Tasks</FieldLabel>
-              <FieldValue>{archetype.concurrency_limit}</FieldValue>
-            </dl>
-            <dl>
-              <FieldLabel>Maximum Duration</FieldLabel>
-              <FieldValue>
-                {archetype.risk_model?.timeout_hours != null
-                  ? `${archetype.risk_model.timeout_hours} hours`
-                  : '—'}
-              </FieldValue>
-            </dl>
-          </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+              <dl>
+                <FieldLabel>Approval</FieldLabel>
+                <FieldValue>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={archetype.risk_model?.approval_required ?? false}
+                      disabled
+                      aria-label="Approval required"
+                    />
+                    {archetype.risk_model?.approval_required ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                      >
+                        Approval Required
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                      >
+                        Auto-Approved
+                      </Badge>
+                    )}
+                  </div>
+                </FieldValue>
+              </dl>
+              <dl>
+                <LabelWithTooltip tip="The Slack channel where this employee sends notifications and approval requests">
+                  Slack Channel
+                </LabelWithTooltip>
+                <FieldValue>
+                  <span className="font-mono text-xs">{archetype.notification_channel ?? '—'}</span>
+                </FieldValue>
+              </dl>
+              <dl>
+                <LabelWithTooltip tip="How many tasks this employee can work on at the same time">
+                  Simultaneous Tasks
+                </LabelWithTooltip>
+                <FieldValue>{archetype.concurrency_limit}</FieldValue>
+              </dl>
+              <dl>
+                <LabelWithTooltip tip="If the employee takes longer than this, the task will be marked as timed out.">
+                  Maximum Duration
+                </LabelWithTooltip>
+                <FieldValue>
+                  {archetype.risk_model?.timeout_hours != null
+                    ? `${archetype.risk_model.timeout_hours} hours`
+                    : '—'}
+                </FieldValue>
+              </dl>
+            </div>
 
-          <div>
-            <FieldLabel>Task Instructions</FieldLabel>
-            <dd className="mt-1 rounded-md border bg-muted/10 p-4">
-              <MarkdownPreview content={archetype.instructions ?? ''} />
-            </dd>
+            <div>
+              <LabelWithTooltip tip="The main instruction given to the employee each time it runs">
+                Task Instructions
+              </LabelWithTooltip>
+              <dd className="mt-1 rounded-md border bg-muted/10 p-4">
+                <MarkdownPreview content={archetype.instructions ?? ''} />
+              </dd>
+            </div>
           </div>
-        </div>
+        </TooltipProvider>
 
         <Separator />
 
