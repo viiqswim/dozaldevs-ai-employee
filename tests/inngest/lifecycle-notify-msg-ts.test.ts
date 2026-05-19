@@ -183,6 +183,7 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-supabase-key';
   process.env.FLY_WORKER_APP = 'ai-employee-workers';
+  process.env.WORKER_RUNTIME = 'fly';
 });
 
 afterEach(() => {
@@ -190,11 +191,11 @@ afterEach(() => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
+  delete process.env.WORKER_RUNTIME;
 });
 
 describe('employee-lifecycle — NOTIFY_MSG_TS injection into executing machine env', () => {
-  // TODO: Pre-existing failure — mockCreateMachine not called (skipped 2026-05-15)
-  it.skip('Test A: notify-received ts present → NOTIFY_MSG_TS injected with correct value', async () => {
+  it('Test A: notify-received ts present → NOTIFY_MSG_TS injected with correct value', async () => {
     const { engine } = makeEngine({ ts: '111.222', channel: 'C123' });
 
     const { error } = await engine.execute(triggerEvent());
@@ -207,8 +208,7 @@ describe('employee-lifecycle — NOTIFY_MSG_TS injection into executing machine 
     expect(machineConfig.env?.NOTIFY_MSG_TS).toBe('111.222');
   });
 
-  // TODO: Pre-existing failure — mockCreateMachine not called (skipped 2026-05-15)
-  it.skip('Test B: notify-received ts is null → NOTIFY_MSG_TS injected as empty string', async () => {
+  it('Test B: notify-received ts is null → NOTIFY_MSG_TS injected as empty string', async () => {
     const { engine } = makeEngine({ ts: null, channel: null });
 
     const { error } = await engine.execute(triggerEvent());

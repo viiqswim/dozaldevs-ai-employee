@@ -124,4 +124,56 @@ describe('resolveAgentsMd', () => {
     expect(result).toContain('security policy content');
     expect(result).toContain('custom archetype instructions');
   });
+
+  it('platformRuntimeSections provided — output includes "# Platform Runtime Context" section', () => {
+    const result = resolveAgentsMd('platform text', null, null, undefined, undefined, [
+      'runtime section A',
+    ]);
+    expect(result).toContain('# Platform Runtime Context');
+    expect(result).toContain('runtime section A');
+  });
+
+  it('platformRuntimeSections with multiple entries — all entries joined in output', () => {
+    const result = resolveAgentsMd('platform text', null, null, undefined, undefined, [
+      'section one',
+      'section two',
+    ]);
+    expect(result).toContain('section one');
+    expect(result).toContain('section two');
+  });
+
+  it('platformRuntimeSections undefined — output does NOT include "# Platform Runtime Context"', () => {
+    const result = resolveAgentsMd('platform text', null, null);
+    expect(result).not.toContain('# Platform Runtime Context');
+  });
+
+  it('platformRuntimeSections empty array — output does NOT include "# Platform Runtime Context"', () => {
+    const result = resolveAgentsMd('platform text', null, null, undefined, undefined, []);
+    expect(result).not.toContain('# Platform Runtime Context');
+  });
+
+  it('platformRuntimeSections appears after Platform Policy and before Tenant Conventions', () => {
+    const result = resolveAgentsMd(
+      'platform text',
+      { default_agents_md: 'tenant text' },
+      null,
+      undefined,
+      undefined,
+      ['runtime section'],
+    );
+    const platformIdx = result.indexOf('# Platform Policy');
+    const runtimeIdx = result.indexOf('# Platform Runtime Context');
+    const tenantIdx = result.indexOf('# Tenant Conventions');
+    expect(platformIdx).toBeLessThan(runtimeIdx);
+    expect(runtimeIdx).toBeLessThan(tenantIdx);
+  });
+
+  it('platformRuntimeSections snapshot — exact output matches expected string', () => {
+    const result = resolveAgentsMd('platform text', null, null, undefined, undefined, [
+      'runtime info',
+    ]);
+    expect(result).toBe(
+      '# Platform Policy\n\nplatform text\n\n# Platform Runtime Context\n\nruntime info',
+    );
+  });
 });
