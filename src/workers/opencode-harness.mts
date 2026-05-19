@@ -9,6 +9,7 @@ import {
   type StandardOutput,
 } from './lib/output-schema.mjs';
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
+import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 
 const log = createLogger('opencode-harness');
 
@@ -670,6 +671,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Build template variable map from process.env (INPUT_* + worker_env) and apply substitution
+  const templateVars = buildTemplateVars();
+  const resolvedInstructions = substituteTemplateVars(instructions, templateVars);
+
   log.info(
     {
       taskId: TASK_ID,
@@ -739,6 +744,10 @@ async function main(): Promise<void> {
     }
     const { readFile, writeFile } = await import('node:fs/promises');
     const platformContent = await readFile('/app/AGENTS.md', 'utf8');
+    // Apply template variable substitution to agents_md before resolver uses it
+    if (archetype.agents_md) {
+      archetype.agents_md = substituteTemplateVars(archetype.agents_md, templateVars);
+    }
     const agentsMdContent = resolveAgentsMd(
       platformContent,
       tenantConfig,
@@ -757,7 +766,7 @@ async function main(): Promise<void> {
   let metadata: Record<string, unknown> = {};
 
   try {
-    const result = await runOpencodeSession(instructions, model);
+    const result = await runOpencodeSession(resolvedInstructions, model);
     content = result.content;
     metadata = result.metadata;
   } catch (err) {
