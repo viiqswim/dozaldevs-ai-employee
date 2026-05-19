@@ -112,3 +112,38 @@
 - Both dialogs (single and bulk) can coexist — separate state (`deletingId` vs `bulkDeleteOpen`)
 - `.sisyphus/evidence/` is gitignored — screenshot saved locally but not staged
 - `tsc --noEmit` inside `dashboard/` directory exits 0 with no errors
+
+## Task 9 — Deleted Filter + Restore (2026-05-19)
+
+### Patterns Used
+
+- `statusFilter` type extended to `'all' | 'active' | 'draft' | 'deleted'` — union type in state and Select `onValueChange` cast
+- `fetchArchetypes` made reactive on `statusFilter` — added to `useCallback` deps array
+- `deleted` filter: `params['deleted_at'] = 'not.is.null'` (PostgREST syntax), no `status` param (deleted employees can have any status)
+- Client-side filter simplified to search-only (status filtering is fully server-side)
+- Deleted badge: `border-zinc-300 bg-zinc-100 text-zinc-500` inline in Status cell, detected via `archetype.deleted_at !== null`
+- `isDeleted` local variable derived before render to branch on checkbox, row click, and Actions
+- Row click on deleted employees is no-op (`if (isDeleted) return`) — no navigation to detail/edit
+- Checkbox cell: renders empty for deleted employees (`{!isDeleted && <Checkbox ... />}`)
+- `handleRestore`: error 409 check uses `err.message.includes('409')` matching `gatewayFetch` throw pattern
+- Evidence: `.sisyphus/evidence/task-9-filter-options.png`, `.sisyphus/evidence/task-9-deleted-view.png`
+- Test archetype soft-deleted for E2E: `qa-patch-test` (id: 162d779e-9467-406d-a398-24a0872faa09)
+
+### PostgREST "not.is.null" syntax
+
+- To query `deleted_at IS NOT NULL`: `params['deleted_at'] = 'not.is.null'`
+- To query `deleted_at IS NULL`: `params['deleted_at'] = 'is.null'`
+- These are PostgREST filter operators, not standard SQL
+
+## Task 10 — Delete/Restore Tests (2026-05-19)
+
+### Key Findings
+
+- Existing `admin-archetypes.test.ts` uses mocked Prisma — Task 10 uses REAL DB (`ai_employee_test`)
+- `PrismaClient({ datasources: { db: { url: TEST_DB_URL } } })` bypasses `DATABASE_URL_DIRECT` env var requirement
+- `TENANT_ID = '00000000-0000-0000-0000-000000000002'` (DozalDevs) — seeded in test DB
+- Partial unique index on archetypes: `WHERE (status = 'active')` — two DRAFT archetypes with same role_name ARE allowed
+- Test 9 (collision): must create archetype B as `status: 'draft'` to bypass unique constraint, then soft-delete via route, then restore → 409
+- Cleanup order: tasks first (FK: tasks.archetype_id → archetypes.id), then archetypes
+- `afterEach` with `deleteMany` by tracked IDs is the correct pattern for real-DB test cleanup
+- Evidence: `.sisyphus/evidence/task-10-test-results.txt`
