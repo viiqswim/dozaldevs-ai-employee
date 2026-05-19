@@ -403,3 +403,37 @@ export type InputSchemaItem = z.infer<typeof InputSchemaItemSchema>;
 export const InputSchemaSchema = z.array(InputSchemaItemSchema);
 
 export type InputSchema = z.infer<typeof InputSchemaSchema>;
+
+// ─── Employee Rules CRUD ──────────────────────────────────────────────────────
+
+export const RuleArchetypeParamsSchema = z.object({
+  tenantId: uuidField(),
+  archetypeId: uuidField(),
+});
+export type RuleArchetypeParams = z.infer<typeof RuleArchetypeParamsSchema>;
+
+export const RuleIdParamsSchema = RuleArchetypeParamsSchema.extend({
+  ruleId: uuidField(),
+});
+export type RuleIdParams = z.infer<typeof RuleIdParamsSchema>;
+
+export const CreateRuleBodySchema = z.object({
+  rule_text: z.string().min(1, 'rule_text is required').max(10000),
+  status: z.enum(['confirmed', 'rejected']).optional().default('confirmed'),
+});
+export type CreateRuleBody = z.infer<typeof CreateRuleBodySchema>;
+
+export const UpdateRuleBodySchema = z
+  .object({
+    rule_text: z.string().min(1).max(10000).optional(),
+    status: z.enum(['confirmed', 'rejected']).optional(),
+  })
+  .superRefine((obj, ctx) => {
+    if (Object.keys(obj).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field is required for update',
+      });
+    }
+  });
+export type UpdateRuleBody = z.infer<typeof UpdateRuleBodySchema>;
