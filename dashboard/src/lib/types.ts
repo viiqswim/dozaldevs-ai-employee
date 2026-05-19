@@ -135,7 +135,7 @@ export interface EmployeeRule {
   archetype_id: string;
   rule_text: string;
   source: string;
-  status: 'proposed' | 'confirmed' | 'awaiting_input';
+  status: 'proposed' | 'confirmed' | 'awaiting_input' | 'rejected';
   source_task_id: string | null;
   parent_rule_ids: string[];
   slack_ts: string | null;

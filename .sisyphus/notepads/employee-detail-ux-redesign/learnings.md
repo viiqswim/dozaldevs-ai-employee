@@ -62,3 +62,71 @@ Role Name → Task Instructions (MarkdownEditorField) → 2-col grid (Approval R
 ### Build result
 
 `pnpm build` exits 0 — no errors introduced by this task.
+
+## Task: Rule CRUD gateway functions (gateway.ts)
+
+- `EmployeeRule` type is in `types.ts` with fields: id, tenant_id, archetype_id, rule_text, source, status ('proposed'|'confirmed'|'awaiting_input'), source_task_id, parent_rule_ids, slack_ts, slack_channel, confirmed_at, created_at
+- `gatewayFetch<T>` handles GET/POST/PATCH automatically (returns `response.json()`)
+- For DELETE (204 no-body), must use raw `fetch` directly — `gatewayFetch` calls `response.json()` which fails on empty body
+- Routes: POST/PATCH/DELETE `/admin/tenants/:tenantId/employees/:archetypeId/rules[/:ruleId]`
+- Build passes clean after adding all 3 functions
+
+## Task: Activity Tab — Card-based layout with expandable StatusTimeline (2026-05-19)
+
+### Trigger source derivation from `task.source_system`
+- `'hostfully'` → Webhook icon + "webhook" label
+- `'manual'` → MousePointer icon + "manual" label
+- `null/undefined` → Clock icon + "scheduled" label
+- Field exists on `Task` type in `types.ts` as `source_system: string | null`
+
+### Lazy fetch pattern for task_status_log on expand
+- Track expanded task ID in state: `expandedTaskId: string | null`
+- Track fetched logs per task: `timelineLogs: Record<string, TaskStatusLog[]>`
+- Track loading per task: `timelineLoading: Record<string, boolean>`
+- Guard: `if (timelineLogs[taskId] !== undefined) return;` — prevents re-fetch (empty array `[]` is truthy so this also prevents re-fetching after a failed fetch)
+- Table name: `task_status_log` (confirmed from TaskDetail.tsx)
+- Fetch params: `task_id: eq.${taskId}`, `order: created_at.asc`, `limit: 100`
+
+### Empty catch block lint rule
+- ESLint in this project flags `catch (_err)` as unused-vars
+- Use bare `catch {}` (TypeScript 4+ optional binding) — no variable needed
+
+### Table imports removed
+- `Table, TableBody, TableCell, TableHead, TableHeader, TableRow` from `@/components/ui/table` are only used in `RecentTasksSection` — safe to remove when replacing with cards
+
+### cn import
+- Was not imported in EmployeeDetail.tsx before — needed to add alongside `formatRelativeTime, formatDuration` from `@/lib/utils`
+
+### ChevronRight rotation trick
+- Use `cn('transition-transform', isExpanded && 'rotate-90')` — avoids importing ChevronDown separately
+- One icon, two states via CSS transform
+
+### Build result
+- `pnpm build` (backend tsc) exits 0
+- `pnpm dashboard:build` (vite + tsc) exits 0
+
+## Task 7 — TrainingTab interactive rule management (2026-05-19)
+
+### EmployeeRule status union extended
+- Added `'rejected'` to `EmployeeRule['status']` in `types.ts` — backend accepts it via `updateRule`, but it was missing from the frontend type.
+- This caused cascading `Record<EmployeeRule['status'], string>` errors in `RulesPanel.tsx` and `EmployeeDetail.tsx` (old RulesSection) — both fixed by adding the `rejected` entry.
+
+### No Textarea component — use raw `<textarea>` with Tailwind
+- `dashboard/src/components/ui/textarea.tsx` does not exist.
+- Use `<textarea className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />` to match Input component styling.
+
+### Optimistic UI pattern with mutatingRef
+- `usePoll` fires every N seconds; naive `useEffect([fetchedRules])` to sync display state would overwrite optimistic updates mid-mutation.
+- Pattern: `mutatingRef = useRef(false)` guards the sync `useEffect`.
+- Mutation flow: set `mutatingRef.current = true` → optimistic `setLocalRules` → `await apiCall()` → `refresh()` → `mutatingRef.current = false`.
+- On error: `setLocalRules(null)` (falls back to `fetchedRules` = unchanged server data) + `mutatingRef.current = false`.
+- `displayRules = localRules ?? fetchedRules ?? []` — localRules is null when not mutating.
+
+### Status display mapping
+- `confirmed` → "Active" (green badge) — Edit + Delete buttons
+- `awaiting_input` | `proposed` → "Needs Review" (blue/yellow badge) — Approve + Reject buttons  
+- `rejected` → "Rejected" (red badge) — read-only, no action buttons
+
+### Build result
+- `pnpm build` (backend tsc) exits 0
+- `pnpm dashboard:build` (vite + tsc) exits 0
