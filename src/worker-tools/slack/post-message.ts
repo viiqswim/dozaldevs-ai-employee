@@ -29,6 +29,7 @@ function parseArgs(argv: string[]): {
       channel = args[++i];
     } else if (args[i] === '--text' && args[i + 1]) {
       text = args[++i];
+      text = text.replace(/\\n/g, '\n');
     } else if (args[i] === '--blocks' && args[i + 1]) {
       blocks = JSON.parse(args[++i]) as unknown[];
     } else if (args[i] === '--task-id' && args[i + 1]) {
