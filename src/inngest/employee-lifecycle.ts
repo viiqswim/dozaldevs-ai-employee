@@ -768,6 +768,63 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               );
             }
           }
+          // Best-effort cleanup: remove approval card buttons if worker posted one before
+          // the lifecycle could stop it (race condition with APPROVAL_REQUIRED env var)
+          try {
+            const approvalCleanupRes = await fetch(
+              `${supabaseUrl}/rest/v1/pending_approvals?task_id=eq.${taskId}&limit=1`,
+              {
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                },
+              },
+            );
+            const approvalCleanupRows = (await approvalCleanupRes.json()) as Array<
+              Record<string, unknown>
+            >;
+            const approvalCardRow = approvalCleanupRows[0];
+            if (approvalCardRow?.['slack_ts'] && approvalCardRow?.['channel_id']) {
+              const prismaForCleanup = new PrismaClient();
+              const tenantEnvForCleanup = await loadTenantEnv(
+                tenantId,
+                {
+                  tenantRepo: new TenantRepository(prismaForCleanup),
+                  secretRepo: new TenantSecretRepository(prismaForCleanup),
+                },
+                (archetype.notification_channel as string | null) ?? null,
+              );
+              await prismaForCleanup.$disconnect();
+              const botTokenForCleanup = tenantEnvForCleanup['SLACK_BOT_TOKEN'] ?? '';
+              if (botTokenForCleanup) {
+                const slackForCleanup = createSlackClient({
+                  botToken: botTokenForCleanup,
+                  defaultChannel: '',
+                });
+                await slackForCleanup.updateMessage(
+                  approvalCardRow['channel_id'] as string,
+                  approvalCardRow['slack_ts'] as string,
+                  '✅ Completed — no approval required',
+                  [
+                    {
+                      type: 'section',
+                      text: { type: 'mrkdwn', text: '✅ Completed — no approval required' },
+                    },
+                    {
+                      type: 'context',
+                      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                    },
+                  ],
+                );
+                await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+              }
+            }
+          } catch (err) {
+            log.warn(
+              { taskId, err },
+              '[lifecycle] Failed to clean up stale approval card — continuing',
+            );
+          }
         });
         await step.run('cleanup-no-approval', async () => {
           try {
