@@ -173,8 +173,30 @@ export function BrainPreviewTab({ archetype, tenantId }: BrainPreviewTabProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-muted-foreground">Loading brain preview...</div>
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 pt-2 pb-3">
+          <div className="h-px flex-1 bg-border" />
+          <div className="h-3.5 w-48 animate-pulse rounded bg-muted" />
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <div className="rounded-lg border p-6 space-y-5">
+          <div className="space-y-2">
+            <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+            <div className="h-12 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-px bg-border" />
+          <div className="space-y-2">
+            <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+            <div className="h-20 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-px bg-border" />
+          <div className="space-y-2">
+            <div className="h-3 w-36 animate-pulse rounded bg-muted" />
+            <div className="h-12 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+        <div className="h-12 animate-pulse rounded-lg border bg-muted" />
+        <div className="h-12 animate-pulse rounded-lg border bg-muted" />
       </div>
     );
   }
