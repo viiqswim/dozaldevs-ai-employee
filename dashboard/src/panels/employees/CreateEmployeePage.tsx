@@ -2,13 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { generateArchetype, createArchetype, fetchSlackChannels } from '@/lib/gateway';
 import type { GenerateArchetypeResponse, SlackChannel } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
@@ -128,18 +122,13 @@ export function CreateEmployeePage() {
             {slackLoading ? (
               <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
             ) : slackChannels.length > 0 ? (
-              <Select value={notificationChannel} onValueChange={setNotificationChannel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a channel..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {slackChannels.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>
-                      #{ch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
+                value={notificationChannel}
+                onValueChange={setNotificationChannel}
+                placeholder="Select a channel..."
+                searchPlaceholder="Search channels..."
+              />
             ) : (
               <Input
                 value={notificationChannel}

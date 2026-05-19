@@ -40,13 +40,7 @@ import { toast } from 'sonner';
 import { BrainPreviewTab } from './BrainPreviewTab';
 import { TrainingTab } from './TrainingTab';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Info, Webhook, MousePointer, Clock, ChevronRight } from 'lucide-react';
 
@@ -634,21 +628,13 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
           {slackLoading ? (
             <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
           ) : slackChannels.length > 0 ? (
-            <Select
+            <SearchableSelect
+              options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
               value={editValues.notification_channel ?? ''}
               onValueChange={set('notification_channel')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a channel..." />
-              </SelectTrigger>
-              <SelectContent>
-                {slackChannels.map((ch) => (
-                  <SelectItem key={ch.id} value={ch.id}>
-                    #{ch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select a channel..."
+              searchPlaceholder="Search channels..."
+            />
           ) : (
             <Input
               value={editValues.notification_channel}
