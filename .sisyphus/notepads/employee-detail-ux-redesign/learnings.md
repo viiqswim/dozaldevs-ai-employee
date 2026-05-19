@@ -130,3 +130,33 @@ Role Name → Task Instructions (MarkdownEditorField) → 2-col grid (Approval R
 ### Build result
 - `pnpm build` (backend tsc) exits 0
 - `pnpm dashboard:build` (vite + tsc) exits 0
+
+## Task 8 — Knowledge Tab 3-Section Restructure (BrainPreviewTab.tsx) (2026-05-19)
+
+### Section structure
+- Section 1 "What This Employee Knows": always visible, intro text paragraph + Card with Task Trigger / Employee Manual / After-Approval Action
+- Section 2 "Platform Configuration": `Accordion type="single" collapsible` (no defaultValue = collapsed). Single AccordionItem wrapping Security Preamble, Output Contract, Env Variables description.
+- Section 3 "Raw Debug Data": `Accordion type="single" collapsible` with two-line AccordionTrigger (title + "For technical debugging only" subtitle). Contains Execution Phase + Delivery Phase sub-headers and all existing expandable Cards (PromptSection, AGENTS.md, Env Vars, Tools, Runtime, Delivery Prompt).
+
+### Sticky nav removed
+The sticky section nav (SECTION_NAV, handleNavClick, IntersectionObserver) was removed. It linked to IDs inside the debug sections — unusable when those sections are behind a collapsed accordion. All the IDs on Cards were kept (brain-execution-prompt, brain-agents-md, etc.) in case they're referenced externally.
+
+### AccordionItem border style
+Used `className="border rounded-lg px-4"` on AccordionItem to get a contained card-like appearance instead of the default bottom-only border from the base component.
+
+### Two-line AccordionTrigger pattern
+```tsx
+<AccordionTrigger className="text-sm font-medium hover:no-underline">
+  <div className="flex flex-col items-start gap-0.5">
+    <span>Execution &amp; delivery internals</span>
+    <span className="text-xs text-muted-foreground font-normal">
+      For technical debugging only
+    </span>
+  </div>
+</AccordionTrigger>
+```
+`hover:no-underline` prevents the default underline on the entire trigger block.
+
+### Build result
+- `pnpm build` (backend tsc) exits 0
+- `pnpm dashboard:build` (vite + tsc) exits 0
