@@ -104,78 +104,6 @@ function is403(err: Error): boolean {
   return err.message.includes('403') || err.message.toLowerCase().includes('permission denied');
 }
 
-function RulesSection({ archetypeId }: { archetypeId: string }) {
-  const { tenantId } = useTenant();
-
-  const fetchRules = useCallback(
-    () =>
-      postgrestFetch<EmployeeRule>('employee_rules', {
-        ...scopeByTenant(tenantId),
-        archetype_id: `eq.${archetypeId}`,
-        order: 'created_at.desc',
-        limit: '20',
-      }),
-    [tenantId, archetypeId],
-  );
-
-  const { data: rules, error, loading } = usePoll(fetchRules);
-
-  const RULE_STATUS_CLASSES: Record<EmployeeRule['status'], string> = {
-    confirmed:
-      'bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800',
-    proposed:
-      'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
-    awaiting_input:
-      'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-    rejected:
-      'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-10 animate-pulse rounded bg-muted" />
-        ))}
-      </div>
-    );
-  }
-
-  if (error) {
-    if (is403(error)) {
-      return (
-        <p className="text-sm text-yellow-700">
-          Rules table may need ANON access. Run:{' '}
-          <code className="rounded bg-muted px-1 text-xs">
-            GRANT SELECT ON employee_rules TO anon;
-          </code>
-        </p>
-      );
-    }
-    return <p className="text-sm text-destructive">{error.message}</p>;
-  }
-
-  if (!rules || rules.length === 0) {
-    return <p className="text-sm text-muted-foreground">No rules yet</p>;
-  }
-
-  return (
-    <div className="space-y-2">
-      {rules.map((rule) => (
-        <div key={rule.id} className="flex items-start gap-3 rounded-md border p-3">
-          <Badge variant="outline" className={RULE_STATUS_CLASSES[rule.status]}>
-            {rule.status}
-          </Badge>
-          <span className="flex-1 text-sm">{rule.rule_text}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {formatRelativeTime(rule.created_at)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function TriggerSourceIcon({ sourceSystem }: { sourceSystem: string | null }) {
   if (sourceSystem === 'hostfully') return <Webhook className="h-3.5 w-3.5" />;
   if (sourceSystem === 'manual') return <MousePointer className="h-3.5 w-3.5" />;
@@ -895,7 +823,7 @@ export function EmployeeDetail() {
     );
   }
 
-  const isGuestMessaging = archetype.deliverable_type === 'hostfully_message';
+  const showWebhookButton = archetype.deliverable_type === 'hostfully_message';
 
   return (
     <div className="p-6">
@@ -936,7 +864,7 @@ export function EmployeeDetail() {
           >
             {dryRunning ? 'Running…' : 'Dry Run'}
           </Button>
-          {isGuestMessaging && (
+          {showWebhookButton && (
             <Button
               size="sm"
               variant="secondary"
