@@ -130,7 +130,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       id: 'employee/universal-lifecycle',
       triggers: [{ event: 'employee/task.dispatched' }],
     },
-    async ({ event, step }) => {
+    async ({ event, step, runId }) => {
       const { taskId, archetypeId } = event.data as { taskId: string; archetypeId: string };
 
       const supabaseUrl = process.env.SUPABASE_URL!;
@@ -318,6 +318,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 ...currentMetadata,
                 notify_slack_ts: result.ts,
                 notify_slack_channel: channel,
+                inngest_run_id: runId,
               };
               const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
                 method: 'PATCH',
