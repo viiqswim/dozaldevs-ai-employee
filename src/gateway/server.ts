@@ -192,7 +192,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
       res.sendFile(path.join(dashboardDist, 'index.html')),
     );
   } else {
-    logger.warn('dashboard/dist not found — run pnpm dashboard:build to enable the dashboard UI');
+    logger.warn(
+      'dashboard/dist not found — run pnpm dashboard:build to build it, or use pnpm dev which starts the Vite dev server at http://localhost:7701/dashboard/',
+    );
   }
 
   app.use((_req, res) => {

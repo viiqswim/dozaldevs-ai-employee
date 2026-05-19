@@ -770,6 +770,37 @@ if (!noTunnelFlag && tunnelAvailable) {
 log('');
 
 // ─────────────────────────────────────────────────────
+// Step 8: Start Dashboard Dev Server (Vite + HMR)
+// ─────────────────────────────────────────────────────
+log('── Step 8: Starting Dashboard Dev Server ──');
+
+const DASHBOARD_PORT = 7701;
+const dashboardProc = spawn('pnpm', ['dev', '--port', String(DASHBOARD_PORT)], {
+  cwd: path.resolve(process.cwd(), 'dashboard'),
+  stdio: 'pipe',
+  detached: true,
+});
+children.push(dashboardProc);
+
+dashboardProc.stdout?.on('data', serviceLog('dashboard', C.green));
+dashboardProc.stderr?.on('data', serviceLog('dashboard', C.green));
+dashboardProc.on('exit', (code) => {
+  if (!cleaningUp) log(`${C.yellow}[dashboard] exited with code ${code}${C.reset}`);
+});
+
+ok(`Dashboard dev server started (PID: ${dashboardProc.pid})`);
+log('');
+
+log('── Step 8b: Waiting for Dashboard dev server (up to 30s) ──');
+const dashboardReady = await waitForHttp(`http://localhost:${DASHBOARD_PORT}/dashboard/`, 30_000);
+if (!dashboardReady) {
+  warn('Dashboard dev server did not become healthy after 30s — continuing anyway');
+} else {
+  ok(`Dashboard dev server is healthy at http://localhost:${DASHBOARD_PORT}/dashboard/`);
+}
+log('');
+
+// ─────────────────────────────────────────────────────
 // Summary banner
 // ─────────────────────────────────────────────────────
 log('╔══════════════════════════════════════════════════╗');
@@ -779,6 +810,7 @@ log(`  PostgREST:  http://localhost:54331`);
 log(`  Studio:     http://localhost:54323`);
 log(`  Inngest:    http://localhost:8288`);
 log(`  Gateway:    http://localhost:${GATEWAY_PORT} (auto-restart enabled)`);
+log(`  Dashboard:  http://localhost:${DASHBOARD_PORT}/dashboard/ (HMR enabled)`);
 if (!noTunnelFlag && tunnelAvailable) {
   log(`  Tunnel:     ${TUNNEL_URL}`);
 }
