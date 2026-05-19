@@ -403,6 +403,15 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (rawEvent.message_uid) rawEventEnv['MESSAGE_UID'] = rawEvent.message_uid;
         if (rawEvent.direction) rawEventEnv['OVERRIDE_DIRECTION'] = rawEvent.direction;
 
+        const rawInputs = (rawEvent as unknown as Record<string, unknown>)['inputs'];
+        if (rawInputs && typeof rawInputs === 'object') {
+          for (const [key, value] of Object.entries(rawInputs as Record<string, string>)) {
+            if (typeof value === 'string') {
+              rawEventEnv[`INPUT_${key.toUpperCase()}`] = value;
+            }
+          }
+        }
+
         const runtime = (archetype.runtime as string | null) ?? 'generic-harness';
         const cmd =
           runtime === 'opencode'
@@ -491,9 +500,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         log.info({ taskId, runtime }, 'Dispatching worker machine');
 
+        const workerEnvVars = (archetype.worker_env as Record<string, string> | null) ?? {};
+
         if (process.env.WORKER_RUNTIME !== 'fly') {
           const localWorkerEnv: Record<string, string> = {
             ...tenantEnv,
+            ...workerEnvVars,
             ...rawEventEnv,
             TASK_ID: taskId,
             TENANT_ID: tenantId,
@@ -526,6 +538,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         const flyWorkerEnv: Record<string, string> = {
           ...tenantEnv,
+          ...workerEnvVars,
           ...rawEventEnv,
           TASK_ID: taskId,
           TENANT_ID: tenantId,

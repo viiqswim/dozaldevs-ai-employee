@@ -8,6 +8,7 @@ export interface DispatchEmployeeParams {
   dryRun: boolean;
   prisma: PrismaClient;
   inngest: InngestLike;
+  inputs?: Record<string, string>;
 }
 
 export type DispatchEmployeeResult =
@@ -26,7 +27,7 @@ export type DispatchEmployeeResult =
 export async function dispatchEmployee(
   params: DispatchEmployeeParams,
 ): Promise<DispatchEmployeeResult> {
-  const { tenantId, slug, dryRun, prisma, inngest } = params;
+  const { tenantId, slug, dryRun, prisma, inngest, inputs } = params;
 
   const archetype = await prisma.archetype.findFirst({
     where: { tenant_id: tenantId, role_name: slug, status: 'active' },
@@ -68,6 +69,7 @@ export async function dispatchEmployee(
       source_system: 'manual',
       status: 'Ready',
       tenant_id: tenantId,
+      ...(inputs ? { raw_event: { inputs } } : {}),
     },
   });
 

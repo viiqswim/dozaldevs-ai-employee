@@ -1,13 +1,22 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TriggerEmployeeParamsSchema, TriggerEmployeeQuerySchema } from '../validation/schemas.js';
+import {
+  TriggerEmployeeParamsSchema,
+  TriggerEmployeeQuerySchema,
+  InputSchemaSchema,
+} from '../validation/schemas.js';
 import { dispatchEmployee } from '../services/employee-dispatcher.js';
 import { createInngestClient } from '../inngest/client.js';
 import type { InngestLike } from '../types.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+
+const TriggerEmployeeBodySchema = z
+  .object({ inputs: z.record(z.string(), z.string()).optional() })
+  .optional();
 
 export interface AdminEmployeeTriggerRouteOptions {
   prisma?: PrismaClient;
@@ -35,11 +44,41 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         return;
       }
 
+      const bodyResult = TriggerEmployeeBodySchema.safeParse(
+        req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
+      );
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        return;
+      }
+
       const { tenantId, slug } = paramsResult.data;
       const dryRun = queryResult.data.dry_run ?? false;
+      const inputs = bodyResult.data?.inputs;
 
       try {
-        const result = await dispatchEmployee({ tenantId, slug, dryRun, prisma, inngest });
+        const archetype = await prisma.archetype.findFirst({
+          where: { tenant_id: tenantId, role_name: slug, status: 'active' },
+        });
+
+        if (archetype?.input_schema) {
+          const schemaResult = InputSchemaSchema.safeParse(archetype.input_schema);
+          if (schemaResult.success) {
+            const requiredEveryRunKeys = schemaResult.data
+              .filter((item) => item.frequency === 'every_run' && item.required)
+              .map((item) => item.key);
+
+            if (requiredEveryRunKeys.length > 0) {
+              const missing = requiredEveryRunKeys.filter((key) => !inputs || !(key in inputs));
+              if (missing.length > 0) {
+                res.status(422).json({ error: 'MISSING_REQUIRED_INPUTS', missing });
+                return;
+              }
+            }
+          }
+        }
+
+        const result = await dispatchEmployee({ tenantId, slug, dryRun, prisma, inngest, inputs });
 
         if (result.kind === 'dispatched') {
           res.status(202).json({
