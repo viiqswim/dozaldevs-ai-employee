@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { generateArchetype, createArchetype } from '@/lib/gateway';
-import type { GenerateArchetypeResponse } from '@/lib/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { generateArchetype, createArchetype, fetchSlackChannels } from '@/lib/gateway';
+import type { GenerateArchetypeResponse, SlackChannel } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
 
 type PageState =
@@ -19,6 +26,30 @@ export function CreateEmployeePage() {
   const [pageState, setPageState] = useState<PageState>({ phase: 'idle' });
   const [description, setDescription] = useState('');
   const [notificationChannel, setNotificationChannel] = useState('');
+  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
+  const [slackError, setSlackError] = useState<string | undefined>();
+  const [slackLoading, setSlackLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSlackLoading(true);
+    fetchSlackChannels(tenantId)
+      .then((result) => {
+        if (cancelled) return;
+        setSlackChannels(result.channels ?? []);
+        if (result.error) setSlackError(result.error);
+        setSlackLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSlackChannels([]);
+        setSlackError('SLACK_NOT_CONFIGURED');
+        setSlackLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const handleSaveDraft = async (config: GenerateArchetypeResponse) => {
     setPageState({ phase: 'saving', config });
@@ -94,12 +125,38 @@ export function CreateEmployeePage() {
           />
           <div className="space-y-2">
             <label className="text-sm font-medium">Slack Channel</label>
-            <Input
-              value={notificationChannel}
-              onChange={(e) => setNotificationChannel(e.target.value)}
-              placeholder="#channel-name"
-              className="text-sm"
-            />
+            {slackLoading ? (
+              <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+            ) : slackChannels.length > 0 ? (
+              <Select value={notificationChannel} onValueChange={setNotificationChannel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a channel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {slackChannels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      #{ch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={notificationChannel}
+                onChange={(e) => setNotificationChannel(e.target.value)}
+                placeholder="#channel-name or channel ID"
+              />
+            )}
+            {slackError === 'SLACK_NOT_CONFIGURED' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Slack not configured for this tenant. Enter a channel ID manually.
+              </p>
+            )}
+            {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Could not load channels — enter a channel ID manually.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               The Slack channel where this employee operates — all notifications, approvals, and
               deliveries go here.
