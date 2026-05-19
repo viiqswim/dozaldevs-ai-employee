@@ -69,6 +69,7 @@ NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
 - `--title <string>` — Custom header title for the approval card (default: `"Task Review — <date>"`)
 - `--blocks <json>` — Raw Block Kit JSON array. Mutually exclusive with `--task-id` auto-blocks.
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection. Included in output if provided.
+- `--thread-ts <ts>` — Thread the message under an existing Slack message. Pass `"$NOTIFY_MSG_TS"` to reply under the task notification. Omitting this posts a new top-level message.
 
 **Environment variables:**
 
@@ -97,6 +98,7 @@ NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
   --channel "C0960S2Q8RL" \
   --text "Daily summary ready for review" \
   --task-id "$TASK_ID" \
+  --thread-ts "$NOTIFY_MSG_TS" \
   > /tmp/approval-message.json
 ```
 
@@ -222,7 +224,7 @@ tsx /tools/slack/post-guest-approval.ts \
 - `--diagnosis <json>` — JSON string `{"hasMismatch":bool,"diagnosisSummary":"..."}` for lock diagnosis block
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection (defaults to `--thread-uid`)
 - `--dry-run` — Print blocks JSON to stdout without posting to Slack
-- `--thread-ts <ts>` — **ALWAYS REQUIRED** for guest-messaging. Pass `"$NOTIFY_MSG_TS"` (env var injected by the lifecycle) to post the approval card as a thread reply under the task's notification message. Omitting this causes the card to post as a new top-level message in the channel.
+- `--thread-ts <ts>` — ALWAYS pass `--thread-ts "$NOTIFY_MSG_TS"` to post the approval card as a thread reply under the task's notification message. `NOTIFY_MSG_TS` is the env var injected by the lifecycle. Omitting this causes the card to post as a new top-level message in the channel.
 - `--reply-broadcast [true|false]` — Whether to broadcast the thread reply to the channel
 
 **Environment variables:**
