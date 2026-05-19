@@ -20,13 +20,7 @@ import type {
   InputSchemaItem,
   SlackChannel,
 } from '@/lib/types';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from 'sonner';
 
 type EditState =
@@ -290,7 +284,8 @@ export function EditEmployeePage() {
             {slackLoading ? (
               <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
             ) : slackChannels.length > 0 ? (
-              <Select
+              <SearchableSelect
+                options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
                 value={archetype.notification_channel ?? ''}
                 onValueChange={(value) => {
                   setEditState({
@@ -299,18 +294,9 @@ export function EditEmployeePage() {
                   });
                   void patch({ notification_channel: value || null });
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a channel..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {slackChannels.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>
-                      #{ch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select a channel..."
+                searchPlaceholder="Search channels..."
+              />
             ) : (
               <Input
                 value={archetype.notification_channel ?? ''}
