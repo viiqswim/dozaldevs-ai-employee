@@ -160,3 +160,34 @@ Used `className="border rounded-lg px-4"` on AccordionItem to get a contained ca
 ### Build result
 - `pnpm build` (backend tsc) exits 0
 - `pnpm dashboard:build` (vite + tsc) exits 0
+
+## Task 9 — Cross-tab polish: empty states, skeletons, error handling (2026-05-19)
+
+### Audit findings (all 4 tabs × 3 states)
+
+| Tab | Loading | Empty | Error |
+|-----|---------|-------|-------|
+| Settings (EmployeeDetail) | Fixed: was plain text → skeleton | ✓ "Employee not found" | ✓ Red box + retry |
+| Activity | ✓ Already had 3-row skeleton | ✓ "No activity yet..." | ✓ destructive text |
+| Training | ✓ Already had 3-row skeleton | ✓ "No training rules yet..." | ✓ destructive text |
+| Knowledge | Fixed: was plain centered text → animated skeleton | N/A | ✓ Red error box |
+
+### EmployeeDetail loading skeleton structure
+- Header row: back-link placeholder + title placeholder | right-side button placeholders
+- Tabs bar: 4 × h-9 w-24 animate-pulse blocks
+- Content body: a tall rounded card, separator, 2-col grid of 4 field blocks, a large text area block
+
+### BrainPreviewTab loading skeleton structure
+- Divider line with label placeholder (matching the real section divider layout)
+- Rounded border card with 3 field stubs separated by h-px borders (mirrors Task Trigger / Employee Manual / After-Approval Action)
+- Two collapsed accordion placeholders at bottom
+
+### delivery_instructions null — already handled
+`data.delivery_prompt === null` guard at BrainPreviewTab line ~711 shows "No delivery instructions configured". No further change needed.
+
+### overview null fallback — already handled (Task 2)
+ConfigTab reads `archetype.overview?.role` and falls back to `archetype.instructions` when overview is null.
+
+### Build result
+- `pnpm build` (backend tsc) exits 0
+- `pnpm dashboard:build` (vite + tsc) exits 0
