@@ -24,6 +24,7 @@ import { adminBrainPreviewRoutes } from './routes/admin-brain-preview.js';
 import { adminToolsRoutes } from './routes/admin-tools.js';
 import { adminKbRoutes } from './routes/admin-kb.js';
 import { adminPropertyLockRoutes } from './routes/admin-property-locks.js';
+import { adminRulesRoutes } from './routes/admin-rules.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
@@ -180,6 +181,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminToolsRoutes());
   app.use(adminKbRoutes({ prisma }));
   app.use(adminPropertyLockRoutes({ prisma }));
+  app.use(adminRulesRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 

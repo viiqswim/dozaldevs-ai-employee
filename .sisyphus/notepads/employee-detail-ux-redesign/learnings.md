@@ -72,3 +72,29 @@ Object form — render individual fields with labels. Fallback to `instructions`
 
 ### Build result
 `pnpm build` exits 0 with no errors introduced.
+
+## Task 3 — Employee Rules CRUD API (2026-05-19)
+
+### EmployeeRule schema fields
+`id, tenant_id, archetype_id, rule_text, source, status, source_task_id, parent_rule_ids, slack_ts, slack_channel, created_at, confirmed_at` — **no `deleted_at`** field.
+
+### Delete strategy
+Hard delete via `prisma.employeeRule.deleteMany({ where: { id, archetype_id, tenant_id } })` — schema has no `deleted_at`, so AGENTS.md soft-delete rule cannot apply here.
+
+### URL pattern used
+`:archetypeId` (UUID) not `:slug` — dashboard needs to work with IDs directly.
+
+### Archetype scoping
+Before any mutation: `prisma.archetype.findFirst({ where: { id: archetypeId, tenant_id: tenantId } })` → 404 if missing. Ensures cross-tenant access is blocked.
+
+### Update pattern
+Used `updateMany` with full `{ id, archetype_id, tenant_id }` scope → check `count === 0` for 404. Then `findFirst` to return updated record.
+
+### CREATE defaults
+`source: 'admin'`, `confirmed_at: new Date()`, `status: bodyResult.data.status` (defaults to `'confirmed'` via Zod).
+
+### Route registration
+Added to `server.ts` between `adminPropertyLockRoutes` and `slackOAuthRoutes`.
+
+### Pre-existing test failures (not regressions)
+`admin-employee-trigger.test.ts`, `hostfully.test.ts`, `migration-agents-md.test.ts`, `supersede-threading.test.ts` — all failed before this task. Build exits 0 cleanly.
