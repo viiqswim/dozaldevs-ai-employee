@@ -754,7 +754,7 @@ export function EmployeeDetail() {
       toast.success('Employee deleted');
       setDeleteDialogOpen(false);
       navigate('/dashboard/employees?tenant=' + tenantId);
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete employee');
     } finally {
       setDeleteLoading(false);

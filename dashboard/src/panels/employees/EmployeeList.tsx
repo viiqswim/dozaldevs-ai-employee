@@ -176,7 +176,7 @@ export function EmployeeList() {
       toast.success('Employee deleted');
       setDeletingId(null);
       refresh();
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete employee');
     } finally {
       setDeleteLoading(false);
@@ -191,7 +191,7 @@ export function EmployeeList() {
       try {
         await deleteArchetype(tenantId!, id);
         successCount++;
-      } catch (err) {
+      } catch {
         const archetype = archetypes?.find((a) => a.id === id);
         toast.error(`Failed to delete ${archetype?.role_name ?? id}`);
       }
