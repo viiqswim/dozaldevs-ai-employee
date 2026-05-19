@@ -44,7 +44,7 @@ const PatchArchetypeBodySchema = z
     system_prompt: z.string().optional(),
     risk_model: z.record(z.string(), z.unknown()).optional(),
     concurrency_limit: z.number().int().positive().optional(),
-    notification_channel: z.string().optional(),
+    notification_channel: z.string().nullable().optional(),
     vm_size: z.string().optional(),
     deliverable_type: z.string().optional(),
     agents_md: z.string().min(1).max(50000).optional(),
