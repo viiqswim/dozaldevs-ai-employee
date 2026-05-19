@@ -95,19 +95,25 @@ export function CreateEmployeePage() {
             maxLength={2000}
           />
           <div className="space-y-2">
-            <label className="text-sm font-medium">Slack Channel (optional)</label>
+            <label className="text-sm font-medium">Slack Channel</label>
             <Input
               value={notificationChannel}
               onChange={(e) => setNotificationChannel(e.target.value)}
               placeholder="#channel-name"
               className="text-sm"
             />
+            <p className="text-xs text-muted-foreground">
+              The Slack channel where this employee operates — all notifications, approvals, and
+              deliveries go here.
+            </p>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{description.length}/2000</span>
             <Button
               onClick={() => void handleGenerate()}
-              disabled={description.length < 10 || description.length > 2000}
+              disabled={
+                description.length < 10 || description.length > 2000 || !notificationChannel.trim()
+              }
             >
               Generate
             </Button>

@@ -244,7 +244,7 @@ export function EditEmployeePage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Notification Channel
+              Slack Channel
             </label>
             <Input
               value={archetype.notification_channel ?? ''}
@@ -259,6 +259,10 @@ export function EditEmployeePage() {
                 void patch({ notification_channel: e.target.value || null });
               }}
             />
+            <p className="text-xs text-muted-foreground">
+              The Slack channel where this employee operates — all notifications, approvals, and
+              deliveries go here.
+            </p>
           </div>
 
           <div className="space-y-1">
@@ -405,7 +409,8 @@ export function EditEmployeePage() {
           disabled={
             !archetype.role_name?.trim() ||
             !archetype.instructions?.trim() ||
-            !archetype.agents_md?.trim()
+            !archetype.agents_md?.trim() ||
+            !archetype.notification_channel?.trim()
           }
         >
           Create Employee
