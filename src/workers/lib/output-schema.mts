@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export interface StandardOutput {
   summary: string;
-  classification: 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED';
+  classification: 'APPROVED' | 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED';
   draft?: string;
   confidence?: number;
   reasoning?: string;
@@ -12,7 +12,7 @@ export interface StandardOutput {
 
 export const standardOutputSchema = z.object({
   summary: z.string(),
-  classification: z.enum(['NEEDS_APPROVAL', 'NO_ACTION_NEEDED']),
+  classification: z.enum(['APPROVED', 'NEEDS_APPROVAL', 'NO_ACTION_NEEDED']),
   draft: z.string().optional(),
   confidence: z.number().min(0).max(1).optional(),
   reasoning: z.string().optional(),
