@@ -15,7 +15,12 @@ import {
   AccordionContent,
 } from '@/components/ui/accordion';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, patchArchetype, deleteArchetype } from '@/lib/gateway';
+import {
+  triggerEmployee,
+  patchArchetype,
+  deleteArchetype,
+  fetchSlackChannels,
+} from '@/lib/gateway';
 import {
   Dialog,
   DialogContent,
@@ -28,13 +33,27 @@ import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime, formatDuration, cn } from '@/lib/utils';
-import type { Archetype, Task, TaskStatusLog, EmployeeRule, InputSchemaItem } from '@/lib/types';
+import type {
+  Archetype,
+  Task,
+  TaskStatusLog,
+  EmployeeRule,
+  InputSchemaItem,
+  SlackChannel,
+} from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { StatusTimeline } from '@/panels/tasks/StatusTimeline';
 import { toast } from 'sonner';
 import { BrainPreviewTab } from './BrainPreviewTab';
 import { TrainingTab } from './TrainingTab';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Info, Webhook, MousePointer, Clock, ChevronRight } from 'lucide-react';
 
@@ -285,6 +304,30 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
+  const [slackError, setSlackError] = useState<string | undefined>();
+  const [slackLoading, setSlackLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSlackLoading(true);
+    fetchSlackChannels(tenantId)
+      .then((result) => {
+        if (cancelled) return;
+        setSlackChannels(result.channels ?? []);
+        if (result.error) setSlackError(result.error);
+        setSlackLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSlackChannels([]);
+        setSlackError('SLACK_NOT_CONFIGURED');
+        setSlackLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     if (!editMode) {
@@ -367,6 +410,12 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
     setEditValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  const resolveChannelName = (channelId: string | null | undefined) => {
+    if (!channelId) return '—';
+    const found = slackChannels.find((ch) => ch.id === channelId);
+    return found ? `#${found.name}` : channelId;
+  };
+
   if (!editMode) {
     return (
       <div className="space-y-6">
@@ -443,7 +492,9 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
                   Slack Channel
                 </LabelWithTooltip>
                 <FieldValue>
-                  <span className="font-mono text-xs">{archetype.notification_channel ?? '—'}</span>
+                  <span className="font-mono text-xs">
+                    {resolveChannelName(archetype.notification_channel)}
+                  </span>
                 </FieldValue>
               </dl>
               <dl>
@@ -591,11 +642,42 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Slack Channel
           </label>
-          <Input
-            value={editValues.notification_channel}
-            onChange={(e) => set('notification_channel')(e.target.value)}
-            className="font-mono text-xs"
-          />
+          {slackLoading ? (
+            <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+          ) : slackChannels.length > 0 ? (
+            <Select
+              value={editValues.notification_channel ?? ''}
+              onValueChange={set('notification_channel')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a channel..." />
+              </SelectTrigger>
+              <SelectContent>
+                {slackChannels.map((ch) => (
+                  <SelectItem key={ch.id} value={ch.id}>
+                    #{ch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={editValues.notification_channel}
+              onChange={(e) => set('notification_channel')(e.target.value)}
+              className="font-mono text-xs"
+              placeholder="#channel-name or channel ID"
+            />
+          )}
+          {slackError === 'SLACK_NOT_CONFIGURED' && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Slack not configured for this tenant. Enter a channel ID manually.
+            </p>
+          )}
+          {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Could not load channels — enter a channel ID manually.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
