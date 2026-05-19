@@ -38,12 +38,7 @@ A single-responsibility AI Employee Platform — deploys autonomous AI agents ("
 
 ## Current Implementation
 
-| Employee                | Status        | Trigger                   | Operational Details                  |
-| ----------------------- | ------------- | ------------------------- | ------------------------------------ |
-| Summarizer (Papi Chulo) | Active        | Daily cron (cron-job.org) | `docs/employees/daily-summarizer.md` |
-| Guest-Messaging (VLRE)  | Active        | Hostfully webhook         | `docs/employees/guest-messaging.md`  |
-| Code-Rotation (VLRE)    | Active        | Manual (admin API)        | `docs/employees/code-rotation.md`    |
-| Engineering             | ⚠️ DEPRECATED | Jira webhook              | See Deprecated Components            |
+Employee-specific details are in each archetype's `agents_md` field and in `docs/employees/`. Do not list employees here — this file is injected into every worker container and must not contain employee-specific identity content.
 
 ## Adding a New Employee
 
