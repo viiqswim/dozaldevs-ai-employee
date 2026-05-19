@@ -484,7 +484,7 @@ Max Concurrent: 4 (Wave 1)
   - Files: `src/gateway/routes/admin-archetypes.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 6. Patch All 7 PostgREST Query Sites
+- [x] 6. Patch All 7 PostgREST Query Sites
 
   **What to do**:
   Add `deleted_at: 'is.null'` to the query params in ALL 7 PostgREST fetch calls for archetypes:
@@ -539,7 +539,7 @@ Max Concurrent: 4 (Wave 1)
   **Commit**: YES (groups with Task 7)
   - Message: `feat(dashboard): add delete button and filter deleted archetypes`
 
-- [ ] 7. Individual Delete Button + Confirmation Dialog
+- [x] 7. Individual Delete Button + Confirmation Dialog
 
   **What to do**:
   - Add a "Delete" button in the Actions column of each row in `EmployeeList.tsx` — red/destructive variant, positioned after existing Trigger/Dry Run buttons
@@ -613,7 +613,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(dashboard): add delete button and filter deleted archetypes`
   - Files: `dashboard/src/panels/employees/EmployeeList.tsx`, `dashboard/src/panels/employees/EmployeeDetail.tsx`
 
-- [ ] 8. Bulk Delete — Checkboxes + "Delete Selected" Toolbar
+- [x] 8. Bulk Delete — Checkboxes + "Delete Selected" Toolbar
 
   **What to do**:
   - Add a Checkbox (from Task 3) in a new first column of the `EmployeeList` table — one per row + a "select all" checkbox in the header
