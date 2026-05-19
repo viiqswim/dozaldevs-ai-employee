@@ -18,12 +18,11 @@ import { getAdapter } from '../lib/enrichment-adapters/index.js';
 import type { NotificationEnrichment } from '../lib/types/notification-enrichment.js';
 import {
   buildSupersededBlocks,
-  buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
   buildEnrichedTerminalBlocks,
   buildContextThreadBlocks,
-  buildNotifyBlocks,
+  createTaskNotifyBuilders,
 } from '../lib/slack-blocks.js';
 import {
   clearPendingApprovalByTaskId,
@@ -132,6 +131,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
     },
     async ({ event, step, runId }) => {
       const { taskId, archetypeId } = event.data as { taskId: string; archetypeId: string };
+      const { notifyBlocks, notifyStateBlocks } = createTaskNotifyBuilders({ taskId, runId });
 
       const supabaseUrl = process.env.SUPABASE_URL!;
       const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
@@ -245,10 +245,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn({ taskId, enrichErr }, 'Enrichment adapter failed (non-fatal)');
             }
           }
-          const blocks = buildNotifyBlocks({
+          const blocks = notifyBlocks({
             state: 'Received',
             archetypeName: roleName,
-            taskId,
             enrichment,
             emoji: '⏳',
           });
@@ -614,10 +613,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const supersededText = `⏭️ Superseded`;
-                const supersededNotifyBlocks = buildNotifyBlocks({
+                const supersededNotifyBlocks = notifyBlocks({
                   state: 'Superseded',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
-                  taskId,
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '⏭️',
                 });
@@ -678,10 +676,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const failText = `❌ Task failed`;
-                const notifyFailedBlocks = buildNotifyBlocks({
+                const notifyFailedBlocks = notifyBlocks({
                   state: 'Failed',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
-                  taskId,
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '❌',
                 });
@@ -759,7 +756,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   doneText,
-                  buildNotifyStateBlocks({ emoji: '✅', text: 'Task complete', taskId }),
+                  notifyStateBlocks({ emoji: '✅', text: 'Task complete' }),
                 );
               }
             } catch (err) {
@@ -1038,7 +1035,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 await updateNotifyMsg(
                   resolvedText,
                   slackForTimeout,
-                  buildNotifyStateBlocks({ emoji: '✅', text: 'No action needed', taskId }),
+                  notifyStateBlocks({ emoji: '✅', text: 'No action needed' }),
                 );
                 await updateOverrideCard(resolvedText, slackForTimeout);
               }
@@ -1081,10 +1078,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 await updateNotifyMsg(
                   resolvedText,
                   slackForDismiss,
-                  buildNotifyStateBlocks({
+                  notifyStateBlocks({
                     emoji: '✅',
                     text: 'No action needed — dismissed',
-                    taskId,
                   }),
                 );
               }
@@ -1359,10 +1355,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingText = reviewingGuestName
             ? `Awaiting approval — reply drafted for ${reviewingGuestName}`
             : 'Awaiting approval — reply drafted';
-          const reviewingBlocks = buildNotifyBlocks({
+          const reviewingBlocks = notifyBlocks({
             state: 'Reviewing',
             archetypeName: (archetype.role_name as string) ?? 'unknown',
-            taskId,
             enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
             emoji: '⏳',
           });
@@ -1456,10 +1451,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               const nudgeResult = await web.chat.postMessage({
                 channel: notifyMsgRef.channel,
                 text: nudgeText,
-                blocks: buildNotifyBlocks({
+                blocks: notifyBlocks({
                   state: 'Reviewing',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
-                  taskId,
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '⏳',
                 }) as import('@slack/web-api').Block[],
@@ -1612,10 +1606,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const expiredNotifyText = `⏰ Expired — no action taken.`;
-              const notifyExpiryBlocks = buildNotifyBlocks({
+              const notifyExpiryBlocks = notifyBlocks({
                 state: 'Expired',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
-                taskId,
                 enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                 emoji: '⏰',
               });
@@ -1815,10 +1808,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   configFailText,
-                  buildNotifyStateBlocks({
+                  notifyStateBlocks({
                     emoji: '❌',
                     text: 'Task failed — missing delivery configuration',
-                    taskId,
                   }),
                 );
               } catch (err) {
@@ -1883,10 +1875,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const approvedNotifyText = `✅ Approved by <@${actorUserId}> — delivering now.`;
-              const approveNotifyBlocks = buildNotifyBlocks({
+              const approveNotifyBlocks = notifyBlocks({
                 state: 'Approved — delivering now',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
-                taskId,
                 enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                 emoji: '✅',
                 extraText: `Approved by <@${actorUserId}>`,
@@ -2035,10 +2026,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
                 try {
                   const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
-                  const delivFailBlocks = buildNotifyBlocks({
+                  const delivFailBlocks = notifyBlocks({
                     state: 'Delivery failed',
                     archetypeName: (archetype.role_name as string) ?? 'unknown',
-                    taskId,
                     enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                     emoji: '❌',
                   });
@@ -2094,10 +2084,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 const sentNotifyText = terminalRecipientName
                   ? `Reply sent to ${terminalRecipientName}`
                   : 'Reply sent';
-                const notifyDoneBlocks = buildNotifyBlocks({
+                const notifyDoneBlocks = notifyBlocks({
                   state: 'Done',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
-                  taskId,
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '✅',
                   extraText: `Approved by <@${actorUserId}>`,
@@ -2141,10 +2130,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const supersededNotifyText = `⏭️ Superseded`;
-              const supersededNotifyBlocks = buildNotifyBlocks({
+              const supersededNotifyBlocks = notifyBlocks({
                 state: 'Superseded',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
-                taskId,
                 enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                 emoji: '⏭️',
               });
@@ -2346,10 +2334,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
               const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
-              const notifyRejectBlocks = buildNotifyBlocks({
+              const notifyRejectBlocks = notifyBlocks({
                 state: 'Rejected',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
-                taskId,
                 enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                 emoji: '❌',
                 extraText: `Rejected by <@${actorUserId}>`,
