@@ -23,6 +23,7 @@ function parseArgs(argv: string[]): {
   let conversationRef: string | undefined;
   let title: string | undefined;
   let threadTs: string | undefined;
+  let noThread = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -40,9 +41,11 @@ function parseArgs(argv: string[]): {
       title = args[++i];
     } else if (args[i] === '--thread-ts' && args[i + 1]) {
       threadTs = args[++i];
+    } else if (args[i] === '--no-thread') {
+      noThread = true;
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>] [--thread-ts <ts>]\n\n' +
+        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>] [--thread-ts <ts>] [--no-thread]\n\n' +
           'Options:\n' +
           '  --channel <id>              (required) Slack channel ID to post to\n' +
           '  --text <string>             (required) Message text\n' +
@@ -51,10 +54,16 @@ function parseArgs(argv: string[]): {
           '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
           '  --title <string>            Optional approval card header title (default: "Task Review — <date>")\n' +
           '  --thread-ts <ts>            Optional Slack message timestamp to reply in thread\n' +
+          '  --no-thread                 Suppress auto-threading even when NOTIFY_MSG_TS env var is set\n' +
           '  --help                      Show this help message\n',
       );
       process.exit(0);
     }
+  }
+
+  if (threadTs === undefined && !noThread) {
+    const envTs = process.env.NOTIFY_MSG_TS;
+    if (envTs) threadTs = envTs;
   }
 
   return { channel, text, blocks, taskId, conversationRef, title, threadTs };
@@ -65,6 +74,7 @@ export function buildApprovalBlocks(
   taskId: string,
   date: string,
   title?: string,
+  runId?: string,
 ): unknown[] {
   return [
     {
@@ -79,7 +89,10 @@ export function buildApprovalBlocks(
     { type: 'divider' },
     {
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+      elements: [
+        { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+        ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+      ],
     },
     {
       type: 'actions',
@@ -114,6 +127,8 @@ async function main(): Promise<void> {
     threadTs,
   } = parseArgs(process.argv);
 
+  const runId = process.env.INNGEST_RUN_ID || undefined;
+
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) {
     process.stderr.write('Error: SLACK_BOT_TOKEN environment variable is required\n');
@@ -146,9 +161,15 @@ async function main(): Promise<void> {
         ? [
             { type: 'section', text: { type: 'mrkdwn', text } },
             { type: 'divider' },
-            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+            {
+              type: 'context',
+              elements: [
+                { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+                ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+              ],
+            },
           ]
-        : buildApprovalBlocks(text, taskId, date, title)
+        : buildApprovalBlocks(text, taskId, date, title, runId)
       : undefined);
 
   const result = await client.chat.postMessage({
