@@ -138,7 +138,17 @@ async function main(): Promise<void> {
     day: 'numeric',
   });
 
-  const blocks = rawBlocks ?? (taskId ? buildApprovalBlocks(text, taskId, date, title) : undefined);
+  const blocks =
+    rawBlocks ??
+    (taskId
+      ? process.env.APPROVAL_REQUIRED === 'false'
+        ? [
+            { type: 'section', text: { type: 'mrkdwn', text } },
+            { type: 'divider' },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ]
+        : buildApprovalBlocks(text, taskId, date, title)
+      : undefined);
 
   const result = await client.chat.postMessage({
     channel,
