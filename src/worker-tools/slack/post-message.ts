@@ -13,6 +13,7 @@ function parseArgs(argv: string[]): {
   taskId?: string;
   conversationRef?: string;
   title?: string;
+  threadTs?: string;
 } {
   const args = argv.slice(2);
   let channel = '';
@@ -21,6 +22,7 @@ function parseArgs(argv: string[]): {
   let taskId: string | undefined;
   let conversationRef: string | undefined;
   let title: string | undefined;
+  let threadTs: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -35,9 +37,11 @@ function parseArgs(argv: string[]): {
       conversationRef = args[++i];
     } else if (args[i] === '--title' && args[i + 1]) {
       title = args[++i];
+    } else if (args[i] === '--thread-ts' && args[i + 1]) {
+      threadTs = args[++i];
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>]\n\n' +
+        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>] [--thread-ts <ts>]\n\n' +
           'Options:\n' +
           '  --channel <id>              (required) Slack channel ID to post to\n' +
           '  --text <string>             (required) Message text\n' +
@@ -45,13 +49,14 @@ function parseArgs(argv: string[]): {
           '  --task-id <uuid>            Optional task ID — auto-generates approval blocks with Approve/Reject buttons\n' +
           '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
           '  --title <string>            Optional approval card header title (default: "Task Review — <date>")\n' +
+          '  --thread-ts <ts>            Optional Slack message timestamp to reply in thread\n' +
           '  --help                      Show this help message\n',
       );
       process.exit(0);
     }
   }
 
-  return { channel, text, blocks, taskId, conversationRef, title };
+  return { channel, text, blocks, taskId, conversationRef, title, threadTs };
 }
 
 export function buildApprovalBlocks(
@@ -105,6 +110,7 @@ async function main(): Promise<void> {
     taskId,
     conversationRef,
     title,
+    threadTs,
   } = parseArgs(process.argv);
 
   const token = process.env.SLACK_BOT_TOKEN;
@@ -138,6 +144,7 @@ async function main(): Promise<void> {
     channel,
     text,
     ...(blocks !== undefined && { blocks: blocks as import('@slack/web-api').KnownBlock[] }),
+    ...(threadTs !== undefined && { thread_ts: threadTs }),
   });
 
   if (!result.ok || !result.ts || !result.channel) {
