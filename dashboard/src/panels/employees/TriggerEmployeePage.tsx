@@ -94,6 +94,7 @@ export function TriggerEmployeePage() {
       postgrestFetch<Archetype>('archetypes', {
         id: `eq.${archetypeId ?? ''}`,
         ...scopeByTenant(tenantId),
+        deleted_at: 'is.null',
       }).then((arr) => arr[0] ?? null),
     [archetypeId, tenantId],
   );

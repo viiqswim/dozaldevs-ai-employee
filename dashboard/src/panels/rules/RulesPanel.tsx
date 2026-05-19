@@ -724,6 +724,7 @@ export function RulesPanel() {
       postgrestFetch<Pick<Archetype, 'id' | 'role_name'>>('archetypes', {
         ...scopeByTenant(tenantId),
         select: 'id,role_name',
+        deleted_at: 'is.null',
         order: 'role_name.asc',
       }),
     [tenantId],

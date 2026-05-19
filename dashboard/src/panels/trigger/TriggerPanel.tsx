@@ -57,6 +57,7 @@ export function TriggerPanel() {
       postgrestFetch<Archetype>('archetypes', {
         ...scopeByTenant(tenantId),
         select: 'id,role_name,model,runtime,deliverable_type,risk_model,concurrency_limit',
+        deleted_at: 'is.null',
         order: 'role_name.asc',
         limit: '50',
       }),

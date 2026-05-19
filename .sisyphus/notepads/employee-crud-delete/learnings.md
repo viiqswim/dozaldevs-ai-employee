@@ -68,3 +68,15 @@
 
 - DELETE happy path: `.sisyphus/evidence/task-5-delete-happy.txt` → 200 `{ id, deleted_at }`
 - Restore happy path: `.sisyphus/evidence/task-5-restore-happy.txt` → 200 full archetype (deleted_at: null)
+
+## Task 6 — PostgREST Query Sites (2026-05-19)
+
+### Pattern Applied
+
+- Added `deleted_at: 'is.null'` to all 7 archetype PostgREST query sites in `dashboard/src/panels/`
+- Pattern: add alongside existing params — same flat object, same key-value style as `status: 'neq.superseded'`
+- `TenantOverview.tsx` had NO existing filters — expanded single-line call to multi-line object for readability
+- `EditEmployeePage.tsx` uses `id: eq.${archetypeId}` (single-record fetch) — still needs `deleted_at: 'is.null'` to prevent loading deleted archetypes
+- TypeScript compile (`npx tsc --noEmit`) passes clean — 0 errors
+- Evidence: `.sisyphus/evidence/task-6-query-sites.txt` — 7 matches confirmed
+- NOTE: Task 9 will make `EmployeeList.tsx` conditional (toggle "Show deleted") — for now always filters
