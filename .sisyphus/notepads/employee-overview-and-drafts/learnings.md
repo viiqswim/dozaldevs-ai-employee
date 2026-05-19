@@ -206,3 +206,61 @@
 ### vitest.config.ts includes both paths
 - `tests/**/*.test.ts` (integration tests with real DB)
 - `src/**/__tests__/**/*.test.ts` (co-located unit tests, Prisma mocked)
+
+## [2026-05-18] T15 — Frontend E2E Verification
+
+### Results: 6/6 scenarios PASS
+
+| Scenario | Name | Result |
+|----------|------|--------|
+| A | Generate → Auto-save → Redirect | ✅ PASS |
+| B | Refresh Persistence | ✅ PASS |
+| C | Overview Display (6 labels, numbered list) | ✅ PASS |
+| D | Advanced Section (expand, labels) | ✅ PASS |
+| E | Finalize (Promote to Active) | ✅ PASS |
+| F | Draft Badge in List | ✅ PASS |
+
+### Archetype Created in Run
+- id: `c3276249-6c7c-436b-b2fe-3762dc33f955`
+- final role_name: `standup-summarizer-50566958` (patched unique to avoid 409)
+- status: `active`
+
+### Key E2E Infrastructure Discoveries
+
+1. **ApiKeyPrompt dialog** — Dashboard shows a modal asking for admin API key on first visit.
+   - Key stored in `localStorage.admin_api_key`
+   - Fix: call `localStorage.setItem('admin_api_key', key)` via `page.evaluate()` after `page.goto('/dashboard')`
+   - Must re-inject after each full `page.goto()` that resets JS context (though same-origin navigations preserve it)
+
+2. **CSS `text-transform: uppercase` on labels** — Both `SectionLabel` (EmployeeOverview) and `MarkdownEditorField` use `uppercase` CSS class.
+   - Playwright `page.evaluate(() => document.body.innerText)` returns UPPERCASE text in Chromium
+   - Fix: use case-insensitive comparison for all label checks: `bt.toLowerCase().includes(label.toLowerCase())`
+
+3. **Advanced section is `<details><summary>`** — Not a button/accordion toggle, just HTML native details.
+   - Selector: `details > summary` — reliable, no text matching needed
+   - Check `details.open` before clicking to avoid double-toggle
+
+4. **Playwright `waitForURL` function predicate** — When passing a function, Playwright provides a `URL` object, NOT a string.
+   - `url.includes(...)` → TypeError: `url.includes is not a function`
+   - Fix: use `url.href.includes(...)` or `url.toString().includes(...)`
+
+5. **role_name uniqueness in Finalize** — Admin PATCH to `status: 'active'` returns 409 if same role_name is already active (partial index enforces this).
+   - For idempotent E2E tests: pre-patch role_name to unique value (`standup-summarizer-{timestamp}`) via admin API before finalizing
+   - After pre-patching DB, reload page so React state picks up new role_name
+   - The `handleFinalize` only sends `{ status: 'active' }` — it uses existing role_name from DB for conflict check
+
+6. **PostgREST INSERT schema cache** — `status` column blocked with `PGRST204: Could not find the 'status' column` on direct PostgREST INSERT.
+   - Root cause: PostgREST schema cache not refreshed for new column
+   - Fix: use admin API (`POST /admin/tenants/:tenantId/archetypes`) instead of direct PostgREST
+
+7. **role_name is in `<input>` value** — `document.body.innerText` does NOT include `<input>` element values.
+   - Verify role_name by querying DB directly via PostgREST, not by checking page text
+
+8. **Admin DELETE endpoint doesn't exist** — Only GET, POST, PATCH in `/admin/tenants/:tenantId/archetypes`.
+   - Cleanup: PATCH status to 'superseded' instead of DELETE
+
+### Build
+- `cd dashboard && pnpm build` exits 0 (414ms, 1280kB bundle, tsc + vite)
+
+### Evidence
+- 8 screenshots + summary.txt in `.sisyphus/evidence/task-15-e2e/`
