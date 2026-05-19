@@ -33,14 +33,7 @@ import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime, formatDuration, cn } from '@/lib/utils';
-import type {
-  Archetype,
-  Task,
-  TaskStatusLog,
-  EmployeeRule,
-  InputSchemaItem,
-  SlackChannel,
-} from '@/lib/types';
+import type { Archetype, Task, TaskStatusLog, InputSchemaItem, SlackChannel } from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { StatusTimeline } from '@/panels/tasks/StatusTimeline';
 import { toast } from 'sonner';
@@ -125,10 +118,6 @@ function LabelWithTooltip({ children, tip }: { children: React.ReactNode; tip: s
       </Tooltip>
     </dt>
   );
-}
-
-function is403(err: Error): boolean {
-  return err.message.includes('403') || err.message.toLowerCase().includes('permission denied');
 }
 
 function TriggerSourceIcon({ sourceSystem }: { sourceSystem: string | null }) {
