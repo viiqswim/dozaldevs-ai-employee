@@ -374,3 +374,32 @@ export function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
   }
   return result.data;
 }
+
+// ─── Input Schema (dynamic employee inputs) ───────────────────────────────────
+
+export const InputSchemaItemSchema = z
+  .object({
+    key: z
+      .string()
+      .regex(
+        /^[a-z][a-z0-9_]*$/,
+        'Key must be snake_case (lowercase letters, digits, underscores)',
+      ),
+    label: z.string().min(1).max(100),
+    type: z.enum(['text', 'long_text', 'date', 'number', 'url', 'select']),
+    frequency: z.enum(['once', 'every_run']),
+    required: z.boolean(),
+    description: z.string().max(500).optional(),
+    options: z.array(z.string()).optional(),
+    default_value: z.string().optional(),
+  })
+  .refine((item) => item.type !== 'select' || (item.options && item.options.length > 0), {
+    message: 'options must be provided and non-empty when type is "select"',
+    path: ['options'],
+  });
+
+export type InputSchemaItem = z.infer<typeof InputSchemaItemSchema>;
+
+export const InputSchemaSchema = z.array(InputSchemaItemSchema);
+
+export type InputSchema = z.infer<typeof InputSchemaSchema>;

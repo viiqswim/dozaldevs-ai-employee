@@ -3,7 +3,7 @@ import pino from 'pino';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantIdParamSchema } from '../validation/schemas.js';
+import { TenantIdParamSchema, InputSchemaSchema } from '../validation/schemas.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -56,6 +56,8 @@ const PatchArchetypeBodySchema = z
     status: z.enum(['active', 'draft', 'superseded']).optional(),
     overview: z.any().nullable().optional(),
     parent_draft_id: z.string().uuid().nullable().optional(),
+    input_schema: InputSchemaSchema.optional(),
+    worker_env: z.record(z.string(), z.string()).nullish(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {
@@ -95,6 +97,8 @@ const CreateArchetypeBodySchema = z.object({
   status: z.enum(['active', 'draft']).default('active'),
   overview: z.any().nullable().optional().default(null),
   parent_draft_id: z.string().uuid().nullable().optional().default(null),
+  input_schema: InputSchemaSchema.optional(),
+  worker_env: z.record(z.string(), z.string()).nullish(),
 });
 
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
@@ -116,7 +120,15 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     }
 
     const { tenantId } = paramResult.data;
-    const { risk_model, trigger_sources, tool_registry, overview, ...rest } = bodyResult.data;
+    const {
+      risk_model,
+      trigger_sources,
+      tool_registry,
+      overview,
+      input_schema,
+      worker_env,
+      ...rest
+    } = bodyResult.data;
 
     try {
       const newArchetype = await prisma.archetype.create({
@@ -131,6 +143,12 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
             tool_registry: tool_registry as Prisma.InputJsonValue,
           }),
           overview: overview !== null ? (overview as Prisma.InputJsonValue) : Prisma.JsonNull,
+          ...(input_schema !== undefined && {
+            input_schema: input_schema as Prisma.InputJsonValue,
+          }),
+          ...(worker_env != null && {
+            worker_env: worker_env as Prisma.InputJsonValue,
+          }),
         },
       });
 
@@ -176,8 +194,16 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           return;
         }
 
-        const { risk_model, trigger_sources, tool_registry, overview, status, ...rest } =
-          bodyResult.data;
+        const {
+          risk_model,
+          trigger_sources,
+          tool_registry,
+          overview,
+          status,
+          input_schema,
+          worker_env,
+          ...rest
+        } = bodyResult.data;
 
         if (status === 'active') {
           const conflict = await prisma.archetype.findFirst({
@@ -212,6 +238,13 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
             }),
             ...(overview !== undefined && {
               overview: overview === null ? Prisma.JsonNull : (overview as Prisma.InputJsonValue),
+            }),
+            ...(input_schema !== undefined && {
+              input_schema: input_schema as Prisma.InputJsonValue,
+            }),
+            ...(worker_env !== undefined && {
+              worker_env:
+                worker_env === null ? Prisma.JsonNull : (worker_env as Prisma.InputJsonValue),
             }),
           },
         });
