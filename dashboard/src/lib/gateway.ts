@@ -202,6 +202,21 @@ export async function createArchetype(
   });
 }
 
+export async function deleteArchetype(
+  tenantId: string,
+  archetypeId: string,
+): Promise<{ id: string; deleted_at: string }> {
+  return gatewayFetch(`/admin/tenants/${tenantId}/archetypes/${archetypeId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function restoreArchetype(tenantId: string, archetypeId: string): Promise<Archetype> {
+  return gatewayFetch(`/admin/tenants/${tenantId}/archetypes/${archetypeId}/restore`, {
+    method: 'POST',
+  });
+}
+
 export async function createRule(
   tenantId: string,
   archetypeId: string,

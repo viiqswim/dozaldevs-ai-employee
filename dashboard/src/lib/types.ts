@@ -102,6 +102,7 @@ export interface Archetype {
   parent_draft_id: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface Tenant {
