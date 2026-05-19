@@ -108,6 +108,55 @@ describe('ArchetypeGenerator', () => {
     });
   });
 
+  describe('overview field (postProcess)', () => {
+    it('preserves overview with all 6 keys when LLM response includes a valid overview', async () => {
+      const overview = {
+        role: 'A bot that digests Slack channels daily',
+        trigger: 'Runs every morning at 8am UTC on weekdays',
+        workflow: ['Fetch messages from channels', 'Summarize with AI', 'Post digest to Slack'],
+        tools_used: 'Slack API for reading channels and posting messages',
+        output: 'Daily digest message posted in a Slack channel',
+        approval: 'Requires PM approval before posting',
+      };
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent({ overview }));
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      const result = await gen.generate('A daily Slack digest bot');
+      expect(result.overview).toEqual(overview);
+      expect(Object.keys(result.overview)).toHaveLength(6);
+      expect(Object.keys(result.overview)).toEqual(
+        expect.arrayContaining(['role', 'trigger', 'workflow', 'tools_used', 'output', 'approval']),
+      );
+    });
+
+    it('sets fallback overview with empty values when LLM response is missing overview', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      const result = await gen.generate('A daily Slack digest bot');
+      expect(result.overview).toEqual({
+        role: '',
+        trigger: '',
+        workflow: [],
+        tools_used: '',
+        output: '',
+        approval: '',
+      });
+    });
+
+    it('sets fallback overview when LLM response has overview as a non-object (e.g. string)', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent({ overview: 'not an object' }));
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      const result = await gen.generate('A daily Slack digest bot');
+      expect(result.overview).toEqual({
+        role: '',
+        trigger: '',
+        workflow: [],
+        tools_used: '',
+        output: '',
+        approval: '',
+      });
+    });
+  });
+
   describe('refine()', () => {
     it('calls LLM with the previous config JSON serialised in the user message', async () => {
       const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
