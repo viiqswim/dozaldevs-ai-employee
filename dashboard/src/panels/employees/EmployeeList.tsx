@@ -10,6 +10,14 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
@@ -34,7 +42,7 @@ function shortModel(model: string | null): string {
 function SkeletonRow() {
   return (
     <TableRow>
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 w-full animate-pulse rounded bg-muted" />
         </TableCell>
@@ -43,10 +51,41 @@ function SkeletonRow() {
   );
 }
 
+function StatusBadge({ status }: { status: string | null }) {
+  if (status === 'active') {
+    return (
+      <Badge
+        variant="outline"
+        className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+      >
+        Active
+      </Badge>
+    );
+  }
+  if (status === 'draft') {
+    return (
+      <Badge
+        variant="outline"
+        className="border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+      >
+        Draft
+      </Badge>
+    );
+  }
+  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
+  return (
+    <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+      {label}
+    </Badge>
+  );
+}
+
 export function EmployeeList() {
   const { tenantId } = useTenant();
   const navigate = useNavigate();
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
 
   const setRowLoading = (archetypeId: string, action: string, val: boolean) => {
@@ -144,6 +183,7 @@ export function EmployeeList() {
               <TableHead>Employee</TableHead>
               <TableHead>Model</TableHead>
               <TableHead>Runtime</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Approval</TableHead>
               <TableHead>Concurrency</TableHead>
               <TableHead>Actions</TableHead>
@@ -196,11 +236,38 @@ export function EmployeeList() {
     );
   }
 
+  const filteredArchetypes = archetypes.filter((a) => {
+    const matchesSearch = a.role_name?.toLowerCase().includes(search.toLowerCase()) ?? true;
+    const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Employees</h2>
         <Button onClick={() => navigate('/dashboard/employees/new')}>+ New Employee</Button>
+      </div>
+      <div className="flex items-center gap-3 mb-4">
+        <Input
+          placeholder="Search employees…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1"
+        />
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as 'all' | 'active' | 'draft')}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <Table>
         <TableHeader>
@@ -208,101 +275,105 @@ export function EmployeeList() {
             <TableHead>Employee</TableHead>
             <TableHead>Model</TableHead>
             <TableHead>Runtime</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Approval</TableHead>
             <TableHead>Concurrency</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {archetypes.map((archetype) => {
-            const isGuestMessaging = archetype.role_name === 'guest-messaging';
-            const isDraft = archetype.status === 'draft';
-            return (
-              <TableRow
-                key={archetype.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() =>
-                  navigate(
-                    isDraft
-                      ? `/dashboard/employees/${archetype.id}/edit`
-                      : `/dashboard/employees/${archetype.id}`,
-                  )
-                }
-              >
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
+          {filteredArchetypes.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                No results match your search or filter.
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredArchetypes.map((archetype) => {
+              const isGuestMessaging = archetype.role_name === 'guest-messaging';
+              const isDraft = archetype.status === 'draft';
+              return (
+                <TableRow
+                  key={archetype.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() =>
+                    navigate(
+                      isDraft
+                        ? `/dashboard/employees/${archetype.id}/edit`
+                        : `/dashboard/employees/${archetype.id}`,
+                    )
+                  }
+                >
+                  <TableCell className="font-medium">
                     {archetype.role_name ?? (
                       <span className="text-muted-foreground">{archetype.id}</span>
                     )}
-                    {isDraft && (
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {shortModel(archetype.model)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {archetype.runtime ?? '—'}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={archetype.status ?? null} />
+                  </TableCell>
+                  <TableCell>
+                    {archetype.risk_model?.approval_required ? (
                       <Badge
                         variant="outline"
-                        className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                        className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
                       >
-                        Draft
+                        Required
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                      >
+                        Auto
                       </Badge>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {shortModel(archetype.model)}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{archetype.runtime ?? '—'}</TableCell>
-                <TableCell>
-                  {archetype.risk_model?.approval_required ? (
-                    <Badge
-                      variant="outline"
-                      className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                    >
-                      Required
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-                    >
-                      Auto
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {archetype.concurrency_limit}
-                </TableCell>
-                <TableCell>
-                  {!isDraft && (
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
-                        onClick={(e) => void handleTrigger(e, archetype)}
-                      >
-                        {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
-                        onClick={(e) => void handleDryRun(e, archetype)}
-                      >
-                        {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
-                      </Button>
-                      {isGuestMessaging && (
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {archetype.concurrency_limit}
+                  </TableCell>
+                  <TableCell>
+                    {!isDraft && (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
-                          variant="secondary"
-                          disabled={isRowLoading(archetype.id, 'webhook')}
-                          onClick={(e) => void handleFireWebhook(e, archetype)}
+                          variant="outline"
+                          disabled={isRowLoading(archetype.id, 'trigger') || !archetype.role_name}
+                          onClick={(e) => void handleTrigger(e, archetype)}
                         >
-                          {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                          {isRowLoading(archetype.id, 'trigger') ? 'Triggering…' : 'Trigger'}
                         </Button>
-                      )}
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isRowLoading(archetype.id, 'dryrun') || !archetype.role_name}
+                          onClick={(e) => void handleDryRun(e, archetype)}
+                        >
+                          {isRowLoading(archetype.id, 'dryrun') ? 'Running…' : 'Dry Run'}
+                        </Button>
+                        {isGuestMessaging && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={isRowLoading(archetype.id, 'webhook')}
+                            onClick={(e) => void handleFireWebhook(e, archetype)}
+                          >
+                            {isRowLoading(archetype.id, 'webhook') ? 'Firing…' : 'Fire Webhook'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
         </TableBody>
       </Table>
     </div>
