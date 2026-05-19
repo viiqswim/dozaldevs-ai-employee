@@ -16,6 +16,12 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee, patchArchetype } from '@/lib/gateway';
 import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
@@ -363,94 +369,137 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-          <dl>
-            <FieldLabel>Role Name</FieldLabel>
-            <FieldValue>{archetype.role_name ?? '—'}</FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Model</FieldLabel>
-            <FieldValue>
-              <span className="font-mono text-xs">{archetype.model ?? '—'}</span>
-            </FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Runtime</FieldLabel>
-            <FieldValue>{archetype.runtime ?? '—'}</FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Deliverable Type</FieldLabel>
-            <FieldValue>{archetype.deliverable_type ?? '—'}</FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Notification Channel</FieldLabel>
-            <FieldValue>
-              <span className="font-mono text-xs">{archetype.notification_channel ?? '—'}</span>
-            </FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>VM Size</FieldLabel>
-            <FieldValue>{archetype.vm_size ?? '—'}</FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Concurrency Limit</FieldLabel>
-            <FieldValue>{archetype.concurrency_limit}</FieldValue>
-          </dl>
-          <dl>
-            <FieldLabel>Approval</FieldLabel>
-            <FieldValue>
-              {archetype.risk_model?.approval_required ? (
-                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
-                  Required
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-800">
-                  Auto
-                </Badge>
-              )}
-            </FieldValue>
-          </dl>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Inputs
-          </p>
-          {!archetype.input_schema || archetype.input_schema.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No inputs configured. This employee runs without any user-provided data.
-            </p>
+        <div className="rounded-lg border bg-muted/20 p-5">
+          {archetype.overview ? (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Role
+                </p>
+                <p className="mt-1 text-sm">{archetype.overview.role}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Trigger
+                </p>
+                <p className="mt-1 text-sm">{archetype.overview.trigger}</p>
+              </div>
+            </div>
           ) : (
-            <InputSchemaEditor value={archetype.input_schema} onChange={() => {}} readOnly={true} />
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                About this employee
+              </p>
+              <p className="line-clamp-3 text-sm text-muted-foreground">
+                {archetype.instructions ?? 'No description available.'}
+              </p>
+            </div>
           )}
         </div>
 
         <Separator />
 
-        <dl className="space-y-4">
+        <div className="space-y-5">
+          <h3 className="text-sm font-semibold">Behavior &amp; Settings</h3>
+
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+            <dl>
+              <FieldLabel>Approval</FieldLabel>
+              <FieldValue>
+                {archetype.risk_model?.approval_required ? (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  >
+                    Approval Required
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                  >
+                    Auto-Approved
+                  </Badge>
+                )}
+              </FieldValue>
+            </dl>
+            <dl>
+              <FieldLabel>Slack Channel</FieldLabel>
+              <FieldValue>
+                <span className="font-mono text-xs">{archetype.notification_channel ?? '—'}</span>
+              </FieldValue>
+            </dl>
+            <dl>
+              <FieldLabel>Simultaneous Tasks</FieldLabel>
+              <FieldValue>{archetype.concurrency_limit}</FieldValue>
+            </dl>
+            <dl>
+              <FieldLabel>Maximum Duration</FieldLabel>
+              <FieldValue>
+                {archetype.risk_model?.timeout_hours != null
+                  ? `${archetype.risk_model.timeout_hours} hours`
+                  : '—'}
+              </FieldValue>
+            </dl>
+          </div>
+
           <div>
-            <FieldLabel>Instructions</FieldLabel>
+            <FieldLabel>Task Instructions</FieldLabel>
             <dd className="mt-1 rounded-md border bg-muted/10 p-4">
               <MarkdownPreview content={archetype.instructions ?? ''} />
             </dd>
           </div>
-          <div>
-            <FieldLabel>System Prompt</FieldLabel>
-            <dd className="mt-1 rounded-md border bg-muted/10 p-4">
-              <MarkdownPreview content={archetype.system_prompt ?? ''} />
-            </dd>
-          </div>
-          <div>
-            <FieldLabel>Risk Model</FieldLabel>
-            <dd className="mt-1">
-              <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
-                {JSON.stringify(archetype.risk_model ?? {}, null, 2)}
-              </pre>
-            </dd>
-          </div>
-        </dl>
+        </div>
+
+        <Separator />
+
+        <Accordion type="single" collapsible>
+          <AccordionItem value="technical-details" className="border-none">
+            <AccordionTrigger className="py-2 text-sm font-medium text-muted-foreground hover:no-underline">
+              Technical Details
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                  <dl>
+                    <FieldLabel>Model</FieldLabel>
+                    <FieldValue>
+                      <span className="font-mono text-xs">{archetype.model ?? '—'}</span>
+                    </FieldValue>
+                  </dl>
+                  <dl>
+                    <FieldLabel>Runtime</FieldLabel>
+                    <FieldValue>{archetype.runtime ?? '—'}</FieldValue>
+                  </dl>
+                  <dl>
+                    <FieldLabel>VM Size</FieldLabel>
+                    <FieldValue>{archetype.vm_size ?? '—'}</FieldValue>
+                  </dl>
+                  <dl>
+                    <FieldLabel>Deliverable Type</FieldLabel>
+                    <FieldValue>{archetype.deliverable_type ?? '—'}</FieldValue>
+                  </dl>
+                </div>
+
+                <div>
+                  <FieldLabel>System Prompt</FieldLabel>
+                  <dd className="mt-1 rounded-md border bg-muted/10 p-4">
+                    <MarkdownPreview content={archetype.system_prompt ?? ''} />
+                  </dd>
+                </div>
+
+                <div>
+                  <FieldLabel>Risk Model</FieldLabel>
+                  <dd className="mt-1">
+                    <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
+                      {JSON.stringify(archetype.risk_model ?? {}, null, 2)}
+                    </pre>
+                  </dd>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
     );
   }
