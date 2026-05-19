@@ -3,14 +3,6 @@ import { MarkdownEditorField } from '../../components/MarkdownEditorField';
 import { MarkdownPreview } from '../../components/MarkdownPreview';
 import { InputSchemaEditor } from '../../components/InputSchemaEditor';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -27,14 +19,15 @@ import { triggerEmployee, patchArchetype } from '@/lib/gateway';
 import { GATEWAY_URL, TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
-import { formatRelativeTime, formatDuration } from '@/lib/utils';
-import type { Archetype, Task, EmployeeRule, InputSchemaItem } from '@/lib/types';
+import { formatRelativeTime, formatDuration, cn } from '@/lib/utils';
+import type { Archetype, Task, TaskStatusLog, EmployeeRule, InputSchemaItem } from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
+import { StatusTimeline } from '@/panels/tasks/StatusTimeline';
 import { toast } from 'sonner';
 import { BrainPreviewTab } from './BrainPreviewTab';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import { Info } from 'lucide-react';
+import { Info, Webhook, MousePointer, Clock, ChevronRight } from 'lucide-react';
 
 const WEBHOOK_FIXTURES = {
   agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
@@ -180,9 +173,23 @@ function RulesSection({ archetypeId }: { archetypeId: string }) {
   );
 }
 
-function RecentTasksSection({ archetypeId }: { archetypeId: string }) {
+function TriggerSourceIcon({ sourceSystem }: { sourceSystem: string | null }) {
+  if (sourceSystem === 'hostfully') return <Webhook className="h-3.5 w-3.5" />;
+  if (sourceSystem === 'manual') return <MousePointer className="h-3.5 w-3.5" />;
+  return <Clock className="h-3.5 w-3.5" />;
+}
+
+function triggerLabel(sourceSystem: string | null): string {
+  if (sourceSystem === 'hostfully') return 'webhook';
+  if (sourceSystem === 'manual') return 'manual';
+  return 'scheduled';
+}
+
+function ActivitySection({ archetypeId }: { archetypeId: string }) {
   const { tenantId } = useTenant();
-  const navigate = useNavigate();
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [timelineLogs, setTimelineLogs] = useState<Record<string, TaskStatusLog[]>>({});
+  const [timelineLoading, setTimelineLoading] = useState<Record<string, boolean>>({});
 
   const fetchTasks = useCallback(
     () =>
@@ -200,28 +207,36 @@ function RecentTasksSection({ archetypeId }: { archetypeId: string }) {
   const isTerminal = (status: string) =>
     TERMINAL_STATUSES.includes(status as (typeof TERMINAL_STATUSES)[number]);
 
+  const handleToggleExpand = async (taskId: string) => {
+    if (expandedTaskId === taskId) {
+      setExpandedTaskId(null);
+      return;
+    }
+    setExpandedTaskId(taskId);
+    if (timelineLogs[taskId] !== undefined) return;
+
+    setTimelineLoading((prev) => ({ ...prev, [taskId]: true }));
+    try {
+      const logs = await postgrestFetch<TaskStatusLog>('task_status_log', {
+        task_id: `eq.${taskId}`,
+        order: 'created_at.asc',
+        limit: '100',
+      });
+      setTimelineLogs((prev) => ({ ...prev, [taskId]: logs }));
+    } catch {
+      setTimelineLogs((prev) => ({ ...prev, [taskId]: [] }));
+    } finally {
+      setTimelineLoading((prev) => ({ ...prev, [taskId]: false }));
+    }
+  };
+
   if (loading) {
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Status</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Duration</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <TableRow key={i}>
-              {Array.from({ length: 3 }).map((__, j) => (
-                <TableCell key={j}>
-                  <div className="h-4 animate-pulse rounded bg-muted" />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg border bg-muted" />
+        ))}
+      </div>
     );
   }
 
@@ -230,38 +245,92 @@ function RecentTasksSection({ archetypeId }: { archetypeId: string }) {
   }
 
   if (!tasks || tasks.length === 0) {
-    return <p className="text-sm text-muted-foreground">No tasks yet</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No activity yet. This employee hasn&apos;t run any tasks.
+      </p>
+    );
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Status</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead>Duration</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tasks.map((task) => (
-          <TableRow
+    <div className="space-y-3">
+      {tasks.map((task) => {
+        const isExpanded = expandedTaskId === task.id;
+        const logs = timelineLogs[task.id] ?? [];
+        const loadingTimeline = timelineLoading[task.id] ?? false;
+
+        return (
+          <div
             key={task.id}
-            className="cursor-pointer hover:bg-muted/50"
-            onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+            className="rounded-lg border bg-card transition-shadow hover:shadow-sm"
           >
-            <TableCell>
-              <StatusBadge status={task.status} />
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {formatRelativeTime(task.created_at)}
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {isTerminal(task.status) ? formatDuration(task.created_at, task.updated_at) : '—'}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+            <button
+              type="button"
+              className="w-full p-4 text-left"
+              onClick={() => void handleToggleExpand(task.id)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusBadge status={task.status} />
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <TriggerSourceIcon sourceSystem={task.source_system} />
+                    <span>{triggerLabel(task.source_system)}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {formatRelativeTime(task.created_at)}
+                  </span>
+                  {isTerminal(task.status) && (
+                    <span className="text-xs text-muted-foreground">
+                      · {formatDuration(task.created_at, task.updated_at)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <Link
+                    to={`/dashboard/tasks/${task.id}`}
+                    className="text-xs text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View details →
+                  </Link>
+                  <ChevronRight
+                    className={cn(
+                      'h-4 w-4 text-muted-foreground transition-transform',
+                      isExpanded && 'rotate-90',
+                    )}
+                  />
+                </div>
+              </div>
+              {task.status === 'Failed' && task.failure_reason && (
+                <p className="mt-2 text-xs text-destructive">{task.failure_reason}</p>
+              )}
+            </button>
+
+            {isExpanded && (
+              <div className="border-t px-4 pb-4 pt-3">
+                {loadingTimeline ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-4 animate-pulse rounded bg-muted" />
+                    ))}
+                  </div>
+                ) : (
+                  <StatusTimeline logs={logs} />
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {tasks.length === 10 && (
+        <div className="pt-1">
+          <Link to="/dashboard/tasks" className="text-sm text-primary hover:underline">
+            View all tasks →
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -860,7 +929,7 @@ export function EmployeeDetail() {
         </TabsContent>
 
         <TabsContent value="activity">
-          <RecentTasksSection archetypeId={archetype.id} />
+          <ActivitySection archetypeId={archetype.id} />
         </TabsContent>
 
         <TabsContent value="training">
