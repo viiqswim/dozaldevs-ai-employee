@@ -8,6 +8,7 @@ import type {
   GenerateArchetypeResponse,
   CreateArchetypePayload,
   SlackChannel,
+  EmployeeRule,
 } from './types';
 
 export function getAdminApiKey(): string | null {
@@ -199,6 +200,59 @@ export async function createArchetype(
     method: 'POST',
     body: JSON.stringify(config),
   });
+}
+
+export async function createRule(
+  tenantId: string,
+  archetypeId: string,
+  ruleText: string,
+): Promise<EmployeeRule> {
+  return gatewayFetch<EmployeeRule>(`/admin/tenants/${tenantId}/employees/${archetypeId}/rules`, {
+    method: 'POST',
+    body: JSON.stringify({ rule_text: ruleText }),
+  });
+}
+
+export async function updateRule(
+  tenantId: string,
+  archetypeId: string,
+  ruleId: string,
+  data: { status?: 'confirmed' | 'rejected'; rule_text?: string },
+): Promise<EmployeeRule> {
+  return gatewayFetch<EmployeeRule>(
+    `/admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    },
+  );
+}
+
+export async function deleteRule(
+  tenantId: string,
+  archetypeId: string,
+  ruleId: string,
+): Promise<void> {
+  const key = getAdminApiKey();
+  if (!key) {
+    throw new Error('Admin API key not set. Please configure it in the dashboard.');
+  }
+
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Key': key,
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `Gateway error ${response.status} on /admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}: ${text}`,
+    );
+  }
 }
 
 export async function fetchSlackChannels(
