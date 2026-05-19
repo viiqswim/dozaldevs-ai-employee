@@ -289,10 +289,13 @@ When classification is NEEDS_APPROVAL, you MUST call tsx /tools/slack/post-guest
     '3. Draft a concise technical digest showing what the team shipped, discussed, and decided.\n' +
     '4. Write your output to /tmp/summary.txt in the standard JSON format with classification NEEDS_APPROVAL.\n\n' +
     'CLASSIFICATION RULES:\n' +
-    '- Always write NEEDS_APPROVAL — the summary always needs human review before posting.\n' +
+    '- Write APPROVED if the work is complete and no human review is needed.\n' +
+    '- Write NEEDS_APPROVAL if the summary needs human review before posting (default for summaries).\n' +
+    '- Write NO_ACTION_NEEDED if there were no messages to summarize.\n' +
     '- Use confidence 0.9 — you are confident in your summary.\n\n' +
     'TOOLS AVAILABLE TO YOU:\n' +
-    '- Slack tools: read channel messages, get channel history\n' +
+    '- Slack tools: read channel messages, get channel history, post messages\n' +
+    '- When posting to Slack with post-message.ts, always pass --thread-ts "$NOTIFY_MSG_TS" to thread your messages under the task notification.\n' +
     'Load the tool-usage-reference skill for exact CLI syntax.';
 
   const VLRE_SUMMARIZER_AGENTS_MD =
@@ -303,10 +306,13 @@ When classification is NEEDS_APPROVAL, you MUST call tsx /tools/slack/post-guest
     '3. Draft a dramatic Spanish news-anchor style summary — theatrical, entertaining, but accurate.\n' +
     '4. Write your output to /tmp/summary.txt in the standard JSON format with classification NEEDS_APPROVAL.\n\n' +
     'CLASSIFICATION RULES:\n' +
-    '- Always write NEEDS_APPROVAL — the summary always needs human review before posting.\n' +
+    '- Write APPROVED if the work is complete and no human review is needed.\n' +
+    '- Write NEEDS_APPROVAL if the summary needs human review before posting (default for summaries).\n' +
+    '- Write NO_ACTION_NEEDED if there were no messages to summarize.\n' +
     '- Use confidence 0.9 — you are confident in your summary.\n\n' +
     'TOOLS AVAILABLE TO YOU:\n' +
-    '- Slack tools: read channel messages, get channel history\n' +
+    '- Slack tools: read channel messages, get channel history, post messages\n' +
+    '- When posting to Slack with post-message.ts, always pass --thread-ts "$NOTIFY_MSG_TS" to thread your messages under the task notification.\n' +
     'Load the tool-usage-reference skill for exact CLI syntax.';
 
   const CODE_ROTATION_AGENTS_MD =
@@ -321,13 +327,15 @@ When classification is NEEDS_APPROVAL, you MUST call tsx /tools/slack/post-guest
     '7. If a single property fails, document the error and continue with the rest.\n' +
     '8. Write your full results to /tmp/summary.txt.\n\n' +
     'CLASSIFICATION RULES:\n' +
+    '- Write APPROVED if rotation completed successfully with no issues requiring human review.\n' +
+    '- Write NEEDS_APPROVAL if rotation results need human review (e.g. partial failures).\n' +
     '- Write NO_ACTION_NEEDED if no properties had a checkout today.\n' +
-    '- Write NEEDS_APPROVAL if rotation results need human review.\n' +
     '- Use confidence 0.9.\n\n' +
     'TOOLS AVAILABLE TO YOU:\n' +
     '- Sifely tools: list locks, generate codes, rotate passcodes, update passcodes\n' +
     '- Hostfully tools: update door codes for properties\n' +
     '- Slack tools: post rotation summary notifications\n' +
+    '- When posting to Slack with post-message.ts, always pass --thread-ts "$NOTIFY_MSG_TS" to thread your messages under the task notification.\n' +
     'Load the tool-usage-reference skill for exact CLI syntax.';
 
   const VLRE_COMMON_KB_CONTENT = `# VL Real Estate — Common Knowledge Base
