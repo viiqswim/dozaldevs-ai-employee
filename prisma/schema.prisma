@@ -198,6 +198,7 @@ model Archetype {
   enrichment_adapter  String?   // Name of enrichment adapter to use (e.g. 'hostfully', null for none)
   pre_check_adapter String?
   worker_env        Json?
+  input_schema      Json?
   model             String?
   deliverable_type  String?
   status            String   @default("active")
