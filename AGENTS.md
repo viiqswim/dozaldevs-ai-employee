@@ -214,6 +214,15 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
+## Dashboard URLs
+
+| Mode        | URL                                | Notes                                                                                                                               |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Development | `http://localhost:7701/dashboard/` | Vite dev server — started automatically by `pnpm dev`. Full HMR; use this URL when inspecting or testing the UI during development. |
+| Production  | `http://localhost:7700/dashboard/` | Served as pre-built static files from `dashboard/dist/`. Requires `pnpm dashboard:build` to reflect source changes.                 |
+
+**For any UI inspection, screenshot, or browser automation task, always use the dev URL (`localhost:7701`) while `pnpm dev` is running.** The production URL at 7700 will lag behind source changes until a manual build.
+
 ## Pre-existing Test Failures
 
 Do NOT attempt to fix these — they are unrelated to any recent changes:
