@@ -7,9 +7,26 @@ import { EmployeeOverview } from '@/components/EmployeeOverview';
 import { MarkdownEditorField } from '@/components/MarkdownEditorField';
 import { InputSchemaEditor } from '@/components/InputSchemaEditor';
 import { postgrestFetch } from '@/lib/postgrest';
-import { patchArchetype, refineArchetype, createArchetype } from '@/lib/gateway';
+import {
+  patchArchetype,
+  refineArchetype,
+  createArchetype,
+  fetchSlackChannels,
+} from '@/lib/gateway';
 import { useTenant } from '@/hooks/use-tenant';
-import type { Archetype, GenerateArchetypeResponse, InputSchemaItem } from '@/lib/types';
+import type {
+  Archetype,
+  GenerateArchetypeResponse,
+  InputSchemaItem,
+  SlackChannel,
+} from '@/lib/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 
 type EditState =
@@ -27,6 +44,30 @@ export function EditEmployeePage() {
   const [editState, setEditState] = useState<EditState>({ phase: 'loading' });
   const [refinementInput, setRefinementInput] = useState('');
   const [refinementCount, setRefinementCount] = useState(0);
+  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
+  const [slackError, setSlackError] = useState<string | undefined>();
+  const [slackLoading, setSlackLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSlackLoading(true);
+    fetchSlackChannels(tenantId)
+      .then((result) => {
+        if (cancelled) return;
+        setSlackChannels(result.channels ?? []);
+        if (result.error) setSlackError(result.error);
+        setSlackLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSlackChannels([]);
+        setSlackError('SLACK_NOT_CONFIGURED');
+        setSlackLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     if (!archetypeId) return;
@@ -246,19 +287,55 @@ export function EditEmployeePage() {
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Slack Channel
             </label>
-            <Input
-              value={archetype.notification_channel ?? ''}
-              placeholder="#channel-name"
-              onChange={(e) =>
-                setEditState({
-                  phase: 'ready',
-                  archetype: { ...archetype, notification_channel: e.target.value },
-                })
-              }
-              onBlur={(e) => {
-                void patch({ notification_channel: e.target.value || null });
-              }}
-            />
+            {slackLoading ? (
+              <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+            ) : slackChannels.length > 0 ? (
+              <Select
+                value={archetype.notification_channel ?? ''}
+                onValueChange={(value) => {
+                  setEditState({
+                    phase: 'ready',
+                    archetype: { ...archetype, notification_channel: value },
+                  });
+                  void patch({ notification_channel: value || null });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a channel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {slackChannels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      #{ch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={archetype.notification_channel ?? ''}
+                placeholder="#channel-name or channel ID"
+                onChange={(e) =>
+                  setEditState({
+                    phase: 'ready',
+                    archetype: { ...archetype, notification_channel: e.target.value },
+                  })
+                }
+                onBlur={(e) => {
+                  void patch({ notification_channel: e.target.value || null });
+                }}
+              />
+            )}
+            {slackError === 'SLACK_NOT_CONFIGURED' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Slack not configured for this tenant. Enter a channel ID manually.
+              </p>
+            )}
+            {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Could not load channels — enter a channel ID manually.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               The Slack channel where this employee operates — all notifications, approvals, and
               deliveries go here.
