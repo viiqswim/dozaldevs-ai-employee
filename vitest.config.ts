@@ -5,7 +5,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
     exclude: [
       // Deprecated engineering worker lib tests (keep opencode-server, postgrest-client, output-schema, approval-card-poster — active)
-      'tests/workers/lib/!(opencode-server|postgrest-client|output-schema|approval-card-poster).test.ts',
+      'tests/workers/lib/!(opencode-server|postgrest-client|output-schema|approval-card-poster|agents-md-resolver).test.ts',
       // Deprecated engineering worker tests
       'tests/workers/orchestrate.test.ts',
       'tests/workers/entrypoint.test.ts',
