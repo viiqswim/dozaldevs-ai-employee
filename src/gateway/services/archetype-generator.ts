@@ -65,6 +65,8 @@ For each detected input, create an \`input_schema\` item with:
 - \`required\`: \`true\` for values needed to run; \`false\` for optional enhancements
 - \`description\`: brief explanation of what the value is used for
 
+- NEVER create an \`input_schema\` item for a Slack channel (channel names, delivery channels, notification channels). The platform provides a dedicated Slack Channel setting for every employee — it is injected automatically. If the description mentions posting to Slack, reference it in \`overview\` and \`instructions\` but do NOT create an input for it.
+
 If no runtime inputs are needed, omit \`input_schema\` entirely (do not include an empty array).
 
 ## Template Syntax in instructions
@@ -184,6 +186,7 @@ ${INJECTION_BOUNDARY}
 - \`system_prompt\` is ALWAYS an empty string \`""\`
 - Preserve all fields that are not affected by the refinement instruction
 - Only modify what the refinement instruction asks to change
+- NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated instructions, agents_md, trigger_sources, and risk_model
 
 The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
@@ -212,6 +215,18 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
   result.model = 'minimax/minimax-m2.7';
   result.runtime = 'opencode';
   result.system_prompt = '';
+
+  // Strip any LLM-generated Slack channel inputs — the platform provides notification_channel
+  if (Array.isArray(result['input_schema'])) {
+    const filtered = (result['input_schema'] as Array<{ key: string }>).filter(
+      (item) => !/slack.*channel|channel.*slack|notification_channel/i.test(item.key),
+    );
+    if (filtered.length === 0) {
+      delete result['input_schema'];
+    } else {
+      result['input_schema'] = filtered;
+    }
+  }
 
   if (!result.role_name || typeof result.role_name !== 'string') {
     result.role_name = toKebabCase(description.split(' ').slice(0, 4).join(' '));
