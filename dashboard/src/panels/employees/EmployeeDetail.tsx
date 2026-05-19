@@ -586,7 +586,14 @@ function ConfigTab({ archetype, onSaved }: { archetype: Archetype; onSaved: () =
   );
 }
 
-const VALID_TABS = ['config', 'tasks', 'rules', 'brain'] as const;
+const VALID_TABS = ['settings', 'activity', 'training', 'knowledge'] as const;
+
+const TAB_COMPAT_MAP: Record<string, (typeof VALID_TABS)[number]> = {
+  config: 'settings',
+  tasks: 'activity',
+  rules: 'training',
+  brain: 'knowledge',
+};
 
 export function EmployeeDetail() {
   const { archetypeId } = useParams<{ archetypeId: string }>();
@@ -595,9 +602,10 @@ export function EmployeeDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = VALID_TABS.includes(tabParam as (typeof VALID_TABS)[number])
-    ? tabParam!
-    : 'config';
+  const resolvedTab = tabParam ? (TAB_COMPAT_MAP[tabParam] ?? tabParam) : null;
+  const activeTab = VALID_TABS.includes(resolvedTab as (typeof VALID_TABS)[number])
+    ? (resolvedTab as (typeof VALID_TABS)[number])
+    : 'settings';
 
   const handleTabChange = (newTab: string) => {
     setSearchParams(
@@ -716,7 +724,7 @@ export function EmployeeDetail() {
     );
   }
 
-  const isGuestMessaging = archetype.role_name === 'guest-messaging';
+  const isGuestMessaging = archetype.deliverable_type === 'hostfully_message';
 
   return (
     <div className="p-6">
@@ -772,25 +780,25 @@ export function EmployeeDetail() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6">
-          <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="tasks">Recent Tasks</TabsTrigger>
-          <TabsTrigger value="rules">Rules</TabsTrigger>
-          <TabsTrigger value="brain">Brain Preview</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="training">Training</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config">
+        <TabsContent value="settings">
           <ConfigTab archetype={archetype} onSaved={refresh} />
         </TabsContent>
 
-        <TabsContent value="tasks">
+        <TabsContent value="activity">
           <RecentTasksSection archetypeId={archetype.id} />
         </TabsContent>
 
-        <TabsContent value="rules">
+        <TabsContent value="training">
           <RulesSection archetypeId={archetype.id} />
         </TabsContent>
 
-        <TabsContent value="brain">
+        <TabsContent value="knowledge">
           <BrainPreviewTab archetype={archetype} tenantId={tenantId} />
         </TabsContent>
       </Tabs>
