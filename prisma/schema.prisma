@@ -204,6 +204,7 @@ model Archetype {
   status            String   @default("active")
   overview          Json?
   parent_draft_id   String?
+  deleted_at        DateTime?
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
