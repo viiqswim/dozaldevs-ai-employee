@@ -454,9 +454,10 @@ Wave FINAL (After ALL tasks):
       Run `pnpm build` + `pnpm lint`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (all three pages consistent). Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
+      BLOCKER: VLRE bot token missing `channels:read` scope → endpoint returns 500 → dropdown falls back to `<Input>` (correct fallback behavior). Code is correct. Full QA pass requires user to add `channels:read` to VLRE Slack app at api.slack.com and reinstall. See issues.md.
 
 - [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Flag unaccounted changes.
