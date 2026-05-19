@@ -579,19 +579,19 @@ Wave 4 (Tests + verification):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user for explicit okay before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Check evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + linter + `pnpm test -- --run`. Review changed files for `as any`, empty catches, console.log, commented-out code.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Execute every QA scenario from every task. Test cross-task integration (full draft flow). Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: verify 1:1 between spec and implementation. Nothing missing, nothing beyond scope. Check "Must NOT do" compliance.
       Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
 
