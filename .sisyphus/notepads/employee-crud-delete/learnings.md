@@ -80,3 +80,35 @@
 - TypeScript compile (`npx tsc --noEmit`) passes clean — 0 errors
 - Evidence: `.sisyphus/evidence/task-6-query-sites.txt` — 7 matches confirmed
 - NOTE: Task 9 will make `EmployeeList.tsx` conditional (toggle "Show deleted") — for now always filters
+
+## Task 7 — Delete Button + Dialog (2026-05-19)
+
+### Patterns Used
+
+- Delete button shows for ALL archetypes (active and draft) — restructured Actions column to always render a `<div>` with stopPropagation, conditionally rendering trigger/dryrun buttons inside `{!isDraft && <></>}` and always rendering Delete outside
+- Dialog pattern: use `deletingId: string | null` state — `null` = closed, an ID = open for that archetype
+- `deleteArchetype` called from `handleDelete` which wraps loading state, toast.success, setDeletingId(null), and refresh()
+- EmployeeDetail uses `deleteDialogOpen: boolean` + navigate back to employees list on success
+- Import Dialog from `@/components/ui/dialog` — exports: Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+- TypeScript compile (`npx tsc --noEmit`) clean — 0 errors
+- Evidence: `.sisyphus/evidence/task-7-delete-dialog.png` — dialog with "Delete code-rotation?" title confirmed
+
+### Gotchas
+
+- `archetypes.find(a => a.id === deletingId)?.role_name` can be undefined if dialog is open/closing — guarded with `?.`
+- HTML entities for quotes: use `&ldquo;` and `&rdquo;` to avoid lint warnings on smart quotes in JSX
+
+## Task 8 — Bulk Delete (2026-05-19)
+
+### Patterns Used
+
+- `selected: Set<string>` state for multi-select — `new Set(filteredArchetypes.map(a => a.id))` for select-all
+- `allSelected` derived bool: `filteredArchetypes.length > 0 && selected.size === filteredArchetypes.length`
+- `useEffect(() => setSelected(new Set()), [statusFilter, search])` — auto-clear on filter change
+- `SkeletonRow` updated from 7 to 8 cells to match new checkbox column
+- Checkbox column as `<TableHead className="w-10">` with `aria-label="Select all"` on header checkbox
+- Row checkbox cell uses `onClick={(e) => e.stopPropagation()}` to prevent row navigation click
+- `handleBulkDelete` loops sequentially, catches per-item errors with toast.error, continues on failure
+- Both dialogs (single and bulk) can coexist — separate state (`deletingId` vs `bulkDeleteOpen`)
+- `.sisyphus/evidence/` is gitignored — screenshot saved locally but not staged
+- `tsc --noEmit` inside `dashboard/` directory exits 0 with no errors
