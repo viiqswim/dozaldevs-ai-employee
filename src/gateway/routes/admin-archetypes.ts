@@ -88,7 +88,7 @@ const CreateArchetypeBodySchema = z.object({
       timeout_hours: z.number().positive(),
     })
     .default({ approval_required: false, timeout_hours: 2 }),
-  notification_channel: z.string().max(50).nullable().default(null),
+  notification_channel: z.string().min(1).max(50),
   concurrency_limit: z.number().int().min(1).max(20).default(3),
   trigger_sources: TriggerSourceSchema.nullable().default(null),
   tool_registry: z
