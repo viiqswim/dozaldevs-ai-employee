@@ -141,6 +141,7 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-supabase-key';
   process.env.FLY_WORKER_APP = 'ai-employee-workers';
+  process.env.WORKER_RUNTIME = 'fly';
 });
 
 afterEach(() => {
@@ -148,11 +149,11 @@ afterEach(() => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.FLY_WORKER_APP;
+  delete process.env.WORKER_RUNTIME;
 });
 
 describe('confirmed employee_rules — EMPLOYEE_RULES injection', () => {
-  // TODO: Pre-existing failure — mockCreateMachine not called (skipped 2026-05-15)
-  it.skip('EMPLOYEE_RULES string includes confirmed rule text when dispatch-machine runs', async () => {
+  it('EMPLOYEE_RULES string includes confirmed rule text when dispatch-machine runs', async () => {
     const ruleText = 'Always use a formal tone';
 
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
