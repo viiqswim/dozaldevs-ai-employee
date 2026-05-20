@@ -165,7 +165,7 @@ Max Concurrent: 6 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Delete all deprecated test files from disk
+- [x] 1. Delete all deprecated test files from disk
 
   **What to do**:
   - Delete ALL of the following test files (they test deprecated modules and are already excluded by vitest.config.ts):
@@ -300,7 +300,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: ~43 deleted test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 2. Fix hostfully.test.ts and supersede-threading.test.ts mock mismatch
+- [x] 2. Fix hostfully.test.ts and supersede-threading.test.ts mock mismatch
 
   **What to do**:
   - In `tests/gateway/routes/hostfully.test.ts`: The test's `makeApp()` helper mocks `archetype.findUnique` but the production code at `src/gateway/routes/hostfully.ts` calls `archetype.findFirst`. Update the mock to use `findFirst` instead of `findUnique`.
@@ -367,7 +367,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/routes/hostfully.test.ts`, `tests/inngest/supersede-threading.test.ts`
   - Pre-commit: `pnpm test -- --run tests/gateway/routes/hostfully.test.ts tests/inngest/supersede-threading.test.ts`
 
-- [ ] 3. Simplify vitest.config.ts exclude list after deprecated file deletion
+- [x] 3. Simplify vitest.config.ts exclude list after deprecated file deletion
 
   **What to do**:
   - After Task 1 deletes the deprecated files, the vitest.config.ts exclude patterns are now redundant (they reference files that no longer exist)
@@ -435,7 +435,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `vitest.config.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 4. Fix admin-employee-trigger.test.ts mock
+- [x] 4. Fix admin-employee-trigger.test.ts mock
 
   **What to do**:
   - The route at `src/gateway/routes/admin-employee-trigger.ts` now calls `prisma.archetype.findFirst(...)` before calling `dispatchEmployee`
@@ -501,7 +501,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/routes/admin-employee-trigger.test.ts`
   - Pre-commit: `pnpm test -- --run tests/gateway/routes/admin-employee-trigger.test.ts`
 
-- [ ] 5. Fix migration-agents-md.test.ts stale expectations
+- [x] 5. Fix migration-agents-md.test.ts stale expectations
 
   **What to do**:
   - The test reads `src/workers/config/agents.md` and compares it against the `agents_md` column in the DB archetype row and the tenant's `default_agents_md` config
@@ -569,7 +569,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/migration-agents-md.test.ts`
   - Pre-commit: `pnpm test -- --run tests/gateway/migration-agents-md.test.ts`
 
-- [ ] 6. Fix github-stub.test.ts empty body test
+- [x] 6. Fix github-stub.test.ts empty body test
 
   **What to do**:
   - The test `responds to empty body without error` calls `app.inject({ method: 'POST', url: '/webhooks/github' })` with no body and no Content-Type header
@@ -626,7 +626,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/github-stub.test.ts`
   - Pre-commit: `pnpm test -- --run tests/gateway/github-stub.test.ts`
 
-- [ ] 7. Investigate and resolve tenant-repository.test.ts (13 skipped tests)
+- [x] 7. Investigate and resolve tenant-repository.test.ts (13 skipped tests)
 
   **What to do**:
   - `tests/gateway/services/tenant-repository.test.ts` has ALL 13 tests wrapped in `describe.skip` with comment: `// TODO: Pre-existing failure — all 13 tests fail (skipped 2026-05-15)`
@@ -698,7 +698,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/services/tenant-repository.test.ts`
   - Pre-commit: `pnpm test -- --run tests/gateway/services/tenant-repository.test.ts` (if kept)
 
-- [ ] 8. Investigate and resolve lifecycle-feedback-context-rejection.test.ts (1 skipped test)
+- [x] 8. Investigate and resolve lifecycle-feedback-context-rejection.test.ts (1 skipped test)
 
   **What to do**:
   - `tests/inngest/lifecycle-feedback-context-rejection.test.ts` has 1 test skipped via `it.skip` at line 155: `it.skip('EMPLOYEE_RULES string includes confirmed rule text when dispatch-machine runs', ...)`
@@ -758,7 +758,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/inngest/lifecycle-feedback-context-rejection.test.ts`
   - Pre-commit: `pnpm test -- --run tests/inngest/lifecycle-feedback-context-rejection.test.ts`
 
-- [ ] 9. Merge duplicate tenant-secret-repository tests
+- [x] 9. Merge duplicate tenant-secret-repository tests
 
   **What to do**:
   - Two test files test the same module (`TenantSecretRepository`):
@@ -830,7 +830,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `tests/gateway/services/tenant-secret-repository.test.ts`, `src/gateway/services/__tests__/tenant-secret-repository.test.ts` (deleted)
   - Pre-commit: `pnpm test -- --run tests/gateway/services/tenant-secret-repository.test.ts`
 
-- [ ] 10. Full test suite verification and AGENTS.md update
+- [x] 10. Full test suite verification and AGENTS.md update
 
   **What to do**:
   - Run the complete test suite: `pnpm test -- --run`
@@ -910,7 +910,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `AGENTS.md`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 11. Notify completion via Telegram
+- [x] 11. Notify completion via Telegram
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "✅ test-suite-audit complete — All tasks done. Come back to review results."`
@@ -945,19 +945,19 @@ Max Concurrent: 6 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm test -- --run` + `pnpm lint`. Review all changed test files for: `as any`/`@ts-ignore`, empty catches, console.log, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Tests [PASS/FAIL] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Run `pnpm test -- --run` and capture full output. Verify: 0 failures, no unexpected skips beyond the known ones (container-boot, inngest-serve function count, integration tests needing OPENCODE_TEST_URL). Verify deleted files are truly gone. Verify vitest.config.ts exclude patterns match only existing files.
       Output: `Tests [N pass/N skip/N fail] | Deleted files [N verified gone] | Config [CLEAN/issues] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance — no production source code modified, no new tests written, no DB reseed. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Scope [CLEAN/issues] | VERDICT`
 
