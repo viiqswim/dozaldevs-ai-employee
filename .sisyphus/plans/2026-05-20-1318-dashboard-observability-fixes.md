@@ -433,7 +433,7 @@ Wave FINAL (After ALL tasks):
   - Message: `fix(dashboard): fix observability panel bugs — actor_type query, auto-pass UX, error display, duration`
   - Files: `dashboard/src/panels/tasks/StatusTimeline.tsx`
 
-- [ ] 5. Full integration QA + build verification
+- [x] 5. Full integration QA + build verification
 
   **What to do**:
   - Run `pnpm test -- --run` and verify all tests pass (1486+ passing, 0 new failures)
@@ -501,7 +501,7 @@ Wave FINAL (After ALL tasks):
   - Files: `dashboard/src/hooks/use-feedback-events.ts`, `dashboard/src/lib/types.ts`, `dashboard/src/panels/tasks/TaskDetail.tsx`, `dashboard/src/panels/tasks/StatusTimeline.tsx`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 6. Telegram notification
+- [x] 6. Telegram notification
 
   **What to do**:
   - Send Telegram notification: `npx tsx scripts/telegram-notify.ts "🔧 Dashboard observability fixes complete — actor_type query, auto-pass UX, error display, duration. Come back to review."`
@@ -520,19 +520,19 @@ Wave FINAL (After ALL tasks):
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `cd dashboard && npx tsc --noEmit` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill if UI)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill if UI)
       Start from clean state. Open dashboard at `http://localhost:7701/dashboard/`. Navigate to task `3ed3d4c8-8562-4635-9c7e-b5581037c3ab?tenant=00000000-0000-0000-0000-000000000003` (auto-pass task) — verify banner shows, no empty panels. Navigate to task `8debb23e-bb75-470d-8bb7-7fbd0c6d2253?tenant=00000000-0000-0000-0000-000000000003` (normal task) — verify all sections render, no 400 errors in network tab. Save screenshots to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | VERDICT`
 
