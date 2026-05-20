@@ -9,9 +9,16 @@ function getGuestMessagingAgentsMd(): string {
   return match[1];
 }
 
+function getGuestMessagingInstructions(): string {
+  const seedContent = readFileSync(resolve(__dirname, '../../prisma/seed.ts'), 'utf8');
+  const match = seedContent.match(/const VLRE_GUEST_MESSAGING_INSTRUCTIONS = `([\s\S]*?)`;/);
+  if (!match) throw new Error('VLRE_GUEST_MESSAGING_INSTRUCTIONS not found in seed.ts');
+  return match[1];
+}
+
 describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
   it('reads the full conversation thread as first workflow step', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('Read the full conversation thread');
+    expect(getGuestMessagingInstructions()).toContain('Read the full conversation thread');
   });
 
   it('includes language matching instruction', () => {
@@ -19,11 +26,11 @@ describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
   });
 
   it('includes NEEDS_APPROVAL classification rule', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('NEEDS_APPROVAL');
+    expect(getGuestMessagingInstructions()).toContain('NEEDS_APPROVAL');
   });
 
   it('includes NO_ACTION_NEEDED classification rule', () => {
-    expect(getGuestMessagingAgentsMd()).toContain('NO_ACTION_NEEDED');
+    expect(getGuestMessagingInstructions()).toContain('NO_ACTION_NEEDED');
   });
 
   it('references tool-usage-reference skill for CLI syntax', () => {
