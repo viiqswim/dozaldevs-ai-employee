@@ -85,6 +85,7 @@ Unlisted binaries (13): psql, supabase, which, cloudflared, gh, pg_isready (syst
 Unused exports (7+): parseToolFile, HostfullyWebhookPayloadSchema, MAX_EMPLOYEE_KNOWLEDGE_CHARS, etc.
 
 ## [2026-05-20] Task 4 — dist/ cleanup
+
 - Before: 174 .js files, 9 .mjs files, 732 total files in dist/
 - After: 139 .js files, 7 .mjs files, 584 total files in dist/
 - Stale artifacts confirmed gone: YES
@@ -94,7 +95,42 @@ Unused exports (7+): parseToolFile, HostfullyWebhookPayloadSchema, MAX_EMPLOYEE_
 - dist/ is gitignored — safe to delete and rebuild at any time
 
 ## [2026-05-20] Task 7 — Remove unused dependencies
+
 - Removed: @types/pino (pino v10 bundles its own types)
 - Build: exit 0 after removal
 - CLI tools (tsx, vitest, eslint) still functional
 - Evidence dir (.sisyphus/evidence/) is gitignored — evidence files stay local only
+
+## [2026-05-20] Task 5 — Remove unused source files
+
+- Removed: src/inngest/types/feedback.ts, src/workers/lib/delivery-adapters/guest-messaging.mts, src/workers/lib/delivery-adapters/index.mts
+- delivery-adapters/ directory removed (was empty after file removal)
+- Build: exit 0 after removals
+
+## [2026-05-20] Task 8 — Dead script audit
+
+- Investigated 17 candidate scripts (not in package.json)
+- Removed (5): cleanup-monitor-archetype.sql, dev-start.sh, generate-final-lock-map.mjs, merge-lock-map.mjs, long-running-sim/ (directory)
+- Kept (12): benchmark-classifier.ts, generate-jwt-keys.sh, migrate-vlre-kb.ts, preflight-guest-messaging.ts, resolve-hostfully-uids.ts, verify-container-boot.sh, verify-docker.sh, verify-e2e.sh, verify-phase1.sh, verify-supabase.ts, vlre-uid-mapping.json, telegram-notify.ts
+- Key signal: April 29 snapshot is most authoritative — scripts absent there are truly dead
+- vlre-uid-mapping.json is a data dependency of migrate-vlre-kb.ts and resolve-hostfully-uids.ts — keep always
+- .sisyphus/evidence/ is gitignored — evidence files stay local only
+- Build: exit 0 after removals
+
+## [2026-05-20] Task 6 — Remove unused exports
+
+- Removed 6 value exports and 39 type exports across 11 files
+- Build: exit 0 after all removals
+- Changes were purely subtractive (19 insertions / 55 deletions in final commit)
+- Key insight: interfaces used internally can only lose `export` keyword, not entire block
+  - ToolFlag, ToolEnvVar (tool-parser.ts) — used in ToolMetadata, extractFlags
+  - Message (call-llm.ts) — used in CallLLMOptions.messages
+  - CreatePRParams, ListPRsParams, GetPRParams (github-client.ts) — used in GitHubClient interface
+  - JiraIssue (jira-client.ts) — used in JiraClient interface
+  - SlackMessageParams, SlackMessageResult (slack-client.ts) — used in SlackClient interface
+  - EscalateOptions (heartbeat.ts) — used in escalate() parameter
+  - SessionMonitorResult, MonitorOptions (session-manager.ts) — used in SessionManager interface
+  - CreatePropertyLock (schemas.ts) — used as return type of parseCreatePropertyLock
+- Type aliases not used internally: safely removed entire line
+- FailureCode (failure-codes.ts) — NOT used internally, removed entire line
+- .sisyphus/evidence/ is gitignored — evidence files stay local only
