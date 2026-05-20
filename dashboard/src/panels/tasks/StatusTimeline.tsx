@@ -1,10 +1,23 @@
-import { STATUS_COLORS } from '@/lib/constants';
+import { TERMINAL_STATUSES } from '@/lib/constants';
 import { formatRelativeTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import type { TaskStatusLog } from '@/lib/types';
 
 interface StatusTimelineProps {
   logs: TaskStatusLog[];
+  task?: { started_at: string | null; completed_at: string | null };
+}
+
+function formatTransitionDuration(ms: number): string {
+  if (ms < 1000) return '< 1s';
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${minutes}m ${seconds}s`;
+  return `${hours}h ${mins}m`;
 }
 
 function statusDotColor(status: string): string {
@@ -45,56 +58,105 @@ function statusTextColor(status: string): string {
   return colorMap[status] ?? 'text-slate-700';
 }
 
-export function StatusTimeline({ logs }: StatusTimelineProps) {
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+export function StatusTimeline({ logs, task }: StatusTimelineProps) {
   if (logs.length === 0) {
     return <p className="text-sm text-muted-foreground italic">No status history yet</p>;
   }
 
+  const lastLog = logs[logs.length - 1];
+  const isTerminal = TERMINAL_STATUSES.includes(
+    lastLog.to_status as (typeof TERMINAL_STATUSES)[number],
+  );
+
+  const showTotalDuration = task?.started_at != null && task?.completed_at != null;
+  const totalDurationMs = showTotalDuration
+    ? new Date(task!.completed_at!).getTime() - new Date(task!.started_at!).getTime()
+    : 0;
+
   return (
-    <div className="relative">
-      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
+    <div>
+      {showTotalDuration && totalDurationMs >= 0 && (
+        <p className="text-xs text-muted-foreground mb-3">
+          Total duration:{' '}
+          <span className="font-medium">{formatTransitionDuration(totalDurationMs)}</span>
+        </p>
+      )}
 
-      <div className="space-y-4">
-        {logs.map((log, index) => (
-          <div key={log.id} className="relative flex items-start gap-4 pl-6">
-            <div
-              className={cn(
-                'absolute left-0 top-[5px] h-[15px] w-[15px] rounded-full border-2 border-background',
-                statusDotColor(log.to_status),
-              )}
-            />
+      <div className="relative">
+        <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                {log.from_status ? (
-                  <>
-                    <span className={cn('text-sm font-medium', statusTextColor(log.from_status))}>
-                      {log.from_status}
-                    </span>
-                    <span className="text-xs text-muted-foreground">→</span>
-                    <span className={cn('text-sm font-semibold', statusTextColor(log.to_status))}>
-                      {log.to_status}
-                    </span>
-                  </>
-                ) : (
-                  <span className={cn('text-sm font-semibold', statusTextColor(log.to_status))}>
-                    {log.to_status}
-                  </span>
-                )}
-                {index === logs.length - 1 && (
-                  <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                    current
-                  </span>
-                )}
+        <div className="space-y-4">
+          {logs.map((log, index) => {
+            const prevLog = index > 0 ? logs[index - 1] : null;
+            const durationMs = prevLog
+              ? new Date(log.created_at).getTime() - new Date(prevLog.created_at).getTime()
+              : 0;
+            const isLongDuration = durationMs > FIVE_MINUTES_MS;
+            const isLastEntry = index === logs.length - 1;
+            const isOngoing = isLastEntry && !isTerminal;
+
+            return (
+              <div key={log.id} className="relative flex items-start gap-4 pl-6">
+                <div
+                  className={cn(
+                    'absolute left-0 top-[5px] h-[15px] w-[15px] rounded-full border-2 border-background',
+                    statusDotColor(log.to_status),
+                  )}
+                />
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    {log.from_status ? (
+                      <>
+                        <span
+                          className={cn('text-sm font-medium', statusTextColor(log.from_status))}
+                        >
+                          {log.from_status}
+                        </span>
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <span
+                          className={cn('text-sm font-semibold', statusTextColor(log.to_status))}
+                        >
+                          {log.to_status}
+                        </span>
+                      </>
+                    ) : (
+                      <span className={cn('text-sm font-semibold', statusTextColor(log.to_status))}>
+                        {log.to_status}
+                      </span>
+                    )}
+                    {isLastEntry && (
+                      <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        current
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{log.actor}</span>
+                    <span>·</span>
+                    <span>{formatRelativeTime(log.created_at)}</span>
+                    {index > 0 && (
+                      <>
+                        <span>·</span>
+                        <span className={cn(isLongDuration && 'text-amber-600 font-medium')}>
+                          +{formatTransitionDuration(durationMs)}
+                        </span>
+                      </>
+                    )}
+                    {isOngoing && (
+                      <>
+                        <span>·</span>
+                        <span className="text-blue-600">ongoing</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{log.actor}</span>
-                <span>·</span>
-                <span>{formatRelativeTime(log.created_at)}</span>
-              </div>
-            </div>
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
