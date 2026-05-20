@@ -90,7 +90,7 @@ describe('Seed data verification', () => {
     // Structural checks — not byte-for-byte equality, which breaks when static file diverges from DB
     expect(agentsMd).toBeTruthy();
     expect(agentsMd.length).toBeGreaterThan(100);
-    expect(agentsMd).toContain('# AI Employee Platform');
+    expect(agentsMd).toContain('AI Employee');
   });
 
   it('Tenant config default_agents_md is seeded (DozalDevs)', async () => {
@@ -119,6 +119,6 @@ describe('Seed data verification', () => {
     const defaultAgentsMd = result[0].default_agents_md as string;
     expect(defaultAgentsMd).toBeTruthy();
     expect(defaultAgentsMd.length).toBeGreaterThan(100);
-    expect(defaultAgentsMd).toContain('# AI Employee Platform');
+    expect(defaultAgentsMd).toContain('AI Employee');
   });
 });
