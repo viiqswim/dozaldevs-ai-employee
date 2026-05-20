@@ -132,6 +132,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
     async ({ event, step, runId }) => {
       const { taskId, archetypeId } = event.data as { taskId: string; archetypeId: string };
       const { notifyBlocks, notifyStateBlocks } = createTaskNotifyBuilders({ taskId, runId });
+      log.info({ taskId, runId, archetypeId }, 'Lifecycle started');
 
       const supabaseUrl = process.env.SUPABASE_URL!;
       const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
@@ -156,6 +157,17 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const archetype = (taskData.archetypes as Record<string, unknown>) ?? {};
       const riskModel = (archetype.risk_model as Record<string, unknown>) ?? {};
       const approvalRequired = riskModel.approval_required === true;
+      log.info(
+        {
+          taskId,
+          runId,
+          step: 'load-task',
+          archetypeId: archetype['id'] as string,
+          roleName: archetype['role_name'] as string,
+          approvalRequired,
+        },
+        'Step complete: load-task',
+      );
       const timeoutHours = (riskModel.timeout_hours as number) ?? 24;
       const tenantId = taskData.tenant_id as string | undefined;
       if (!tenantId) {
@@ -204,6 +216,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await logStatusTransition(supabaseUrl, headers, taskId, 'Triaging', 'Received');
         log.info({ taskId }, 'State: Triaging (auto-pass)');
       });
+      log.info({ taskId, runId, step: 'triaging' }, 'Step complete: triaging');
 
       // ── Notification: Task received ──────────────────────────────────────────
       const notifyMsgRef = await step.run('notify-received', async () => {
@@ -348,6 +361,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return { ts: null, channel: null };
         }
       });
+      log.info(
+        { taskId, runId, step: 'notify-received', channel: notifyMsgRef?.channel },
+        'Step complete: notify-received',
+      );
 
       // ── State: AwaitingInput ─────────────────────────────────────────────────
       // Auto-passes: triage found no ambiguity
@@ -578,6 +595,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         return machine.id;
       });
+      log.info({ taskId, runId, step: 'executing' }, 'Step complete: executing');
 
       // ── Poll for machine completion (Submitting or Failed) ───────────────────
       const finalStatus = await step.run('poll-completion', async () => {
@@ -596,6 +614,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         }
         return 'Failed';
       });
+      log.info({ taskId, runId, step: 'poll-completion' }, 'Step complete: poll-completion');
 
       if (finalStatus === 'Cancelled') {
         log.info({ taskId }, 'Task was cancelled (superseded) — stopping ghost worker');
@@ -725,6 +744,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await logStatusTransition(supabaseUrl, headers, taskId, 'Validating', 'Submitting');
         log.info({ taskId }, 'State: Validating (auto-pass)');
       });
+      log.info({ taskId, runId, step: 'validating' }, 'Step complete: validating');
 
       // ── State: Submitting ────────────────────────────────────────────────────
       await step.run('submitting', async () => {
@@ -732,6 +752,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await logStatusTransition(supabaseUrl, headers, taskId, 'Submitting', 'Validating');
         log.info({ taskId }, 'State: Submitting');
       });
+      log.info({ taskId, runId, step: 'submitting' }, 'Step complete: submitting');
 
       if (!approvalRequired) {
         // ── State: Done (no approval needed) ────────────────────────────────────
@@ -2501,6 +2522,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.info({ taskId }, 'State: Cancelled (rejected)');
         }
       });
+      log.info(
+        { taskId, runId, step: 'handle-approval-result' },
+        'Step complete: handle-approval-result',
+      );
 
       await step.run('cleanup', async () => {
         try {
