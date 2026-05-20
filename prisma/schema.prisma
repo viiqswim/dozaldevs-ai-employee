@@ -36,6 +36,9 @@ model Task {
   planContent        String?  @map("plan_content") @db.Text
   planGeneratedAt    DateTime? @map("plan_generated_at")
   costUsdCents       Int      @default(0) @map("cost_usd_cents")
+  started_at         DateTime?
+  completed_at       DateTime?
+  failure_code       String?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
@@ -70,6 +73,7 @@ model Execution {
   current_stage      String?
   waveNumber         Int?      @map("wave_number")
   waveState          Json?     @map("wave_state")
+  session_transcript Json?
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
