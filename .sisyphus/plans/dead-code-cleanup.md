@@ -188,7 +188,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Establish green baseline
+- [x] 1. Establish green baseline
 
   **What to do**:
   - Run `pnpm build` and record output — note any pre-existing TypeScript errors
@@ -257,7 +257,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 2. Install and configure knip
+- [x] 2. Install and configure knip
 
   **What to do**:
   - Install knip as a devDependency: `pnpm add -D knip` — note the installed version
@@ -378,7 +378,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 3. Generate and triage initial knip report
+- [x] 3. Generate and triage initial knip report
 
   **What to do**:
   - Run `pnpm lint:unused --reporter json > .sisyphus/evidence/task-3-knip-raw.json 2>&1` to capture full JSON report
@@ -449,7 +449,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (triage is evidence, not code)
 
-- [ ] 4. Clean stale dist/ artifacts
+- [x] 4. Clean stale dist/ artifacts
 
   **What to do**:
   - Verify dist/ is gitignored (confirmed in Task 1)
