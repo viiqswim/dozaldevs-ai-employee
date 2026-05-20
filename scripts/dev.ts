@@ -524,7 +524,7 @@ log('── Step 5: Starting Inngest Dev Server ──');
 const inngestProc = spawn(
   'npx',
   [
-    'inngest-cli@latest',
+    'inngest-cli@1.21.0',
     'dev',
     '-u',
     `http://localhost:${GATEWAY_PORT}/api/inngest`,
