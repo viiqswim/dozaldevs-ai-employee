@@ -768,7 +768,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO
 
-- [ ] 8. Notify completion via Telegram
+- [x] 8. Notify completion via Telegram
 
   **What to do**:
   Send Telegram notification that the plan is complete.
