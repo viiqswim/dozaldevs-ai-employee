@@ -235,6 +235,53 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **ORM**: Prisma — `prisma/schema.prisma`; **REST API**: Supabase PostgREST on `http://localhost:54331`
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 
+### Database Backup (MANDATORY before any reseed or wipe)
+
+**Before running `pnpm prisma db seed`, `pnpm setup`, `docker compose down -v`, or any operation that resets or overwrites the database — YOU MUST back it up first.**
+
+The database contains production data: learned rules accumulated over time, feedback history, tenant secrets, and task history. A reseed silently overwrites archetype rows. A volume wipe destroys everything. Always back up first.
+
+**How to back up:**
+
+```bash
+# 1. Get a timestamp
+TS=$(date "+%Y-%m-%d-%H%M")
+BACKUP_DIR="database-backups/$TS"
+mkdir -p "$BACKUP_DIR"
+
+# 2. Full dump (plain SQL — human-readable and restorable)
+docker exec shared-postgres pg_dump -U postgres -d ai_employee --format=plain > "$BACKUP_DIR/full-dump.sql"
+
+# 3. Critical tables individually (for selective restore)
+docker exec shared-postgres pg_dump -U postgres -d ai_employee -t employee_rules --data-only --inserts > "$BACKUP_DIR/employee_rules.sql"
+docker exec shared-postgres pg_dump -U postgres -d ai_employee -t archetypes --data-only --inserts > "$BACKUP_DIR/archetypes.sql"
+docker exec shared-postgres pg_dump -U postgres -d ai_employee -t tenant_secrets --data-only --inserts > "$BACKUP_DIR/tenant_secrets.sql"
+docker exec shared-postgres pg_dump -U postgres -d ai_employee -t knowledge_base_entries --data-only --inserts > "$BACKUP_DIR/knowledge_base_entries.sql"
+
+# 4. Confirm row counts
+psql postgresql://postgres:postgres@localhost:54322/ai_employee -c "SELECT 'employee_rules' as t, count(*) FROM employee_rules UNION ALL SELECT 'archetypes', count(*) FROM archetypes UNION ALL SELECT 'tasks', count(*) FROM tasks;"
+
+echo "Backup complete: $BACKUP_DIR"
+```
+
+**How to restore:**
+
+```bash
+# Full restore (replaces everything — use after a volume wipe)
+docker exec -i shared-postgres psql -U postgres -d ai_employee < database-backups/YYYY-MM-DD-HHMM/full-dump.sql
+
+# Selective restore — just learned rules (use after an accidental reseed)
+psql postgresql://postgres:postgres@localhost:54322/ai_employee -c "TRUNCATE employee_rules CASCADE;"
+psql postgresql://postgres:postgres@localhost:54322/ai_employee < database-backups/YYYY-MM-DD-HHMM/employee_rules.sql
+```
+
+**Notes:**
+
+- Backups are gitignored (`database-backups/` in `.gitignore`) — they stay local only
+- The Docker container name is `shared-postgres` — verify with `docker ps --filter name=postgres`
+- `pg_dump` inside the container is always version-matched — do not use the host `pg_dump` (version mismatch causes errors)
+- Existing backups live in `database-backups/` — check before overwriting
+
 ## Infrastructure
 
 Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start` — the CLI hardcodes `database: postgres`, which would break PostgREST. `POSTGRES_DB=ai_employee` in `docker/.env` makes all services use the right database. **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally. Gateway/Inngest code changes take effect immediately via `tsx watch`.
