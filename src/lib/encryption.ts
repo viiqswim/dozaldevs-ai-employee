@@ -41,7 +41,7 @@ export function validateEncryptionKey(): void {
   }
 }
 
-export function assertNoPlaintextLogged(plaintext: string, logOutput: string): void {
+function assertNoPlaintextLogged(plaintext: string, logOutput: string): void {
   if (logOutput.includes(plaintext)) {
     throw new Error('Plaintext secret found in log output — encryption guardrail violated');
   }

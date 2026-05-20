@@ -15,7 +15,7 @@ export interface HeartbeatHandle {
   updateStage: (stage: string) => void;
 }
 
-export interface EscalateOptions {
+interface EscalateOptions {
   executionId: string | null;
   taskId: string;
   reason: string;

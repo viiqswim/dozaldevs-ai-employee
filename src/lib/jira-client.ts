@@ -12,7 +12,7 @@ export interface JiraClientConfig {
   apiToken: string;
 }
 
-export interface JiraIssue {
+interface JiraIssue {
   id: string;
   key: string;
   fields: {

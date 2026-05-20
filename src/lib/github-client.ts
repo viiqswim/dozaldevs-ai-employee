@@ -20,7 +20,7 @@ export interface GitHubPR {
   body?: string | null;
 }
 
-export interface CreatePRParams {
+interface CreatePRParams {
   owner: string;
   repo: string;
   title: string;
@@ -29,14 +29,14 @@ export interface CreatePRParams {
   body?: string;
 }
 
-export interface ListPRsParams {
+interface ListPRsParams {
   owner: string;
   repo: string;
   state?: 'open' | 'closed' | 'all';
   head?: string; // filter by head branch
 }
 
-export interface GetPRParams {
+interface GetPRParams {
   owner: string;
   repo: string;
   pullNumber: number;

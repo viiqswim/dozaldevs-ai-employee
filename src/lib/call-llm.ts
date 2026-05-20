@@ -4,7 +4,7 @@ import { createLogger } from './logger.js';
 import { withRetry } from './retry.js';
 import { createSlackClient } from './slack-client.js';
 
-export interface Message {
+interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
