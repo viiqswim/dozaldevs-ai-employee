@@ -36,6 +36,9 @@ export interface Task {
   cost_usd_cents: number;
   created_at: string;
   updated_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  failure_code: string | null;
   // From PostgREST embedded join: ?select=*,archetypes(role_name,model)
   archetypes?: { role_name: string | null; model: string | null } | null;
 }
@@ -152,10 +155,41 @@ export interface FeedbackEvent {
   task_id: string | null;
   event_type: 'teaching' | 'feedback' | 'rejection_reason' | 'rejection' | 'edit_diff';
   actor_id: string | null;
+  actor_type: string | null;
   correction_content: string | null;
   original_content: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface Execution {
+  id: string;
+  task_id: string;
+  runtime_type: string | null;
+  status: string;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  estimated_cost_usd: number | null;
+  heartbeat_at: string | null;
+  current_stage: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutionWithTranscript extends Execution {
+  session_transcript: unknown[] | null;
+}
+
+export interface Deliverable {
+  id: string;
+  execution_id: string | null;
+  external_ref: string | null;
+  delivery_type: string | null;
+  status: string;
+  content: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TenantSecret {
