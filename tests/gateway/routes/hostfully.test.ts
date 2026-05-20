@@ -11,7 +11,7 @@ const AGENCY_UID = 'test-agency-uid';
 function makeApp(
   overrides: {
     tenantFindMany?: ReturnType<typeof vi.fn>;
-    archetypeFindUnique?: ReturnType<typeof vi.fn>;
+    archetypeFindFirst?: ReturnType<typeof vi.fn>;
     taskCreate?: ReturnType<typeof vi.fn>;
     taskFindFirst?: ReturnType<typeof vi.fn>;
     taskUpdate?: ReturnType<typeof vi.fn>;
@@ -34,8 +34,8 @@ function makeApp(
             ]),
         },
         archetype: {
-          findUnique:
-            overrides.archetypeFindUnique ?? vi.fn().mockResolvedValue({ id: ARCHETYPE_ID }),
+          findFirst:
+            overrides.archetypeFindFirst ?? vi.fn().mockResolvedValue({ id: ARCHETYPE_ID }),
         },
         task: {
           create: overrides.taskCreate ?? vi.fn().mockResolvedValue({ id: TASK_ID }),
@@ -94,9 +94,9 @@ describe('POST /webhooks/hostfully', () => {
 
   it('2. non-NEW_INBOX_MESSAGE event → 200 ignored, no Prisma calls', async () => {
     const tenantFindMany = vi.fn().mockResolvedValue([]);
-    const archetypeFindUnique = vi.fn().mockResolvedValue(null);
+    const archetypeFindFirst = vi.fn().mockResolvedValue(null);
     const taskCreate = vi.fn();
-    const app = makeApp({ tenantFindMany, archetypeFindUnique, taskCreate });
+    const app = makeApp({ tenantFindMany, archetypeFindFirst, taskCreate });
     const res = await request(app)
       .post('/webhooks/hostfully')
       .set('Content-Type', 'application/json')
@@ -104,7 +104,7 @@ describe('POST /webhooks/hostfully', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, ignored: true });
     expect(tenantFindMany).not.toHaveBeenCalled();
-    expect(archetypeFindUnique).not.toHaveBeenCalled();
+    expect(archetypeFindFirst).not.toHaveBeenCalled();
     expect(taskCreate).not.toHaveBeenCalled();
   });
 
@@ -158,7 +158,7 @@ describe('POST /webhooks/hostfully', () => {
 
   it('7. archetype not found → 200 archetype_not_found', async () => {
     const app = makeApp({
-      archetypeFindUnique: vi.fn().mockResolvedValue(null),
+      archetypeFindFirst: vi.fn().mockResolvedValue(null),
     });
     const res = await request(app)
       .post('/webhooks/hostfully')

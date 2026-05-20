@@ -10,7 +10,7 @@ const AGENCY_UID = 'test-agency-uid';
 function makeApp(
   overrides: {
     tenantFindMany?: ReturnType<typeof vi.fn>;
-    archetypeFindUnique?: ReturnType<typeof vi.fn>;
+    archetypeFindFirst?: ReturnType<typeof vi.fn>;
     taskCreate?: ReturnType<typeof vi.fn>;
     taskFindFirst?: ReturnType<typeof vi.fn>;
     taskUpdate?: ReturnType<typeof vi.fn>;
@@ -33,8 +33,8 @@ function makeApp(
             ]),
         },
         archetype: {
-          findUnique:
-            overrides.archetypeFindUnique ?? vi.fn().mockResolvedValue({ id: ARCHETYPE_ID }),
+          findFirst:
+            overrides.archetypeFindFirst ?? vi.fn().mockResolvedValue({ id: ARCHETYPE_ID }),
         },
         task: {
           create: overrides.taskCreate ?? vi.fn().mockResolvedValue({ id: 'new-task-uuid' }),

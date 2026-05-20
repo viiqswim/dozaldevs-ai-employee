@@ -9,11 +9,18 @@ vi.mock('../../../src/gateway/services/employee-dispatcher.js');
 const TENANT = 'a0000000-0000-4000-8000-000000000001';
 const ADMIN_KEY = 'test-admin-key';
 
-function makeApp() {
+function makeApp(
+  archetypeFindFirstResult: unknown = { id: 'test-archetype-id', input_schema: null },
+) {
   process.env.ADMIN_API_KEY = ADMIN_KEY;
   const app = express();
   app.use(express.json());
-  app.use(adminEmployeeTriggerRoutes({ prisma: {} as never, inngest: { send: vi.fn() } }));
+  const prisma = {
+    archetype: {
+      findFirst: vi.fn().mockResolvedValue(archetypeFindFirstResult),
+    },
+  };
+  app.use(adminEmployeeTriggerRoutes({ prisma: prisma as never, inngest: { send: vi.fn() } }));
   return app;
 }
 
