@@ -45,7 +45,9 @@
     "src/workers/lib/token-tracker.ts",
     "src/workers/lib/validation-pipeline.ts",
     "src/workers/lib/wave-executor.ts",
-    "src/inngest/triggers/guest-message-poll.ts"
+    "src/inngest/triggers/guest-message-poll.ts",
+    "src/workers/lib/heartbeat.ts",
+    "src/lib/github-client.ts"
   ],
   "ignoreDependencies": ["tsx"],
   "ignoreBinaries": ["psql", "supabase", "which", "cloudflared", "gh", "pg_isready"]
