@@ -13,12 +13,19 @@ export interface MonitorOptions {
   minElapsedMs?: number; // default: 30000 (30 seconds minimum before marking complete)
 }
 
+export interface UsageMetrics {
+  promptTokens: number;
+  completionTokens: number;
+  estimatedCostUsd: number;
+}
+
 export interface SessionManager {
   createSession(title: string): Promise<string | null>;
   injectTaskPrompt(sessionId: string, prompt: string): Promise<boolean>;
   monitorSession(sessionId: string, options?: MonitorOptions): Promise<SessionMonitorResult>;
   abortSession(sessionId: string): Promise<void>;
   sendFixPrompt(sessionId: string, failedStage: string, errorOutput: string): Promise<boolean>;
+  getTranscript(sessionId: string): Promise<unknown[] | null>;
 }
 
 /**
@@ -377,5 +384,78 @@ Please analyze this error and fix the issue. Make the minimal changes needed to 
         return false;
       }
     },
+
+    /**
+     * Fetch the full message transcript for a completed session.
+     * Returns null on any error — never throws.
+     *
+     * @param sessionId - The session to fetch the transcript for
+     * @returns Array of message objects, or null on failure
+     */
+    async getTranscript(sessionId: string): Promise<unknown[] | null> {
+      try {
+        const response = await client.session.messages({ path: { id: sessionId } });
+        return (response.data as unknown[] | null | undefined) ?? null;
+      } catch (err) {
+        log.warn({ sessionId, err }, '[session-manager] Failed to fetch transcript');
+        return null;
+      }
+    },
   };
+}
+
+/**
+ * Sum token and cost fields from a session transcript.
+ * Iterates over messages, accumulating cost and tokens from AssistantMessage entries.
+ * Returns zeros if no cost/token data is found.
+ *
+ * @param transcript - Array of message objects from getTranscript()
+ * @returns Aggregated usage metrics
+ */
+export function extractUsage(transcript: unknown[]): UsageMetrics {
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let estimatedCostUsd = 0;
+  let foundData = false;
+
+  for (const entry of transcript) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const msg = entry as Record<string, unknown>;
+    // Each entry is { info: Message, parts: Part[] }
+    const info = msg['info'];
+    if (typeof info !== 'object' || info === null) continue;
+    const infoObj = info as Record<string, unknown>;
+
+    // Only AssistantMessage has cost and tokens fields
+    if (infoObj['role'] !== 'assistant') continue;
+
+    const cost = infoObj['cost'];
+    if (typeof cost === 'number') {
+      estimatedCostUsd += cost;
+      foundData = true;
+    }
+
+    const tokens = infoObj['tokens'];
+    if (typeof tokens === 'object' && tokens !== null) {
+      const tokensObj = tokens as Record<string, unknown>;
+      const input = tokensObj['input'];
+      const output = tokensObj['output'];
+      if (typeof input === 'number') {
+        promptTokens += input;
+        foundData = true;
+      }
+      if (typeof output === 'number') {
+        completionTokens += output;
+        foundData = true;
+      }
+    }
+  }
+
+  if (!foundData) {
+    log.warn(
+      '[session-manager] Transcript messages have no cost/token data — cost tracking unavailable',
+    );
+  }
+
+  return { promptTokens, completionTokens, estimatedCostUsd };
 }

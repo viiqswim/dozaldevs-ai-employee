@@ -2,7 +2,9 @@ import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
 import { resolveAgentsMd } from './lib/agents-md-resolver.mjs';
 import { startOpencodeServer } from './lib/opencode-server.js';
-import { createSessionManager } from './lib/session-manager.js';
+import { createSessionManager, extractUsage } from './lib/session-manager.js';
+import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
+import { classifyFailure } from './lib/failure-codes.js';
 import {
   parseStandardOutput,
   isApprovalRequired,
@@ -54,10 +56,12 @@ const db: PostgRESTClient = createPostgRESTClient();
 
 type ServerHandle = { kill: () => Promise<void> };
 let serverHandleGlobal: ServerHandle | null = null;
+let heartbeatHandleGlobal: HeartbeatHandle | null = null;
 const opencodeRunPid: number | null = null;
 
 process.on('SIGTERM', () => {
   log.warn({ taskId: TASK_ID }, '[opencode-harness] SIGTERM received — marking task Failed');
+  if (heartbeatHandleGlobal !== null) (heartbeatHandleGlobal as HeartbeatHandle).stop();
   if (serverHandleGlobal !== null) void (serverHandleGlobal as ServerHandle).kill();
   if (opencodeRunPid !== null) {
     try {
@@ -70,6 +74,7 @@ process.on('SIGTERM', () => {
     .patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Failed',
       failure_reason: 'Worker terminated',
+      failure_code: 'worker_terminated',
       updated_at: new Date().toISOString(),
     })
     .finally(() => {
@@ -77,11 +82,16 @@ process.on('SIGTERM', () => {
     });
 });
 
-async function markFailed(reason: string, executionId: string | null): Promise<void> {
+async function markFailed(
+  reason: string,
+  executionId: string | null,
+  failureCode?: string,
+): Promise<void> {
   try {
     await db.patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Failed',
       failure_reason: reason,
+      failure_code: failureCode ?? null,
       updated_at: new Date().toISOString(),
     });
   } catch (err) {
@@ -272,7 +282,13 @@ async function writeOpencodeAuth(): Promise<void> {
 async function runOpencodeSession(
   instructions: string,
   model: string,
-): Promise<{ content: string; metadata: Record<string, unknown> }> {
+): Promise<{
+  content: string;
+  metadata: Record<string, unknown>;
+  sessionId: string | null;
+  transcript: unknown[] | null;
+  tokenUsage: { promptTokens: number; completionTokens: number; estimatedCostUsd: number };
+}> {
   const fullPrompt = `${instructions}\n\nTask ID: ${TASK_ID}`;
 
   const modelID = model.startsWith('openrouter/') ? model.slice('openrouter/'.length) : model;
@@ -294,13 +310,17 @@ async function runOpencodeSession(
 
   serverHandleGlobal = serverHandle;
 
+  let sessionId: string | null = null;
+  let transcript: unknown[] | null = null;
+  let tokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
+
   try {
     process.env.OPENROUTER_MODEL = modelID;
     process.env.OPENCODE_PROVIDER_ID = 'openrouter';
 
     const sessionManager = createSessionManager(serverHandle.url);
 
-    const sessionId = await sessionManager.createSession(TASK_ID);
+    sessionId = await sessionManager.createSession(TASK_ID);
     if (sessionId === null) {
       throw new Error('[opencode-harness] Failed to create OpenCode session');
     }
@@ -410,7 +430,13 @@ async function runOpencodeSession(
           '[opencode-harness] Output files found after server exit — treating as success',
         );
         serverHandleGlobal = null;
-        return { content, metadata: { ...extraMetadata } };
+        return {
+          content,
+          metadata: { ...extraMetadata },
+          sessionId,
+          transcript: null,
+          tokenUsage: { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 },
+        };
       }
       throw new Error(
         '[opencode-harness] opencode serve exited before producing output — neither /tmp/summary.txt nor /tmp/approval-message.json was found',
@@ -432,10 +458,29 @@ async function runOpencodeSession(
         );
         serverHandleGlobal = null;
         await serverHandle.kill();
-        return { content, metadata: { ...extraMetadata } };
+        return {
+          content,
+          metadata: { ...extraMetadata },
+          sessionId,
+          transcript: null,
+          tokenUsage: { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 },
+        };
       }
       throw new Error(
         `[opencode-harness] OpenCode session did not complete: ${monitorResult.reason ?? 'unknown'}`,
+      );
+    }
+
+    // Fetch transcript before server is killed
+    try {
+      transcript = await sessionManager.getTranscript(sessionId!);
+      if (transcript !== null) {
+        tokenUsage = extractUsage(transcript);
+      }
+    } catch (err) {
+      log.warn(
+        { err },
+        '[opencode-harness] Failed to fetch transcript — continuing without telemetry',
       );
     }
 
@@ -524,7 +569,7 @@ async function runOpencodeSession(
     );
   }
 
-  return { content, metadata: { ...extraMetadata } };
+  return { content, metadata: { ...extraMetadata }, sessionId, transcript, tokenUsage };
 }
 
 async function main(): Promise<void> {
@@ -560,7 +605,11 @@ async function main(): Promise<void> {
     const deliverable = deliverableRows?.[0] as Record<string, unknown> | undefined;
     if (!deliverable) {
       log.error({ taskId: TASK_ID }, '[opencode-harness] No deliverable found for delivery phase');
-      await markFailed('No deliverable found for delivery phase', null);
+      await markFailed(
+        'No deliverable found for delivery phase',
+        null,
+        classifyFailure('No deliverable found for delivery phase'),
+      );
       return;
     }
     const deliverableContent = (deliverable.content as string) ?? '';
@@ -572,7 +621,11 @@ async function main(): Promise<void> {
         { taskId: TASK_ID },
         '[opencode-harness] Archetype missing delivery_instructions — failing delivery',
       );
-      await markFailed('Archetype missing delivery_instructions', null);
+      await markFailed(
+        'Archetype missing delivery_instructions',
+        null,
+        classifyFailure('Archetype missing delivery_instructions'),
+      );
       return;
     }
 
@@ -620,7 +673,8 @@ async function main(): Promise<void> {
       await runOpencodeSession(deliveryPrompt, archetype.model ?? 'minimax/minimax-m2.7');
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
-      await markFailed(err instanceof Error ? err.message : String(err), null);
+      const deliveryErr = err instanceof Error ? err.message : String(err);
+      await markFailed(deliveryErr, null, classifyFailure(deliveryErr));
       return;
     }
 
@@ -631,18 +685,30 @@ async function main(): Promise<void> {
       try {
         summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
       } catch {
-        await markFailed('Delivery not confirmed — no summary.txt produced', null);
+        await markFailed(
+          'Delivery not confirmed — no summary.txt produced',
+          null,
+          classifyFailure('Delivery not confirmed — no summary.txt produced'),
+        );
         return;
       }
       let deliverySummary: Record<string, unknown>;
       try {
         deliverySummary = JSON.parse(summaryRaw) as Record<string, unknown>;
       } catch {
-        await markFailed('Delivery not confirmed — summary.txt is not valid JSON', null);
+        await markFailed(
+          'Delivery not confirmed — summary.txt is not valid JSON',
+          null,
+          classifyFailure('Delivery not confirmed — summary.txt is not valid JSON'),
+        );
         return;
       }
       if (deliverySummary.delivered !== true) {
-        await markFailed('Delivery not confirmed — send-message.ts may not have succeeded', null);
+        await markFailed(
+          'Delivery not confirmed — send-message.ts may not have succeeded',
+          null,
+          classifyFailure('Delivery not confirmed — send-message.ts may not have succeeded'),
+        );
         return;
       }
       log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery confirmed via summary.txt');
@@ -721,8 +787,15 @@ async function main(): Promise<void> {
     log.info({ taskId: TASK_ID, executionId }, 'Execution record created');
   }
 
+  // Start heartbeat after execution record creation
+  if (executionId) {
+    heartbeatHandleGlobal = startHeartbeat({ executionId, postgrestClient: db });
+    log.info({ taskId: TASK_ID, executionId }, '[opencode-harness] Heartbeat started');
+  }
+
   await db.patch('tasks', `id=eq.${TASK_ID}`, {
     status: 'Executing',
+    started_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
   log.info({ taskId: TASK_ID }, 'Task status → Executing');
@@ -778,15 +851,56 @@ async function main(): Promise<void> {
 
   let content = '';
   let metadata: Record<string, unknown> = {};
+  let sessionTranscript: unknown[] | null = null;
+  let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
   try {
     const result = await runOpencodeSession(resolvedInstructions, model);
     content = result.content;
     metadata = result.metadata;
+    sessionTranscript = result.transcript;
+    sessionTokenUsage = result.tokenUsage;
   } catch (err) {
     log.error({ taskId: TASK_ID, err }, '[opencode-harness] OpenCode session failed');
-    await markFailed(err instanceof Error ? err.message : String(err), executionId);
+    const failureReason = err instanceof Error ? err.message : String(err);
+    await markFailed(failureReason, executionId, classifyFailure(failureReason));
     process.exit(1);
+  }
+
+  // Stop heartbeat now that session is done
+  if (heartbeatHandleGlobal !== null) {
+    heartbeatHandleGlobal.stop();
+    heartbeatHandleGlobal = null;
+  }
+
+  // Patch execution with metrics and transcript (best-effort — never fail task over telemetry)
+  if (executionId) {
+    try {
+      await db.patch('executions', `id=eq.${executionId}`, {
+        status: 'completed',
+        prompt_tokens: sessionTokenUsage.promptTokens,
+        completion_tokens: sessionTokenUsage.completionTokens,
+        estimated_cost_usd: sessionTokenUsage.estimatedCostUsd,
+        session_transcript: sessionTranscript,
+        updated_at: new Date().toISOString(),
+      });
+      log.info(
+        { taskId: TASK_ID, executionId, ...sessionTokenUsage },
+        '[opencode-harness] Execution metrics persisted',
+      );
+    } catch (err) {
+      log.warn({ err }, '[opencode-harness] Failed to persist execution metrics — non-fatal');
+    }
+  }
+
+  // Set completed_at on task
+  try {
+    await db.patch('tasks', `id=eq.${TASK_ID}`, {
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.warn({ err }, '[opencode-harness] Failed to set completed_at — non-fatal');
   }
 
   const deliverableId = crypto.randomUUID();
