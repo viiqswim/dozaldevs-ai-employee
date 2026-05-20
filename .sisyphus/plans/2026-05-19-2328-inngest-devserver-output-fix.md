@@ -159,7 +159,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
 
 ## TODOs
 
-- [ ] 1. Diagnostic — Restart Dev Server and Verify Contamination Behavior
+- [x] 1. Diagnostic — Restart Dev Server and Verify Contamination Behavior
 
   **What to do**:
   - Capture a "before" baseline: query the Inngest GraphQL API for the most recent completed run's `load-task` step output. Save the raw JSON response to `.sisyphus/evidence/task-1-before-baseline.json`.
@@ -258,7 +258,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
 
   **Commit**: NO (diagnostic only, no code changes)
 
-- [ ] 2. Pin Inngest CLI Version in scripts/dev.ts
+- [x] 2. Pin Inngest CLI Version in scripts/dev.ts
 
   **What to do**:
   - Open `scripts/dev.ts` line 527
@@ -325,7 +325,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
   - Files: `scripts/dev.ts`, `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 3. Add Structured Lifecycle Logging with runId
+- [x] 3. Add Structured Lifecycle Logging with runId
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, add structured logging at key lifecycle step boundaries. The goal: every major step transition emits a log line with `taskId`, `runId`, and the step output summary, so developers can verify correct execution via gateway logs without depending on the Inngest UI.
@@ -433,7 +433,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
   - Files: `scripts/dev.ts`, `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 4. Document Known Issue in AGENTS.md
+- [x] 4. Document Known Issue in AGENTS.md
 
   **What to do**:
   - Add a new Known Issues entry `### 3. Inngest Dev Server step output contamination` in `AGENTS.md` after the existing Known Issue §2 (Slack OAuth redirect URI) and before the `## Prometheus Planning` section.
@@ -520,7 +520,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
   - Message: `docs(agents): document Inngest Dev Server step output contamination bug`
   - Files: `AGENTS.md`
 
-- [ ] 5. Cross-Contamination Regression Verification
+- [x] 5. Cross-Contamination Regression Verification
 
   **What to do**:
   - This is the key verification task. After Tasks 2 and 3 are committed:
@@ -615,7 +615,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
 
   **Commit**: NO (verification only)
 
-- [ ] 6. Existing Test Suite Verification
+- [x] 6. Existing Test Suite Verification
 
   **What to do**:
   - Run `pnpm test -- --run` to verify no regressions from the logging changes
@@ -664,7 +664,7 @@ Max Concurrent: 3 (Tasks 2, 3, 4)
 
   **Commit**: NO (verification only)
 
-- [ ] 7. Notify Completion
+- [x] 7. Notify Completion
 
   **What to do**:
   - Send Telegram notification that the plan is complete:
