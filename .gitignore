@@ -43,3 +43,6 @@ dashboard/dist/
 dashboard/.env
 dashboard/vite.config.d.ts
 dashboard/vite.config.js
+
+# Database backups (contain production data + encrypted secrets)
+database-backups/
