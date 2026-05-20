@@ -12,11 +12,13 @@
   ],
   "project": ["src/**/*.{ts,mts}", "scripts/**/*.ts"],
   "ignore": [
+    "dashboard/**",
     "src/inngest/lifecycle.ts",
     "src/inngest/redispatch.ts",
     "src/inngest/watchdog.ts",
     "src/workers/orchestrate.mts",
     "src/workers/entrypoint.sh",
+    "src/workers/config/long-running.ts",
     "src/workers/lib/agents-md-reader.ts",
     "src/workers/lib/between-wave-push.ts",
     "src/workers/lib/branch-manager.ts",
@@ -45,5 +47,6 @@
     "src/workers/lib/wave-executor.ts",
     "src/inngest/triggers/guest-message-poll.ts"
   ],
-  "ignoreDependencies": ["tsx"]
+  "ignoreDependencies": ["tsx"],
+  "ignoreBinaries": ["psql", "supabase", "which", "cloudflared", "gh", "pg_isready"]
 }
