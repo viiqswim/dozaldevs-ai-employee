@@ -925,7 +925,7 @@ tsx /tools/platform/submit-output.ts \
 }
 ```
 
-**Side effect:** Writes `/tmp/summary.txt` (the `--summary` text) and `/tmp/approval-message.json` (the full JSON above). The harness reads both files. Do not delete them.
+**Side effect:** Writes the output contract JSON to `/tmp/summary.txt` only. Do NOT write `/tmp/approval-message.json` — the platform constructs approval cards automatically from `/tmp/summary.txt`. Do not delete `/tmp/summary.txt`.
 
 **Exit codes:**
 
