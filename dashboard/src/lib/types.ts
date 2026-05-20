@@ -155,7 +155,6 @@ export interface FeedbackEvent {
   task_id: string | null;
   event_type: 'teaching' | 'feedback' | 'rejection_reason' | 'rejection' | 'edit_diff';
   actor_id: string | null;
-  actor_type: string | null;
   correction_content: string | null;
   original_content: string | null;
   metadata: Record<string, unknown> | null;

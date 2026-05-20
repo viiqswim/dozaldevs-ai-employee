@@ -7,7 +7,7 @@ export function useFeedbackEvents(taskId: string) {
   const fetchFn = useCallback(async () => {
     return postgrestFetch<FeedbackEvent>('feedback_events', {
       task_id: `eq.${taskId}`,
-      select: 'id,task_id,event_type,actor_id,actor_type,created_at',
+      select: 'id,task_id,event_type,actor_id,created_at',
       order: 'created_at.desc',
     });
   }, [taskId]);
