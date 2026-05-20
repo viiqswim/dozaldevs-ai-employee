@@ -88,7 +88,6 @@ export const GitHubPRWebhookSchema = z
 // TypeScript types
 export type JiraWebhookPayload = z.infer<typeof JiraWebhookSchema>;
 export type JiraIssueDeletedPayload = z.infer<typeof JiraIssueDeletedSchema>;
-export type GitHubPRWebhookPayload = z.infer<typeof GitHubPRWebhookSchema>;
 
 // Parse helpers
 export function parseJiraWebhook(body: unknown): JiraWebhookPayload {
@@ -112,8 +111,6 @@ export const ToolingConfigSchema = z
     e2e: z.string().optional(),
   })
   .strict();
-
-export type ToolingConfigInput = z.infer<typeof ToolingConfigSchema>;
 
 const ProjectFieldsSchema = z.object({
   name: z.string().min(1, 'name is required'),
@@ -179,7 +176,6 @@ export const TriggerEmployeeParamsSchema = z.object({
     .max(100)
     .regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens only'),
 });
-export type TriggerEmployeeParams = z.infer<typeof TriggerEmployeeParamsSchema>;
 
 // Query params for ?dry_run=true (Express delivers query params as strings)
 export const TriggerEmployeeQuerySchema = z.object({
@@ -188,21 +184,18 @@ export const TriggerEmployeeQuerySchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
 });
-export type TriggerEmployeeQuery = z.infer<typeof TriggerEmployeeQuerySchema>;
 
 // URL params for GET /admin/tenants/:tenantId/tasks/:id
 export const GetTaskParamsSchema = z.object({
   tenantId: uuidField(),
   id: uuidField(),
 });
-export type GetTaskParams = z.infer<typeof GetTaskParamsSchema>;
 
 // URL params for /admin/tenants/:tenantId/projects/:id
 export const TenantProjectParamSchema = z.object({
   tenantId: uuidField(),
   id: uuidField(),
 });
-export type TenantProjectParam = z.infer<typeof TenantProjectParamSchema>;
 
 export const CreateTenantBodySchema = z.object({
   name: z.string().min(1).max(200),
@@ -213,7 +206,6 @@ export const CreateTenantBodySchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens only'),
   config: z.record(z.string(), z.unknown()).optional(),
 });
-export type CreateTenantBody = z.infer<typeof CreateTenantBodySchema>;
 
 export const UpdateTenantBodySchema = z
   .object({
@@ -229,12 +221,10 @@ export const UpdateTenantBodySchema = z
       });
     }
   });
-export type UpdateTenantBody = z.infer<typeof UpdateTenantBodySchema>;
 
 export const TenantIdParamSchema = z.object({
   tenantId: uuidField(),
 });
-export type TenantIdParam = z.infer<typeof TenantIdParamSchema>;
 
 export const SecretKeyParamSchema = z.object({
   tenantId: uuidField(),
@@ -244,12 +234,10 @@ export const SecretKeyParamSchema = z.object({
     .max(100)
     .regex(/^[a-z0-9_]+$/, 'key must be lowercase alphanumeric with underscores only'),
 });
-export type SecretKeyParam = z.infer<typeof SecretKeyParamSchema>;
 
 export const SetSecretBodySchema = z.object({
   value: z.string().min(1).max(10000),
 });
-export type SetSecretBody = z.infer<typeof SetSecretBodySchema>;
 
 export const TenantConfigBodySchema = z.object({
   notification_channel: z.string().optional(),
@@ -262,13 +250,11 @@ export const TenantConfigBodySchema = z.object({
     })
     .optional(),
 });
-export type TenantConfigBody = z.infer<typeof TenantConfigBodySchema>;
 
 export const SlackOAuthStateSchema = z.object({
   tenant_id: uuidField(),
   nonce: z.string().length(32),
 });
-export type SlackOAuthState = z.infer<typeof SlackOAuthStateSchema>;
 
 // ─── Knowledge Base Entry CRUD ────────────────────────────────────────────────
 
@@ -286,8 +272,6 @@ export const CreateKbEntrySchema = z
     path: ['entity_type'],
   });
 
-export type CreateKbEntryInput = z.infer<typeof CreateKbEntrySchema>;
-
 export const UpdateKbEntrySchema = z.object({
   content: z
     .string()
@@ -295,31 +279,23 @@ export const UpdateKbEntrySchema = z.object({
     .max(100000, 'content must be under 100,000 characters'),
 });
 
-export type UpdateKbEntryInput = z.infer<typeof UpdateKbEntrySchema>;
-
 export const ListKbEntriesQuerySchema = z.object({
   entity_type: z.string().optional(),
   entity_id: z.string().optional(),
 });
-
-export type ListKbEntriesQuery = z.infer<typeof ListKbEntriesQuerySchema>;
 
 export const KbEntryIdParamSchema = z.object({
   tenantId: uuidField(),
   entryId: uuidField(),
 });
 
-export type KbEntryIdParam = z.infer<typeof KbEntryIdParamSchema>;
-
 export const KbEntryTenantParamSchema = z.object({
   tenantId: uuidField(),
 });
 
-export type KbEntryTenantParam = z.infer<typeof KbEntryTenantParamSchema>;
-
 // ─── Hostfully Webhook ────────────────────────────────────────────────────────
 
-export const HostfullyWebhookPayloadSchema = z
+const HostfullyWebhookPayloadSchema = z
   .object({
     agency_uid: z.string().min(1),
     event_type: z.string().min(1),
@@ -354,19 +330,15 @@ export const CreatePropertyLockSchema = z.object({
   lock_metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export type CreatePropertyLock = z.infer<typeof CreatePropertyLockSchema>;
+type CreatePropertyLock = z.infer<typeof CreatePropertyLockSchema>;
 
 export const UpdatePropertyLockSchema = CreatePropertyLockSchema.partial();
-
-export type UpdatePropertyLock = z.infer<typeof UpdatePropertyLockSchema>;
 
 export const TenantPropertyLockParamSchema = TenantIdParamSchema.extend({
   lockId: uuidField(),
 });
 
-export type TenantPropertyLockParam = z.infer<typeof TenantPropertyLockParamSchema>;
-
-export function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
+function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
   const result = CreatePropertyLockSchema.safeParse(body);
   if (!result.success) {
     const messages = result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -402,26 +374,21 @@ export type InputSchemaItem = z.infer<typeof InputSchemaItemSchema>;
 
 export const InputSchemaSchema = z.array(InputSchemaItemSchema);
 
-export type InputSchema = z.infer<typeof InputSchemaSchema>;
-
 // ─── Employee Rules CRUD ──────────────────────────────────────────────────────
 
 export const RuleArchetypeParamsSchema = z.object({
   tenantId: uuidField(),
   archetypeId: uuidField(),
 });
-export type RuleArchetypeParams = z.infer<typeof RuleArchetypeParamsSchema>;
 
 export const RuleIdParamsSchema = RuleArchetypeParamsSchema.extend({
   ruleId: uuidField(),
 });
-export type RuleIdParams = z.infer<typeof RuleIdParamsSchema>;
 
 export const CreateRuleBodySchema = z.object({
   rule_text: z.string().min(1, 'rule_text is required').max(10000),
   status: z.enum(['confirmed', 'rejected']).optional().default('confirmed'),
 });
-export type CreateRuleBody = z.infer<typeof CreateRuleBodySchema>;
 
 export const UpdateRuleBodySchema = z
   .object({
@@ -436,4 +403,3 @@ export const UpdateRuleBodySchema = z
       });
     }
   });
-export type UpdateRuleBody = z.infer<typeof UpdateRuleBodySchema>;

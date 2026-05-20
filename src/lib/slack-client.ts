@@ -10,7 +10,7 @@ export interface SlackClientConfig {
   defaultChannel: string;
 }
 
-export interface SlackMessageParams {
+interface SlackMessageParams {
   text: string;
   channel?: string; // optional — uses defaultChannel if not specified
   blocks?: unknown[]; // optional rich blocks
@@ -18,7 +18,7 @@ export interface SlackMessageParams {
   unfurl_links?: boolean; // optional — suppress URL previews when false
 }
 
-export interface SlackMessageResult {
+interface SlackMessageResult {
   ts: string; // message timestamp
   channel: string; // channel ID where message was posted
 }

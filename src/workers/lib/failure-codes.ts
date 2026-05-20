@@ -4,7 +4,7 @@
  *
  * These are stored as plain TEXT in the `executions.failure_code` column (not a Postgres ENUM).
  */
-export const FAILURE_CODES = {
+const FAILURE_CODES = {
   output_contract_missing: 'output_contract_missing',
   worker_terminated: 'worker_terminated',
   session_failed: 'session_failed',
@@ -20,8 +20,6 @@ export const FAILURE_CODES = {
   invalid_approval_metadata: 'invalid_approval_metadata',
   unknown: 'unknown',
 } as const;
-
-export type FailureCode = (typeof FAILURE_CODES)[keyof typeof FAILURE_CODES];
 
 /**
  * Maps a failure_reason string to one of the 14 canonical failure codes.

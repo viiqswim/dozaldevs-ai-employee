@@ -18,7 +18,7 @@ import path from 'path';
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
-export interface ToolFlag {
+interface ToolFlag {
   name: string; // e.g. "--lock-id"
   type: 'string' | 'number' | 'boolean';
   required: boolean;
@@ -26,7 +26,7 @@ export interface ToolFlag {
   default?: string;
 }
 
-export interface ToolEnvVar {
+interface ToolEnvVar {
   name: string; // e.g. "SIFELY_USERNAME"
   required: boolean;
 }
@@ -111,7 +111,7 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
 /**
  * Parse a single tool file and extract structured metadata.
  */
-export async function parseToolFile(filePath: string): Promise<ToolMetadata> {
+async function parseToolFile(filePath: string): Promise<ToolMetadata> {
   const content = await fs.readFile(filePath, 'utf-8');
   const lines = content.split('\n');
 

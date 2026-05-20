@@ -3,12 +3,12 @@ import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('session-manager');
 
-export interface SessionMonitorResult {
+interface SessionMonitorResult {
   completed: boolean;
   reason?: 'idle' | 'timeout' | 'error';
 }
 
-export interface MonitorOptions {
+interface MonitorOptions {
   timeoutMs?: number; // default: 60 * 60 * 1000 (60 minutes)
   minElapsedMs?: number; // default: 30000 (30 seconds minimum before marking complete)
 }

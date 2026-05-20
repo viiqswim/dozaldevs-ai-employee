@@ -35,7 +35,7 @@ const log = createLogger('employee-lifecycle');
 
 export const SYNTHESIS_THRESHOLD = 5;
 export const MAX_EMPLOYEE_RULES_CHARS = 8000;
-export const MAX_EMPLOYEE_KNOWLEDGE_CHARS = 32000;
+const MAX_EMPLOYEE_KNOWLEDGE_CHARS = 32000;
 
 async function patchTask(
   supabaseUrl: string,
