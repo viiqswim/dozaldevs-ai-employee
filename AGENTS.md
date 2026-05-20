@@ -400,6 +400,27 @@ Cloudflare Tunnel is the permanent solution. Named tunnel `postgrest-ai-employee
 
 Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `e160ac6d-2d7d-47c4-a552-b13700947d29` at `~/.cloudflared/ai-employee-local.yml`. `pnpm dev` starts it automatically. For new contributors: create your own subdomain and ask the repo owner to register the redirect URL.
 
+### 3. Inngest Dev Server step output contamination
+
+**Symptom**: In the Inngest Dev Server UI, step outputs for a run of `employee/universal-lifecycle` may show data from a completely different run (e.g., a guest-messaging task's `load-task` output appearing in a motivation-bot run). The function executed correctly — only the UI display is wrong.
+
+**Root cause**: Step IDs are computed as `sha1(stepName)` — deterministic and identical across ALL runs of the same function. The Dev Server's in-memory SQLite output cache does not scope stored outputs by run ID (`tid: ""` always in Dev Server). When a new run completes, its step outputs overwrite the previous run's stored outputs under the same step ID key.
+
+**Impact**: Display only. Actual function execution is correct and independently verifiable. Does NOT affect production Inngest Cloud (which uses Redis with proper run-scoped keys).
+
+**Workaround**: Restart the Dev Server to clear the in-memory SQLite cache. After restart, the first run's outputs will display correctly. Use DB queries and gateway logs as ground truth instead of the Inngest UI:
+
+- DB: `docker exec shared-postgres psql -U postgres -d ai_employee -c "SELECT id, status, archetype_id FROM tasks WHERE id = '<taskId>'"`
+- Gateway logs: `grep '"taskId":"<taskId>"' /tmp/ai-dev.log | grep '"step"'`
+
+**Warning — `--persist` flag**: The `inngest dev` CLI supports a `--persist` flag (Advanced options) that stores data between restarts using file-based SQLite. Do NOT use `--persist` — it makes contamination worse by accumulating stale span data across restarts.
+
+**Ground truth sources** (use these instead of Inngest UI):
+
+1. DB task row: `SELECT id, status, archetype_id FROM tasks WHERE id = '<taskId>'`
+2. Gateway structured logs: `grep '"runId":"<runId>"' /tmp/ai-dev.log`
+3. Inngest event payload: `http://localhost:8288` → Events tab → find `employee/task.dispatched`
+
 ## Prometheus Planning — Telegram Notifications (MANDATORY)
 
 Send notifications via: `tsx scripts/telegram-notify.ts "Your message here"`
