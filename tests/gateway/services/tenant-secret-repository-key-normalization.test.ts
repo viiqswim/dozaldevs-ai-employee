@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 
-vi.mock('../../../lib/encryption.js', () => ({
+vi.mock('../../../src/lib/encryption.js', () => ({
   encrypt: vi.fn(() => ({ ciphertext: 'enc', iv: 'iv', auth_tag: 'tag' })),
   decrypt: vi.fn(() => 'decrypted'),
 }));
 
-import { TenantSecretRepository } from '../tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../../src/gateway/services/tenant-secret-repository.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000003';
 
