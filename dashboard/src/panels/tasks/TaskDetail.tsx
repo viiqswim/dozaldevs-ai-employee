@@ -81,9 +81,13 @@ function RawEventViewer({ rawEvent }: { rawEvent: Record<string, unknown> | null
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          Raw Event
+          Trigger Payload
         </button>
-        {open && <p className="mt-2 text-sm text-muted-foreground italic">No raw event data</p>}
+        {open && (
+          <p className="mt-2 text-sm text-muted-foreground italic">
+            This task was not triggered by a webhook, so no payload was captured.
+          </p>
+        )}
       </div>
     );
   }
@@ -101,7 +105,7 @@ function RawEventViewer({ rawEvent }: { rawEvent: Record<string, unknown> | null
         className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        Raw Event
+        Trigger Payload
       </button>
       {open && (
         <div className="mt-2">
@@ -175,106 +179,6 @@ function StatCard({ label, value, testId }: { label: string; value: string; test
     <div className="rounded-md border bg-muted/30 p-3 text-center" data-testid={testId}>
       <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-interface ContentBlock {
-  type?: string;
-  text?: string;
-  name?: string;
-  input?: unknown;
-  tool_use_id?: string;
-  content?: unknown;
-  [key: string]: unknown;
-}
-
-function ToolCallBlock({ block }: { block: ContentBlock }) {
-  const [open, setOpen] = useState(false);
-  const name = typeof block.name === 'string' ? block.name : 'tool_call';
-
-  return (
-    <div className="mt-1.5 rounded border border-orange-200/70 bg-orange-50/50">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs font-medium text-orange-700"
-      >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        🔧 {name}
-      </button>
-      {open && block.input !== undefined && (
-        <pre className="overflow-x-auto border-t border-orange-200/70 px-2 py-1.5 text-xs leading-relaxed">
-          {JSON.stringify(block.input, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-function TranscriptMessage({ message }: { message: unknown }) {
-  const msg = message as Record<string, unknown>;
-  const role = typeof msg.role === 'string' ? msg.role : 'unknown';
-  const content = msg.content;
-  const isUser = role === 'user';
-  const isAssistant = role === 'assistant';
-
-  const toolUses: ContentBlock[] = [];
-  let textContent = '';
-
-  if (typeof content === 'string') {
-    textContent = content;
-  } else if (Array.isArray(content)) {
-    const texts: string[] = [];
-    for (const block of content) {
-      const b = block as ContentBlock;
-      if (b.type === 'text' && typeof b.text === 'string') {
-        texts.push(b.text);
-      } else if (b.type === 'tool_use') {
-        toolUses.push(b);
-      } else if (b.type === 'tool_result') {
-        const resultContent = b.content;
-        const resultText =
-          typeof resultContent === 'string'
-            ? resultContent
-            : JSON.stringify(resultContent, null, 2);
-        texts.push(`[tool_result] ${resultText}`);
-      } else {
-        texts.push(JSON.stringify(b, null, 2));
-      }
-    }
-    textContent = texts.join('\n');
-  } else if (content !== undefined && content !== null) {
-    textContent = JSON.stringify(content, null, 2);
-  }
-
-  if (!textContent && toolUses.length === 0) return null;
-
-  return (
-    <div
-      className={cn(
-        'rounded-md border p-3',
-        isUser
-          ? 'bg-muted/30'
-          : isAssistant
-            ? 'border-blue-200/50 bg-blue-50/30'
-            : 'border-muted bg-muted/10',
-      )}
-    >
-      <p
-        className={cn(
-          'mb-1.5 text-xs font-semibold uppercase tracking-wide',
-          isUser ? 'text-muted-foreground' : isAssistant ? 'text-blue-600' : 'text-foreground/60',
-        )}
-      >
-        {role}
-      </p>
-      {textContent && (
-        <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{textContent}</pre>
-      )}
-      {toolUses.map((tc, i) => (
-        <ToolCallBlock key={i} block={tc} />
-      ))}
     </div>
   );
 }
@@ -657,7 +561,11 @@ export function TaskDetail() {
             {!transcriptLoading && transcript !== null && transcript.length > 0 && (
               <div className="space-y-2">
                 {transcript.map((msg, i) => (
-                  <TranscriptMessage key={i} message={msg} />
+                  <CollapsibleJsonViewer
+                    key={i}
+                    label={`Message ${i + 1}`}
+                    data={msg as Record<string, unknown>}
+                  />
                 ))}
               </div>
             )}
