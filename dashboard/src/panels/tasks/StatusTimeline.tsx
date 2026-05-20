@@ -71,18 +71,24 @@ export function StatusTimeline({ logs, task }: StatusTimelineProps) {
   );
 
   const showTotalDuration = task?.started_at != null && task?.completed_at != null;
+  const isTerminalWithNullTimestamps =
+    isTerminal && (task?.started_at == null || task?.completed_at == null);
   const totalDurationMs = showTotalDuration
     ? new Date(task!.completed_at!).getTime() - new Date(task!.started_at!).getTime()
     : 0;
 
   return (
     <div>
-      {showTotalDuration && totalDurationMs >= 0 && (
-        <p className="text-xs text-muted-foreground mb-3">
+      {(showTotalDuration && totalDurationMs >= 0) || isTerminalWithNullTimestamps ? (
+        <p className="text-sm text-muted-foreground mb-3">
           Total duration:{' '}
-          <span className="font-medium">{formatTransitionDuration(totalDurationMs)}</span>
+          <span className="font-medium">
+            {isTerminalWithNullTimestamps
+              ? formatTransitionDuration(0)
+              : formatTransitionDuration(totalDurationMs)}
+          </span>
         </p>
-      )}
+      ) : null}
 
       <div className="relative">
         <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />

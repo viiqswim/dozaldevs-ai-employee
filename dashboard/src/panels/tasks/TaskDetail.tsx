@@ -325,9 +325,9 @@ export function TaskDetail() {
 
   const { data: pendingApprovals } = usePoll(fetchApprovals);
 
-  const { execution } = useExecution(taskId ?? '');
+  const { execution, loading: executionLoading } = useExecution(taskId ?? '');
   const { deliverable } = useDeliverable(taskId ?? '');
-  const { events: feedbackEvents } = useFeedbackEvents(taskId ?? '');
+  const { events: feedbackEvents, error: feedbackError } = useFeedbackEvents(taskId ?? '');
   const { transcript, loading: transcriptLoading } = useExecutionTranscript(
     showTranscript ? (execution?.id ?? null) : null,
   );
@@ -411,6 +411,7 @@ export function TaskDetail() {
   const isReviewing = task.status === 'Reviewing';
   const approvalsList = pendingApprovals ?? [];
   const showDeliverable = DELIVERABLE_STATUSES.has(task.status);
+  const isAutoPass = execution === null && !executionLoading && task.status === 'Done';
 
   const totalTokens =
     execution && (execution.prompt_tokens ?? 0) + (execution.completion_tokens ?? 0) > 0
@@ -517,6 +518,14 @@ export function TaskDetail() {
             <StatCard label="Duration" value={durationDisplay} testId="execution-duration" />
             <StatCard label="Heartbeat" value={heartbeatDisplay} />
           </div>
+        ) : isAutoPass ? (
+          <div className="flex items-start gap-3 rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
+            <span className="text-base leading-none">⚡</span>
+            <p className="text-sm text-zinc-400">
+              Auto-completed — no worker execution. This task was resolved during triage without
+              spawning a worker.
+            </p>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground italic">No execution data</p>
         )}
@@ -557,6 +566,10 @@ export function TaskDetail() {
                 <CollapsibleJsonViewer label="Metadata" data={deliverable.metadata} />
               )}
             </div>
+          ) : isAutoPass ? (
+            <p className="text-sm text-muted-foreground italic">
+              No deliverable — task auto-completed during triage
+            </p>
           ) : (
             <p className="text-sm text-muted-foreground italic">No deliverable yet</p>
           )}
@@ -575,7 +588,9 @@ export function TaskDetail() {
         data-testid="feedback-events-section"
       >
         <h2 className="text-sm font-semibold">Feedback Events</h2>
-        {feedbackEvents.length > 0 ? (
+        {feedbackError ? (
+          <p className="text-sm text-red-400">Unable to load feedback events</p>
+        ) : feedbackEvents.length > 0 ? (
           <ul className="space-y-2">
             {feedbackEvents.map((evt) => (
               <li
