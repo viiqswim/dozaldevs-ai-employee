@@ -51,9 +51,6 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.37
-      '@types/pino':
-        specifier: ^7.0.5
-        version: 7.0.5
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
@@ -1496,10 +1493,6 @@ packages:
 
   '@types/pg@8.15.6':
     resolution: {integrity: sha512-NoaMtzhxOrubeL/7UZuNTrejB4MPAJ0RpxZqXQf2qXuVlTPuG6Y8p4u9dKRaue4yjmC7ZhzVO2/Yyyn25znrPQ==}
-
-  '@types/pino@7.0.5':
-    resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
-    deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
 
   '@types/qs@6.15.0':
     resolution: {integrity: sha512-JawvT8iBVWpzTrz3EGw9BTQFg3BQNmwERdKE22vlTxawwtbyUSlMppvZYKLZzB5zgACXdXxbD3m1bXaMqP/9ow==}
@@ -4584,10 +4577,6 @@ snapshots:
       '@types/node': 20.19.37
       pg-protocol: 1.13.0
       pg-types: 2.2.0
-
-  '@types/pino@7.0.5':
-    dependencies:
-      pino: 10.3.1
 
   '@types/qs@6.15.0': {}
 
