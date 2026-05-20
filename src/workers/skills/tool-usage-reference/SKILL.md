@@ -877,6 +877,82 @@ tsx /tools/platform/report-issue.ts \
 
 ---
 
+### `submit-output.ts` — Submit task output and classification
+
+Call this at the end of every task to write the output files the harness expects. This is the final step before the lifecycle transitions out of `Executing`.
+
+```bash
+tsx /tools/platform/submit-output.ts \
+  --summary "Task complete — drafted reply sent for approval" \
+  --classification "NEEDS_APPROVAL" \
+  [--draft "Your message text here"] \
+  [--confidence 0.9] \
+  [--reasoning "High confidence based on property KB match"] \
+  [--urgency] \
+  [--metadata '{"key":"value"}'] \
+  [--help]
+```
+
+**Required flags:**
+
+- `--summary <text>` — Human-readable summary of what the task accomplished. Written to `/tmp/summary.txt`.
+- `--classification <value>` — Exactly one of:
+  - `NEEDS_APPROVAL` — A deliverable was produced and requires human review before sending
+  - `NO_ACTION_NEEDED` — Task is complete with no deliverable (e.g. message already answered, no unresponded threads)
+
+**Optional flags:**
+
+- `--draft <text>` — The proposed deliverable text (e.g. the guest reply draft). Included in the JSON output.
+- `--confidence <float>` — Confidence score 0.0–1.0 for the classification or draft quality.
+- `--reasoning <text>` — Explanation of why this classification was chosen.
+- `--urgency` — Boolean presence flag (no value). Marks the task as urgent.
+- `--metadata <json>` — Arbitrary JSON string for additional structured data (e.g. `'{"leadUid":"abc-123"}'`).
+- `--help` — Print usage to stdout and exit 0.
+
+**No environment variables required.**
+
+**Output (stdout):**
+
+```json
+{
+  "summary": "Task complete — drafted reply sent for approval",
+  "classification": "NEEDS_APPROVAL",
+  "draft": "Your message text here",
+  "confidence": 0.9,
+  "reasoning": "High confidence based on property KB match",
+  "urgency": true,
+  "metadata": { "key": "value" }
+}
+```
+
+**Side effect:** Writes `/tmp/summary.txt` (the `--summary` text) and `/tmp/approval-message.json` (the full JSON above). The harness reads both files. Do not delete them.
+
+**Exit codes:**
+
+- `0` — Files written successfully
+- `1` — Missing required flag (`--summary` or `--classification`), invalid `--classification` value, or file write error
+
+**Examples:**
+
+```bash
+# Minimal — task complete, no deliverable needed:
+tsx /tools/platform/submit-output.ts \
+  --summary "No unresponded guest messages found" \
+  --classification "NO_ACTION_NEEDED"
+
+# With approval draft:
+tsx /tools/platform/submit-output.ts \
+  --summary "Drafted reply to guest check-in question" \
+  --classification "NEEDS_APPROVAL" \
+  --draft "Check-in is at 3 PM. The door code is 1221." \
+  --confidence 0.9 \
+  --reasoning "Clear check-in question with matching KB entry" \
+  --urgency \
+  --metadata '{"leadUid":"37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"}'
+```
+
+---
+
 ## Quick Reference Table
 
 | Tool                      | Container Path           | Required Flags                              | Output Shape                                                                                                    |
@@ -894,3 +970,4 @@ tsx /tools/platform/report-issue.ts \
 | `rotate-property-code.ts` | `/tools/locks/`          | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                             |
 | `search.ts`               | `/tools/knowledge_base/` | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                     |
 | `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                |
+| `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`   |
