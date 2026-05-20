@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.hoisted(() => {
+  vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+});
+
 vi.mock('zx', () => ({
   $: vi.fn(),
 }));
