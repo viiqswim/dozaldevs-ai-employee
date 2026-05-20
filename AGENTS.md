@@ -71,6 +71,9 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Hostfully tools** (`/tools/hostfully/`):
   - `tsx /tools/hostfully/get-door-code.ts --property-id <uid>` — read door code from Hostfully
   - `tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>` — update door code
+- **Platform tools** (`/tools/platform/`):
+  - `tsx /tools/platform/report-issue.ts --message "..." --severity "low|medium|high"` — report an issue to the platform
+  - `tsx /tools/platform/submit-output.ts --summary "..." --classification "NO_ACTION_NEEDED|NEEDS_APPROVAL"` — writes the output contract JSON to `/tmp/summary.txt` (required at end of every task)
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31`. Version `1.14.33` has a confirmed 6-second exit regression. **Never upgrade without explicit testing.**
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.

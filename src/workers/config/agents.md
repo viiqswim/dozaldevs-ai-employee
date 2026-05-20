@@ -75,7 +75,23 @@ If you need data that no tool currently provides, report it as a missing capabil
 
 ## 7. Output Format
 
-Before this session ends, you MUST write `/tmp/summary.txt` as a JSON object. The platform reads this file to determine the outcome of your task. If the file is absent, the task is treated as a hard failure.
+Before this session ends, you MUST submit your output using the `submit-output.ts` tool. The platform reads the output contract to determine the outcome of your task. If the output is absent, the task is treated as a hard failure.
+
+**Preferred path — use the tool:**
+
+```bash
+# No approval needed:
+tsx /tools/platform/submit-output.ts --summary "<what you did>" --classification "NO_ACTION_NEEDED"
+
+# Approval needed (include your draft):
+tsx /tools/platform/submit-output.ts --summary "<what you did>" --classification "NEEDS_APPROVAL" --draft "<your draft message>"
+```
+
+If `submit-output.ts` fails or is unavailable, fall back to writing `/tmp/summary.txt` manually as described below.
+
+**Fallback — write `/tmp/summary.txt` directly:**
+
+Before this session ends, write `/tmp/summary.txt` as a JSON object. The platform reads this file to determine the outcome of your task. If the file is absent, the task is treated as a hard failure.
 
 **Required fields:**
 
@@ -159,6 +175,6 @@ Your Employee Instructions (in AGENTS.md) tell you **which** tools are relevant 
 - Report every tool issue before the task ends, even if you fixed it.
 - Never touch `/app/dist/`, `/app/node_modules/`, or anything outside `/tools/`.
 - Never access the database directly — always use the tools.
-- Always write `/tmp/summary.txt` as JSON before the session ends — absence is a hard failure.
+- Always use `tsx /tools/platform/submit-output.ts` to write the output contract before the session ends — absence is a hard failure.
 - On error, still write `/tmp/summary.txt` with `classification: "NEEDS_APPROVAL"` and describe the error.
 - Load the `tool-usage-reference` skill at session start to discover exact tool syntax.
