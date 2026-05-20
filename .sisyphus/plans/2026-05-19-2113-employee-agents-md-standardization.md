@@ -173,7 +173,7 @@ Max Concurrent: 4 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Update seed.ts — rewrite agents_md and instructions for 4 seeded employees
+- [x] 1. Update seed.ts — rewrite agents_md and instructions for 4 seeded employees
 
   **What to do**:
 
@@ -340,7 +340,7 @@ Max Concurrent: 4 (Wave 1)
   - Files: `prisma/seed.ts`
   - Pre-commit: `pnpm lint`
 
-- [ ] 2. Update real-estate-motivation-bot agents_md via SQL
+- [x] 2. Update real-estate-motivation-bot agents_md via SQL
 
   **What to do**:
 
@@ -409,7 +409,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO (DB-only change)
 
-- [ ] 3. Update hostfully-cleaning-scheduler via SQL
+- [x] 3. Update hostfully-cleaning-scheduler via SQL
 
   **What to do**:
 
@@ -482,7 +482,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO (DB-only change)
 
-- [ ] 4. Update schedule-generator-thornton agents_md via SQL
+- [x] 4. Update schedule-generator-thornton agents_md via SQL
 
   **What to do**:
 
@@ -543,7 +543,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO (DB-only change)
 
-- [ ] 5. Apply seed to live DB + run verification queries
+- [x] 5. Apply seed to live DB + run verification queries
 
   **What to do**:
 
@@ -633,7 +633,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO
 
-- [ ] 6. Run test suite and linter
+- [x] 6. Run test suite and linter
 
   **What to do**:
 
@@ -681,7 +681,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO
 
-- [ ] 7. Trigger motivation-bot E2E and verify Done status
+- [x] 7. Trigger motivation-bot E2E and verify Done status
 
   **What to do**:
 
@@ -806,19 +806,19 @@ Max Concurrent: 4 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (query DB, read seed.ts). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm test -- --run` + `pnpm lint`. Review all changed files in seed.ts for: TypeScript errors, template literal issues, escaping problems, unterminated strings. Verify all agents_md constants are valid string literals.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Query EVERY production archetype from the live DB. For each: verify agents_md has NO workflow steps, NO manual file-writing, NO `APPROVED` classification. Verify instructions has workflow + submit-output.ts call. Verify guest-messaging instructions preserves metadata requirements. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Archetypes [N/N clean] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Verify ONLY `instructions` and `agents_md` fields were changed. Verify no other archetype fields modified. Verify test employees untouched. Verify no code files modified except seed.ts. Verify DB-only employees not added to seed.ts.
       Output: `Fields [CLEAN/N issues] | Scope [CLEAN/N violations] | VERDICT`
 
