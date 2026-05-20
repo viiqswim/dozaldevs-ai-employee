@@ -1,6 +1,5 @@
 import { TERMINAL_STATUSES } from '@/lib/constants';
-import { formatRelativeTime } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { formatRelativeTime, cn } from '@/lib/utils';
 import type { TaskStatusLog } from '@/lib/types';
 
 interface StatusTimelineProps {
