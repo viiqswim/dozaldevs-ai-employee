@@ -11,7 +11,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: ListTodo, label: 'Tasks', to: '/dashboard' },
+  { icon: ListTodo, label: 'Tasks', to: '/dashboard/tasks' },
   { icon: Users, label: 'Employees', to: '/dashboard/employees' },
   { icon: Building2, label: 'Tenants', to: '/dashboard/tenants' },
   { icon: BookOpen, label: 'Rules', to: '/dashboard/rules' },
@@ -46,7 +46,7 @@ export function Sidebar({ preflightStatus }: SidebarProps) {
           <NavLink
             key={to}
             to={to}
-            end={to === '/dashboard'}
+            end={to === '/dashboard/tasks'}
             className={({ isActive }) => (isActive ? 'block' : 'block')}
           >
             {({ isActive }) => (
