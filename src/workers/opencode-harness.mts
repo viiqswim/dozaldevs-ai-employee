@@ -12,6 +12,8 @@ import {
 } from './lib/output-schema.mjs';
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
+import { generatePlatformProcedures } from './lib/platform-procedures.mjs';
+import { generateToolReference } from './lib/tool-reference-generator.mjs';
 
 const log = createLogger('opencode-harness');
 
@@ -37,6 +39,8 @@ interface ArchetypeRow {
   agents_md?: string | null;
   delivery_instructions?: string | null;
   enrichment_adapter?: string | null;
+  risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
+  tool_registry?: { tools?: string[] } | null;
 }
 
 interface TaskWithArchetype {
@@ -822,6 +826,15 @@ async function main(): Promise<void> {
   if (systemPrompt.trim().length > 0) {
     platformRuntimeSections.push(`## Legacy System Prompt\n\n${systemPrompt}`);
   }
+
+  // Platform procedures — auto-generated from risk_model
+  const approvalRequired =
+    (archetype.risk_model as { approval_required?: boolean } | null)?.approval_required ?? true;
+  platformRuntimeSections.push(generatePlatformProcedures({ approvalRequired }));
+
+  // Tool reference — auto-generated from tool_registry
+  const toolPaths = (archetype.tool_registry as { tools?: string[] } | null)?.tools ?? [];
+  platformRuntimeSections.push(await generateToolReference(toolPaths));
 
   try {
     let tenantConfig: Record<string, unknown> | null = null;
