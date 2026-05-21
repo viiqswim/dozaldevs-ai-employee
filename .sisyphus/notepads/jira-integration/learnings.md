@@ -192,3 +192,41 @@
 - QA: URL displayed as `http://localhost:7700/webhooks/jira/vlre/jira-motivation-bot` ✓
 - Evidence: `.sisyphus/evidence/task-12-connect-jira-ui.png`, `task-13-webhook-url-display.png`
 - Tests: 1508 passing, 27 skipped, 0 failures (matches baseline)
+
+## Task 14: Per-employee Jira webhook + lifecycle refactor (2026-05-21)
+
+### Changes made
+
+1. **`src/gateway/services/task-creation.ts`**
+   - `createTaskFromJiraWebhook()`: Added `archetypeId: string` (required), made `projectId?: string` optional
+   - Sets `archetype_id` on task row; skips `project_id` when not provided
+
+2. **`src/gateway/routes/jira.ts`**
+   - New route: `POST /webhooks/jira/:tenantSlug/:employeeSlug`
+     - Only handles `jira:issue_created` (all other events return 200 ignored)
+     - Resolves tenant by slug → 404 if not found
+     - Resolves archetype by role_name + tenant_id → 404 if not found
+     - Verifies HMAC (same verifyJiraSignature() with per-tenant secret fallback)
+     - Creates task with archetypeId, no projectId
+     - Fires `employee/task.dispatched` event
+     - Returns `{ status: 'task_created', taskId }`
+   - Existing `POST /webhooks/jira` route:
+     - Changed from `engineering/task.received` to `employee/task.dispatched`
+     - Added archetype resolution (role_name: 'jira-motivation-bot') → 422 if not found
+     - Passes `archetypeId` to `createTaskFromJiraWebhook` and inngest event
+
+3. **Test files updated**
+   - `tests/gateway/routes/jira.test.ts`: Added `archetype.findFirst` to mock prisma (defaults to makeArchetype())
+   - `tests/gateway/jira-webhook.test.ts`: Added beforeEach/afterEach to seed/cleanup jira-motivation-bot archetype for DozalDevs tenant
+   - `tests/gateway/jira-webhook-with-new-project.test.ts`: Same archetype seeding pattern
+
+### Key decisions
+
+1. **Route order**: Per-employee route BEFORE legacy route in Express router — prevents ambiguity
+2. **422 for missing archetype**: Legacy route returns 422 (not 404) when no jira-motivation-bot archetype found for tenant
+3. **Test DB issue**: DozalDevs tenant (test DB) didn't have jira-motivation-bot archetype — seeded in beforeEach with unique UUID
+4. **archetypeId required in createTaskFromJiraWebhook**: Both call sites (legacy + new route) must resolve archetype before calling
+5. **inngest.send catch vs try**: Uses try/catch (not sendTaskReceivedEvent helper) for consistency with hostfully pattern
+
+### Test result
+1508 passed, 27 skipped, 0 failed
