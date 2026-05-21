@@ -57,7 +57,7 @@ export function CreateEmployeePage() {
         overview: config.overview,
         parent_draft_id: null,
       });
-      navigate(`/dashboard/employees/${archetype.id}/edit`);
+      navigate(`/dashboard/employees/${archetype.id}`);
     } catch (err) {
       setPageState({
         phase: 'error',
