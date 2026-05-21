@@ -97,3 +97,37 @@
 7. **Actual test count**: 10 tests (not 9 as stated in task spec).
 
 8. **Types**: All imported from `jira-types.ts` — `JiraClientConfig`, `JiraIssue`, `JiraComment`, `JiraSearchResult`, `AdfDocument`, `JIRA_OAUTH_BASE_URL`.
+
+## Task 5-10: Jira shell tools created (2026-05-21)
+
+### Files created
+- `src/worker-tools/jira/get-issue.ts` — GET /rest/api/3/issue/{key}, outputs transformed shape (plain-text description)
+- `src/worker-tools/jira/search-issues.ts` — POST /rest/api/3/search/jql, builds JQL from --project/--status/--assignee or uses raw --jql
+- `src/worker-tools/jira/add-comment.ts` — POST /rest/api/3/issue/{key}/comment, accepts plain text, wraps in ADF inline
+- `src/worker-tools/jira/list-comments.ts` — GET /rest/api/3/issue/{key}/comment, converts ADF bodies to plain text
+- `src/worker-tools/jira/validate-env.ts` — checks JIRA_API_TOKEN, JIRA_USER_EMAIL, JIRA_BASE_URL; outputs {ok, vars} or {ok:false, missing:[]}
+
+### Key implementation decisions
+
+1. **No import from src/lib** — Tools run standalone via tsx in Docker. `adfToPlainText` is inlined in get-issue.ts, add-comment.ts, and list-comments.ts (copy of the logic from jira-types.ts without TypeScript types).
+
+2. **Buffer.from().toString('base64') for auth** — More reliable than `btoa()` for non-ASCII chars; consistent with Jira client pattern.
+
+3. **Fixture → tool output shape** — Mock mode returns the fixture directly (same as hostfully pattern). Fixtures contain the already-transformed tool output, not the raw Jira API response.
+
+4. **add-comment returns the created comment** — Unlike `jira-client.ts` which uses `skipBody: true`, the shell tool parses the POST response to return `{id, body (plain text), created}`.
+
+5. **validate-env always exits 0** — Reports status in JSON rather than exiting 1 on missing vars. Useful for agents to understand what's configured.
+
+6. **Mock mode checked BEFORE arg/env validation** — Follows the exact hostfully pattern.
+
+### QA evidence
+- task-6-mock-output.json — get-issue mock output
+- task-7-mock-search.json — search-issues mock output
+- task-8-mock-comment.json — add-comment mock output  
+- task-9-mock-comments.json — list-comments mock output
+- task-10-validate-missing.json — validate-env with all vars missing → {ok:false,missing:[...]}
+- task-10-validate-ok.json — validate-env with all vars set → {ok:true,vars:{...:set}}
+
+### Test results
+- 1508 passing, 27 skipped, 0 failures (matches expected baseline)
