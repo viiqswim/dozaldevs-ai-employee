@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -35,11 +35,13 @@ export function ToolList() {
   const [tools, setTools] = useState<ToolMetadata[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const query = searchParams.get('q') ?? '';
+  const selectedServices = new Set(searchParams.get('service')?.split(',').filter(Boolean) ?? []);
 
   const load = () => {
     setLoading(true);
@@ -117,21 +119,27 @@ export function ToolList() {
 
   const hasFilters = query !== '' || selectedServices.size > 0;
 
-  const toggleService = (service: string) => {
-    setSelectedServices((prev) => {
-      const next = new Set(prev);
-      if (next.has(service)) {
-        next.delete(service);
-      } else {
-        next.add(service);
-      }
-      return next;
-    });
+  const toggleService = (svc: string) => {
+    const next = new URLSearchParams(searchParams);
+    const cur = new Set(next.get('service')?.split(',').filter(Boolean) ?? []);
+    if (cur.has(svc)) {
+      cur.delete(svc);
+    } else {
+      cur.add(svc);
+    }
+    if (cur.size === 0) {
+      next.delete('service');
+    } else {
+      next.set('service', [...cur].join(','));
+    }
+    setSearchParams(next, { replace: true });
   };
 
   const clearFilters = () => {
-    setQuery('');
-    setSelectedServices(new Set());
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    next.delete('service');
+    setSearchParams(next, { replace: true });
     setServiceSearch('');
   };
 
@@ -162,7 +170,16 @@ export function ToolList() {
             className="pl-8"
             placeholder="Search tools..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              const next = new URLSearchParams(searchParams);
+              if (!v) {
+                next.delete('q');
+              } else {
+                next.set('q', v);
+              }
+              setSearchParams(next, { replace: true });
+            }}
           />
         </div>
 
