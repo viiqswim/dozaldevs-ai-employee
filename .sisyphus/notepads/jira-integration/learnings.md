@@ -356,3 +356,27 @@ Total: 25 new tests
 - Always rebuild Docker image AND verify tools are present with `docker run --rm ... ls /tools/jira/`
 - The adding-shell-tools skill checklist mentions updating Dockerfile — this step was missing from T6-T10
 - Evidence: `.sisyphus/evidence/task-18-docker-tools.txt`, `.sisyphus/evidence/task-18-e2e-lifecycle.txt`
+
+## Task 19: AGENTS.md + Employee Doc (2026-05-21)
+
+### Jira tools in AGENTS.md — confirmed present (T18 added them)
+
+- Lines 74-79: full Jira tool CLI syntax already in AGENTS.md
+- No duplication needed
+
+### Employee doc created
+
+- File: `docs/employees/2026-05-21-1721-jira-motivation-bot.md`
+- Timestamp: 2026-05-21-1721 (from `date "+%Y-%m-%d-%H%M"`)
+- Sections: archetype config, inbound flow, webhook setup, manual trigger, mock mode, E2E flow table, known gotchas, tenant secrets
+- Modeled after guest-messaging.md (detailed) and code-rotation.md (concise) — chose detailed format given complexity
+
+### AGENTS.md Reference Documents table updated
+
+- Added row: `docs/employees/2026-05-21-1721-jira-motivation-bot.md` with description
+- Inserted after `daily-summarizer.md` row (logical grouping with other employee docs)
+
+### Evidence
+
+- `.sisyphus/evidence/task-19-agents-md.txt` — grep output confirming Jira tools + Reference Documents entry
+- `.sisyphus/evidence/task-19-employee-doc.txt` — file listing + line count + first 20 lines
