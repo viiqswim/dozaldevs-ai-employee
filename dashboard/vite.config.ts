@@ -4,7 +4,21 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: 'spa-base-redirect',
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url && /^\/dashboard(\?|$)/.test(req.url)) {
+            req.url = '/dashboard/' + req.url.slice('/dashboard'.length);
+          }
+          next();
+        });
+      },
+    },
+  ],
   base: '/dashboard/',
   build: {
     outDir: 'dist',
