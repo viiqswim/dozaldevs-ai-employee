@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, deleteArchetype } from '@/lib/gateway';
+import { triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
@@ -46,6 +46,7 @@ export function EmployeeDetail() {
   const [triggering, setTriggering] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [firingWebhook, setFiringWebhook] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -142,6 +143,35 @@ export function EmployeeDetail() {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setFiringWebhook(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!archetype) return;
+    if (
+      !archetype.role_name?.trim() ||
+      !archetype.instructions?.trim() ||
+      !archetype.agents_md?.trim()
+    ) {
+      toast.error('Role name, trigger prompt, and employee brain are required');
+      return;
+    }
+    setFinalizing(true);
+    try {
+      await patchArchetype(tenantId, archetype.id, { status: 'active' });
+      toast.success('Employee created');
+      navigate('/dashboard/employees');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('409') || msg.includes('ROLE_NAME_TAKEN')) {
+        toast.error(
+          'This name is already taken by an active employee. Change the role name first.',
+        );
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -253,6 +283,21 @@ export function EmployeeDetail() {
               onClick={() => void handleFireWebhook()}
             >
               {firingWebhook ? 'Firing…' : 'Fire Webhook'}
+            </Button>
+          )}
+          {archetype.status === 'draft' && (
+            <Button
+              size="sm"
+              disabled={
+                finalizing ||
+                !archetype.role_name?.trim() ||
+                !archetype.instructions?.trim() ||
+                !archetype.agents_md?.trim() ||
+                !archetype.notification_channel?.trim()
+              }
+              onClick={() => void handleFinalize()}
+            >
+              {finalizing ? 'Creating…' : 'Create Employee'}
             </Button>
           )}
           <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
