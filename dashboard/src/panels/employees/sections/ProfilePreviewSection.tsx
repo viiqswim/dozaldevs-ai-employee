@@ -1,0 +1,193 @@
+import { useEffect, useState } from 'react';
+import { fetchBrainPreview } from '@/lib/gateway';
+import { MarkdownPreview } from '@/components/MarkdownPreview';
+import { CollapsibleSection } from '../components/CollapsibleSection';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import type { Archetype, BrainPreviewResponse } from '@/lib/types';
+
+interface ProfilePreviewSectionProps {
+  archetype: Archetype;
+  tenantId: string;
+}
+
+export function ProfilePreviewSection({ archetype, tenantId }: ProfilePreviewSectionProps) {
+  const [data, setData] = useState<BrainPreviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    fetchBrainPreview(tenantId, archetype.id)
+      .then((result) => {
+        if (result === null) {
+          setError('Preview not available for this employee.');
+        } else {
+          setData(result);
+        }
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not load preview.');
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [tenantId, archetype.id]);
+
+  return (
+    <CollapsibleSection
+      id="section-preview"
+      title="What your employee receives"
+      subtitle="This is the complete set of instructions and context assembled automatically each time this employee runs"
+      defaultOpen={false}
+    >
+      {loading && (
+        <div className="space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-10 animate-pulse rounded-md border bg-muted" />
+          ))}
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {!loading && !error && data && (
+        <div className="space-y-3">
+          <CollapsibleSection
+            title="Task prompt"
+            defaultOpen={true}
+            badge={
+              <Badge variant="secondary" className="text-xs font-mono">
+                {data.execution_prompt.length.toLocaleString()} chars
+              </Badge>
+            }
+          >
+            <MarkdownPreview content={data.execution_prompt} />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Platform policy"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                Auto-generated
+              </Badge>
+            }
+          >
+            <MarkdownPreview content={data.autoInjectedSections.securityPreamble} />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="How to complete work"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                Auto-generated
+              </Badge>
+            }
+          >
+            <MarkdownPreview content={data.autoInjectedSections.outputContract} />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Available tools"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                {data.tools.length} {data.tools.length === 1 ? 'tool' : 'tools'}
+              </Badge>
+            }
+          >
+            {data.agents_md.layers.platform ? (
+              <MarkdownPreview content={data.agents_md.layers.platform} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No tools configured.</p>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Employee personality"
+            defaultOpen={false}
+            badge={
+              data.agents_md.layers.employee ? (
+                <Badge variant="secondary" className="text-xs">
+                  Configured
+                </Badge>
+              ) : null
+            }
+          >
+            {data.agents_md.layers.employee ? (
+              <MarkdownPreview content={data.agents_md.layers.employee} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No personality configured yet. Edit the Personality section above to add one.
+              </p>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Organization conventions"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                Auto-generated
+              </Badge>
+            }
+          >
+            {data.agents_md.layers.tenant ? (
+              <MarkdownPreview content={data.agents_md.layers.tenant} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No organization conventions configured.
+              </p>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Learned rules"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                {data.employee_rules.length} {data.employee_rules.length === 1 ? 'rule' : 'rules'}
+              </Badge>
+            }
+          >
+            {data.agents_md.layers.rules ? (
+              <MarkdownPreview content={data.agents_md.layers.rules} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No rules learned yet.</p>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Knowledge base"
+            defaultOpen={false}
+            badge={
+              <Badge variant="secondary" className="text-xs">
+                {data.employee_knowledge.length}{' '}
+                {data.employee_knowledge.length === 1 ? 'entry' : 'entries'}
+              </Badge>
+            }
+          >
+            {data.agents_md.layers.knowledge ? (
+              <MarkdownPreview content={data.agents_md.layers.knowledge} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No knowledge base entries.</p>
+            )}
+          </CollapsibleSection>
+        </div>
+      )}
+    </CollapsibleSection>
+  );
+}
