@@ -71,6 +71,12 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **Hostfully tools** (`/tools/hostfully/`):
   - `tsx /tools/hostfully/get-door-code.ts --property-id <uid>` — read door code from Hostfully
   - `tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>` — update door code
+- **Jira tools** (`/tools/jira/`):
+  - `tsx /tools/jira/validate-env.ts` — check JIRA_API_TOKEN, JIRA_USER_EMAIL, JIRA_BASE_URL; outputs `{ok, vars}` or `{ok:false, missing:[]}`; always exits 0
+  - `tsx /tools/jira/get-issue.ts --issue-key PROJ-123` — fetch issue details (summary, description, status, priority, assignee, labels); `JIRA_MOCK=true` returns fixture
+  - `tsx /tools/jira/search-issues.ts [--project KEY] [--status "In Progress"] [--assignee "Name"] [--jql "raw JQL"]` — search issues via JQL; `JIRA_MOCK=true` returns fixture
+  - `tsx /tools/jira/add-comment.ts --issue-key PROJ-123 --body "plain text"` — add comment (auto-wrapped in ADF); `JIRA_MOCK=true` returns fixture
+  - `tsx /tools/jira/list-comments.ts --issue-key PROJ-123` — list comments as plain text (ADF converted); `JIRA_MOCK=true` returns fixture
 - **Platform tools** (`/tools/platform/`):
   - `tsx /tools/platform/report-issue.ts --message "..." --severity "low|medium|high"` — report an issue to the platform
   - `tsx /tools/platform/submit-output.ts --summary "..." --classification "NO_ACTION_NEEDED|NEEDS_APPROVAL"` — writes the output contract JSON to `/tmp/summary.txt` (required at end of every task)
