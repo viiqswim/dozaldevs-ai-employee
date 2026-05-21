@@ -509,7 +509,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 5. Remove unused source files
+- [x] 5. Remove unused source files
 
   **What to do**:
   - Read the triage report at `.sisyphus/evidence/task-3-triage.md`
@@ -584,7 +584,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 6. Remove unused exports from retained files
+- [x] 6. Remove unused exports from retained files
 
   **What to do**:
   - Read the triage report at `.sisyphus/evidence/task-3-triage.md`
@@ -656,7 +656,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 7. Remove unused npm dependencies
+- [x] 7. Remove unused npm dependencies
 
   **What to do**:
   - Read the triage report at `.sisyphus/evidence/task-3-triage.md`
@@ -727,7 +727,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 8. Audit and remove dead scripts
+- [x] 8. Audit and remove dead scripts
 
   **What to do**:
   - Check each of the following scripts not referenced in package.json:
@@ -819,7 +819,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Removed script files
   - Pre-commit: `pnpm build`
 
-- [ ] 9. Full build + test + Docker verification
+- [x] 9. Full build + test + Docker verification
 
   **What to do**:
   - Run the complete verification suite after all removals:
@@ -890,7 +890,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 10. Final knip validation and documentation updates
+- [x] 10. Final knip validation and documentation updates
 
   **What to do**:
   - If any files documented in AGENTS.md or README.md were removed, update those docs:
@@ -966,7 +966,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ---
 
-- [ ] 11. Notify completion
+- [x] 11. Notify completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "🧹 Dead code cleanup complete — all unused files, exports, and dependencies removed. Come back to review results."`
@@ -1005,19 +1005,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Verify no new TypeScript errors introduced. Check that knip.json is valid JSON with all required fields. Verify package.json has `lint:unused` script. Check that no AI slop was introduced (unnecessary comments, over-abstraction).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Config [VALID/INVALID] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Run `pnpm lint:unused` and verify exit code 0. Run `docker build -t ai-employee-worker:latest .` and verify it succeeds. Verify no deprecated files were accidentally removed by checking each file in the AGENTS.md deprecated list still exists. Spot-check 5 removed files via `git log --diff-filter=D --name-only` to confirm they were truly unused.
       Output: `Knip [PASS/FAIL] | Docker [PASS/FAIL] | Deprecated preserved [N/N] | Spot checks [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git log --oneline` + `git diff`). Verify 1:1 — everything in spec was done, nothing beyond spec was done. Check no refactoring occurred (only removals). Check no deprecated files touched. Check no dependency upgrades (only removals). Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | No refactoring [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
