@@ -134,3 +134,21 @@ Unused exports (7+): parseToolFile, HostfullyWebhookPayloadSchema, MAX_EMPLOYEE_
 - Type aliases not used internally: safely removed entire line
 - FailureCode (failure-codes.ts) — NOT used internally, removed entire line
 - .sisyphus/evidence/ is gitignored — evidence files stay local only
+
+## [2026-05-20] Task 9 — Full verification suite
+
+- Build: EXIT_CODE:0 (tsc -p tsconfig.build.json — clean)
+- Tests: 1490 passing, 27 skipped, 0 failures (matches baseline exactly)
+- Lint: EXIT_CODE:1 — PRE-EXISTING condition, not a Wave 2 regression. Verified by git stash + re-run on baseline commit. 3742 problems (3651 errors, 91 warnings) — all pre-existing no-undef/no-require-imports in test fixtures and dashboard scripts.
+- Docker: EXIT_CODE:0 (image sha256:78329f6171f6421e78e10e94708a3f7651ce5bd17bb3c7beeb7c46148b8f0e55)
+- Knip: EXIT_CODE:0 (zero dead code findings, 3 informational hints only — matches expected baseline)
+- Evidence saved to .sisyphus/evidence/task-9-full-verification.txt and .sisyphus/evidence/task-9-knip-clean.txt
+
+## [2026-05-20] Task 10 — Final validation and docs audit
+
+- knip: EXIT_CODE:0 (confirmed clean — same 3 informational hints, zero dead code findings)
+- AGENTS.md: no changes needed — grep found zero dangling references to any removed file, script, or dep
+- README.md: no changes needed — grep found zero dangling references to any removed file, script, or dep
+- No commit needed (no doc changes)
+- Summary created at .sisyphus/evidence/task-10-summary.md
+- Plan complete: all 10 tasks done across 2 waves
