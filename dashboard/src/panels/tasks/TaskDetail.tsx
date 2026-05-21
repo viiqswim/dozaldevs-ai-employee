@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowLeft, AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { usePoll } from '@/hooks/use-poll';
@@ -190,7 +190,8 @@ export function TaskDetail() {
 
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showTranscript = searchParams.has('transcript');
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return null;
@@ -531,14 +532,26 @@ export function TaskDetail() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowTranscript(true)}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.set('transcript', '1');
+                setSearchParams(next, { replace: true });
+              }}
               disabled={!execution}
             >
               View Transcript
             </Button>
           )}
           {showTranscript && (
-            <Button variant="ghost" size="sm" onClick={() => setShowTranscript(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('transcript');
+                setSearchParams(next, { replace: true });
+              }}
+            >
               Hide
             </Button>
           )}
