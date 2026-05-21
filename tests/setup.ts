@@ -121,7 +121,7 @@ export async function createTestApp(opts?: {
 }): Promise<TestApp> {
   const { buildApp } = await import('../src/gateway/server.js');
 
-  process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
+  process.env.JIRA_WEBHOOK_SECRET = 'test-secret';
   process.env.ADMIN_API_KEY = opts?.adminApiKey ?? ADMIN_TEST_KEY;
 
   const { app } = await buildApp({
