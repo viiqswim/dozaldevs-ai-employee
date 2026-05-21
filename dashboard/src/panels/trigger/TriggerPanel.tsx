@@ -2,13 +2,7 @@ import { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
@@ -182,18 +176,13 @@ export function TriggerPanel() {
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Employee</label>
-              <Select value={selectedId} onValueChange={handleSelectChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an employee..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {archetypes.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.role_name ?? a.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={archetypes.map((a) => ({ value: a.id, label: a.role_name ?? a.id }))}
+                value={selectedId}
+                onValueChange={handleSelectChange}
+                placeholder="Select an employee..."
+                searchPlaceholder="Search employees..."
+              />
             </div>
 
             <label className="flex cursor-pointer items-center gap-2 text-sm">
