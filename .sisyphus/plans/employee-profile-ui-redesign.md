@@ -1046,7 +1046,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `dashboard/src/panels/employees/sections/ActivitySection.tsx` (extracted), `dashboard/src/panels/employees/EmployeeProfileLayout.tsx` (updated)
   - Pre-commit: `pnpm dashboard:build`
 
-- [ ] 9. Route cleanup + remove deprecated components + empty/error states
+- [x] 9. Route cleanup + remove deprecated components + empty/error states
 
   **What to do**:
   - **Route cleanup in `dashboard/src/App.tsx`**:
@@ -1151,7 +1151,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Deleted files + `dashboard/src/App.tsx` + any import cleanup in modified files
   - Pre-commit: `pnpm dashboard:build`
 
-- [ ] 10. Notify completion — Send Telegram notification
+- [x] 10. Notify completion — Send Telegram notification
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "✅ employee-profile-ui-redesign complete — All tasks done. Come back to review results."`
@@ -1171,19 +1171,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, take screenshot). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm dashboard:build`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Build [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start dev server if not running. Navigate to employee detail page. Verify: all 6 sections render, inline edit works on Assignment and Personality, Preview section expands with collapsible blocks, Settings grid shows correct values, Tools section shows registered tools. Navigate to create and draft flows — verify same layout. Take screenshots of every state.
       Output: `Scenarios [N/N pass] | Screenshots [N captured] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify only `dashboard/src/` files were changed. No API endpoints modified. No new npm dependencies added without justification. Check that old routes still work (redirect or render). Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
