@@ -80,6 +80,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  button:not(:disabled),
+  [role='tab'],
+  [role='option'],
+  [role='menuitem'],
+  [role='combobox'] {
+    cursor: pointer;
+  }
 }
 
 @keyframes accordion-down {
