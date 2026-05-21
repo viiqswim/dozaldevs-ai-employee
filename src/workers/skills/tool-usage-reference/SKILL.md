@@ -1,6 +1,6 @@
 ---
 name: tool-usage-reference
-description: 'Use when calling any shell tool available in the container (/tools/slack/, /tools/hostfully/, /tools/locks/, /tools/knowledge_base/, /tools/platform/). Contains exact CLI syntax, required flags, output JSON shapes, and critical warnings about common mistakes.'
+description: 'Use when calling any shell tool available in the container (/tools/slack/, /tools/hostfully/, /tools/locks/, /tools/knowledge_base/, /tools/platform/, /tools/jira/). Contains exact CLI syntax, required flags, output JSON shapes, and critical warnings about common mistakes.'
 ---
 
 # Tool Usage Reference
@@ -823,6 +823,146 @@ tsx /tools/knowledge_base/search.ts \
 
 ---
 
+## Jira Tools (`/tools/jira/`)
+
+All Jira tools require environment variables `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, and `JIRA_BASE_URL` (Basic auth). Set `JIRA_MOCK=true` to return fixture data without hitting the real API.
+
+### `validate-env.ts` — Check Jira credentials
+
+```bash
+tsx /tools/jira/validate-env.ts
+```
+
+**No flags required.** **Always exits 0.** Outputs JSON status.
+
+**Output (stdout):**
+
+```json
+// All configured:
+{ "ok": true, "vars": { "JIRA_API_TOKEN": "set", "JIRA_USER_EMAIL": "set", "JIRA_BASE_URL": "set" } }
+
+// Missing vars:
+{ "ok": false, "missing": ["JIRA_API_TOKEN", "JIRA_USER_EMAIL"] }
+```
+
+---
+
+### `get-issue.ts` — Fetch a Jira issue
+
+```bash
+tsx /tools/jira/get-issue.ts --issue-key PROJ-123
+```
+
+**Required flags:** `--issue-key <key>` — Jira issue key (e.g. `VLRE-42`)
+
+**Mock mode:** `JIRA_MOCK=true tsx /tools/jira/get-issue.ts --issue-key TEST-1`
+
+**Output (stdout):**
+
+```json
+{
+  "id": "10042",
+  "key": "PROJ-1",
+  "summary": "Implement login feature",
+  "description": "Plain text description (ADF converted)",
+  "status": "In Progress",
+  "priority": "High",
+  "assignee": "Alice Johnson",
+  "reporter": "Bob Martinez",
+  "labels": ["authentication", "backend"],
+  "created": "2026-05-01T09:00:00.000+0000",
+  "updated": "2026-05-20T14:30:00.000+0000",
+  "project": { "key": "PROJ", "name": "My SaaS Project" }
+}
+```
+
+**Exit codes:** `0` success · `1` missing flag/env var/API error
+
+---
+
+### `search-issues.ts` — Search Jira issues by JQL
+
+```bash
+tsx /tools/jira/search-issues.ts [--project KEY] [--status "In Progress"] [--assignee "Name"] [--jql "raw JQL"]
+```
+
+**Optional flags (build JQL):** `--project`, `--status`, `--assignee` — combined with AND  
+**Or raw:** `--jql "project = VLRE AND status = 'In Progress'"`
+
+**Mock mode:** `JIRA_MOCK=true tsx /tools/jira/search-issues.ts --project TEST`
+
+**Output (stdout):**
+
+```json
+{
+  "issues": [
+    {
+      "key": "PROJ-1",
+      "summary": "...",
+      "status": "In Progress",
+      "priority": "High",
+      "assignee": "Alice"
+    }
+  ],
+  "total": 3,
+  "maxResults": 50
+}
+```
+
+**Exit codes:** `0` success · `1` API error
+
+---
+
+### `add-comment.ts` — Add a comment to a Jira issue
+
+```bash
+tsx /tools/jira/add-comment.ts --issue-key PROJ-123 --text "Plain text comment"
+```
+
+**Required flags:** `--issue-key <key>`, `--text <text>` — Text is auto-wrapped in ADF; no manual ADF needed.
+
+**Mock mode:** `JIRA_MOCK=true tsx /tools/jira/add-comment.ts --issue-key TEST-1 --text "test"`
+
+**Output (stdout):**
+
+```json
+{ "id": "10101", "body": "Plain text of posted comment", "created": "2026-05-21T10:00:00.000+0000" }
+```
+
+**Exit codes:** `0` success · `1` missing flag/env var/API error
+
+---
+
+### `list-comments.ts` — List comments on a Jira issue
+
+```bash
+tsx /tools/jira/list-comments.ts --issue-key PROJ-123
+```
+
+**Required flags:** `--issue-key <key>`
+
+**Mock mode:** `JIRA_MOCK=true tsx /tools/jira/list-comments.ts --issue-key TEST-1`
+
+**Output (stdout):**
+
+```json
+{
+  "comments": [
+    {
+      "id": "10099",
+      "author": "Alice Johnson",
+      "body": "Plain text (ADF converted)",
+      "created": "2026-05-15T09:30:00.000+0000"
+    }
+  ],
+  "total": 2
+}
+```
+
+**Exit codes:** `0` success · `1` missing flag/env var/API error
+
+---
+
 ## Platform Tools (`/tools/platform/`)
 
 ### `report-issue.ts` — Report a tool issue
@@ -969,5 +1109,10 @@ tsx /tools/platform/submit-output.ts \
 | `update-door-code.ts`     | `/tools/locks/`          | `--property-id`, `--code`                   | `{success, propertyId, previousCode, newCode}`                                                                  |
 | `rotate-property-code.ts` | `/tools/locks/`          | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                             |
 | `search.ts`               | `/tools/knowledge_base/` | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                     |
+| `validate-env.ts`         | `/tools/jira/`           | (none)                                      | `{ok, vars}` or `{ok:false, missing:[]}`                                                                        |
+| `get-issue.ts`            | `/tools/jira/`           | `--issue-key`                               | `{id, key, summary, description, status, priority, assignee, reporter, labels, created, updated, project}`      |
+| `search-issues.ts`        | `/tools/jira/`           | (at least one filter or `--jql`)            | `{issues:[{key, summary, status, priority, assignee}], total, maxResults}`                                      |
+| `add-comment.ts`          | `/tools/jira/`           | `--issue-key`, `--text`                     | `{id, body, created}`                                                                                           |
+| `list-comments.ts`        | `/tools/jira/`           | `--issue-key`                               | `{comments:[{id, author, body, created}], total}`                                                               |
 | `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                |
 | `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`   |

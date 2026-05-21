@@ -317,3 +317,42 @@ Total: 25 new tests
 - Target files: jira.test.ts 17/17 ✓, jira-oauth.test.ts 6/6 ✓
 
 ### Evidence: `.sisyphus/evidence/task-17-route-tests.txt`
+
+## Task 18: E2E Validation — Full Pipeline (2026-05-21)
+
+### Critical Bug Fixed: Dockerfile missing Jira tools
+
+- Dockerfile was missing all Jira COPY instructions — `/tools/jira/` did not exist in image
+- Added 11 lines to Dockerfile (before sifely section):
+  - `mkdir -p /tools/jira/fixtures/{get-issue,search-issues,add-comment,list-comments}`
+  - COPY for all 5 tool files + 4 fixture files
+- After fix: `docker run --rm ai-employee-worker:latest ls /tools/jira/` shows all 5 tools
+
+### Docker Build Results
+- EXIT_CODE:0
+- Image SHA: sha256:6887e1541cf45b5fbbe8a3b389b2cb92a0feee5e5860f67d2fdfc511049c0f88
+- Tools confirmed: validate-env.ts, get-issue.ts, search-issues.ts, add-comment.ts, list-comments.ts
+
+### Mock Mode Tests — All Pass
+- `JIRA_MOCK=true tsx /tools/jira/get-issue.ts --issue-key TEST-1` → valid JSON ✅
+- `JIRA_MOCK=true tsx /tools/jira/search-issues.ts --project TEST` → valid JSON ✅
+- `JIRA_MOCK=true tsx /tools/jira/list-comments.ts --issue-key TEST-1` → valid JSON ✅
+- `JIRA_MOCK=true tsx /tools/jira/add-comment.ts --issue-key TEST-1 --text "..."` → valid JSON ✅
+- `tsx /tools/jira/validate-env.ts` → `{ok:false, missing:[...]}` (expected) ✅
+
+### Webhook → Lifecycle → Done (Full E2E)
+- Webhook sent to `POST /webhooks/jira/vlre/jira-motivation-bot`
+- HMAC: `echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "test-secret" | cut -d' ' -f2`
+- Header: `X-Hub-Signature: sha256=<hex>`
+- Required payload field: `issue.fields.project` (object with `key` string) — validation fails without it
+- Task ID: 275d7ba8-376d-4174-b6c9-125ed9f27fd7
+- Archetype ID confirmed: 00000000-0000-0000-0000-000000000018 ✅
+- Full lifecycle: NULL→Ready→Triaging→AwaitingInput→Ready→Executing→Validating→Submitting→Done ✅
+- Execution time: ~2 minutes
+- Container: employee-275d7ba8 (ran and exited cleanly)
+- Slack notification: posted to C0960S2Q8RL (VLRE notification channel)
+
+### Key Lesson
+- Always rebuild Docker image AND verify tools are present with `docker run --rm ... ls /tools/jira/`
+- The adding-shell-tools skill checklist mentions updating Dockerfile — this step was missing from T6-T10
+- Evidence: `.sisyphus/evidence/task-18-docker-tools.txt`, `.sisyphus/evidence/task-18-e2e-lifecycle.txt`

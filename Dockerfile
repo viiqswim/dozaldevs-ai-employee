@@ -109,6 +109,17 @@ COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/plat
 RUN mkdir -p /tools/knowledge_base
 COPY --from=builder /build/src/worker-tools/knowledge_base/search.ts /tools/knowledge_base/search.ts
 
+RUN mkdir -p /tools/jira/fixtures/get-issue /tools/jira/fixtures/search-issues /tools/jira/fixtures/add-comment /tools/jira/fixtures/list-comments
+COPY --from=builder /build/src/worker-tools/jira/validate-env.ts /tools/jira/validate-env.ts
+COPY --from=builder /build/src/worker-tools/jira/get-issue.ts /tools/jira/get-issue.ts
+COPY --from=builder /build/src/worker-tools/jira/search-issues.ts /tools/jira/search-issues.ts
+COPY --from=builder /build/src/worker-tools/jira/add-comment.ts /tools/jira/add-comment.ts
+COPY --from=builder /build/src/worker-tools/jira/list-comments.ts /tools/jira/list-comments.ts
+COPY --from=builder /build/src/worker-tools/jira/fixtures/get-issue/default.json /tools/jira/fixtures/get-issue/default.json
+COPY --from=builder /build/src/worker-tools/jira/fixtures/search-issues/default.json /tools/jira/fixtures/search-issues/default.json
+COPY --from=builder /build/src/worker-tools/jira/fixtures/add-comment/default.json /tools/jira/fixtures/add-comment/default.json
+COPY --from=builder /build/src/worker-tools/jira/fixtures/list-comments/default.json /tools/jira/fixtures/list-comments/default.json
+
 RUN mkdir -p /tools/sifely /tools/sifely/lib
 COPY --from=builder /build/src/worker-tools/sifely/lib/api.ts /tools/sifely/lib/api.ts
 COPY --from=builder /build/src/worker-tools/sifely/list-locks.ts /tools/sifely/list-locks.ts
