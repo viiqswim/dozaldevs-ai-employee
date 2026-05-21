@@ -13,6 +13,7 @@ import {
 const SECRET = 'test-secret';
 const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const SEED_PROJECT_ID = '00000000-0000-0000-0000-000000000003';
+const TEST_JIRA_BOT_ARCHETYPE_ID = '00000000-0000-0000-0000-bbbbbbbbbbbb';
 
 function buildJiraPayload(projectKey: string, issueKey: string): string {
   return JSON.stringify({
@@ -58,12 +59,26 @@ function adminHeaders() {
 let app: TestApp;
 
 beforeEach(async () => {
+  await getPrisma().archetype.upsert({
+    where: { id: TEST_JIRA_BOT_ARCHETYPE_ID },
+    create: {
+      id: TEST_JIRA_BOT_ARCHETYPE_ID,
+      tenant_id: SYSTEM_TENANT_ID,
+      role_name: 'jira-motivation-bot',
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      runtime: 'opencode',
+      status: 'active',
+    },
+    update: { status: 'active' },
+  });
   app = await createTestApp({ inngest: inngestMock, adminApiKey: ADMIN_TEST_KEY });
 });
 
 afterEach(async () => {
   await app.close();
   await cleanupTestData();
+  await getPrisma().archetype.deleteMany({ where: { id: TEST_JIRA_BOT_ARCHETYPE_ID } });
   vi.restoreAllMocks();
 });
 

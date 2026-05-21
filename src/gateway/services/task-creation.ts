@@ -30,11 +30,12 @@ function buildTriageResult(payload: JiraWebhookPayload): Record<string, unknown>
  */
 export async function createTaskFromJiraWebhook(params: {
   payload: JiraWebhookPayload;
-  projectId: string;
+  projectId?: string;
   tenantId: string;
+  archetypeId: string;
   prisma: PrismaClient;
 }): Promise<CreateTaskResult> {
-  const { payload, projectId, tenantId, prisma } = params;
+  const { payload, projectId, tenantId, archetypeId, prisma } = params;
 
   try {
     let task: Task | undefined;
@@ -46,8 +47,9 @@ export async function createTaskFromJiraWebhook(params: {
           external_id: payload.issue.key,
           source_system: 'jira',
           status: 'Ready',
-          project_id: projectId,
+          ...(projectId ? { project_id: projectId } : {}),
           tenant_id: tenantId,
+          archetype_id: archetypeId,
           raw_event: payload as unknown as Prisma.InputJsonValue,
           triage_result: buildTriageResult(payload) as unknown as Prisma.InputJsonValue,
         },

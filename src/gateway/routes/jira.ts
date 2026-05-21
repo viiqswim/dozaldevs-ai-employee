@@ -7,7 +7,6 @@ import type { InngestLike } from '../types.js';
 import { verifyJiraSignature } from '../validation/signature.js';
 import { parseJiraWebhook, parseJiraIssueDeletion } from '../validation/schemas.js';
 import { createTaskFromJiraWebhook, cancelTaskByExternalId } from '../services/task-creation.js';
-import { sendTaskReceivedEvent } from '../inngest/send.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -22,6 +21,112 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
   const prisma = opts.prisma ?? new PrismaClient();
   const inngest = opts.inngestClient;
   const secretRepo = new TenantSecretRepository(prisma);
+
+  router.post('/webhooks/jira/:tenantSlug/:employeeSlug', async (req: Request, res: Response) => {
+    const { tenantSlug, employeeSlug } = req.params as { tenantSlug: string; employeeSlug: string };
+    const signatureHeader = req.headers['x-hub-signature'] as string | undefined;
+    const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body);
+
+    let payload: ReturnType<typeof parseJiraWebhook>;
+    try {
+      payload = parseJiraWebhook(req.body);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        logger.warn({ issues: error.issues }, 'Invalid Jira webhook payload');
+        res.status(400).json({ error: 'Invalid payload', details: error.issues });
+        return;
+      }
+      throw error;
+    }
+
+    const { webhookEvent } = payload;
+
+    if (webhookEvent !== 'jira:issue_created') {
+      logger.info(
+        { webhookEvent, tenantSlug, employeeSlug },
+        'Non-issue-created Jira event — ignoring',
+      );
+      res.json({ received: true, action: 'ignored' });
+      return;
+    }
+
+    const tenant = await prisma.tenant.findFirst({ where: { slug: tenantSlug } });
+    if (!tenant) {
+      logger.warn({ tenantSlug }, 'Jira per-employee webhook for unknown tenant slug');
+      res.status(404).json({ error: 'Tenant not found' });
+      return;
+    }
+
+    const archetype = await prisma.archetype.findFirst({
+      where: { tenant_id: tenant.id, role_name: employeeSlug, status: 'active' },
+    });
+    if (!archetype) {
+      logger.warn(
+        { tenantSlug, employeeSlug, tenant_id: tenant.id },
+        'Jira per-employee webhook for unknown employee slug',
+      );
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    let secret: string | undefined;
+    const tenantSecret = await secretRepo.get(tenant.id, 'jira_webhook_secret');
+    if (tenantSecret) {
+      secret = tenantSecret;
+    } else {
+      secret = process.env.JIRA_WEBHOOK_SECRET;
+      if (secret) {
+        logger.warn(
+          { tenant_id: tenant.id, tenantSlug, fallback: 'platform_env' },
+          'No tenant jira_webhook_secret — falling back to platform JIRA_WEBHOOK_SECRET',
+        );
+      }
+    }
+
+    if (!secret) {
+      logger.warn({ tenantSlug }, 'No JIRA_WEBHOOK_SECRET available — rejecting webhook');
+      res.status(401).json({ error: 'Webhook signing not configured' });
+      return;
+    }
+
+    if (!verifyJiraSignature(rawBody, signatureHeader, secret)) {
+      logger.warn({ url: req.path, tenant_id: tenant.id }, 'Invalid Jira webhook signature');
+      res.status(401).json({ error: 'Invalid webhook signature' });
+      return;
+    }
+
+    const { task, created } = await createTaskFromJiraWebhook({
+      payload,
+      tenantId: tenant.id,
+      archetypeId: archetype.id,
+      prisma,
+    });
+
+    if (!created) {
+      logger.info({ taskId: task.id }, 'Duplicate Jira webhook — task already exists');
+      res.json({ received: true, action: 'duplicate' });
+      return;
+    }
+
+    if (inngest) {
+      try {
+        await inngest.send({
+          name: 'employee/task.dispatched',
+          data: { taskId: task.id, archetypeId: archetype.id },
+          id: `jira-dispatch-${payload.issue.key}-${Date.now()}`,
+        });
+      } catch (error) {
+        logger.warn(
+          { taskId: task.id, error },
+          'Inngest send failed — task in Ready for manual recovery',
+        );
+        res.status(202).json({ status: 'task_created', taskId: task.id });
+        return;
+      }
+    }
+
+    res.json({ status: 'task_created', taskId: task.id });
+  });
 
   router.post('/webhooks/jira', async (req: Request, res: Response) => {
     const signatureHeader = req.headers['x-hub-signature'] as string | undefined;
@@ -155,10 +260,24 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
       return;
     }
 
+    // Resolve archetype for the active employee lifecycle
+    const archetype = await prisma.archetype.findFirst({
+      where: { tenant_id: project.tenant_id, role_name: 'jira-motivation-bot', status: 'active' },
+    });
+    if (!archetype) {
+      logger.warn(
+        { tenant_id: project.tenant_id, role_name: 'jira-motivation-bot' },
+        'No jira-motivation-bot archetype found for tenant — cannot create task',
+      );
+      res.status(422).json({ error: 'No matching employee archetype found' });
+      return;
+    }
+
     const { task, created } = await createTaskFromJiraWebhook({
       payload,
       projectId: project.id,
       tenantId: project.tenant_id,
+      archetypeId: archetype.id,
       prisma,
     });
 
@@ -169,20 +288,16 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     }
 
     if (inngest) {
-      const eventId = `jira-${payload.issue.key}-${Date.now()}`;
-      const sendResult = await sendTaskReceivedEvent({
-        inngest,
-        taskId: task.id,
-        projectId: project.id,
-        repoUrl: project.repo_url ?? undefined,
-        repoBranch: project.default_branch ?? 'main',
-        eventId,
-      });
-
-      if (!sendResult.success) {
+      try {
+        await inngest.send({
+          name: 'employee/task.dispatched',
+          data: { taskId: task.id, archetypeId: archetype.id },
+          id: `jira-dispatch-${payload.issue.key}-${Date.now()}`,
+        });
+      } catch (error) {
         logger.warn(
-          { taskId: task.id, error: sendResult.error },
-          'Inngest send failed — task in Received for manual recovery',
+          { taskId: task.id, error },
+          'Inngest send failed — task in Ready for manual recovery',
         );
         res.status(202).json({ received: true, action: 'queued_without_inngest', taskId: task.id });
         return;

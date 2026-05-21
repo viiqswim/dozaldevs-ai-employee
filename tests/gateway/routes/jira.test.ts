@@ -8,6 +8,7 @@ import { jiraRoutes } from '../../../src/gateway/routes/jira.js';
 const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const PROJECT_ID = 'proj-uuid-1234';
 const TASK_ID = 'task-uuid-5678';
+const ARCHETYPE_ID = 'archetype-uuid-0001';
 const TENANT_SECRET = 'tenant-jira-secret';
 const PLATFORM_SECRET = 'platform-jira-secret';
 
@@ -27,6 +28,15 @@ function makeProject(tenantId = TENANT_ID) {
 
 function makeTask() {
   return { id: TASK_ID };
+}
+
+function makeArchetype(tenantId = TENANT_ID) {
+  return {
+    id: ARCHETYPE_ID,
+    tenant_id: tenantId,
+    role_name: 'jira-motivation-bot',
+    status: 'active',
+  };
 }
 
 function encryptSecret(plaintext: string) {
@@ -49,6 +59,7 @@ function makeApp(
   overrides: {
     projectFindFirst?: ReturnType<typeof vi.fn>;
     tenantSecretFindUnique?: ReturnType<typeof vi.fn>;
+    archetypeFindFirst?: ReturnType<typeof vi.fn>;
     taskFindFirst?: ReturnType<typeof vi.fn>;
     taskCreate?: ReturnType<typeof vi.fn>;
     taskStatusLogCreate?: ReturnType<typeof vi.fn>;
@@ -87,6 +98,9 @@ function makeApp(
         },
         tenantSecret: {
           findUnique: overrides.tenantSecretFindUnique ?? vi.fn().mockResolvedValue(null),
+        },
+        archetype: {
+          findFirst: overrides.archetypeFindFirst ?? vi.fn().mockResolvedValue(makeArchetype()),
         },
         task: {
           findFirst: taskFindFirst,
@@ -267,14 +281,12 @@ describe('POST /webhooks/jira', () => {
         projectFindFirst: vi.fn().mockResolvedValue(makeProject()),
         tenantSecretFindUnique: vi.fn().mockResolvedValue(encryptedSecret),
         taskFindFirst: vi.fn().mockResolvedValue(existingTask),
-        taskCreate: vi
-          .fn()
-          .mockRejectedValue(
-            new PrismaClientKnownRequestError('Unique constraint', {
-              code: 'P2002',
-              clientVersion: '6.0.0',
-            }),
-          ),
+        taskCreate: vi.fn().mockRejectedValue(
+          new PrismaClientKnownRequestError('Unique constraint', {
+            code: 'P2002',
+            clientVersion: '6.0.0',
+          }),
+        ),
       });
       const res = await request(app)
         .post('/webhooks/jira')

@@ -12,6 +12,8 @@ import {
 } from '../setup.js';
 
 const SECRET = 'test-secret';
+const TEST_JIRA_BOT_ARCHETYPE_ID = '00000000-0000-0000-0000-aaaaaaaaaaaa';
+const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 function loadRaw(name: string): string {
   return readFileSync(resolve('test-payloads', name), 'utf8');
@@ -27,12 +29,26 @@ function validHeaders(body: string, secret = SECRET) {
 let app: TestApp;
 
 beforeEach(async () => {
+  await getPrisma().archetype.upsert({
+    where: { id: TEST_JIRA_BOT_ARCHETYPE_ID },
+    create: {
+      id: TEST_JIRA_BOT_ARCHETYPE_ID,
+      tenant_id: DOZALDEVS_TENANT_ID,
+      role_name: 'jira-motivation-bot',
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      runtime: 'opencode',
+      status: 'active',
+    },
+    update: { status: 'active' },
+  });
   app = await createTestApp({ inngest: inngestMock });
 });
 
 afterEach(async () => {
   await app.close();
   await cleanupTestData();
+  await getPrisma().archetype.deleteMany({ where: { id: TEST_JIRA_BOT_ARCHETYPE_ID } });
   vi.restoreAllMocks();
 });
 
