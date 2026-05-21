@@ -11,13 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee, deleteArchetype, restoreArchetype } from '@/lib/gateway';
@@ -349,20 +343,18 @@ export function EmployeeList() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
         />
-        <Select
+        <SearchableSelect
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'active', label: 'Active' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'deleted', label: 'Deleted' },
+          ]}
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v as 'all' | 'active' | 'draft' | 'deleted')}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="deleted">Deleted</SelectItem>
-          </SelectContent>
-        </Select>
+          placeholder="Status"
+          className="w-36"
+        />
       </div>
 
       {selected.size > 0 && (
