@@ -16,6 +16,7 @@ import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
+import { useSearchParams } from 'react-router-dom';
 import type { Archetype, EmployeeRule, FeedbackEvent } from '@/lib/types';
 
 function is403(err: Error): boolean {
@@ -279,8 +280,11 @@ function RulesTab({
   archetypeMap: Map<string, string>;
 }) {
   const { tenantId } = useTenant();
-  const [query, setQuery] = useState('');
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get('q') ?? '';
+  const selectedStatuses = new Set<string>(
+    searchParams.get('status')?.split(',').filter(Boolean) ?? [],
+  );
 
   const fetchRules = useCallback(
     () =>
@@ -306,22 +310,28 @@ function RulesTab({
   }, [rules, query, selectedStatuses]);
 
   const toggleStatus = (v: string) => {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(v)) {
-        next.delete(v);
-      } else {
-        next.add(v);
-      }
-      return next;
-    });
+    const next = new URLSearchParams(searchParams);
+    const cur = new Set<string>(next.get('status')?.split(',').filter(Boolean) ?? []);
+    if (cur.has(v)) {
+      cur.delete(v);
+    } else {
+      cur.add(v);
+    }
+    if (cur.size === 0) {
+      next.delete('status');
+    } else {
+      next.set('status', [...cur].join(','));
+    }
+    setSearchParams(next, { replace: true });
   };
 
   const hasFilters = query !== '' || selectedStatuses.size > 0;
 
   const clearFilters = () => {
-    setQuery('');
-    setSelectedStatuses(new Set());
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    next.delete('status');
+    setSearchParams(next, { replace: true });
   };
 
   if (loading) {
@@ -358,7 +368,15 @@ function RulesTab({
             className="pl-8"
             placeholder="Search rules..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              const next = new URLSearchParams(searchParams);
+              if (!e.target.value) {
+                next.delete('q');
+              } else {
+                next.set('q', e.target.value);
+              }
+              setSearchParams(next, { replace: true });
+            }}
           />
         </div>
         <MultiSelectDropdown
@@ -447,8 +465,9 @@ function FeedbackEventsTab({
   archetypeMap: Map<string, string>;
 }) {
   const { tenantId } = useTenant();
-  const [query, setQuery] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get('q') ?? '';
+  const selectedTypes = new Set<string>(searchParams.get('type')?.split(',').filter(Boolean) ?? []);
 
   const fetchEvents = useCallback(
     () =>
@@ -475,22 +494,28 @@ function FeedbackEventsTab({
   }, [events, query, selectedTypes]);
 
   const toggleType = (v: string) => {
-    setSelectedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(v)) {
-        next.delete(v);
-      } else {
-        next.add(v);
-      }
-      return next;
-    });
+    const next = new URLSearchParams(searchParams);
+    const cur = new Set(next.get('type')?.split(',').filter(Boolean) ?? []);
+    if (cur.has(v)) {
+      cur.delete(v);
+    } else {
+      cur.add(v);
+    }
+    if (cur.size === 0) {
+      next.delete('type');
+    } else {
+      next.set('type', [...cur].join(','));
+    }
+    setSearchParams(next, { replace: true });
   };
 
   const hasFilters = query !== '' || selectedTypes.size > 0;
 
   const clearFilters = () => {
-    setQuery('');
-    setSelectedTypes(new Set());
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    next.delete('type');
+    setSearchParams(next, { replace: true });
   };
 
   if (loading) {
@@ -527,7 +552,15 @@ function FeedbackEventsTab({
             className="pl-8"
             placeholder="Search events..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              const next = new URLSearchParams(searchParams);
+              if (!e.target.value) {
+                next.delete('q');
+              } else {
+                next.set('q', e.target.value);
+              }
+              setSearchParams(next, { replace: true });
+            }}
           />
         </div>
         <MultiSelectDropdown
@@ -717,7 +750,7 @@ function EmployeeMultiSelect({
 
 export function RulesPanel() {
   const { tenantId } = useTenant();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const fetchArchetypes = useCallback(
     () =>
@@ -740,23 +773,43 @@ export function RulesPanel() {
     return map;
   }, [archetypes]);
 
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [tenantId]);
+  const activeTab = searchParams.get('tab') ?? 'rules';
+
+  const handleTabChange = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (v === 'rules') {
+      next.delete('tab');
+    } else {
+      next.set('tab', v);
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const selectedIds = new Set(searchParams.get('employees')?.split(',').filter(Boolean) ?? []);
+
+  const handleToggleEmployee = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    const cur = new Set(next.get('employees')?.split(',').filter(Boolean) ?? []);
+    if (cur.has(id)) {
+      cur.delete(id);
+    } else {
+      cur.add(id);
+    }
+    if (cur.size === 0) {
+      next.delete('employees');
+    } else {
+      next.set('employees', [...cur].join(','));
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearAllEmployees = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('employees');
+    setSearchParams(next, { replace: true });
+  };
 
   const selectedIdsKey = Array.from(selectedIds).sort().join(',');
-
-  const toggleEmployee = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
 
   return (
     <div className="space-y-4 p-6">
@@ -768,26 +821,21 @@ export function RulesPanel() {
           <EmployeeMultiSelect
             archetypes={archetypes}
             selectedIds={selectedIds}
-            onToggle={toggleEmployee}
-            onClearAll={() => setSelectedIds(new Set())}
+            onToggle={handleToggleEmployee}
+            onClearAll={clearAllEmployees}
           />
         ) : (
           <span className="text-sm text-muted-foreground">No archetypes found for this tenant</span>
         )}
         {selectedIds.size > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedIds(new Set())}
-            className="h-9 text-xs"
-          >
+          <Button variant="ghost" size="sm" onClick={clearAllEmployees} className="h-9 text-xs">
             <X className="mr-1 h-3.5 w-3.5" />
             Clear
           </Button>
         )}
       </div>
 
-      <Tabs defaultValue="rules">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="feedback">Feedback Events</TabsTrigger>
