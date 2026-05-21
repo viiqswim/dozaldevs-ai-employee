@@ -63,6 +63,7 @@ export default function App() {
           <Routes>
             <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
               <Route path="/dashboard" element={<TaskFeed />} />
+              <Route path="/dashboard/tasks" element={<TaskFeed />} />
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
               <Route path="/dashboard/employees" element={<EmployeeList />} />
               <Route path="/dashboard/employees/new" element={<CreateEmployeePage />} />
