@@ -230,3 +230,90 @@
 
 ### Test result
 1508 passed, 27 skipped, 0 failed
+
+## Task 15: jira-client.test.ts dual-mode tests (2026-05-21)
+
+- Added 12 new tests across 4 describe blocks (OAuth mode, Basic auth new format, searchIssues, getComments)
+- Total test count: 22 (10 existing + 12 new), 0 failures
+- Pattern: added separate describe blocks after the existing `describe('jira-client', ...)` closure — safest way to extend without touching existing tests
+- Each new describe block has its own `beforeEach`/`afterEach` with `vi.useFakeTimers` + `vi.restoreAllMocks` — mirrors the outer block pattern
+- OAuth config fixture: `{ auth: { accessToken: 'test-access-token', cloudId: 'test-cloud-id' } }`
+- Basic new format fixture: `{ auth: { email, apiToken, baseUrl } }`
+- `searchIssues` verified: POST method, `/search/jql` path, body contains `{jql, fields, startAt, maxResults}`
+- `getComments` verified: GET method, `/issue/:key/comment?startAt=N&maxResults=N` URL shape
+- Both methods tested in OAuth mode (Bearer header + `api.atlassian.com/ex/jira/{cloudId}/rest/api/3/...`)
+- Evidence: `.sisyphus/evidence/task-15-client-tests.txt`
+
+## Task 16: Tests for Jira Shell Tools (2026-05-21)
+
+### Files created
+- `tests/worker-tools/jira/get-issue.test.ts` — 5 tests
+- `tests/worker-tools/jira/search-issues.test.ts` — 5 tests
+- `tests/worker-tools/jira/add-comment.test.ts` — 6 tests
+- `tests/worker-tools/jira/list-comments.test.ts` — 5 tests
+- `tests/worker-tools/jira/validate-env.test.ts` — 4 tests
+Total: 25 new tests
+
+### Key patterns confirmed
+
+1. **Mock mode BEFORE arg/env validation** — in get-issue, search-issues, add-comment, list-comments:
+   - `JIRA_MOCK=true` returns fixture even without required flags or env vars
+   - Tests pass `JIRA_MOCK: 'true'` as env override to runScript
+
+2. **validate-env always exits 0** — unlike hostfully validate-env (exits 1 on missing vars):
+   - `{ok: false, missing: ['JIRA_API_TOKEN', ...]}` when vars missing
+   - `{ok: true, vars: {JIRA_API_TOKEN: 'set', ...}}` when all set
+   - No mock mode — always checks real env
+
+3. **Subprocess test pattern** — identical to hostfully/slack tests:
+   - `execFile('npx', ['tsx', SCRIPT_PATH, ...args], { env: { ...process.env, ...env } }, ...)`
+   - Explicit override with `VAR: ''` to unset env vars from inherited process.env
+   - 30-second testTimeout in vitest.config.ts — sufficient for subprocess launches
+
+4. **Pre-existing unhandled rejection** — `tests/gateway/jira-webhook-with-new-project.test.ts` 
+   throws `process.exit unexpectedly called with "1"` from `scripts/trigger-task.ts`. 
+   This is a T14 issue, not introduced by T16.
+
+### Test count history
+- Before T16: 1520 passing (1508 + 12 from T15)
+- After T16: 1545 passing (+25 new Jira shell tool tests)
+
+### Evidence: `.sisyphus/evidence/task-16-tool-tests.txt`
+
+## Task 17: Webhook Route + OAuth Route Tests (2026-05-21)
+
+### Files modified/created
+- `tests/gateway/routes/jira.test.ts` — added 7 tests for per-employee route
+- `tests/gateway/routes/jira-oauth.test.ts` — new file with 6 OAuth install tests
+
+### Key patterns
+
+1. **Per-employee route mock** requires `tenant.findFirst` (not `project.findFirst`):
+   - Created `makePerEmployeeApp()` as a separate helper — does NOT share `makeApp()`
+   - Per-employee route path: `/webhooks/jira/:tenantSlug/:employeeSlug`
+   - Route order: event type check → tenant lookup → archetype lookup → HMAC verify → task create
+
+2. **tenant.findFirst is called directly** (not via TenantRepository) in the per-employee webhook route:
+   - `prisma.tenant.findFirst({ where: { slug: tenantSlug } })`
+
+3. **OAuth install route test pattern** (mirrors slack-oauth-install.test.ts):
+   - Mounts jiraOAuthRoutes with `/integrations` prefix
+   - `TenantRepository.findBySlug()` calls `prisma.tenant.findFirst`
+   - CRITICAL: set `process.env.JIRA_CLIENT_ID` AFTER calling `makeApp()` (makeApp deletes it)
+
+4. **JIRA_CLIENT_ID env ordering bug**:
+   - `makeApp()` explicitly deletes `JIRA_CLIENT_ID` for isolation
+   - Setting env var before `makeApp()` results in 503 (var deleted by makeApp)
+   - Fix: set `process.env.JIRA_CLIENT_ID` AFTER `const app = makeApp(...)`
+
+5. **State token verification in tests**:
+   - state = `base64url(payload) + "." + hmac_hex`
+   - Split on `lastIndexOf('.')` to handle base64 padding
+   - Decode b64 part → JSON → `{tenant_id, nonce}`
+
+### Test count history
+- Before T17: 1545 passing (T16 baseline)
+- After T17: 1546 passing + 23 new tests in target files (jira-webhook.test.ts pre-existing failures skew total)
+- Target files: jira.test.ts 17/17 ✓, jira-oauth.test.ts 6/6 ✓
+
+### Evidence: `.sisyphus/evidence/task-17-route-tests.txt`
