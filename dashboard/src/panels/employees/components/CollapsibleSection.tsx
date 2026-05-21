@@ -1,19 +1,15 @@
-import React from 'react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@/components/ui/accordion';
+import { cn } from '@/lib/utils';
 
 interface CollapsibleSectionProps {
   title: string;
   subtitle?: string;
   defaultOpen?: boolean;
-  children: React.ReactNode;
-  actions?: React.ReactNode;
-  badge?: React.ReactNode;
+  children: ReactNode;
+  actions?: ReactNode;
+  badge?: ReactNode;
   id?: string;
 }
 
@@ -26,31 +22,42 @@ export function CollapsibleSection({
   badge,
   id,
 }: CollapsibleSectionProps) {
-  return (
-    <Accordion type="single" collapsible defaultValue={defaultOpen ? 'section' : undefined}>
-      <AccordionItem value="section" id={id} className="border-none">
-        <AccordionTrigger className="group py-2 hover:no-underline [&>svg]:hidden">
-          <div className="flex w-full items-center justify-between gap-2">
-            <div className="flex flex-col items-start gap-0.5 text-left">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{title}</span>
-                {badge}
-              </div>
-              {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
-            </div>
+  const [open, setOpen] = useState(defaultOpen);
 
-            <div className="flex shrink-0 items-center gap-2">
-              {actions && (
-                <div onClick={(e) => e.stopPropagation()} className="flex items-center">
-                  {actions}
-                </div>
-              )}
-              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </div>
+  return (
+    <div id={id} className="border-none">
+      <div className="flex w-full items-center justify-between gap-2 py-2">
+        <button
+          type="button"
+          className="flex flex-col items-start gap-0.5 text-left transition-opacity hover:opacity-80"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{title}</span>
+            {badge}
           </div>
-        </AccordionTrigger>
-        <AccordionContent>{children}</AccordionContent>
-      </AccordionItem>
-    </Accordion>
+          {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+        </button>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {actions}
+          <button
+            type="button"
+            className="p-0.5 transition-opacity hover:opacity-80"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? 'Collapse section' : 'Expand section'}
+          >
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                open && 'rotate-180',
+              )}
+            />
+          </button>
+        </div>
+      </div>
+
+      {open && <div>{children}</div>}
+    </div>
   );
 }
