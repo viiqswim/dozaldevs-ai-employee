@@ -72,6 +72,7 @@
 8. Callback success: redirect 302 to ${redirectBase}/dashboard/
 
 ### QA evidence captured:
+
 - .sisyphus/evidence/task-3-oauth-redirect.txt — 302 redirect to Atlassian with all required params
 - .sisyphus/evidence/task-3-oauth-bad-tenant.txt — 400 TENANT_NOT_FOUND
 - .sisyphus/evidence/task-3-oauth-unconfigured.txt — 503 JIRA_CLIENT_ID not configured
@@ -101,6 +102,7 @@
 ## Task 5-10: Jira shell tools created (2026-05-21)
 
 ### Files created
+
 - `src/worker-tools/jira/get-issue.ts` — GET /rest/api/3/issue/{key}, outputs transformed shape (plain-text description)
 - `src/worker-tools/jira/search-issues.ts` — POST /rest/api/3/search/jql, builds JQL from --project/--status/--assignee or uses raw --jql
 - `src/worker-tools/jira/add-comment.ts` — POST /rest/api/3/issue/{key}/comment, accepts plain text, wraps in ADF inline
@@ -122,12 +124,48 @@
 6. **Mock mode checked BEFORE arg/env validation** — Follows the exact hostfully pattern.
 
 ### QA evidence
+
 - task-6-mock-output.json — get-issue mock output
 - task-7-mock-search.json — search-issues mock output
-- task-8-mock-comment.json — add-comment mock output  
+- task-8-mock-comment.json — add-comment mock output
 - task-9-mock-comments.json — list-comments mock output
 - task-10-validate-missing.json — validate-env with all vars missing → {ok:false,missing:[...]}
 - task-10-validate-ok.json — validate-env with all vars set → {ok:true,vars:{...:set}}
 
 ### Test results
+
 - 1508 passing, 27 skipped, 0 failures (matches expected baseline)
+
+## Task 11: jira-motivation-bot archetype seeded (2026-05-21)
+
+### UUID collision discovery
+
+- Plan spec said UUID `00000000-0000-0000-0000-000000000017` was free — it was NOT.
+- `000017` was already in live DB as `schedule-generator-thornton` (tenant `000004`, Snöbahn ski school).
+- Prisma upsert ran UPDATE (not CREATE) → jira-motivation-bot values applied to wrong tenant `000004`.
+- Restored `000017` from backup (`database-backups/2026-05-21-1527/archetypes.sql`).
+- **Correct UUID: `00000000-0000-0000-0000-000000000018`** (first free sequential UUID).
+
+### Archetype seeded
+
+- id: `00000000-0000-0000-0000-000000000018`
+- role_name: `jira-motivation-bot`
+- tenant_id: `00000000-0000-0000-0000-000000000003` (VLRE)
+- model: `minimax/minimax-m2.7`
+- runtime: `opencode`
+- deliverable_type: `slack_message`
+- notification_channel: `C0960S2Q8RL`
+- risk_model: `{"timeout_hours": 2, "approval_required": false}`
+
+### Idempotency
+
+- Seed run twice → still 1 row. Upsert pattern confirmed correct.
+
+### Test results
+
+- 1508 passing, 27 skipped, 0 failures (matches expected baseline)
+
+### Lesson learned
+
+- Always query live DB for existing UUIDs before assigning a new one in seed.ts.
+- `SELECT id FROM archetypes ORDER BY id` is the safest way to find the next free sequential UUID.
