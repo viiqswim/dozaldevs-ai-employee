@@ -1,0 +1,190 @@
+import { Router } from 'express';
+import crypto from 'crypto';
+import pino from 'pino';
+import { PrismaClient } from '@prisma/client';
+import { TenantRepository } from '../services/tenant-repository.js';
+import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
+import {
+  JIRA_AUTH_URL,
+  JIRA_TOKEN_URL,
+  JIRA_ACCESSIBLE_RESOURCES_URL,
+  JIRA_REQUIRED_SCOPES,
+} from '../../lib/jira-types.js';
+
+export interface JiraOAuthRouteOptions {
+  prisma?: PrismaClient;
+}
+
+function signState(payload: string, key: string): string {
+  const b64 = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', key).update(b64).digest('hex');
+  return `${b64}.${sig}`;
+}
+
+function verifyState(signed: string, key: string): { tenant_id: string; nonce: string } | null {
+  const dot = signed.lastIndexOf('.');
+  if (dot === -1) return null;
+  const b64 = signed.slice(0, dot);
+  const sig = signed.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', key).update(b64).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) return null;
+  try {
+    return JSON.parse(Buffer.from(b64, 'base64url').toString('utf8')) as {
+      tenant_id: string;
+      nonce: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
+  const router = Router();
+  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const prisma = opts.prisma ?? new PrismaClient();
+  const tenantRepo = new TenantRepository(prisma);
+  const secretRepo = new TenantSecretRepository(prisma);
+  const integrationRepo = new TenantIntegrationRepository(prisma);
+
+  router.get('/jira/install', async (req, res) => {
+    const tenantSlug = req.query['tenant'];
+    if (!tenantSlug || typeof tenantSlug !== 'string') {
+      res.status(400).json({ error: 'MISSING_TENANT' });
+      return;
+    }
+
+    try {
+      const tenant = await tenantRepo.findBySlug(tenantSlug);
+      if (!tenant) {
+        res.status(400).json({ error: 'TENANT_NOT_FOUND' });
+        return;
+      }
+
+      const clientId = process.env.JIRA_CLIENT_ID;
+      if (!clientId) {
+        res.status(503).json({ error: 'JIRA_CLIENT_ID not configured' });
+        return;
+      }
+
+      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const nonce = crypto.randomBytes(16).toString('hex');
+      const payload = JSON.stringify({ tenant_id: tenant.id, nonce });
+      const state = signState(payload, signingKey);
+
+      const redirectBase =
+        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectUri = `${redirectBase}/integrations/jira/callback`;
+
+      const url =
+        `${JIRA_AUTH_URL}` +
+        `?audience=${encodeURIComponent('api.atlassian.com')}` +
+        `&client_id=${encodeURIComponent(clientId)}` +
+        `&scope=${encodeURIComponent(JIRA_REQUIRED_SCOPES)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&state=${encodeURIComponent(state)}` +
+        `&response_type=code` +
+        `&prompt=consent`;
+
+      res.redirect(302, url);
+    } catch (err) {
+      logger.error({ err }, 'Failed to generate Jira install link');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  router.get('/jira/callback', async (req, res) => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    if (!code || !state) {
+      res.status(400).json({ error: 'MISSING_PARAMS' });
+      return;
+    }
+
+    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const parsed = verifyState(state, signingKey);
+    if (!parsed) {
+      res.status(400).json({ error: 'INVALID_STATE' });
+      return;
+    }
+
+    const { tenant_id: tenantId } = parsed;
+
+    try {
+      const clientId = process.env.JIRA_CLIENT_ID;
+      const clientSecret = process.env.JIRA_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        res.status(503).json({ error: 'Jira OAuth not configured' });
+        return;
+      }
+
+      const redirectBase =
+        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectUri = `${redirectBase}/integrations/jira/callback`;
+
+      const tokenRes = await fetch(JIRA_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      const tokenData = (await tokenRes.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        error?: string;
+        error_description?: string;
+      };
+
+      if (!tokenData.access_token) {
+        logger.error({ error: tokenData.error }, 'Jira OAuth token exchange failed');
+        res.status(400).json({ error: 'JIRA_OAUTH_FAILED', detail: tokenData.error });
+        return;
+      }
+
+      const resourcesRes = await fetch(JIRA_ACCESSIBLE_RESOURCES_URL, {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      const resources = (await resourcesRes.json()) as Array<{
+        id: string;
+        url: string;
+        name: string;
+      }>;
+
+      if (!Array.isArray(resources) || resources.length === 0) {
+        logger.error({}, 'No accessible Jira resources found');
+        res.status(400).json({ error: 'NO_ACCESSIBLE_RESOURCES' });
+        return;
+      }
+
+      const { id: cloudId, url: siteUrl } = resources[0];
+
+      await secretRepo.set(tenantId, 'jira_access_token', tokenData.access_token);
+      if (tokenData.refresh_token) {
+        await secretRepo.set(tenantId, 'jira_refresh_token', tokenData.refresh_token);
+      }
+      await secretRepo.set(tenantId, 'jira_cloud_id', cloudId);
+      await secretRepo.set(tenantId, 'jira_site_url', siteUrl);
+
+      await integrationRepo.upsert(tenantId, 'jira', { external_id: cloudId });
+
+      logger.info({ tenantId, cloudId }, 'Jira OAuth completed — secrets and integration stored');
+
+      const dashboardUrl = `${redirectBase}/dashboard/`;
+      res.redirect(302, dashboardUrl);
+    } catch (err) {
+      logger.error({ err }, 'Jira OAuth callback failed');
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  return router;
+}

@@ -26,6 +26,7 @@ import { adminKbRoutes } from './routes/admin-kb.js';
 import { adminPropertyLockRoutes } from './routes/admin-property-locks.js';
 import { adminRulesRoutes } from './routes/admin-rules.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
+import { jiraOAuthRoutes } from './routes/jira-oauth.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
 import { TenantSecretRepository } from './services/tenant-secret-repository.js';
@@ -60,6 +61,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     logger.warn(
       'JIRA_WEBHOOK_SECRET is not set — Jira webhook signature verification will be skipped',
     );
+  }
+
+  if (!process.env.JIRA_CLIENT_ID) {
+    logger.warn('JIRA_CLIENT_ID is not set — Jira OAuth install will return 503');
   }
 
   const prisma = new PrismaClient();
@@ -183,6 +188,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminPropertyLockRoutes({ prisma }));
   app.use(adminRulesRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
+  app.use('/integrations', jiraOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   // Dashboard static file serving (local dev tool)

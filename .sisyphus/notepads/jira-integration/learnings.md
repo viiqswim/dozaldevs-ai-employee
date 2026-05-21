@@ -1,0 +1,77 @@
+# Learnings — jira-integration
+
+## [2026-05-21] Session Start
+
+- Plan: 21 tasks across 4 waves + 4 final verification
+- Existing Jira infrastructure is extensive but wired to deprecated engineering lifecycle
+- Critical: existing `POST /webhooks/jira` fires `engineering/task.received` — must switch to `employee/task.dispatched`
+- Shell tools use Basic auth (API tokens) only — OAuth only for dashboard "Connect" flow
+- ADF wrapping: add-comment.ts accepts plain text, wraps internally — AI employees never construct ADF
+- Per-employee webhook URL: `/webhooks/jira/:tenantSlug/:employeeSlug`
+- Dual-mode jira-client: OAuth (Bearer + cloudId URL) AND Basic auth (API token + domain URL)
+- motivation-bot archetype e4dd9e63 exists in live DB only, not in seed — must capture from DB (Task 2) then seed (Task 11)
+- Approved models: minimax/minimax-m2.7 (execution), anthropic/claude-haiku-4-5 (verification)
+- VLRE tenant ID: 00000000-0000-0000-0000-000000000003
+- DozalDevs tenant ID: 00000000-0000-0000-0000-000000000002
+
+## Task 2: real-estate-motivation-bot archetype config captured
+
+- Archetype ID: `e4dd9e63-91ac-490b-ba4f-10246be6fa76`
+- role_name: `real-estate-motivation-bot`
+- tenant_id: `00000000-0000-0000-0000-000000000003` (VLRE)
+- model: `minimax/minimax-m2.7`
+- deliverable_type: `slack_message`
+- runtime: `opencode`
+- risk_model: `{"timeout_hours": 2, "approval_required": false}`
+- notification_channel: `C0960S2Q8RL`
+- system_prompt: empty string
+- agents_md: motivational content creator persona for real estate team
+- delivery_instructions, enrichment_adapter, vm_size, worker_env: all empty
+- Evidence saved to: `.sisyphus/evidence/task-2-motivation-bot-config.txt`
+
+## Task 1: src/lib/jira-types.ts created
+
+- File: `src/lib/jira-types.ts` — 103 lines, no imports, pure TypeScript
+- All 9 types exported: JiraAuthMode, JiraOAuthConfig, JiraBasicConfig, JiraClientConfig, AdfNode, AdfDocument, JiraIssue, JiraComment, JiraSearchResult
+- All 6 constants exported: JIRA_OAUTH_BASE_URL, JIRA_AUTH_URL, JIRA_TOKEN_URL, JIRA_ACCESSIBLE_RESOURCES_URL, JIRA_API_VERSION, JIRA_REQUIRED_SCOPES
+- plainTextToAdf: wraps text in doc→paragraph→text ADF structure
+- adfToPlainText: recursively extracts text nodes, joins with '' (no separator) — handles null → ''
+- ADF logic ported fresh (not imported from deprecated src/workers/lib/task-context.ts which uses '\n' join)
+- Tests: 1508 passing, 27 skipped — no regressions
+- Commit: 11d2913 feat(jira): add shared types and constants
+
+## Task 3: Jira OAuth 2.0 install + callback routes
+
+- File: `src/gateway/routes/jira-oauth.ts` — 168 lines
+- Routes: `GET /jira/install` and `GET /jira/callback` (registered under `/integrations` prefix)
+- Registered in server.ts as: `app.use('/integrations', jiraOAuthRoutes({ prisma }))`
+- Startup warning for JIRA_CLIENT_ID added to buildApp() in server.ts
+- .env.example updated with JIRA_CLIENT_ID, JIRA_CLIENT_SECRET, JIRA_REDIRECT_BASE_URL vars
+
+### Key implementation decisions:
+
+1. Install route order: slug param check → DB lookup → JIRA_CLIENT_ID check → redirect
+   - ?tenant=nonexistent → 400 TENANT_NOT_FOUND (DB lookup fires before JIRA_CLIENT_ID check)
+   - ?tenant=vlre (valid) + no JIRA_CLIENT_ID → 503
+   - ?tenant=vlre + JIRA_CLIENT_ID set → 302 to Atlassian auth URL
+
+2. State signing: identical HMAC-sha256 pattern from slack-oauth.ts
+   - Payload: { tenant_id, nonce }
+   - Signed: base64url(payload) + "." + hex(hmac-sha256)
+
+3. Atlassian auth URL params: audience, client_id, scope, redirect_uri, state, response_type=code, prompt=consent
+
+4. Token exchange: JSON body (POST to JIRA_TOKEN_URL), not form-encoded like Slack
+
+5. After token exchange: fetch accessible resources to get cloudId + siteUrl from [0]
+
+6. Secrets stored: jira_access_token, jira_refresh_token (if present), jira_cloud_id, jira_site_url
+
+7. Integration upsert: provider='jira', external_id=cloudId
+
+8. Callback success: redirect 302 to ${redirectBase}/dashboard/
+
+### QA evidence captured:
+- .sisyphus/evidence/task-3-oauth-redirect.txt — 302 redirect to Atlassian with all required params
+- .sisyphus/evidence/task-3-oauth-bad-tenant.txt — 400 TENANT_NOT_FOUND
+- .sisyphus/evidence/task-3-oauth-unconfigured.txt — 503 JIRA_CLIENT_ID not configured
