@@ -1,0 +1,27 @@
+{
+  "issues": [
+    {
+      "key": "PROJ-1",
+      "summary": "Implement login feature with OAuth 2.0",
+      "status": "In Progress",
+      "priority": "High",
+      "assignee": "Alice Johnson"
+    },
+    {
+      "key": "PROJ-2",
+      "summary": "Fix pagination bug on dashboard",
+      "status": "To Do",
+      "priority": "Medium",
+      "assignee": "Bob Martinez"
+    },
+    {
+      "key": "PROJ-3",
+      "summary": "Add email notifications for task assignments",
+      "status": "Done",
+      "priority": "Low",
+      "assignee": null
+    }
+  ],
+  "total": 3,
+  "maxResults": 50
+}
