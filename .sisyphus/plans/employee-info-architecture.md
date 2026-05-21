@@ -160,7 +160,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Platform Procedures Generator + Resolver Integration
+- [x] 1. Platform Procedures Generator + Resolver Integration
 
   **What to do**:
   - Create `src/workers/lib/platform-procedures.mts` — a function that generates the "Platform Procedures" text block based on archetype config
@@ -245,7 +245,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/workers/lib/platform-procedures.mts`, `src/workers/lib/agents-md-resolver.mts`, test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 2. Tool Reference Generator + Resolver Integration
+- [x] 2. Tool Reference Generator + Resolver Integration
 
   **What to do**:
   - Create `src/workers/lib/tool-reference-generator.mts` — a function that generates the "Available Tools" text block from `tool_registry.tools`
@@ -326,7 +326,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/workers/lib/tool-reference-generator.mts`, test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 3. Add AGENTS.md Rules (Non-Technical Language + Concise Responses)
+- [x] 3. Add AGENTS.md Rules (Non-Technical Language + Concise Responses)
 
   **What to do**:
   - Add two rules to the project `AGENTS.md` under the existing "Key Conventions" section. These rules are for **AI development agents** (like OpenCode, Sisyphus, Prometheus) that help engineers build and maintain this platform. They guide how those agents write code, UI copy, and error messages:
