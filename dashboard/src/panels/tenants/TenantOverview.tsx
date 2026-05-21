@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -140,6 +141,14 @@ function SecretRow({
 
 export function TenantOverview() {
   const { tenantId } = useTenant();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') ?? 'config';
+  const setActiveTab = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value && value !== 'config') next.set('tab', value);
+    else next.delete('tab');
+    setSearchParams(next, { replace: true });
+  };
 
   const fetchTenant = useCallback(
     () => postgrestFetch<Tenant>('tenants', { id: `eq.${tenantId}` }),
@@ -248,7 +257,7 @@ export function TenantOverview() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="config">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="config">Config</TabsTrigger>
             <TabsTrigger value="secrets">Secrets</TabsTrigger>

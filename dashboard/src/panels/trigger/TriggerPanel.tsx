@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,8 +41,16 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 
 export function TriggerPanel() {
   const { tenantId } = useTenant();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [selectedId, setSelectedId] = useState<string>('');
+  const selectedId = searchParams.get('employee') ?? '';
+  const setSelectedId = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('employee', value);
+    else next.delete('employee');
+    setSearchParams(next, { replace: true });
+  };
+
   const [dryRun, setDryRun] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [outcome, setOutcome] = useState<TriggerOutcome | null>(null);
