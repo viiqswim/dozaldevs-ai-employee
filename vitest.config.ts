@@ -2,7 +2,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
+    include: [
+      'tests/**/*.test.ts',
+      'src/**/__tests__/**/*.test.ts',
+      'src/**/__tests__/**/*.test.mts',
+    ],
     exclude: [],
     env: {
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/ai_employee_test',
