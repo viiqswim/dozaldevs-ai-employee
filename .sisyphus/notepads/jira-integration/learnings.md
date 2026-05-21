@@ -75,3 +75,25 @@
 - .sisyphus/evidence/task-3-oauth-redirect.txt — 302 redirect to Atlassian with all required params
 - .sisyphus/evidence/task-3-oauth-bad-tenant.txt — 400 TENANT_NOT_FOUND
 - .sisyphus/evidence/task-3-oauth-unconfigured.txt — 503 JIRA_CLIENT_ID not configured
+
+## T2: jira-client.ts dual-mode auth rewrite (2026-05-21)
+
+### Key findings
+
+1. **Existing tests use old flat config format** `{ baseUrl, email, apiToken }` not the new `{ auth: {...} }` shape.
+   - Solution: accept a union type `JiraClientConfig | LegacyJiraClientConfig` with runtime detection via `'auth' in config`.
+   - Vitest strips types at runtime so no type error prevents tests from running.
+
+2. **URL path change**: Old client concatenated `baseUrl + /rest/api/3/issue/...`. New client stores `/rest/api/3` in `resolvedBaseUrl` and paths are relative (e.g. `/issue/${issueKey}`). Tests verified URL construction matches.
+
+3. **Auth mode detection**: `'accessToken' in auth` → OAuth; else → Basic. Both use same `makeRequest` and `withRetry` infrastructure.
+
+4. **`skipBody` param** replaces the old path-sniffing approach (`path.includes('/comment')`) for skipping JSON parsing on 201/204 responses — cleaner and more explicit.
+
+5. **searchIssues** uses `POST /rest/api/3/search/jql` (not deprecated `GET /rest/api/3/search`).
+
+6. **getComments** returns `{ comments: JiraComment[], total: number }` with pagination via query params.
+
+7. **Actual test count**: 10 tests (not 9 as stated in task spec).
+
+8. **Types**: All imported from `jira-types.ts` — `JiraClientConfig`, `JiraIssue`, `JiraComment`, `JiraSearchResult`, `AdfDocument`, `JIRA_OAUTH_BASE_URL`.
