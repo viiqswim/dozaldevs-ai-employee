@@ -25,8 +25,8 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div id={id} className="border-none">
-      <div className="flex w-full items-center justify-between gap-2 py-2">
+    <div id={id} className="rounded-lg border bg-card px-5 py-4">
+      <div className="flex w-full items-center justify-between gap-2">
         <button
           type="button"
           className="flex flex-col items-start gap-0.5 text-left transition-opacity hover:opacity-80"
@@ -57,7 +57,7 @@ export function CollapsibleSection({
         </div>
       </div>
 
-      {open && <div>{children}</div>}
+      {open && <div className="mt-3">{children}</div>}
     </div>
   );
 }
