@@ -41,6 +41,8 @@ export interface Task {
   failure_code: string | null;
   // From PostgREST embedded join: ?select=*,archetypes(role_name,model)
   archetypes?: { role_name: string | null; model: string | null } | null;
+  // From PostgREST embedded join: ?select=*,executions(estimated_cost_usd)
+  executions?: { estimated_cost_usd: number | null }[] | null;
 }
 
 export interface TaskStatusLog {
