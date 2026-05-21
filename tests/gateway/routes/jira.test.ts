@@ -11,6 +11,8 @@ const TASK_ID = 'task-uuid-5678';
 const ARCHETYPE_ID = 'archetype-uuid-0001';
 const TENANT_SECRET = 'tenant-jira-secret';
 const PLATFORM_SECRET = 'platform-jira-secret';
+const TENANT_SLUG = 'dozaldevs';
+const EMPLOYEE_SLUG = 'jira-motivation-bot';
 
 function sign(body: string, secret: string): string {
   const hex = crypto.createHmac('sha256', secret).update(body).digest('hex');
@@ -37,6 +39,74 @@ function makeArchetype(tenantId = TENANT_ID) {
     role_name: 'jira-motivation-bot',
     status: 'active',
   };
+}
+
+function makeTenant(id = TENANT_ID, slug = TENANT_SLUG) {
+  return { id, slug };
+}
+
+function makePerEmployeeApp(
+  overrides: {
+    tenantFindFirst?: ReturnType<typeof vi.fn>;
+    archetypeFindFirst?: ReturnType<typeof vi.fn>;
+    tenantSecretFindUnique?: ReturnType<typeof vi.fn>;
+    taskFindFirst?: ReturnType<typeof vi.fn>;
+    taskCreate?: ReturnType<typeof vi.fn>;
+    taskStatusLogCreate?: ReturnType<typeof vi.fn>;
+    taskUpdateMany?: ReturnType<typeof vi.fn>;
+    inngestClient?: { send: ReturnType<typeof vi.fn> };
+  } = {},
+) {
+  process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+
+  const taskCreate = overrides.taskCreate ?? vi.fn().mockResolvedValue(makeTask());
+  const taskStatusLogCreate = overrides.taskStatusLogCreate ?? vi.fn().mockResolvedValue({});
+  const taskFindFirst = overrides.taskFindFirst ?? vi.fn().mockResolvedValue(null);
+  const taskUpdateMany = overrides.taskUpdateMany ?? vi.fn().mockResolvedValue({ count: 1 });
+
+  const $transaction = vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+    return fn({
+      task: { create: taskCreate, update: vi.fn(), updateMany: taskUpdateMany },
+      taskStatusLog: { create: taskStatusLogCreate },
+    });
+  });
+
+  const app = express();
+  app.use(
+    express.json({
+      verify: (req: express.Request & { rawBody?: string }, _res, buf) => {
+        req.rawBody = buf.toString('utf8');
+      },
+    }),
+  );
+
+  app.use(
+    jiraRoutes({
+      prisma: {
+        tenant: {
+          findFirst: overrides.tenantFindFirst ?? vi.fn().mockResolvedValue(makeTenant()),
+        },
+        tenantSecret: {
+          findUnique: overrides.tenantSecretFindUnique ?? vi.fn().mockResolvedValue(null),
+        },
+        archetype: {
+          findFirst: overrides.archetypeFindFirst ?? vi.fn().mockResolvedValue(makeArchetype()),
+        },
+        task: {
+          findFirst: taskFindFirst,
+          create: taskCreate,
+          updateMany: taskUpdateMany,
+        },
+        taskStatusLog: {
+          create: taskStatusLogCreate,
+        },
+        $transaction,
+      } as never,
+      inngestClient: overrides.inngestClient,
+    }),
+  );
+
+  return app;
 }
 
 function encryptSecret(plaintext: string) {
@@ -327,6 +397,154 @@ describe('POST /webhooks/jira', () => {
         .send({ webhookEvent: 'jira:issue_created' });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Invalid payload');
+    });
+  });
+});
+
+describe('POST /webhooks/jira/:tenantSlug/:employeeSlug', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.JIRA_WEBHOOK_SECRET;
+  });
+
+  describe('non-issue_created events', () => {
+    it('200 ignored for non-issue_created events (no DB calls needed)', async () => {
+      const body = JSON.stringify({
+        webhookEvent: 'jira:issue_updated',
+        issue: { id: '1', key: 'X-1', fields: { summary: 'x', project: { key: 'X' } } },
+      });
+      const app = makePerEmployeeApp();
+      const res = await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+      expect(res.status).toBe(200);
+      expect(res.body.action).toBe('ignored');
+    });
+  });
+
+  describe('tenant and employee resolution', () => {
+    it('404 when tenant slug is not found', async () => {
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(null),
+      });
+      const res = await request(app)
+        .post(`/webhooks/jira/unknown-tenant/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tenant not found');
+    });
+
+    it('404 when employee slug does not match any active archetype', async () => {
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(makeTenant()),
+        archetypeFindFirst: vi.fn().mockResolvedValue(null),
+      });
+      const res = await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/unknown-employee`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Employee not found');
+    });
+  });
+
+  describe('HMAC validation', () => {
+    it('401 when signature does not match the secret', async () => {
+      process.env.JIRA_WEBHOOK_SECRET = PLATFORM_SECRET;
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const encryptedSecret = encryptSecret(TENANT_SECRET);
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(makeTenant()),
+        archetypeFindFirst: vi.fn().mockResolvedValue(makeArchetype()),
+        tenantSecretFindUnique: vi.fn().mockResolvedValue(encryptedSecret),
+      });
+      const res = await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature', sign(body, 'wrong-secret'))
+        .send(body);
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Invalid webhook signature');
+    });
+  });
+
+  describe('successful task creation', () => {
+    it('200 with { status: task_created, taskId } on valid webhook', async () => {
+      process.env.JIRA_WEBHOOK_SECRET = PLATFORM_SECRET;
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const inngest = { send: vi.fn().mockResolvedValue(undefined) };
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(makeTenant()),
+        archetypeFindFirst: vi.fn().mockResolvedValue(makeArchetype()),
+        tenantSecretFindUnique: vi.fn().mockResolvedValue(null),
+        taskFindFirst: vi.fn().mockResolvedValue(null),
+        inngestClient: inngest,
+      });
+      const res = await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature', sign(body, PLATFORM_SECRET))
+        .send(body);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('task_created');
+      expect(res.body.taskId).toBe(TASK_ID);
+    });
+
+    it('fires employee/task.dispatched (not engineering/task.received)', async () => {
+      process.env.JIRA_WEBHOOK_SECRET = PLATFORM_SECRET;
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const inngest = { send: vi.fn().mockResolvedValue(undefined) };
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(makeTenant()),
+        archetypeFindFirst: vi.fn().mockResolvedValue(makeArchetype()),
+        tenantSecretFindUnique: vi.fn().mockResolvedValue(null),
+        taskFindFirst: vi.fn().mockResolvedValue(null),
+        inngestClient: inngest,
+      });
+      await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature', sign(body, PLATFORM_SECRET))
+        .send(body);
+      expect(inngest.send).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'employee/task.dispatched' }),
+      );
+      expect(inngest.send).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'engineering/task.received' }),
+      );
+    });
+
+    it('task row is created with archetype_id from the resolved archetype', async () => {
+      process.env.JIRA_WEBHOOK_SECRET = PLATFORM_SECRET;
+      const payload = makeIssueCreatedPayload();
+      const body = JSON.stringify(payload);
+      const taskCreate = vi.fn().mockResolvedValue(makeTask());
+      const app = makePerEmployeeApp({
+        tenantFindFirst: vi.fn().mockResolvedValue(makeTenant()),
+        archetypeFindFirst: vi.fn().mockResolvedValue(makeArchetype()),
+        tenantSecretFindUnique: vi.fn().mockResolvedValue(null),
+        taskFindFirst: vi.fn().mockResolvedValue(null),
+        taskCreate,
+      });
+      await request(app)
+        .post(`/webhooks/jira/${TENANT_SLUG}/${EMPLOYEE_SLUG}`)
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature', sign(body, PLATFORM_SECRET))
+        .send(body);
+      expect(taskCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ archetype_id: ARCHETYPE_ID }),
+        }),
+      );
     });
   });
 });
