@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
@@ -17,6 +18,9 @@ import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype } from '@/lib/types';
 import { toast } from 'sonner';
 import { EmployeeProfileLayout } from './EmployeeProfileLayout';
+import { ActivitySection } from './sections/ActivitySection';
+import { TrainingTab } from './TrainingTab';
+import { MarkdownPreview } from '@/components/MarkdownPreview';
 import type { ProfileMode } from '@/lib/profile-constants';
 
 const WEBHOOK_FIXTURES = {
@@ -26,22 +30,23 @@ const WEBHOOK_FIXTURES = {
   property_uid: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
 } as const;
 
-const TAB_TO_SECTION: Record<string, string> = {
-  settings: 'section-assignment',
-  config: 'section-assignment',
-  activity: 'section-activity',
-  tasks: 'section-activity',
-  training: 'section-training',
-  rules: 'section-training',
-  knowledge: 'section-preview',
-  brain: 'section-preview',
-};
-
 export function EmployeeDetail() {
   const { archetypeId } = useParams<{ archetypeId: string }>();
   const { tenantId } = useTenant();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activeTab = searchParams.get('tab') ?? 'profile';
+
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'profile') {
+      next.delete('tab');
+    } else {
+      next.set('tab', value);
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const [triggering, setTriggering] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
@@ -61,16 +66,6 @@ export function EmployeeDetail() {
   );
 
   const { data: archetype, error, loading, refresh } = usePoll<Archetype | null>(fetchArchetype);
-
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (!tab || !archetype) return;
-    const sectionId = TAB_TO_SECTION[tab];
-    if (!sectionId) return;
-    setTimeout(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
-    }, 300);
-  }, [archetype, searchParams]);
 
   const handleTrigger = async () => {
     if (!archetype?.role_name) return;
@@ -306,14 +301,79 @@ export function EmployeeDetail() {
         </div>
       </div>
 
-      <EmployeeProfileLayout
-        archetype={archetype}
-        mode={mode}
-        tenantId={tenantId}
-        onSaved={refresh}
-        showActivity={true}
-        showTraining={true}
-      />
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
+        <TabsList className="mb-6">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="training">Training</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile">
+          <EmployeeProfileLayout
+            archetype={archetype}
+            mode={mode}
+            tenantId={tenantId}
+            onSaved={refresh}
+          />
+        </TabsContent>
+
+        <TabsContent value="activity">
+          <div className="rounded-lg border bg-card px-5 py-4">
+            <ActivitySection archetypeId={archetype.id} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="training">
+          <div className="rounded-lg border bg-card px-5 py-4">
+            <TrainingTab archetypeId={archetype.id} tenantId={tenantId} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="advanced">
+          <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              For developers only — most users can ignore this section.
+            </p>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+              <dl>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  AI Model
+                </dt>
+                <dd className="mt-0.5">
+                  <span className="font-mono text-xs">{archetype.model ?? '—'}</span>
+                </dd>
+              </dl>
+              <dl>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Runtime
+                </dt>
+                <dd className="mt-0.5 text-sm">{archetype.runtime ?? '—'}</dd>
+              </dl>
+              <dl>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Machine size
+                </dt>
+                <dd className="mt-0.5 text-sm">{archetype.vm_size ?? '—'}</dd>
+              </dl>
+              <dl>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Output type
+                </dt>
+                <dd className="mt-0.5 text-sm">{archetype.deliverable_type ?? '—'}</dd>
+              </dl>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                System prompt (legacy)
+              </dt>
+              <dd className="mt-1 rounded-md border bg-muted/10 p-4">
+                <MarkdownPreview content={archetype.system_prompt ?? ''} />
+              </dd>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
