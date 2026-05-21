@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -38,7 +38,7 @@ const STATUS_OPTIONS = [
 function SkeletonRow() {
   return (
     <TableRow>
-      {Array.from({ length: 5 }).map((_, i) => (
+      {Array.from({ length: 6 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 w-full animate-pulse rounded bg-muted" />
         </TableCell>
@@ -50,12 +50,38 @@ function SkeletonRow() {
 export function TaskFeed() {
   const { tenantId } = useTenant();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [statusFilter, setStatusFilter] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const statusFilter = searchParams.get('status') ?? '';
+  const employeeFilter = searchParams.get('employee') ?? '';
+  const dateFrom = searchParams.get('from') ?? '';
+  const dateTo = searchParams.get('to') ?? '';
   const [archetypes, setArchetypes] = useState<{ id: string; role_name: string | null }[]>([]);
+
+  const setStatusFilter = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
+  const setEmployeeFilter = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('employee', value);
+    else next.delete('employee');
+    setSearchParams(next, { replace: true });
+  };
+  const setDateFrom = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('from', value);
+    else next.delete('from');
+    setSearchParams(next, { replace: true });
+  };
+  const setDateTo = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('to', value);
+    else next.delete('to');
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     postgrestFetch<{ id: string; role_name: string | null }>('archetypes', {
@@ -71,7 +97,7 @@ export function TaskFeed() {
     const hasFilter = !!(statusFilter || employeeFilter || dateFrom || dateTo);
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model)',
+      select: '*,archetypes(role_name,model),executions(estimated_cost_usd)',
       order: 'created_at.desc',
       limit: hasFilter ? '100' : '50',
     };
@@ -104,6 +130,7 @@ export function TaskFeed() {
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
+              <TableHead>Cost</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -202,6 +229,7 @@ export function TaskFeed() {
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
+              <TableHead>Cost</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -223,6 +251,12 @@ export function TaskFeed() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {isTerminal(task.status) ? formatDuration(task.created_at, task.updated_at) : '—'}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {(() => {
+                    const cost = task.executions?.[0]?.estimated_cost_usd;
+                    return cost != null && cost > 0 ? `$${cost.toFixed(4)}` : '—';
+                  })()}
                 </TableCell>
               </TableRow>
             ))}

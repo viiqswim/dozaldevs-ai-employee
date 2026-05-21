@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -92,9 +92,27 @@ function StatusBadge({ status }: { status: string | null }) {
 export function EmployeeList() {
   const { tenantId } = useTenant();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft' | 'deleted'>('all');
+  const search = searchParams.get('q') ?? '';
+  const statusFilter = (searchParams.get('status') ?? 'all') as
+    | 'all'
+    | 'active'
+    | 'draft'
+    | 'deleted';
+
+  const setSearch = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+  };
+  const setStatusFilter = (value: 'all' | 'active' | 'draft' | 'deleted') => {
+    const next = new URLSearchParams(searchParams);
+    if (value && value !== 'all') next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
