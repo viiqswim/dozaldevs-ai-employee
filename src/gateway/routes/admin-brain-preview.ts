@@ -4,11 +4,13 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const platformAgentsMd = readFileSync(
   path.resolve(__dirname, '../../workers/config/agents.md'),
   'utf-8',
