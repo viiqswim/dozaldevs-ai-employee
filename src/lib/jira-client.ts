@@ -1,90 +1,70 @@
 /**
  * Jira Cloud REST API v3 client.
- * Uses Basic auth (email:apiToken base64 encoded).
+ * Supports two auth modes:
+ *   - OAuth 2.0: Bearer token + cloudId URL
+ *   - Basic auth: email:apiToken base64 encoded + domain URL
  * All methods retry-on-429 via withRetry().
  */
 import { ExternalApiError, RateLimitExceededError } from './errors.js';
 import { withRetry } from './retry.js';
+import type {
+  JiraClientConfig,
+  JiraIssue,
+  JiraComment,
+  JiraSearchResult,
+  AdfDocument,
+} from './jira-types.js';
+import { JIRA_OAUTH_BASE_URL } from './jira-types.js';
 
-export interface JiraClientConfig {
-  baseUrl: string; // e.g. "https://your-domain.atlassian.net"
+/** Legacy flat config format — preserved for backward compatibility with existing tests. */
+interface LegacyJiraClientConfig {
+  baseUrl: string;
   email: string;
   apiToken: string;
-}
-
-interface JiraIssue {
-  id: string;
-  key: string;
-  fields: {
-    summary: string;
-    description?: string | null;
-    status?: { name: string } | null;
-    assignee?: { displayName: string } | null;
-    priority?: { name: string } | null;
-  };
 }
 
 export interface JiraClient {
   getIssue(issueKey: string): Promise<JiraIssue>;
   addComment(issueKey: string, body: string): Promise<void>;
   transitionIssue(issueKey: string, transitionId: string): Promise<void>;
+  searchIssues(
+    jql: string,
+    fields?: string[],
+    startAt?: number,
+    maxResults?: number,
+  ): Promise<JiraSearchResult>;
+  getComments(
+    issueKey: string,
+    startAt?: number,
+    maxResults?: number,
+  ): Promise<{ comments: JiraComment[]; total: number }>;
 }
 
 /**
  * Create a Jira Cloud REST API v3 client.
+ *
+ * Accepts either:
+ *   - New format: `{ auth: { accessToken, cloudId } }` for OAuth 2.0
+ *   - New format: `{ auth: { email, apiToken, baseUrl } }` for Basic auth
+ *   - Legacy format: `{ baseUrl, email, apiToken }` for backward compatibility
  */
-export function createJiraClient(config: JiraClientConfig): JiraClient {
-  const { baseUrl, email, apiToken } = config;
+export function createJiraClient(config: JiraClientConfig | LegacyJiraClientConfig): JiraClient {
+  // Normalize config into a resolved base URL and auth header.
+  let resolvedBaseUrl: string;
+  let resolvedAuthHeader: string;
 
-  /**
-   * Build Basic auth header.
-   */
-  function getAuthHeader(): string {
-    const credentials = `${email}:${apiToken}`;
-    const encoded = btoa(credentials);
-    return `Basic ${encoded}`;
-  }
-
-  /**
-   * Make an HTTP request with retry-on-429.
-   */
-  async function makeRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
-    return withRetry(
-      async () => {
-        const url = `${baseUrl}${path}`;
-        const options: RequestInit = {
-          method,
-          headers: {
-            Authorization: getAuthHeader(),
-            'Content-Type': 'application/json',
-          },
-        };
-
-        if (body) {
-          options.body = JSON.stringify(body);
-        }
-
-        const response = await fetch(url, options);
-        checkStatus(response, path);
-
-        if (method === 'POST' && path.includes('/comment')) {
-          // addComment returns 201 with no body
-          return undefined as T;
-        }
-
-        if (method === 'POST' && path.includes('/transitions')) {
-          // transitionIssue returns 204 No Content
-          return undefined as T;
-        }
-
-        return (await response.json()) as T;
-      },
-      {
-        maxAttempts: 3,
-        baseDelayMs: 1000,
-        retryOn: (err) => err instanceof RateLimitExceededError,
-      },
-    );
+  if ('auth' in config) {
+    const { auth } = config;
+    if ('accessToken' in auth) {
+      resolvedBaseUrl = `${JIRA_OAUTH_BASE_URL}/${auth.cloudId}/rest/api/3`;
+      resolvedAuthHeader = `Bearer ${auth.accessToken}`;
+    } else {
+      resolvedBaseUrl = `${auth.baseUrl}/rest/api/3`;
+      resolvedAuthHeader = `Basic ${btoa(`${auth.email}:${auth.apiToken}`)}`;
+    }
+  } else {
+    resolvedBaseUrl = `${config.baseUrl}/rest/api/3`;
+    resolvedAuthHeader = `Basic ${btoa(`${config.email}:${config.apiToken}`)}`;
   }
 
   /**
@@ -112,37 +92,102 @@ export function createJiraClient(config: JiraClientConfig): JiraClient {
     }
   }
 
+  /**
+   * Make an HTTP request with retry-on-429.
+   */
+  async function makeRequest<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    skipBody?: boolean,
+  ): Promise<T> {
+    return withRetry(
+      async () => {
+        const url = `${resolvedBaseUrl}${path}`;
+        const options: RequestInit = {
+          method,
+          headers: {
+            Authorization: resolvedAuthHeader,
+            'Content-Type': 'application/json',
+          },
+        };
+
+        if (body !== undefined) {
+          options.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(url, options);
+        checkStatus(response, path);
+
+        if (skipBody) {
+          return undefined as T;
+        }
+
+        return (await response.json()) as T;
+      },
+      {
+        maxAttempts: 3,
+        baseDelayMs: 1000,
+        retryOn: (err) => err instanceof RateLimitExceededError,
+      },
+    );
+  }
+
   return {
     async getIssue(issueKey: string): Promise<JiraIssue> {
-      return makeRequest<JiraIssue>('GET', `/rest/api/3/issue/${issueKey}`);
+      return makeRequest<JiraIssue>('GET', `/issue/${issueKey}`);
     },
 
     async addComment(issueKey: string, body: string): Promise<void> {
-      await makeRequest<void>('POST', `/rest/api/3/issue/${issueKey}/comment`, {
-        body: {
-          type: 'doc',
-          version: 1,
-          content: [
-            {
-              type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: body,
-                },
-              ],
-            },
-          ],
-        },
-      });
+      const adfBody: AdfDocument = {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: body }],
+          },
+        ],
+      };
+      await makeRequest<void>('POST', `/issue/${issueKey}/comment`, { body: adfBody }, true);
     },
 
     async transitionIssue(issueKey: string, transitionId: string): Promise<void> {
-      await makeRequest<void>('POST', `/rest/api/3/issue/${issueKey}/transitions`, {
-        transition: {
-          id: transitionId,
-        },
+      await makeRequest<void>(
+        'POST',
+        `/issue/${issueKey}/transitions`,
+        { transition: { id: transitionId } },
+        true,
+      );
+    },
+
+    async searchIssues(
+      jql: string,
+      fields?: string[],
+      startAt = 0,
+      maxResults = 50,
+    ): Promise<JiraSearchResult> {
+      return makeRequest<JiraSearchResult>('POST', '/search/jql', {
+        jql,
+        fields,
+        startAt,
+        maxResults,
       });
+    },
+
+    async getComments(
+      issueKey: string,
+      startAt = 0,
+      maxResults = 50,
+    ): Promise<{ comments: JiraComment[]; total: number }> {
+      const params = new URLSearchParams({
+        startAt: String(startAt),
+        maxResults: String(maxResults),
+      });
+      return makeRequest<{ comments: JiraComment[]; total: number }>(
+        'GET',
+        `/issue/${issueKey}/comment?${params.toString()}`,
+      );
     },
   };
 }
