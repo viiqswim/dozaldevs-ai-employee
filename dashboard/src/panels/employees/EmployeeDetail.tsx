@@ -15,7 +15,7 @@ import { triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway'
 import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
-import type { Archetype } from '@/lib/types';
+import type { Archetype, Tenant } from '@/lib/types';
 import { toast } from 'sonner';
 import { EmployeeProfileLayout } from './EmployeeProfileLayout';
 import { ActivitySection } from './sections/ActivitySection';
@@ -54,6 +54,7 @@ export function EmployeeDetail() {
   const [finalizing, setFinalizing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
 
   const fetchArchetype = useCallback(
     () =>
@@ -66,6 +67,12 @@ export function EmployeeDetail() {
   );
 
   const { data: archetype, error, loading, refresh } = usePoll<Archetype | null>(fetchArchetype);
+
+  const fetchTenant = useCallback(
+    () => postgrestFetch<Tenant>('tenants', { id: `eq.${tenantId}` }).then((arr) => arr[0] ?? null),
+    [tenantId],
+  );
+  const { data: tenant } = usePoll<Tenant | null>(fetchTenant);
 
   const handleTrigger = async () => {
     if (!archetype?.role_name) return;
@@ -229,6 +236,18 @@ export function EmployeeDetail() {
   }
 
   const showWebhookButton = archetype.deliverable_type === 'hostfully_message';
+
+  const jiraWebhookUrl =
+    tenant?.slug && archetype.role_name
+      ? `${GATEWAY_URL}/webhooks/jira/${tenant.slug}/${archetype.role_name}`
+      : null;
+
+  const handleCopyWebhookUrl = async () => {
+    if (!jiraWebhookUrl) return;
+    await navigator.clipboard.writeText(jiraWebhookUrl);
+    setWebhookUrlCopied(true);
+    setTimeout(() => setWebhookUrlCopied(false), 2000);
+  };
   const mode: ProfileMode = archetype.status === 'draft' ? 'edit' : 'view';
 
   return (
@@ -371,6 +390,27 @@ export function EmployeeDetail() {
                 <MarkdownPreview content={archetype.system_prompt ?? ''} />
               </dd>
             </div>
+            {jiraWebhookUrl && (
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Jira Webhook URL
+                </dt>
+                <dd className="mt-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded border bg-muted/30 px-3 py-2 font-mono text-xs break-all">
+                      {jiraWebhookUrl}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={() => void handleCopyWebhookUrl()}>
+                      {webhookUrlCopied ? 'Copied!' : 'Copy'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Add this URL as a webhook in your Jira project settings. Select &ldquo;Issue
+                    Created&rdquo; as the trigger event.
+                  </p>
+                </dd>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>

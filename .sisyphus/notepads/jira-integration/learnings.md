@@ -169,3 +169,26 @@
 
 - Always query live DB for existing UUIDs before assigning a new one in seed.ts.
 - `SELECT id FROM archetypes ORDER BY id` is the safest way to find the next free sequential UUID.
+
+## Tasks 12+13: Jira Dashboard UI (2026-05-21)
+
+### TenantOverview.tsx — Integrations tab
+
+- Added `GATEWAY_URL` import from `@/lib/constants` (was hardcoded to `http://localhost:7700`)
+- Added `IntegrationRow` component: handles both connected (badge) and unconnected (link) states
+- Restructured integrations tab to show both Slack and Jira rows (not just raw list)
+- `jiraIntegration` derived with `integrations?.find(i => i.provider === 'jira')`
+- Connect Jira href: `${GATEWAY_URL}/integrations/jira/install?tenant=${tenant?.slug}`
+- `tenant?.slug` is already available in TenantOverview from the top-level tenant fetch
+- QA: Slack shows "✓ Connected" with external_id T06KFDGLHS6; Jira shows "Connect Jira" link to correct URL
+
+### EmployeeDetail.tsx — Advanced tab
+
+- Added `Tenant` to types import
+- Added tenant fetch via `usePoll` to get `tenant.slug`
+- `jiraWebhookUrl` derived: `${GATEWAY_URL}/webhooks/jira/${tenant.slug}/${archetype.role_name}`
+- Shows for all employees where both slug and role_name are available (null-guarded)
+- Copy button uses `navigator.clipboard.writeText()` + 2-second "Copied!" feedback via `webhookUrlCopied` state
+- QA: URL displayed as `http://localhost:7700/webhooks/jira/vlre/jira-motivation-bot` ✓
+- Evidence: `.sisyphus/evidence/task-12-connect-jira-ui.png`, `task-13-webhook-url-display.png`
+- Tests: 1508 passing, 27 skipped, 0 failures (matches baseline)

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { postgrestFetch } from '@/lib/postgrest';
 import { listSecrets, setSecret } from '@/lib/gateway';
+import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
@@ -136,6 +137,56 @@ function SecretRow({
         </div>
       )}
     </li>
+  );
+}
+
+interface IntegrationRowProps {
+  name: string;
+  description: string;
+  integration: TenantIntegration | null;
+  connectHref?: string;
+  connectLabel?: string;
+}
+
+function IntegrationRow({
+  name,
+  description,
+  integration,
+  connectHref,
+  connectLabel = 'Connect',
+}: IntegrationRowProps) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">{name}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        {integration && (
+          <p className="text-xs text-muted-foreground">
+            {integration.external_id ? `Connected · ${integration.external_id}` : 'Connected'} ·{' '}
+            {formatRelativeTime(integration.created_at)}
+          </p>
+        )}
+      </div>
+      {integration ? (
+        <Badge className="shrink-0 border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+          ✓ Connected
+        </Badge>
+      ) : (
+        <a
+          href={connectHref ?? '#'}
+          target="_blank"
+          rel="noreferrer"
+          aria-disabled={!connectHref}
+          className={
+            connectHref
+              ? 'shrink-0 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent'
+              : 'shrink-0 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium opacity-40 pointer-events-none'
+          }
+        >
+          {connectLabel}
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -385,37 +436,32 @@ export function TenantOverview() {
               </CardHeader>
               <CardContent>
                 {integrationsLoading ? (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
+                    <SkeletonRow />
                     <SkeletonRow />
                   </div>
                 ) : integrationsError ? (
                   <ErrorBox message={integrationsError.message} onRetry={refreshIntegrations} />
-                ) : !integrations || integrations.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    <p>No Slack connection found.</p>
-                    <a
-                      href={`http://localhost:7700/slack/install?tenant=${tenantId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-block text-primary underline"
-                    >
-                      Connect Slack →
-                    </a>
-                  </div>
                 ) : (
-                  <ul className="space-y-2">
-                    {integrations.map((i) => (
-                      <li key={i.id} className="text-sm">
-                        <span className="font-medium">{i.provider}</span>
-                        {i.external_id && (
-                          <span className="ml-2 text-muted-foreground">{i.external_id}</span>
-                        )}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          connected {formatRelativeTime(i.created_at)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-4">
+                    <IntegrationRow
+                      name="Slack"
+                      description="Post messages and receive approvals in Slack channels."
+                      integration={integrations?.find((i) => i.provider === 'slack') ?? null}
+                      connectHref={`${GATEWAY_URL}/slack/install?tenant=${tenantId}`}
+                    />
+                    <IntegrationRow
+                      name="Jira"
+                      description="Receive Jira issue events to trigger AI employees."
+                      integration={integrations?.find((i) => i.provider === 'jira') ?? null}
+                      connectHref={
+                        tenant?.slug
+                          ? `${GATEWAY_URL}/integrations/jira/install?tenant=${tenant.slug}`
+                          : undefined
+                      }
+                      connectLabel="Connect Jira"
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>
