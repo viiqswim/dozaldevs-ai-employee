@@ -18,8 +18,10 @@ import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype, Tenant, ModelCatalogEntry } from '@/lib/types';
 import { toast } from 'sonner';
+import { Pencil } from 'lucide-react';
 import { EmployeeProfileLayout } from './EmployeeProfileLayout';
 import { ActivitySection } from './sections/ActivitySection';
+import { InputSchemaSection } from './sections/InputSchemaSection';
 import { TrainingTab } from './TrainingTab';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import type { ProfileMode } from '@/lib/profile-constants';
@@ -339,7 +341,8 @@ export function EmployeeDetail() {
           {isEditingName ? (
             <div className="flex flex-col gap-0.5">
               <input
-                className="text-xl font-semibold bg-transparent border-b border-border focus:border-primary outline-none w-48 max-w-xs"
+                className="text-xl font-semibold bg-transparent border-b border-border focus:border-primary outline-none min-w-[12ch]"
+                size={Math.max((editNameValue?.length ?? 0) + 2, 12)}
                 value={editNameValue}
                 autoFocus
                 disabled={nameSaving}
@@ -371,7 +374,7 @@ export function EmployeeDetail() {
           ) : (
             <button
               type="button"
-              className="text-xl font-semibold text-left hover:opacity-70 transition-opacity cursor-text"
+              className="group flex items-center gap-1.5 text-xl font-semibold text-left hover:opacity-70 transition-opacity cursor-text"
               onClick={() => {
                 setIsEditingName(true);
                 setEditNameValue(archetype.role_name ?? '');
@@ -380,6 +383,7 @@ export function EmployeeDetail() {
               title="Click to rename"
             >
               {archetype.role_name ?? archetype.id}
+              <Pencil className="h-3.5 w-3.5 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
             </button>
           )}
         </div>
@@ -536,6 +540,13 @@ export function EmployeeDetail() {
                 <dd className="mt-0.5 text-sm">{archetype.deliverable_type ?? '—'}</dd>
               </dl>
             </div>
+            <InputSchemaSection
+              items={archetype.input_schema ?? []}
+              tenantId={tenantId}
+              archetypeId={archetype.id}
+              instructions={archetype.instructions ?? ''}
+              onSaved={refresh}
+            />
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 System prompt (legacy)
