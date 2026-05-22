@@ -5,6 +5,7 @@ import type { ModelRecommendation } from '../../lib/model-selection/types.js';
 import type { ModelCatalogRow } from '../../lib/model-selection/matcher.js';
 import { analyzeArchetype } from '../../lib/model-selection/profiler.js';
 import { recommendModels } from '../../lib/model-selection/matcher.js';
+import { TimeEstimator } from './time-estimator.js';
 
 const log = createLogger('archetype-generator');
 
@@ -33,6 +34,7 @@ export interface GenerateArchetypeResponse {
   };
   concurrency_limit: number;
   modelRecommendation?: ModelRecommendation;
+  estimated_manual_minutes: number | null;
   overview: {
     role: string;
     trigger: string;
@@ -302,6 +304,20 @@ export class ArchetypeGenerator {
       }
     }
 
+    try {
+      const estimator = new TimeEstimator(this.callLLMFn);
+      const minutes = await estimator.estimate({
+        role_name: result.role_name,
+        instructions: result.instructions,
+        system_prompt: result.system_prompt,
+        deliverable_type: result.deliverable_type,
+      });
+      result.estimated_manual_minutes = minutes ?? null;
+    } catch (err) {
+      log.warn({ err }, 'Time estimation failed — setting estimated_manual_minutes to null');
+      result.estimated_manual_minutes = null;
+    }
+
     return result;
   }
 
@@ -362,6 +378,20 @@ export class ArchetypeGenerator {
       } catch (err) {
         log.warn({ err }, 'Model recommendation failed — using LLM default model');
       }
+    }
+
+    try {
+      const estimator = new TimeEstimator(this.callLLMFn);
+      const minutes = await estimator.estimate({
+        role_name: result.role_name,
+        instructions: result.instructions,
+        system_prompt: result.system_prompt,
+        deliverable_type: result.deliverable_type,
+      });
+      result.estimated_manual_minutes = minutes ?? null;
+    } catch (err) {
+      log.warn({ err }, 'Time estimation failed — setting estimated_manual_minutes to null');
+      result.estimated_manual_minutes = null;
     }
 
     return result;
