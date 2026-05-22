@@ -3,27 +3,42 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { ModelQuestionAnswers } from '@/lib/gateway';
 
+interface QuestionOption {
+  value: string;
+  label: string;
+}
+
 interface Question {
   id: keyof ModelQuestionAnswers;
   text: string;
-  options: string[];
+  options: QuestionOption[];
 }
 
 const QUESTIONS: Question[] = [
   {
-    id: 'q1',
+    id: 'audience',
     text: 'Will this employee communicate directly with your customers, or is it for internal use only?',
-    options: ['Customer-facing', 'Internal only'],
+    options: [
+      { value: 'external', label: 'Customer-facing' },
+      { value: 'internal', label: 'Internal only' },
+    ],
   },
   {
-    id: 'q2',
+    id: 'frequency',
     text: 'How often will this employee run?',
-    options: ['Multiple times a day', 'About once a day', 'A few times a week or less'],
+    options: [
+      { value: 'frequent', label: 'Multiple times a day' },
+      { value: 'daily', label: 'About once a day' },
+      { value: 'rare', label: 'A few times a week or less' },
+    ],
   },
   {
-    id: 'q3',
+    id: 'speedPreference',
     text: 'Does this employee need to respond quickly, or is a few minutes fine?',
-    options: ['Speed matters', 'A few minutes is fine'],
+    options: [
+      { value: 'fast', label: 'Speed matters' },
+      { value: 'relaxed', label: 'A few minutes is fine' },
+    ],
   },
 ];
 
@@ -37,7 +52,9 @@ export function ModelQuestionsStep({ onSubmit, onSkip, loading }: ModelQuestions
   const [answers, setAnswers] = useState<Partial<ModelQuestionAnswers>>({});
 
   const allAnswered =
-    answers.q1 !== undefined && answers.q2 !== undefined && answers.q3 !== undefined;
+    answers.audience !== undefined &&
+    answers.frequency !== undefined &&
+    answers.speedPreference !== undefined;
 
   const handleSubmit = () => {
     if (!allAnswered) return;
@@ -61,12 +78,12 @@ export function ModelQuestionsStep({ onSubmit, onSkip, loading }: ModelQuestions
           </p>
           <div className="flex flex-wrap gap-2">
             {q.options.map((option) => {
-              const selected = answers[q.id] === option;
+              const selected = answers[q.id] === option.value;
               return (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
-                  onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: option }))}
+                  onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: option.value }))}
                   className={cn(
                     'rounded-md border px-3 py-1.5 text-sm transition-all',
                     selected
@@ -74,7 +91,7 @@ export function ModelQuestionsStep({ onSubmit, onSkip, loading }: ModelQuestions
                       : 'border-input bg-background text-foreground hover:border-muted-foreground/50 hover:bg-muted/40',
                   )}
                 >
-                  {option}
+                  {option.label}
                 </button>
               );
             })}

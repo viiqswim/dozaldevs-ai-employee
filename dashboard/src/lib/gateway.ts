@@ -20,9 +20,9 @@ export type ModelRecommendation = {
 };
 
 export type ModelQuestionAnswers = {
-  q1: string;
-  q2: string;
-  q3: string;
+  audience: string;
+  frequency: string;
+  speedPreference: string;
 };
 
 export function getAdminApiKey(): string | null {
@@ -294,10 +294,12 @@ export async function recommendModel(
     {
       method: 'POST',
       body: JSON.stringify({
-        system_prompt: archetype.system_prompt,
-        instructions: archetype.instructions,
-        deliverable_type: archetype.deliverable_type,
-        answers,
+        archetype: {
+          system_prompt: archetype.system_prompt,
+          instructions: archetype.instructions,
+          deliverable_type: archetype.deliverable_type,
+        },
+        userAnswers: answers,
       }),
     },
   );
