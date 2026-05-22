@@ -5,6 +5,11 @@ import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, InputSchemaSchema } from '../validation/schemas.js';
 import { ArchetypeRepository, ActiveTasksError } from '../services/archetype-repository.js';
+import {
+  analyzeArchetype,
+  adjustProfileWithUserAnswers,
+} from '../../lib/model-selection/profiler.js';
+import { recommendModels } from '../../lib/model-selection/matcher.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -102,6 +107,51 @@ const CreateArchetypeBodySchema = z.object({
   worker_env: z.record(z.string(), z.string()).nullish(),
 });
 
+const RecommendModelBodySchema = z.object({
+  archetype: z.object({
+    system_prompt: z.string().min(1),
+    instructions: z.string().min(1),
+    deliverable_type: z.string().min(1),
+    agents_md: z.string().optional(),
+  }),
+  userAnswers: z
+    .object({
+      audience: z.enum(['external', 'internal']),
+      frequency: z.enum(['frequent', 'daily', 'rare']),
+      speedPreference: z.enum(['fast', 'relaxed']),
+    })
+    .optional(),
+});
+
+const MODEL_QUESTIONS = [
+  {
+    id: 'audience',
+    question:
+      'Will this employee communicate directly with your customers, or is it for internal use only?',
+    options: [
+      { value: 'external', label: 'Customer-facing' },
+      { value: 'internal', label: 'Internal only' },
+    ],
+  },
+  {
+    id: 'frequency',
+    question: 'How often will this employee run?',
+    options: [
+      { value: 'frequent', label: 'Multiple times a day' },
+      { value: 'daily', label: 'About once a day' },
+      { value: 'rare', label: 'A few times a week or less' },
+    ],
+  },
+  {
+    id: 'speedPreference',
+    question: 'Does this employee need to respond quickly, or is a few minutes fine?',
+    options: [
+      { value: 'fast', label: 'Speed matters' },
+      { value: 'relaxed', label: 'A few minutes is fine' },
+    ],
+  },
+];
+
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -167,6 +217,52 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
+
+  router.get(
+    '/admin/tenants/:tenantId/archetypes/model-questions',
+    requireAdminKey,
+    (_req, res) => {
+      res.status(200).json(MODEL_QUESTIONS);
+    },
+  );
+
+  router.post(
+    '/admin/tenants/:tenantId/archetypes/recommend-model',
+    requireAdminKey,
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        return;
+      }
+
+      const bodyResult = RecommendModelBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        return;
+      }
+
+      const { tenantId } = paramResult.data;
+      const { archetype, userAnswers } = bodyResult.data;
+
+      try {
+        let profile = analyzeArchetype(archetype);
+        if (userAnswers) {
+          profile = adjustProfileWithUserAnswers(profile, userAnswers);
+        }
+
+        const catalog = await prisma.modelCatalog.findMany({
+          where: { tenant_id: tenantId, deleted_at: null, is_active: true },
+        });
+
+        const recommendation = recommendModels(profile, catalog);
+        res.status(200).json(recommendation);
+      } catch (err) {
+        logger.error({ err }, 'Failed to generate model recommendation');
+        res.status(500).json({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
 
   router.patch(
     '/admin/tenants/:tenantId/archetypes/:archetypeId',
