@@ -341,3 +341,30 @@ export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | '
   overview?: ArchetypeOverview | null;
   parent_draft_id?: string | null;
 };
+
+export interface ModelCatalogEntry {
+  id: string;
+  model_id: string;
+  display_name: string;
+  provider: string;
+  description: string | null;
+  context_window: number;
+  input_cost_per_million: number;
+  output_cost_per_million: number;
+  is_free: boolean;
+  throughput_tokens_per_sec: number | null;
+  latency_seconds: number | null;
+  tool_call_error_rate: number | null;
+  quality_index: number | null;
+  agentic_score: number | null;
+  tool_use_score: number | null;
+  instruction_following_score: number | null;
+  non_hallucination_rate: number | null;
+  supports_tools: boolean;
+  supports_structured_output: boolean;
+  is_active: boolean;
+  notes: string | null;
+  tenant_id: string;
+  created_at: string;
+  updated_at: string;
+}

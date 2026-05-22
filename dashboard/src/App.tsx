@@ -16,6 +16,7 @@ import { PreflightPanel } from './panels/preflight/PreflightPanel';
 import { RulesPanel } from './panels/rules/RulesPanel';
 import { ToolList } from './panels/tools/ToolList';
 import { ToolDetail } from './panels/tools/ToolDetail';
+import { ModelCatalogPage } from './pages/ModelCatalogPage';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="/dashboard/preflight" element={<PreflightPanel />} />
               <Route path="/dashboard/tools" element={<ToolList />} />
               <Route path="/dashboard/tools/:service/:toolName" element={<ToolDetail />} />
+              <Route path="/dashboard/models" element={<ModelCatalogPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
