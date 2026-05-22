@@ -249,6 +249,8 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Connection**: `postgresql://postgres:postgres@localhost:54322/ai_employee`
 - **ORM**: Prisma — `prisma/schema.prisma`; **REST API**: Supabase PostgREST on `http://localhost:54331`
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
+- **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
+- **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, minutes_saved, created_at` — one row per task, records time saved vs manual effort.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -314,7 +316,7 @@ src/
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
-│   ├── services/     # Business logic: dispatcher, task creation, project registry, tenant/secret repos
+│   ├── services/     # Business logic: dispatcher, task creation, project registry, tenant/secret repos, time-estimator (Haiku-based manual time estimation)
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
