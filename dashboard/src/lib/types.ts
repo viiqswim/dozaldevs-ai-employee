@@ -289,9 +289,23 @@ export interface SlackChannel {
   is_private: boolean;
 }
 
+export interface ModelRecommendationEntry {
+  modelId: string;
+  displayName: string;
+  provider: string;
+  totalScore: number;
+  tiers: {
+    cost: 'free' | 'budget' | 'standard' | 'premium';
+    quality: 'basic' | 'capable' | 'advanced' | 'frontier';
+    speed: 'slow' | 'moderate' | 'fast';
+    toolReliability: 'unreliable' | 'usable' | 'reliable' | 'rock_solid';
+  };
+  costEstimate: { perTaskUsd: number; monthlyUsd: number | null };
+}
+
 export interface GenerateArchetypeResponse {
   role_name: string;
-  model: 'minimax/minimax-m2.7';
+  model: string;
   runtime: 'opencode';
   system_prompt: string;
   instructions: string;
@@ -312,6 +326,11 @@ export interface GenerateArchetypeResponse {
   concurrency_limit: number;
   overview: ArchetypeOverview;
   input_schema?: InputSchemaItem[];
+  modelRecommendation?: {
+    recommended: ModelRecommendationEntry | null;
+    cheaperAlternative: ModelRecommendationEntry | null;
+    premiumAlternative: ModelRecommendationEntry | null;
+  };
 }
 
 export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {
