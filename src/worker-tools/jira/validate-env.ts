@@ -17,36 +17,38 @@ async function main(): Promise<void> {
   if (help) {
     process.stdout.write(
       'Usage: tsx validate-env.ts\n\n' +
-        'Validates that required Jira environment variables are set.\n\n' +
+        'Validates that Jira authentication environment variables are set.\n\n' +
         'Options:\n' +
         '  --help  Show this help message\n\n' +
-        'Output: JSON object with ok (boolean), vars (map of var name to "set"/"missing"),\n' +
-        '        and missing (array of missing var names when ok is false)\n\n' +
-        'Environment variables checked:\n' +
-        '  JIRA_API_TOKEN    Jira API token\n' +
-        '  JIRA_USER_EMAIL   Jira user email address\n' +
-        '  JIRA_BASE_URL     Jira base URL (e.g. https://your-org.atlassian.net)\n',
+        'Output: JSON object with ok (boolean), mode ("oauth"|"basic"|null), and vars\n\n' +
+        'Environment variables (one auth mode required):\n' +
+        '  OAuth:  JIRA_ACCESS_TOKEN + JIRA_CLOUD_ID\n' +
+        '  Basic:  JIRA_API_TOKEN + JIRA_USER_EMAIL + JIRA_BASE_URL\n',
     );
     process.exit(0);
   }
 
-  const required = ['JIRA_API_TOKEN', 'JIRA_USER_EMAIL', 'JIRA_BASE_URL'] as const;
-  const missing: string[] = [];
-  const vars: Record<string, string> = {};
+  const oauthVars = ['JIRA_ACCESS_TOKEN', 'JIRA_CLOUD_ID'] as const;
+  const basicVars = ['JIRA_API_TOKEN', 'JIRA_USER_EMAIL', 'JIRA_BASE_URL'] as const;
 
-  for (const varName of required) {
-    if (process.env[varName]) {
-      vars[varName] = 'set';
-    } else {
-      vars[varName] = 'missing';
-      missing.push(varName);
-    }
+  const oauthSet = oauthVars.filter((v) => process.env[v]);
+  const basicSet = basicVars.filter((v) => process.env[v]);
+
+  const oauthReady = oauthSet.length === oauthVars.length;
+  const basicReady = basicSet.length === basicVars.length;
+
+  const vars: Record<string, string> = {};
+  for (const v of [...oauthVars, ...basicVars]) {
+    vars[v] = process.env[v] ? 'set' : 'missing';
   }
 
-  if (missing.length > 0) {
-    process.stdout.write(JSON.stringify({ ok: false, missing }) + '\n');
+  if (oauthReady) {
+    process.stdout.write(JSON.stringify({ ok: true, mode: 'oauth', vars }) + '\n');
+  } else if (basicReady) {
+    process.stdout.write(JSON.stringify({ ok: true, mode: 'basic', vars }) + '\n');
   } else {
-    process.stdout.write(JSON.stringify({ ok: true, vars }) + '\n');
+    const missing = [...oauthVars, ...basicVars].filter((v) => !process.env[v]);
+    process.stdout.write(JSON.stringify({ ok: false, mode: null, missing, vars }) + '\n');
   }
 }
 
