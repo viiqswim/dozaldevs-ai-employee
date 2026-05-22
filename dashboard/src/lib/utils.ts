@@ -31,3 +31,11 @@ export function formatDuration(startStr: string, endStr: string): string {
   if (diffMin < 60) return `${diffMin}m ${diffSec % 60}s`;
   return `${Math.floor(diffMin / 60)}h ${diffMin % 60}m`;
 }
+
+export function formatMinutesSaved(totalMinutes: number | null | undefined): string {
+  if (totalMinutes == null || totalMinutes === 0) return '—';
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
