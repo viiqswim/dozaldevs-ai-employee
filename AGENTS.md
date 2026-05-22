@@ -6,16 +6,18 @@
 
 **CRITICAL CONSTRAINT — NEVER VIOLATE:**
 
-Only TWO LLM models are approved for use in this codebase. Using any other model is a bug.
+Two categories of model use exist in this codebase. Each has its own rule.
 
-| Model            | ID                           | Purpose                                                                                     |
-| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
-| MiniMax M2.7     | `minimax/minimax-m2.7`       | Primary execution model — all employee work, code generation, summaries                     |
-| Claude Haiku 4.5 | `anthropic/claude-haiku-4-5` | Verification/judge only — plan verification, intent classification, feedback acknowledgment |
+| Category                               | Model                                                   | Rule                                                                                                |
+| -------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`. |
+| **Verification/judge** (gateway calls) | `anthropic/claude-haiku-4-5`                            | Hardcoded in `call-llm.ts`. Never change this.                                                      |
 
-**Forbidden models (any reference = bug):** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`, or any other model not listed above.
+**Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/tenants/:tenantId/model-catalog`.
 
-This applies to: production code, seed data, default fallbacks, environment variable examples, and test fixtures. No exceptions.
+**Seeded catalog models (both tenants):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
+
+**Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
 ## Deprecated Components
 
@@ -42,7 +44,7 @@ Employee-specific details are in each archetype's `agents_md` field and in `docs
 
 ## Adding a New Employee
 
-1. Seed a new `archetypes` record: `role_name`, `system_prompt`, `instructions`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional: `agents_md`, `delivery_instructions`, `notification_channel`, `enrichment_adapter`, `vm_size`.
+1. Seed a new `archetypes` record: `role_name`, `system_prompt`, `instructions`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. Optional: `agents_md`, `delivery_instructions`, `notification_channel`, `enrichment_adapter`, `vm_size`. For new employees, use the recommendation engine (`POST /admin/tenants/:tenantId/archetypes/recommend-model`) to pick the optimal model from the catalog rather than hardcoding `minimax/minimax-m2.7`.
 2. If shell tools needed: add TypeScript scripts to `src/worker-tools/{service}/`. Follow the [Shell Tool Checklist](docs/guides/2026-05-04-1645-adding-a-shell-tool.md).
 3. Create `docs/employees/{slug}.md` with operational details (trigger, archetype IDs, channel IDs, gotchas, test resources).
 4. For **scheduled triggers**: configure cron on cron-job.org → `POST /admin/tenants/:tenantId/employees/:slug/trigger`.
@@ -196,6 +198,12 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `GET /admin/tenants/:tenantId/tasks/:id` — check task status (tenant-scoped, 404 on cross-tenant access)
 - `GET /admin/tools` — list all available shell tools with parsed metadata (description, flags, env vars, output shape, SKILL.md enrichment)
 - `GET /admin/tools/:service/:toolName` — get full metadata for a single tool
+- `GET /admin/tenants/:tenantId/model-catalog` — list active catalog models (`?include_inactive=true` for all)
+- `POST /admin/tenants/:tenantId/model-catalog` — add model to catalog
+- `PATCH /admin/tenants/:tenantId/model-catalog/:id` — update catalog entry
+- `DELETE /admin/tenants/:tenantId/model-catalog/:id` — soft-delete catalog entry
+- `GET /admin/tenants/:tenantId/archetypes/model-questions` — returns the 3 plain-language recommendation questions
+- `POST /admin/tenants/:tenantId/archetypes/recommend-model` — accepts archetype draft + user answers, returns top-3 ranked model recommendations
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY`. Full route table: `docs/snapshots/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
@@ -313,8 +321,8 @@ src/
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
-└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version, classify-message, hostfully-precheck, slack-blocks, telegram-client
-prisma/           # Schema (24 models), 28 migrations, seed
+└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version, classify-message, hostfully-precheck, slack-blocks, telegram-client, model-selection (profiler, matcher, tier computation, types/constants)
+prisma/           # Schema (25 models), 28 migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 ```
 
@@ -336,6 +344,8 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 - **AI employee outputs should be concise** — Slack messages, summaries, and guest replies produced by AI employees should be short and to-the-point. Avoid verbose explanations or filler text in delivered content. If the user asks for more detail, provide it; otherwise, keep it brief.
 
 ### Documentation Freshness (MANDATORY)
+
+**Plan completion rule:** When a plan is fully complete (all tasks `[x]`, final wave passed, user has approved), update AGENTS.md and any other relevant documentation to capture new components, changed conventions, new admin API endpoints, and new DB models before declaring the plan done. This is the last step of every plan.
 
 When making code changes that add, remove, or rename any of the following, you MUST update AGENTS.md and/or README.md in the same commit or PR:
 
