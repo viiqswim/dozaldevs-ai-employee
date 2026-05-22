@@ -60,13 +60,14 @@ async function main(): Promise<void> {
         '  --max-results <N>    Maximum number of comments to return (default: 50)\n' +
         '  --help               Show this help message\n\n' +
         'Output: JSON object with comments array and total count\n\n' +
-        'Environment variables:\n' +
-        '  JIRA_API_TOKEN    (required) Jira API token\n' +
-        '  JIRA_USER_EMAIL   (required) Jira user email\n' +
-        '  JIRA_BASE_URL     (required) Jira base URL (e.g. https://your-org.atlassian.net)\n',
+        'Environment variables (one auth mode required):\n' +
+        '  OAuth:  JIRA_ACCESS_TOKEN + JIRA_CLOUD_ID\n' +
+        '  Basic:  JIRA_API_TOKEN + JIRA_USER_EMAIL + JIRA_BASE_URL\n',
     );
     process.exit(0);
   }
+
+  const { resolveJiraAuth } = await import('./auth.js');
 
   if (process.env['JIRA_MOCK'] === 'true') {
     const { readFileSync } = await import('node:fs');
@@ -84,29 +85,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiToken = process.env['JIRA_API_TOKEN'];
-  if (!apiToken) {
-    process.stderr.write('Error: JIRA_API_TOKEN environment variable is required\n');
-    process.exit(1);
-  }
-
-  const email = process.env['JIRA_USER_EMAIL'];
-  if (!email) {
-    process.stderr.write('Error: JIRA_USER_EMAIL environment variable is required\n');
-    process.exit(1);
-  }
-
-  const baseUrl = process.env['JIRA_BASE_URL'];
-  if (!baseUrl) {
-    process.stderr.write('Error: JIRA_BASE_URL environment variable is required\n');
-    process.exit(1);
-  }
-
-  const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
-  const headers = {
-    Authorization: `Basic ${auth}`,
-    'Content-Type': 'application/json',
-  };
+  const { headers, baseUrl } = resolveJiraAuth();
 
   const params = new URLSearchParams({ startAt: '0', maxResults: String(maxResults) });
   const url = `${baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment?${params.toString()}`;

@@ -72,7 +72,8 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
   - `tsx /tools/hostfully/get-door-code.ts --property-id <uid>` — read door code from Hostfully
   - `tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>` — update door code
 - **Jira tools** (`/tools/jira/`):
-  - `tsx /tools/jira/validate-env.ts` — check JIRA_API_TOKEN, JIRA_USER_EMAIL, JIRA_BASE_URL; outputs `{ok, vars}` or `{ok:false, missing:[]}`; always exits 0
+  - **Auth**: Tools support two modes, tried in order — OAuth first (`JIRA_ACCESS_TOKEN` + `JIRA_CLOUD_ID`, base URL: `https://api.atlassian.com/ex/jira/{cloudId}`), then Basic (`JIRA_API_TOKEN` + `JIRA_USER_EMAIL` + `JIRA_BASE_URL`). OAuth is injected automatically for tenants that connected via the dashboard OAuth flow. Basic auth is for manual/legacy setup.
+  - `tsx /tools/jira/validate-env.ts` — check auth vars; outputs `{ok, mode:"oauth"|"basic"|null, vars}` or `{ok:false, missing:[]}`; always exits 0
   - `tsx /tools/jira/get-issue.ts --issue-key PROJ-123` — fetch issue details (summary, description, status, priority, assignee, labels); `JIRA_MOCK=true` returns fixture
   - `tsx /tools/jira/search-issues.ts [--project KEY] [--status "In Progress"] [--assignee "Name"] [--jql "raw JQL"]` — search issues via JQL; `JIRA_MOCK=true` returns fixture
   - `tsx /tools/jira/add-comment.ts --issue-key PROJ-123 --body "plain text"` — add comment (auto-wrapped in ADF); `JIRA_MOCK=true` returns fixture

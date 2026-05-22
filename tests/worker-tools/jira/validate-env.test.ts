@@ -68,4 +68,46 @@ describe('validate-env (Jira) shell tool', () => {
     expect(stdout).toContain('JIRA_USER_EMAIL');
     expect(stdout).toContain('JIRA_BASE_URL');
   });
+
+  it('exits 0 with ok:true and mode:"oauth" when OAuth vars are set', async () => {
+    const { stdout, code } = await runScript([], {
+      JIRA_ACCESS_TOKEN: 'eyJhbGciOiJSUzI1NiJ9.test',
+      JIRA_CLOUD_ID: 'abc12345-0000-0000-0000-000000000000',
+      JIRA_API_TOKEN: '',
+      JIRA_USER_EMAIL: '',
+      JIRA_BASE_URL: '',
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as { ok: boolean; mode: string };
+    expect(data.ok).toBe(true);
+    expect(data.mode).toBe('oauth');
+  });
+
+  it('exits 0 with ok:true and mode:"basic" (not "oauth") when only Basic vars are set', async () => {
+    const { stdout, code } = await runScript([], {
+      JIRA_ACCESS_TOKEN: '',
+      JIRA_CLOUD_ID: '',
+      JIRA_API_TOKEN: 'test-token',
+      JIRA_USER_EMAIL: 'user@example.com',
+      JIRA_BASE_URL: 'https://example.atlassian.net',
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as { ok: boolean; mode: string };
+    expect(data.ok).toBe(true);
+    expect(data.mode).toBe('basic');
+  });
+
+  it('exits 0 with ok:true and mode:"oauth" when both OAuth and Basic vars are set (OAuth wins)', async () => {
+    const { stdout, code } = await runScript([], {
+      JIRA_ACCESS_TOKEN: 'eyJhbGciOiJSUzI1NiJ9.test',
+      JIRA_CLOUD_ID: 'abc12345-0000-0000-0000-000000000000',
+      JIRA_API_TOKEN: 'test-token',
+      JIRA_USER_EMAIL: 'user@example.com',
+      JIRA_BASE_URL: 'https://example.atlassian.net',
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout) as { ok: boolean; mode: string };
+    expect(data.ok).toBe(true);
+    expect(data.mode).toBe('oauth');
+  });
 });
