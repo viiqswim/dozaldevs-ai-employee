@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,18 +10,27 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway';
+import { triggerEmployee, deleteArchetype, patchArchetype, listModelCatalog } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
-import type { Archetype, Tenant } from '@/lib/types';
+import type { Archetype, Tenant, ModelCatalogEntry } from '@/lib/types';
 import { toast } from 'sonner';
 import { EmployeeProfileLayout } from './EmployeeProfileLayout';
 import { ActivitySection } from './sections/ActivitySection';
 import { TrainingTab } from './TrainingTab';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import type { ProfileMode } from '@/lib/profile-constants';
+
+function computeCostTierLabel(inputCost: number, outputCost: number, isFree: boolean): string {
+  if (isFree) return 'Free';
+  const avg = (inputCost + outputCost) / 2;
+  if (avg < 0.5) return 'Budget';
+  if (avg < 3.0) return 'Standard';
+  return 'Premium';
+}
 
 const WEBHOOK_FIXTURES = {
   agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
@@ -55,6 +64,30 @@ export function EmployeeDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
+
+  const [catalogModels, setCatalogModels] = useState<ModelCatalogEntry[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [modelSaving, setModelSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    listModelCatalog(tenantId)
+      .then((models) => {
+        if (cancelled) return;
+        setCatalogModels(models);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCatalogModels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const fetchArchetype = useCallback(
     () =>
@@ -359,8 +392,41 @@ export function EmployeeDetail() {
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   AI Model
                 </dt>
-                <dd className="mt-0.5">
-                  <span className="font-mono text-xs">{archetype.model ?? '—'}</span>
+                <dd className="mt-1">
+                  {catalogLoading ? (
+                    <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+                  ) : (
+                    <SearchableSelect
+                      options={(() => {
+                        const opts = catalogModels.map((m) => ({
+                          value: m.model_id,
+                          label: `${m.display_name} (${m.provider}) — ${computeCostTierLabel(m.input_cost_per_million, m.output_cost_per_million, m.is_free)}`,
+                        }));
+                        const current = archetype.model;
+                        if (current && !opts.find((o) => o.value === current)) {
+                          opts.unshift({ value: current, label: `${current} (custom)` });
+                        }
+                        return opts;
+                      })()}
+                      value={archetype.model ?? ''}
+                      onValueChange={async (modelId) => {
+                        if (modelId === archetype.model) return;
+                        setModelSaving(true);
+                        try {
+                          await patchArchetype(tenantId, archetype.id, { model: modelId });
+                          toast.success('Model updated');
+                          refresh();
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setModelSaving(false);
+                        }
+                      }}
+                      placeholder="Select a model..."
+                      searchPlaceholder="Search models..."
+                      disabled={modelSaving}
+                    />
+                  )}
                 </dd>
               </dl>
               <dl>

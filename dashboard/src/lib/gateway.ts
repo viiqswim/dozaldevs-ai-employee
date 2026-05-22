@@ -9,7 +9,21 @@ import type {
   CreateArchetypePayload,
   SlackChannel,
   EmployeeRule,
+  ModelRecommendationEntry,
+  ModelCatalogEntry,
 } from './types';
+
+export type ModelRecommendation = {
+  recommended: ModelRecommendationEntry | null;
+  cheaperAlternative: ModelRecommendationEntry | null;
+  premiumAlternative: ModelRecommendationEntry | null;
+};
+
+export type ModelQuestionAnswers = {
+  q1: string;
+  q2: string;
+  q3: string;
+};
 
 export function getAdminApiKey(): string | null {
   return localStorage.getItem('admin_api_key');
@@ -270,6 +284,25 @@ export async function deleteRule(
   }
 }
 
+export async function recommendModel(
+  tenantId: string,
+  archetype: Pick<GenerateArchetypeResponse, 'system_prompt' | 'instructions' | 'deliverable_type'>,
+  answers: ModelQuestionAnswers,
+): Promise<ModelRecommendation> {
+  return gatewayFetch<ModelRecommendation>(
+    `/admin/tenants/${tenantId}/archetypes/recommend-model`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        system_prompt: archetype.system_prompt,
+        instructions: archetype.instructions,
+        deliverable_type: archetype.deliverable_type,
+        answers,
+      }),
+    },
+  );
+}
+
 export async function fetchSlackChannels(
   tenantId: string,
 ): Promise<{ channels: SlackChannel[]; error?: string }> {
@@ -286,4 +319,38 @@ export async function fetchSlackChannels(
     return { channels: [], error: (body as { error?: string }).error ?? 'SLACK_ERROR' };
   }
   return body as { channels: SlackChannel[]; error?: string };
+}
+
+export async function listModelCatalog(tenantId: string): Promise<ModelCatalogEntry[]> {
+  const data = await gatewayFetch<{ models: ModelCatalogEntry[] } | ModelCatalogEntry[]>(
+    `/admin/tenants/${tenantId}/model-catalog`,
+  );
+  return Array.isArray(data) ? data : ((data as { models: ModelCatalogEntry[] }).models ?? []);
+}
+
+export async function createModelCatalogEntry(
+  tenantId: string,
+  payload: Omit<ModelCatalogEntry, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>,
+): Promise<ModelCatalogEntry> {
+  return gatewayFetch<ModelCatalogEntry>(`/admin/tenants/${tenantId}/model-catalog`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateModelCatalogEntry(
+  tenantId: string,
+  id: string,
+  payload: Partial<Omit<ModelCatalogEntry, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>,
+): Promise<ModelCatalogEntry> {
+  return gatewayFetch<ModelCatalogEntry>(`/admin/tenants/${tenantId}/model-catalog/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteModelCatalogEntry(tenantId: string, id: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/model-catalog/${id}`, {
+    method: 'DELETE',
+  });
 }

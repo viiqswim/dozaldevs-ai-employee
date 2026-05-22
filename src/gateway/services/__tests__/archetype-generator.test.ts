@@ -51,11 +51,11 @@ function makeValidJsonContent(overrides: Record<string, unknown> = {}): string {
 
 describe('ArchetypeGenerator', () => {
   describe('generate()', () => {
-    it('returns model hardcoded to minimax/minimax-m2.7 regardless of LLM response', async () => {
+    it('returns model from LLM response (no longer hardcoded)', async () => {
       const mockCallLLM = makeCallLLMResult(makeValidJsonContent({ model: 'openai/gpt-4o' }));
       const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
       const result = await gen.generate('A daily Slack digest bot');
-      expect(result.model).toBe('minimax/minimax-m2.7');
+      expect(result.model).toBe('openai/gpt-4o');
     });
 
     it('returns runtime hardcoded to opencode regardless of LLM response', async () => {
@@ -175,12 +175,12 @@ describe('ArchetypeGenerator', () => {
       );
     });
 
-    it('returns model hardcoded to minimax/minimax-m2.7 after refine', async () => {
+    it('returns model from LLM response after refine (no longer hardcoded)', async () => {
       const mockCallLLM = makeCallLLMResult(makeValidJsonContent({ model: 'openai/gpt-4o' }));
       const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
       const previousConfig = JSON.parse(makeValidJsonContent()) as Parameters<typeof gen.refine>[0];
       const result = await gen.refine(previousConfig, 'Change the schedule to weekly');
-      expect(result.model).toBe('minimax/minimax-m2.7');
+      expect(result.model).toBe('openai/gpt-4o');
     });
 
     it('throws GENERATION_FAILED when LLM returns invalid JSON during refine', async () => {

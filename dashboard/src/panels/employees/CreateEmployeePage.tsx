@@ -3,13 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { generateArchetype, createArchetype, fetchSlackChannels } from '@/lib/gateway';
+import {
+  generateArchetype,
+  createArchetype,
+  fetchSlackChannels,
+  recommendModel,
+} from '@/lib/gateway';
+import type { ModelRecommendation, ModelQuestionAnswers } from '@/lib/gateway';
 import type { GenerateArchetypeResponse, SlackChannel } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
+import { ModelQuestionsStep } from './components/ModelQuestionsStep';
+import { ModelRecommendationStep } from './components/ModelRecommendationStep';
 
 type PageState =
   | { phase: 'idle' }
   | { phase: 'generating' }
+  | { phase: 'questions'; config: GenerateArchetypeResponse }
+  | { phase: 'recommending'; config: GenerateArchetypeResponse; answers: ModelQuestionAnswers }
+  | {
+      phase: 'review';
+      config: GenerateArchetypeResponse;
+      recommendation: ModelRecommendation | null;
+      answers: ModelQuestionAnswers;
+    }
   | { phase: 'saving'; config: GenerateArchetypeResponse }
   | { phase: 'error'; message: string };
 
@@ -45,12 +61,12 @@ export function CreateEmployeePage() {
     };
   }, [tenantId]);
 
-  const handleSaveDraft = async (config: GenerateArchetypeResponse) => {
+  const handleSaveDraft = async (config: GenerateArchetypeResponse, selectedModel?: string) => {
     setPageState({ phase: 'saving', config });
     try {
       const archetype = await createArchetype(tenantId, {
         ...config,
-        model: config.model,
+        model: selectedModel ?? config.model,
         runtime: config.runtime,
         notification_channel: notificationChannel || null,
         status: 'draft',
@@ -70,7 +86,7 @@ export function CreateEmployeePage() {
     setPageState({ phase: 'generating' });
     try {
       const config = await generateArchetype(tenantId, description);
-      await handleSaveDraft(config);
+      setPageState({ phase: 'questions', config });
     } catch (err) {
       setPageState({
         phase: 'error',
@@ -79,10 +95,47 @@ export function CreateEmployeePage() {
     }
   };
 
+  const handleGetRecommendations = async (answers: ModelQuestionAnswers) => {
+    if (pageState.phase !== 'questions') return;
+    const { config } = pageState;
+    setPageState({ phase: 'recommending', config, answers });
+    try {
+      const recommendation = await recommendModel(tenantId, config, answers);
+      setPageState({ phase: 'review', config, recommendation, answers });
+    } catch {
+      // Graceful fallback — API failed, continue with default model
+      setPageState({ phase: 'review', config, recommendation: null, answers });
+    }
+  };
+
+  const handleSkipQuestions = () => {
+    if (pageState.phase !== 'questions') return;
+    const { config } = pageState;
+    void handleSaveDraft(config);
+  };
+
+  const handleConfirmModel = (selectedModel: string) => {
+    if (pageState.phase !== 'review') return;
+    const { config } = pageState;
+    void handleSaveDraft(config, selectedModel);
+  };
+
+  const handleBackToQuestions = () => {
+    if (pageState.phase !== 'review') return;
+    const { config } = pageState;
+    setPageState({ phase: 'questions', config });
+  };
+
   const pageTitle = (): string => {
     switch (pageState.phase) {
       case 'generating':
         return 'Generating Configuration…';
+      case 'questions':
+        return 'Pick the right model';
+      case 'recommending':
+        return 'Finding recommendations…';
+      case 'review':
+        return 'Choose your AI model';
       case 'saving':
         return 'Saving Draft…';
       default:
@@ -172,6 +225,31 @@ export function CreateEmployeePage() {
             Analyzing your description and generating a complete employee configuration…
           </p>
         </div>
+      )}
+
+      {pageState.phase === 'questions' && (
+        <ModelQuestionsStep
+          onSubmit={(answers) => void handleGetRecommendations(answers)}
+          onSkip={handleSkipQuestions}
+        />
+      )}
+
+      {pageState.phase === 'recommending' && (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground text-center">
+            Finding the best model for your employee…
+          </p>
+        </div>
+      )}
+
+      {pageState.phase === 'review' && (
+        <ModelRecommendationStep
+          recommendation={pageState.recommendation}
+          defaultModel={pageState.config.model}
+          onConfirm={handleConfirmModel}
+          onBack={handleBackToQuestions}
+        />
       )}
 
       {pageState.phase === 'saving' && (
