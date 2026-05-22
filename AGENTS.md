@@ -542,6 +542,45 @@ Verification is complete only when ALL of these are true:
 - [ ] The dashboard page shows the correct non-placeholder value (checked via browser or Playwright)
 - [ ] Gateway/Inngest logs show the expected structured log entries (no silent errors)
 
+### Recommended Test Employee: `real-estate-motivation-bot-2`
+
+Use **`real-estate-motivation-bot-2`** (VLRE tenant) as the default smoke-test employee for any plan that touches the lifecycle, task metrics, or dashboard. It is the simplest employee in the system:
+
+- `approval_required: false` → goes straight to Done, no Slack approval card needed
+- Completes in ~1 minute
+- Tenant: `00000000-0000-0000-0000-000000000003` (VLRE)
+- Archetype ID: `561439b9-7491-40de-a550-95906624fffc`
+- Override estimate: 15 min (pre-set)
+
+**Trigger it with curl (faster than the dashboard button):**
+
+```bash
+source .env
+curl -s -X POST \
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/real-estate-motivation-bot-2/trigger" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq '{task_id: .task_id, status_url: .status_url}'
+```
+
+**Then verify end-to-end:**
+
+```bash
+# 1. Wait ~60s, then check task reached Done
+TASK_ID=<task_id from above>
+psql postgresql://postgres:postgres@localhost:54322/ai_employee \
+  -c "SELECT status FROM tasks WHERE id = '$TASK_ID';"
+# Expected: Done
+
+# 2. Confirm task_metrics row was written
+psql postgresql://postgres:postgres@localhost:54322/ai_employee \
+  -c "SELECT minutes_saved FROM task_metrics WHERE task_id = '$TASK_ID';"
+# Expected: 1 row, minutes_saved = 15
+
+# 3. Load the dashboard and confirm "Total Time Saved" is non-zero
+# http://localhost:7701/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
+```
+
 ---
 
 ## Plan E2E Validation (MANDATORY)
