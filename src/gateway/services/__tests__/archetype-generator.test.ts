@@ -106,6 +106,34 @@ describe('ArchetypeGenerator', () => {
       expect(result.model).toBe('minimax/minimax-m2.7');
       expect(result.runtime).toBe('opencode');
     });
+
+    it('includes estimated_manual_minutes field in generate() result', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      const result = await gen.generate('A daily Slack digest bot');
+      expect('estimated_manual_minutes' in result).toBe(true);
+      expect(
+        result.estimated_manual_minutes === null ||
+          typeof result.estimated_manual_minutes === 'number',
+      ).toBe(true);
+    });
+
+    it('estimation failure does not fail generate() — sets estimated_manual_minutes to null', async () => {
+      const mockCallLLM = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: makeValidJsonContent(),
+          model: 'anthropic/claude-haiku-4-5',
+          promptTokens: 10,
+          completionTokens: 50,
+          estimatedCostUsd: 0.001,
+          latencyMs: 100,
+        })
+        .mockRejectedValueOnce(new Error('LLM unavailable'));
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      const result = await gen.generate('A daily Slack digest bot');
+      expect(result.estimated_manual_minutes).toBeNull();
+    });
   });
 
   describe('overview field (postProcess)', () => {
