@@ -16,6 +16,7 @@ import { StatusTimeline } from './StatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { StatCard } from '@/components/ui/stat-card';
 
 const RAW_EVENT_TRUNCATE_CHARS = 2000;
 
@@ -170,15 +171,6 @@ function CollapsibleJsonViewer({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, testId }: { label: string; value: string; testId?: string }) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-3 text-center" data-testid={testId}>
-      <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
