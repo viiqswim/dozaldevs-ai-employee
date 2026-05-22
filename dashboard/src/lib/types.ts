@@ -108,6 +108,8 @@ export interface Archetype {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  estimated_manual_minutes: number | null;
+  estimated_manual_minutes_override: number | null;
 }
 
 export interface Tenant {

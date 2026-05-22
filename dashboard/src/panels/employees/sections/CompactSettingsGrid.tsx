@@ -39,6 +39,9 @@ export function CompactSettingsGrid({
     archetype.notification_channel ?? '',
   );
   const [concurrencyLimit, setConcurrencyLimit] = useState(archetype.concurrency_limit);
+  const [manualMinutesOverride, setManualMinutesOverride] = useState<number | null>(
+    archetype.estimated_manual_minutes_override ?? null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +70,7 @@ export function CompactSettingsGrid({
       setTimeoutHours(archetype.risk_model?.timeout_hours ?? 0);
       setNotificationChannel(archetype.notification_channel ?? '');
       setConcurrencyLimit(archetype.concurrency_limit);
+      setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
     }
   }, [archetype, editing]);
 
@@ -90,6 +94,9 @@ export function CompactSettingsGrid({
     const existingTimeout = archetype.risk_model?.timeout_hours ?? 0;
     if (approvalRequired !== existingApproval || timeoutHours !== existingTimeout)
       changes.risk_model = { approval_required: approvalRequired, timeout_hours: timeoutHours };
+
+    if (manualMinutesOverride !== (archetype.estimated_manual_minutes_override ?? null))
+      changes.estimated_manual_minutes_override = manualMinutesOverride;
 
     if (Object.keys(changes).length === 0) {
       setEditing(false);
@@ -115,6 +122,7 @@ export function CompactSettingsGrid({
     setTimeoutHours(archetype.risk_model?.timeout_hours ?? 0);
     setNotificationChannel(archetype.notification_channel ?? '');
     setConcurrencyLimit(archetype.concurrency_limit);
+    setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
     setSaveError(null);
     setEditing(false);
   };
@@ -249,6 +257,41 @@ export function CompactSettingsGrid({
               />
             ) : (
               <p className="pt-1 text-sm">{archetype.concurrency_limit}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Time Estimate
+            </p>
+            {editing ? (
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={manualMinutesOverride ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                    setManualMinutesOverride(val);
+                  }}
+                  placeholder={
+                    archetype.estimated_manual_minutes
+                      ? `AI estimate: ${archetype.estimated_manual_minutes} min`
+                      : 'Not estimated'
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minutes a human would take. Leave empty to use AI estimate.
+                </p>
+              </div>
+            ) : (
+              <p className="pt-1 text-sm">
+                {(archetype.estimated_manual_minutes_override ??
+                  archetype.estimated_manual_minutes) != null
+                  ? `${archetype.estimated_manual_minutes_override ?? archetype.estimated_manual_minutes} min`
+                  : 'Not estimated'}
+              </p>
             )}
           </div>
         </div>
