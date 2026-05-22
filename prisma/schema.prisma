@@ -390,6 +390,7 @@ model Tenant {
   propertyLocks         PropertyLock[]
   feedbackEvents        FeedbackEvent[]
   employeeRules         EmployeeRule[]
+  modelCatalog          ModelCatalog[]
 
   @@map("tenants")
 }
@@ -530,4 +531,40 @@ model EmployeeRule {
   @@index([tenant_id, archetype_id, status])
   @@index([status, archetype_id])
   @@map("employee_rules")
+}
+
+model ModelCatalog {
+  id                          String    @id @default(uuid()) @db.Uuid
+  tenant_id                   String    @db.Uuid
+  model_id                    String    // e.g. "minimax/minimax-m2.7"
+  display_name                String
+  provider                    String
+  description                 String?   @db.Text
+  context_window              Int
+  input_cost_per_million      Float
+  output_cost_per_million     Float
+  is_free                     Boolean   @default(false)
+  throughput_tokens_per_sec   Float?
+  latency_seconds             Float?
+  tool_call_error_rate        Float?
+  structured_output_error_rate Float?
+  quality_index               Float?
+  agentic_score               Float?
+  tool_use_score              Float?
+  instruction_following_score Float?
+  non_hallucination_rate      Float?
+  supports_tools              Boolean   @default(false)
+  supports_structured_output  Boolean   @default(false)
+  is_active                   Boolean   @default(true)
+  notes                       String?   @db.Text
+  created_at                  DateTime  @default(now())
+  updated_at                  DateTime  @updatedAt
+  deleted_at                  DateTime?
+
+  // Relations
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+
+  @@unique([tenant_id, model_id])
+  @@index([tenant_id])
+  @@map("model_catalog")
 }
