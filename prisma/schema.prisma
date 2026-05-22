@@ -52,6 +52,7 @@ model Task {
   crossDeptTriggers CrossDeptTrigger[]
   auditLogs         AuditLog[]
   feedbackEvents    FeedbackEvent[]
+  taskMetric        TaskMetric?
 
   @@unique([external_id, source_system, tenant_id])
   @@map("tasks")
@@ -209,6 +210,8 @@ model Archetype {
   overview          Json?
   parent_draft_id   String?
   deleted_at        DateTime?
+  estimated_manual_minutes          Int?
+  estimated_manual_minutes_override Int?
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -220,6 +223,7 @@ model Archetype {
   agentVersions  AgentVersion[]  @relation("ArchetypeVersions")
   feedbackEvents FeedbackEvent[]
   employeeRules  EmployeeRule[]
+  taskMetrics    TaskMetric[]
 
   @@map("archetypes")
 }
@@ -391,6 +395,7 @@ model Tenant {
   feedbackEvents        FeedbackEvent[]
   employeeRules         EmployeeRule[]
   modelCatalog          ModelCatalog[]
+  taskMetrics           TaskMetric[]
 
   @@map("tenants")
 }
@@ -567,4 +572,24 @@ model ModelCatalog {
   @@unique([tenant_id, model_id])
   @@index([tenant_id])
   @@map("model_catalog")
+}
+
+// ============================================================
+// Time Estimation & Task Metrics
+// ============================================================
+
+model TaskMetric {
+  id            String   @id @default(uuid()) @db.Uuid
+  task_id       String   @unique @db.Uuid
+  archetype_id  String   @db.Uuid
+  tenant_id     String   @db.Uuid
+  minutes_saved Int
+  created_at    DateTime @default(now())
+
+  task      Task      @relation(fields: [task_id], references: [id])
+  archetype Archetype @relation(fields: [archetype_id], references: [id])
+  tenant    Tenant    @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id, archetype_id])
+  @@map("task_metrics")
 }
