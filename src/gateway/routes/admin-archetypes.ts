@@ -10,6 +10,8 @@ import {
   adjustProfileWithUserAnswers,
 } from '../../lib/model-selection/profiler.js';
 import { recommendModels } from '../../lib/model-selection/matcher.js';
+import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
+import { callLLM } from '../../lib/call-llm.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -64,6 +66,7 @@ const PatchArchetypeBodySchema = z
     parent_draft_id: z.string().uuid().nullable().optional(),
     input_schema: InputSchemaSchema.optional(),
     worker_env: z.record(z.string(), z.string()).nullish(),
+    estimated_manual_minutes_override: z.number().int().min(1).max(1440).nullable().optional(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {
@@ -157,6 +160,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new ArchetypeRepository(prisma);
+  const estimator = new TimeEstimator(callLLM);
 
   router.post('/admin/tenants/:tenantId/archetypes', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
@@ -204,7 +208,24 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         },
       });
 
-      res.status(201).json(newArchetype);
+      let resultArchetype = newArchetype;
+      try {
+        const estimated = await estimator.estimate(newArchetype);
+        if (estimated !== null) {
+          const reEstimated = await prisma.archetype.update({
+            where: { id: newArchetype.id },
+            data: { estimated_manual_minutes: estimated },
+          });
+          if (reEstimated) resultArchetype = reEstimated;
+        }
+      } catch (estimateErr) {
+        logger.warn(
+          { err: estimateErr },
+          'Time estimation failed after create — returning archetype without estimate',
+        );
+      }
+
+      res.status(201).json(resultArchetype);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
         res.status(409).json({
@@ -347,7 +368,26 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           },
         });
 
-        res.status(200).json(updated);
+        let resultArchetype = updated;
+        if (shouldReEstimate(Object.keys(bodyResult.data))) {
+          try {
+            const estimated = await estimator.estimate(updated);
+            if (estimated !== null) {
+              const reEstimated = await prisma.archetype.update({
+                where: { id: archetypeId },
+                data: { estimated_manual_minutes: estimated },
+              });
+              if (reEstimated) resultArchetype = reEstimated;
+            }
+          } catch (estimateErr) {
+            logger.warn(
+              { err: estimateErr },
+              'Time re-estimation failed after update — returning archetype without re-estimate',
+            );
+          }
+        }
+
+        res.status(200).json(resultArchetype);
       } catch (err) {
         logger.error({ err }, 'Failed to update archetype');
         res.status(500).json({ error: 'INTERNAL_ERROR' });
