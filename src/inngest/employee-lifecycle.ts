@@ -78,6 +78,40 @@ async function logStatusTransition(
   }
 }
 
+async function recordTimeSavedMetric(
+  supabaseUrl: string,
+  headers: Record<string, string>,
+  taskId: string,
+  archetypeId: string | null,
+  tenantId: string,
+): Promise<void> {
+  if (!archetypeId) return;
+  const archetypeRes = await fetch(
+    `${supabaseUrl}/rest/v1/archetypes?id=eq.${archetypeId}&select=estimated_manual_minutes,estimated_manual_minutes_override`,
+    { headers },
+  );
+  if (!archetypeRes.ok) return;
+  const archetypes = (await archetypeRes.json()) as Array<{
+    estimated_manual_minutes: number | null;
+    estimated_manual_minutes_override: number | null;
+  }>;
+  const archetype = archetypes[0];
+  if (!archetype) return;
+  const effectiveMinutes =
+    archetype.estimated_manual_minutes_override ?? archetype.estimated_manual_minutes;
+  if (effectiveMinutes == null) return;
+  await fetch(`${supabaseUrl}/rest/v1/task_metrics`, {
+    method: 'POST',
+    headers: { ...headers, Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      task_id: taskId,
+      archetype_id: archetypeId,
+      tenant_id: tenantId,
+      minutes_saved: effectiveMinutes,
+    }),
+  });
+}
+
 function runLocalDockerContainer(opts: {
   taskId: string;
   env: Record<string, string>;
@@ -203,6 +237,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 { taskId },
                 'Pre-check: last message from host — skipping (no worker, no notification)',
               );
+            });
+            await step.run('record-time-saved-metric-precheck', async () => {
+              try {
+                await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+              } catch (err) {
+                log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+              }
             });
             return;
           }
@@ -851,6 +892,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             );
           }
         });
+        await step.run('record-time-saved-metric-no-approval', async () => {
+          try {
+            await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+          } catch (err) {
+            log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+          }
+        });
         await step.run('cleanup-no-approval', async () => {
           try {
             if ((machineId as string).startsWith('docker_')) {
@@ -1070,6 +1118,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn({ taskId, err }, 'Failed to update Slack on no-action timeout (non-fatal)');
             }
           });
+          await step.run('record-time-saved-metric-no-action', async () => {
+            try {
+              await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            } catch (err) {
+              log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+            }
+          });
           return;
         }
 
@@ -1113,6 +1168,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               }
             } catch (err) {
               log.warn({ taskId, err }, 'Failed to update Slack on override dismiss (non-fatal)');
+            }
+          });
+          await step.run('record-time-saved-metric-override-dismissed', async () => {
+            try {
+              await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            } catch (err) {
+              log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
             }
           });
           return;
@@ -2526,6 +2588,21 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         { taskId, runId, step: 'handle-approval-result' },
         'Step complete: handle-approval-result',
       );
+
+      await step.run('record-time-saved-metric-approval', async () => {
+        try {
+          const taskStatusRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+            { headers },
+          );
+          const taskStatusRows = (await taskStatusRes.json()) as Array<{ status: string }>;
+          if (taskStatusRows[0]?.status === 'Done') {
+            await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+          }
+        } catch (err) {
+          log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+        }
+      });
 
       await step.run('cleanup', async () => {
         try {
