@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +31,8 @@ function computeCostTierLabel(inputCost: number, outputCost: number, isFree: boo
   if (avg < 3.0) return 'Standard';
   return 'Premium';
 }
+
+const KEBAB_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const WEBHOOK_FIXTURES = {
   agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
@@ -68,6 +70,12 @@ export function EmployeeDetail() {
   const [catalogModels, setCatalogModels] = useState<ModelCatalogEntry[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [modelSaving, setModelSaving] = useState(false);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const escapeRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +186,41 @@ export function EmployeeDetail() {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setFiringWebhook(false);
+    }
+  };
+
+  const handleSaveName = async (value: string) => {
+    if (!archetype) return;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setNameError('Name is required');
+      return;
+    }
+    if (!KEBAB_REGEX.test(trimmed)) {
+      setNameError('Use lowercase letters, numbers, and hyphens only (e.g. my-employee)');
+      return;
+    }
+    if (trimmed === archetype.role_name) {
+      setIsEditingName(false);
+      setNameError(null);
+      return;
+    }
+    setNameSaving(true);
+    try {
+      await patchArchetype(tenantId, archetype.id, { role_name: trimmed });
+      toast.success('Name updated');
+      refresh();
+      setIsEditingName(false);
+      setNameError(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('409')) {
+        toast.error('This name is already taken by an active employee.');
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setNameSaving(false);
     }
   };
 
@@ -293,7 +336,52 @@ export function EmployeeDetail() {
           >
             ← Employees
           </Link>
-          <h1 className="text-xl font-semibold">{archetype.role_name ?? archetype.id}</h1>
+          {isEditingName ? (
+            <div className="flex flex-col gap-0.5">
+              <input
+                className="text-xl font-semibold bg-transparent border-b border-border focus:border-primary outline-none w-48 max-w-xs"
+                value={editNameValue}
+                autoFocus
+                disabled={nameSaving}
+                onChange={(e) => {
+                  setEditNameValue(e.target.value);
+                  setNameError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleSaveName(editNameValue);
+                  } else if (e.key === 'Escape') {
+                    escapeRef.current = true;
+                    setIsEditingName(false);
+                    setEditNameValue('');
+                    setNameError(null);
+                  }
+                }}
+                onBlur={() => {
+                  if (escapeRef.current) {
+                    escapeRef.current = false;
+                    return;
+                  }
+                  void handleSaveName(editNameValue);
+                }}
+              />
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="text-xl font-semibold text-left hover:opacity-70 transition-opacity cursor-text"
+              onClick={() => {
+                setIsEditingName(true);
+                setEditNameValue(archetype.role_name ?? '');
+                setNameError(null);
+              }}
+              title="Click to rename"
+            >
+              {archetype.role_name ?? archetype.id}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
