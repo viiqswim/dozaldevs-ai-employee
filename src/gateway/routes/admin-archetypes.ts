@@ -80,7 +80,7 @@ const CreateArchetypeBodySchema = z.object({
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'role_name must be kebab-case slug')
     .min(2)
     .max(60),
-  model: z.enum(['minimax/minimax-m2.7', 'anthropic/claude-haiku-4-5']),
+  model: z.string().min(1),
   runtime: z.literal('opencode'),
   instructions: z.string().min(1).max(5000),
   agents_md: z.string().min(1).max(50000),

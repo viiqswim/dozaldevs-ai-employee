@@ -6,7 +6,7 @@ const log = createLogger('archetype-generator');
 
 export interface GenerateArchetypeResponse {
   role_name: string;
-  model: 'minimax/minimax-m2.7';
+  model: string;
   runtime: 'opencode';
   system_prompt: string;
   instructions: string;
@@ -46,7 +46,7 @@ const SYSTEM_PROMPT = `You are an expert AI employee architect. Given a natural 
 ${INJECTION_BOUNDARY}
 
 ## Rules (CRITICAL — never violate)
-- \`model\` is ALWAYS \`minimax/minimax-m2.7\` — never any other model
+- \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - \`system_prompt\` is ALWAYS an empty string \`""\` — the real brain lives in agents_md
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
@@ -181,7 +181,7 @@ const REFINE_SYSTEM_PROMPT = `You are an expert AI employee architect. You will 
 ${INJECTION_BOUNDARY}
 
 ## Rules (CRITICAL — never violate)
-- \`model\` is ALWAYS \`minimax/minimax-m2.7\` — never any other model
+- \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - \`system_prompt\` is ALWAYS an empty string \`""\`
 - Preserve all fields that are not affected by the refinement instruction
@@ -212,7 +212,6 @@ function toKebabCase(input: string): string {
 function postProcess(raw: unknown, description: string): GenerateArchetypeResponse {
   const result = raw as Record<string, unknown>;
 
-  result.model = 'minimax/minimax-m2.7';
   result.runtime = 'opencode';
   result.system_prompt = '';
 
