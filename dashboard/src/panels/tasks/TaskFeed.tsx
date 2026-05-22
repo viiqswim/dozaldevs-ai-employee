@@ -10,11 +10,12 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { StatCard } from '@/components/ui/stat-card';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { TERMINAL_STATUSES } from '@/lib/constants';
-import { formatRelativeTime, formatDuration } from '@/lib/utils';
+import { formatRelativeTime, formatDuration, formatMinutesSaved } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 import { StatusBadge } from './StatusBadge';
 
@@ -109,6 +110,19 @@ export function TaskFeed() {
 
   const { data: rawTasks, error, loading, refresh } = usePoll(fetchTasks);
 
+  const fetchTenantMetrics = useCallback(
+    () =>
+      postgrestFetch<{ minutes_saved: number }>('task_metrics', {
+        ...scopeByTenant(tenantId),
+        select: 'minutes_saved',
+      }),
+    [tenantId],
+  );
+  const { data: tenantMetrics } = usePoll(fetchTenantMetrics);
+
+  const totalMinutesSaved = tenantMetrics?.reduce((sum, m) => sum + m.minutes_saved, 0) ?? 0;
+  const tasksCompleted = tenantMetrics?.length ?? 0;
+
   const tasks = rawTasks?.filter((task) => {
     if (dateTo && task.created_at.slice(0, 10) > dateTo) return false;
     return true;
@@ -167,6 +181,14 @@ export function TaskFeed() {
 
   return (
     <div className="p-6">
+      <div className="mb-4 flex gap-4">
+        <StatCard
+          label="Total Time Saved"
+          value={formatMinutesSaved(totalMinutesSaved)}
+          className="flex-1"
+        />
+        <StatCard label="Tasks Completed" value={String(tasksCompleted)} className="flex-1" />
+      </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Status</label>
