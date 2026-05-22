@@ -109,7 +109,7 @@ const CreateArchetypeBodySchema = z.object({
 
 const RecommendModelBodySchema = z.object({
   archetype: z.object({
-    system_prompt: z.string().min(1),
+    system_prompt: z.string(),
     instructions: z.string().min(1),
     deliverable_type: z.string().min(1),
     agents_md: z.string().optional(),
