@@ -4185,6 +4185,115 @@ Post the motivational message to the team Slack channel.`,
 
   console.log(`✅ PropertyLock upserted: ${propertyLockCount} records for VLRE tenant`);
 
+  // ─── Model Catalog ───────────────────────────────────────────────────────────
+  // Seed 3 models per tenant (6 rows total). Benchmark data sourced from:
+  //   - Artificial Analysis leaderboard (artificialanalysis.ai/leaderboards/models)
+  //   - OpenRouter model pages (openrouter.ai/<model-id>)
+  // Fetched: 2026-05-21
+
+  const TENANT_IDS = [
+    '00000000-0000-0000-0000-000000000002', // DozalDevs
+    '00000000-0000-0000-0000-000000000003', // VLRE
+  ];
+
+  const MODEL_CATALOG_ENTRIES = [
+    {
+      // Source: openrouter.ai/minimax/minimax-m2.7 + artificialanalysis.ai leaderboard
+      // Input: $0.279/1M, Output: $1.20/1M (OpenRouter)
+      // Intelligence Index: 50, Output speed: 49 t/s, Latency: 2.11s (Artificial Analysis)
+      model_id: 'minimax/minimax-m2.7',
+      display_name: 'MiniMax M2.7',
+      provider: 'minimax',
+      description:
+        'Next-generation LLM designed for autonomous, real-world productivity. Strong agentic capabilities via multi-agent collaboration. Handles live debugging, financial modeling, and document generation. 56.2% on SWE-Pro, 57.0% on Terminal Bench 2.',
+      context_window: 205000,
+      input_cost_per_million: 0.279,
+      output_cost_per_million: 1.2,
+      is_free: false,
+      throughput_tokens_per_sec: 49.0,
+      latency_seconds: 2.11,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: 50.0,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'Current default model for all AI employees. Approved for production use.',
+    },
+    {
+      // Source: openrouter.ai/tencent/hy3-preview + artificialanalysis.ai leaderboard
+      // Input: $0.066/1M, Output: $0.26/1M (OpenRouter)
+      // Intelligence Index: 42, Output speed: 103 t/s, Latency: 4.09s (Artificial Analysis)
+      model_id: 'tencent/hy3-preview',
+      display_name: 'Tencent Hy3 Preview',
+      provider: 'tencent',
+      description:
+        'High-efficiency Mixture-of-Experts model from Tencent designed for agentic workflows. Supports configurable reasoning levels (disabled, low, high). Strong code generation and reliable multi-step workflow performance.',
+      context_window: 262000,
+      input_cost_per_million: 0.066,
+      output_cost_per_million: 0.26,
+      is_free: false,
+      throughput_tokens_per_sec: 103.0,
+      latency_seconds: 4.09,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: 42.0,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'Cost-effective alternative. Released Apr 22, 2026.',
+    },
+    {
+      // Source: openrouter.ai/openrouter/owl-alpha
+      // Free model. Not listed on Artificial Analysis leaderboard — benchmarks set to null.
+      model_id: 'openrouter/owl-alpha',
+      display_name: 'OpenRouter Owl Alpha',
+      provider: 'openrouter',
+      description:
+        'High-performance foundation model designed for agentic workloads. Natively supports tool use and long-context tasks. Strong in code generation, automated workflows, and complex instruction execution. Compatible with Claude Code and other productivity tools.',
+      context_window: 1000000,
+      input_cost_per_million: 0.0,
+      output_cost_per_million: 0.0,
+      is_free: true,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: false,
+      is_active: true,
+      notes:
+        'Free model. Prompts and completions may be logged by the provider. Released Apr 28, 2026.',
+    },
+  ];
+
+  let modelCatalogCount = 0;
+  for (const tenantId of TENANT_IDS) {
+    for (const entry of MODEL_CATALOG_ENTRIES) {
+      await prisma.modelCatalog.upsert({
+        where: { tenant_id_model_id: { tenant_id: tenantId, model_id: entry.model_id } },
+        create: { ...entry, tenant_id: tenantId },
+        update: entry,
+      });
+      modelCatalogCount++;
+    }
+  }
+
+  console.log(`✅ ModelCatalog upserted: ${modelCatalogCount} records (3 models × 2 tenants)`);
+
   console.log('✅ Seeding complete.');
   console.log(
     `Tenants seeded: DozalDevs, VLRE — daily-summarizer archetypes for both, guest-messaging archetype for VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,
