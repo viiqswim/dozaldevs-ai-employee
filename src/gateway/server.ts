@@ -180,7 +180,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminTenantsRoutes({ prisma }));
   app.use(adminTenantSecretsRoutes({ prisma }));
   app.use(adminTenantConfigRoutes({ prisma }));
-  app.use(adminArchetypeGenerateRoutes({ callLLM }));
+  app.use(adminArchetypeGenerateRoutes({ callLLM, prisma }));
   app.use(adminArchetypesRoutes({ prisma }));
   app.use(adminSlackChannelsRoutes({ prisma }));
   app.use(adminBrainPreviewRoutes({ prisma }));

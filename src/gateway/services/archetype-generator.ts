@@ -1,6 +1,10 @@
 import type { callLLM } from '../../lib/call-llm.js';
 import { createLogger } from '../../lib/logger.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
+import type { ModelRecommendation } from '../../lib/model-selection/types.js';
+import type { ModelCatalogRow } from '../../lib/model-selection/matcher.js';
+import { analyzeArchetype } from '../../lib/model-selection/profiler.js';
+import { recommendModels } from '../../lib/model-selection/matcher.js';
 
 const log = createLogger('archetype-generator');
 
@@ -28,6 +32,7 @@ export interface GenerateArchetypeResponse {
     tools: string[];
   };
   concurrency_limit: number;
+  modelRecommendation?: ModelRecommendation;
   overview: {
     role: string;
     trigger: string;
@@ -250,7 +255,10 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
 export class ArchetypeGenerator {
   constructor(private readonly callLLMFn: typeof callLLM) {}
 
-  async generate(description: string): Promise<GenerateArchetypeResponse> {
+  async generate(
+    description: string,
+    catalog?: ModelCatalogRow[],
+  ): Promise<GenerateArchetypeResponse> {
     log.info({ descriptionLength: description.length }, 'Generating archetype from description');
 
     const llmResult = await this.callLLMFn({
@@ -274,12 +282,33 @@ export class ArchetypeGenerator {
       throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${String(err)}`);
     }
 
-    return postProcess(parsed, description);
+    const result = postProcess(parsed, description);
+
+    if (catalog && catalog.length > 0) {
+      try {
+        const profile = analyzeArchetype({
+          system_prompt: result.system_prompt,
+          instructions: result.instructions,
+          deliverable_type: result.deliverable_type ?? '',
+          agents_md: result.agents_md,
+        });
+        const recommendation = recommendModels(profile, catalog);
+        result.modelRecommendation = recommendation;
+        if (recommendation.recommended) {
+          result.model = recommendation.recommended.modelId;
+        }
+      } catch (err) {
+        log.warn({ err }, 'Model recommendation failed — using LLM default model');
+      }
+    }
+
+    return result;
   }
 
   async refine(
     previousConfig: GenerateArchetypeResponse,
     refinementInstruction: string,
+    catalog?: ModelCatalogRow[],
   ): Promise<GenerateArchetypeResponse> {
     log.info(
       { roleName: previousConfig.role_name, instructionLength: refinementInstruction.length },
@@ -315,6 +344,26 @@ export class ArchetypeGenerator {
       );
     }
 
-    return postProcess(parsed, previousConfig.role_name);
+    const result = postProcess(parsed, previousConfig.role_name);
+
+    if (catalog && catalog.length > 0) {
+      try {
+        const profile = analyzeArchetype({
+          system_prompt: result.system_prompt,
+          instructions: result.instructions,
+          deliverable_type: result.deliverable_type ?? '',
+          agents_md: result.agents_md,
+        });
+        const recommendation = recommendModels(profile, catalog);
+        result.modelRecommendation = recommendation;
+        if (recommendation.recommended) {
+          result.model = recommendation.recommended.modelId;
+        }
+      } catch (err) {
+        log.warn({ err }, 'Model recommendation failed — using LLM default model');
+      }
+    }
+
+    return result;
   }
 }
