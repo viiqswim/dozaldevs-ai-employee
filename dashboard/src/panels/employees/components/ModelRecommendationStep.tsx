@@ -43,19 +43,12 @@ function speedTierLabel(tier: ModelRecommendationEntry['tiers']['speed']): strin
 
 interface ModelCardProps {
   entry: ModelRecommendationEntry;
-  label: string;
   labelVariant?: 'recommended' | 'affordable' | 'premium';
   isSelected: boolean;
   onSelect: (modelId: string) => void;
 }
 
-function ModelCard({
-  entry,
-  label,
-  labelVariant = 'affordable',
-  isSelected,
-  onSelect,
-}: ModelCardProps) {
+function ModelCard({ entry, labelVariant = 'affordable', isSelected, onSelect }: ModelCardProps) {
   const isRecommended = labelVariant === 'recommended';
 
   return (
@@ -173,7 +166,6 @@ export function ModelRecommendationStep({
           {recommendation.recommended && (
             <ModelCard
               entry={recommendation.recommended}
-              label="Recommended"
               labelVariant="recommended"
               isSelected={selectedModel === recommendation.recommended.modelId}
               onSelect={setSelectedModel}
@@ -182,7 +174,6 @@ export function ModelRecommendationStep({
           {recommendation.cheaperAlternative && (
             <ModelCard
               entry={recommendation.cheaperAlternative}
-              label="More affordable"
               labelVariant="affordable"
               isSelected={selectedModel === recommendation.cheaperAlternative.modelId}
               onSelect={setSelectedModel}
@@ -191,7 +182,6 @@ export function ModelRecommendationStep({
           {recommendation.premiumAlternative && (
             <ModelCard
               entry={recommendation.premiumAlternative}
-              label="Higher quality"
               labelVariant="premium"
               isSelected={selectedModel === recommendation.premiumAlternative.modelId}
               onSelect={setSelectedModel}
