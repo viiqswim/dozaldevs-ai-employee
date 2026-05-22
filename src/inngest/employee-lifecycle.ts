@@ -100,7 +100,7 @@ async function recordTimeSavedMetric(
   const effectiveMinutes =
     archetype.estimated_manual_minutes_override ?? archetype.estimated_manual_minutes;
   if (effectiveMinutes == null) return;
-  await fetch(`${supabaseUrl}/rest/v1/task_metrics`, {
+  const metricsRes = await fetch(`${supabaseUrl}/rest/v1/task_metrics`, {
     method: 'POST',
     headers: { ...headers, Prefer: 'return=minimal' },
     body: JSON.stringify({
@@ -110,6 +110,13 @@ async function recordTimeSavedMetric(
       minutes_saved: effectiveMinutes,
     }),
   });
+  if (!metricsRes.ok) {
+    const body = await metricsRes.text().catch(() => '(unreadable)');
+    log.warn(
+      { taskId, status: metricsRes.status, body },
+      'Failed to write task_metrics row — non-fatal',
+    );
+  }
 }
 
 function runLocalDockerContainer(opts: {
