@@ -196,6 +196,7 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 
 - `POST /admin/tenants/:tenantId/employees/:slug/trigger` — creates task, returns 202 + `{ task_id, status_url }`. Add `?dry_run=true` to validate without creating.
 - `GET /admin/tenants/:tenantId/tasks/:id` — check task status (tenant-scoped, 404 on cross-tenant access)
+- `GET /admin/tenants/:tenantId/tasks/:id/logs` — stream task execution logs as SSE (local Docker mode only; requires log file at `/tmp/employee-{taskId.slice(0,8)}.log`)
 - `GET /admin/tools` — list all available shell tools with parsed metadata (description, flags, env vars, output shape, SKILL.md enrichment)
 - `GET /admin/tools/:service/:toolName` — get full metadata for a single tool
 - `GET /admin/model-catalog` — list active catalog models (`?include_inactive=true` for all)
