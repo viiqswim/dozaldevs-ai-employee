@@ -437,7 +437,7 @@ Wave FINAL (After ALL tasks):
   - Files: `.opencode/skills/creating-archetypes/SKILL.md`
   - Pre-commit: none (markdown only)
 
-- [ ] 4. Notify completion
+- [x] 4. Notify completion
 
   Send Telegram: `tsx scripts/telegram-notify.ts "✅ output-contract-platform-injection complete — All tasks done. Come back to review results."`
 
