@@ -237,6 +237,8 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
 **For any UI inspection, screenshot, or browser automation task, always use the dev URL (`localhost:7701`) while `pnpm dev` is running.** The production URL at 7700 will lag behind source changes until a manual build.
 
+**Task execution logs**: `/dashboard/tasks/:taskId/logs?tenant=:tenantId` — full-page formatted log viewer (noise-filtered, searchable, color-coded). Only available when a log file exists at `/tmp/employee-{taskId.slice(0,8)}.log` (local Docker mode).
+
 ## Pre-existing Test Failures
 
 Do NOT attempt to fix these — they are unrelated to any recent changes:
