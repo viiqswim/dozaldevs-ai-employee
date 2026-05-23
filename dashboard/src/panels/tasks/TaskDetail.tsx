@@ -20,6 +20,7 @@ import { useDeliverable } from '@/hooks/use-deliverable';
 import { useFeedbackEvents } from '@/hooks/use-feedback-events';
 import { useExecutionTranscript } from '@/hooks/use-execution-transcript';
 import { StatusBadge } from './StatusBadge';
+import { ExecutionLogViewer } from './ExecutionLogViewer';
 import { StatusTimeline } from './StatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -222,6 +223,7 @@ export function TaskDetail() {
   const [rejecting, setRejecting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const showTranscript = searchParams.has('transcript');
+  const showLogs = searchParams.has('logs');
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return null;
@@ -476,6 +478,43 @@ export function TaskDetail() {
             <CommandRow command={`docker logs -f employee-${taskId?.slice(0, 8)}`} />
             <CommandRow command={`tail -f /tmp/employee-${taskId?.slice(0, 8)}.log`} />
           </div>
+        </div>
+      )}
+
+      {execution && !isAutoPass && (
+        <div className="rounded-lg border bg-card px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Execution Log</h2>
+            <div className="flex items-center gap-2">
+              {!showLogs && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set('logs', '1');
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  View Logs
+                </Button>
+              )}
+              {showLogs && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete('logs');
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  Hide Logs
+                </Button>
+              )}
+            </div>
+          </div>
+          {showLogs && tenantId && <ExecutionLogViewer taskId={taskId ?? ''} tenantId={tenantId} />}
         </div>
       )}
 
