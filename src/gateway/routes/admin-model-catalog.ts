@@ -3,7 +3,6 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantIdParamSchema } from '../validation/schemas.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -13,7 +12,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const uuidField = () =>
   z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
 
-const ModelCatalogParamSchema = TenantIdParamSchema.extend({
+const ModelCatalogParamSchema = z.object({
   id: uuidField(),
 });
 
@@ -85,26 +84,18 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
-  router.get('/admin/tenants/:tenantId/model-catalog', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
-      return;
-    }
-
+  router.get('/admin/model-catalog', requireAdminKey, async (req, res) => {
     const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
       res.status(400).json({ error: 'INVALID_REQUEST', issues: queryResult.error.issues });
       return;
     }
 
-    const { tenantId } = paramResult.data;
     const { include_inactive } = queryResult.data;
 
     try {
       const models = await prisma.modelCatalog.findMany({
         where: {
-          tenant_id: tenantId,
           deleted_at: null,
           ...(include_inactive ? {} : { is_active: true }),
         },
@@ -117,18 +108,18 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     }
   });
 
-  router.get('/admin/tenants/:tenantId/model-catalog/:id', requireAdminKey, async (req, res) => {
+  router.get('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
       return;
     }
 
-    const { tenantId, id } = paramResult.data;
+    const { id } = paramResult.data;
 
     try {
       const model = await prisma.modelCatalog.findFirst({
-        where: { id, tenant_id: tenantId, deleted_at: null },
+        where: { id, deleted_at: null },
       });
 
       if (!model) {
@@ -143,34 +134,23 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     }
   });
 
-  router.post('/admin/tenants/:tenantId/model-catalog', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
-      return;
-    }
-
+  router.post('/admin/model-catalog', requireAdminKey, async (req, res) => {
     const bodyResult = CreateModelCatalogBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
       res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
       return;
     }
 
-    const { tenantId } = paramResult.data;
-
     try {
       const created = await prisma.modelCatalog.create({
-        data: {
-          ...bodyResult.data,
-          tenant_id: tenantId,
-        },
+        data: bodyResult.data,
       });
       res.status(201).json(created);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
         res.status(409).json({
           error: 'MODEL_ID_TAKEN',
-          message: 'A model with this model_id already exists for this tenant',
+          message: 'A model with this model_id already exists',
         });
         return;
       }
@@ -179,7 +159,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     }
   });
 
-  router.patch('/admin/tenants/:tenantId/model-catalog/:id', requireAdminKey, async (req, res) => {
+  router.patch('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
@@ -192,11 +172,11 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       return;
     }
 
-    const { tenantId, id } = paramResult.data;
+    const { id } = paramResult.data;
 
     try {
       const existing = await prisma.modelCatalog.findFirst({
-        where: { id, tenant_id: tenantId, deleted_at: null },
+        where: { id, deleted_at: null },
       });
 
       if (!existing) {
@@ -214,7 +194,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       if (isPrismaError(err) && err.code === 'P2002') {
         res.status(409).json({
           error: 'MODEL_ID_TAKEN',
-          message: 'A model with this model_id already exists for this tenant',
+          message: 'A model with this model_id already exists',
         });
         return;
       }
@@ -223,18 +203,18 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     }
   });
 
-  router.delete('/admin/tenants/:tenantId/model-catalog/:id', requireAdminKey, async (req, res) => {
+  router.delete('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
       res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
       return;
     }
 
-    const { tenantId, id } = paramResult.data;
+    const { id } = paramResult.data;
 
     try {
       const existing = await prisma.modelCatalog.findFirst({
-        where: { id, tenant_id: tenantId, deleted_at: null },
+        where: { id, deleted_at: null },
       });
 
       if (!existing) {
