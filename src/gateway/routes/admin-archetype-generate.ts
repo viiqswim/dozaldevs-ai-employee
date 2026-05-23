@@ -37,7 +37,7 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
       return;
     }
 
-    const { tenantId } = paramResult.data;
+    const { tenantId: _tenantId } = paramResult.data;
     const { description, previous_config, refinement_instruction } = bodyResult.data;
 
     try {
