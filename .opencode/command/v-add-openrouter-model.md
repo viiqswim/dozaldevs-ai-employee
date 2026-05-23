@@ -110,7 +110,7 @@ Use the Playwright MCP to navigate to:
 https://openrouter.ai/{org}/{model}/performance
 ```
 
-Find the per-provider metrics table. Use the **best** values across all providers:
+Find the per-provider performance charts. Each chart shows a legend with provider names and average values. Use the **best** values across all providers:
 
 | Metric                       | Best value               | Catalog field                  | Transform                         |
 | ---------------------------- | ------------------------ | ------------------------------ | --------------------------------- |
@@ -138,7 +138,7 @@ https://artificialanalysis.ai/leaderboards/models
 1. Find the filter input: `input[placeholder="Filter, e.g. GPT, Meta"]`
 2. Type the model name (just `model_slug`, e.g. `gpt-oss-120b`)
 3. Wait for the table to filter (wait up to 5 seconds for results to appear)
-4. Find the **Intelligence Index** column value for the matching row → `quality_index` (numeric, e.g. `67.3`)
+4. Find the **Intelligence Index** column value for the matching row → `quality_index` (numeric, e.g. `67.3`). If multiple variants appear (e.g. `gpt-oss-120b (high)` and `gpt-oss-120b (low)`), use the row with the **highest** Intelligence Index value.
 
 **If any of the following occur:**
 
