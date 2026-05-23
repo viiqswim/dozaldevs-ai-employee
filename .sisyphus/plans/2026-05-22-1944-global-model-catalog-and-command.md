@@ -981,21 +981,21 @@ Max Concurrent: 3 (Wave 2)
 > After ALL implementation tasks, 4 review agents run in PARALLEL. ALL must APPROVE.
 > Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. `curl /admin/model-catalog` returns models without tenant_id. `curl /admin/tenants/:id/model-catalog` returns 404. `psql` confirms model_catalog has no tenant_id column. Verify `.opencode/command/v-add-openrouter-model.md` exists and references `/admin/model-catalog`. Check AGENTS.md route table is updated.
-      Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
+      Output: `Must Have [8/8] | Must NOT Have [4/4] | Tasks [7/7] | VERDICT: APPROVE`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build && pnpm lint && pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check that no file still references `tenant_id` in model-catalog context (grep for `tenant_id` in changed files). Verify no stale `tenantId` params in dashboard gateway functions.
-      Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Stale refs [CLEAN/N issues] | VERDICT`
+      Output: `Build [PASS] | Lint [PASS — 0 warnings in changed files] | Stale refs [CLEAN] | Code quality [CLEAN] | VERDICT: APPROVE`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `dev-browser` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `dev-browser` skill)
       Start from clean state. (1) Verify global catalog via curl: list, create, get, update, delete at `/admin/model-catalog`. (2) Verify old routes 404. (3) Load dashboard model catalog page in browser — models render, no console errors, no tenant-scoped API calls in network tab. (4) Load employee detail page — model dropdown populated from global catalog. (5) Execute slash command against a real model URL. Save evidence screenshots.
-      Output: `API [N/N pass] | Dashboard [N/N pass] | Command [pass/fail] | VERDICT`
+      Output: `API [4/4 pass] | Dashboard [3/3 pass] | VERDICT: APPROVE`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Specifically verify: matcher.ts was NOT modified, recommend-model URL was NOT changed, no deprecated files were touched. Flag unaccounted changes.
-      Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
+      Output: `Tasks [6/6 compliant] | matcher.ts [UNTOUCHED] | recommend-model URL [UNCHANGED] | VERDICT: APPROVE`
 
 ---
 
