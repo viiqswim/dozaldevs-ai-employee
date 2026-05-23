@@ -214,15 +214,48 @@ Use only when the trigger logic itself requires DB access or secret decryption (
 
 ## Output Contract (Required for Every Worker Run)
 
-Every worker session MUST produce at least one of these files before exiting:
+### How employees submit output
 
-| File                         | Contains                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| `/tmp/summary.txt`           | Deliverable content (text, JSON, or status message)                      |
-| `/tmp/approval-message.json` | Slack message metadata `{ "ts": "...", "channel": "..." }` after posting |
+At the end of every task, the employee calls `submit-output.ts`:
 
-If both files are absent → harness marks task as `Failed`.
-If only one exists → harness continues (partial success allowed).
+```bash
+tsx /tools/platform/submit-output.ts \
+  --summary "One sentence describing what was done" \
+  --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"
+```
+
+**Required flags:**
+
+| Flag               | Description                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| `--summary`        | Human-readable summary of what was done                                     |
+| `--classification` | `NEEDS_APPROVAL` (PM review required) or `NO_ACTION_NEEDED` (task complete) |
+
+**Optional flags:**
+
+| Flag           | Description                                                     |
+| -------------- | --------------------------------------------------------------- |
+| `--draft`      | Draft message/content for PM review (use with `NEEDS_APPROVAL`) |
+| `--confidence` | Confidence score 0–1 (e.g. `0.95`)                              |
+| `--reasoning`  | Explanation of the classification decision                      |
+| `--urgency`    | Flag presence marks `urgency=true`                              |
+| `--metadata`   | JSON object with additional structured data                     |
+
+### What the platform handles automatically
+
+After `submit-output.ts` is called:
+
+- It writes `/tmp/summary.txt` in the correct JSON format — employees must never write this file directly
+- If `approval_required: true` in the archetype, the harness auto-posts the Slack approval card and manages `/tmp/approval-message.json` — employees must **never** write `/tmp/approval-message.json` directly
+- If `approval_required: false`, the harness skips the approval card and transitions straight to `Done`
+
+### Key rule for archetype authors
+
+**Do NOT include output format instructions in `agents_md`.** The platform injects them at runtime via `platform-procedures.mts` — every employee already receives the correct `submit-output.ts` instructions regardless of what is in `agents_md`. The `agents_md` field should only describe the employee's job: workflow steps, classification rules, domain knowledge, and which tools to use. Platform plumbing belongs at the platform level.
+
+### Failure condition
+
+If neither `/tmp/summary.txt` nor `/tmp/approval-message.json` is present when the worker exits → harness marks the task as `Failed`.
 
 ---
 
