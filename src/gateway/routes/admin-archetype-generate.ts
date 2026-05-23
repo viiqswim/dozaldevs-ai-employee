@@ -42,7 +42,7 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
 
     try {
       const catalog = await prisma.modelCatalog.findMany({
-        where: { tenant_id: tenantId, deleted_at: null, is_active: true },
+        where: { deleted_at: null, is_active: true },
       });
 
       let result;
