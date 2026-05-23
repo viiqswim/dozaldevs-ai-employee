@@ -89,16 +89,18 @@ DO NOT include in instructions:
 - JSON format details or output contract specifics
 - Shell commands or technical tool invocations
 - Any internal implementation details
+- Output/reporting instructions (file paths, output format, /tmp/ references) — the platform injects these at runtime
 
-Those technical details belong exclusively in \`agents_md\`.
+Those technical details are handled by the platform automatically and must NOT appear in instructions OR agents_md.
 
 ## agents_md Structure (follow this exactly)
 The agents_md field is the employee's brain. It MUST include these sections:
 1. **Opening sentence** — "You are [role description]."
 2. **WORKFLOW section** — numbered steps (1, 2, 3...) describing the exact procedure
 3. **CLASSIFICATION RULES section** — when to use NO_ACTION_NEEDED vs NEEDS_APPROVAL vs APPROVED
-4. **OUTPUT FORMAT section** — what to write to /tmp/summary.txt (technical details go HERE, not in instructions)
-5. **TOOLS AVAILABLE section** — list the shell tools the employee uses
+4. **TOOLS AVAILABLE section** — list the shell tools the employee uses
+
+CRITICAL: Do NOT include any output reporting section or /tmp/ file path instructions in agents_md. The platform injects output handling at runtime automatically.
 
 Example agents_md structure:
 \`\`\`
@@ -108,19 +110,11 @@ WORKFLOW:
 1. [First step with specific actions]
 2. [Second step with specific actions]
 3. [Continue as needed...]
-N. Write your results to /tmp/summary.txt in JSON format.
 
 CLASSIFICATION RULES:
 - Write NO_ACTION_NEEDED if [condition with no work needed]
 - Write NEEDS_APPROVAL if [condition requiring human review]
 - Use confidence 0.9
-
-OUTPUT FORMAT:
-Write to /tmp/summary.txt:
-{ "classification": "NEEDS_APPROVAL", "confidence": 0.9, "summary": "...", "details": {...} }
-
-Also write to /tmp/approval-message.json:
-{ "message": "..." }
 
 TOOLS AVAILABLE TO YOU:
 - [Tool category]: [tool description]
@@ -135,7 +129,7 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "runtime": "opencode",
   "system_prompt": "",
   "instructions": "Human-readable description of WHAT the employee does, using {{key}} placeholders for runtime inputs. At minimum 3 concrete steps. No file paths, no JSON format details, no shell commands.",
-  "agents_md": "50-200 lines of structured markdown with WORKFLOW, CLASSIFICATION RULES, OUTPUT FORMAT (including /tmp/summary.txt and /tmp/approval-message.json paths), TOOLS sections",
+  "agents_md": "50-200 lines of structured markdown with WORKFLOW, CLASSIFICATION RULES, TOOLS sections. Do NOT include output format or /tmp/ file path instructions — the platform injects output handling at runtime.",
   "delivery_instructions": null,
   "deliverable_type": "slack_message",
   "input_schema": [

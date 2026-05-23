@@ -21,20 +21,18 @@ function makeValidJsonContent(overrides: Record<string, unknown> = {}): string {
     model: 'minimax/minimax-m2.7',
     runtime: 'opencode',
     system_prompt: '',
-    instructions: 'Step 1: fetch data.\nStep 2: process.\nStep 3: write to /tmp/summary.txt',
+    instructions:
+      'Step 1: fetch data.\nStep 2: process.\nStep 3: compose the final digest message.',
     agents_md: [
       'You are a daily digest bot.',
       '',
       'WORKFLOW:',
       '1. Fetch data.',
       '2. Summarize.',
-      'N. Write results to /tmp/summary.txt',
+      '3. Compose the final digest message.',
       '',
       'CLASSIFICATION RULES:',
       '- Write NO_ACTION_NEEDED if no data.',
-      '',
-      'OUTPUT FORMAT:',
-      'Write to /tmp/summary.txt: { "classification": "..." }',
       '',
       'TOOLS AVAILABLE TO YOU:',
       '- Slack: post message',
@@ -218,6 +216,41 @@ describe('ArchetypeGenerator', () => {
       await expect(gen.refine(previousConfig, 'Change something')).rejects.toThrow(
         'GENERATION_FAILED',
       );
+    });
+  });
+
+  describe('SYSTEM_PROMPT content', () => {
+    it('does not teach output contract instructions in agents_md example', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      await gen.generate('A daily Slack digest bot');
+      const systemMessage = (
+        mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
+      ).messages.find((m) => m.role === 'system');
+      expect(systemMessage).toBeDefined();
+      expect(systemMessage!.content).not.toMatch(/N\.\s+Write.*\/tmp\/summary\.txt/);
+      expect(systemMessage!.content).not.toMatch(/OUTPUT FORMAT/);
+      expect(systemMessage!.content).not.toContain(
+        '/tmp/summary.txt and /tmp/approval-message.json paths',
+      );
+    });
+
+    it('explicitly forbids output instructions in agents_md', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      await gen.generate('A daily Slack digest bot');
+      const systemMessage = (
+        mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
+      ).messages.find((m) => m.role === 'system');
+      expect(systemMessage).toBeDefined();
+      // The SYSTEM_PROMPT must contain an explicit rule telling the LLM not to include output instructions
+      const content = systemMessage!.content;
+      const hasExclusionRule =
+        (content.includes('platform') &&
+          (content.includes('injects') || content.includes('handles'))) ||
+        /DO NOT include.*output/i.test(content) ||
+        /output.*platform.*runtime/i.test(content);
+      expect(hasExclusionRule).toBe(true);
     });
   });
 });
