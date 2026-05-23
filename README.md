@@ -75,17 +75,18 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
 
-| Method   | Path                                               | Description                        |
-| -------- | -------------------------------------------------- | ---------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project             |
-| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                  |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project               |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                   |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                   |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee    |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                    |
-| `GET`    | `/admin/tools`                                     | List all shell tools with metadata |
-| `GET`    | `/admin/tools/:service/:toolName`                  | Get metadata for a single tool     |
+| Method   | Path                                               | Description                                         |
+| -------- | -------------------------------------------------- | --------------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project                              |
+| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                                   |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project                                |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                                    |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                                    |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee                     |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                                     |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`          | Stream task execution logs (SSE, local Docker only) |
+| `GET`    | `/admin/tools`                                     | List all shell tools with metadata                  |
+| `GET`    | `/admin/tools/:service/:toolName`                  | Get metadata for a single tool                      |
 
 **Create a project:**
 
