@@ -357,6 +357,7 @@ export interface ModelCatalogEntry {
   throughput_tokens_per_sec: number | null;
   latency_seconds: number | null;
   tool_call_error_rate: number | null;
+  structured_output_error_rate: number | null;
   quality_index: number | null;
   agentic_score: number | null;
   tool_use_score: number | null;
