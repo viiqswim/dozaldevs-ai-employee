@@ -1,7 +1,15 @@
 import { useCallback, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import {
+  ArrowLeft,
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  Copy,
+  Check,
+} from 'lucide-react';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
@@ -171,6 +179,36 @@ function CollapsibleJsonViewer({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function CommandRow({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(command).then(() => {
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <code className="flex-1 rounded bg-muted px-3 py-1.5 font-mono text-xs text-muted-foreground">
+        {command}
+      </code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+        title="Copy to clipboard"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-green-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+      </button>
     </div>
   );
 }
@@ -427,6 +465,19 @@ export function TaskDetail() {
           <p className="text-sm text-muted-foreground italic">No execution data</p>
         )}
       </div>
+
+      {execution && !isAutoPass && (
+        <div className="rounded-lg border bg-card px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Container Commands</h2>
+            <span className="text-xs text-muted-foreground">Local development only</span>
+          </div>
+          <div className="space-y-2">
+            <CommandRow command={`docker logs -f employee-${taskId?.slice(0, 8)}`} />
+            <CommandRow command={`tail -f /tmp/employee-${taskId?.slice(0, 8)}.log`} />
+          </div>
+        </div>
+      )}
 
       {showDeliverable && (
         <div className="rounded-lg border bg-card p-6 space-y-4" data-testid="deliverable-content">
