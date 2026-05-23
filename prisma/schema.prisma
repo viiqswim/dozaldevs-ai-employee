@@ -394,8 +394,7 @@ model Tenant {
   propertyLocks         PropertyLock[]
   feedbackEvents        FeedbackEvent[]
   employeeRules         EmployeeRule[]
-  modelCatalog          ModelCatalog[]
-  taskMetrics           TaskMetric[]
+   taskMetrics           TaskMetric[]
 
   @@map("tenants")
 }
@@ -540,7 +539,6 @@ model EmployeeRule {
 
 model ModelCatalog {
   id                          String    @id @default(uuid()) @db.Uuid
-  tenant_id                   String    @db.Uuid
   model_id                    String    // e.g. "minimax/minimax-m2.7"
   display_name                String
   provider                    String
@@ -566,11 +564,7 @@ model ModelCatalog {
   updated_at                  DateTime  @updatedAt
   deleted_at                  DateTime?
 
-  // Relations
-  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
-
-  @@unique([tenant_id, model_id])
-  @@index([tenant_id])
+  @@unique([model_id])
   @@map("model_catalog")
 }
 

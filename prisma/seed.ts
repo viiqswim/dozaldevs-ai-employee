@@ -4186,15 +4186,10 @@ Post the motivational message to the team Slack channel.`,
   console.log(`✅ PropertyLock upserted: ${propertyLockCount} records for VLRE tenant`);
 
   // ─── Model Catalog ───────────────────────────────────────────────────────────
-  // Seed 3 models per tenant (6 rows total). Benchmark data sourced from:
+  // Global catalog (no tenant_id): 3 models. Benchmark data sourced from:
   //   - Artificial Analysis leaderboard (artificialanalysis.ai/leaderboards/models)
   //   - OpenRouter model pages (openrouter.ai/<model-id>)
   // Fetched: 2026-05-21
-
-  const TENANT_IDS = [
-    '00000000-0000-0000-0000-000000000002', // DozalDevs
-    '00000000-0000-0000-0000-000000000003', // VLRE
-  ];
 
   const MODEL_CATALOG_ENTRIES = [
     {
@@ -4281,18 +4276,16 @@ Post the motivational message to the team Slack channel.`,
   ];
 
   let modelCatalogCount = 0;
-  for (const tenantId of TENANT_IDS) {
-    for (const entry of MODEL_CATALOG_ENTRIES) {
-      await prisma.modelCatalog.upsert({
-        where: { tenant_id_model_id: { tenant_id: tenantId, model_id: entry.model_id } },
-        create: { ...entry, tenant_id: tenantId },
-        update: entry,
-      });
-      modelCatalogCount++;
-    }
+  for (const entry of MODEL_CATALOG_ENTRIES) {
+    await prisma.modelCatalog.upsert({
+      where: { model_id: entry.model_id },
+      create: entry,
+      update: entry,
+    });
+    modelCatalogCount++;
   }
 
-  console.log(`✅ ModelCatalog upserted: ${modelCatalogCount} records (3 models × 2 tenants)`);
+  console.log(`✅ ModelCatalog upserted: ${modelCatalogCount} models (global)`);
 
   console.log('✅ Seeding complete.');
   console.log(
