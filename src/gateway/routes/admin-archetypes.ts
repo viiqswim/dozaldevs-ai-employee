@@ -263,7 +263,6 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         return;
       }
 
-      const { tenantId: _tenantId } = paramResult.data;
       const { archetype, userAnswers } = bodyResult.data;
 
       try {
