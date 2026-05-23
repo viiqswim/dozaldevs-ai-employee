@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { GATEWAY_URL } from '../lib/constants';
 import { getAdminApiKey } from '../lib/gateway';
+import { parseLine, type ParsedLogEntry } from '../lib/log-parser';
 
 export interface UseExecutionLogsResult {
-  lines: string[];
+  entries: ParsedLogEntry[];
+  rawLines: string[];
   loading: boolean;
   error: string | null;
   completed: boolean;
@@ -14,7 +16,8 @@ export function useExecutionLogs(
   tenantId: string,
   enabled: boolean,
 ): UseExecutionLogsResult {
-  const [lines, setLines] = useState<string[]>([]);
+  const [entries, setEntries] = useState<ParsedLogEntry[]>([]);
+  const [rawLines, setRawLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -29,7 +32,8 @@ export function useExecutionLogs(
       return;
     }
 
-    setLines([]);
+    setEntries([]);
+    setRawLines([]);
     setLoading(true);
     setError(null);
     setCompleted(false);
@@ -89,7 +93,9 @@ export function useExecutionLogs(
               try {
                 const parsed = JSON.parse(dataMatch[1]) as { line?: string };
                 if (parsed.line !== undefined) {
-                  setLines((prev) => [...prev, parsed.line as string]);
+                  const raw = parsed.line as string;
+                  setRawLines((prev) => [...prev, raw]);
+                  setEntries((prev) => [...prev, parseLine(raw)]);
                 }
               } catch (_) {
                 void _;
@@ -114,5 +120,5 @@ export function useExecutionLogs(
     };
   }, [enabled, taskId, tenantId]);
 
-  return { lines, loading, error, completed };
+  return { entries, rawLines, loading, error, completed };
 }
