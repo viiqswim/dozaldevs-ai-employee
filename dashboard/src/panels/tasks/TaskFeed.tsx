@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Table,
@@ -15,7 +15,7 @@ import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { TERMINAL_STATUSES } from '@/lib/constants';
-import { formatRelativeTime, formatDuration, formatMinutesSaved } from '@/lib/utils';
+import { formatRelativeTime, formatDuration, formatMinutesSaved, formatCostUsd } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 import { StatusBadge } from './StatusBadge';
 
@@ -59,6 +59,37 @@ export function TaskFeed() {
   const dateTo = searchParams.get('to') ?? '';
   const [archetypes, setArchetypes] = useState<{ id: string; role_name: string | null }[]>([]);
 
+  const { defaultDateFrom, defaultDateTo } = useMemo(() => {
+    const from = new Date();
+    from.setDate(from.getDate() - 30);
+    return {
+      defaultDateFrom: from.toISOString().slice(0, 10),
+      defaultDateTo: new Date().toISOString().slice(0, 10),
+    };
+  }, []);
+
+  const effectiveDateFrom = dateFrom || defaultDateFrom;
+  const effectiveDateTo = dateTo || defaultDateTo;
+
+  const initialized = useRef(false);
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    const hasFrom = searchParams.has('from');
+    const hasTo = searchParams.has('to');
+    if (!hasFrom || !hasTo) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (!hasFrom) next.set('from', defaultDateFrom);
+          if (!hasTo) next.set('to', defaultDateTo);
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [searchParams, setSearchParams, defaultDateFrom, defaultDateTo]);
+
   const setStatusFilter = (value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set('status', value);
@@ -95,38 +126,59 @@ export function TaskFeed() {
   }, [tenantId]);
 
   const fetchTasks = useCallback(() => {
-    const hasFilter = !!(statusFilter || employeeFilter || dateFrom || dateTo);
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
       select: '*,archetypes(role_name,model),executions(estimated_cost_usd)',
       order: 'created_at.desc',
-      limit: hasFilter ? '100' : '50',
+      created_at: `gte.${effectiveDateFrom}T00:00:00`,
+      limit: 'none',
     };
     if (statusFilter) params.status = `eq.${statusFilter}`;
     if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
-    if (dateFrom) params.created_at = `gte.${dateFrom}T00:00:00`;
     return postgrestFetch<Task>('tasks', params);
-  }, [tenantId, statusFilter, employeeFilter, dateFrom, dateTo]);
+  }, [tenantId, statusFilter, employeeFilter, effectiveDateFrom]);
 
   const { data: rawTasks, error, loading, refresh } = usePoll(fetchTasks);
-
-  const fetchTenantMetrics = useCallback(
-    () =>
-      postgrestFetch<{ minutes_saved: number }>('task_metrics', {
-        ...scopeByTenant(tenantId),
-        select: 'minutes_saved',
-      }),
-    [tenantId],
-  );
+  const fetchTenantMetrics = useCallback(() => {
+    const params: Record<string, string> = {
+      ...scopeByTenant(tenantId),
+      select: 'minutes_saved,created_at',
+      limit: 'none',
+    };
+    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
+    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
+    return postgrestFetch<{ minutes_saved: number; created_at: string }>('task_metrics', params);
+  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
   const { data: tenantMetrics } = usePoll(fetchTenantMetrics);
 
-  const totalMinutesSaved = tenantMetrics?.reduce((sum, m) => sum + m.minutes_saved, 0) ?? 0;
-  const tasksCompleted = tenantMetrics?.length ?? 0;
+  const fetchTenantCosts = useCallback(() => {
+    const params: Record<string, string> = {
+      ...scopeByTenant(tenantId),
+      select: 'created_at,executions(estimated_cost_usd)',
+      limit: 'none',
+    };
+    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
+    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
+    return postgrestFetch<{
+      created_at: string;
+      executions: { estimated_cost_usd: number | null }[];
+    }>('tasks', params);
+  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
+  const { data: tenantCosts } = usePoll(fetchTenantCosts);
 
-  const tasks = rawTasks?.filter((task) => {
-    if (dateTo && task.created_at.slice(0, 10) > dateTo) return false;
-    return true;
-  });
+  const filteredMetrics = tenantMetrics?.filter(
+    (m) => m.created_at.slice(0, 10) <= effectiveDateTo,
+  );
+  const totalMinutesSaved = filteredMetrics?.reduce((sum, m) => sum + m.minutes_saved, 0) ?? 0;
+  const tasksCompleted = filteredMetrics?.length ?? 0;
+
+  const filteredCosts = tenantCosts?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo);
+  const totalCostUsd =
+    filteredCosts?.reduce((sum, t) => sum + (t.executions?.[0]?.estimated_cost_usd ?? 0), 0) ?? 0;
+  const costPerHourSaved =
+    totalMinutesSaved > 0 && totalCostUsd > 0 ? totalCostUsd / (totalMinutesSaved / 60) : 0;
+
+  const tasks = rawTasks?.filter((task) => task.created_at.slice(0, 10) <= effectiveDateTo);
 
   const employeeOptions = [
     { value: '', label: 'All Employees' },
@@ -188,6 +240,16 @@ export function TaskFeed() {
           className="flex-1"
         />
         <StatCard label="Tasks Completed" value={String(tasksCompleted)} className="flex-1" />
+        <StatCard
+          label="Total Employee Cost"
+          value={formatCostUsd(totalCostUsd)}
+          className="flex-1"
+        />
+        <StatCard
+          label="Employee Hourly Rate"
+          value={formatCostUsd(costPerHourSaved)}
+          className="flex-1"
+        />
       </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
@@ -214,7 +276,7 @@ export function TaskFeed() {
           <label className="text-xs text-muted-foreground">From</label>
           <input
             type="date"
-            value={dateFrom}
+            value={effectiveDateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="rounded-md border bg-background px-3 py-1.5 text-sm"
           />
@@ -223,7 +285,7 @@ export function TaskFeed() {
           <label className="text-xs text-muted-foreground">To</label>
           <input
             type="date"
-            value={dateTo}
+            value={effectiveDateTo}
             onChange={(e) => setDateTo(e.target.value)}
             className="rounded-md border bg-background px-3 py-1.5 text-sm"
           />

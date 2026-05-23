@@ -14,6 +14,7 @@ export async function postgrestFetch<T>(
   };
 
   const merged = { ...defaultParams, ...params };
+  if (merged.limit === 'none') delete merged.limit;
   const searchParams = new URLSearchParams(merged);
   const url = `${POSTGREST_URL}/${table}?${searchParams.toString()}`;
 
