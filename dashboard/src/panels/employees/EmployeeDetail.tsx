@@ -82,7 +82,7 @@ export function EmployeeDetail() {
   useEffect(() => {
     let cancelled = false;
     setCatalogLoading(true);
-    listModelCatalog(tenantId)
+    listModelCatalog()
       .then((models) => {
         if (cancelled) return;
         setCatalogModels(models);
