@@ -13,9 +13,9 @@ Two categories of model use exist in this codebase. Each has its own rule.
 | **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`. |
 | **Verification/judge** (gateway calls) | `anthropic/claude-haiku-4-5`                            | Hardcoded in `call-llm.ts`. Never change this.                                                      |
 
-**Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/tenants/:tenantId/model-catalog`.
+**Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global — not tenant-scoped).
 
-**Seeded catalog models (both tenants):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
+**Seeded catalog models (global):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
@@ -198,10 +198,10 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `GET /admin/tenants/:tenantId/tasks/:id` — check task status (tenant-scoped, 404 on cross-tenant access)
 - `GET /admin/tools` — list all available shell tools with parsed metadata (description, flags, env vars, output shape, SKILL.md enrichment)
 - `GET /admin/tools/:service/:toolName` — get full metadata for a single tool
-- `GET /admin/tenants/:tenantId/model-catalog` — list active catalog models (`?include_inactive=true` for all)
-- `POST /admin/tenants/:tenantId/model-catalog` — add model to catalog
-- `PATCH /admin/tenants/:tenantId/model-catalog/:id` — update catalog entry
-- `DELETE /admin/tenants/:tenantId/model-catalog/:id` — soft-delete catalog entry
+- `GET /admin/model-catalog` — list active catalog models (`?include_inactive=true` for all)
+- `POST /admin/model-catalog` — add model to catalog
+- `PATCH /admin/model-catalog/:id` — update catalog entry
+- `DELETE /admin/model-catalog/:id` — soft-delete catalog entry
 - `GET /admin/tenants/:tenantId/archetypes/model-questions` — returns the 3 plain-language recommendation questions
 - `POST /admin/tenants/:tenantId/archetypes/recommend-model` — accepts archetype draft + user answers, returns top-3 ranked model recommendations
 
