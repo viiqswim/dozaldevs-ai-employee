@@ -17,6 +17,7 @@ import { RulesPanel } from './panels/rules/RulesPanel';
 import { ToolList } from './panels/tools/ToolList';
 import { ToolDetail } from './panels/tools/ToolDetail';
 import { ModelCatalogPage } from './pages/ModelCatalogPage';
+import { TaskLogsPage } from './pages/TaskLogsPage';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/dashboard" element={<TaskFeed />} />
               <Route path="/dashboard/tasks" element={<TaskFeed />} />
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
+              <Route path="/dashboard/tasks/:taskId/logs" element={<TaskLogsPage />} />
               <Route path="/dashboard/employees" element={<EmployeeList />} />
               <Route path="/dashboard/employees/new" element={<CreateEmployeePage />} />
               <Route path="/dashboard/employees/:archetypeId/edit" element={<EditEmployeePage />} />
