@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useTenant } from '@/hooks/use-tenant';
 import {
   listModelCatalog,
   createModelCatalogEntry,
@@ -160,7 +159,7 @@ function parseOptionalFloat(val: string): number | null {
 
 function formToPayload(
   form: ModelForm,
-): Omit<ModelCatalogEntry, 'id' | 'tenant_id' | 'created_at' | 'updated_at'> {
+): Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'> {
   return {
     model_id: form.model_id.trim(),
     display_name: form.display_name.trim(),
@@ -490,7 +489,6 @@ function ModelFormDialog({ open, onClose, onSave, initial, title, saving }: Mode
 }
 
 export function ModelCatalogPage() {
-  const { tenantId } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [models, setModels] = useState<ModelCatalogEntry[] | null>(null);
@@ -566,13 +564,13 @@ export function ModelCatalogPage() {
   const load = useCallback(() => {
     setLoading(true);
     setLoadError(null);
-    listModelCatalog(tenantId)
+    listModelCatalog()
       .then(setModels)
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err : new Error(String(err)));
       })
       .finally(() => setLoading(false));
-  }, [tenantId]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -604,7 +602,7 @@ export function ModelCatalogPage() {
   const handleAdd = async (form: ModelForm) => {
     setSaving(true);
     try {
-      await createModelCatalogEntry(tenantId, formToPayload(form));
+      await createModelCatalogEntry(formToPayload(form));
       toast.success('Model added');
       closeAll();
       load();
@@ -619,7 +617,7 @@ export function ModelCatalogPage() {
     if (!editingId) return;
     setSaving(true);
     try {
-      await updateModelCatalogEntry(tenantId, editingId, formToPayload(form));
+      await updateModelCatalogEntry(editingId, formToPayload(form));
       toast.success('Model updated');
       closeAll();
       load();
@@ -632,7 +630,7 @@ export function ModelCatalogPage() {
 
   const handleToggleActive = async (entry: ModelCatalogEntry) => {
     try {
-      await updateModelCatalogEntry(tenantId, entry.id, { is_active: !entry.is_active });
+      await updateModelCatalogEntry(entry.id, { is_active: !entry.is_active });
       toast.success(entry.is_active ? 'Model deactivated' : 'Model activated');
       load();
     } catch (err) {
@@ -644,7 +642,7 @@ export function ModelCatalogPage() {
     if (!removingId) return;
     setSaving(true);
     try {
-      await deleteModelCatalogEntry(tenantId, removingId);
+      await deleteModelCatalogEntry(removingId);
       toast.success('Model removed');
       closeAll();
       load();

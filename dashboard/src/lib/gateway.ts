@@ -323,36 +323,34 @@ export async function fetchSlackChannels(
   return body as { channels: SlackChannel[]; error?: string };
 }
 
-export async function listModelCatalog(tenantId: string): Promise<ModelCatalogEntry[]> {
+export async function listModelCatalog(): Promise<ModelCatalogEntry[]> {
   const data = await gatewayFetch<{ models: ModelCatalogEntry[] } | ModelCatalogEntry[]>(
-    `/admin/tenants/${tenantId}/model-catalog`,
+    `/admin/model-catalog`,
   );
   return Array.isArray(data) ? data : ((data as { models: ModelCatalogEntry[] }).models ?? []);
 }
 
 export async function createModelCatalogEntry(
-  tenantId: string,
-  payload: Omit<ModelCatalogEntry, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>,
+  payload: Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'>,
 ): Promise<ModelCatalogEntry> {
-  return gatewayFetch<ModelCatalogEntry>(`/admin/tenants/${tenantId}/model-catalog`, {
+  return gatewayFetch<ModelCatalogEntry>(`/admin/model-catalog`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
 export async function updateModelCatalogEntry(
-  tenantId: string,
   id: string,
-  payload: Partial<Omit<ModelCatalogEntry, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>,
+  payload: Partial<Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'>>,
 ): Promise<ModelCatalogEntry> {
-  return gatewayFetch<ModelCatalogEntry>(`/admin/tenants/${tenantId}/model-catalog/${id}`, {
+  return gatewayFetch<ModelCatalogEntry>(`/admin/model-catalog/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }
 
-export async function deleteModelCatalogEntry(tenantId: string, id: string): Promise<void> {
-  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/model-catalog/${id}`, {
+export async function deleteModelCatalogEntry(id: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/model-catalog/${id}`, {
     method: 'DELETE',
   });
 }

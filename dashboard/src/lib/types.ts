@@ -366,7 +366,6 @@ export interface ModelCatalogEntry {
   supports_structured_output: boolean;
   is_active: boolean;
   notes: string | null;
-  tenant_id: string;
   created_at: string;
   updated_at: string;
 }
