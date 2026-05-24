@@ -78,7 +78,7 @@ async function logStatusTransition(
   }
 }
 
-async function recordTimeSavedMetric(
+async function recordWorkMetric(
   supabaseUrl: string,
   headers: Record<string, string>,
   taskId: string,
@@ -107,7 +107,7 @@ async function recordTimeSavedMetric(
       task_id: taskId,
       archetype_id: archetypeId,
       tenant_id: tenantId,
-      minutes_saved: effectiveMinutes,
+      work_minutes: effectiveMinutes,
     }),
   });
   if (!metricsRes.ok) {
@@ -245,11 +245,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 'Pre-check: last message from host — skipping (no worker, no notification)',
               );
             });
-            await step.run('record-time-saved-metric-precheck', async () => {
+            await step.run('record-work-metric-precheck', async () => {
               try {
-                await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+                await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
               } catch (err) {
-                log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+                log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
               }
             });
             return;
@@ -899,11 +899,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             );
           }
         });
-        await step.run('record-time-saved-metric-no-approval', async () => {
+        await step.run('record-work-metric-no-approval', async () => {
           try {
-            await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
           } catch (err) {
-            log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+            log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
           }
         });
         await step.run('cleanup-no-approval', async () => {
@@ -1125,11 +1125,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn({ taskId, err }, 'Failed to update Slack on no-action timeout (non-fatal)');
             }
           });
-          await step.run('record-time-saved-metric-no-action', async () => {
+          await step.run('record-work-metric-no-action', async () => {
             try {
-              await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+              await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
             } catch (err) {
-              log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+              log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
             }
           });
           return;
@@ -1177,11 +1177,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               log.warn({ taskId, err }, 'Failed to update Slack on override dismiss (non-fatal)');
             }
           });
-          await step.run('record-time-saved-metric-override-dismissed', async () => {
+          await step.run('record-work-metric-override-dismissed', async () => {
             try {
-              await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+              await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
             } catch (err) {
-              log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+              log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
             }
           });
           return;
@@ -2596,7 +2596,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         'Step complete: handle-approval-result',
       );
 
-      await step.run('record-time-saved-metric-approval', async () => {
+      await step.run('record-work-metric-approval', async () => {
         try {
           const taskStatusRes = await fetch(
             `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
@@ -2604,10 +2604,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           );
           const taskStatusRows = (await taskStatusRes.json()) as Array<{ status: string }>;
           if (taskStatusRows[0]?.status === 'Done') {
-            await recordTimeSavedMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
           }
         } catch (err) {
-          log.warn({ err, taskId }, 'Failed to record time-saved metric — non-fatal');
+          log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
         }
       });
 

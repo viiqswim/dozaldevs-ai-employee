@@ -32,7 +32,7 @@ export function formatDuration(startStr: string, endStr: string): string {
   return `${Math.floor(diffMin / 60)}h ${diffMin % 60}m`;
 }
 
-export function formatMinutesSaved(totalMinutes: number | null | undefined): string {
+export function formatWorkMinutes(totalMinutes: number | null | undefined): string {
   if (totalMinutes == null || totalMinutes === 0) return '—';
   if (totalMinutes < 60) return `${totalMinutes} min`;
   const hours = Math.floor(totalMinutes / 60);

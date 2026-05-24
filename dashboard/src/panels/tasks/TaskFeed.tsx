@@ -15,7 +15,7 @@ import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { TERMINAL_STATUSES } from '@/lib/constants';
-import { formatRelativeTime, formatDuration, formatMinutesSaved, formatCostUsd } from '@/lib/utils';
+import { formatRelativeTime, formatDuration, formatWorkMinutes, formatCostUsd } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 import { StatusBadge } from './StatusBadge';
 
@@ -142,12 +142,12 @@ export function TaskFeed() {
   const fetchTenantMetrics = useCallback(() => {
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
-      select: 'minutes_saved,created_at',
+      select: 'work_minutes,created_at',
       limit: 'none',
     };
     if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
     if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
-    return postgrestFetch<{ minutes_saved: number; created_at: string }>('task_metrics', params);
+    return postgrestFetch<{ work_minutes: number; created_at: string }>('task_metrics', params);
   }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
   const { data: tenantMetrics } = usePoll(fetchTenantMetrics);
 
@@ -169,14 +169,14 @@ export function TaskFeed() {
   const filteredMetrics = tenantMetrics?.filter(
     (m) => m.created_at.slice(0, 10) <= effectiveDateTo,
   );
-  const totalMinutesSaved = filteredMetrics?.reduce((sum, m) => sum + m.minutes_saved, 0) ?? 0;
+  const totalWorkMinutes = filteredMetrics?.reduce((sum, m) => sum + m.work_minutes, 0) ?? 0;
   const tasksCompleted = filteredMetrics?.length ?? 0;
 
   const filteredCosts = tenantCosts?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo);
   const totalCostUsd =
     filteredCosts?.reduce((sum, t) => sum + (t.executions?.[0]?.estimated_cost_usd ?? 0), 0) ?? 0;
-  const costPerHourSaved =
-    totalMinutesSaved > 0 && totalCostUsd > 0 ? totalCostUsd / (totalMinutesSaved / 60) : 0;
+  const costPerWorkHour =
+    totalWorkMinutes > 0 && totalCostUsd > 0 ? totalCostUsd / (totalWorkMinutes / 60) : 0;
 
   const tasks = rawTasks?.filter((task) => task.created_at.slice(0, 10) <= effectiveDateTo);
 
@@ -235,8 +235,8 @@ export function TaskFeed() {
     <div className="p-6">
       <div className="mb-4 flex gap-4">
         <StatCard
-          label="Total Time Saved"
-          value={formatMinutesSaved(totalMinutesSaved)}
+          label="Hours of Work Done"
+          value={formatWorkMinutes(totalWorkMinutes)}
           className="flex-1"
         />
         <StatCard label="Tasks Completed" value={String(tasksCompleted)} className="flex-1" />
@@ -247,7 +247,7 @@ export function TaskFeed() {
         />
         <StatCard
           label="Employee Hourly Rate"
-          value={formatCostUsd(costPerHourSaved)}
+          value={formatCostUsd(costPerWorkHour)}
           className="flex-1"
         />
       </div>
