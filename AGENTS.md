@@ -253,7 +253,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **ORM**: Prisma — `prisma/schema.prisma`; **REST API**: Supabase PostgREST on `http://localhost:54331`
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
-- **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, minutes_saved, created_at` — one row per task, records time saved vs manual effort.
+- **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -506,7 +506,7 @@ Example for a lifecycle metric step:
 # Trigger a task, wait for Done, then verify:
 psql postgresql://postgres:postgres@localhost:54322/ai_employee \
   -c "SELECT * FROM task_metrics WHERE task_id = '<task_id>';"
-# Expected: 1 row with minutes_saved > 0 — NOT 0 rows
+# Expected: 1 row with work_minutes > 0 — NOT 0 rows
 ```
 
 ### Dashboard UI Must Show Real Data
@@ -577,10 +577,10 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 
 # 2. Confirm task_metrics row was written
 psql postgresql://postgres:postgres@localhost:54322/ai_employee \
-  -c "SELECT minutes_saved FROM task_metrics WHERE task_id = '$TASK_ID';"
-# Expected: 1 row, minutes_saved = 15
+  -c "SELECT work_minutes FROM task_metrics WHERE task_id = '$TASK_ID';"
+# Expected: 1 row, work_minutes = 15
 
-# 3. Load the dashboard and confirm "Total Time Saved" is non-zero
+# 3. Load the dashboard and confirm "Hours of Work Done" is non-zero
 # http://localhost:7701/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
 ```
 
