@@ -877,7 +877,7 @@ async function main(): Promise<void> {
   // Cheap models sometimes stop early (doom_loop, short sessions) without reading the end of the prompt.
   // Wrapping ensures the instruction is seen first AND last.
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;
-  const submitOutputPreamble = `MANDATORY FINAL STEP: No matter what happens, your LAST action MUST be to run:\n${submitOutputCmd}\nThe task is marked Failed if you skip this — even if you completed the work.\n\n`;
+  const submitOutputPreamble = `MANDATORY FINAL STEP: No matter what happens, your LAST action MUST be to run:\n${submitOutputCmd}\nThe task is marked Failed if you skip this — even if you completed the work.\n\nAVAILABLE ENVIRONMENT VARIABLES (injected by platform):\n- $NOTIFICATION_CHANNEL — Slack channel ID for posting messages (use with: NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "...")\n- $TASK_ID — current task UUID\n- $SLACK_BOT_TOKEN — Slack bot token (auto-used by slack tools)\n\n`;
   const submitOutputSuffix = `\n\n---\nREMINDER — MANDATORY FINAL STEP: Run this before ending the session:\n${submitOutputCmd}`;
   const instructionsWithSubmitOutput =
     submitOutputPreamble + resolvedInstructions + submitOutputSuffix;
