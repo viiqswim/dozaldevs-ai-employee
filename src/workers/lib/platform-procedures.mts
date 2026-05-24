@@ -21,7 +21,9 @@ CLASSIFICATION:
 REQUIRED final step:
 tsx /tools/platform/submit-output.ts \\
   --summary "<one-sentence description of what you did>" \\
-  --classification "NEEDS_APPROVAL"`;
+  --classification "NEEDS_APPROVAL"
+
+If any error occurs and you cannot complete your primary task, you MUST still call submit-output. Use classification "NEEDS_APPROVAL" and describe the error in the summary. Never end the session without calling submit-output — absence is a hard failure.`;
   }
 
   return `## How to Complete Your Work
@@ -34,5 +36,7 @@ CLASSIFICATION:
 REQUIRED final step:
 tsx /tools/platform/submit-output.ts \\
   --summary "<one-sentence description of what you did>" \\
-  --classification "NO_ACTION_NEEDED"`;
+  --classification "NO_ACTION_NEEDED"
+
+If any error occurs and you cannot complete your primary task, you MUST still call submit-output. Use classification "NEEDS_APPROVAL" and describe the error in the summary. Never end the session without calling submit-output — absence is a hard failure.`;
 }

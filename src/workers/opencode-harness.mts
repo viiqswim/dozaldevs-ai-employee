@@ -848,6 +848,11 @@ async function main(): Promise<void> {
     if (archetype.agents_md) {
       archetype.agents_md = substituteTemplateVars(archetype.agents_md, templateVars);
     }
+    // Build approval-aware closing reminder — appended as final section in AGENTS.md
+    const closingClassification = approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED';
+    const closingSections = [
+      `## CRITICAL — Submit Output Before Session Ends\n\nYour task is NOT complete until you call \`submit-output\`. After finishing your primary work, run:\n\ntsx /tools/platform/submit-output.ts --summary "<what you did>" --classification "${closingClassification}"\n\nIf you skip this step, your task will be marked as Failed even if you completed the work successfully.`,
+    ];
     const agentsMdContent = resolveAgentsMd(
       platformContent,
       tenantConfig,
@@ -855,6 +860,7 @@ async function main(): Promise<void> {
       employeeRules,
       employeeKnowledge,
       platformRuntimeSections,
+      closingSections, // NEW — appended as final section
     );
     await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
     log.info('Wrote concatenated AGENTS.md (platform + tenant + archetype)');

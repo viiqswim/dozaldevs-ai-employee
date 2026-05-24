@@ -6,6 +6,7 @@
  * 4. archetype.agents_md (if non-empty)
  * 5. employeeRules (if non-empty) — learned behavioral rules from feedback pipeline
  * 6. employeeKnowledge (if non-empty) — employee knowledge base content
+ * 7. closingSections (if provided) — final reminders appended last
  */
 export function resolveAgentsMd(
   platformContent: string,
@@ -14,6 +15,7 @@ export function resolveAgentsMd(
   employeeRules?: string,
   employeeKnowledge?: string,
   platformRuntimeSections?: string[],
+  closingSections?: string[],
 ): string {
   const sections: string[] = [];
   sections.push(`# Platform Policy\n\n${platformContent}`);
@@ -33,6 +35,9 @@ export function resolveAgentsMd(
   }
   if (employeeKnowledge != null && employeeKnowledge.trim().length > 0) {
     sections.push(`# Employee Knowledge\n\n${employeeKnowledge}`);
+  }
+  if (closingSections && closingSections.length > 0) {
+    sections.push(`# Final Reminders\n\n${closingSections.join('\n\n')}`);
   }
   return sections.join('\n\n');
 }
