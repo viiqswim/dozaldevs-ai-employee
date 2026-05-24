@@ -749,11 +749,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   defaultChannel: '',
                 });
                 const failText = `❌ Task failed`;
+                const taskForFailReason = await fetch(
+                  `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=failure_reason`,
+                  { headers },
+                );
+                const taskForFailReasonData = taskForFailReason.ok
+                  ? ((await taskForFailReason.json()) as Array<{ failure_reason: string | null }>)
+                  : [];
+                const failureReason = taskForFailReasonData[0]?.failure_reason ?? undefined;
                 const notifyFailedBlocks = notifyBlocks({
                   state: 'Failed',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
                   enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
                   emoji: '❌',
+                  extraText: failureReason,
                 });
                 await slackForFail.updateMessage(
                   notifyMsgRef.channel,
@@ -831,7 +840,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   notifyMsgRef.channel,
                   notifyMsgRef.ts,
                   doneText,
-                  notifyStateBlocks({ emoji: '✅', text: 'Task complete' }),
+                  notifyBlocks({
+                    state: 'Task complete',
+                    archetypeName: (archetype.role_name as string) ?? 'unknown',
+                    enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+                    emoji: '✅',
+                  }),
                 );
               }
             } catch (err) {
