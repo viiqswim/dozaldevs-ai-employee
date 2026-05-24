@@ -873,8 +873,13 @@ async function main(): Promise<void> {
   let sessionTranscript: unknown[] | null = null;
   let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
+  // Platform-level submit-output suffix — appended to every employee's task prompt.
+  // Cheap models ignore AGENTS.md context but reliably follow instructions in the task prompt.
+  const submitOutputSuffix = `\n\n---\nFINAL REQUIRED STEP: After completing all of the above, you MUST run this exact command:\ntsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"\n\nDo NOT end the session without running this command. The task will be marked as Failed if you skip it.`;
+  const instructionsWithSubmitOutput = resolvedInstructions + submitOutputSuffix;
+
   try {
-    const result = await runOpencodeSession(resolvedInstructions, model);
+    const result = await runOpencodeSession(instructionsWithSubmitOutput, model);
     content = result.content;
     metadata = result.metadata;
     sessionTranscript = result.transcript;
