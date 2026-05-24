@@ -577,7 +577,7 @@ model TaskMetric {
   task_id       String   @unique @db.Uuid
   archetype_id  String   @db.Uuid
   tenant_id     String   @db.Uuid
-  minutes_saved Int
+  work_minutes  Int
   created_at    DateTime @default(now())
 
   task      Task      @relation(fields: [task_id], references: [id])
