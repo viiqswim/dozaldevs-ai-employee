@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { callLLM } from '../../../lib/call-llm.js';
-import { ArchetypeGenerator } from '../archetype-generator.js';
+import { ArchetypeGenerator, sanitizeAgentsMd } from '../archetype-generator.js';
 
 type MockCallLLM = ReturnType<typeof vi.fn>;
 
@@ -30,12 +30,6 @@ function makeValidJsonContent(overrides: Record<string, unknown> = {}): string {
       '1. Fetch data.',
       '2. Summarize.',
       '3. Compose the final digest message.',
-      '',
-      'CLASSIFICATION RULES:',
-      '- Write NO_ACTION_NEEDED if no data.',
-      '',
-      'TOOLS AVAILABLE TO YOU:',
-      '- Slack: post message',
     ].join('\n'),
     delivery_instructions: null,
     deliverable_type: 'slack_message',
@@ -243,7 +237,6 @@ describe('ArchetypeGenerator', () => {
         mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
       ).messages.find((m) => m.role === 'system');
       expect(systemMessage).toBeDefined();
-      // The SYSTEM_PROMPT must contain an explicit rule telling the LLM not to include output instructions
       const content = systemMessage!.content;
       const hasExclusionRule =
         (content.includes('platform') &&
@@ -251,6 +244,136 @@ describe('ArchetypeGenerator', () => {
         /DO NOT include.*output/i.test(content) ||
         /output.*platform.*runtime/i.test(content);
       expect(hasExclusionRule).toBe(true);
+    });
+
+    it('SYSTEM_PROMPT explicitly forbids CLASSIFICATION RULES section in agents_md', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      await gen.generate('A daily Slack digest bot');
+      const systemMessage = (
+        mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
+      ).messages.find((m) => m.role === 'system');
+      expect(systemMessage).toBeDefined();
+      const content = systemMessage!.content;
+      expect(content).not.toMatch(/^\s*\d+\.\s+\*\*CLASSIFICATION RULES/m);
+      expect(content).toMatch(/Do NOT include.*CLASSIFICATION RULES/i);
+    });
+
+    it('SYSTEM_PROMPT explicitly forbids TOOLS AVAILABLE section in agents_md', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      await gen.generate('A daily Slack digest bot');
+      const systemMessage = (
+        mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
+      ).messages.find((m) => m.role === 'system');
+      expect(systemMessage).toBeDefined();
+      const content = systemMessage!.content;
+      expect(content).not.toMatch(/^\s*\d+\.\s+\*\*TOOLS AVAILABLE/m);
+      expect(content).toMatch(/Do NOT include.*TOOLS AVAILABLE/i);
+    });
+
+    it('SYSTEM_PROMPT does not present APPROVED as a valid agent-facing classification', async () => {
+      const mockCallLLM = makeCallLLMResult(makeValidJsonContent());
+      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+      await gen.generate('A daily Slack digest bot');
+      const systemMessage = (
+        mockCallLLM.mock.calls[0][0] as { messages: Array<{ role: string; content: string }> }
+      ).messages.find((m) => m.role === 'system');
+      expect(systemMessage).toBeDefined();
+      const content = systemMessage!.content;
+      expect(content).not.toMatch(/vs APPROVED/i);
+      expect(content).not.toMatch(/use `APPROVED`/i);
+    });
+  });
+
+  describe('sanitizeAgentsMd', () => {
+    it('strips CLASSIFICATION RULES section while preserving WORKFLOW', () => {
+      const input = [
+        'You are a bot.',
+        '',
+        'WORKFLOW:',
+        '1. Fetch data.',
+        '2. Summarize.',
+        '',
+        'CLASSIFICATION RULES:',
+        '- Write NO_ACTION_NEEDED if nothing.',
+        '- Write NEEDS_APPROVAL if review needed.',
+      ].join('\n');
+      const result = sanitizeAgentsMd(input);
+      expect(result).toMatch(/WORKFLOW/);
+      expect(result).not.toMatch(/CLASSIFICATION RULES/i);
+      expect(result).toContain('Fetch data');
+    });
+
+    it('strips TOOLS AVAILABLE TO YOU section while preserving WORKFLOW', () => {
+      const input = [
+        'You are a bot.',
+        '',
+        'WORKFLOW:',
+        '1. Do the thing.',
+        '',
+        'TOOLS AVAILABLE TO YOU:',
+        '- Slack: post message',
+        '- Submit output tool',
+      ].join('\n');
+      const result = sanitizeAgentsMd(input);
+      expect(result).toMatch(/WORKFLOW/);
+      expect(result).not.toMatch(/TOOLS AVAILABLE/i);
+      expect(result).toContain('Do the thing');
+    });
+
+    it('strips ## heading variants of forbidden sections', () => {
+      const input = [
+        'You are a bot.',
+        '',
+        'WORKFLOW:',
+        '1. Fetch data.',
+        '',
+        '## Classification Rules',
+        '- Use NO_ACTION_NEEDED if nothing.',
+        '',
+        '## Available Tools',
+        '- /tools/slack/post-message.ts',
+      ].join('\n');
+      const result = sanitizeAgentsMd(input);
+      expect(result).toMatch(/WORKFLOW/);
+      expect(result).not.toMatch(/Classification Rules/i);
+      expect(result).not.toMatch(/Available Tools/i);
+    });
+
+    it('preserves WORKFLOW and opening sentence after sanitizing all forbidden sections', () => {
+      const input = [
+        'You are a daily digest bot.',
+        '',
+        'WORKFLOW:',
+        '1. Fetch data.',
+        '2. Summarize.',
+        '3. Post to Slack.',
+        '',
+        'CLASSIFICATION RULES:',
+        '- Write NO_ACTION_NEEDED if nothing.',
+        '',
+        'TOOLS AVAILABLE TO YOU:',
+        '- Slack: post message',
+      ].join('\n');
+      const result = sanitizeAgentsMd(input);
+      expect(result).toContain('You are a daily digest bot.');
+      expect(result).toMatch(/WORKFLOW/);
+      expect(result).toContain('Fetch data');
+      expect(result).not.toMatch(/CLASSIFICATION RULES/i);
+      expect(result).not.toMatch(/TOOLS AVAILABLE/i);
+    });
+
+    it('returns original agents_md if sanitization would produce empty or whitespace-only string', () => {
+      const input = [
+        'CLASSIFICATION RULES:',
+        '- Write NO_ACTION_NEEDED if nothing.',
+        '',
+        'TOOLS AVAILABLE TO YOU:',
+        '- Slack: post message',
+      ].join('\n');
+      const result = sanitizeAgentsMd(input);
+      expect(result.trim().length).toBeGreaterThan(0);
     });
   });
 });

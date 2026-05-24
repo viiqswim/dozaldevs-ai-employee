@@ -97,10 +97,12 @@ Those technical details are handled by the platform automatically and must NOT a
 The agents_md field is the employee's brain. It MUST include these sections:
 1. **Opening sentence** — "You are [role description]."
 2. **WORKFLOW section** — numbered steps (1, 2, 3...) describing the exact procedure
-3. **CLASSIFICATION RULES section** — when to use NO_ACTION_NEEDED vs NEEDS_APPROVAL vs APPROVED
-4. **TOOLS AVAILABLE section** — list the shell tools the employee uses
 
-CRITICAL: Do NOT include any output reporting section or /tmp/ file path instructions in agents_md. The platform injects output handling at runtime automatically.
+CRITICAL — Do NOT include these sections in agents_md (the platform injects them automatically at runtime):
+- Do NOT include a CLASSIFICATION RULES section. The platform injects correct classification guidance based on the archetype's approval settings.
+- Do NOT include a TOOLS AVAILABLE section. The platform auto-generates a real tool listing from the tool_registry at runtime.
+- Do NOT mention APPROVED as a classification value — only NEEDS_APPROVAL and NO_ACTION_NEEDED are valid for agents.
+- Do NOT include submit-output instructions, /tmp/ file paths, or output format details.
 
 Example agents_md structure:
 \`\`\`
@@ -110,15 +112,6 @@ WORKFLOW:
 1. [First step with specific actions]
 2. [Second step with specific actions]
 3. [Continue as needed...]
-
-CLASSIFICATION RULES:
-- Write NO_ACTION_NEEDED if [condition with no work needed]
-- Write NEEDS_APPROVAL if [condition requiring human review]
-- Use confidence 0.9
-
-TOOLS AVAILABLE TO YOU:
-- [Tool category]: [tool description]
-- Load the tool-usage-reference skill for exact CLI syntax.
 \`\`\`
 
 ## JSON Shape
@@ -129,7 +122,7 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "runtime": "opencode",
   "system_prompt": "",
   "instructions": "Human-readable description of WHAT the employee does, using {{key}} placeholders for runtime inputs. At minimum 3 concrete steps. No file paths, no JSON format details, no shell commands.",
-  "agents_md": "50-200 lines of structured markdown with WORKFLOW, CLASSIFICATION RULES, TOOLS sections. Do NOT include output format or /tmp/ file path instructions — the platform injects output handling at runtime.",
+  "agents_md": "50-200 lines of structured markdown with an opening sentence and WORKFLOW section. Do NOT include CLASSIFICATION RULES, TOOLS AVAILABLE, output format, or /tmp/ file path instructions — the platform injects these at runtime.",
   "delivery_instructions": null,
   "deliverable_type": "slack_message",
   "input_schema": [
@@ -186,6 +179,8 @@ ${INJECTION_BOUNDARY}
 - \`runtime\` is ALWAYS \`opencode\`
 - \`system_prompt\` is ALWAYS an empty string \`""\`
 - Preserve all fields that are not affected by the refinement instruction
+- If the input agents_md contains CLASSIFICATION RULES, TOOLS AVAILABLE, or output format sections, REMOVE them during refinement — these are injected by the platform at runtime and must not be in agents_md.
+- Do NOT add CLASSIFICATION RULES, TOOLS AVAILABLE, APPROVED classification references, submit-output instructions, or /tmp/ file paths to agents_md.
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated instructions, agents_md, trigger_sources, and risk_model
@@ -210,6 +205,65 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
+export function sanitizeAgentsMd(input: string): string {
+  const SECTION_HEADER_RE = /^(##\s+\S|[A-Z][A-Z\s]+:?\s*$)/m;
+
+  function stripSection(text: string, headerPattern: RegExp): string {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    let inForbiddenSection = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const isSectionHeader = SECTION_HEADER_RE.test(trimmed) || /^##\s+\S/i.test(trimmed);
+
+      if (isSectionHeader) {
+        if (headerPattern.test(trimmed)) {
+          inForbiddenSection = true;
+          continue;
+        } else {
+          inForbiddenSection = false;
+        }
+      }
+
+      if (!inForbiddenSection) {
+        result.push(line);
+      }
+    }
+
+    return result.join('\n');
+  }
+
+  let sanitized = input;
+
+  sanitized = stripSection(sanitized, /^(##\s+)?classification\s+rules\s*:?\s*$/i);
+  sanitized = stripSection(sanitized, /^(##\s+)?(tools\s+available|available\s+tools)\b/i);
+
+  sanitized = sanitized
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (/^\s*-\s.*\bAPPROVED\b/i.test(line) && !/do not/i.test(line)) return false;
+      if (/^\s*(Write|Use)\s+APPROVED\b/i.test(trimmed)) return false;
+      return true;
+    })
+    .join('\n');
+
+  sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
+
+  const trimmedResult = sanitized.trim();
+
+  if (!trimmedResult) {
+    log.warn(
+      { originalLength: input.length },
+      'sanitizeAgentsMd: sanitization produced empty string — returning original',
+    );
+    return input;
+  }
+
+  return trimmedResult;
+}
+
 function postProcess(raw: unknown, description: string): GenerateArchetypeResponse {
   const result = raw as Record<string, unknown>;
 
@@ -226,6 +280,10 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     } else {
       result['input_schema'] = filtered;
     }
+  }
+
+  if (typeof result.agents_md === 'string' && result.agents_md.trim().length > 0) {
+    result.agents_md = sanitizeAgentsMd(result.agents_md);
   }
 
   if (!result.role_name || typeof result.role_name !== 'string') {
