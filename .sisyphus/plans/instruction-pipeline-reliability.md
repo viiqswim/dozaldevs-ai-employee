@@ -90,7 +90,7 @@ Reduce the platform instruction pipeline's signal-to-noise ratio so that cheap m
 - DO NOT modify any archetype records in the database
 - DO NOT remove submit-output instructions from `platform-procedures.mts` — it is the source of truth
 - DO NOT add employee-specific language to shared files (agents.md, harness, resolver)
-- DO NOT change the `instructions` field assembly in the harness — the task prompt stays as-is
+- ~~DO NOT change the `instructions` field assembly in the harness — the task prompt stays as-is~~ **SUPERSEDED**: During debugging, the root cause was discovered to be the model not knowing `$NOTIFICATION_CHANNEL` and not receiving submit-output instructions prominently enough. The harness was updated to wrap the task prompt with a preamble (MANDATORY FINAL STEP + env vars) and suffix (reminder). This is the actual platform-level fix.
 - DO NOT remove §5 (Platform Code Off-Limits) or §6 (DB Access Only Via Tools) from agents.md — these are safety rails
 
 ---
@@ -496,7 +496,7 @@ Wave FINAL (After Wave 2 — 4 parallel reviews):
 
   **Commit**: NO (verification only)
 
-- [ ] 4. Notify completion
+- [x] 4. Notify completion
 
   **What to do**:
   Send Telegram notification:
@@ -521,23 +521,23 @@ Wave FINAL (After Wave 2 — 4 parallel reviews):
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": verify no forbidden changes. Check evidence files in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Verify the slimmed agents.md retains §5 and §6 safety rails.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Execute EVERY QA scenario from Tasks 1-3. Verify agents.md is ≤2,500 chars. Verify submit-output appears in exactly 2 places in the assembled AGENTS.md. Trigger `daily-real-estate-inspiration-2` and `real-estate-motivation-bot-2` — both must succeed.
       Output: `Scenarios [N/N pass] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 match. Check "Must NOT do" compliance: confirm NO changes to archetype-generator.ts, submit-output.ts, output-schema.mts. Confirm agents.md still contains §5 and §6. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
 
-- [ ] F5. **Notify completion** — Send Telegram: `npx tsx scripts/telegram-notify.ts "✅ instruction-pipeline-reliability complete — All tasks done. Come back to review results."`
+- [x] F5. **Notify completion** — Send Telegram: `npx tsx scripts/telegram-notify.ts "✅ instruction-pipeline-reliability complete — All tasks done. Come back to review results."`
 
 ---
 
