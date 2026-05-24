@@ -176,4 +176,37 @@ describe('resolveAgentsMd', () => {
       '# Platform Policy\n\nplatform text\n\n# Platform Runtime Context\n\nruntime info',
     );
   });
+
+  it('closingSections are appended after employee knowledge as # Final Reminders', () => {
+    const result = resolveAgentsMd(
+      'platform text',
+      null,
+      null,
+      undefined,
+      'knowledge content',
+      undefined,
+      ['closing reminder'],
+    );
+    expect(result).toContain('# Final Reminders');
+    expect(result).toContain('closing reminder');
+    const knowledgeIdx = result.indexOf('# Employee Knowledge');
+    const closingIdx = result.indexOf('# Final Reminders');
+    expect(knowledgeIdx).toBeLessThan(closingIdx);
+  });
+
+  it('closingSections are omitted when not provided', () => {
+    const result = resolveAgentsMd('platform text', null, null);
+    expect(result).not.toContain('# Final Reminders');
+  });
+
+  it('closingSections with multiple items are joined with double newline', () => {
+    const result = resolveAgentsMd('platform text', null, null, undefined, undefined, undefined, [
+      'first reminder',
+      'second reminder',
+    ]);
+    expect(result).toContain('# Final Reminders');
+    expect(result).toContain('first reminder');
+    expect(result).toContain('second reminder');
+    expect(result).toMatch(/first reminder\n\nsecond reminder/);
+  });
 });
