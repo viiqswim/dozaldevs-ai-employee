@@ -147,7 +147,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Enrich Done (no-approval) notification with employee name
+- [x] 1. Enrich Done (no-approval) notification with employee name
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, locate the `complete` step (~line 786)
@@ -235,7 +235,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Surface failure_reason on Failed notification
+- [x] 2. Surface failure_reason on Failed notification
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, locate the `mark-failed` step (~line 682)
@@ -318,7 +318,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/inngest/employee-lifecycle.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 3. Build and test verification
+- [x] 3. Build and test verification
 
   **What to do**:
   - Run `pnpm build` and verify 0 TypeScript errors
@@ -373,7 +373,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (verification only)
 
-- [ ] 4. Notify completion
+- [x] 4. Notify completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "✅ slack-notification-enrichment complete — All tasks done. Come back to review results."`
@@ -394,19 +394,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for patterns). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review the changed lines in `src/inngest/employee-lifecycle.ts` for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code. Check AI slop: excessive comments, over-abstraction.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Read the modified `complete` step and `mark-failed` step. Verify: (1) `notifyBlocks` call in `complete` step matches the Superseded path pattern, (2) `extraText` in `mark-failed` uses null-safe pattern, (3) no unintended changes to adjacent code, (4) stale approval cleanup block (lines 832-843) is untouched. Save evidence.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
