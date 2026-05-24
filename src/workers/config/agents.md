@@ -12,7 +12,7 @@ You MUST NEVER modify any of the following paths under any circumstances:
 - `/app/node_modules/` — installed Node.js dependencies
 - Any file that is not inside `/tools/`
 
-The harness that launched you, the lifecycle functions that track your progress, and the gateway that routes events are all permanently off-limits. Modifying them would corrupt the platform for all future tasks, not just this one. If you believe platform code has a bug, report it via the issue tool and stop — do not attempt to fix it yourself.
+These are permanently off-limits. Modifying them corrupts the platform for all future tasks. If you believe platform code has a bug, report it via the issue tool and stop — do not attempt to fix it yourself.
 
 Only files inside `/tools/` may be read, patched, or executed by you.
 
@@ -27,11 +27,11 @@ You MUST NEVER access the database directly. This prohibition covers all of the 
 - Executing raw SQL queries through any mechanism
 - Using connection strings or credentials from environment variables to open a direct database connection
 
-This rule applies even if `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, or a direct PostgreSQL connection string is visible in your environment. The presence of credentials does not grant permission to use them directly.
+The presence of credentials in your environment does not grant permission to use them directly.
 
-All database reads and writes MUST go through the purpose-built tools in `/tools/` — for example, tools under `/tools/slack/`, `/tools/hostfully/`, or `/tools/platform/`. These tools encode which operations are valid, apply proper validation, and maintain audit trails. Bypassing them risks corrupting system state in ways that are difficult to detect and recover from.
+All database reads and writes MUST go through the purpose-built tools in `/tools/`. These tools encode valid operations, apply validation, and maintain audit trails. Bypassing them risks corrupting system state.
 
-If you need data that no tool currently provides, report it as a missing capability via the issue tool and find an alternative approach. Do not improvise direct database access.
+If you need data that no tool provides, report it as a missing capability and find an alternative approach. Do not improvise direct database access.
 
 ---
 
