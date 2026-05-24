@@ -5,7 +5,7 @@ import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { TERMINAL_STATUSES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
-import { formatRelativeTime, formatDuration, formatMinutesSaved, cn } from '@/lib/utils';
+import { formatRelativeTime, formatDuration, formatWorkMinutes, cn } from '@/lib/utils';
 import type { Task, TaskStatusLog } from '@/lib/types';
 import { StatusBadge } from '@/panels/tasks/StatusBadge';
 import { StatusTimeline } from '@/panels/tasks/StatusTimeline';
@@ -44,16 +44,16 @@ export function ActivitySection({ archetypeId }: { archetypeId: string }) {
 
   const fetchMetrics = useCallback(
     () =>
-      postgrestFetch<{ minutes_saved: number }>('task_metrics', {
+      postgrestFetch<{ work_minutes: number }>('task_metrics', {
         archetype_id: `eq.${archetypeId}`,
         ...scopeByTenant(tenantId),
-        select: 'minutes_saved',
+        select: 'work_minutes',
       }),
     [tenantId, archetypeId],
   );
   const { data: metrics } = usePoll(fetchMetrics);
 
-  const totalMinutesSaved = metrics?.reduce((sum, m) => sum + m.minutes_saved, 0) ?? 0;
+  const totalWorkMinutes = metrics?.reduce((sum, m) => sum + m.work_minutes, 0) ?? 0;
 
   const isTerminal = (status: string) =>
     TERMINAL_STATUSES.includes(status as (typeof TERMINAL_STATUSES)[number]);
@@ -106,7 +106,7 @@ export function ActivitySection({ archetypeId }: { archetypeId: string }) {
   return (
     <div>
       <div className="mb-4">
-        <StatCard label="Time Saved" value={formatMinutesSaved(totalMinutesSaved)} />
+        <StatCard label="Hours of Work Done" value={formatWorkMinutes(totalWorkMinutes)} />
       </div>
       <div className="space-y-3">
         {tasks.map((task) => {
