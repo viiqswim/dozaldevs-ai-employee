@@ -735,7 +735,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `dashboard/src/panels/employees/EmployeeDetail.tsx`
   - Pre-commit: `pnpm lint`
 
-- [ ] 7. Notify completion
+- [x] 7. Notify completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "📋 employee-debug-tab plan complete — All tasks done. Come back to review results."`
