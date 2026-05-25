@@ -1011,38 +1011,7 @@ async function main(): Promise<void> {
   ];
   const dateStr = `${dayNames[now.getDay()]}, ${monthNames[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()} at ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} UTC`;
   const epochMs = now.getTime();
-
-  // Category rotation: assign a creative direction based on epoch to prevent
-  // parallel runs from converging on the same content. Each run gets a different
-  // category, partitioning the creative search space.
-  const categories = [
-    'ancient philosophy and stoicism (Seneca, Marcus Aurelius, Epictetus, Confucius, Lao Tzu)',
-    'sports psychology, athletic achievement, and coaching wisdom',
-    'scientific discovery, innovation, and the pursuit of knowledge',
-    'literature, poetry, and storytelling',
-    'military strategy and leadership (Sun Tzu, Napoleon, Eisenhower)',
-    'music, film, and the creative arts',
-    'exploration, adventure, and the frontier spirit',
-    'behavioral economics, psychology, and human decision-making',
-    'architecture, design thinking, and craftsmanship',
-    'humanitarian leaders and social change (Mandela, Gandhi, MLK)',
-    'space exploration and aerospace visionaries',
-    'culinary arts, hospitality, and the service industry',
-    'mathematics, logic, and abstract thinking',
-    'environmental stewardship and sustainability pioneers',
-    'technology entrepreneurship from lesser-known founders',
-    'ancient civilizations and historical turning points',
-    'medicine, healing, and breakthroughs in health',
-    'journalism, media, and the power of storytelling',
-    'maritime history, navigation, and seafaring wisdom',
-    'education, mentorship, and the craft of teaching',
-  ];
-  // Use a multiplicative hash to avoid modular collisions from sequential timestamps
-  const hash = Math.abs(((epochMs * 2654435761) | 0) >>> 0);
-  const categoryIndex = hash % categories.length;
-  const assignedCategory = categories[categoryIndex];
-
-  const contextLine = `TODAY: ${dateStr} | EPOCH_MS: ${epochMs}\nQUOTE CATEGORY FOR THIS RUN: ${assignedCategory}\nYou MUST select a quote from this specific category. Do NOT use quotes from other categories. Find an OBSCURE, surprising quote that most people have never heard.\n\n`;
+  const contextLine = `TODAY: ${dateStr} | EPOCH_MS: ${epochMs}\n\n`;
 
   // Fetch recent channel content for deduplication (non-fatal, empty array on failure)
   const recentContent = await fetchRecentChannelContent();
