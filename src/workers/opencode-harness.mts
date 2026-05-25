@@ -896,11 +896,6 @@ async function main(): Promise<void> {
     if (archetype.agents_md) {
       archetype.agents_md = substituteTemplateVars(archetype.agents_md, templateVars);
     }
-    // Build approval-aware closing reminder — appended as final section in AGENTS.md
-    const closingClassification = approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED';
-    const closingSections = [
-      `## CRITICAL — Submit Output Before Session Ends\n\nYour task is NOT complete until you call \`submit-output\`. After finishing your primary work, run:\n\ntsx /tools/platform/submit-output.ts --summary "<what you did>" --classification "${closingClassification}"\n\nIf you skip this step, your task will be marked as Failed even if you completed the work successfully.`,
-    ];
     const agentsMdContent = resolveAgentsMd(
       platformContent,
       tenantConfig,
@@ -908,7 +903,6 @@ async function main(): Promise<void> {
       employeeRules,
       employeeKnowledge,
       platformRuntimeSections,
-      closingSections, // NEW — appended as final section
     );
     await writeFile('/app/AGENTS.md', agentsMdContent, 'utf8');
     log.info('Wrote concatenated AGENTS.md (platform + tenant + archetype)');
@@ -921,13 +915,11 @@ async function main(): Promise<void> {
   let sessionTranscript: unknown[] | null = null;
   let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
-  // Platform-level submit-output wrapper — prepended AND appended to every employee's task prompt.
-  // Cheap models sometimes stop early (doom_loop, short sessions) without reading the end of the prompt.
-  // Wrapping ensures the instruction is seen first AND last.
+  // Platform-level submit-output reminder appended to every employee's task prompt.
+  // Placed at the end to leverage recency effect — last thing the model reads before generating.
   const instructionsWithSubmitOutput = assembleTaskPrompt({
     instructions: resolvedInstructions,
     approvalRequired,
-    envManifest: platformEnvManifest,
     taskId: TASK_ID,
   });
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;

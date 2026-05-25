@@ -283,11 +283,6 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const toolPaths = (archetype.tool_registry as { tools?: string[] } | null)?.tools ?? [];
         platformRuntimeSections.push(await generateToolReference(toolPaths));
 
-        const closingClassification = approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED';
-        const closingSections = [
-          `## CRITICAL — Submit Output Before Session Ends\n\nYour task is NOT complete until you call \`submit-output\`. After finishing your primary work, run:\n\ntsx /tools/platform/submit-output.ts --summary "<what you did>" --classification "${closingClassification}"\n\nIf you skip this step, your task will be marked as Failed even if you completed the work successfully.`,
-        ];
-
         const fullAgentsMd = resolveAgentsMd(
           platformMd,
           tenantConfig,
@@ -295,14 +290,12 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           rulesForMd,
           knowledgeForMd,
           platformRuntimeSections,
-          closingSections,
         );
 
         const instructions = archetype.instructions ?? '';
         const executionPrompt = assembleTaskPrompt({
           instructions,
           approvalRequired,
-          envManifest: envManifestStr,
         });
 
         const deliveryPrompt = archetype.delivery_instructions
@@ -337,7 +330,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
               employee: employeeLayer,
               rules: ruleTexts.length > 0 ? ruleTexts.map((r) => `- ${r}`).join('\n') : null,
               knowledge: knowledgeThemes.length > 0 ? knowledgeThemes.join('\n') : null,
-              finalReminders: closingSections.length > 0 ? closingSections.join('\n\n') : null,
+              finalReminders: null,
             },
           },
           env_vars,
@@ -386,7 +379,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           },
           autoInjectedSections: {
             securityPreamble: platformRuntimeSections[0] ?? '',
-            outputContract: closingSections[0] ?? '',
+            outputContract: generatePlatformProcedures({ approvalRequired }),
             envManifest: envManifestStr,
           },
         });

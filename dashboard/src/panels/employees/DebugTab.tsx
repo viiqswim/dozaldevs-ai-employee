@@ -11,19 +11,6 @@ interface DebugTabProps {
 
 type ViewMode = 'rendered' | 'source';
 
-const AGENTS_MD_LAYERS: Array<{
-  key: keyof BrainPreviewResponse['agents_md']['layers'];
-  label: string;
-}> = [
-  { key: 'platform', label: 'Platform Policy' },
-  { key: 'platformRuntime', label: 'Platform Runtime Context' },
-  { key: 'tenant', label: 'Tenant Conventions' },
-  { key: 'employee', label: 'Employee Instructions' },
-  { key: 'rules', label: 'Behavioral Rules (Learned)' },
-  { key: 'knowledge', label: 'Employee Knowledge' },
-  { key: 'finalReminders', label: 'Final Reminders' },
-];
-
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
     <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-0.5">
@@ -136,23 +123,7 @@ export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
         defaultOpen={true}
         actions={<ViewToggle mode={agentsMdMode} onChange={setAgentsMdMode} />}
       >
-        <div className="space-y-4">
-          <ContentView content={data.agents_md.full} mode={agentsMdMode} />
-
-          <CollapsibleSection title="Individual Layers" defaultOpen={false}>
-            <div className="space-y-3">
-              {AGENTS_MD_LAYERS.map(({ key, label }) => {
-                const content = data.agents_md.layers[key];
-                if (!content) return null;
-                return (
-                  <CollapsibleSection key={key} title={label} defaultOpen={false}>
-                    <MarkdownPreview content={content} />
-                  </CollapsibleSection>
-                );
-              })}
-            </div>
-          </CollapsibleSection>
-        </div>
+        <ContentView content={data.agents_md.full} mode={agentsMdMode} />
       </CollapsibleSection>
     </div>
   );
