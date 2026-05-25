@@ -25,6 +25,7 @@ import { InputSchemaSection } from './sections/InputSchemaSection';
 import { TrainingTab } from './TrainingTab';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import type { ProfileMode } from '@/lib/profile-constants';
+import { DebugTab } from './DebugTab';
 
 function computeCostTierLabel(inputCost: number, outputCost: number, isFree: boolean): string {
   if (isFree) return 'Free';
@@ -451,6 +452,7 @@ export function EmployeeDetail() {
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
           <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -577,6 +579,10 @@ export function EmployeeDetail() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="debug">
+          <DebugTab archetypeId={archetype.id} tenantId={tenantId} />
         </TabsContent>
       </Tabs>
 
