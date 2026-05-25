@@ -238,6 +238,77 @@ async function tryAutoPostApprovalCard(
   }
 }
 
+/**
+ * Fetch recent message content from the notification channel to prevent output repetition.
+ * Returns an array of recent post excerpts (first lines of thread replies).
+ * Non-fatal — returns empty array on any error.
+ */
+async function fetchRecentChannelContent(): Promise<string[]> {
+  const channel = process.env.NOTIFICATION_CHANNEL;
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!channel || !token) return [];
+
+  try {
+    // Fetch recent channel messages
+    const historyResp = await fetch(
+      `https://slack.com/api/conversations.history?channel=${channel}&limit=15`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const historyData = (await historyResp.json()) as {
+      ok: boolean;
+      messages?: Array<{ ts: string; reply_count?: number; text?: string }>;
+    };
+    if (!historyData.ok || !historyData.messages) return [];
+
+    // Collect thread replies (actual posted content lives in replies)
+    const excerpts: string[] = [];
+    const threaded = historyData.messages.filter((m) => (m.reply_count ?? 0) > 0).slice(0, 10);
+
+    for (const msg of threaded) {
+      if (excerpts.length >= 10) break;
+      try {
+        const replyResp = await fetch(
+          `https://slack.com/api/conversations.replies?channel=${channel}&ts=${msg.ts}&limit=3`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const replyData = (await replyResp.json()) as {
+          ok: boolean;
+          messages?: Array<{ text?: string }>;
+        };
+        if (!replyData.ok || !replyData.messages || replyData.messages.length < 2) continue;
+        // First message is the parent; second is the actual content reply
+        const replyText = replyData.messages[1]?.text ?? '';
+        if (replyText.length > 50) {
+          // Extract first line (usually the quote)
+          const firstLine = replyText.split('\n')[0].substring(0, 200);
+          excerpts.push(firstLine);
+        }
+      } catch {
+        // Skip individual thread failures
+      }
+    }
+
+    // Also check top-level messages that might be the actual content (not just status updates)
+    for (const msg of historyData.messages) {
+      if (excerpts.length >= 10) break;
+      const text = msg.text ?? '';
+      // Skip short status messages (lifecycle posts are ~30 chars)
+      if (text.length > 100 && !(msg.reply_count ?? 0)) {
+        const firstLine = text.split('\n')[0].substring(0, 200);
+        excerpts.push(firstLine);
+      }
+    }
+
+    return excerpts;
+  } catch (err) {
+    log.warn(
+      { err },
+      '[opencode-harness] Failed to fetch recent channel history for dedup — non-fatal',
+    );
+    return [];
+  }
+}
+
 async function writeOpencodeAuth(): Promise<void> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -942,9 +1013,22 @@ async function main(): Promise<void> {
   const epochMs = now.getTime();
   const contextLine = `TODAY: ${dateStr} | EPOCH_MS: ${epochMs}\n\n`;
 
+  // Fetch recent channel content for deduplication (non-fatal, empty array on failure)
+  const recentContent = await fetchRecentChannelContent();
+  if (recentContent.length > 0) {
+    log.info(
+      { taskId: TASK_ID, excerptCount: recentContent.length },
+      '[opencode-harness] Injected recent channel content for deduplication',
+    );
+  }
+  const dedupBlock =
+    recentContent.length > 0
+      ? `PREVIOUS CONTENT ALREADY POSTED IN THIS CHANNEL (DO NOT repeat any of these — use completely different quotes, topics, and phrasing):\n${recentContent.map((c) => `- ${c}`).join('\n')}\n\n`
+      : '';
+
   const submitOutputSuffix = `\n\n---\nREMINDER — MANDATORY FINAL STEP: Run this before ending the session:\n${submitOutputCmd}`;
   const instructionsWithSubmitOutput =
-    submitOutputPreamble + contextLine + resolvedInstructions + submitOutputSuffix;
+    submitOutputPreamble + contextLine + dedupBlock + resolvedInstructions + submitOutputSuffix;
 
   try {
     const result = await runOpencodeSession(instructionsWithSubmitOutput, model, submitOutputCmd);
