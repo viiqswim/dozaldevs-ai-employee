@@ -333,6 +333,8 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 
 ## Key Conventions
 
+- **AI employee injection — exactly two things, use exact names**: When an AI employee runs, exactly two things are injected into it: (1) **the prompt** — the initial message sent to the employee, and (2) **the AGENTS.md file** — a literal markdown file written to `/app/AGENTS.md` in the worker container. Never use vague synonyms like "instructions," "knowledge base," "instruction manual," or "context" when referring to these. Always say "the prompt" or "the AGENTS.md file." Any other framing is imprecise and confusing.
+
 - Worker branch naming: `ai/{ticketId}-{slug}`
 - Inngest functions register in the gateway process (not a separate service)
 - Worker containers communicate with Supabase via PostgREST REST API (not direct Prisma)
