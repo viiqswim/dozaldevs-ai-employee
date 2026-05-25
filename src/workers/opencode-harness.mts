@@ -286,6 +286,7 @@ async function writeOpencodeAuth(): Promise<void> {
 async function runOpencodeSession(
   instructions: string,
   model: string,
+  submitOutputCmd: string,
 ): Promise<{
   content: string;
   metadata: Record<string, unknown>;
@@ -473,6 +474,42 @@ async function runOpencodeSession(
       throw new Error(
         `[opencode-harness] OpenCode session did not complete: ${monitorResult.reason ?? 'unknown'}`,
       );
+    }
+
+    // Recovery nudge: if session completed but submit-output was skipped
+    const summaryExistsCheck = await (async () => {
+      try {
+        await readFile('/tmp/summary.txt', 'utf8');
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!summaryExistsCheck) {
+      log.warn(
+        { taskId: TASK_ID, sessionId },
+        '[opencode-harness] submit-output not found after session idle — sending recovery nudge',
+      );
+      const nudgeMessage = `You forgot the mandatory final step. Run this command NOW:\n${submitOutputCmd}`;
+      await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
+      await sessionManager.monitorSession(sessionId!, {
+        timeoutMs: 5 * 60 * 1000,
+        minElapsedMs: 10000,
+      });
+      const { content: nudgeContent, extraMetadata: nudgeMeta } = await checkOutputFiles();
+      if (nudgeContent === 'completed' && Object.keys(nudgeMeta).length === 0) {
+        throw new Error(
+          '[opencode-harness] submit-output still not found after recovery nudge — task failed',
+        );
+      }
+      return {
+        content: nudgeContent,
+        metadata: { ...nudgeMeta },
+        sessionId,
+        transcript: null,
+        tokenUsage: { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 },
+      };
     }
 
     // Fetch transcript before server is killed
@@ -674,7 +711,11 @@ async function main(): Promise<void> {
 
     // 6. Run the OpenCode delivery session
     try {
-      await runOpencodeSession(deliveryPrompt, archetype.model ?? 'minimax/minimax-m2.7');
+      await runOpencodeSession(
+        deliveryPrompt,
+        archetype.model ?? 'minimax/minimax-m2.7',
+        'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
+      );
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
       const deliveryErr = err instanceof Error ? err.message : String(err);
@@ -883,7 +924,7 @@ async function main(): Promise<void> {
     submitOutputPreamble + resolvedInstructions + submitOutputSuffix;
 
   try {
-    const result = await runOpencodeSession(instructionsWithSubmitOutput, model);
+    const result = await runOpencodeSession(instructionsWithSubmitOutput, model, submitOutputCmd);
     content = result.content;
     metadata = result.metadata;
     sessionTranscript = result.transcript;
