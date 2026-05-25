@@ -257,12 +257,17 @@ async function writeOpencodeAuth(): Promise<void> {
   await mkdir(configDir, { recursive: true });
   // The "*": "allow" wildcard covers all permission types including "skill" — no explicit skill permission needed
   const configJson = JSON.stringify(
-    { permission: { '*': 'allow', question: 'deny' }, autoupdate: false },
+    {
+      agent: { build: { temperature: 1.5 } },
+      permission: { '*': 'allow', question: 'deny' },
+      autoupdate: false,
+    },
     null,
     2,
   );
   await writeFile(join(configDir, 'opencode.json'), configJson, 'utf8');
   log.info('[opencode-harness] opencode.json permission config written');
+  log.info('[opencode-harness] Temperature set to 1.5 for all employees');
 
   // Also write global config to prevent auto-update at the global level
   const globalConfigDir = join(homedir(), '.config', 'opencode');
