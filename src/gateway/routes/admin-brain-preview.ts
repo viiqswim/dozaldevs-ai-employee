@@ -384,6 +384,11 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
             employeeManual: archetype.agents_md ?? '',
             afterApprovalAction: archetype.delivery_instructions ?? '',
           },
+          autoInjectedSections: {
+            securityPreamble: platformRuntimeSections[0] ?? '',
+            outputContract: closingSections[0] ?? '',
+            envManifest: envManifestStr,
+          },
         });
       } catch (err) {
         logger.error({ err }, 'Failed to assemble brain preview');

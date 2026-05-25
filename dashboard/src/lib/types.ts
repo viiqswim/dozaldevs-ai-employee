@@ -252,10 +252,12 @@ export interface BrainPreviewResponse {
     full: string;
     layers: {
       platform: string;
+      platformRuntime: string | null;
       tenant: string | null;
       employee: string | null;
       rules: string | null;
       knowledge: string | null;
+      finalReminders: string | null;
     };
   };
   env_vars: BrainPreviewEnvVar[];
