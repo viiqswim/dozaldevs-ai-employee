@@ -54,3 +54,23 @@ const agentsMdContent = resolveAgentsMd(
 - §7 Output Format (moved to platform-procedures)
 - §8 Error Handling (moved to platform-procedures)
 - Summary section at bottom
+
+## [2026-05-25] Recovery Nudge Implementation
+
+### What was built
+Added a "recovery nudge" to `runOpencodeSession()` in `src/workers/opencode-harness.mts`:
+- After a session completes (monitorResult.completed === true), checks if `/tmp/summary.txt` exists
+- If missing: sends a single recovery nudge via `sessionManager.injectTaskPrompt`, re-monitors for up to 5 minutes, then calls `checkOutputFiles()` again
+- If output still absent after nudge: throws hard error
+- If output found after nudge: returns early with success (server killed in finally block)
+
+### Signature change
+`runOpencodeSession(instructions, model)` → `runOpencodeSession(instructions, model, submitOutputCmd)`
+- Main call site passes the already-constructed `submitOutputCmd` from main()
+- Delivery phase call site (line ~678) passes a hardcoded `NO_ACTION_NEEDED` variant (delivery is always post-approval)
+
+### Pre-existing test flakiness
+`tests/gateway/jira-webhook-with-new-project.test.ts` triggers an unhandled rejection from `scripts/trigger-task.ts:703` (process.exit). Not caused by these changes — all 1714 test assertions pass.
+
+### Nudge message format
+Short and imperative: `"You forgot the mandatory final step. Run this command NOW:\n${submitOutputCmd}"`
