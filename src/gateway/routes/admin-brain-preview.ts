@@ -267,11 +267,6 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         );
 
         const envManifestStr = buildEnvManifestFromVars(env_vars);
-        if (envManifestStr.trim().length > 0) {
-          platformRuntimeSections.push(
-            `## Available Environment Variables\n\nThe following environment variables are available to you:\n\n${envManifestStr}`,
-          );
-        }
 
         const systemPrompt = archetype.system_prompt ?? '';
         if (systemPrompt.trim().length > 0) {
