@@ -90,6 +90,7 @@ process.on('SIGTERM', () => {
 async function markFailed(
   reason: string,
   executionId: string | null,
+  fromStatus: string,
   failureCode?: string,
 ): Promise<void> {
   try {
@@ -105,9 +106,10 @@ async function markFailed(
   try {
     await db.post('task_status_log', {
       task_id: TASK_ID,
-      from_status: 'Delivering',
+      from_status: fromStatus,
       to_status: 'Failed',
-      actor: 'opencode_harness',
+      actor: 'machine',
+      updated_at: new Date().toISOString(),
     });
   } catch (err) {
     log.warn({ err }, '[opencode-harness] Failed to log status transition to Failed (non-fatal)');
@@ -656,6 +658,7 @@ async function main(): Promise<void> {
       await markFailed(
         'No deliverable found for delivery phase',
         null,
+        'Delivering',
         classifyFailure('No deliverable found for delivery phase'),
       );
       return;
@@ -672,6 +675,7 @@ async function main(): Promise<void> {
       await markFailed(
         'Archetype missing delivery_instructions',
         null,
+        'Delivering',
         classifyFailure('Archetype missing delivery_instructions'),
       );
       return;
@@ -720,7 +724,7 @@ async function main(): Promise<void> {
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
       const deliveryErr = err instanceof Error ? err.message : String(err);
-      await markFailed(deliveryErr, null, classifyFailure(deliveryErr));
+      await markFailed(deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
       return;
     }
 
@@ -734,6 +738,7 @@ async function main(): Promise<void> {
         await markFailed(
           'Delivery not confirmed — no summary.txt produced',
           null,
+          'Delivering',
           classifyFailure('Delivery not confirmed — no summary.txt produced'),
         );
         return;
@@ -745,6 +750,7 @@ async function main(): Promise<void> {
         await markFailed(
           'Delivery not confirmed — summary.txt is not valid JSON',
           null,
+          'Delivering',
           classifyFailure('Delivery not confirmed — summary.txt is not valid JSON'),
         );
         return;
@@ -753,6 +759,7 @@ async function main(): Promise<void> {
         await markFailed(
           'Delivery not confirmed — send-message.ts may not have succeeded',
           null,
+          'Delivering',
           classifyFailure('Delivery not confirmed — send-message.ts may not have succeeded'),
         );
         return;
@@ -770,7 +777,8 @@ async function main(): Promise<void> {
         task_id: TASK_ID,
         from_status: 'Delivering',
         to_status: 'Done',
-        actor: 'opencode_harness',
+        actor: 'machine',
+        updated_at: new Date().toISOString(),
       });
     } catch (err) {
       log.warn({ err }, '[opencode-harness] Failed to log Delivering→Done transition (non-fatal)');
@@ -924,7 +932,7 @@ async function main(): Promise<void> {
   } catch (err) {
     log.error({ taskId: TASK_ID, err }, '[opencode-harness] OpenCode session failed');
     const failureReason = err instanceof Error ? err.message : String(err);
-    await markFailed(failureReason, executionId, classifyFailure(failureReason));
+    await markFailed(failureReason, executionId, 'Executing', classifyFailure(failureReason));
     process.exit(1);
   }
 
