@@ -1015,7 +1015,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         }
 
         // ── STEP 4: Destroy execution machine BEFORE spawning delivery ─────────────
-        await step.run('cleanup-execution-machine-no-approval', async () => {
+        await step.run('cleanup-execution-machine-before-delivery', async () => {
           try {
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
