@@ -812,115 +812,210 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       log.info({ taskId, runId, step: 'submitting' }, 'Step complete: submitting');
 
       if (!approvalRequired) {
-        // ── State: Done (no approval needed) ────────────────────────────────────
-        await step.run('complete', async () => {
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
-          log.info({ taskId }, 'State: Done (no approval required)');
-          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-            try {
-              const prismaForDone = new PrismaClient();
-              const tenantEnvForDone = await loadTenantEnv(
-                tenantId,
-                {
-                  tenantRepo: new TenantRepository(prismaForDone),
-                  secretRepo: new TenantSecretRepository(prismaForDone),
-                },
-                (archetype.notification_channel as string | null) ?? null,
+        // ── STEP 1: Classification check ─────────────────────────────────────────
+        const classificationCheckNoApproval = await step.run(
+          'check-classification-no-approval',
+          async () => {
+            const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              const res = await fetch(
+                `${supabaseUrlInner}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
+                { headers },
               );
-              await prismaForDone.$disconnect();
-              const botTokenForDone = tenantEnvForDone['SLACK_BOT_TOKEN'] ?? '';
-              if (botTokenForDone) {
-                const slackForDone = createSlackClient({
-                  botToken: botTokenForDone,
-                  defaultChannel: '',
-                });
-                const doneText = `✅ Task complete`;
-                await slackForDone.updateMessage(
-                  notifyMsgRef.channel,
-                  notifyMsgRef.ts,
-                  doneText,
-                  notifyBlocks({
-                    state: 'Task complete',
-                    archetypeName: (archetype.role_name as string) ?? 'unknown',
-                    enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                    emoji: '✅',
-                  }),
-                );
+              const rows = (await res.json()) as Array<{ content: string }>;
+              if (rows.length > 0) {
+                const result = parseClassifyResponse(rows[0].content);
+                return {
+                  skipDelivery: result.classification === 'NO_ACTION_NEEDED',
+                  reasoning: result.reasoning,
+                  displayContext: result.displayContext,
+                };
+              }
+              if (attempt < 3) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+            }
+            return { skipDelivery: false, reasoning: '', displayContext: undefined };
+          },
+        );
+
+        // ── STEP 2: NO_ACTION_NEEDED — skip delivery, go straight to Done ────────
+        if (classificationCheckNoApproval.skipDelivery) {
+          await step.run('cleanup-execution-machine-no-approval', async () => {
+            try {
+              if ((machineId as string).startsWith('docker_')) {
+                stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+              } else {
+                const flyApp =
+                  process.env['FLY_WORKER_APP'] ??
+                  process.env['FLY_SUMMARIZER_APP'] ??
+                  'ai-employee-workers';
+                await destroyMachine(flyApp, machineId as string);
               }
             } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to update notify-received on completion (non-fatal)',
-              );
+              log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
             }
-          }
-          // Best-effort cleanup: remove approval card buttons if worker posted one before
-          // the lifecycle could stop it (race condition with APPROVAL_REQUIRED env var)
-          try {
-            const approvalCleanupRes = await fetch(
-              `${supabaseUrl}/rest/v1/pending_approvals?task_id=eq.${taskId}&limit=1`,
-              {
-                headers: {
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                },
-              },
-            );
-            const approvalCleanupRows = (await approvalCleanupRes.json()) as Array<
-              Record<string, unknown>
-            >;
-            const approvalCardRow = approvalCleanupRows[0];
-            if (approvalCardRow?.['slack_ts'] && approvalCardRow?.['channel_id']) {
-              const prismaForCleanup = new PrismaClient();
-              const tenantEnvForCleanup = await loadTenantEnv(
+          });
+
+          await step.run('post-no-action-thread-no-approval', async () => {
+            if (!notifyMsgRef?.ts) return;
+            try {
+              const prismaForNoAction = new PrismaClient();
+              const tenantEnvForNoAction = await loadTenantEnv(
                 tenantId,
                 {
-                  tenantRepo: new TenantRepository(prismaForCleanup),
-                  secretRepo: new TenantSecretRepository(prismaForCleanup),
+                  tenantRepo: new TenantRepository(prismaForNoAction),
+                  secretRepo: new TenantSecretRepository(prismaForNoAction),
                 },
                 (archetype.notification_channel as string | null) ?? null,
               );
-              await prismaForCleanup.$disconnect();
-              const botTokenForCleanup = tenantEnvForCleanup['SLACK_BOT_TOKEN'] ?? '';
-              if (botTokenForCleanup) {
-                const slackForCleanup = createSlackClient({
-                  botToken: botTokenForCleanup,
-                  defaultChannel: '',
-                });
-                await slackForCleanup.updateMessage(
-                  approvalCardRow['channel_id'] as string,
-                  approvalCardRow['slack_ts'] as string,
-                  '✅ Completed — no approval required',
-                  [
-                    {
-                      type: 'section',
-                      text: { type: 'mrkdwn', text: '✅ Completed — no approval required' },
-                    },
-                    {
-                      type: 'context',
-                      elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-                    },
-                  ],
+              await prismaForNoAction.$disconnect();
+              const botTokenForNoAction = tenantEnvForNoAction['SLACK_BOT_TOKEN'] ?? '';
+              const channelForNoAction = tenantEnvForNoAction['NOTIFICATION_CHANNEL'] ?? '';
+              if (!botTokenForNoAction || !channelForNoAction) return;
+              const slackForNoAction = createSlackClient({
+                botToken: botTokenForNoAction,
+                defaultChannel: channelForNoAction,
+              });
+              const rawEventForNoAction =
+                (taskData.raw_event as Record<string, string> | null) ?? {};
+              await slackForNoAction.postMessage({
+                channel: channelForNoAction,
+                text: `ℹ️ No action needed`,
+                blocks: buildNoActionThreadBlocks({
+                  reasoning: classificationCheckNoApproval.reasoning ?? '',
+                  taskId,
+                  propertyUid: rawEventForNoAction['property_uid'] ?? undefined,
+                  leadUid: rawEventForNoAction['lead_uid'] ?? undefined,
+                }),
+                thread_ts: notifyMsgRef.ts,
+              });
+            } catch (err) {
+              log.warn({ taskId, err }, 'Failed to post no-action thread reply (non-fatal)');
+            }
+          });
+
+          await step.run('complete-no-action-no-approval', async () => {
+            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+            log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — no approval required)');
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                const prismaForNoActionDone = new PrismaClient();
+                const tenantEnvForNoActionDone = await loadTenantEnv(
+                  tenantId,
+                  {
+                    tenantRepo: new TenantRepository(prismaForNoActionDone),
+                    secretRepo: new TenantSecretRepository(prismaForNoActionDone),
+                  },
+                  (archetype.notification_channel as string | null) ?? null,
                 );
-                await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+                await prismaForNoActionDone.$disconnect();
+                const botTokenForNoActionDone = tenantEnvForNoActionDone['SLACK_BOT_TOKEN'] ?? '';
+                if (botTokenForNoActionDone) {
+                  const slackForNoActionDone = createSlackClient({
+                    botToken: botTokenForNoActionDone,
+                    defaultChannel: '',
+                  });
+                  await slackForNoActionDone.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    `✅ Task complete — no action needed`,
+                    notifyStateBlocks({ emoji: '✅', text: 'No action needed' }),
+                  );
+                }
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received on no-action completion (non-fatal)',
+                );
               }
             }
-          } catch (err) {
-            log.warn(
-              { taskId, err },
-              '[lifecycle] Failed to clean up stale approval card — continuing',
-            );
-          }
-        });
-        await step.run('record-work-metric-no-approval', async () => {
-          try {
-            await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
-          } catch (err) {
-            log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
-          }
-        });
-        await step.run('cleanup-no-approval', async () => {
+          });
+
+          await step.run('record-work-metric-no-action-no-approval', async () => {
+            try {
+              await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            } catch (err) {
+              log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
+            }
+          });
+          return;
+        }
+
+        // ── STEP 3: deliverable_type guard ────────────────────────────────────────
+        const deliverableType = (archetype.deliverable_type as string | null) ?? '';
+        if (!deliverableType) {
+          log.warn({ taskId }, 'Archetype has no deliverable_type — skipping delivery container');
+          await step.run('complete-no-deliverable-type', async () => {
+            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
+            log.info({ taskId }, 'State: Done (no deliverable_type configured)');
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                const prismaForNoDel = new PrismaClient();
+                const tenantEnvForNoDel = await loadTenantEnv(
+                  tenantId,
+                  {
+                    tenantRepo: new TenantRepository(prismaForNoDel),
+                    secretRepo: new TenantSecretRepository(prismaForNoDel),
+                  },
+                  (archetype.notification_channel as string | null) ?? null,
+                );
+                await prismaForNoDel.$disconnect();
+                const botTokenForNoDel = tenantEnvForNoDel['SLACK_BOT_TOKEN'] ?? '';
+                if (botTokenForNoDel) {
+                  const slackForNoDel = createSlackClient({
+                    botToken: botTokenForNoDel,
+                    defaultChannel: '',
+                  });
+                  await slackForNoDel.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    `✅ Task complete`,
+                    notifyBlocks({
+                      state: 'Task complete',
+                      archetypeName: (archetype.role_name as string) ?? 'unknown',
+                      enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+                      emoji: '✅',
+                    }),
+                  );
+                }
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received on no-deliverable completion (non-fatal)',
+                );
+              }
+            }
+          });
+          await step.run('record-work-metric-no-deliverable-type', async () => {
+            try {
+              await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+            } catch (err) {
+              log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
+            }
+          });
+          await step.run('cleanup-no-deliverable-type', async () => {
+            try {
+              if ((machineId as string).startsWith('docker_')) {
+                stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
+              } else {
+                const flyApp =
+                  process.env['FLY_WORKER_APP'] ??
+                  process.env['FLY_SUMMARIZER_APP'] ??
+                  'ai-employee-workers';
+                await destroyMachine(flyApp, machineId as string);
+              }
+            } catch (err) {
+              log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+            }
+          });
+          return;
+        }
+
+        // ── STEP 4: Destroy execution machine BEFORE spawning delivery ─────────────
+        await step.run('cleanup-execution-machine-no-approval', async () => {
           try {
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
@@ -933,6 +1028,343 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
           } catch (err) {
             log.warn({ machineId, err }, 'Failed to destroy machine — may have auto-destroyed');
+          }
+        });
+
+        // ── STEP 5: Transition to Delivering state ────────────────────────────────
+        await step.run('delivering-no-approval', async () => {
+          await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
+          await logStatusTransition(supabaseUrl, headers, taskId, 'Delivering', 'Submitting');
+          log.info({ taskId }, 'State: Delivering (no approval required)');
+        });
+
+        // ── STEPS 6–8: Load tenant env, fetch delivery_instructions, spawn container ─
+        const noApprovalDeliveryResult = await step.run('run-delivery-no-approval', async () => {
+          const prismaForDelivery = new PrismaClient();
+          const tenantEnvForDelivery = await loadTenantEnv(
+            tenantId,
+            {
+              tenantRepo: new TenantRepository(prismaForDelivery),
+              secretRepo: new TenantSecretRepository(prismaForDelivery),
+            },
+            (archetype.notification_channel as string | null) ?? null,
+          );
+          await prismaForDelivery.$disconnect();
+
+          const archetypeForDeliveryRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
+            { headers },
+          );
+          const archetypeRows = (await archetypeForDeliveryRes.json()) as Array<{
+            archetypes?: { delivery_instructions?: string | null };
+          }>;
+          const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
+          if (!deliveryInstructions) {
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Failed',
+              failure_reason: 'Archetype missing delivery_instructions',
+            });
+            const configFailText = `❌ Task failed — missing delivery configuration`;
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                const botTokenForConfigFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
+                if (botTokenForConfigFail) {
+                  const slackForConfigFail = createSlackClient({
+                    botToken: botTokenForConfigFail,
+                    defaultChannel: '',
+                  });
+                  await slackForConfigFail.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    configFailText,
+                    notifyStateBlocks({
+                      emoji: '❌',
+                      text: 'Task failed — missing delivery configuration',
+                    }),
+                  );
+                }
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received on config error (non-fatal)',
+                );
+              }
+            }
+            return { status: 'config-fail' as const };
+          }
+
+          const deliveryVmSize =
+            (archetype.vm_size as string | null) ??
+            process.env['WORKER_VM_SIZE'] ??
+            process.env['SUMMARIZER_VM_SIZE'] ??
+            'shared-cpu-1x';
+          const deliveryImage =
+            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const deliveryFlyApp =
+            process.env['FLY_WORKER_APP'] ??
+            process.env['FLY_SUMMARIZER_APP'] ??
+            'ai-employee-workers';
+          const effectiveSupabaseUrlForDelivery =
+            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+
+          const taskRawEventForDelivery =
+            (taskData.raw_event as Record<string, string> | null) ?? {};
+
+          let deliveryFinalStatus = '';
+          for (let attempt = 0; attempt < 3; attempt++) {
+            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
+              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
+            }
+            let deliveryMachine: { id: string };
+            if (process.env.WORKER_RUNTIME !== 'fly') {
+              deliveryMachine = runLocalDockerContainer({
+                taskId,
+                name: `employee-delivery-${taskId.slice(0, 8)}`,
+                env: {
+                  ...tenantEnvForDelivery,
+                  TASK_ID: taskId,
+                  EMPLOYEE_PHASE: 'delivery',
+                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
+                  APPROVAL_REQUIRED: String(approvalRequired),
+                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+                  SUPABASE_URL: supabaseUrl.replace(
+                    /localhost|127\.0\.0\.1/,
+                    'host.docker.internal',
+                  ),
+                  SUPABASE_SECRET_KEY: supabaseKey,
+                  INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+                  INNGEST_DEV: '1',
+                  ...(taskRawEventForDelivery['lead_uid']
+                    ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
+                    : {}),
+                  ...(taskRawEventForDelivery['thread_uid']
+                    ? { THREAD_UID: taskRawEventForDelivery['thread_uid'] }
+                    : {}),
+                  ...(taskRawEventForDelivery['property_uid']
+                    ? { PROPERTY_UID: taskRawEventForDelivery['property_uid'] }
+                    : {}),
+                },
+                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+              });
+            } else {
+              deliveryMachine = await createMachine(deliveryFlyApp, {
+                image: deliveryImage,
+                vm_size: deliveryVmSize,
+                auto_destroy: true,
+                kill_timeout: 1800,
+                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
+                env: {
+                  ...tenantEnvForDelivery,
+                  TASK_ID: taskId,
+                  EMPLOYEE_PHASE: 'delivery',
+                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
+                  APPROVAL_REQUIRED: String(approvalRequired),
+                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+                  SUPABASE_URL: effectiveSupabaseUrlForDelivery,
+                  SUPABASE_SECRET_KEY: supabaseKey,
+                  ...(taskRawEventForDelivery['lead_uid']
+                    ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
+                    : {}),
+                  ...(taskRawEventForDelivery['thread_uid']
+                    ? { THREAD_UID: taskRawEventForDelivery['thread_uid'] }
+                    : {}),
+                  ...(taskRawEventForDelivery['property_uid']
+                    ? { PROPERTY_UID: taskRawEventForDelivery['property_uid'] }
+                    : {}),
+                },
+              });
+            }
+            log.info(
+              { taskId, deliveryMachineId: deliveryMachine.id, attempt },
+              'Delivery machine spawned',
+            );
+
+            const maxDeliveryPolls = 20;
+            const deliveryIntervalMs = 15_000;
+            let finalStatus = '';
+            for (let i = 0; i < maxDeliveryPolls; i++) {
+              await new Promise<void>((resolve) => setTimeout(resolve, deliveryIntervalMs));
+              const res = await fetch(
+                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+                { headers },
+              );
+              const rows = (await res.json()) as Array<{ status: string }>;
+              finalStatus = rows[0]?.status ?? '';
+              if (finalStatus === 'Done' || finalStatus === 'Failed') break;
+            }
+            deliveryFinalStatus = finalStatus;
+
+            if (process.env.WORKER_RUNTIME === 'fly') {
+              try {
+                await destroyMachine(deliveryFlyApp, deliveryMachine.id);
+              } catch (err) {
+                log.warn(
+                  { taskId, deliveryMachineId: deliveryMachine.id, err },
+                  'Failed to destroy delivery machine',
+                );
+              }
+            } else {
+              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
+            }
+
+            if (deliveryFinalStatus === 'Done') break;
+
+            if (attempt < 2) {
+              log.warn({ taskId, attempt }, 'Delivery machine failed — retrying');
+              await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
+            } else {
+              log.error({ taskId }, 'Delivery failed after 3 attempts — marking Failed');
+              await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+              await patchTask(supabaseUrl, headers, taskId, {
+                status: 'Failed',
+                failure_reason: 'Delivery failed after 3 attempts',
+              });
+              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+                try {
+                  const botTokenForFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
+                  if (botTokenForFail) {
+                    const slackForFail = createSlackClient({
+                      botToken: botTokenForFail,
+                      defaultChannel: '',
+                    });
+                    const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
+                    const delivFailBlocks = notifyBlocks({
+                      state: 'Delivery failed',
+                      archetypeName: (archetype.role_name as string) ?? 'unknown',
+                      enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+                      emoji: '❌',
+                    });
+                    await slackForFail.updateMessage(
+                      notifyMsgRef.channel,
+                      notifyMsgRef.ts,
+                      deliveryFailText,
+                      delivFailBlocks,
+                    );
+                  }
+                } catch (err) {
+                  log.warn(
+                    { taskId, err },
+                    'Failed to update notify-received on delivery failure (non-fatal)',
+                  );
+                }
+              }
+            }
+          }
+
+          return {
+            status: deliveryFinalStatus === 'Done' ? ('done' as const) : ('failed' as const),
+          };
+        });
+
+        // ── STEP 9: On delivery success, update notify message ────────────────────
+        if (noApprovalDeliveryResult.status === 'done') {
+          await step.run('complete-after-delivery-no-approval', async () => {
+            log.info({ taskId }, 'State: Done (delivered — no approval required)');
+            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+              try {
+                const prismaForComplete = new PrismaClient();
+                const tenantEnvForComplete = await loadTenantEnv(
+                  tenantId,
+                  {
+                    tenantRepo: new TenantRepository(prismaForComplete),
+                    secretRepo: new TenantSecretRepository(prismaForComplete),
+                  },
+                  (archetype.notification_channel as string | null) ?? null,
+                );
+                await prismaForComplete.$disconnect();
+                const botTokenForComplete = tenantEnvForComplete['SLACK_BOT_TOKEN'] ?? '';
+                if (botTokenForComplete) {
+                  const slackForComplete = createSlackClient({
+                    botToken: botTokenForComplete,
+                    defaultChannel: '',
+                  });
+                  await slackForComplete.updateMessage(
+                    notifyMsgRef.channel,
+                    notifyMsgRef.ts,
+                    `✅ Task complete`,
+                    notifyBlocks({
+                      state: 'Task complete',
+                      archetypeName: (archetype.role_name as string) ?? 'unknown',
+                      enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+                      emoji: '✅',
+                    }),
+                  );
+                }
+              } catch (err) {
+                log.warn(
+                  { taskId, err },
+                  'Failed to update notify-received after delivery (non-fatal)',
+                );
+              }
+            }
+            // ── STEP 10: Best-effort cleanup of stale approval cards ─────────────
+            // Race condition guard: remove any approval card buttons the worker may have
+            // posted before the lifecycle could suppress them (APPROVAL_REQUIRED env var)
+            try {
+              const approvalCleanupRes = await fetch(
+                `${supabaseUrl}/rest/v1/pending_approvals?task_id=eq.${taskId}&limit=1`,
+                {
+                  headers: {
+                    apikey: supabaseKey,
+                    Authorization: `Bearer ${supabaseKey}`,
+                  },
+                },
+              );
+              const approvalCleanupRows = (await approvalCleanupRes.json()) as Array<
+                Record<string, unknown>
+              >;
+              const approvalCardRow = approvalCleanupRows[0];
+              if (approvalCardRow?.['slack_ts'] && approvalCardRow?.['channel_id']) {
+                const prismaForCleanup = new PrismaClient();
+                const tenantEnvForCleanup = await loadTenantEnv(
+                  tenantId,
+                  {
+                    tenantRepo: new TenantRepository(prismaForCleanup),
+                    secretRepo: new TenantSecretRepository(prismaForCleanup),
+                  },
+                  (archetype.notification_channel as string | null) ?? null,
+                );
+                await prismaForCleanup.$disconnect();
+                const botTokenForCleanup = tenantEnvForCleanup['SLACK_BOT_TOKEN'] ?? '';
+                if (botTokenForCleanup) {
+                  const slackForCleanup = createSlackClient({
+                    botToken: botTokenForCleanup,
+                    defaultChannel: '',
+                  });
+                  await slackForCleanup.updateMessage(
+                    approvalCardRow['channel_id'] as string,
+                    approvalCardRow['slack_ts'] as string,
+                    '✅ Completed — no approval required',
+                    [
+                      {
+                        type: 'section',
+                        text: { type: 'mrkdwn', text: '✅ Completed — no approval required' },
+                      },
+                      {
+                        type: 'context',
+                        elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+                      },
+                    ],
+                  );
+                  await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+                }
+              }
+            } catch (err) {
+              log.warn(
+                { taskId, err },
+                '[lifecycle] Failed to clean up stale approval card — continuing',
+              );
+            }
+          });
+        }
+
+        // ── STEP 11: Record work metric ───────────────────────────────────────────
+        await step.run('record-work-metric-after-delivery', async () => {
+          try {
+            await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
+          } catch (err) {
+            log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
           }
         });
         return;
