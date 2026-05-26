@@ -54,10 +54,12 @@ STRUCTURE VARIETY: Vary the tone and structure of your message each run. Sometim
 
 Compose an encouraging message that ties the quote directly to the team's current efforts in the real estate space. Include at least one specific, actionable insight about how the quote applies to real estate professionals today — make it concrete and practical (e.g., a specific action they can take this week related to property management, guest experience, or portfolio growth).
 
-When you have finished writing your message, submit it with the command below. Replace the angle-bracket portion with the actual message text you wrote — word for word, do not summarize or abbreviate it:
-tsx /tools/platform/submit-output.ts --summary "Daily real estate inspiration message" --classification "NO_ACTION_NEEDED" --draft "<your complete message text>"
+When you have finished writing your message, follow these two steps:
 
-The --draft argument is MANDATORY and must contain the full inspirational message. Do not omit --draft. Do not use a placeholder like "message goes here" — use the real message.$$,
+Step 1 — use your Write tool to save your complete message to /tmp/draft.txt
+
+Step 2 — run this command exactly:
+tsx /tools/platform/submit-output.ts --summary "Daily real estate inspiration message" --classification "NO_ACTION_NEEDED"$$,
   delivery_instructions = $$The approved content below contains JSON. Parse it and extract the "draft" field — that is the actual inspirational message to post.
 
 Steps:
