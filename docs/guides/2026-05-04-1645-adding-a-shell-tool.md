@@ -144,19 +144,16 @@ This means:
 - **No Dockerfile changes needed** when adding a new tool or a new service directory.
 - **Local Docker mode** (`WORKER_RUNTIME=docker`): `src/worker-tools/` is bind-mounted into the container, so new or modified tool files are available immediately — no image rebuild required.
 - **Fly.io production deploys**: A rebuild and image push (`docker build` + `pnpm fly:image`) is still required for all `src/worker-tools/` changes.
-- New npm dependencies used by the tool must be added to the root `package.json` and will be included in the image on the next build.
+- New npm dependencies used by the tool must be added to `src/worker-tools/package.json` and will be included in the image on the next build.
 - The tool is available in the container at `/tools/{service}/{verb}-{noun}.ts`.
 
-### 6. Document in AGENTS.md
+### 6. Document in AGENTS.md (service directories only)
 
-Add a usage example for the new tool under the "OpenCode Worker" section in `AGENTS.md`, inside the shell tools block. Follow the existing format:
+If you are adding a **new service directory** (e.g., a new `stripe/` folder that didn't exist before), add a row to the shell tools table in AGENTS.md under the "OpenCode Worker" section.
 
-```
-  - `tsx /tools/{service}/{verb}-{noun}.ts --arg <value>` — one-line description of what it does
-    Output: JSON `{...shape...}`.
-```
+If you are adding a **new tool within an existing service** (e.g., a new `hostfully/get-reviews.ts`), no AGENTS.md change is needed — the `tool-usage-reference` skill and the tool's own `--help` output are sufficient documentation.
 
-Keep it concise — every token in AGENTS.md costs tokens on every LLM call.
+Keep AGENTS.md entries at the service level, not the tool level.
 
 ### 7. Reference in archetype instructions
 

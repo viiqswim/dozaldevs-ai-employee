@@ -135,18 +135,15 @@ All tools are bulk-copied into the image via `COPY src/worker-tools/ /tools/` in
 
 - **Local Docker mode** (`WORKER_RUNTIME=docker`): bind-mounted → new/modified files available immediately, no rebuild
 - **Fly.io**: rebuild and push required for all `src/worker-tools/` changes (`docker build` + `pnpm fly:image`)
-- New npm dependencies → add to root `package.json` → included on next build
+- New npm dependencies → add to `src/worker-tools/package.json` → included on next Docker build
 
-### Step 6 — Document in AGENTS.md
+### Step 6 — Document in AGENTS.md (service directories only)
 
-Add a usage example under the "OpenCode Worker" section, inside the shell tools block:
+If you are adding a **new service directory** (e.g., a new `stripe/` folder that didn't exist before), add a row to the shell tools table in AGENTS.md under the "OpenCode Worker" section.
 
-```
-  - `NODE_NO_WARNINGS=1 tsx /tools/{service}/{verb}-{noun}.ts --arg <value>` — one-line description
-    Output: JSON `{"field":"..."}`.
-```
+If you are adding a **new tool within an existing service** (e.g., a new `hostfully/get-reviews.ts`), no AGENTS.md change is needed — the `tool-usage-reference` skill and the tool's own `--help` output are sufficient documentation.
 
-Keep it concise — every token in AGENTS.md costs tokens on every LLM call.
+Keep AGENTS.md entries at the service level, not the tool level. AGENTS.md is loaded on every LLM call — every token has a real cost.
 
 ### Step 7 — Reference in archetype instructions
 
@@ -191,15 +188,15 @@ pnpm prisma db seed
 
 ## Common Mistakes — MUST NOT DO
 
-| Don't                                                                     | Do Instead                                                                         |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Import from `src/lib/` (e.g. `import { logger } from '../../lib/logger'`) | Use `process.stderr.write()` directly — tools run standalone in Docker             |
-| Use a CLI framework (yargs, commander, minimist)                          | Write a plain `parseArgs()` with a `for` loop over `argv.slice(2)`                 |
-| Print human-readable text to stdout                                       | Print JSON to stdout — the agent parses stdout as structured data                  |
-| Skip `--help`                                                             | Always implement `--help` — it's the first test and documents the interface        |
-| Skip mock fixture support                                                 | Always add `{SERVICE}_MOCK=true` mode — enables local testing without credentials  |
-| Hardcode credentials or channel IDs                                       | Read credentials from env vars injected by `tenant-env-loader.ts`                  |
-| Check mock mode after arg/env validation                                  | Check mock mode **first**, before any validation — mock bypasses all checks        |
-| Forget to whitelist non-secret env vars                                   | Add mock flags and config vars to `src/gateway/services/tenant-env-loader.ts`      |
-| Skip AGENTS.md update                                                     | Every new tool must appear in the Shell tools block in AGENTS.md                   |
-| Skip archetype instructions update                                        | Agents only use tools they know about — add usage to `prisma/seed.ts` instructions |
+| Don't                                                                     | Do Instead                                                                                                                                                  |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import from `src/lib/` (e.g. `import { logger } from '../../lib/logger'`) | Use `process.stderr.write()` directly — tools run standalone in Docker                                                                                      |
+| Use a CLI framework (yargs, commander, minimist)                          | Write a plain `parseArgs()` with a `for` loop over `argv.slice(2)`                                                                                          |
+| Print human-readable text to stdout                                       | Print JSON to stdout — the agent parses stdout as structured data                                                                                           |
+| Skip `--help`                                                             | Always implement `--help` — it's the first test and documents the interface                                                                                 |
+| Skip mock fixture support                                                 | Always add `{SERVICE}_MOCK=true` mode — enables local testing without credentials                                                                           |
+| Hardcode credentials or channel IDs                                       | Read credentials from env vars injected by `tenant-env-loader.ts`                                                                                           |
+| Check mock mode after arg/env validation                                  | Check mock mode **first**, before any validation — mock bypasses all checks                                                                                 |
+| Forget to whitelist non-secret env vars                                   | Add mock flags and config vars to `src/gateway/services/tenant-env-loader.ts`                                                                               |
+| Skip AGENTS.md update                                                     | New **service directories** must be added to the shell tools table in AGENTS.md. Individual tools within an existing service do not need AGENTS.md entries. |
+| Skip archetype instructions update                                        | Agents only use tools they know about — add usage to `prisma/seed.ts` instructions                                                                          |

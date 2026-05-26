@@ -81,56 +81,11 @@ COPY src/workers/config/opencode.json /app/opencode.json
 COPY src/workers/skills/ /app/.opencode/skills/
 COPY src/workers/config/agents.md /app/AGENTS.md
 
-RUN mkdir -p /tools/slack
-COPY --from=builder /build/src/worker-tools/slack/read-channels.ts /tools/slack/read-channels.ts
-COPY --from=builder /build/src/worker-tools/slack/post-message.ts /tools/slack/post-message.ts
-COPY --from=builder /build/src/worker-tools/slack/post-guest-approval.ts /tools/slack/post-guest-approval.ts
-RUN mkdir -p /tool-deps/slack
-RUN npm install --prefix /tool-deps/slack @slack/web-api@^7.15.1
-ENV NODE_PATH=/tool-deps/slack/node_modules
-
-RUN mkdir -p /tools/hostfully/fixtures/get-messages /tools/hostfully/fixtures/get-reservations /tools/hostfully/fixtures/get-property
-COPY --from=builder /build/src/worker-tools/hostfully/validate-env.ts /tools/hostfully/validate-env.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-property.ts /tools/hostfully/get-property.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-properties.ts /tools/hostfully/get-properties.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-reservations.ts /tools/hostfully/get-reservations.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-messages.ts /tools/hostfully/get-messages.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-reviews.ts /tools/hostfully/get-reviews.ts
-COPY --from=builder /build/src/worker-tools/hostfully/send-message.ts /tools/hostfully/send-message.ts
-COPY --from=builder /build/src/worker-tools/hostfully/get-door-code.ts /tools/hostfully/get-door-code.ts
-COPY --from=builder /build/src/worker-tools/hostfully/update-door-code.ts /tools/hostfully/update-door-code.ts
-COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-messages/default.json /tools/hostfully/fixtures/get-messages/default.json
-COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-reservations/default.json /tools/hostfully/fixtures/get-reservations/default.json
-COPY --from=builder /build/src/worker-tools/hostfully/fixtures/get-property/default.json /tools/hostfully/fixtures/get-property/default.json
-
-RUN mkdir -p /tools/platform
-COPY --from=builder /build/src/worker-tools/platform/report-issue.ts /tools/platform/report-issue.ts
-
-RUN mkdir -p /tools/knowledge_base
-COPY --from=builder /build/src/worker-tools/knowledge_base/search.ts /tools/knowledge_base/search.ts
-
-RUN mkdir -p /tools/jira/fixtures/get-issue /tools/jira/fixtures/search-issues /tools/jira/fixtures/add-comment /tools/jira/fixtures/list-comments
-COPY --from=builder /build/src/worker-tools/jira/validate-env.ts /tools/jira/validate-env.ts
-COPY --from=builder /build/src/worker-tools/jira/get-issue.ts /tools/jira/get-issue.ts
-COPY --from=builder /build/src/worker-tools/jira/search-issues.ts /tools/jira/search-issues.ts
-COPY --from=builder /build/src/worker-tools/jira/add-comment.ts /tools/jira/add-comment.ts
-COPY --from=builder /build/src/worker-tools/jira/list-comments.ts /tools/jira/list-comments.ts
-COPY --from=builder /build/src/worker-tools/jira/fixtures/get-issue/default.json /tools/jira/fixtures/get-issue/default.json
-COPY --from=builder /build/src/worker-tools/jira/fixtures/search-issues/default.json /tools/jira/fixtures/search-issues/default.json
-COPY --from=builder /build/src/worker-tools/jira/fixtures/add-comment/default.json /tools/jira/fixtures/add-comment/default.json
-COPY --from=builder /build/src/worker-tools/jira/fixtures/list-comments/default.json /tools/jira/fixtures/list-comments/default.json
-
-RUN mkdir -p /tools/sifely /tools/sifely/lib
-COPY --from=builder /build/src/worker-tools/sifely/lib/api.ts /tools/sifely/lib/api.ts
-COPY --from=builder /build/src/worker-tools/sifely/list-locks.ts /tools/sifely/list-locks.ts
-COPY --from=builder /build/src/worker-tools/sifely/list-passcodes.ts /tools/sifely/list-passcodes.ts
-COPY --from=builder /build/src/worker-tools/sifely/list-access-records.ts /tools/sifely/list-access-records.ts
-COPY --from=builder /build/src/worker-tools/sifely/create-passcode.ts /tools/sifely/create-passcode.ts
-COPY --from=builder /build/src/worker-tools/sifely/update-passcode.ts /tools/sifely/update-passcode.ts
-COPY --from=builder /build/src/worker-tools/sifely/delete-passcode.ts /tools/sifely/delete-passcode.ts
-COPY --from=builder /build/src/worker-tools/sifely/diagnose-access.ts /tools/sifely/diagnose-access.ts
-COPY --from=builder /build/src/worker-tools/sifely/rotate-property-code.ts /tools/sifely/rotate-property-code.ts
-COPY --from=builder /build/src/worker-tools/sifely/generate-code.ts /tools/sifely/generate-code.ts
+# Copy ALL worker tools into the image — no per-file COPY needed.
+# Adding a new tool or service? Just commit to src/worker-tools/ and rebuild.
+COPY --from=builder /build/src/worker-tools/ /tools/
+RUN cd /tools && npm install --production
+ENV NODE_PATH=/tools/node_modules
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"

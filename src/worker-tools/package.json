@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Dependencies for AI employee shell tools. Installed inside Docker at /tools/.",
+  "dependencies": {
+    "@slack/web-api": "^7.15.1"
+  }
+}

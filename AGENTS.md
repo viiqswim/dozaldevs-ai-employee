@@ -59,37 +59,26 @@ Employee-specific details are in each archetype's `agents_md` field and in `docs
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
 - **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects `instructions` + available tools, monitors until completion
-- **Shell tools** at `/tools/` in Docker image: `slack/` (post messages, read channels), `sifely/` (lock management, code rotation), `hostfully/` (messages, properties, reservations), `knowledge_base/` (search), `platform/` (logging). Full CLI syntax: load `tool-usage-reference` skill.
-- **Sifely tools** (`/tools/sifely/`):
-  - `tsx /tools/sifely/list-locks.ts` — list all locks
-  - `tsx /tools/sifely/list-passcodes.ts --lock-id <id>` — list passcodes for a lock
-  - `tsx /tools/sifely/list-access-records.ts --lock-id <id> [--start-date <ms>] [--end-date <ms>] [--human]` — list access records; `--start-date`/`--end-date` optional (defaults: last 7 days → now); `--human` adds `recordTypeLabel` field (e.g. "Fingerprint", "Passcode", "Auto-Lock"); auto-paginates to fetch ALL records
-  - `tsx /tools/sifely/create-passcode.ts --lock-id <id> --name "Name" --code "1234"` — create permanent passcode
-  - `tsx /tools/sifely/update-passcode.ts --lock-id <id> --passcode-id <id> [--code "digits"] [--name "Name"]` — update passcode
-  - `tsx /tools/sifely/delete-passcode.ts --lock-id <id> --passcode-id <id>` — delete passcode
-  - `tsx /tools/sifely/generate-code.ts [--length 4|5|6] [--exclude-codes "1221,2332"]` — generate memorable code
-  - `tsx /tools/sifely/rotate-property-code.ts --property-id <uid>` — rotate all lock codes for a property
-  - `tsx /tools/sifely/diagnose-access.ts --property-id <uid>` — diagnose lock access issues
-- **Hostfully tools** (`/tools/hostfully/`):
-  - `tsx /tools/hostfully/get-door-code.ts --property-id <uid>` — read door code from Hostfully
-  - `tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>` — update door code
-- **Jira tools** (`/tools/jira/`):
-  - **Auth**: Tools support two modes, tried in order — OAuth first (`JIRA_ACCESS_TOKEN` + `JIRA_CLOUD_ID`, base URL: `https://api.atlassian.com/ex/jira/{cloudId}`), then Basic (`JIRA_API_TOKEN` + `JIRA_USER_EMAIL` + `JIRA_BASE_URL`). OAuth is injected automatically for tenants that connected via the dashboard OAuth flow. Basic auth is for manual/legacy setup.
-  - `tsx /tools/jira/validate-env.ts` — check auth vars; outputs `{ok, mode:"oauth"|"basic"|null, vars}` or `{ok:false, missing:[]}`; always exits 0
-  - `tsx /tools/jira/get-issue.ts --issue-key PROJ-123` — fetch issue details (summary, description, status, priority, assignee, labels); `JIRA_MOCK=true` returns fixture
-  - `tsx /tools/jira/search-issues.ts [--project KEY] [--status "In Progress"] [--assignee "Name"] [--jql "raw JQL"]` — search issues via JQL; `JIRA_MOCK=true` returns fixture
-  - `tsx /tools/jira/add-comment.ts --issue-key PROJ-123 --body "plain text"` — add comment (auto-wrapped in ADF); `JIRA_MOCK=true` returns fixture
-  - `tsx /tools/jira/list-comments.ts --issue-key PROJ-123` — list comments as plain text (ADF converted); `JIRA_MOCK=true` returns fixture
-- **Platform tools** (`/tools/platform/`):
-  - `tsx /tools/platform/report-issue.ts --message "..." --severity "low|medium|high"` — report an issue to the platform
-  - `tsx /tools/platform/submit-output.ts --summary "..." --classification "NO_ACTION_NEEDED|NEEDS_APPROVAL"` — writes the output contract JSON to `/tmp/summary.txt` (required at end of every task)
+  **Shell tools** at `/tools/` in Docker image — one directory per service:
+
+| Service        | Directory                | Purpose                                                           |
+| -------------- | ------------------------ | ----------------------------------------------------------------- |
+| Slack          | `/tools/slack/`          | Post messages, read channels, post approval cards                 |
+| Hostfully      | `/tools/hostfully/`      | Messages, properties, reservations, reviews, door codes           |
+| Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics |
+| Jira           | `/tools/jira/`           | Issue lookup, search, comments                                    |
+| Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                   |
+| Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
+
+All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
+Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
+
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31`. Version `1.14.33` has a confirmed 6-second exit regression. **Never upgrade without explicit testing.**
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.
 - **`autoupdate: false`**: Must be set in `src/workers/config/opencode.json` and `~/.config/opencode/opencode.json`.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — states: Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done. Terminal: `Failed`, `Cancelled`.
 - **Inngest functions** (active — 5): `employee/universal-lifecycle`, `employee/interaction-handler` (intent classification, `feedback_events`), `employee/rule-extractor` (`employee_rules`), `employee/rule-synthesizer` (`SYNTHESIS_THRESHOLD` = 5), `trigger/reviewing-watchdog` (15-min cron, marks stuck `Reviewing` → `Failed` after 30 min).
-- **Inngest functions** (deregistered): `trigger/feedback-summarizer` (DELETED), `trigger/daily-summarizer` (DELETED — external cron), `trigger/guest-message-poll` (preserved at `src/inngest/triggers/guest-message-poll.ts`), 3 deprecated engineering functions.
 - **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json`. Absence of BOTH is a hard failure.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
 
@@ -225,6 +214,12 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 | Build            | `pnpm build`                       |
 | Trigger E2E task | `pnpm trigger-task`                |
 | Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
+| Docker start     | `pnpm docker:start`                |
+| Docker stop      | `pnpm docker:stop`                 |
+| Docker reset     | `pnpm docker:reset`                |
+| Docker status    | `pnpm docker:status`               |
+| Dashboard build  | `pnpm dashboard:build`             |
+| Full E2E run     | `pnpm dev:e2e`                     |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -319,15 +314,15 @@ src/
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
-│   ├── services/     # Business logic: dispatcher, task creation, project registry, tenant/secret repos, time-estimator (Haiku-based manual time estimation)
+│   ├── services/     # Business logic services (dispatcher, task creation, tenant/secret management, archetype generation, interaction classification, and more). Browse `src/gateway/services/` for the full list.
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
-└── lib/          # Shared: fly-client, github-client, slack-client, jira-client, call-llm (model enforcement + $50/day cost circuit breaker), encryption (AES-256-GCM for tenant secrets), logger, retry, errors, tunnel-client, repo-url, agent-version, classify-message, hostfully-precheck, slack-blocks, telegram-client, model-selection (profiler, matcher, tier computation, types/constants)
-prisma/           # Schema (25 models), 28 migrations, seed
+└── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), plus HTTP clients, logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
+prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 ```
 
