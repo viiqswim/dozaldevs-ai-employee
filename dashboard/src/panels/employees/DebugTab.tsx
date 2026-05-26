@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { fetchBrainPreview } from '@/lib/gateway';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { CollapsibleSection } from './components/CollapsibleSection';
@@ -49,6 +49,45 @@ function ContentView({ content, mode }: { content: string; mode: ViewMode }) {
     );
   }
   return <MarkdownPreview content={content} />;
+}
+
+function LayeredContentView({
+  layers,
+  full,
+  mode,
+}: {
+  layers: BrainPreviewResponse['agents_md']['layers'];
+  full: string;
+  mode: ViewMode;
+}) {
+  if (mode === 'source') {
+    return (
+      <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/30 p-4 rounded-md overflow-auto max-h-[600px]">
+        {full}
+      </pre>
+    );
+  }
+
+  const orderedLayers = [
+    layers.platform,
+    layers.platformRuntime,
+    layers.tenant,
+    layers.employee,
+    layers.rules,
+    layers.knowledge,
+    layers.finalReminders,
+  ].filter((l): l is string => Boolean(l));
+
+  return (
+    <div>
+      {orderedLayers.map((layer, i) => (
+        <Fragment key={i}>
+          {i > 0 && <hr className="border-border my-4" />}
+          <MarkdownPreview content={layer} />
+        </Fragment>
+      ))}
+    </div>
+  );
 }
 
 export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
@@ -123,7 +162,11 @@ export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
         defaultOpen={true}
         actions={<ViewToggle mode={agentsMdMode} onChange={setAgentsMdMode} />}
       >
-        <ContentView content={data.agents_md.full} mode={agentsMdMode} />
+        <LayeredContentView
+          layers={data.agents_md.layers}
+          full={data.agents_md.full}
+          mode={agentsMdMode}
+        />
       </CollapsibleSection>
     </div>
   );
