@@ -20,6 +20,7 @@ interface Args {
   summary: string;
   classification: string;
   draft: string | null;
+  draftFile: string | null;
   confidence: number | null;
   reasoning: string | null;
   urgency: boolean;
@@ -35,6 +36,7 @@ function parseArgs(argv: string[]): Args {
   let summary = '';
   let classification = '';
   let draft: string | null = null;
+  let draftFile: string | null = null;
   let confidence: number | null = null;
   let reasoning: string | null = null;
   let urgency = false;
@@ -48,6 +50,8 @@ function parseArgs(argv: string[]): Args {
       classification = args[++i];
     } else if (args[i] === '--draft' && args[i + 1]) {
       draft = args[++i];
+    } else if (args[i] === '--draft-file' && args[i + 1]) {
+      draftFile = args[++i];
     } else if (args[i] === '--confidence' && args[i + 1]) {
       confidence = parseFloat(args[++i]);
     } else if (args[i] === '--reasoning' && args[i + 1]) {
@@ -67,7 +71,17 @@ function parseArgs(argv: string[]): Args {
     }
   }
 
-  return { summary, classification, draft, confidence, reasoning, urgency, metadata, help };
+  return {
+    summary,
+    classification,
+    draft,
+    draftFile,
+    confidence,
+    reasoning,
+    urgency,
+    metadata,
+    help,
+  };
 }
 
 async function main(): Promise<void> {
@@ -83,6 +97,7 @@ async function main(): Promise<void> {
         '  --classification <value>      NEEDS_APPROVAL | NO_ACTION_NEEDED\n\n' +
         'Optional flags:\n' +
         '  --draft <text>                Draft message/content for PM review (use with NEEDS_APPROVAL)\n' +
+        '  --draft-file <path>           Read draft from file at <path> instead of inline text (avoids shell quoting issues)\n' +
         '  --confidence <0-1>            Confidence score between 0 and 1 (e.g. 0.95)\n' +
         '  --reasoning <text>            Explanation of the classification decision\n' +
         '  --urgency                     Flag presence marks urgency=true\n' +
@@ -124,6 +139,16 @@ async function main(): Promise<void> {
       process.stderr.write('Error: --confidence must be a number between 0 and 1\n');
       process.exit(1);
     }
+  }
+
+  if (args.draftFile !== null) {
+    if (!fs.existsSync(args.draftFile)) {
+      process.stderr.write(`Error: --draft-file path does not exist: ${args.draftFile}\n`);
+      process.exit(1);
+    }
+    args.draft = fs.readFileSync(args.draftFile, 'utf-8').trim();
+  } else if (args.draft === null && fs.existsSync('/tmp/draft.txt')) {
+    args.draft = fs.readFileSync('/tmp/draft.txt', 'utf-8').trim();
   }
 
   const output: Record<string, unknown> = {
