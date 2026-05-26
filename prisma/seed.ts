@@ -3368,8 +3368,6 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
    tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>
 7. Process properties one at a time — never in parallel (Sifely rate limits require sequential processing).
 8. If a single property fails, document the error and continue with the rest.
-9. Post rotation summary to Slack:
-   tsx /tools/slack/post-message.ts --thread-ts "$NOTIFY_MSG_TS" --channel "$NOTIFICATION_CHANNEL" --text "<summary>"
 
 CLASSIFICATION RULES:
 - Use NO_ACTION_NEEDED if no properties had a checkout today.
@@ -3390,7 +3388,8 @@ tsx /tools/platform/submit-output.ts \\
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1, // one rotation run at a time — Sifely rate limits
       agents_md: CODE_ROTATION_AGENTS_MD,
-      delivery_instructions: null,
+      delivery_instructions:
+        'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
@@ -3412,8 +3411,6 @@ tsx /tools/platform/submit-output.ts \\
    tsx /tools/hostfully/update-door-code.ts --property-id <uid> --code <digits>
 7. Process properties one at a time — never in parallel (Sifely rate limits require sequential processing).
 8. If a single property fails, document the error and continue with the rest.
-9. Post rotation summary to Slack:
-   tsx /tools/slack/post-message.ts --thread-ts "$NOTIFY_MSG_TS" --channel "$NOTIFICATION_CHANNEL" --text "<summary>"
 
 CLASSIFICATION RULES:
 - Use NO_ACTION_NEEDED if no properties had a checkout today.
@@ -3434,7 +3431,8 @@ tsx /tools/platform/submit-output.ts \\
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1,
       agents_md: CODE_ROTATION_AGENTS_MD,
-      delivery_instructions: null,
+      delivery_instructions:
+        'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE — explicitly set on update to fix prior wrong-tenant seed
@@ -3461,7 +3459,7 @@ Personalize the quote with context about the team's work and the specific ticket
 
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
-Post the motivational message to the team Slack channel.`,
+tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/jira/get-issue.ts', '/tools/slack/post-message.ts'] },
@@ -3470,7 +3468,8 @@ Post the motivational message to the team Slack channel.`,
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
       agents_md: JIRA_MOTIVATION_BOT_AGENTS_MD,
-      delivery_instructions: '',
+      delivery_instructions:
+        'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE department
@@ -3487,7 +3486,7 @@ Personalize the quote with context about the team's work and the specific ticket
 
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
-Post the motivational message to the team Slack channel.`,
+tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/jira/get-issue.ts', '/tools/slack/post-message.ts'] },
@@ -3496,7 +3495,8 @@ Post the motivational message to the team Slack channel.`,
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
       agents_md: JIRA_MOTIVATION_BOT_AGENTS_MD,
-      delivery_instructions: '',
+      delivery_instructions:
+        'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
