@@ -54,9 +54,18 @@ STRUCTURE VARIETY: Vary the tone and structure of your message each run. Sometim
 
 Compose an encouraging message that ties the quote directly to the team's current efforts in the real estate space. Include at least one specific, actionable insight about how the quote applies to real estate professionals today — make it concrete and practical (e.g., a specific action they can take this week related to property management, guest experience, or portfolio growth).
 
-Then submit your output:
-tsx /tools/platform/submit-output.ts --summary "Posted daily real estate inspiration message" --classification "NO_ACTION_NEEDED"$$,
-  delivery_instructions = $$Post the inspirational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.$$,
+Then submit your output using BOTH flags — put the actual full message in --draft:
+tsx /tools/platform/submit-output.ts --summary "Daily real estate inspiration message" --classification "NO_ACTION_NEEDED" --draft "PASTE THE COMPLETE INSPIRATIONAL MESSAGE HERE"$$,
+  delivery_instructions = $$The approved content below contains JSON. Parse it and extract the "draft" field — that is the actual inspirational message to post.
+
+Steps:
+1. Look at the content after "--- APPROVED CONTENT ---" and parse it as JSON
+2. Extract the value of the "draft" key — this is the full inspirational message
+3. Post it to Slack: tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "PASTE THE DRAFT MESSAGE HERE"
+4. After posting successfully, write the confirmation file directly: echo '{"delivered":true}' > /tmp/summary.txt
+
+IMPORTANT: Do NOT use submit-output.ts for the confirmation — write /tmp/summary.txt directly with echo.
+IMPORTANT: Do NOT add --thread flag to post-message.ts — threading is handled automatically.$$,
   updated_at = NOW()
 WHERE id = '3b07ec63-207f-4f2b-a8c3-c17f08bc508f'
   AND deleted_at IS NULL;
