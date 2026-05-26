@@ -826,7 +826,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               if (rows.length > 0) {
                 const result = parseClassifyResponse(rows[0].content);
                 return {
-                  skipDelivery: result.classification === 'NO_ACTION_NEEDED',
+                  skipDelivery:
+                    result.classification === 'NO_ACTION_NEEDED' &&
+                    !archetype['delivery_instructions'],
                   reasoning: result.reasoning,
                   displayContext: result.displayContext,
                 };
