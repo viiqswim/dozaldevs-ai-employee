@@ -864,7 +864,12 @@ async function main(): Promise<void> {
   // Platform procedures — auto-generated from risk_model
   const approvalRequired =
     (archetype.risk_model as { approval_required?: boolean } | null)?.approval_required ?? true;
-  platformRuntimeSections.push(generatePlatformProcedures({ approvalRequired }));
+  platformRuntimeSections.push(
+    generatePlatformProcedures({
+      approvalRequired,
+      hasDeliveryInstructions: !!(archetype.delivery_instructions as string | null),
+    }),
+  );
 
   // Tool reference — auto-generated from tool_registry
   const toolPaths = (archetype.tool_registry as { tools?: string[] } | null)?.tools ?? [];
