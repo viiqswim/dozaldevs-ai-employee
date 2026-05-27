@@ -505,7 +505,7 @@ async function runOpencodeSession(
       await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
       await sessionManager.monitorSession(sessionId!, {
         timeoutMs: 5 * 60 * 1000,
-        minElapsedMs: 10000,
+        minElapsedMs: 60_000,
       });
       const { content: nudgeContent, extraMetadata: nudgeMeta } = await checkOutputFiles();
       if (nudgeContent === 'completed' && Object.keys(nudgeMeta).length === 0) {
@@ -928,7 +928,9 @@ async function main(): Promise<void> {
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;
 
   try {
-    const result = await runOpencodeSession(instructionsWithSubmitOutput, model, submitOutputCmd);
+    const result = await runOpencodeSession(instructionsWithSubmitOutput, model, submitOutputCmd, {
+      minElapsedMs: 120_000,
+    });
     content = result.content;
     metadata = result.metadata;
     sessionTranscript = result.transcript;
