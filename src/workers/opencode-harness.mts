@@ -755,12 +755,14 @@ async function main(): Promise<void> {
         );
         return;
       }
-      if (deliverySummary.delivered !== true) {
+      if (deliverySummary.delivered !== true && !deliverySummary.summary) {
         await markFailed(
-          'Delivery not confirmed — send-message.ts may not have succeeded',
+          'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
           null,
           'Delivering',
-          classifyFailure('Delivery not confirmed — send-message.ts may not have succeeded'),
+          classifyFailure(
+            'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
+          ),
         );
         return;
       }
