@@ -505,7 +505,7 @@ async function runOpencodeSession(
       await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
       await sessionManager.monitorSession(sessionId!, {
         timeoutMs: 5 * 60 * 1000,
-        minElapsedMs: 60_000,
+        minElapsedMs: 10_000,
       });
       const { content: nudgeContent, extraMetadata: nudgeMeta } = await checkOutputFiles();
       if (nudgeContent === 'completed' && Object.keys(nudgeMeta).length === 0) {
@@ -695,8 +695,11 @@ async function main(): Promise<void> {
       let agentsMdContent: string;
       if (archetype.role_name === EXPERIMENTAL_EMPLOYEE_SLUG) {
         agentsMdContent = await readAgentsMd(
-          '/app/experimental/daily-real-estate-inspiration-2-copy/agents-delivery.md',
+          '/app/experimental/daily-real-estate-inspiration-2-copy/agents-execution.md',
           'utf8',
+        );
+        log.info(
+          '[opencode-harness] Experimental employee: using agents-execution.md verbatim for delivery phase',
         );
       } else {
         let tenantConfig: Record<string, unknown> | null = null;
@@ -730,7 +733,7 @@ async function main(): Promise<void> {
         deliveryPrompt,
         archetype.model ?? 'minimax/minimax-m2.7',
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
-        { minElapsedMs: 120_000 },
+        { minElapsedMs: 10_000 },
       );
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
@@ -904,6 +907,9 @@ async function main(): Promise<void> {
         '/app/experimental/daily-real-estate-inspiration-2-copy/agents-execution.md',
         'utf8',
       );
+      log.info(
+        '[opencode-harness] Experimental employee: using agents-execution.md verbatim for execution phase',
+      );
     } else {
       let tenantConfig: Record<string, unknown> | null = null;
       if (task.tenant_id) {
@@ -936,16 +942,15 @@ async function main(): Promise<void> {
 
   // Platform-level submit-output reminder appended to every employee's task prompt.
   // Placed at the end to leverage recency effect — last thing the model reads before generating.
-  const instructionsWithSubmitOutput = assembleTaskPrompt({
+  const taskPrompt = assembleTaskPrompt({
     instructions: resolvedInstructions,
-    approvalRequired,
     taskId: TASK_ID,
   });
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;
 
   try {
-    const result = await runOpencodeSession(instructionsWithSubmitOutput, model, submitOutputCmd, {
-      minElapsedMs: 120_000,
+    const result = await runOpencodeSession(taskPrompt, model, submitOutputCmd, {
+      minElapsedMs: 10_000,
     });
     content = result.content;
     metadata = result.metadata;

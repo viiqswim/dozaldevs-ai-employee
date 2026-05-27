@@ -10,14 +10,11 @@
 
 export interface AssembleTaskPromptOptions {
   instructions: string;
-  approvalRequired: boolean;
   taskId?: string; // optional — defaults to "<dynamic at runtime>"
 }
 
 export function assembleTaskPrompt(options: AssembleTaskPromptOptions): string {
-  const { instructions, approvalRequired, taskId = '<dynamic at runtime>' } = options;
-
-  const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;
+  const { instructions, taskId = '<dynamic at runtime>' } = options;
 
   // Inject date + time + epoch ms to break prompt determinism across runs.
   // Without this, the prompt is byte-for-byte identical every run, causing models to
@@ -42,7 +39,5 @@ export function assembleTaskPrompt(options: AssembleTaskPromptOptions): string {
   const epochMs = now.getTime();
   const contextLine = `TODAY: ${dateStr} | EPOCH_MS: ${epochMs}\n\n`;
 
-  const submitOutputSuffix = `\n\n---\nREMINDER — MANDATORY FINAL STEP: Run this before ending the session:\n${submitOutputCmd}`;
-
-  return contextLine + instructions + submitOutputSuffix + `\n\nTask ID: ${taskId}`;
+  return contextLine + instructions + `\n\nTask ID: ${taskId}`;
 }
