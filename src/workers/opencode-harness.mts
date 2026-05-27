@@ -295,6 +295,7 @@ async function runOpencodeSession(
   instructions: string,
   model: string,
   submitOutputCmd: string,
+  options?: { minElapsedMs?: number },
 ): Promise<{
   content: string;
   metadata: Record<string, unknown>;
@@ -353,7 +354,7 @@ async function runOpencodeSession(
       sessionManager
         .monitorSession(sessionId, {
           timeoutMs: 30 * 60 * 1000,
-          minElapsedMs: 30000,
+          minElapsedMs: options?.minElapsedMs ?? 30_000,
         })
         .then((r) => r as { completed: boolean; reason?: string }),
       serverHandle.onExit.then(() => serverExitedEarly as typeof serverExitedEarly),
@@ -500,7 +501,7 @@ async function runOpencodeSession(
         { taskId: TASK_ID, sessionId },
         '[opencode-harness] submit-output not found after session idle — sending recovery nudge',
       );
-      const nudgeMessage = `You forgot the mandatory final step. Run this command NOW:\n${submitOutputCmd}`;
+      const nudgeMessage = `You may still have remaining delivery steps to complete (e.g. posting to Slack). Finish ALL your remaining steps first, then run this as the very last thing:\n${submitOutputCmd}`;
       await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
       await sessionManager.monitorSession(sessionId!, {
         timeoutMs: 5 * 60 * 1000,
@@ -720,6 +721,7 @@ async function main(): Promise<void> {
         deliveryPrompt,
         archetype.model ?? 'minimax/minimax-m2.7',
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
+        { minElapsedMs: 120_000 },
       );
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
