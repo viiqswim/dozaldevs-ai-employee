@@ -569,7 +569,7 @@ Wave FINAL (After ALL tasks):
 
   **Commit**: NO (validation only)
 
-- [ ] 5. Commit sisyphus artifacts and send telegram notification
+- [x] 5. Commit sisyphus artifacts and send telegram notification
 
   **What to do**:
   1. Run `git status` to check for any uncommitted changes
@@ -655,19 +655,19 @@ Wave FINAL (After ALL tasks):
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read `.sisyphus/plans/fix-delivery-nudge-timing.md` end-to-end. For each "Must Have": verify implementation exists (read `src/workers/opencode-harness.mts`, check evidence files). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Review `src/workers/opencode-harness.mts` changes for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify the parameter default is correct (30000). Verify nudge message still includes `${submitOutputCmd}` interpolation.
       Output: `Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Trigger 1 additional `daily-real-estate-inspiration-2` run. Wait for completion. Check delivery log for `post-message` tool call. Verify Slack channel has the posted message. Save evidence.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Run `git diff HEAD~1` (or appropriate range). Verify changes are ONLY in `src/workers/opencode-harness.mts`. Verify no other files were modified. Check "Must NOT do" compliance: no changes to lines 356, 507, 722, no changes to `session-manager.ts` or `employee-lifecycle.ts`. Flag any unaccounted changes.
       Output: `Files changed [N] | Contamination [CLEAN/N issues] | VERDICT`
 
