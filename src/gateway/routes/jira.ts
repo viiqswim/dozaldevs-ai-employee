@@ -58,7 +58,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     }
 
     const archetype = await prisma.archetype.findFirst({
-      where: { tenant_id: tenant.id, role_name: employeeSlug, status: 'active' },
+      where: { tenant_id: tenant.id, role_name: employeeSlug, status: 'active', deleted_at: null },
     });
     if (!archetype) {
       logger.warn(
@@ -262,7 +262,12 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
 
     // Resolve archetype for the active employee lifecycle
     const archetype = await prisma.archetype.findFirst({
-      where: { tenant_id: project.tenant_id, role_name: 'jira-motivation-bot', status: 'active' },
+      where: {
+        tenant_id: project.tenant_id,
+        role_name: 'jira-motivation-bot',
+        status: 'active',
+        deleted_at: null,
+      },
     });
     if (!archetype) {
       logger.warn(

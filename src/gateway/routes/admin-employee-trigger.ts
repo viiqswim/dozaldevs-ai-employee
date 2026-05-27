@@ -58,7 +58,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
 
       try {
         const archetype = await prisma.archetype.findFirst({
-          where: { tenant_id: tenantId, role_name: slug, status: 'active' },
+          where: { tenant_id: tenantId, role_name: slug, status: 'active', deleted_at: null },
         });
 
         if (archetype?.input_schema) {
