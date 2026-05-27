@@ -1113,15 +1113,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             (taskData.raw_event as Record<string, string> | null) ?? {};
 
           let deliveryFinalStatus = '';
+          const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
           for (let attempt = 0; attempt < 3; attempt++) {
+            const deliveryContainerName =
+              attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
             if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
-              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
+              const prevName =
+                attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
+              stopLocalDockerContainer(prevName);
             }
             let deliveryMachine: { id: string };
             if (process.env.WORKER_RUNTIME !== 'fly') {
               deliveryMachine = runLocalDockerContainer({
                 taskId,
-                name: `employee-delivery-${taskId.slice(0, 8)}`,
+                name: deliveryContainerName,
                 env: {
                   ...tenantEnvForDelivery,
                   TASK_ID: taskId,
@@ -2452,15 +2457,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
           let deliveryFinalStatus = '';
+          const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
           for (let attempt = 0; attempt < 3; attempt++) {
+            const deliveryContainerName =
+              attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
             if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
-              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
+              const prevName =
+                attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
+              stopLocalDockerContainer(prevName);
             }
             let deliveryMachine: { id: string };
             if (process.env.WORKER_RUNTIME !== 'fly') {
               deliveryMachine = runLocalDockerContainer({
                 taskId,
-                name: `employee-delivery-${taskId.slice(0, 8)}`,
+                name: deliveryContainerName,
                 env: {
                   ...tenantEnvForApproval,
                   TASK_ID: taskId,
