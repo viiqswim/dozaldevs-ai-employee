@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchBrainPreview } from '@/lib/gateway';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { CollapsibleSection } from './components/CollapsibleSection';
@@ -10,6 +10,56 @@ interface DebugTabProps {
 }
 
 type ViewMode = 'rendered' | 'source';
+
+const AGENTS_MD_LAYERS: Array<{
+  key: keyof BrainPreviewResponse['agents_md']['layers'];
+  title: string;
+  subtitle: string;
+  source: string;
+}> = [
+  {
+    key: 'tenant',
+    title: 'Who You Are',
+    subtitle: 'Tenant-level identity — injected first into every employee',
+    source: 'DB: tenants.config → default_agents_md',
+  },
+  {
+    key: 'employee',
+    title: 'Your Job',
+    subtitle: 'Employee-specific job definition (archetype AGENTS.md field)',
+    source: 'DB: archetypes.agents_md',
+  },
+  {
+    key: 'platformRuntime',
+    title: 'Your Tools & Procedures',
+    subtitle: 'Security boundary, tool reference, and platform procedures — injected at runtime',
+    source: 'Runtime: platform-procedures.mts + tool-reference-generator.mts',
+  },
+  {
+    key: 'rules',
+    title: 'Behavioral Rules (Learned)',
+    subtitle: 'Confirmed rules learned from PM feedback — override conflicting guidance above',
+    source: 'DB: employee_rules (status = confirmed)',
+  },
+  {
+    key: 'knowledge',
+    title: 'Knowledge Base',
+    subtitle: 'Knowledge base themes extracted from the feedback pipeline',
+    source: 'DB: knowledge_base.source_config → themes',
+  },
+  {
+    key: 'platform',
+    title: 'Platform Rules',
+    subtitle: 'Platform-wide AGENTS.md — always included, always last',
+    source: 'File: src/workers/config/agents.md',
+  },
+  {
+    key: 'finalReminders',
+    title: 'Final Reminders',
+    subtitle: 'Closing sections appended after everything else',
+    source: 'Runtime: closingSections (currently unused)',
+  },
+];
 
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
@@ -51,51 +101,17 @@ function ContentView({ content, mode }: { content: string; mode: ViewMode }) {
   return <MarkdownPreview content={content} />;
 }
 
-function LayeredContentView({
-  layers,
-  full,
-  mode,
-}: {
-  layers: BrainPreviewResponse['agents_md']['layers'];
-  full: string;
-  mode: ViewMode;
-}) {
-  if (mode === 'source') {
-    return (
-      <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/30 p-4 rounded-md overflow-auto max-h-[600px]">
-        {full}
-      </pre>
-    );
-  }
-
-  const orderedLayers = [
-    layers.platform,
-    layers.platformRuntime,
-    layers.tenant,
-    layers.employee,
-    layers.rules,
-    layers.knowledge,
-    layers.finalReminders,
-  ].filter((l): l is string => Boolean(l));
-
-  return (
-    <div>
-      {orderedLayers.map((layer, i) => (
-        <Fragment key={i}>
-          {i > 0 && <hr className="border-border my-4" />}
-          <MarkdownPreview content={layer} />
-        </Fragment>
-      ))}
-    </div>
-  );
-}
-
 export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
   const [data, setData] = useState<BrainPreviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [promptMode, setPromptMode] = useState<ViewMode>('rendered');
-  const [agentsMdMode, setAgentsMdMode] = useState<ViewMode>('rendered');
+  const [deliveryPromptMode, setDeliveryPromptMode] = useState<ViewMode>('rendered');
+  const [layerModes, setLayerModes] = useState<Record<string, ViewMode>>({});
+
+  const getLayerMode = (key: string): ViewMode => layerModes[key] ?? 'rendered';
+  const setLayerMode = (key: string) => (mode: ViewMode) =>
+    setLayerModes((prev) => ({ ...prev, [key]: mode }));
 
   const fetchData = () => {
     setLoading(true);
@@ -151,23 +167,52 @@ export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
         title="Execution Prompt"
         subtitle="The exact prompt sent to the AI employee at runtime"
         defaultOpen={true}
+        badge={
+          <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            DB: archetypes.instructions
+          </code>
+        }
         actions={<ViewToggle mode={promptMode} onChange={setPromptMode} />}
       >
         <ContentView content={data.execution_prompt} mode={promptMode} />
       </CollapsibleSection>
 
-      <CollapsibleSection
-        title="Resolved AGENTS.md"
-        subtitle="The full AGENTS.md file as the harness constructs it (all 7 layers merged)"
-        defaultOpen={true}
-        actions={<ViewToggle mode={agentsMdMode} onChange={setAgentsMdMode} />}
-      >
-        <LayeredContentView
-          layers={data.agents_md.layers}
-          full={data.agents_md.full}
-          mode={agentsMdMode}
-        />
-      </CollapsibleSection>
+      {data.delivery_prompt && (
+        <CollapsibleSection
+          title="Delivery Prompt"
+          subtitle="The prompt sent to the AI employee during the delivery phase (after approval)"
+          defaultOpen={true}
+          badge={
+            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              DB: archetypes.delivery_instructions
+            </code>
+          }
+          actions={<ViewToggle mode={deliveryPromptMode} onChange={setDeliveryPromptMode} />}
+        >
+          <ContentView content={data.delivery_prompt} mode={deliveryPromptMode} />
+        </CollapsibleSection>
+      )}
+
+      {AGENTS_MD_LAYERS.map(({ key, title, subtitle, source }) => {
+        const content = data.agents_md.layers[key];
+        if (!content) return null;
+        return (
+          <CollapsibleSection
+            key={key}
+            title={title}
+            subtitle={subtitle}
+            defaultOpen={false}
+            badge={
+              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                {source}
+              </code>
+            }
+            actions={<ViewToggle mode={getLayerMode(key)} onChange={setLayerMode(key)} />}
+          >
+            <ContentView content={content} mode={getLayerMode(key)} />
+          </CollapsibleSection>
+        );
+      })}
     </div>
   );
 }

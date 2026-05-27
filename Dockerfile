@@ -80,6 +80,7 @@ COPY src/workers/config/opencode.json /app/opencode.json
 # Skills: baked into image for native OpenCode skill discovery
 COPY src/workers/skills/ /app/.opencode/skills/
 COPY src/workers/config/agents.md /app/AGENTS.md
+COPY src/workers/experimental/ /app/experimental/
 
 # Copy ALL worker tools into the image — no per-file COPY needed.
 # Adding a new tool or service? Just commit to src/worker-tools/ and rebuild.
