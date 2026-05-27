@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import { WebClient } from '@slack/web-api';
 
 interface PostResult {
@@ -14,6 +16,7 @@ function parseArgs(argv: string[]): {
   conversationRef?: string;
   title?: string;
   threadTs?: string;
+  textFile?: string;
 } {
   const args = argv.slice(2);
   let channel = '';
@@ -23,6 +26,7 @@ function parseArgs(argv: string[]): {
   let conversationRef: string | undefined;
   let title: string | undefined;
   let threadTs: string | undefined;
+  let textFile: string | undefined;
   let noThread = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -41,6 +45,8 @@ function parseArgs(argv: string[]): {
       title = args[++i];
     } else if (args[i] === '--thread-ts' && args[i + 1]) {
       threadTs = args[++i];
+    } else if (args[i] === '--text-file' && args[i + 1]) {
+      textFile = args[++i];
     } else if (args[i] === '--no-thread') {
       noThread = true;
     } else if (args[i] === '--help') {
@@ -49,6 +55,7 @@ function parseArgs(argv: string[]): {
           'Options:\n' +
           '  --channel <id>              (required) Slack channel ID to post to\n' +
           '  --text <string>             (required) Message text\n' +
+          '  --text-file <path>          Read message text from file at <path> (avoids shell quoting issues)\n' +
           '  --blocks <json>             Optional Block Kit blocks JSON array\n' +
           '  --task-id <uuid>            Optional task ID — auto-generates approval blocks with Approve/Reject buttons\n' +
           '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
@@ -66,7 +73,7 @@ function parseArgs(argv: string[]): {
     if (envTs) threadTs = envTs;
   }
 
-  return { channel, text, blocks, taskId, conversationRef, title, threadTs };
+  return { channel, text, blocks, taskId, conversationRef, title, threadTs, textFile };
 }
 
 export function buildApprovalBlocks(
@@ -119,13 +126,24 @@ export function buildApprovalBlocks(
 async function main(): Promise<void> {
   const {
     channel,
-    text,
+    text: parsedText,
     blocks: rawBlocks,
     taskId,
     conversationRef,
     title,
     threadTs,
+    textFile,
   } = parseArgs(process.argv);
+
+  let text = parsedText;
+
+  if (textFile && !text) {
+    if (!fs.existsSync(textFile)) {
+      process.stderr.write(`Error: --text-file path does not exist: ${textFile}\n`);
+      process.exit(1);
+    }
+    text = fs.readFileSync(textFile, 'utf8').trim();
+  }
 
   const runId = process.env.INNGEST_RUN_ID || undefined;
 
