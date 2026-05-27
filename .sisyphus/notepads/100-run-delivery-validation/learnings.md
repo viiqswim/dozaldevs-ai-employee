@@ -52,3 +52,54 @@ All 10/10 passed three-part verification.
 
 ### Next Step Recommendation
 Apply 120s timeout fix to execution phase (same pattern as delivery fix) to address remaining 5 failures.
+
+## [2026-05-27] Execution-Phase Timeout Fix Applied
+- Change 1: runOpencodeSession call site — added { minElapsedMs: 120_000 } as 4th arg (execution phase)
+- Change 2: nudge recovery monitorSession — changed minElapsedMs from 10000 to 60_000
+- Delivery phase (line 724) left untouched at { minElapsedMs: 120_000 }
+- Default at line 357 (options?.minElapsedMs ?? 30_000) left untouched
+- tsc --noEmit: passed
+- Commit: fix(harness): increase execution-phase idle timeout from 30s to 120s
+
+## [2026-05-27] Docker Rebuild for Execution-Phase Fix
+- Old SHA: sha256:2961ea8894cf59ecafae1ba58d8339c0bd9b550a2cc1681daa1d13d59379e8e0
+- New SHA: sha256:ebde4785bcf542d482395ff417d46d4a75fd6b9f31260636b928d8e82af53cd7
+- Result: SHA CHANGED ✅ — fix is baked in
+
+## [2026-05-27] Pre-flight for Execution-Phase Fix 100-Run
+- All services healthy (gateway + Inngest)
+- Credits: sufficient (3.38 remaining)
+- Docker SHA: matches post-fix image (sha256:ebde478...)
+- Dry-run: PASS
+
+## [2026-05-27] Test Methodology Fix — 420s Inter-Batch Wait
+
+### Problem Identified
+The 300s inter-batch wait was designed for the OLD timing profile (tasks complete in ~169s).
+With the execution-phase fix, tasks now complete in ~258s (120s exec + 138s delivery).
+Result: batches overlapped → 14+ concurrent containers → PostgREST 503 + Inngest queue saturation.
+
+### Failure Patterns (bad batches 1-5, archived to execution-fix-100-run-bad-methodology/)
+1. `Failed | LOG=YES | POST_MSG=0 | 184s` — PostgREST 503 on POST deliverables under concurrent load
+   - Execution succeeded (summary.txt written), but delivery container couldn't find deliverable
+   - Root cause: concurrent container overload, NOT a code bug
+2. `Executing | duration=1s` — Inngest queue saturation from overlapping batches
+   - Tasks never got a worker container
+3. `Delivering | 136s` — False negatives (300s wait ended before delivery completed)
+
+### Fix Applied
+- Increased inter-batch wait from 300s to 420s
+- 420s = 120s exec + 140s delivery + 90s buffer + 70s trigger window
+- This ensures each batch fully completes before the next batch starts
+- Cleared bad batch files (archived), re-running all 100 from scratch
+
+### Code Fix Confirmed Working
+- Every task that ran cleanly took exactly 258s (120s exec + 138s delivery)
+- ZERO execution-phase idle timeout failures in the clean runs
+- The fix is correct — only the test methodology was wrong
+
+### System Cleanup Done
+- 16 stuck Executing tasks marked as Failed
+- No zombie worker containers
+- Gateway + Inngest healthy
+- Credits remaining: $2.85
