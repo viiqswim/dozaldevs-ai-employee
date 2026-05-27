@@ -290,7 +290,6 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const instructions = archetype.instructions ?? '';
         const executionPrompt = assembleTaskPrompt({
           instructions,
-          approvalRequired,
         });
 
         const deliveryPrompt = archetype.delivery_instructions
