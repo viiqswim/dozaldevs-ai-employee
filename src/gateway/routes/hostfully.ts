@@ -68,6 +68,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
         tenant_id,
         role_name: 'guest-messaging',
         status: 'active',
+        deleted_at: null,
       },
     });
 

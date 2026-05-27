@@ -30,7 +30,7 @@ export async function dispatchEmployee(
   const { tenantId, slug, dryRun, prisma, inngest, inputs } = params;
 
   const archetype = await prisma.archetype.findFirst({
-    where: { tenant_id: tenantId, role_name: slug, status: 'active' },
+    where: { tenant_id: tenantId, role_name: slug, status: 'active', deleted_at: null },
   });
 
   if (!archetype) {

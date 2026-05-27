@@ -32,7 +32,7 @@ export async function createTaskAndDispatch(
     };
 
     const archetypeRes = await fetch(
-      `${supabaseUrl}/rest/v1/archetypes?role_name=eq.${archetypeSlug}&tenant_id=eq.${tenantId}&status=eq.active&select=id`,
+      `${supabaseUrl}/rest/v1/archetypes?role_name=eq.${archetypeSlug}&tenant_id=eq.${tenantId}&status=eq.active&deleted_at=is.null&select=id`,
       { headers },
     );
     const archetypes = (await archetypeRes.json()) as Array<{ id: string }>;

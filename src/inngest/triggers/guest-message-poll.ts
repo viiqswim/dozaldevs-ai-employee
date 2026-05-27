@@ -54,7 +54,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
         const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/archetypes?role_name=eq.guest-messaging&status=eq.active&select=id,tenant_id`,
+          `${supabaseUrl}/rest/v1/archetypes?role_name=eq.guest-messaging&status=eq.active&deleted_at=is.null&select=id,tenant_id`,
           {
             headers: {
               apikey: supabaseKey,
