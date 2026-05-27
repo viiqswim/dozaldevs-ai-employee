@@ -74,7 +74,9 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
         : (dirent as unknown as { path: string }).path;
     const relativePath = path.relative(basePath, path.join(parentDir, dirent.name));
 
-    if (!relativePath.endsWith('.ts')) continue;
+    if (!relativePath.endsWith('.ts') || relativePath.endsWith('.d.ts')) continue;
+    if (relativePath.includes('/node_modules/') || relativePath.startsWith('node_modules/'))
+      continue;
     if (relativePath.includes('/lib/') || relativePath.startsWith('lib/')) continue;
     if (relativePath.includes('/fixtures/') || relativePath.startsWith('fixtures/')) continue;
 

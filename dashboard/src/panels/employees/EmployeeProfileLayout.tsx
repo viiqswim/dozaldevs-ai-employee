@@ -1,6 +1,7 @@
 import type { Archetype } from '@/lib/types';
 import type { ProfileMode } from '@/lib/profile-constants';
 import { AssignmentSection } from './sections/AssignmentSection';
+import { DeliveryInstructionsSection } from './sections/DeliveryInstructionsSection';
 import { PersonalitySection } from './sections/PersonalitySection';
 import { ToolsSection } from './sections/ToolsSection';
 import { CompactSettingsGrid } from './sections/CompactSettingsGrid';
@@ -22,6 +23,13 @@ export function EmployeeProfileLayout({
   return (
     <div className="space-y-6">
       <AssignmentSection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
+
+      <DeliveryInstructionsSection
+        archetype={archetype}
+        mode={mode}
+        onSaved={onSaved}
+        tenantId={tenantId}
+      />
 
       <PersonalitySection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
 

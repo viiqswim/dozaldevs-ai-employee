@@ -31,7 +31,7 @@ export class ArchetypeRepository {
     }
     return this.prisma.archetype.update({
       where: { id },
-      data: { deleted_at: new Date() },
+      data: { deleted_at: new Date(), status: 'inactive' },
     });
   }
 
@@ -59,7 +59,7 @@ export class ArchetypeRepository {
     }
     return this.prisma.archetype.update({
       where: { id },
-      data: { deleted_at: null },
+      data: { deleted_at: null, status: 'active' },
     });
   }
 }
