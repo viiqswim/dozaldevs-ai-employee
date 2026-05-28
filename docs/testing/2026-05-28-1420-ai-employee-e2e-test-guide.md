@@ -75,6 +75,9 @@ BEGIN
     AND id NOT IN (
       '00000000-0000-0000-0000-000000000012',
       '00000000-0000-0000-0000-000000000013',
+      '00000000-0000-0000-0000-000000000015',
+      '00000000-0000-0000-0000-000000000016',
+      '00000000-0000-0000-0000-000000000018',
       'ad5f02f0-f38d-4e00-abd0-4973cd93a7eb',
       '561439b9-7491-40de-a550-95906624fffc'
     );
@@ -135,16 +138,25 @@ EOF
 
 5. Expand **Settings** and configure:
    - **Slack channel**: select `#victor-tests`
-   - **Model**: change to `deepseek/deepseek-v4-flash`
-
-   > ⚠️ **Critical**: The wizard may recommend a model that doesn't reliably call bash tools — the task will fail. Always use `deepseek/deepseek-v4-flash`.
+   - Leave the model as-is — the wizard displays the AI-recommended model as **read-only text**, not an editable field. You will override it after saving.
 
 6. Click **Save as Draft**.
 
 7. Note the archetype ID from the redirect URL:
+
    ```
    http://localhost:7701/dashboard/employees/<ARCHETYPE_ID>?tenant=...
    ```
+
+8. **Override the model to `deepseek/deepseek-v4-flash`** via DB (required — the wizard Settings section does not expose a model selector):
+
+   ```bash
+   ARCHETYPE_ID="<paste archetype ID>"
+   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+     -c "UPDATE archetypes SET model = 'deepseek/deepseek-v4-flash' WHERE id = '$ARCHETYPE_ID';"
+   ```
+
+   > ⚠️ **Critical**: The wizard may recommend a model that doesn't reliably call bash tools (e.g. `xiaomi/mimo-v2.5`, `openai/gpt-oss-120b`). Always override to `deepseek/deepseek-v4-flash` before triggering.
 
 ---
 
@@ -407,15 +419,13 @@ The SYSTEM_PROMPT in `src/gateway/services/archetype-generator.ts` must teach th
 
 ## Known Issues
 
-### Approval card not appearing in Slack
+### Task fails immediately (model doesn't call tools)
 
-**Symptom**: Task reaches `Reviewing`, but no card with Approve/Reject buttons appears in #victor-tests.
+**Symptom**: Task reaches `Failed` within 30–60 seconds of `Executing`.
 
-**Root cause**: The `track-pending-approval` lifecycle step requires `approval_message_ts`, `target_channel`, and `threadUidForTracking` to all be set in the deliverable metadata. For generated employees (non-guest-messaging), `threadUidForTracking` is always null (no Hostfully `thread_uid` in `raw_event`), so the guard fires and no `pending_approvals` row is created.
+**Cause**: The wizard recommended a model that produces text-only responses and never calls bash tools. The harness detects no `/tmp/summary.txt` output and fails the task.
 
-**Workaround**: Use the manual approval curl command (Step 6, Option B). Use your real Slack user ID to ensure "Approved by @Victor" renders correctly.
-
-**Status**: Known bug, not yet fixed.
+**Fix**: Always override the model to `deepseek/deepseek-v4-flash` via DB after saving (Step 2, item 8).
 
 ### "Approved by" shows blank in Slack
 
@@ -424,14 +434,6 @@ The SYSTEM_PROMPT in `src/gateway/services/archetype-generator.ts` must teach th
 **Cause**: The manual approval fallback was used with a placeholder or incorrect `userId`. Slack renders `<@unknown-id>` as blank.
 
 **Fix**: Always use your real Slack user ID in the manual approval curl (see Step 6, Option B).
-
-### Task fails immediately (model doesn't call tools)
-
-**Symptom**: Task reaches `Failed` within 30–60 seconds of `Executing`.
-
-**Cause**: The wizard recommended `openai/gpt-oss-120b`, which produces text-only responses and never calls bash tools. The harness detects no `/tmp/summary.txt` output and fails the task.
-
-**Fix**: Always change the model to `deepseek/deepseek-v4-flash` in Settings before saving (Step 2, item 5).
 
 ### Slug collision on save
 
