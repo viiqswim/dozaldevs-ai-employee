@@ -1914,17 +1914,21 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         const threadUidForTracking = authoritativeThreadUid ?? conversationRef;
 
-        if (!threadUidForTracking || !approvalMsgTs || !targetChannel) {
+        if (!approvalMsgTs || !targetChannel) {
           log.warn(
-            { taskId, threadUidForTracking, approvalMsgTs, targetChannel },
-            'track-pending-approval: Missing required metadata — approval card may not have been posted. Task will proceed to wait-for-approval but may timeout.',
+            { taskId, approvalMsgTs, targetChannel },
+            'track-pending-approval: Missing approval_message_ts or target_channel — approval card was not posted. Task will proceed to wait-for-approval but may timeout.',
           );
           return;
         }
 
+        // For guest-messaging employees, use the Hostfully thread_uid for supersede detection.
+        // For all other employees, fall back to taskId as a stable unique identifier.
+        const threadUid = threadUidForTracking ?? taskId;
+
         await trackPendingApproval(supabaseUrl, supabaseKey, {
           tenantId,
-          threadUid: threadUidForTracking,
+          threadUid,
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
@@ -1932,7 +1936,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           contextLabel: delivMeta.property_name as string | undefined,
           urgency: delivMeta.urgency as boolean | undefined,
         });
-        log.info({ taskId, threadUidForTracking }, 'Pending approval tracked');
+        log.info({ taskId, threadUid }, 'Pending approval tracked');
 
         if (archetype.enrichment_adapter && notifyMsgRef?.ts && notifyMsgRef?.channel) {
           try {
