@@ -57,9 +57,16 @@ ${INJECTION_BOUNDARY}
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
-- \`identity\` is 2-4 sentences describing WHO this employee is — their persona, role, and org context. No procedural steps.
+- \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity.
 - \`execution_steps\` is a numbered list of steps describing WHAT the employee does during execution. Minimum 3 steps.
-- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered. Set to null if approval_required is false.
+- Each \`execution_steps\` step MUST be a concrete action, not a vague instruction. Bad: "1. Analyze the data." Good: "1. Read all messages in the #support Slack channel from the last 24 hours using the Slack read-channel tool." Steps must reference specific tools from tool_registry by name when applicable.
+- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. MUST include: (a) read the approved content from \`<approved-content>\`, (b) the specific delivery action (e.g., "Post to Slack using the post-message tool"), (c) submit output confirming delivery. Set to null ONLY if approval_required is false AND no delivery action is needed.
+
+## Separation of Concerns (CRITICAL)
+- \`identity\` = WHO (persona, no actions)
+- \`execution_steps\` = WHAT TO DO (actions during work)
+- \`delivery_steps\` = HOW TO DELIVER (actions after approval)
+Never put procedural steps in \`identity\`. Never put persona description in \`execution_steps\`.
 
 ## Input Detection (CRITICAL)
 Carefully read the description and identify any values the user must supply at runtime. Classify each as:
@@ -146,7 +153,7 @@ For trigger_sources.type:
 
 For deliverable_type: use "slack_message", "hostfully_message", "lock_code_rotation", or another descriptive label.
 For tool_registry.tools: list the actual shell tool paths that will be used (e.g. /tools/slack/post-message.ts, /tools/hostfully/get-door-code.ts).
-For delivery_instructions: provide a string describing how to deliver the approved content, or null if approval_required is false.
+For delivery_instructions: set to the SAME VALUE as delivery_steps for backwards compatibility. If delivery_steps is null, delivery_instructions must also be null.
 `;
 
 const REFINE_SYSTEM_PROMPT = `You are an expert AI employee architect. You will be given an existing archetype configuration and a refinement instruction. Apply the refinement to improve the configuration.
@@ -161,6 +168,15 @@ ${INJECTION_BOUNDARY}
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated identity, execution_steps, trigger_sources, and risk_model
+- \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity.
+- Each \`execution_steps\` step MUST be a concrete action, not a vague instruction. Bad: "1. Analyze the data." Good: "1. Read all messages in the #support Slack channel from the last 24 hours using the Slack read-channel tool." Steps must reference specific tools from tool_registry by name when applicable.
+- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. MUST include: (a) read the approved content from \`<approved-content>\`, (b) the specific delivery action (e.g., "Post to Slack using the post-message tool"), (c) submit output confirming delivery. Set to null ONLY if approval_required is false AND no delivery action is needed.
+
+## Separation of Concerns (CRITICAL)
+- \`identity\` = WHO (persona, no actions)
+- \`execution_steps\` = WHAT TO DO (actions during work)
+- \`delivery_steps\` = HOW TO DELIVER (actions after approval)
+Never put procedural steps in \`identity\`. Never put persona description in \`execution_steps\`.
 
 The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
