@@ -3278,13 +3278,13 @@ No specific house rules provided.
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
       agents_md: GUEST_MESSAGING_AGENTS_MD,
-      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The APPROVED CONTENT below is a JSON object from the previous phase.
+      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
 1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
    a. Environment variables (PREFERRED): run "echo $LEAD_UID" and "echo $THREAD_UID" in bash
-   b. Parse the APPROVED CONTENT JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
-2. Get the message to send: parse the APPROVED CONTENT JSON and extract the "draft" field.
+   b. Parse the \`<approved-content>\` JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
+2. Get the message to send: parse the \`<approved-content>\` JSON and extract the "draft" field.
 3. Send the message using the Hostfully send-message tool:
    tsx /tools/hostfully/send-message.ts --lead-id <lead_uid> --thread-id <thread_uid> --message "<draft text>"
 4. If send succeeds, write to /tmp/summary.txt:
@@ -3323,13 +3323,13 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
       agents_md: GUEST_MESSAGING_AGENTS_MD,
-      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The APPROVED CONTENT below is a JSON object from the previous phase.
+      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
 1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
    a. Environment variables (PREFERRED): run "echo $LEAD_UID" and "echo $THREAD_UID" in bash
-   b. Parse the APPROVED CONTENT JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
-2. Get the message to send: parse the APPROVED CONTENT JSON and extract the "draft" field.
+   b. Parse the \`<approved-content>\` JSON and extract "metadata.lead_uid" and "metadata.thread_uid"
+2. Get the message to send: parse the \`<approved-content>\` JSON and extract the "draft" field.
 3. Send the message using the Hostfully send-message tool:
    tsx /tools/hostfully/send-message.ts --lead-id <lead_uid> --thread-id <thread_uid> --message "<draft text>"
 4. If send succeeds, write to /tmp/summary.txt:
