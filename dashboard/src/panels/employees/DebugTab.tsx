@@ -28,13 +28,13 @@ const AGENTS_MD_LAYERS: Array<{
     key: 'employee',
     title: 'Your Job',
     subtitle: 'Employee-specific job definition (archetype AGENTS.md field)',
-    source: 'DB: archetypes.agents_md',
+    source: 'DB: archetypes.execution_steps',
   },
   {
     key: 'platformRuntime',
     title: 'Your Tools & Procedures',
-    subtitle: 'Security boundary, tool reference, and platform procedures — injected at runtime',
-    source: 'Runtime: platform-procedures.mts + tool-reference-generator.mts',
+    subtitle: 'Tool reference and platform procedures — injected at runtime',
+    source: 'Runtime: agents-md-compiler.mts',
   },
   {
     key: 'rules',
@@ -227,18 +227,6 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
               delivery_instructions (platform constant)
             </p>
             <RawFieldView value={archetype.delivery_instructions} />
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-              system_prompt (deprecated)
-            </p>
-            <RawFieldView value={archetype.system_prompt} />
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-              agents_md (deprecated)
-            </p>
-            <RawFieldView value={archetype.agents_md} />
           </div>
         </div>
       </CollapsibleSection>

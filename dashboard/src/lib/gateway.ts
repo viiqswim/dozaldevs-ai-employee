@@ -109,8 +109,6 @@ export async function patchArchetype(
       | 'model'
       | 'runtime'
       | 'instructions'
-      | 'system_prompt'
-      | 'agents_md'
       | 'delivery_instructions'
       | 'notification_channel'
       | 'vm_size'
@@ -290,7 +288,7 @@ export async function deleteRule(
 
 export async function recommendModel(
   tenantId: string,
-  archetype: Pick<GenerateArchetypeResponse, 'system_prompt' | 'instructions' | 'deliverable_type'>,
+  archetype: Pick<GenerateArchetypeResponse, 'instructions' | 'deliverable_type'>,
   answers: ModelQuestionAnswers,
 ): Promise<ModelRecommendation> {
   return gatewayFetch<ModelRecommendation>(
@@ -299,7 +297,7 @@ export async function recommendModel(
       method: 'POST',
       body: JSON.stringify({
         archetype: {
-          system_prompt: archetype.system_prompt,
+          identity: '',
           instructions: archetype.instructions,
           deliverable_type: archetype.deliverable_type,
         },

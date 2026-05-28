@@ -48,13 +48,11 @@ const PatchArchetypeBodySchema = z
     model: z.string().min(1).max(200).optional(),
     runtime: z.string().min(1).max(100).optional(),
     instructions: z.string().optional(),
-    system_prompt: z.string().optional(),
     risk_model: z.record(z.string(), z.unknown()).optional(),
     concurrency_limit: z.number().int().positive().optional(),
     notification_channel: z.string().nullable().optional(),
     vm_size: z.string().optional(),
     deliverable_type: z.string().optional(),
-    agents_md: z.string().min(1).max(50000).optional(),
     delivery_instructions: z.string().max(10000).nullable().optional(),
     trigger_sources: TriggerSourceSchema.nullable().optional(),
     tool_registry: z
@@ -86,8 +84,6 @@ const CreateArchetypeBodySchema = z.object({
   model: z.string().min(1),
   runtime: z.literal('opencode'),
   instructions: z.string().min(1).max(5000),
-  agents_md: z.string().min(1).max(50000),
-  system_prompt: z.string().max(10000).default(''),
   delivery_instructions: z.string().max(10000).nullable().default(null),
   deliverable_type: z.string().max(100).nullable().default(null),
   risk_model: z
@@ -112,10 +108,9 @@ const CreateArchetypeBodySchema = z.object({
 
 const RecommendModelBodySchema = z.object({
   archetype: z.object({
-    system_prompt: z.string(),
+    identity: z.string().default(''),
     instructions: z.string().min(1),
     deliverable_type: z.string().min(1),
-    agents_md: z.string().optional(),
   }),
   userAnswers: z
     .object({

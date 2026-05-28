@@ -40,15 +40,14 @@ const DOMAIN_KEYWORDS: Array<{ keywords: string[]; domain: string }> = [
 ];
 
 export function analyzeArchetype(archetype: {
-  system_prompt: string;
+  identity: string;
   instructions: string;
   deliverable_type: string;
-  agents_md?: string | null;
 }): TaskProfile {
-  const { system_prompt, instructions, deliverable_type, agents_md } = archetype;
-  const searchText = `${instructions} ${agents_md ?? ''}`.toLowerCase();
+  const { identity, instructions, deliverable_type } = archetype;
+  const searchText = instructions.toLowerCase();
   const deliverableLower = deliverable_type.toLowerCase();
-  const promptLower = system_prompt.toLowerCase();
+  const promptLower = identity.toLowerCase();
 
   const matchedKeywords = TOOL_KEYWORDS.filter((kw) => searchText.includes(kw));
   const toolIntensity: TaskProfile['toolIntensity'] =
@@ -90,7 +89,7 @@ export function analyzeArchetype(archetype: {
 
   const costSensitivity: TaskProfile['costSensitivity'] = 'medium';
 
-  const combinedText = `${system_prompt} ${instructions}`.toLowerCase();
+  const combinedText = `${identity} ${instructions}`.toLowerCase();
   let domain: string | null = null;
   for (const entry of DOMAIN_KEYWORDS) {
     if (entry.keywords.some((kw) => combinedText.includes(kw))) {

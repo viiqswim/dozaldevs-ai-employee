@@ -20,17 +20,8 @@ function makeValidJsonContent(overrides: Record<string, unknown> = {}): string {
     role_name: 'daily-slack-digest',
     model: 'minimax/minimax-m2.7',
     runtime: 'opencode',
-    system_prompt: '',
     instructions:
       'Step 1: fetch data.\nStep 2: process.\nStep 3: compose the final digest message.',
-    agents_md: [
-      'You are a daily digest bot.',
-      '',
-      'WORKFLOW:',
-      '1. Fetch data.',
-      '2. Summarize.',
-      '3. Compose the final digest message.',
-    ].join('\n'),
     delivery_instructions: null,
     deliverable_type: 'slack_message',
     risk_model: { approval_required: true, timeout_hours: 24 },
@@ -57,15 +48,6 @@ describe('ArchetypeGenerator', () => {
       const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
       const result = await gen.generate('A daily Slack digest bot');
       expect(result.runtime).toBe('opencode');
-    });
-
-    it('returns system_prompt hardcoded to empty string regardless of LLM response', async () => {
-      const mockCallLLM = makeCallLLMResult(
-        makeValidJsonContent({ system_prompt: 'You are a helpful assistant' }),
-      );
-      const gen = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
-      const result = await gen.generate('A daily Slack digest bot');
-      expect(result.system_prompt).toBe('');
     });
 
     it('converts human-readable role_name to kebab-case slug', async () => {
