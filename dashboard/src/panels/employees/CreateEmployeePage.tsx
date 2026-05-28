@@ -41,6 +41,7 @@ export function CreateEmployeePage() {
     role_name: '',
     approval_required: false,
     trigger_type: 'manual' as 'manual' | 'scheduled' | 'webhook',
+    temperature: 1.0,
   });
   const [error, setError] = useState<string | null>(null);
   const [compiledPreview, setCompiledPreview] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export function CreateEmployeePage() {
             : result.trigger_sources?.type === 'webhook'
               ? 'webhook'
               : 'manual',
+        temperature: result.temperature ?? 1.0,
       });
       setStep('edit');
     } catch (err) {
@@ -125,6 +127,7 @@ export function CreateEmployeePage() {
         identity: editedFields.identity,
         execution_steps: editedFields.execution_steps,
         delivery_steps: editedFields.delivery_steps || null,
+        temperature: editedFields.temperature,
         risk_model: {
           approval_required: editedFields.approval_required,
           timeout_hours: config.risk_model.timeout_hours,
@@ -218,7 +221,8 @@ export function CreateEmployeePage() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Employee Name</label>
                 <p className="text-xs text-muted-foreground">
-                  Unique identifier for this employee (kebab-case slug)
+                  A unique identifier for this employee (lowercase, hyphens only). Used in URLs and
+                  API calls.
                 </p>
                 <Input
                   value={editedFields.role_name}
@@ -229,7 +233,9 @@ export function CreateEmployeePage() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Identity</label>
                 <p className="text-xs text-muted-foreground">
-                  Who is this employee? Their role, personality, and purpose.
+                  Describe who this employee is — their personality, background, and expertise. This
+                  shapes how they think and communicate. Don't include step-by-step instructions
+                  here.
                 </p>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[180px] resize-y"
@@ -241,7 +247,8 @@ export function CreateEmployeePage() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Execution Steps</label>
                 <p className="text-xs text-muted-foreground">
-                  Step-by-step instructions for what this employee does.
+                  The numbered steps this employee follows when doing their job. Be specific — these
+                  go directly into the employee's instruction manual.
                 </p>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[200px] resize-y"
@@ -251,6 +258,27 @@ export function CreateEmployeePage() {
                   }
                 />
               </div>
+
+              {config?.overview && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Overview</label>
+                  <div className="rounded-md border bg-muted/10 px-4 py-3 space-y-2">
+                    {[
+                      { label: 'Role', value: config.overview.role },
+                      { label: 'Trigger', value: config.overview.trigger },
+                      { label: 'Workflow', value: config.overview.workflow.join(' → ') },
+                      { label: 'Tools', value: config.overview.tools_used },
+                      { label: 'Output', value: config.overview.output },
+                      { label: 'Approval', value: config.overview.approval },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                        <p className="text-sm">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CollapsibleSection>
 
@@ -259,7 +287,9 @@ export function CreateEmployeePage() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Delivery Steps</label>
                 <p className="text-xs text-muted-foreground">
-                  (Optional) How this employee delivers its results.
+                  How this employee delivers their completed work (e.g., posting to Slack, sending a
+                  message). Only needed when approval is required — leave empty for auto-complete
+                  employees.
                 </p>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[150px] resize-y"
@@ -270,25 +300,76 @@ export function CreateEmployeePage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="approval-toggle"
-                  checked={editedFields.approval_required}
-                  onChange={(e) =>
-                    setEditedFields((f) => ({ ...f, approval_required: e.target.checked }))
-                  }
-                  className="h-4 w-4"
-                />
-                <label htmlFor="approval-toggle" className="text-sm font-medium">
-                  Requires approval
-                </label>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="approval-toggle"
+                    checked={editedFields.approval_required}
+                    onChange={(e) =>
+                      setEditedFields((f) => ({ ...f, approval_required: e.target.checked }))
+                    }
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="approval-toggle" className="text-sm font-medium">
+                    Requires approval
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, a team member must review and approve the employee's work before
+                  it's delivered.
+                </p>
               </div>
             </div>
           </CollapsibleSection>
 
           <CollapsibleSection title="Settings" defaultOpen={false}>
             <div className="space-y-4">
+              {config && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Selected Model</label>
+                  <div className="rounded-md border bg-muted/10 px-3 py-2 space-y-0.5">
+                    <p className="text-sm font-medium">
+                      {config.modelRecommendation?.recommended?.displayName ?? config.model}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {config.modelRecommendation?.recommended
+                        ? 'Recommended based on your employee type'
+                        : 'Default model'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Creativity</label>
+                <p className="text-xs text-muted-foreground">
+                  Higher values produce more varied responses. Lower values are more focused and
+                  predictable.
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={editedFields.temperature}
+                    onChange={(e) =>
+                      setEditedFields((f) => ({ ...f, temperature: parseFloat(e.target.value) }))
+                    }
+                    className="flex-1 h-2 accent-primary"
+                  />
+                  <span className="text-sm font-mono w-8 text-right">
+                    {editedFields.temperature.toFixed(1)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Focused</span>
+                  <span>Balanced</span>
+                  <span>Creative</span>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Trigger</label>
                 <SearchableSelect
@@ -306,6 +387,10 @@ export function CreateEmployeePage() {
                   }
                   placeholder="Select trigger type"
                 />
+                <p className="text-xs text-muted-foreground">
+                  How this employee gets started — manually by a team member, on a schedule, or when
+                  something happens (webhook).
+                </p>
               </div>
 
               <div className="space-y-1.5">

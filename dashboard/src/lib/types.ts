@@ -326,6 +326,7 @@ export interface GenerateArchetypeResponse {
   identity: string;
   execution_steps: string;
   delivery_steps: string | null;
+  temperature?: number;
 }
 
 export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {
