@@ -121,6 +121,10 @@ export async function patchArchetype(
       | 'overview'
       | 'input_schema'
       | 'worker_env'
+      | 'identity'
+      | 'execution_steps'
+      | 'delivery_steps'
+      | 'temperature'
     > & { risk_model?: Record<string, unknown> }
   >,
 ): Promise<Archetype> {

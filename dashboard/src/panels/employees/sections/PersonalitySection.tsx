@@ -21,22 +21,22 @@ export function PersonalitySection({
   tenantId,
 }: PersonalitySectionProps) {
   const [editing, setEditing] = useState(mode === 'edit' || mode === 'create');
-  const [value, setValue] = useState(archetype.agents_md ?? '');
+  const [value, setValue] = useState(archetype.identity ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!editing) {
-      setValue(archetype.agents_md ?? '');
+      setValue(archetype.identity ?? '');
     }
-  }, [archetype.agents_md, editing]);
+  }, [archetype.identity, editing]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      await patchArchetype(tenantId, archetype.id, { agents_md: value || null });
-      toast.success('Personality saved');
+      await patchArchetype(tenantId, archetype.id, { identity: value || null });
+      toast.success('Identity saved');
       setEditing(false);
       onSaved();
     } catch (err) {
@@ -47,7 +47,7 @@ export function PersonalitySection({
   };
 
   const handleCancel = () => {
-    setValue(archetype.agents_md ?? '');
+    setValue(archetype.identity ?? '');
     setError(null);
     setEditing(false);
   };
@@ -60,14 +60,14 @@ export function PersonalitySection({
 
   return (
     <CollapsibleSection
-      id="section-personality"
-      title="Personality"
-      subtitle="How this employee approaches their work"
+      id="section-identity"
+      title="Identity"
+      subtitle="Who this employee is, their personality, and organizational context"
       defaultOpen={true}
       actions={editButton}
     >
       <InlineEditableMarkdown
-        label="Personality"
+        label="Identity"
         value={value}
         onChange={setValue}
         onSave={handleSave}
@@ -75,7 +75,7 @@ export function PersonalitySection({
         editing={editing}
         saving={saving}
         error={error}
-        emptyText="No personality configured yet. Click Edit to add one."
+        emptyText="No identity configured yet. Click Edit to describe who this employee is."
         minHeight={300}
       />
     </CollapsibleSection>

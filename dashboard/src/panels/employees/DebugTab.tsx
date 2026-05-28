@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { fetchBrainPreview } from '@/lib/gateway';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { CollapsibleSection } from './components/CollapsibleSection';
-import type { BrainPreviewResponse } from '@/lib/types';
+import type { Archetype, BrainPreviewResponse } from '@/lib/types';
 
 interface DebugTabProps {
   archetypeId: string;
   tenantId: string;
+  archetype: Archetype;
 }
 
 type ViewMode = 'rendered' | 'source';
@@ -101,7 +102,18 @@ function ContentView({ content, mode }: { content: string; mode: ViewMode }) {
   return <MarkdownPreview content={content} />;
 }
 
-export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
+function RawFieldView({ value }: { value: string | null }) {
+  if (!value?.trim()) {
+    return <p className="text-sm text-muted-foreground italic">Not set</p>;
+  }
+  return (
+    <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/30 p-4 rounded-md overflow-auto max-h-[400px]">
+      {value}
+    </pre>
+  );
+}
+
+export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
   const [data, setData] = useState<BrainPreviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +181,7 @@ export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
         defaultOpen={true}
         badge={
           <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-            DB: archetypes.instructions
+            DB: archetypes.execution_instructions
           </code>
         }
         actions={<ViewToggle mode={promptMode} onChange={setPromptMode} />}
@@ -192,6 +204,44 @@ export function DebugTab({ archetypeId, tenantId }: DebugTabProps) {
           <ContentView content={data.delivery_prompt} mode={deliveryPromptMode} />
         </CollapsibleSection>
       )}
+
+      <CollapsibleSection
+        title="Raw Fields (Deprecated)"
+        subtitle="Legacy and platform-constant fields — read-only, for debugging only"
+        defaultOpen={false}
+        badge={
+          <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            deprecated
+          </code>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              execution_instructions (platform constant)
+            </p>
+            <RawFieldView value={archetype.execution_instructions} />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              delivery_instructions (platform constant)
+            </p>
+            <RawFieldView value={archetype.delivery_instructions} />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              system_prompt (deprecated)
+            </p>
+            <RawFieldView value={archetype.system_prompt} />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              agents_md (deprecated)
+            </p>
+            <RawFieldView value={archetype.agents_md} />
+          </div>
+        </div>
+      </CollapsibleSection>
 
       {AGENTS_MD_LAYERS.map(({ key, title, subtitle, source }) => {
         const content = data.agents_md.layers[key];

@@ -1,8 +1,9 @@
 import type { Archetype } from '@/lib/types';
 import type { ProfileMode } from '@/lib/profile-constants';
-import { AssignmentSection } from './sections/AssignmentSection';
-import { DeliveryInstructionsSection } from './sections/DeliveryInstructionsSection';
 import { PersonalitySection } from './sections/PersonalitySection';
+import { ExecutionStepsSection } from './sections/ExecutionStepsSection';
+import { DeliveryStepsSection } from './sections/DeliveryStepsSection';
+import { TemperatureSection } from './sections/TemperatureSection';
 import { ToolsSection } from './sections/ToolsSection';
 import { CompactSettingsGrid } from './sections/CompactSettingsGrid';
 import { ProfilePreviewSection } from './sections/ProfilePreviewSection';
@@ -22,16 +23,23 @@ export function EmployeeProfileLayout({
 }: EmployeeProfileLayoutProps) {
   return (
     <div className="space-y-6">
-      <AssignmentSection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
+      <PersonalitySection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
 
-      <DeliveryInstructionsSection
+      <ExecutionStepsSection
         archetype={archetype}
         mode={mode}
         onSaved={onSaved}
         tenantId={tenantId}
       />
 
-      <PersonalitySection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
+      <DeliveryStepsSection
+        archetype={archetype}
+        mode={mode}
+        onSaved={onSaved}
+        tenantId={tenantId}
+      />
+
+      <TemperatureSection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
 
       <ToolsSection archetype={archetype} tenantId={tenantId} />
 

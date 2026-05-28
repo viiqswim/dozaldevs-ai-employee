@@ -23,7 +23,6 @@ import { EmployeeProfileLayout } from './EmployeeProfileLayout';
 import { ActivitySection } from './sections/ActivitySection';
 import { InputSchemaSection } from './sections/InputSchemaSection';
 import { TrainingTab } from './TrainingTab';
-import { MarkdownPreview } from '@/components/MarkdownPreview';
 import type { ProfileMode } from '@/lib/profile-constants';
 import { DebugTab } from './DebugTab';
 
@@ -229,12 +228,8 @@ export function EmployeeDetail() {
 
   const handleFinalize = async () => {
     if (!archetype) return;
-    if (
-      !archetype.role_name?.trim() ||
-      !archetype.instructions?.trim() ||
-      !archetype.agents_md?.trim()
-    ) {
-      toast.error('Role name, trigger prompt, and employee brain are required');
+    if (!archetype.role_name?.trim() || !archetype.identity?.trim()) {
+      toast.error('Role name and identity are required');
       return;
     }
     setFinalizing(true);
@@ -431,8 +426,7 @@ export function EmployeeDetail() {
               disabled={
                 finalizing ||
                 !archetype.role_name?.trim() ||
-                !archetype.instructions?.trim() ||
-                !archetype.agents_md?.trim() ||
+                !archetype.identity?.trim() ||
                 !archetype.notification_channel?.trim()
               }
               onClick={() => void handleFinalize()}
@@ -546,17 +540,9 @@ export function EmployeeDetail() {
               items={archetype.input_schema ?? []}
               tenantId={tenantId}
               archetypeId={archetype.id}
-              instructions={archetype.instructions ?? ''}
+              instructions={archetype.execution_instructions ?? archetype.instructions ?? ''}
               onSaved={refresh}
             />
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                System prompt (legacy)
-              </dt>
-              <dd className="mt-1 rounded-md border bg-muted/10 p-4">
-                <MarkdownPreview content={archetype.system_prompt ?? ''} />
-              </dd>
-            </div>
             {jiraWebhookUrl && (
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -582,7 +568,7 @@ export function EmployeeDetail() {
         </TabsContent>
 
         <TabsContent value="debug">
-          <DebugTab archetypeId={archetype.id} tenantId={tenantId} />
+          <DebugTab archetypeId={archetype.id} tenantId={tenantId} archetype={archetype} />
         </TabsContent>
       </Tabs>
 
