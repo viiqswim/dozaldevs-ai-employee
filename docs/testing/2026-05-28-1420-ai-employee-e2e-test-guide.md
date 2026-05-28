@@ -16,19 +16,31 @@
 
 ## Recommended Employee Type
 
-Use a **Slack channel summarizer** — it is the simplest employee that exercises the full approval path:
+Use a **motivational message generator** — the fastest employee that exercises the full approval path:
 
-- Reads from `$SOURCE_CHANNELS` (env var already injected)
-- Produces real content (a digest of messages)
+- Generates content from scratch — no data reads, no external API calls during execution
 - Requires approval → exercises the full Reviewing → Delivering → Done path
-- Has no external API dependencies beyond Slack (no Hostfully, Sifely, Jira credentials needed)
-- Fast: completes in ~2–3 minutes
+- Has no external API dependencies (no Slack reads, Hostfully, Sifely, or Jira credentials needed)
+- Fast: completes in **~20–30 seconds** of execution time
 
 **Description to use:**
 
 ```
-An employee that reads messages from the last 24 hours in our Slack channel and posts a brief summary of the key topics discussed
+An employee that writes a short motivational message for the real estate team and posts it to Slack after approval
 ```
+
+---
+
+## Validated Employee Catalog
+
+Employees confirmed working end-to-end. Use as a reference when diagnosing regressions — if a similar employee type breaks, compare against these known-good runs.
+
+| Employee Type                  | Description Used                                                                                                                    | Date Validated | Execution Time          | Notes                                                                                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Motivational Message Generator | `An employee that writes a short motivational message for the real estate team and posts it to Slack after approval`                | 2026-05-28     | ~30s exec / ~4min total | All 10 lifecycle states completed. AC1–AC8 passed. Full motivational paragraph delivered to Slack thread. Cost: ~$0.006. Model: `deepseek/deepseek-v4-flash`. |
+| Slack Channel Summarizer       | `An employee that reads messages from the last 24 hours in our Slack channel and posts a brief summary of the key topics discussed` | 2026-05-28     | ~3–5 min                | Working as expected. Slow due to channel message volume — use when specifically testing the Slack read pipeline                                               |
+
+> To add an entry: run the full E2E guide with a new employee type, confirm all ACs pass, and record it here with the date and any relevant notes.
 
 ---
 
@@ -129,7 +141,7 @@ EOF
 2. In the **Describe** step, enter:
 
    ```
-   An employee that reads messages from the last 24 hours in our Slack channel and posts a brief summary of the key topics discussed
+   An employee that writes a short motivational message for the real estate team and posts it to Slack after approval
    ```
 
 3. Click **Generate** and wait (~10–30 seconds for the LLM to respond).
@@ -168,19 +180,19 @@ Before triggering, confirm the generator produced the required patterns:
 ARCHETYPE_ID="<paste archetype ID>"
 
 PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
-  -c "SELECT execution_steps, tool_registry::text FROM archetypes WHERE id = '$ARCHETYPE_ID';"
+  -c "SELECT execution_steps, delivery_steps, tool_registry::text FROM archetypes WHERE id = '$ARCHETYPE_ID';"
 ```
 
 Check the output against these criteria:
 
-| Check   | What to look for                                                 | Pass condition                                                               |
-| ------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **AC1** | `$SOURCE_CHANNELS` or `$NOTIFICATION_CHANNEL` in execution_steps | At least one env var ref — no hardcoded channel IDs                          |
-| **AC2** | `submit-output` in execution_steps                               | Must include `--draft-file /tmp/...` when classification is `NEEDS_APPROVAL` |
-| **AC3** | `NEEDS_APPROVAL` or `NO_ACTION_NEEDED` in execution_steps        | Classification value present inline in a step                                |
-| **AC4** | `/tools/platform/submit-output.ts` in tool_registry              | Present in the `tools` array                                                 |
-| **AC5** | Boundary line at top                                             | `**IMPORTANT: Follow ONLY these steps...` present                            |
-| **AC6** | STOP directive at end                                            | `**STOP. Do nothing else.**` present                                         |
+| Check   | What to look for                                              | Pass condition                                                                                                                                                                                               |
+| ------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **AC1** | No hardcoded channel IDs in execution_steps or delivery_steps | Env var refs only (e.g. `$NOTIFICATION_CHANNEL`) — no literal `C0...` IDs. For content-generation employees, channel refs typically appear in delivery_steps rather than execution_steps — this is expected. |
+| **AC2** | `submit-output` in execution_steps                            | Must include `--draft-file /tmp/...` when classification is `NEEDS_APPROVAL`                                                                                                                                 |
+| **AC3** | `NEEDS_APPROVAL` or `NO_ACTION_NEEDED` in execution_steps     | Classification value present inline in a step                                                                                                                                                                |
+| **AC4** | `/tools/platform/submit-output.ts` in tool_registry           | Present in the `tools` array                                                                                                                                                                                 |
+| **AC5** | Boundary line at top                                          | `**IMPORTANT: Follow ONLY these steps...` present                                                                                                                                                            |
+| **AC6** | STOP directive at end                                         | `**STOP. Do nothing else.**` present                                                                                                                                                                         |
 
 If AC2 fails (submit-output missing `--draft-file`):
 
@@ -329,9 +341,9 @@ curl -s "https://slack.com/api/conversations.replies" \
 
 1. The original "Reply sent" or "Task complete" message
 2. A "✅ Delivered" confirmation
-3. The actual digest content (150–300 words summarizing Slack activity)
+3. The actual motivational message content (a coherent sentence or short paragraph)
 
-**AC7 passes if**: Reply #3 contains real digest content — topics, discussions, action items — NOT just a short phrase like `"24-hour Slack digest created with key topics and action items"`.
+**AC7 passes if**: Reply #3 contains a real motivational message — a coherent sentence or paragraph — NOT just a short phrase like `"Motivational message created for the real estate team"`.
 
 **AC7 fails if**: Only the short `--summary` text appears. This means `--draft-file` was missing from the generated `submit-output` call — the generator has regressed.
 
@@ -374,16 +386,135 @@ EOF
 
 ## Full Verification Checklist
 
-| #   | Check                            | Command/Method                                                            | Pass                                                         |
-| --- | -------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| AC1 | execution_steps has env var refs | psql: `SELECT execution_steps FROM archetypes WHERE id = '$ARCHETYPE_ID'` | `$SOURCE_CHANNELS` or `$NOTIFICATION_CHANNEL` present        |
-| AC2 | submit-output has --draft-file   | same                                                                      | `--draft-file /tmp/...` present when NEEDS_APPROVAL          |
-| AC3 | classification value present     | same                                                                      | `NEEDS_APPROVAL` or `NO_ACTION_NEEDED` inline in step        |
-| AC4 | submit-output in tool_registry   | psql: `SELECT tool_registry FROM archetypes WHERE id = '$ARCHETYPE_ID'`   | `/tools/platform/submit-output.ts` in tools array            |
-| AC5 | Task reached Done                | psql: `SELECT status FROM tasks WHERE id = '$TASK_ID'`                    | `Done`                                                       |
-| AC6 | Lifecycle sequence correct       | psql: task_status_log query                                               | Submitting → Reviewing → Approved → Delivering → Done        |
-| AC7 | Real content in Slack thread     | Slack API conversations.replies                                           | Actual digest/content (not placeholder)                      |
-| AC8 | Zero edits to generated fields   | Visual inspection during wizard                                           | No manual changes to identity/execution_steps/delivery_steps |
+| #   | Check                          | Command/Method                                                                            | Pass                                                         |
+| --- | ------------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| AC1 | No hardcoded channel IDs       | psql: `SELECT execution_steps, delivery_steps FROM archetypes WHERE id = '$ARCHETYPE_ID'` | Env var refs only — no literal `C0...` channel IDs           |
+| AC2 | submit-output has --draft-file | same                                                                                      | `--draft-file /tmp/...` present when NEEDS_APPROVAL          |
+| AC3 | classification value present   | same                                                                                      | `NEEDS_APPROVAL` or `NO_ACTION_NEEDED` inline in step        |
+| AC4 | submit-output in tool_registry | psql: `SELECT tool_registry FROM archetypes WHERE id = '$ARCHETYPE_ID'`                   | `/tools/platform/submit-output.ts` in tools array            |
+| AC5 | Task reached Done              | psql: `SELECT status FROM tasks WHERE id = '$TASK_ID'`                                    | `Done`                                                       |
+| AC6 | Lifecycle sequence correct     | psql: task_status_log query                                                               | Submitting → Reviewing → Approved → Delivering → Done        |
+| AC7 | Real content in Slack thread   | Slack API conversations.replies                                                           | Actual motivational message (not placeholder)                |
+| AC8 | Zero edits to generated fields | Visual inspection during wizard                                                           | No manual changes to identity/execution_steps/delivery_steps |
+
+---
+
+## Observability Cheat Sheet
+
+Quick reference for every signal source available during a task run. Reach for this any time a task stalls, fails, or produces unexpected output.
+
+All `psql` commands use: `PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee`  
+Assumes `TASK_ID` is set in your shell. Use `${TASK_ID:0:8}` for the 8-character container name prefix.
+
+### Services
+
+| Signal                | What It Tells You                           | URL / Command                                                             |
+| --------------------- | ------------------------------------------- | ------------------------------------------------------------------------- |
+| Gateway health        | Gateway is up and accepting requests        | `curl -s http://localhost:7700/health \| jq .`                            |
+| Inngest health        | Inngest Dev Server is up                    | `curl -s http://localhost:8288/health \| jq .`                            |
+| Dashboard reachable   | UI is serving                               | `curl -s http://localhost:7701/dashboard/ -o /dev/null -w "%{http_code}"` |
+| Inngest Dev Server UI | Visual run history, step outputs, event log | `http://localhost:8288`                                                   |
+
+> ⚠️ **Inngest UI caveat**: Step outputs may show data from a different run due to a known Dev Server contamination bug (see AGENTS.md). Use DB queries and log files as ground truth.
+
+### Task State (Database)
+
+```bash
+# Current status
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT status, updated_at FROM tasks WHERE id = '$TASK_ID';"
+
+# Full lifecycle trace — every state transition with timestamps
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT from_status, to_status, created_at FROM task_status_log WHERE task_id = '$TASK_ID' ORDER BY created_at;"
+
+# Task metadata — inngest_run_id, notify_slack_ts, notify_slack_channel
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT metadata FROM tasks WHERE id = '$TASK_ID';"
+
+# Pending approval — confirms approval card was tracked; shows Slack TS and channel
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT slack_ts, channel_id, thread_uid, created_at FROM pending_approvals WHERE task_id = '$TASK_ID';"
+
+# Deliverable — confirms harness wrote the classification and draft content
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT id, status, content, created_at FROM deliverables WHERE external_ref = '$TASK_ID';"
+
+# Execution metrics — token count and cost (spot runaway LLM loops)
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT prompt_tokens, completion_tokens, estimated_cost_usd FROM executions WHERE task_id = '$TASK_ID';"
+```
+
+### Worker Execution Container
+
+Active during `Executing`. Exits when the harness completes.
+
+```bash
+# Is it still running?
+docker ps --filter name=employee-${TASK_ID:0:8}
+
+# Tail live output (while running)
+docker logs -f employee-${TASK_ID:0:8}
+
+# Inspect contract files inside the container (while running)
+docker exec employee-${TASK_ID:0:8} ls -la /tmp/
+
+# Read the draft the LLM produced
+docker exec employee-${TASK_ID:0:8} cat /tmp/summary.txt
+```
+
+> **Contract files to look for:** `/tmp/summary.txt` (required) and `/tmp/approval-message.json` (required). Absence of both is a hard harness failure. Employee-specific draft files (e.g. `/tmp/digest-draft.txt`) are also written here.
+
+### Harness Log File
+
+Written to `/tmp/employee-<8-char-task-id>.log`. Survives after the container exits — more complete than `docker logs` because it captures the full OpenCode session.
+
+```bash
+# Full log (large — often 1–5 MB)
+cat /tmp/employee-${TASK_ID:0:8}.log
+
+# Harness events only (skip OpenCode server noise)
+grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -30
+
+# Errors and warnings only (level 40 = warn, level 50 = error)
+grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
+
+# Noise-filtered dashboard viewer (recommended for human reading)
+# http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=00000000-0000-0000-0000-000000000003
+```
+
+### Delivery Container
+
+Separate from the execution container. Active during `Delivering`.
+
+```bash
+# Find it (name format: employee-delivery-<8-char-task-id>)
+docker ps --filter name=employee-delivery
+
+# Logs
+docker logs employee-delivery-${TASK_ID:0:8}
+```
+
+### Slack Thread
+
+```bash
+source .env
+NOTIFY_TS=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -t -c "SELECT metadata->>'notify_slack_ts' FROM tasks WHERE id = '$TASK_ID';" | tr -d ' \n')
+
+curl -s "https://slack.com/api/conversations.replies" \
+  -H "Authorization: Bearer $VLRE_SLACK_BOT_TOKEN" \
+  -d "channel=C0960S2Q8RL&ts=$NOTIFY_TS&limit=20" \
+  | jq '[.messages[] | {ts: .ts, text: (.text | .[0:200])}]'
+```
+
+Expected thread structure for the approval path:
+
+| Position | Content                                                             |
+| -------- | ------------------------------------------------------------------- |
+| MSG 0    | Original notify-received message (updated to ✅ Done at completion) |
+| MSG 1    | Approval card (ts also stored in `pending_approvals.slack_ts`)      |
+| MSG 2    | Delivery message with actual content                                |
 
 ---
 

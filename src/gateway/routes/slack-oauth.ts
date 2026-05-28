@@ -67,7 +67,8 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const redirectBase =
         process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
-      const scopes = 'channels:history,groups:history,groups:read,chat:write,chat:write.public';
+      const scopes =
+        'channels:history,channels:read,groups:history,groups:read,chat:write,chat:write.public';
       const url =
         `https://slack.com/oauth/v2/authorize` +
         `?client_id=${encodeURIComponent(clientId)}` +
