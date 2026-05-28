@@ -31,7 +31,6 @@ VLRE (VL Real Estate) manages short-term vacation rental properties. Communicate
    ```
 
 5. Use the bash tool to submit your output:
-
    ```bash
    tsx /tools/platform/submit-output.ts --summary "Daily inspiration message composed" --classification "NO_ACTION_NEEDED"
    ```
@@ -53,7 +52,6 @@ The approved content is in the prompt after `--- APPROVED CONTENT ---` as JSON.
    ```
 
 3. Use the bash tool to confirm delivery:
-
    ```bash
    tsx /tools/platform/submit-output.ts --summary "Posted daily inspiration to Slack" --classification "NO_ACTION_NEEDED"
    ```
