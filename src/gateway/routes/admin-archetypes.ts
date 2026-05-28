@@ -185,6 +185,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       overview,
       input_schema,
       worker_env,
+      instructions,
       ...rest
     } = bodyResult.data;
 
@@ -193,6 +194,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         data: {
           ...rest,
           tenant_id: tenantId,
+          execution_instructions: instructions,
           risk_model: risk_model as Prisma.InputJsonValue,
           ...(trigger_sources !== null && {
             trigger_sources: trigger_sources as Prisma.InputJsonValue,
@@ -322,6 +324,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           status,
           input_schema,
           worker_env,
+          instructions,
           ...rest
         } = bodyResult.data;
 
@@ -344,6 +347,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           where: { id: archetypeId },
           data: {
             ...rest,
+            ...(instructions !== undefined && { execution_instructions: instructions }),
             ...(status !== undefined && { status }),
             ...(risk_model !== undefined && { risk_model: risk_model as Prisma.InputJsonValue }),
             ...(trigger_sources !== undefined && {
