@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
+import { CollapsibleSection } from '@/panels/employees/components/CollapsibleSection';
 import {
   generateArchetype,
   createArchetype,
@@ -184,47 +185,11 @@ export function CreateEmployeePage() {
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}
           />
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Slack Channel</label>
-            {slackLoading ? (
-              <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
-            ) : slackChannels.length > 0 ? (
-              <SearchableSelect
-                options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
-                value={notificationChannel}
-                onValueChange={setNotificationChannel}
-                placeholder="Select a channel..."
-                searchPlaceholder="Search channels..."
-              />
-            ) : (
-              <Input
-                value={notificationChannel}
-                onChange={(e) => setNotificationChannel(e.target.value)}
-                placeholder="#channel-name or channel ID"
-              />
-            )}
-            {slackError === 'SLACK_NOT_CONFIGURED' && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Slack not configured for this tenant. Enter a channel ID manually.
-              </p>
-            )}
-            {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Could not load channels — enter a channel ID manually.
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              The Slack channel where this employee operates — all notifications, approvals, and
-              deliveries go here.
-            </p>
-          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{description.length}/2000</span>
             <Button
               onClick={() => void handleGenerate()}
-              disabled={
-                description.length < 10 || description.length > 2000 || !notificationChannel.trim()
-              }
+              disabled={description.length < 10 || description.length > 2000}
             >
               Generate
             </Button>
@@ -248,87 +213,137 @@ export function CreateEmployeePage() {
             instruction manual.
           </p>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Employee Name</label>
-            <p className="text-xs text-muted-foreground">
-              Unique identifier for this employee (kebab-case slug)
-            </p>
-            <Input
-              value={editedFields.role_name}
-              onChange={(e) => setEditedFields((f) => ({ ...f, role_name: e.target.value }))}
-            />
-          </div>
+          <CollapsibleSection title="Core" defaultOpen={true}>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Employee Name</label>
+                <p className="text-xs text-muted-foreground">
+                  Unique identifier for this employee (kebab-case slug)
+                </p>
+                <Input
+                  value={editedFields.role_name}
+                  onChange={(e) => setEditedFields((f) => ({ ...f, role_name: e.target.value }))}
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Identity</label>
-            <p className="text-xs text-muted-foreground">
-              Who is this employee? Their role, personality, and purpose.
-            </p>
-            <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[180px] resize-y"
-              value={editedFields.identity}
-              onChange={(e) => setEditedFields((f) => ({ ...f, identity: e.target.value }))}
-            />
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Identity</label>
+                <p className="text-xs text-muted-foreground">
+                  Who is this employee? Their role, personality, and purpose.
+                </p>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[180px] resize-y"
+                  value={editedFields.identity}
+                  onChange={(e) => setEditedFields((f) => ({ ...f, identity: e.target.value }))}
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Execution Steps</label>
-            <p className="text-xs text-muted-foreground">
-              Step-by-step instructions for what this employee does.
-            </p>
-            <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[200px] resize-y"
-              value={editedFields.execution_steps}
-              onChange={(e) => setEditedFields((f) => ({ ...f, execution_steps: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Delivery Steps</label>
-            <p className="text-xs text-muted-foreground">
-              (Optional) How this employee delivers its results.
-            </p>
-            <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[150px] resize-y"
-              value={editedFields.delivery_steps}
-              onChange={(e) => setEditedFields((f) => ({ ...f, delivery_steps: e.target.value }))}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="approval-toggle"
-                checked={editedFields.approval_required}
-                onChange={(e) =>
-                  setEditedFields((f) => ({ ...f, approval_required: e.target.checked }))
-                }
-                className="h-4 w-4"
-              />
-              <label htmlFor="approval-toggle" className="text-sm font-medium">
-                Requires approval
-              </label>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Execution Steps</label>
+                <p className="text-xs text-muted-foreground">
+                  Step-by-step instructions for what this employee does.
+                </p>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[200px] resize-y"
+                  value={editedFields.execution_steps}
+                  onChange={(e) =>
+                    setEditedFields((f) => ({ ...f, execution_steps: e.target.value }))
+                  }
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Trigger</label>
-              <SearchableSelect
-                options={[
-                  { value: 'manual', label: 'Manual' },
-                  { value: 'scheduled', label: 'Scheduled' },
-                  { value: 'webhook', label: 'Webhook' },
-                ]}
-                value={editedFields.trigger_type}
-                onValueChange={(v) =>
-                  setEditedFields((f) => ({
-                    ...f,
-                    trigger_type: v as 'manual' | 'scheduled' | 'webhook',
-                  }))
-                }
-                placeholder="Select trigger type"
-              />
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Delivery" defaultOpen={true}>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Delivery Steps</label>
+                <p className="text-xs text-muted-foreground">
+                  (Optional) How this employee delivers its results.
+                </p>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[150px] resize-y"
+                  value={editedFields.delivery_steps}
+                  onChange={(e) =>
+                    setEditedFields((f) => ({ ...f, delivery_steps: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="approval-toggle"
+                  checked={editedFields.approval_required}
+                  onChange={(e) =>
+                    setEditedFields((f) => ({ ...f, approval_required: e.target.checked }))
+                  }
+                  className="h-4 w-4"
+                />
+                <label htmlFor="approval-toggle" className="text-sm font-medium">
+                  Requires approval
+                </label>
+              </div>
             </div>
-          </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Settings" defaultOpen={false}>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Trigger</label>
+                <SearchableSelect
+                  options={[
+                    { value: 'manual', label: 'Manual' },
+                    { value: 'scheduled', label: 'Scheduled' },
+                    { value: 'webhook', label: 'Webhook' },
+                  ]}
+                  value={editedFields.trigger_type}
+                  onValueChange={(v) =>
+                    setEditedFields((f) => ({
+                      ...f,
+                      trigger_type: v as 'manual' | 'scheduled' | 'webhook',
+                    }))
+                  }
+                  placeholder="Select trigger type"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Slack Channel</label>
+                {slackLoading ? (
+                  <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+                ) : slackChannels.length > 0 ? (
+                  <SearchableSelect
+                    options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
+                    value={notificationChannel}
+                    onValueChange={setNotificationChannel}
+                    placeholder="Select a channel..."
+                    searchPlaceholder="Search channels..."
+                  />
+                ) : (
+                  <Input
+                    value={notificationChannel}
+                    onChange={(e) => setNotificationChannel(e.target.value)}
+                    placeholder="#channel-name or channel ID"
+                  />
+                )}
+                {slackError === 'SLACK_NOT_CONFIGURED' && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Slack not configured for this tenant. Enter a channel ID manually.
+                  </p>
+                )}
+                {slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Could not load channels — enter a channel ID manually.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  The Slack channel where this employee operates — all notifications, approvals, and
+                  deliveries go here.
+                </p>
+              </div>
+            </div>
+          </CollapsibleSection>
 
           <div className="flex justify-between pt-2">
             <Button variant="outline" onClick={() => setStep('describe')}>
