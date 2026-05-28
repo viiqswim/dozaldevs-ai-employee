@@ -854,7 +854,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/gateway/services/archetype-generator.ts`, `src/gateway/services/time-estimator.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 9. Run data migration + verify
+- [x] 9. Run data migration + verify
 
   **What to do**:
   - Run the migration script from Task 4: `npx tsx scripts/migrate-archetypes-to-template.ts`
@@ -1109,7 +1109,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `dashboard/src/panels/employees/sections/ProfilePreviewSection.tsx`, `dashboard/src/lib/types.ts`, task detail files
   - Pre-commit: `pnpm dashboard:build`
 
-- [ ] 12. Dead code removal + column drops
+- [x] 12. Dead code removal + column drops
 
   **What to do**:
   - **Delete files**:
@@ -1189,7 +1189,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Deleted files, `prisma/schema.prisma`, migration, `dashboard/src/lib/types.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 13. Clear failure_reason on retry success
+- [x] 13. Clear failure_reason on retry success
 
   **What to do**:
   - In `src/inngest/employee-lifecycle.ts`, find where tasks are retried and transition from Failed back to a running state
@@ -1252,7 +1252,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ### Wave 4 — Verification
 
-- [ ] 14. Build + test suite pass
+- [x] 14. Build + test suite pass
 
   **What to do**:
   - Run `pnpm build` and fix any TypeScript errors
@@ -1308,7 +1308,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: Affected test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 15. Stress test: 20 runs, concurrency 5
+- [x] 15. Stress test: 20 runs, concurrency 5
 
   **What to do**:
   - Rebuild Docker image: `docker build -t ai-employee-worker:latest .`
@@ -1343,9 +1343,9 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Previous stress test results in handoff context — Compare against Stress #6 (20/20 with compiled format)
 
   **Acceptance Criteria**:
-  - [ ] 20-run stress test completes
-  - [ ] ≥95% pass rate (18+ out of 20)
-  - [ ] Results JSON saved to evidence directory
+  - [x] 20-run stress test completes
+  - [x] ≥95% pass rate (18+ out of 20)
+  - [x] Results JSON saved to evidence directory
 
   **QA Scenarios (MANDATORY):**
 
@@ -1366,7 +1366,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (evidence only)
 
-- [ ] 16. AGENTS.md + docs update
+- [x] 16. AGENTS.md + docs update
 
   **What to do**:
   - Update `AGENTS.md` to reflect the template compilation architecture:
@@ -1406,9 +1406,9 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - AGENTS.md is injected into every LLM call — stale references cause agent confusion
 
   **Acceptance Criteria**:
-  - [ ] AGENTS.md has no references to `system_prompt` field, `agents_md` field, `platform-procedures.mts`, or `tool-reference-generator.mts`
-  - [ ] New fields documented in archetype section
-  - [ ] `agents-md-compiler.mts` mentioned in project structure
+  - [x] AGENTS.md has no references to `system_prompt` field, `agents_md` field, `platform-procedures.mts`, or `tool-reference-generator.mts`
+  - [x] New fields documented in archetype section
+  - [x] `agents-md-compiler.mts` mentioned in project structure
 
   **QA Scenarios (MANDATORY):**
 
@@ -1432,7 +1432,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `AGENTS.md`, `README.md`
   - Pre-commit: None
 
-- [ ] 17. Telegram notification
+- [x] 17. Telegram notification
 
   **What to do**:
   - Send Telegram notification that the plan is complete:
@@ -1454,7 +1454,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **References**: None needed
 
   **Acceptance Criteria**:
-  - [ ] Telegram notification sent successfully
+  - [x] Telegram notification sent successfully
 
   **QA Scenarios (MANDATORY):**
 
@@ -1477,19 +1477,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp). Verify no hardcoded temperature in harness. Verify `resolveAgentsMd` has zero imports remaining.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state. Trigger `daily-real-estate-inspiration-2-copy` via curl. Verify task reaches Done. Check `compiled_agents_md` field is populated in DB. Open dashboard, navigate to archetype editor — verify new fields visible, old fields gone. Open task detail — verify compiled AGENTS.md viewer works. Run brain-preview API — verify new structure returned.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | VERDICT`
 
