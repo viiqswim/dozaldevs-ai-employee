@@ -53,26 +53,69 @@ If Docker worker image is stale (after any `src/workers/` changes): `docker buil
 
 ---
 
-## Step 1 — Soft-Delete Any Previous Test Archetypes
+## Step 1 — Hard-Delete Any Previous Test Archetypes
 
-Before each test run, clean up archetypes from previous runs to avoid slug collisions:
+Before each test run, permanently remove archetypes from previous runs to avoid slug collisions and keep the local DB clean.
+
+> ⚠️ **LOCAL ONLY** — Hard deletes conflict with the platform's production soft-delete convention (`deleted_at`). Run this only against your local dev database (`localhost:54322`). Never run against a production or shared environment.
 
 ```bash
-PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
-  -c "UPDATE archetypes
-      SET deleted_at = NOW()
-      WHERE tenant_id = '00000000-0000-0000-0000-000000000003'
-        AND role_name NOT IN ('daily-summarizer', 'guest-messaging', 'code-rotation', 'real-estate-motivation-bot-2', 'daily-real-estate-inspiration-2-copy')
-        AND deleted_at IS NULL
-        AND id NOT IN (
-          '00000000-0000-0000-0000-000000000012',
-          '00000000-0000-0000-0000-000000000013',
-          'ad5f02f0-f38d-4e00-abd0-4973cd93a7eb',
-          '561439b9-7491-40de-a550-95906624fffc'
-        );"
+# Hard-delete all test archetypes and their associated data for the VLRE tenant,
+# excluding the permanent seed employees.
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee << 'EOF'
+DO $$
+DECLARE
+  arch_ids uuid[];
+  task_ids uuid[];
+BEGIN
+  -- Collect test archetype IDs (exclude permanent seed employees)
+  SELECT array_agg(id) INTO arch_ids
+  FROM archetypes
+  WHERE tenant_id = '00000000-0000-0000-0000-000000000003'
+    AND id NOT IN (
+      '00000000-0000-0000-0000-000000000012',
+      '00000000-0000-0000-0000-000000000013',
+      'ad5f02f0-f38d-4e00-abd0-4973cd93a7eb',
+      '561439b9-7491-40de-a550-95906624fffc'
+    );
+
+  IF arch_ids IS NULL THEN
+    RAISE NOTICE 'No test archetypes found — nothing to clean up.';
+    RETURN;
+  END IF;
+
+  -- Collect task IDs for those archetypes
+  SELECT array_agg(id) INTO task_ids
+  FROM tasks WHERE archetype_id = ANY(arch_ids);
+
+  -- Delete in FK-safe order
+  IF task_ids IS NOT NULL THEN
+    DELETE FROM reviews         WHERE deliverable_id IN (SELECT id FROM deliverables WHERE external_ref = ANY(task_ids::text[]));
+    DELETE FROM deliverables    WHERE external_ref = ANY(task_ids::text[]);
+    DELETE FROM task_status_log WHERE task_id = ANY(task_ids);
+    DELETE FROM task_metrics    WHERE task_id = ANY(task_ids);
+    DELETE FROM executions      WHERE task_id = ANY(task_ids);
+    DELETE FROM audit_log       WHERE task_id = ANY(task_ids);
+    DELETE FROM clarifications  WHERE task_id = ANY(task_ids);
+    DELETE FROM cross_dept_triggers WHERE source_task_id = ANY(task_ids);
+    DELETE FROM feedback_events WHERE task_id = ANY(task_ids);
+    DELETE FROM tasks           WHERE id = ANY(task_ids);
+  END IF;
+
+  -- Delete archetype-level dependents, then the archetypes themselves
+  DELETE FROM task_metrics    WHERE archetype_id = ANY(arch_ids);
+  DELETE FROM knowledge_bases WHERE archetype_id = ANY(arch_ids);
+  DELETE FROM risk_models     WHERE archetype_id = ANY(arch_ids);
+  DELETE FROM agent_versions  WHERE archetype_id = ANY(arch_ids);
+  -- feedback_events and employee_rules cascade automatically on archetype delete
+  DELETE FROM archetypes WHERE id = ANY(arch_ids);
+
+  RAISE NOTICE 'Deleted % test archetype(s) and all associated records.', array_length(arch_ids, 1);
+END $$;
+EOF
 ```
 
-> **Why**: The wizard generates a `role_name` slug from the description. If a non-deleted archetype with the same slug already exists in the tenant, saving will fail or produce a duplicate.
+> **Why**: The wizard generates a `role_name` slug from the description. If an archetype with the same slug already exists in the tenant, saving will fail or produce a duplicate.
 
 ---
 
@@ -92,9 +135,9 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 
 5. Expand **Settings** and configure:
    - **Slack channel**: select `#victor-tests`
-   - **Model**: change to `minimax/minimax-m2.7`
+   - **Model**: change to `deepseek/deepseek-v4-flash`
 
-   > ⚠️ **Critical**: The wizard may recommend `openai/gpt-oss-120b`. That model produces text-only responses and never calls bash tools — the task will fail. Always use `minimax/minimax-m2.7`.
+   > ⚠️ **Critical**: The wizard may recommend a model that doesn't reliably call bash tools — the task will fail. Always use `deepseek/deepseek-v4-flash`.
 
 6. Click **Save as Draft**.
 
@@ -284,11 +327,35 @@ curl -s "https://slack.com/api/conversations.replies" \
 
 ## Step 8 — Cleanup (Optional)
 
-Soft-delete the test archetype after the run to keep the DB clean:
+Hard-delete the test archetype and all its associated data after the run:
+
+> ⚠️ **LOCAL ONLY** — Hard deletes conflict with the platform's production soft-delete convention. Run this only against your local dev database (`localhost:54322`).
 
 ```bash
-PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
-  -c "UPDATE archetypes SET deleted_at = NOW() WHERE id = '$ARCHETYPE_ID';"
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee << EOF
+DO \$\$
+DECLARE task_ids uuid[];
+BEGIN
+  SELECT array_agg(id) INTO task_ids FROM tasks WHERE archetype_id = '$ARCHETYPE_ID';
+  IF task_ids IS NOT NULL THEN
+    DELETE FROM reviews             WHERE deliverable_id IN (SELECT id FROM deliverables WHERE external_ref = ANY(task_ids::text[]));
+    DELETE FROM deliverables        WHERE external_ref = ANY(task_ids::text[]);
+    DELETE FROM task_status_log     WHERE task_id = ANY(task_ids);
+    DELETE FROM task_metrics        WHERE task_id = ANY(task_ids);
+    DELETE FROM executions          WHERE task_id = ANY(task_ids);
+    DELETE FROM audit_log           WHERE task_id = ANY(task_ids);
+    DELETE FROM clarifications      WHERE task_id = ANY(task_ids);
+    DELETE FROM cross_dept_triggers WHERE source_task_id = ANY(task_ids);
+    DELETE FROM feedback_events     WHERE task_id = ANY(task_ids);
+    DELETE FROM tasks               WHERE id = ANY(task_ids);
+  END IF;
+  DELETE FROM task_metrics    WHERE archetype_id = '$ARCHETYPE_ID';
+  DELETE FROM knowledge_bases WHERE archetype_id = '$ARCHETYPE_ID';
+  DELETE FROM risk_models     WHERE archetype_id = '$ARCHETYPE_ID';
+  DELETE FROM agent_versions  WHERE archetype_id = '$ARCHETYPE_ID';
+  DELETE FROM archetypes      WHERE id = '$ARCHETYPE_ID';
+END \$\$;
+EOF
 ```
 
 ---
@@ -364,10 +431,10 @@ The SYSTEM_PROMPT in `src/gateway/services/archetype-generator.ts` must teach th
 
 **Cause**: The wizard recommended `openai/gpt-oss-120b`, which produces text-only responses and never calls bash tools. The harness detects no `/tmp/summary.txt` output and fails the task.
 
-**Fix**: Always change the model to `minimax/minimax-m2.7` in Settings before saving (Step 2, item 5).
+**Fix**: Always change the model to `deepseek/deepseek-v4-flash` in Settings before saving (Step 2, item 5).
 
 ### Slug collision on save
 
 **Symptom**: Wizard save fails or creates a duplicate.
 
-**Fix**: Run the soft-delete query in Step 1 before each test run.
+**Fix**: Run the hard-delete query in Step 1 before each test run.
