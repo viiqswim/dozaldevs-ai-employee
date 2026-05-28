@@ -323,6 +323,9 @@ export interface GenerateArchetypeResponse {
     cheaperAlternative: ModelRecommendationEntry | null;
     premiumAlternative: ModelRecommendationEntry | null;
   };
+  identity: string;
+  execution_steps: string;
+  delivery_steps: string | null;
 }
 
 export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | 'runtime'> & {

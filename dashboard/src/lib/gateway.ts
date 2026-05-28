@@ -182,6 +182,19 @@ export async function fetchBrainPreview(
   }
 }
 
+export async function compilePreview(
+  tenantId: string,
+  fields: { identity: string; execution_steps: string; delivery_steps: string | null },
+): Promise<{ compiled_agents_md: string }> {
+  return gatewayFetch<{ compiled_agents_md: string }>(
+    `/admin/tenants/${tenantId}/archetypes/compile-preview`,
+    {
+      method: 'POST',
+      body: JSON.stringify(fields),
+    },
+  );
+}
+
 export async function generateArchetype(
   tenantId: string,
   description: string,
