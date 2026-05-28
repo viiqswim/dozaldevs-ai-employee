@@ -61,7 +61,7 @@ export function DeliveryStepsSection({
     <CollapsibleSection
       id="section-delivery-steps"
       title="Delivery Steps"
-      subtitle="Numbered steps this employee follows after work is approved"
+      subtitle="Numbered steps this employee follows to deliver results"
       defaultOpen={true}
       actions={editButton}
     >

@@ -62,7 +62,7 @@ export function DeliveryInstructionsSection({
     <CollapsibleSection
       id="section-delivery-instructions"
       title="Delivery Instructions"
-      subtitle="What this employee does after work is approved"
+      subtitle="What this employee does to deliver results"
       defaultOpen={true}
       actions={editButton}
     >
