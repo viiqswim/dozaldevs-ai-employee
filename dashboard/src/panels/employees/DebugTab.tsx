@@ -12,56 +12,6 @@ interface DebugTabProps {
 
 type ViewMode = 'rendered' | 'source';
 
-const AGENTS_MD_LAYERS: Array<{
-  key: keyof BrainPreviewResponse['agents_md']['layers'];
-  title: string;
-  subtitle: string;
-  source: string;
-}> = [
-  {
-    key: 'tenant',
-    title: 'Who You Are',
-    subtitle: 'Tenant-level identity — injected first into every employee',
-    source: 'DB: tenants.config → default_agents_md',
-  },
-  {
-    key: 'employee',
-    title: 'Your Job',
-    subtitle: 'Employee-specific job definition (archetype AGENTS.md field)',
-    source: 'DB: archetypes.execution_steps',
-  },
-  {
-    key: 'platformRuntime',
-    title: 'Your Tools & Procedures',
-    subtitle: 'Tool reference and platform procedures — injected at runtime',
-    source: 'Runtime: agents-md-compiler.mts',
-  },
-  {
-    key: 'rules',
-    title: 'Behavioral Rules (Learned)',
-    subtitle: 'Confirmed rules learned from PM feedback — override conflicting guidance above',
-    source: 'DB: employee_rules (status = confirmed)',
-  },
-  {
-    key: 'knowledge',
-    title: 'Knowledge Base',
-    subtitle: 'Knowledge base themes extracted from the feedback pipeline',
-    source: 'DB: knowledge_base.source_config → themes',
-  },
-  {
-    key: 'platform',
-    title: 'Platform Rules',
-    subtitle: 'Platform-wide AGENTS.md — always included, always last',
-    source: 'File: src/workers/config/agents.md',
-  },
-  {
-    key: 'finalReminders',
-    title: 'Final Reminders',
-    subtitle: 'Closing sections appended after everything else',
-    source: 'Runtime: closingSections (currently unused)',
-  },
-];
-
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
     <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-0.5">
@@ -119,11 +69,7 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [promptMode, setPromptMode] = useState<ViewMode>('rendered');
   const [deliveryPromptMode, setDeliveryPromptMode] = useState<ViewMode>('rendered');
-  const [layerModes, setLayerModes] = useState<Record<string, ViewMode>>({});
-
-  const getLayerMode = (key: string): ViewMode => layerModes[key] ?? 'rendered';
-  const setLayerMode = (key: string) => (mode: ViewMode) =>
-    setLayerModes((prev) => ({ ...prev, [key]: mode }));
+  const [compiledAgentsMdMode, setCompiledAgentsMdMode] = useState<ViewMode>('source');
 
   const fetchData = () => {
     setLoading(true);
@@ -231,26 +177,35 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
         </div>
       </CollapsibleSection>
 
-      {AGENTS_MD_LAYERS.map(({ key, title, subtitle, source }) => {
-        const content = data.agents_md.layers[key];
-        if (!content) return null;
-        return (
-          <CollapsibleSection
-            key={key}
-            title={title}
-            subtitle={subtitle}
-            defaultOpen={false}
-            badge={
-              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                {source}
-              </code>
-            }
-            actions={<ViewToggle mode={getLayerMode(key)} onChange={setLayerMode(key)} />}
-          >
-            <ContentView content={content} mode={getLayerMode(key)} />
-          </CollapsibleSection>
-        );
-      })}
+      <CollapsibleSection
+        title="Compiled AGENTS.md"
+        subtitle="The full AGENTS.md assembled from all layers — exact file injected into the worker container. The individual layer breakdown (platform, tenant, employee, rules, knowledge) has been replaced by the unified compiled output."
+        defaultOpen={false}
+        badge={
+          data.compiled_agents_md ? (
+            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              {data.compiled_agents_md.length.toLocaleString()} chars
+            </code>
+          ) : (
+            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              not available
+            </code>
+          )
+        }
+        actions={
+          data.compiled_agents_md ? (
+            <ViewToggle mode={compiledAgentsMdMode} onChange={setCompiledAgentsMdMode} />
+          ) : undefined
+        }
+      >
+        {data.compiled_agents_md ? (
+          <ContentView content={data.compiled_agents_md} mode={compiledAgentsMdMode} />
+        ) : (
+          <p className="text-sm text-muted-foreground italic">
+            Not available — run the employee once to generate a compiled snapshot.
+          </p>
+        )}
+      </CollapsibleSection>
     </div>
   );
 }
