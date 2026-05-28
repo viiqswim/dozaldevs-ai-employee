@@ -253,19 +253,9 @@ export interface BrainPreviewResponse {
   compiled_agents_md: string | null;
   execution_prompt: string;
   delivery_prompt: string | null;
-  agents_md: {
-    full: string;
-    layers: {
-      platform: string;
-      platformRuntime: string | null;
-      tenant: string | null;
-      employee: string | null;
-      rules: string | null;
-      knowledge: string | null;
-      finalReminders: string | null;
-    };
-  };
+  archetype_fields: Record<string, unknown>;
   env_vars: BrainPreviewEnvVar[];
+  env_manifest: string;
   tools: Array<{ name: string; service: string; description: string; containerPath: string }>;
   skills: Array<{ name: string; description: string }>;
   config: {
@@ -284,11 +274,6 @@ export interface BrainPreviewResponse {
     taskTrigger: string;
     employeeManual: string;
     afterApprovalAction: string;
-  };
-  autoInjectedSections: {
-    securityPreamble: string;
-    outputContract: string;
-    envManifest: string;
   };
 }
 
