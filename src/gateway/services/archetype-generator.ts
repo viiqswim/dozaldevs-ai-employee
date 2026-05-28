@@ -60,7 +60,7 @@ ${INJECTION_BOUNDARY}
 - \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity.
 - \`execution_steps\` is a numbered list of steps describing WHAT the employee does during execution. Minimum 3 steps.
 - Each \`execution_steps\` step MUST be a concrete action, not a vague instruction. Bad: "1. Analyze the data." Good: "1. Read all messages in the #support Slack channel from the last 24 hours using the Slack read-channel tool." Steps must reference specific tools from tool_registry by name when applicable.
-- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. MUST include: (a) read the approved content from \`<approved-content>\`, (b) the specific delivery action (e.g., "Post to Slack using the post-message tool"), (c) submit output confirming delivery. Set to null ONLY if approval_required is false AND no delivery action is needed.
+- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. MUST include: (a) read the approved content from \`<approved-content>\`, (b) the specific delivery action using the exact tool invocation syntax — e.g., \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text-file /tmp/delivery-draft.txt\` (ALWAYS use \`$NOTIFICATION_CHANNEL\` env var, never a hardcoded channel name), (c) submit output confirming delivery. Set to null ONLY if approval_required is false AND no delivery action is needed.
 
 ## Separation of Concerns (CRITICAL)
 - \`identity\` = WHO (persona, no actions)
@@ -93,12 +93,50 @@ The key must exactly match the snake_case \`key\` in the \`input_schema\` item.
 ## execution_steps Field Rules (CRITICAL)
 The \`execution_steps\` field MUST be a numbered list of concrete steps. At minimum 3 steps.
 
-DO NOT include in execution_steps:
-- File paths like \`/tmp/summary.txt\` or \`/tmp/approval-message.json\`
-- JSON format details or output contract specifics
-- Shell commands or technical tool invocations
-- XML tags, IMPORTANT/STOP directives, or platform plumbing
-- Output/reporting instructions — the platform injects these at runtime
+## execution_steps Runtime Patterns (MANDATORY)
+
+Follow the exact patterns from this working example. Every generated execution_steps MUST:
+
+**1. Open with a boundary enforcement line:**
+\`**IMPORTANT: Follow ONLY these steps. Do NOT read or follow \`<delivery-instructions>\` — that section is for a separate container. STOP after step N.**\`
+(Replace N with the actual final step number.)
+
+**2. Reference Slack channels via environment variables — NEVER hardcode channel names or IDs:**
+Even if the description mentions a specific channel by name (e.g. '#victor-tests', '#general'), do NOT use that name in execution_steps or delivery_steps. ALWAYS use environment variables instead:
+- \`$SOURCE_CHANNELS\` — the channel(s) to read from
+- \`$NOTIFICATION_CHANNEL\` — the employee's designated delivery channel
+- \`$PUBLISH_CHANNEL\` — the channel to post deliverables to (if different)
+The platform's Slack Channel setting controls which actual channel is used — the employee must reference the variable, not the name.
+Example step: "1. Read all messages from \`$SOURCE_CHANNELS\` from the last 24 hours using \`tsx /tools/slack/read-channel.ts --channel "$SOURCE_CHANNELS" --hours 24\`."
+Example delivery step: "2. Post to Slack using \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text-file /tmp/draft.txt\`."
+
+**3. Use explicit tool invocation syntax for every tool call:**
+Format: \`tsx /tools/{service}/{tool-name}.ts [flags]\`
+Examples:
+- \`tsx /tools/slack/read-channel.ts --channel "$SOURCE_CHANNELS" --hours 24\`
+- \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "your message"\`
+- \`tsx /tools/platform/submit-output.ts --summary "what was done" --classification "NEEDS_APPROVAL"\`
+
+**4. Write draft content to /tmp/ before submitting:**
+When the employee creates content (a message, summary, report), write it to a temp file first:
+\`\`\`bash
+cat > /tmp/draft.txt << 'MSGEOF'
+[content here]
+MSGEOF
+\`\`\`
+
+**5. End with a FINAL STEP that submits output using the submit-output tool:**
+\`\`\`bash
+tsx /tools/platform/submit-output.ts --summary "brief description of what was done" --classification "NEEDS_APPROVAL"
+\`\`\`
+Classification values (use inline in a step, not as a section header):
+- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery
+- \`NO_ACTION_NEEDED\` — nothing to report or no action required
+
+**6. End with a STOP directive:**
+\`**STOP. Do nothing else. Your job is done.**\`
+
+**7. Always include \`/tools/platform/submit-output.ts\` in tool_registry.tools.**
 
 ## JSON Shape
 Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no explanation):
@@ -152,7 +190,7 @@ For trigger_sources.type:
 - "webhook" — if triggered by external events (add "event_type" field)
 
 For deliverable_type: use "slack_message", "hostfully_message", "lock_code_rotation", or another descriptive label.
-For tool_registry.tools: list the actual shell tool paths that will be used (e.g. /tools/slack/post-message.ts, /tools/hostfully/get-door-code.ts).
+For tool_registry.tools: list the actual shell tool paths that will be used (e.g. /tools/slack/post-message.ts, /tools/hostfully/get-door-code.ts). ALWAYS include /tools/platform/submit-output.ts — every employee needs it to submit their work.
 For delivery_instructions: set to the SAME VALUE as delivery_steps for backwards compatibility. If delivery_steps is null, delivery_instructions must also be null.
 `;
 
@@ -164,7 +202,7 @@ ${INJECTION_BOUNDARY}
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - Preserve all fields that are not affected by the refinement instruction
-- Do NOT add XML tags, IMPORTANT/STOP directives, platform plumbing, submit-output instructions, or /tmp/ file paths to execution_steps or delivery_steps
+- Ensure execution_steps opens with a boundary enforcement line, uses \`$SOURCE_CHANNELS\`/\`$NOTIFICATION_CHANNEL\` env var references (never hardcoded channel IDs), includes explicit \`tsx /tools/...\` invocations, writes content to /tmp/draft.txt, ends with a submit-output FINAL STEP (\`tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"\`), and ends with a STOP directive. Preserve these patterns if already present; add them if missing.
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated identity, execution_steps, trigger_sources, and risk_model
