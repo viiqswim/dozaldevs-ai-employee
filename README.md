@@ -112,16 +112,17 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 
 ## Scripts
 
-| Script                 | Command                                | Purpose                                                                                                                                                             |
-| ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `setup.ts`             | `pnpm setup`                           | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                             |
-| `dev.ts`               | `pnpm dev`                             | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel` |
-| `dev-e2e.ts`           | `pnpm dev:e2e`                         | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                     |
-| `register-project.ts`  | `pnpm register-project`                | Interactive wizard to register a new project via the admin API                                                                                                      |
-| `trigger-task.ts`      | `pnpm trigger-task`                    | Send mock webhook and monitor                                                                                                                                       |
-| `verify-e2e.ts`        | `pnpm verify:e2e --task-id <uuid>`     | 12-point E2E verification                                                                                                                                           |
-| `setup-two-tenants.ts` | `pnpm setup:two-tenants`               | Multi-tenant setup: provisions DozalDevs + VLRE tenants with archetypes                                                                                             |
-| `telegram-notify.ts`   | `tsx scripts/telegram-notify.ts "msg"` | Send developer Telegram push notification                                                                                                                           |
+| Script                 | Command                                | Purpose                                                                                                                                                                                              |
+| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`             | `pnpm setup`                           | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                                                              |
+| `dev.ts`               | `pnpm dev`                             | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel`                                  |
+| `dev-e2e.ts`           | `pnpm dev:e2e`                         | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                                                      |
+| `register-project.ts`  | `pnpm register-project`                | Interactive wizard to register a new project via the admin API                                                                                                                                       |
+| `trigger-task.ts`      | `pnpm trigger-task`                    | Send mock webhook and monitor                                                                                                                                                                        |
+| `verify-e2e.ts`        | `pnpm verify:e2e --task-id <uuid>`     | 12-point E2E verification                                                                                                                                                                            |
+| `stress-test.ts`       | `pnpm stress-test`                     | Run an employee N times and report success rate, p50/p90/p99 timing, and anomaly detection (tag bleed, retries, missing Slack posts). Options: `--count`, `--concurrency`, `--employee`, `--timeout` |
+| `setup-two-tenants.ts` | `pnpm setup:two-tenants`               | Multi-tenant setup: provisions DozalDevs + VLRE tenants with archetypes                                                                                                                              |
+| `telegram-notify.ts`   | `tsx scripts/telegram-notify.ts "msg"` | Send developer Telegram push notification                                                                                                                                                            |
 
 ## Project Structure
 

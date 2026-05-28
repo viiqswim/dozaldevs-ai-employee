@@ -214,6 +214,7 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 | Build            | `pnpm build`                       |
 | Trigger E2E task | `pnpm trigger-task`                |
 | Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
+| Stress test      | `pnpm stress-test`                 |
 | Docker start     | `pnpm docker:start`                |
 | Docker stop      | `pnpm docker:stop`                 |
 | Docker reset     | `pnpm docker:reset`                |
