@@ -39,6 +39,7 @@ model Task {
   started_at         DateTime?
   completed_at       DateTime?
   failure_code       String?
+  compiled_agents_md String?  @db.Text
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
