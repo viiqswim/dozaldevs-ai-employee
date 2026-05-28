@@ -53,7 +53,7 @@ The platform follows a single lifecycle pattern for all employees:
 1. **Trigger** — A webhook or cron fires an event (e.g. Hostfully `NEW_INBOX_MESSAGE`, daily schedule)
 2. **Task created** — Gateway creates a `tasks` row and emits `employee/task.dispatched` to Inngest
 3. **Universal lifecycle** — Inngest transitions through states: `Received → Ready → Executing → Submitting → Reviewing`
-4. **Worker container** — Fly.io or local Docker runs OpenCode with the archetype's `instructions` and available shell tools
+4. **Worker container** — Fly.io or local Docker runs OpenCode with a compiled AGENTS.md (from archetype fields) and available shell tools
 5. **Approval gate** — Worker posts a Slack card; PM approves or rejects
 6. **Delivery** — On approval, the deliverable is sent (Slack publish, Hostfully reply, etc.)
 
