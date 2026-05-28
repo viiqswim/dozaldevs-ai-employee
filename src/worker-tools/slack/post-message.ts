@@ -8,6 +8,11 @@ interface PostResult {
   conversationRef?: string;
 }
 
+/** **bold** → *bold*  ·  ~~strike~~ → ~strike~ */
+function markdownToMrkdwn(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/gs, '*$1*').replace(/~~(.+?)~~/gs, '~$1~');
+}
+
 function parseArgs(argv: string[]): {
   channel: string;
   text: string;
@@ -27,7 +32,6 @@ function parseArgs(argv: string[]): {
   let title: string | undefined;
   let threadTs: string | undefined;
   let textFile: string | undefined;
-  let noThread = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--channel' && args[i + 1]) {
@@ -48,27 +52,27 @@ function parseArgs(argv: string[]): {
     } else if (args[i] === '--text-file' && args[i + 1]) {
       textFile = args[++i];
     } else if (args[i] === '--no-thread') {
-      noThread = true;
+      // Deprecated — no-op. NOTIFY_MSG_TS always threads task messages together.
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>] [--thread-ts <ts>] [--no-thread]\n\n' +
+        'Usage: post-message.js --channel "C123" --text "Hello" [--blocks \'[...]\'] [--task-id "uuid"] [--conversation-ref <string>] [--title <string>] [--thread-ts <ts>]\n\n' +
           'Options:\n' +
           '  --channel <id>              (required) Slack channel ID to post to\n' +
-          '  --text <string>             (required) Message text\n' +
+          '  --text <string>             (required) Message text (markdown **bold** auto-converted to Slack *bold*)\n' +
           '  --text-file <path>          Read message text from file at <path> (avoids shell quoting issues)\n' +
           '  --blocks <json>             Optional Block Kit blocks JSON array\n' +
-          '  --task-id <uuid>            Optional task ID — auto-generates approval blocks with Approve/Reject buttons\n' +
+          '  --task-id <uuid>            Optional task ID — auto-generates context block; falls back to $TASK_ID env var\n' +
           '  --conversation-ref <string> Optional Hostfully thread UID to track conversation for superseding detection\n' +
           '  --title <string>            Optional approval card header title (default: "Task Review — <date>")\n' +
           '  --thread-ts <ts>            Optional Slack message timestamp to reply in thread\n' +
-          '  --no-thread                 Suppress auto-threading even when NOTIFY_MSG_TS env var is set\n' +
+          '  --no-thread                 Deprecated no-op. NOTIFY_MSG_TS always threads task messages together.\n' +
           '  --help                      Show this help message\n',
       );
       process.exit(0);
     }
   }
 
-  if (threadTs === undefined && !noThread) {
+  if (threadTs === undefined) {
     const envTs = process.env.NOTIFY_MSG_TS;
     if (envTs) threadTs = envTs;
   }
@@ -145,6 +149,8 @@ async function main(): Promise<void> {
     text = fs.readFileSync(textFile, 'utf8').trim();
   }
 
+  text = markdownToMrkdwn(text);
+
   const runId = process.env.INNGEST_RUN_ID || undefined;
 
   const token = process.env.SLACK_BOT_TOKEN;
@@ -172,22 +178,25 @@ async function main(): Promise<void> {
     day: 'numeric',
   });
 
+  const effectiveTaskId = taskId ?? process.env.TASK_ID ?? undefined;
+  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === 'delivery';
+
   const blocks =
     rawBlocks ??
-    (taskId
-      ? process.env.APPROVAL_REQUIRED === 'false'
+    (effectiveTaskId
+      ? isDeliveryPhase || process.env.APPROVAL_REQUIRED === 'false'
         ? [
             { type: 'section', text: { type: 'mrkdwn', text } },
             { type: 'divider' },
             {
               type: 'context',
               elements: [
-                { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+                { type: 'mrkdwn', text: `Task \`${effectiveTaskId}\`` },
                 ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
               ],
             },
           ]
-        : buildApprovalBlocks(text, taskId, date, title, runId)
+        : buildApprovalBlocks(text, effectiveTaskId, date, title, runId)
       : undefined);
 
   const result = await client.chat.postMessage({
