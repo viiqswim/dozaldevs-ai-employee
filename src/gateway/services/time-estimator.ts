@@ -5,6 +5,7 @@ const log = createLogger('time-estimator');
 
 const FIELDS_TRIGGERING_REESTIMATE = [
   'instructions',
+  'execution_instructions',
   'role_name',
   'system_prompt',
   'deliverable_type',
@@ -18,15 +19,17 @@ export class TimeEstimator {
 
   async estimate(archetype: {
     role_name: string | null;
-    instructions: string | null;
-    system_prompt: string | null;
+    execution_instructions?: string | null;
+    instructions?: string | null;
+    system_prompt?: string | null;
     deliverable_type: string | null;
   }): Promise<number | null> {
     try {
+      const instructionsText = archetype.execution_instructions ?? archetype.instructions ?? null;
       const userMessage = [
         archetype.role_name ? `Role: ${archetype.role_name}` : null,
         archetype.deliverable_type ? `Deliverable type: ${archetype.deliverable_type}` : null,
-        archetype.instructions ? `Instructions: ${archetype.instructions}` : null,
+        instructionsText ? `Instructions: ${instructionsText}` : null,
         archetype.system_prompt ? `System prompt: ${archetype.system_prompt}` : null,
       ]
         .filter(Boolean)
