@@ -83,8 +83,6 @@ COPY src/workers/config/agents.md /app/AGENTS.md
 # agents-md-compiler.mts reads agents.md via __dirname relative path → dist/workers/config/
 RUN mkdir -p /app/dist/workers/config
 COPY src/workers/config/agents.md /app/dist/workers/config/agents.md
-COPY src/workers/experimental/ /app/experimental/
-
 # Copy ALL worker tools into the image — no per-file COPY needed.
 # Adding a new tool or service? Just commit to src/worker-tools/ and rebuild.
 COPY --from=builder /build/src/worker-tools/ /tools/
