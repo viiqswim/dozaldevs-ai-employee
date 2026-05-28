@@ -666,8 +666,12 @@ async function main(): Promise<void> {
     }
     const deliverableContent = (deliverable.content as string) ?? '';
 
-    // 3. Build delivery prompt with injected deliverable content
-    const deliveryPrompt = `Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n${deliverableContent}\n</approved-content>\n\nTask ID: ${TASK_ID}`;
+    // 3. Build delivery prompt with injected deliverable content — use assembleTaskPrompt for
+    //    consistency with the execution phase (adds date/epoch prefix + Task ID suffix).
+    const deliveryPrompt = assembleTaskPrompt({
+      instructions: `Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n${deliverableContent}\n</approved-content>`,
+      taskId: TASK_ID,
+    });
 
     // 4. Auth setup — required before OpenCode session
     await writeOpencodeAuth(archetype.temperature ?? 1.0);
