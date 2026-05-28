@@ -69,7 +69,7 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [promptMode, setPromptMode] = useState<ViewMode>('rendered');
   const [deliveryPromptMode, setDeliveryPromptMode] = useState<ViewMode>('rendered');
-  const [compiledAgentsMdMode, setCompiledAgentsMdMode] = useState<ViewMode>('source');
+  const [compiledAgentsMdMode, setCompiledAgentsMdMode] = useState<ViewMode>('rendered');
 
   const fetchData = () => {
     setLoading(true);
@@ -152,35 +152,9 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
       )}
 
       <CollapsibleSection
-        title="Raw Fields (Deprecated)"
-        subtitle="Legacy and platform-constant fields — read-only, for debugging only"
-        defaultOpen={false}
-        badge={
-          <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-            deprecated
-          </code>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-              execution_instructions (platform constant)
-            </p>
-            <RawFieldView value={archetype.execution_instructions} />
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-              delivery_instructions (platform constant)
-            </p>
-            <RawFieldView value={archetype.delivery_instructions} />
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Compiled AGENTS.md"
-        subtitle="The full AGENTS.md assembled from all layers — exact file injected into the worker container. The individual layer breakdown (platform, tenant, employee, rules, knowledge) has been replaced by the unified compiled output."
-        defaultOpen={false}
+        title="AGENTS.md File"
+        subtitle="The complete file injected into the worker container at runtime — assembled from identity, execution steps, delivery steps, platform rules, and learned rules"
+        defaultOpen={true}
         badge={
           data.compiled_agents_md ? (
             <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
@@ -205,6 +179,32 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
             Not available — run the employee once to generate a compiled snapshot.
           </p>
         )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Raw Fields (Deprecated)"
+        subtitle="Legacy and platform-constant fields — read-only, for debugging only"
+        defaultOpen={false}
+        badge={
+          <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            deprecated
+          </code>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              execution_instructions (platform constant)
+            </p>
+            <RawFieldView value={archetype.execution_instructions} />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              delivery_instructions (platform constant)
+            </p>
+            <RawFieldView value={archetype.delivery_instructions} />
+          </div>
+        </div>
       </CollapsibleSection>
     </div>
   );
