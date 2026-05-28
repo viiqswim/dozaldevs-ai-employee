@@ -775,7 +775,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: `dashboard/src/panels/employees/CreateEmployeePage.tsx`
   - Pre-commit: `pnpm build`
 
-- [ ] 6. End-to-end integration wiring and build verification
+- [x] 6. End-to-end integration wiring and build verification
 
   **What to do**:
   This task ensures all pieces from T1-T5 work together as a complete flow. It's primarily verification and bug-fixing, not new feature work.
@@ -882,7 +882,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: any files that needed fixes
   - Pre-commit: `pnpm build`
 
-- [ ] 7. Stress test: run daily-real-estate-inspiration-2-copy 20 times
+- [x] 7. Stress test: run daily-real-estate-inspiration-2-copy 20 times
 
   **What to do**:
   Run the existing `daily-real-estate-inspiration-2-copy` employee 20 consecutive times using the stress-test script to verify platform stability after all code changes. If any runs fail, diagnose and fix the root cause before proceeding.
@@ -978,7 +978,7 @@ Wave FINAL (4 parallel reviews, then user okay):
   - Files: whatever files needed fixing
   - Pre-commit: `pnpm build`
 
-- [ ] 8. Notify completion via Telegram
+- [x] 8. Notify completion via Telegram
 
   **What to do**:
   - Run: `tsx scripts/telegram-notify.ts "📋 Employee creation redesign complete — all tasks done, 20/20 stress test passed. Come back to review results."`
@@ -1020,19 +1020,19 @@ Wave FINAL (4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
       Output: `Build [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Start from clean state. Navigate to `/dashboard/employees/new?tenant=00000000-0000-0000-0000-000000000003`. Complete the full creation wizard: enter description, wait for generation, edit fields, preview AGENTS.md, save draft. Verify the new employee appears in the list. Open the detail page and confirm all fields are persisted. Check edge cases: empty description, very long text, missing Slack channel.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | VERDICT`
 
