@@ -855,7 +855,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           });
 
           await step.run('complete-no-action-no-approval', async () => {
-            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Done',
+              failure_reason: null,
+              failure_code: null,
+            });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
             log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — no approval required)');
             if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
@@ -907,7 +911,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (!deliverableType) {
           log.warn({ taskId }, 'Archetype has no deliverable_type — skipping delivery container');
           await step.run('complete-no-deliverable-type', async () => {
-            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Done',
+              failure_reason: null,
+              failure_code: null,
+            });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
             log.info({ taskId }, 'State: Done (no deliverable_type configured)');
             if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
@@ -1504,7 +1512,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         if (!overrideEvent) {
           await step.run('complete-no-action-timeout', async () => {
-            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Done',
+              failure_reason: null,
+              failure_code: null,
+            });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
             log.info({ taskId }, 'State: Done (NO_ACTION_NEEDED — timeout, no override)');
             try {
@@ -1554,7 +1566,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         if (!overrideData.direction) {
           await step.run('complete-override-dismissed', async () => {
-            await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
+            await patchTask(supabaseUrl, headers, taskId, {
+              status: 'Done',
+              failure_reason: null,
+              failure_code: null,
+            });
             await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
             log.info({ taskId, userId: overrideData.userId }, 'State: Done (override dismissed)');
             try {
@@ -1624,6 +1640,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           await patchTask(supabaseUrl, headers, taskId, {
             status: 'Done',
+            failure_reason: null,
+            failure_code: null,
             metadata: {
               overridden_no_action: true,
               override_task_id: newTaskId,
