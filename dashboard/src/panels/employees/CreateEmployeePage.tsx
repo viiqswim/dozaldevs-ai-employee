@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { MarkdownPreview } from '@/components/MarkdownPreview';
 import {
   generateArchetype,
   createArchetype,
@@ -41,6 +42,7 @@ export function CreateEmployeePage() {
     trigger_type: 'manual' as 'manual' | 'scheduled' | 'webhook',
   });
   const [error, setError] = useState<string | null>(null);
+  const [compiledPreview, setCompiledPreview] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +84,56 @@ export function CreateEmployeePage() {
               : 'manual',
       });
       setStep('edit');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setStep('error');
+    }
+  };
+
+  const handlePreview = async () => {
+    setStep('previewing');
+    try {
+      const result = await compilePreview(tenantId, {
+        identity: editedFields.identity,
+        execution_steps: editedFields.execution_steps,
+        delivery_steps: editedFields.delivery_steps || null,
+      });
+      setCompiledPreview(result.compiled_agents_md);
+      setStep('preview');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setStep('error');
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!config) return;
+    setStep('saving');
+    try {
+      const triggerSources =
+        editedFields.trigger_type === 'scheduled'
+          ? { type: 'scheduled' as const, cron: '0 8 * * 1-5' }
+          : editedFields.trigger_type === 'webhook'
+            ? { type: 'webhook' as const }
+            : { type: 'manual' as const };
+
+      const archetype = await createArchetype(tenantId, {
+        ...config,
+        role_name: editedFields.role_name,
+        instructions: editedFields.execution_steps,
+        identity: editedFields.identity,
+        execution_steps: editedFields.execution_steps,
+        delivery_steps: editedFields.delivery_steps || null,
+        risk_model: {
+          approval_required: editedFields.approval_required,
+          timeout_hours: config.risk_model.timeout_hours,
+        },
+        trigger_sources: triggerSources,
+        notification_channel: notificationChannel || null,
+        status: 'draft',
+        parent_draft_id: null,
+      });
+      navigate(`/dashboard/employees/${archetype.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setStep('error');
@@ -281,13 +333,7 @@ export function CreateEmployeePage() {
             <Button variant="outline" onClick={() => setStep('describe')}>
               ← Back to Describe
             </Button>
-            <Button
-              onClick={() => {
-                console.log('Preview step — wired in T5');
-              }}
-            >
-              Preview AGENTS.md →
-            </Button>
+            <Button onClick={() => void handlePreview()}>Preview AGENTS.md →</Button>
           </div>
         </div>
       )}
@@ -296,6 +342,24 @@ export function CreateEmployeePage() {
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground text-center">Compiling preview…</p>
+        </div>
+      )}
+
+      {step === 'preview' && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            This is the complete instruction manual your employee will receive. Review it before
+            saving.
+          </p>
+          <div className="rounded-lg border bg-card p-4 overflow-auto max-h-[600px]">
+            {compiledPreview && <MarkdownPreview content={compiledPreview} />}
+          </div>
+          <div className="flex justify-between pt-2">
+            <Button variant="outline" onClick={() => setStep('edit')}>
+              ← Back to Edit
+            </Button>
+            <Button onClick={() => void handleSaveDraft()}>Save as Draft</Button>
+          </div>
         </div>
       )}
 
