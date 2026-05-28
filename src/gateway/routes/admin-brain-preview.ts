@@ -9,6 +9,7 @@ import { TenantSecretRepository } from '../services/tenant-secret-repository.js'
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
 import { buildEnvManifestFromVars } from '../../workers/lib/env-manifest-builder.mjs';
+import { assembleTaskPrompt } from '../../workers/lib/prompt-assembler.mjs';
 
 interface EnvVarEntry {
   name: string;
@@ -269,16 +270,22 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
 
         const envManifestStr = buildEnvManifestFromVars(env_vars);
 
+        const employeeRulesStr =
+          ruleTexts.length > 0 ? ruleTexts.map((r, i) => `${i + 1}. ${r}`).join('\n') : '';
+        const employeeKnowledgeStr = knowledgeThemes.join('\n');
         const compiledAgentsMd = compileAgentsMd({
           identity: archetype.identity ?? '',
           executionSteps: archetype.execution_steps ?? '',
           deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
-          employeeRules: '',
-          employeeKnowledge: '',
+          employeeRules: employeeRulesStr,
+          employeeKnowledge: employeeKnowledgeStr,
         });
 
-        const EXECUTION_PROMPT =
-          'Follow the instructions in <execution-instructions> within the AGENTS.md file';
+        const EXECUTION_PROMPT = assembleTaskPrompt({
+          instructions:
+            'Follow the instructions in <execution-instructions> within the AGENTS.md file',
+          taskId: '<task-id-injected-at-runtime>',
+        });
         const DELIVERY_PROMPT =
           'Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n--- APPROVED CONTENT ---\n{deliverableContent}\n--- END APPROVED CONTENT ---\n\nTask ID: {TASK_ID}';
 

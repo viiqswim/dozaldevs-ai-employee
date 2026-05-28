@@ -182,6 +182,49 @@ export function DebugTab({ archetypeId, tenantId, archetype }: DebugTabProps) {
       </CollapsibleSection>
 
       <CollapsibleSection
+        title="Runtime Config"
+        subtitle="The model, temperature, and platform version this employee runs on"
+        defaultOpen={true}
+      >
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              Model
+            </p>
+            <code className="font-mono text-xs bg-muted/30 px-2 py-1 rounded">
+              {data.config.model}
+            </code>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              Temperature
+            </p>
+            <code className="font-mono text-xs bg-muted/30 px-2 py-1 rounded">
+              {data.archetype_fields.temperature != null
+                ? String(data.archetype_fields.temperature)
+                : '1.0 (default)'}
+            </code>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              OpenCode Version
+            </p>
+            <code className="font-mono text-xs bg-muted/30 px-2 py-1 rounded">
+              {data.config.opencode_version}
+            </code>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              Runtime
+            </p>
+            <code className="font-mono text-xs bg-muted/30 px-2 py-1 rounded">
+              {data.config.runtime}
+            </code>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
         title="Raw Fields (Deprecated)"
         subtitle="Legacy and platform-constant fields — read-only, for debugging only"
         defaultOpen={false}
