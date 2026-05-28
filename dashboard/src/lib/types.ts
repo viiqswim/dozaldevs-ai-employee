@@ -39,6 +39,7 @@ export interface Task {
   started_at: string | null;
   completed_at: string | null;
   failure_code: string | null;
+  compiled_agents_md: string | null; // Compiled AGENTS.md snapshot for debugging
   // From PostgREST embedded join: ?select=*,archetypes(role_name,model)
   archetypes?: { role_name: string | null; model: string | null } | null;
   // From PostgREST embedded join: ?select=*,executions(estimated_cost_usd)
@@ -90,6 +91,11 @@ export interface Archetype {
   pre_check_adapter: string | null;
   department_id: string | null;
   agent_version_id: string | null;
+  identity: string | null;
+  execution_steps: string | null;
+  delivery_steps: string | null;
+  temperature: number | null;
+  execution_instructions: string | null;
   instructions: string | null;
   system_prompt: string | null;
   agents_md: string | null;
@@ -246,6 +252,7 @@ export interface BrainPreviewEnvVar {
 }
 
 export interface BrainPreviewResponse {
+  compiled_agents_md: string | null;
   execution_prompt: string;
   delivery_prompt: string | null;
   agents_md: {

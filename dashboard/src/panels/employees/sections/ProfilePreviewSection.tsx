@@ -213,6 +213,29 @@ export function ProfilePreviewSection({ archetype, tenantId }: ProfilePreviewSec
               <p className="text-sm text-muted-foreground italic">No knowledge base entries.</p>
             )}
           </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Compiled AGENTS.md"
+            subtitle="Exact file written to the worker container on each run"
+            defaultOpen={false}
+            badge={
+              data.compiled_agents_md ? (
+                <Badge variant="secondary" className="text-xs font-mono">
+                  {data.compiled_agents_md.length.toLocaleString()} chars
+                </Badge>
+              ) : null
+            }
+          >
+            {data.compiled_agents_md ? (
+              <pre className="max-h-[32rem] overflow-auto rounded-md border bg-muted/50 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words">
+                {data.compiled_agents_md}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Not available — run the employee once to generate a snapshot.
+              </p>
+            )}
+          </CollapsibleSection>
         </div>
       )}
     </CollapsibleSection>

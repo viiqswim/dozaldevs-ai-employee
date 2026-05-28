@@ -92,6 +92,7 @@ interface ModelForm {
   instruction_following_score: string;
   non_hallucination_rate: string;
   tool_call_error_rate: string;
+  structured_output_error_rate: string;
   supports_tools: boolean;
   supports_structured_output: boolean;
   is_active: boolean;
@@ -115,6 +116,7 @@ const EMPTY_FORM: ModelForm = {
   instruction_following_score: '',
   non_hallucination_rate: '',
   tool_call_error_rate: '',
+  structured_output_error_rate: '',
   supports_tools: true,
   supports_structured_output: true,
   is_active: true,
@@ -143,6 +145,8 @@ function entryToForm(entry: ModelCatalogEntry): ModelForm {
       entry.non_hallucination_rate !== null ? String(entry.non_hallucination_rate) : '',
     tool_call_error_rate:
       entry.tool_call_error_rate !== null ? String(entry.tool_call_error_rate) : '',
+    structured_output_error_rate:
+      entry.structured_output_error_rate !== null ? String(entry.structured_output_error_rate) : '',
     supports_tools: entry.supports_tools,
     supports_structured_output: entry.supports_structured_output,
     is_active: entry.is_active,
@@ -177,6 +181,7 @@ function formToPayload(
     instruction_following_score: parseOptionalFloat(form.instruction_following_score),
     non_hallucination_rate: parseOptionalFloat(form.non_hallucination_rate),
     tool_call_error_rate: parseOptionalFloat(form.tool_call_error_rate),
+    structured_output_error_rate: parseOptionalFloat(form.structured_output_error_rate),
     supports_tools: form.supports_tools,
     supports_structured_output: form.supports_structured_output,
     is_active: form.is_active,
