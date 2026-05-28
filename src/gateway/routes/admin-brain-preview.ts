@@ -233,8 +233,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const envManifestStr = buildEnvManifestFromVars(env_vars);
 
         const compiledAgentsMd = compileAgentsMd({
-          identity: (archetype as any).identity ?? archetype.system_prompt ?? '',
-          executionSteps: (archetype as any).execution_steps ?? archetype.agents_md ?? '',
+          identity: (archetype as any).identity ?? '',
+          executionSteps: (archetype as any).execution_steps ?? '',
           deliverySteps: (archetype as any).delivery_steps ?? archetype.delivery_instructions ?? '',
           employeeRules: '',
           employeeKnowledge: '',
@@ -314,7 +314,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           humanFields: {
             taskTrigger:
               (archetype as any).execution_instructions ?? (archetype as any).instructions ?? '',
-            employeeManual: archetype.agents_md ?? '',
+            employeeManual: (archetype as any).execution_steps ?? '',
             afterApprovalAction: archetype.delivery_instructions ?? '',
           },
         });

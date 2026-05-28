@@ -195,9 +195,7 @@ model Archetype {
   tenant_id         String   @db.Uuid
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
-  system_prompt     String?  @db.Text
   execution_instructions String?  @db.Text
-  agents_md              String?  @db.Text
   delivery_instructions  String?  @db.Text
   notification_channel   String?  @db.Text
   vm_size             String?   // Per-archetype VM size override (e.g. 'shared-cpu-1x', 'shared-cpu-2x')

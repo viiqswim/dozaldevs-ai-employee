@@ -41,10 +41,6 @@ export const SECTION_LABELS: Record<string, { label: string; subtitle: string }>
     label: 'Machine size',
     subtitle: '',
   },
-  system_prompt: {
-    label: 'System prompt (legacy)',
-    subtitle: '',
-  },
   deliverable_type: {
     label: 'Output type',
     subtitle: '',

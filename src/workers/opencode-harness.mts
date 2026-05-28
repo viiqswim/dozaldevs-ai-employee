@@ -30,7 +30,6 @@ const TASK_ID: string = (() => {
 interface ArchetypeRow {
   id: string;
   role_name?: string | null;
-  system_prompt?: string | null;
   instructions?: string | null; // keep for backward compat (old field name)
   execution_instructions?: string | null; // new field name
   identity?: string | null; // NEW
@@ -40,7 +39,6 @@ interface ArchetypeRow {
   model?: string | null;
   deliverable_type?: string | null;
   runtime?: string | null;
-  agents_md?: string | null;
   delivery_instructions?: string | null;
   enrichment_adapter?: string | null;
   risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
@@ -678,8 +676,8 @@ async function main(): Promise<void> {
     try {
       const { writeFile } = await import('node:fs/promises');
       const compiledAgentsMd = compileAgentsMd({
-        identity: archetype.identity ?? archetype.system_prompt ?? '',
-        executionSteps: archetype.execution_steps ?? archetype.agents_md ?? '',
+        identity: archetype.identity ?? '',
+        executionSteps: archetype.execution_steps ?? '',
         deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
         employeeRules: '',
         employeeKnowledge: '',
@@ -847,8 +845,8 @@ async function main(): Promise<void> {
   try {
     const { writeFile } = await import('node:fs/promises');
     const compiledAgentsMd = compileAgentsMd({
-      identity: archetype.identity ?? archetype.system_prompt ?? '',
-      executionSteps: archetype.execution_steps ?? archetype.agents_md ?? '',
+      identity: archetype.identity ?? '',
+      executionSteps: archetype.execution_steps ?? '',
       deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
       employeeRules,
       employeeKnowledge,

@@ -325,10 +325,9 @@ export class ArchetypeGenerator {
     if (catalog && catalog.length > 0) {
       try {
         const profile = analyzeArchetype({
-          system_prompt: result.identity,
+          identity: result.identity,
           instructions: result.execution_steps,
           deliverable_type: result.deliverable_type ?? '',
-          agents_md: result.delivery_steps,
         });
         const recommendation = recommendModels(profile, catalog);
         result.modelRecommendation = recommendation;
@@ -400,10 +399,9 @@ export class ArchetypeGenerator {
     if (catalog && catalog.length > 0) {
       try {
         const profile = analyzeArchetype({
-          system_prompt: result.identity,
+          identity: result.identity,
           instructions: result.execution_steps,
           deliverable_type: result.deliverable_type ?? '',
-          agents_md: result.delivery_steps,
         });
         const recommendation = recommendModels(profile, catalog);
         result.modelRecommendation = recommendation;

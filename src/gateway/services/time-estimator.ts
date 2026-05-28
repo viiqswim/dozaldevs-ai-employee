@@ -7,7 +7,6 @@ const FIELDS_TRIGGERING_REESTIMATE = [
   'instructions',
   'execution_instructions',
   'role_name',
-  'system_prompt',
   'deliverable_type',
 ];
 
@@ -21,7 +20,6 @@ export class TimeEstimator {
     role_name: string | null;
     execution_instructions?: string | null;
     instructions?: string | null;
-    system_prompt?: string | null;
     deliverable_type: string | null;
   }): Promise<number | null> {
     try {
@@ -30,7 +28,6 @@ export class TimeEstimator {
         archetype.role_name ? `Role: ${archetype.role_name}` : null,
         archetype.deliverable_type ? `Deliverable type: ${archetype.deliverable_type}` : null,
         instructionsText ? `Instructions: ${instructionsText}` : null,
-        archetype.system_prompt ? `System prompt: ${archetype.system_prompt}` : null,
       ]
         .filter(Boolean)
         .join('\n');

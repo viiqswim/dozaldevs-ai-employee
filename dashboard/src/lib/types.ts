@@ -97,8 +97,6 @@ export interface Archetype {
   temperature: number | null;
   execution_instructions: string | null;
   instructions: string | null;
-  system_prompt: string | null;
-  agents_md: string | null;
   delivery_instructions: string | null;
   trigger_sources:
     | { type: 'manual' }
@@ -318,9 +316,7 @@ export interface GenerateArchetypeResponse {
   role_name: string;
   model: string;
   runtime: 'opencode';
-  system_prompt: string;
   instructions: string;
-  agents_md: string;
   delivery_instructions: string | null;
   deliverable_type: string | null;
   risk_model: {
