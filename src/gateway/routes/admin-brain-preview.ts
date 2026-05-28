@@ -288,7 +288,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         });
         const DELIVERY_PROMPT = assembleTaskPrompt({
           instructions:
-            'Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n<populated from deliverables.content at runtime — varies per task>\n</approved-content>',
+            'Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n{{populated from deliverables.content at runtime — varies per task}}\n</approved-content>',
           taskId: '<task-id-injected-at-runtime>',
         });
 
