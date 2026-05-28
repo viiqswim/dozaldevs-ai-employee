@@ -69,13 +69,13 @@ The draft text never travels directly between containers. It flows through the d
 
 ## Timing: idle timeout per container
 
-Each container takes longer to complete than the LLM work alone. When the session manager first checks the OpenCode session, if it finds it already idle (which can happen if the LLM responds very quickly), it schedules a **deferred idle check ~120 seconds later** before confirming completion. This means:
+Each container takes slightly longer to complete than the LLM work alone. When the session manager first checks the OpenCode session, if it finds it already idle (which can happen if the LLM responds very quickly), it schedules a **deferred idle check ~10 seconds later** before confirming completion. This means:
 
-- The LLM finishes its work in ~35 seconds (execution) or ~6 seconds (delivery)
-- The harness waits up to ~120 seconds before detecting the session as stable-idle and proceeding
-- Total wall-clock time from trigger to Done is ~5 minutes, even though the actual LLM work is under a minute
+- The LLM finishes its work in ~35 seconds (execution) or ~16 seconds (delivery)
+- The harness waits ~10 seconds (the `minElapsedMs` guard) before trusting an idle signal — but by the time the LLM finishes, the 10s guard has already passed, so the idle signal is trusted immediately
+- Total wall-clock time from trigger to Done is **~54–68 seconds** (30–45s execution container + 22–23s delivery container + 1s lifecycle overhead)
 
-This is expected behavior — the deferred check prevents the harness from treating a temporarily idle session (mid-tool-call) as complete.
+Previously `minElapsedMs` was 120,000ms (2 minutes), causing the harness to wait ~120 seconds per container even though the LLM finished in under 40 seconds. This was reduced to 10,000ms (10 seconds) — enough to handle the OpenCode startup race condition without adding artificial delay.
 
 ## Safety net: recovery nudge
 
@@ -83,4 +83,12 @@ If the session goes idle and `/tmp/summary.txt` was never written (meaning the L
 
 > "You may still have remaining delivery steps to complete. Finish ALL your remaining steps first, then run this as the very last thing: `tsx /tools/platform/submit-output.ts --summary "..." --classification "NO_ACTION_NEEDED"`"
 
-This is the only remaining platform-injected submit-output instruction. It only fires if the LLM skipped submit-output entirely — it is not part of the normal happy path.
+This is the only remaining platform-injected submit-output instruction. It only fires if the LLM skipped submit-output entirely — it is not part of the normal happy path. The recovery nudge uses the same 10-second `minElapsedMs` guard.
+
+## Known issue: tag bleed (LLM follows both phases)
+
+The AGENTS.md file contains both `<execution-instructions>` and `<delivery-instructions>`. Even though the prompt directs the LLM to follow only one tag, some models (notably `openai/gpt-oss-120b`) may follow both tags sequentially during the execution phase — composing the message, submitting output, then also posting to Slack and submitting output a second time.
+
+**Impact**: Duplicate Slack messages (one from execution, one from delivery). The deliverable data is correct because `/tmp/draft.txt` auto-reads on both submit-output calls.
+
+**Mitigation**: Each tag includes explicit directives: "Follow ONLY these steps. Do NOT read or follow the other tag" and ends with "STOP. Do nothing else." This is a prompt engineering boundary — model compliance varies.
