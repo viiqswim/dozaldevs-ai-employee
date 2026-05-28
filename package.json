@@ -18,6 +18,7 @@
     "test": "vitest",
     "setup": "tsx scripts/setup.ts",
     "trigger-task": "tsx scripts/trigger-task.ts",
+    "stress-test": "tsx scripts/stress-test.ts",
     "register-project": "tsx scripts/register-project.ts",
     "dev:e2e": "tsx scripts/dev-e2e.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
