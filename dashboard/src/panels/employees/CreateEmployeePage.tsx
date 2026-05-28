@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
 import { CollapsibleSection } from '@/panels/employees/components/CollapsibleSection';
+import { InputSchemaEditor } from '@/panels/employees/components/InputSchemaEditor';
 import {
   generateArchetype,
   createArchetype,
   fetchSlackChannels,
   compilePreview,
 } from '@/lib/gateway';
-import type { GenerateArchetypeResponse, SlackChannel } from '@/lib/types';
+import type { GenerateArchetypeResponse, SlackChannel, InputSchemaItem } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
 
 type WizardStep =
@@ -43,6 +44,7 @@ export function CreateEmployeePage() {
     trigger_type: 'manual' as 'manual' | 'scheduled' | 'webhook',
     temperature: 1.0,
   });
+  const [inputSchemaItems, setInputSchemaItems] = useState<InputSchemaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [compiledPreview, setCompiledPreview] = useState<string | null>(null);
 
@@ -86,6 +88,7 @@ export function CreateEmployeePage() {
               : 'manual',
         temperature: result.temperature ?? 1.0,
       });
+      setInputSchemaItems(result.input_schema ?? []);
       setStep('edit');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -128,6 +131,8 @@ export function CreateEmployeePage() {
         execution_steps: editedFields.execution_steps,
         delivery_steps: editedFields.delivery_steps || null,
         temperature: editedFields.temperature,
+        input_schema: inputSchemaItems.length > 0 ? inputSchemaItems : undefined,
+        overview: config?.overview ?? undefined,
         risk_model: {
           approval_required: editedFields.approval_required,
           timeout_hours: config.risk_model.timeout_hours,
@@ -256,6 +261,19 @@ export function CreateEmployeePage() {
                   onChange={(e) =>
                     setEditedFields((f) => ({ ...f, execution_steps: e.target.value }))
                   }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Trigger Inputs</label>
+                <p className="text-xs text-muted-foreground">
+                  Information this employee needs each time it runs. The AI detected these from your
+                  description — add, edit, or remove as needed.
+                </p>
+                <InputSchemaEditor
+                  items={inputSchemaItems}
+                  instructions={editedFields.execution_steps}
+                  onChange={setInputSchemaItems}
                 />
               </div>
 
