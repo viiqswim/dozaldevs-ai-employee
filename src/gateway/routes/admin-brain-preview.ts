@@ -287,7 +287,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           taskId: '<task-id-injected-at-runtime>',
         });
         const DELIVERY_PROMPT =
-          'Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n--- APPROVED CONTENT ---\n{deliverableContent}\n--- END APPROVED CONTENT ---\n\nTask ID: {TASK_ID}';
+          'Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n<populated from deliverables.content at runtime — varies per task>\n</approved-content>\n\nTask ID: <task-id-injected-at-runtime>';
 
         const basePath = path.join(process.cwd(), 'src/worker-tools');
         const skillPath = path.join(
