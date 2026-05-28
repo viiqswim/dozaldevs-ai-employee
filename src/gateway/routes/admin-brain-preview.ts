@@ -25,6 +25,12 @@ const BrainPreviewParamSchema = TenantIdParamSchema.extend({
   archetypeId: uuidField(),
 });
 
+const CompilePreviewBodySchema = z.object({
+  identity: z.string().max(10000).default(''),
+  execution_steps: z.string().max(10000).default(''),
+  delivery_steps: z.string().max(10000).nullable().default(null),
+});
+
 export interface AdminBrainPreviewRouteOptions {
   prisma?: PrismaClient;
 }
@@ -33,6 +39,37 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
   const prisma = opts.prisma ?? new PrismaClient();
+
+  router.post(
+    '/admin/tenants/:tenantId/archetypes/compile-preview',
+    requireAdminKey,
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        return;
+      }
+      const bodyResult = CompilePreviewBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        return;
+      }
+      const { identity, execution_steps, delivery_steps } = bodyResult.data;
+      try {
+        const compiledAgentsMd = compileAgentsMd({
+          identity,
+          executionSteps: execution_steps,
+          deliverySteps: delivery_steps ?? '',
+          employeeRules: '',
+          employeeKnowledge: '',
+        });
+        res.status(200).json({ compiled_agents_md: compiledAgentsMd });
+      } catch (err) {
+        logger.error({ err }, 'Failed to compile AGENTS.md preview');
+        res.status(500).json({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
 
   router.get(
     '/admin/tenants/:tenantId/archetypes/:archetypeId/brain-preview',

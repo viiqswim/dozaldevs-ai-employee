@@ -107,6 +107,10 @@ const CreateArchetypeBodySchema = z.object({
   parent_draft_id: z.string().uuid().nullable().optional().default(null),
   input_schema: InputSchemaSchema.optional(),
   worker_env: z.record(z.string(), z.string()).nullish(),
+  identity: z.string().max(10000).optional().default(''),
+  execution_steps: z.string().max(10000).optional().default(''),
+  delivery_steps: z.string().max(10000).nullable().optional().default(null),
+  temperature: z.number().min(0).max(2).optional().default(1.0),
 });
 
 const RecommendModelBodySchema = z.object({
