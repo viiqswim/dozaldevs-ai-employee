@@ -13,10 +13,11 @@ export interface GenerateArchetypeResponse {
   role_name: string;
   model: string;
   runtime: 'opencode';
-  system_prompt: string;
-  instructions: string;
-  agents_md: string;
+  identity: string;
+  execution_steps: string;
+  delivery_steps: string | null;
   delivery_instructions: string | null;
+  instructions: string;
   deliverable_type: string | null;
   input_schema?: InputSchemaItem[];
   risk_model: {
@@ -55,9 +56,10 @@ ${INJECTION_BOUNDARY}
 ## Rules (CRITICAL — never violate)
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
-- \`system_prompt\` is ALWAYS an empty string \`""\` — the real brain lives in agents_md
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
-- \`agents_md\` must be 50-200 lines of structured markdown — this is the most important field
+- \`identity\` is 2-4 sentences describing WHO this employee is — their persona, role, and org context. No procedural steps.
+- \`execution_steps\` is a numbered list of steps describing WHAT the employee does during execution. Minimum 3 steps.
+- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered. Set to null if approval_required is false.
 
 ## Input Detection (CRITICAL)
 Carefully read the description and identify any values the user must supply at runtime. Classify each as:
@@ -72,47 +74,24 @@ For each detected input, create an \`input_schema\` item with:
 - \`required\`: \`true\` for values needed to run; \`false\` for optional enhancements
 - \`description\`: brief explanation of what the value is used for
 
-- NEVER create an \`input_schema\` item for a Slack channel (channel names, delivery channels, notification channels). The platform provides a dedicated Slack Channel setting for every employee — it is injected automatically. If the description mentions posting to Slack, reference it in \`overview\` and \`instructions\` but do NOT create an input for it.
+- NEVER create an \`input_schema\` item for a Slack channel (channel names, delivery channels, notification channels). The platform provides a dedicated Slack Channel setting for every employee — it is injected automatically. If the description mentions posting to Slack, reference it in \`overview\` and \`execution_steps\` but do NOT create an input for it.
 
 If no runtime inputs are needed, omit \`input_schema\` entirely (do not include an empty array).
 
-## Template Syntax in instructions
-Use \`{{key}}\` syntax in the \`instructions\` field for every detected input (matching the \`key\` in \`input_schema\`).
-Example: "Check Hostfully bookings for {{check_date}} and post results to {{slack_channel}}."
+## Template Syntax in execution_steps
+Use \`{{key}}\` syntax in the \`execution_steps\` field for every detected input (matching the \`key\` in \`input_schema\`).
+Example: "1. Fetch Hostfully bookings for {{check_date}}. 2. Post results to Slack."
 The key must exactly match the snake_case \`key\` in the \`input_schema\` item.
 
-## instructions Field Rules (CRITICAL)
-The \`instructions\` field MUST be human-readable — describe WHAT the employee does in plain English, using \`{{key}}\` placeholders for runtime inputs. At minimum 3 concrete steps.
+## execution_steps Field Rules (CRITICAL)
+The \`execution_steps\` field MUST be a numbered list of concrete steps. At minimum 3 steps.
 
-DO NOT include in instructions:
+DO NOT include in execution_steps:
 - File paths like \`/tmp/summary.txt\` or \`/tmp/approval-message.json\`
 - JSON format details or output contract specifics
 - Shell commands or technical tool invocations
-- Any internal implementation details
-- Output/reporting instructions (file paths, output format, /tmp/ references) — the platform injects these at runtime
-
-Those technical details are handled by the platform automatically and must NOT appear in instructions OR agents_md.
-
-## agents_md Structure (follow this exactly)
-The agents_md field is the employee's brain. It MUST include these sections:
-1. **Opening sentence** — "You are [role description]."
-2. **WORKFLOW section** — numbered steps (1, 2, 3...) describing the exact procedure
-
-CRITICAL — Do NOT include these sections in agents_md (the platform injects them automatically at runtime):
-- Do NOT include a CLASSIFICATION RULES section. The platform injects correct classification guidance based on the archetype's approval settings.
-- Do NOT include a TOOLS AVAILABLE section. The platform auto-generates a real tool listing from the tool_registry at runtime.
-- Do NOT mention APPROVED as a classification value — only NEEDS_APPROVAL and NO_ACTION_NEEDED are valid for agents.
-- Do NOT include submit-output instructions, /tmp/ file paths, or output format details.
-
-Example agents_md structure:
-\`\`\`
-You are a [role description] for [company/context].
-
-WORKFLOW:
-1. [First step with specific actions]
-2. [Second step with specific actions]
-3. [Continue as needed...]
-\`\`\`
+- XML tags, IMPORTANT/STOP directives, or platform plumbing
+- Output/reporting instructions — the platform injects these at runtime
 
 ## JSON Shape
 Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no explanation):
@@ -120,9 +99,9 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "role_name": "kebab-case-slug",
   "model": "minimax/minimax-m2.7",
   "runtime": "opencode",
-  "system_prompt": "",
-  "instructions": "Human-readable description of WHAT the employee does, using {{key}} placeholders for runtime inputs. At minimum 3 concrete steps. No file paths, no JSON format details, no shell commands.",
-  "agents_md": "50-200 lines of structured markdown with an opening sentence and WORKFLOW section. Do NOT include CLASSIFICATION RULES, TOOLS AVAILABLE, output format, or /tmp/ file path instructions — the platform injects these at runtime.",
+  "identity": "2-4 sentences describing who this employee is, their persona, role, and org context.",
+  "execution_steps": "1. First step.\\n2. Second step.\\n3. Third step.",
+  "delivery_steps": null,
   "delivery_instructions": null,
   "deliverable_type": "slack_message",
   "input_schema": [
@@ -177,13 +156,11 @@ ${INJECTION_BOUNDARY}
 ## Rules (CRITICAL — never violate)
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
-- \`system_prompt\` is ALWAYS an empty string \`""\`
 - Preserve all fields that are not affected by the refinement instruction
-- If the input agents_md contains CLASSIFICATION RULES, TOOLS AVAILABLE, or output format sections, REMOVE them during refinement — these are injected by the platform at runtime and must not be in agents_md.
-- Do NOT add CLASSIFICATION RULES, TOOLS AVAILABLE, APPROVED classification references, submit-output instructions, or /tmp/ file paths to agents_md.
+- Do NOT add XML tags, IMPORTANT/STOP directives, platform plumbing, submit-output instructions, or /tmp/ file paths to execution_steps or delivery_steps
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
-- Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated instructions, agents_md, trigger_sources, and risk_model
+- Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated identity, execution_steps, trigger_sources, and risk_model
 
 The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
@@ -268,9 +245,20 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
   const result = raw as Record<string, unknown>;
 
   result.runtime = 'opencode';
-  result.system_prompt = '';
 
-  // Strip any LLM-generated Slack channel inputs — the platform provides notification_channel
+  if (typeof result.execution_steps !== 'string') {
+    result.execution_steps = '';
+  }
+  result.instructions = result.execution_steps;
+
+  if (typeof result.identity !== 'string') {
+    result.identity = '';
+  }
+
+  if (result.delivery_steps !== null && typeof result.delivery_steps !== 'string') {
+    result.delivery_steps = null;
+  }
+
   if (Array.isArray(result['input_schema'])) {
     const filtered = (result['input_schema'] as Array<{ key: string }>).filter(
       (item) => !/slack.*channel|channel.*slack|notification_channel/i.test(item.key),
@@ -280,10 +268,6 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     } else {
       result['input_schema'] = filtered;
     }
-  }
-
-  if (typeof result.agents_md === 'string' && result.agents_md.trim().length > 0) {
-    result.agents_md = sanitizeAgentsMd(result.agents_md);
   }
 
   if (!result.role_name || typeof result.role_name !== 'string') {
@@ -341,10 +325,10 @@ export class ArchetypeGenerator {
     if (catalog && catalog.length > 0) {
       try {
         const profile = analyzeArchetype({
-          system_prompt: result.system_prompt,
-          instructions: result.instructions,
+          system_prompt: result.identity,
+          instructions: result.execution_steps,
           deliverable_type: result.deliverable_type ?? '',
-          agents_md: result.agents_md,
+          agents_md: result.delivery_steps,
         });
         const recommendation = recommendModels(profile, catalog);
         result.modelRecommendation = recommendation;
@@ -360,8 +344,7 @@ export class ArchetypeGenerator {
       const estimator = new TimeEstimator(this.callLLMFn);
       const minutes = await estimator.estimate({
         role_name: result.role_name,
-        instructions: result.instructions,
-        system_prompt: result.system_prompt,
+        execution_instructions: result.execution_steps,
         deliverable_type: result.deliverable_type,
       });
       result.estimated_manual_minutes = minutes ?? null;
@@ -417,10 +400,10 @@ export class ArchetypeGenerator {
     if (catalog && catalog.length > 0) {
       try {
         const profile = analyzeArchetype({
-          system_prompt: result.system_prompt,
-          instructions: result.instructions,
+          system_prompt: result.identity,
+          instructions: result.execution_steps,
           deliverable_type: result.deliverable_type ?? '',
-          agents_md: result.agents_md,
+          agents_md: result.delivery_steps,
         });
         const recommendation = recommendModels(profile, catalog);
         result.modelRecommendation = recommendation;
@@ -436,8 +419,7 @@ export class ArchetypeGenerator {
       const estimator = new TimeEstimator(this.callLLMFn);
       const minutes = await estimator.estimate({
         role_name: result.role_name,
-        instructions: result.instructions,
-        system_prompt: result.system_prompt,
+        execution_instructions: result.execution_steps,
         deliverable_type: result.deliverable_type,
       });
       result.estimated_manual_minutes = minutes ?? null;
