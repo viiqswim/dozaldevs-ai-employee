@@ -312,20 +312,21 @@ export function CreateEmployeePage() {
             </div>
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">Trigger</label>
-              <select
+              <SearchableSelect
+                options={[
+                  { value: 'manual', label: 'Manual' },
+                  { value: 'scheduled', label: 'Scheduled' },
+                  { value: 'webhook', label: 'Webhook' },
+                ]}
                 value={editedFields.trigger_type}
-                onChange={(e) =>
+                onValueChange={(v) =>
                   setEditedFields((f) => ({
                     ...f,
-                    trigger_type: e.target.value as 'manual' | 'scheduled' | 'webhook',
+                    trigger_type: v as 'manual' | 'scheduled' | 'webhook',
                   }))
                 }
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-              >
-                <option value="manual">Manual</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="webhook">Webhook</option>
-              </select>
+                placeholder="Select trigger type"
+              />
             </div>
           </div>
 

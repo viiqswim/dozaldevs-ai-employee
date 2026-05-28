@@ -270,9 +270,9 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const envManifestStr = buildEnvManifestFromVars(env_vars);
 
         const compiledAgentsMd = compileAgentsMd({
-          identity: (archetype as any).identity ?? '',
-          executionSteps: (archetype as any).execution_steps ?? '',
-          deliverySteps: (archetype as any).delivery_steps ?? archetype.delivery_instructions ?? '',
+          identity: archetype.identity ?? '',
+          executionSteps: archetype.execution_steps ?? '',
+          deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
           employeeRules: '',
           employeeKnowledge: '',
         });
@@ -302,11 +302,11 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           execution_prompt: EXECUTION_PROMPT,
           delivery_prompt: DELIVERY_PROMPT,
           archetype_fields: {
-            identity: (archetype as any).identity,
-            execution_steps: (archetype as any).execution_steps,
-            delivery_steps: (archetype as any).delivery_steps,
-            temperature: (archetype as any).temperature,
-            execution_instructions: (archetype as any).execution_instructions,
+            identity: archetype.identity,
+            execution_steps: archetype.execution_steps,
+            delivery_steps: archetype.delivery_steps,
+            temperature: archetype.temperature,
+            execution_instructions: archetype.execution_instructions,
           },
           env_vars,
           env_manifest: envManifestStr,
@@ -349,9 +349,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           employee_rules: ruleTexts,
           employee_knowledge: knowledgeThemes,
           humanFields: {
-            taskTrigger:
-              (archetype as any).execution_instructions ?? (archetype as any).instructions ?? '',
-            employeeManual: (archetype as any).execution_steps ?? '',
+            taskTrigger: archetype.execution_instructions ?? '',
+            employeeManual: archetype.execution_steps ?? '',
             afterApprovalAction: archetype.delivery_instructions ?? '',
           },
         });
