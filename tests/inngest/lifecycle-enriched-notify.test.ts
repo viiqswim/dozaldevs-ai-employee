@@ -14,7 +14,6 @@ const {
   mockCreateSlackClient,
   mockLoadTenantEnv,
   mockFetchLeadEnrichment,
-  mockCheckLastMessageSender,
 } = vi.hoisted(() => {
   const mockCreateMachine = vi.fn();
   const mockDestroyMachine = vi.fn();
@@ -24,7 +23,6 @@ const {
   const mockCreateSlackClient = vi.fn();
   const mockLoadTenantEnv = vi.fn();
   const mockFetchLeadEnrichment = vi.fn();
-  const mockCheckLastMessageSender = vi.fn();
   return {
     mockCreateMachine,
     mockDestroyMachine,
@@ -34,7 +32,6 @@ const {
     mockCreateSlackClient,
     mockLoadTenantEnv,
     mockFetchLeadEnrichment,
-    mockCheckLastMessageSender,
   };
 });
 
@@ -73,10 +70,6 @@ vi.mock('@prisma/client', () => ({
 
 vi.mock('../../src/lib/hostfully-enrichment.js', () => ({
   fetchLeadEnrichment: mockFetchLeadEnrichment,
-}));
-
-vi.mock('../../src/lib/hostfully-precheck.js', () => ({
-  checkLastMessageSender: mockCheckLastMessageSender,
 }));
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -281,8 +274,6 @@ beforeEach(() => {
     checkOut: 'May 18',
     bookingChannel: 'AIRBNB',
   });
-  mockCheckLastMessageSender.mockResolvedValue({ lastSenderIsHost: false });
-
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
     fn();
     return 0 as unknown as NodeJS.Timeout;
@@ -313,8 +304,6 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
         switch (id) {
           case 'load-task':
             return makeGuestMessagingTaskData();
-          case 'pre-check-skip-host-message':
-            return false;
           case 'notify-received':
             return fn(); // ← actually run to test enrichment
           case 'executing':
@@ -443,8 +432,6 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
         switch (id) {
           case 'load-task':
             return makeGuestMessagingTaskData();
-          case 'pre-check-skip-host-message':
-            return false;
           case 'notify-received':
             return fn(); // ← actually run to test fallback behavior
           case 'executing':
@@ -505,8 +492,6 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
         switch (id) {
           case 'load-task':
             return makeGuestMessagingTaskData();
-          case 'pre-check-skip-host-message':
-            return false;
           case 'notify-received':
             // Return fixed ts so post-override-card uses it as thread_ts
             return { ts: NOTIFY_TS, channel: 'C-NOTIFY', enrichment: null };
@@ -566,8 +551,6 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
         switch (id) {
           case 'load-task':
             return makeGuestMessagingTaskData();
-          case 'pre-check-skip-host-message':
-            return false;
           case 'notify-received':
             return { ts: NOTIFY_TS, channel: 'C-NOTIFY', enrichment: null };
           case 'executing':
@@ -635,8 +618,6 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
         switch (id) {
           case 'load-task':
             return makeGuestMessagingTaskData();
-          case 'pre-check-skip-host-message':
-            return false;
           case 'notify-received':
             return { ts: NOTIFY_TS, channel: 'C-NOTIFY', enrichment: null };
           case 'executing':
