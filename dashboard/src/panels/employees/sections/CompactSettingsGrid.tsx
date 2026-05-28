@@ -42,6 +42,11 @@ export function CompactSettingsGrid({
   const [manualMinutesOverride, setManualMinutesOverride] = useState<number | null>(
     archetype.estimated_manual_minutes_override ?? null,
   );
+  const [temperature, setTemperature] = useState<string>(
+    archetype.temperature !== null && archetype.temperature !== undefined
+      ? String(archetype.temperature)
+      : '1.0',
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +76,11 @@ export function CompactSettingsGrid({
       setNotificationChannel(archetype.notification_channel ?? '');
       setConcurrencyLimit(archetype.concurrency_limit);
       setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
+      setTemperature(
+        archetype.temperature !== null && archetype.temperature !== undefined
+          ? String(archetype.temperature)
+          : '1.0',
+      );
     }
   }, [archetype, editing]);
 
@@ -98,6 +108,17 @@ export function CompactSettingsGrid({
     if (manualMinutesOverride !== (archetype.estimated_manual_minutes_override ?? null))
       changes.estimated_manual_minutes_override = manualMinutesOverride;
 
+    const parsedTemp = parseFloat(temperature);
+    if (isNaN(parsedTemp) || parsedTemp < 0 || parsedTemp > 2) {
+      setSaveError('Temperature must be between 0.0 and 2.0');
+      setSaving(false);
+      return;
+    }
+    const existingTemp = archetype.temperature ?? 1.0;
+    if (parsedTemp !== existingTemp) {
+      changes.temperature = parsedTemp;
+    }
+
     if (Object.keys(changes).length === 0) {
       setEditing(false);
       setSaving(false);
@@ -123,6 +144,11 @@ export function CompactSettingsGrid({
     setNotificationChannel(archetype.notification_channel ?? '');
     setConcurrencyLimit(archetype.concurrency_limit);
     setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
+    setTemperature(
+      archetype.temperature !== null && archetype.temperature !== undefined
+        ? String(archetype.temperature)
+        : '1.0',
+    );
     setSaveError(null);
     setEditing(false);
   };
@@ -291,6 +317,34 @@ export function CompactSettingsGrid({
                   archetype.estimated_manual_minutes) != null
                   ? `${archetype.estimated_manual_minutes_override ?? archetype.estimated_manual_minutes} min`
                   : 'Not estimated'}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Temperature
+            </p>
+            {editing ? (
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={temperature}
+                  onChange={(e) => {
+                    setTemperature(e.target.value);
+                    setSaveError(null);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  0.0 = focused, 2.0 = creative (default: 1.0)
+                </p>
+              </div>
+            ) : (
+              <p className="pt-1 text-sm">
+                {archetype.temperature != null ? archetype.temperature.toFixed(1) : '1.0 (default)'}
               </p>
             )}
           </div>

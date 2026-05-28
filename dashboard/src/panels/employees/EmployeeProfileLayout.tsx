@@ -3,8 +3,6 @@ import type { ProfileMode } from '@/lib/profile-constants';
 import { PersonalitySection } from './sections/PersonalitySection';
 import { ExecutionStepsSection } from './sections/ExecutionStepsSection';
 import { DeliveryStepsSection } from './sections/DeliveryStepsSection';
-import { TemperatureSection } from './sections/TemperatureSection';
-import { ToolsSection } from './sections/ToolsSection';
 import { CompactSettingsGrid } from './sections/CompactSettingsGrid';
 import { ProfilePreviewSection } from './sections/ProfilePreviewSection';
 
@@ -38,10 +36,6 @@ export function EmployeeProfileLayout({
         onSaved={onSaved}
         tenantId={tenantId}
       />
-
-      <TemperatureSection archetype={archetype} mode={mode} onSaved={onSaved} tenantId={tenantId} />
-
-      <ToolsSection archetype={archetype} tenantId={tenantId} />
 
       <CompactSettingsGrid
         archetype={archetype}
