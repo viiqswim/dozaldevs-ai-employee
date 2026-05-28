@@ -5,6 +5,8 @@ import { ZodError } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
 import { parseHostfullyWebhook } from '../validation/schemas.js';
+import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { checkLastMessageSender } from '../../lib/hostfully-precheck.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -81,6 +83,34 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
       return;
     }
 
+    // ── Host-message filter ──────────────────────────────────────────────────
+    // Hostfully fires NEW_INBOX_MESSAGE for both guest and host (agency)
+    // messages. We only create tasks for guest messages — host-sent messages
+    // don't need AI replies and must not pollute task metrics. We fetch the
+    // tenant's API key and call the messages API to check the last sender.
+    // Fails-open: if the key is absent, decryption fails, or the API call
+    // errors, we proceed with task creation as normal.
+    try {
+      const secretRepo = new TenantSecretRepository(prisma);
+      const hostfullyApiKey = await secretRepo.get(tenant_id, 'hostfully_api_key');
+      if (hostfullyApiKey) {
+        const { lastSenderIsHost } = await checkLastMessageSender(lead_uid, hostfullyApiKey);
+        if (lastSenderIsHost) {
+          logger.info(
+            { agency_uid, lead_uid, message_uid },
+            'Skipping host-sent message — no task created',
+          );
+          res.json({ ok: true, skipped: 'host_message' });
+          return;
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        { agency_uid, lead_uid, message_uid, err },
+        'Host-message check failed — proceeding with task creation (fail-open)',
+      );
+    }
+
     // ── Thread-level dedup with supersede ───────────────────────────────────
     // Hostfully fires NEW_INBOX_MESSAGE for both guest messages and AI's own
     // outgoing replies. Hard-block when the task is actively running, being
@@ -88,9 +118,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
     // Approved) — do not interrupt mid-flight delivery or an approved reply
     // waiting to be sent. For all other non-terminal states (e.g. Reviewing,
     // Submitting), supersede the old task so the new one sees the latest
-    // messages. Echo-loop webhooks (AI reply triggers) are handled by the
-    // lifecycle pre-check, which auto-completes tasks where the last message
-    // is already from the host.
+    // messages.
     let supersededNotifyTs: string | undefined;
     let supersededNotifyChannel: string | undefined;
     if (payload.thread_uid) {

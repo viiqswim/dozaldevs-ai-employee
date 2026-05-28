@@ -13,7 +13,6 @@ import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
 import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
-import { checkLastMessageSender } from '../lib/hostfully-precheck.js';
 import { getAdapter } from '../lib/enrichment-adapters/index.js';
 import type { NotificationEnrichment } from '../lib/types/notification-enrichment.js';
 import {
@@ -213,48 +212,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const tenantId = taskData.tenant_id as string | undefined;
       if (!tenantId) {
         throw new Error('Task is missing tenant_id — cannot proceed with lifecycle');
-      }
-
-      // ── Pre-check: skip host-sent messages before any notification or worker ──
-      if (archetype.role_name === 'guest-messaging') {
-        const rawEventForCheck = (taskData.raw_event as Record<string, string> | null) ?? {};
-        const leadUidForCheck = rawEventForCheck['lead_uid'] ?? '';
-        if (leadUidForCheck) {
-          const skipTask = await step.run('pre-check-skip-host-message', async () => {
-            const prismaForCheck = new PrismaClient();
-            const tenantEnvForCheck = await loadTenantEnv(
-              tenantId,
-              {
-                tenantRepo: new TenantRepository(prismaForCheck),
-                secretRepo: new TenantSecretRepository(prismaForCheck),
-              },
-              null,
-            );
-            await prismaForCheck.$disconnect();
-            const apiKey = tenantEnvForCheck['HOSTFULLY_API_KEY'] ?? '';
-            const result = await checkLastMessageSender(leadUidForCheck, apiKey);
-            return result.lastSenderIsHost;
-          });
-
-          if (skipTask) {
-            await step.run('skip-host-message-done', async () => {
-              await patchTask(supabaseUrl, headers, taskId, { status: 'Done' });
-              await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Received');
-              log.info(
-                { taskId },
-                'Pre-check: last message from host — skipping (no worker, no notification)',
-              );
-            });
-            await step.run('record-work-metric-precheck', async () => {
-              try {
-                await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
-              } catch (err) {
-                log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
-              }
-            });
-            return;
-          }
-        }
       }
 
       // ── State: Triaging ──────────────────────────────────────────────────────

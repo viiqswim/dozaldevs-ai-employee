@@ -3,6 +3,16 @@ import request from 'supertest';
 import express from 'express';
 import { hostfullyRoutes } from '../../src/gateway/routes/hostfully.js';
 
+vi.mock('../../src/gateway/services/tenant-secret-repository.js', () => ({
+  TenantSecretRepository: vi.fn().mockImplementation(() => ({
+    get: vi.fn().mockResolvedValue(null),
+  })),
+}));
+
+vi.mock('../../src/lib/hostfully-precheck.js', () => ({
+  checkLastMessageSender: vi.fn().mockResolvedValue({ lastSenderIsHost: false }),
+}));
+
 const TENANT_ID = 'tenant-uuid';
 const ARCHETYPE_ID = 'archetype-uuid';
 const AGENCY_UID = 'test-agency-uid';

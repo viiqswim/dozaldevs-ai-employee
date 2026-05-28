@@ -3,6 +3,19 @@ import request from 'supertest';
 import express from 'express';
 import { hostfullyRoutes } from '../../../src/gateway/routes/hostfully.js';
 
+const { mockSecretGet, mockCheckLastMessageSender } = vi.hoisted(() => ({
+  mockSecretGet: vi.fn().mockResolvedValue(null),
+  mockCheckLastMessageSender: vi.fn().mockResolvedValue({ lastSenderIsHost: false }),
+}));
+
+vi.mock('../../../src/gateway/services/tenant-secret-repository.js', () => ({
+  TenantSecretRepository: vi.fn().mockImplementation(() => ({ get: mockSecretGet })),
+}));
+
+vi.mock('../../../src/lib/hostfully-precheck.js', () => ({
+  checkLastMessageSender: mockCheckLastMessageSender,
+}));
+
 const TENANT_ID = 'tenant-uuid';
 const ARCHETYPE_ID = 'archetype-uuid';
 const TASK_ID = 'task-uuid';
@@ -62,7 +75,11 @@ function makeValidPayload(overrides: Record<string, unknown> = {}) {
 }
 
 describe('POST /webhooks/hostfully', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSecretGet.mockResolvedValue(null);
+    mockCheckLastMessageSender.mockResolvedValue({ lastSenderIsHost: false });
+  });
 
   it('1. valid NEW_INBOX_MESSAGE → 200 with ok:true and task_id, task.create called with correct fields', async () => {
     const taskCreate = vi.fn().mockResolvedValue({ id: TASK_ID });
@@ -269,6 +286,35 @@ describe('POST /webhooks/hostfully', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, task_id: TASK_ID });
     expect(taskFindFirst).toHaveBeenCalled();
+    expect(taskCreate).toHaveBeenCalled();
+  });
+
+  it('15. host-sent message → 200 skipped:host_message, no task created', async () => {
+    mockSecretGet.mockResolvedValue('test-hostfully-api-key');
+    mockCheckLastMessageSender.mockResolvedValue({ lastSenderIsHost: true });
+    const taskCreate = vi.fn();
+    const app = makeApp({ taskCreate });
+    const res = await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, skipped: 'host_message' });
+    expect(taskCreate).not.toHaveBeenCalled();
+    expect(mockCheckLastMessageSender).toHaveBeenCalledWith('lead-001', 'test-hostfully-api-key');
+  });
+
+  it('16. no API key configured → fail-open, task created normally', async () => {
+    mockSecretGet.mockResolvedValue(null);
+    const taskCreate = vi.fn().mockResolvedValue({ id: TASK_ID });
+    const app = makeApp({ taskCreate });
+    const res = await request(app)
+      .post('/webhooks/hostfully')
+      .set('Content-Type', 'application/json')
+      .send(makeValidPayload());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, task_id: TASK_ID });
+    expect(mockCheckLastMessageSender).not.toHaveBeenCalled();
     expect(taskCreate).toHaveBeenCalled();
   });
 });
