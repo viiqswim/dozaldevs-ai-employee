@@ -7,38 +7,40 @@ import {
   generateArchetype,
   createArchetype,
   fetchSlackChannels,
-  recommendModel,
+  compilePreview,
 } from '@/lib/gateway';
-import type { ModelRecommendation, ModelQuestionAnswers } from '@/lib/gateway';
 import type { GenerateArchetypeResponse, SlackChannel } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
-import { ModelQuestionsStep } from './components/ModelQuestionsStep';
-import { ModelRecommendationStep } from './components/ModelRecommendationStep';
 
-type PageState =
-  | { phase: 'idle' }
-  | { phase: 'generating' }
-  | { phase: 'questions'; config: GenerateArchetypeResponse }
-  | { phase: 'recommending'; config: GenerateArchetypeResponse; answers: ModelQuestionAnswers }
-  | {
-      phase: 'review';
-      config: GenerateArchetypeResponse;
-      recommendation: ModelRecommendation | null;
-      answers: ModelQuestionAnswers;
-    }
-  | { phase: 'saving'; config: GenerateArchetypeResponse }
-  | { phase: 'error'; message: string };
+type WizardStep =
+  | 'describe'
+  | 'generating'
+  | 'edit'
+  | 'previewing'
+  | 'preview'
+  | 'saving'
+  | 'error';
 
 export function CreateEmployeePage() {
   const navigate = useNavigate();
   const { tenantId } = useTenant();
 
-  const [pageState, setPageState] = useState<PageState>({ phase: 'idle' });
+  const [step, setStep] = useState<WizardStep>('describe');
   const [description, setDescription] = useState('');
   const [notificationChannel, setNotificationChannel] = useState('');
   const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
   const [slackError, setSlackError] = useState<string | undefined>();
   const [slackLoading, setSlackLoading] = useState(true);
+  const [config, setConfig] = useState<GenerateArchetypeResponse | null>(null);
+  const [editedFields, setEditedFields] = useState({
+    identity: '',
+    execution_steps: '',
+    delivery_steps: '',
+    role_name: '',
+    approval_required: false,
+    trigger_type: 'manual' as 'manual' | 'scheduled' | 'webhook',
+  });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,81 +63,41 @@ export function CreateEmployeePage() {
     };
   }, [tenantId]);
 
-  const handleSaveDraft = async (config: GenerateArchetypeResponse, selectedModel?: string) => {
-    setPageState({ phase: 'saving', config });
-    try {
-      const archetype = await createArchetype(tenantId, {
-        ...config,
-        model: selectedModel ?? config.model,
-        runtime: config.runtime,
-        notification_channel: notificationChannel || null,
-        status: 'draft',
-        overview: config.overview,
-        parent_draft_id: null,
-      });
-      navigate(`/dashboard/employees/${archetype.id}`);
-    } catch (err) {
-      setPageState({
-        phase: 'error',
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
   const handleGenerate = async () => {
-    setPageState({ phase: 'generating' });
+    setStep('generating');
     try {
-      const config = await generateArchetype(tenantId, description);
-      setPageState({ phase: 'questions', config });
-    } catch (err) {
-      setPageState({
-        phase: 'error',
-        message: err instanceof Error ? err.message : String(err),
+      const result = await generateArchetype(tenantId, description);
+      setConfig(result);
+      setEditedFields({
+        identity: result.identity ?? '',
+        execution_steps: result.execution_steps ?? '',
+        delivery_steps: result.delivery_steps ?? '',
+        role_name: result.role_name,
+        approval_required: result.risk_model.approval_required,
+        trigger_type:
+          result.trigger_sources?.type === 'scheduled'
+            ? 'scheduled'
+            : result.trigger_sources?.type === 'webhook'
+              ? 'webhook'
+              : 'manual',
       });
+      setStep('edit');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setStep('error');
     }
-  };
-
-  const handleGetRecommendations = async (answers: ModelQuestionAnswers) => {
-    if (pageState.phase !== 'questions') return;
-    const { config } = pageState;
-    setPageState({ phase: 'recommending', config, answers });
-    try {
-      const recommendation = await recommendModel(tenantId, config, answers);
-      setPageState({ phase: 'review', config, recommendation, answers });
-    } catch {
-      // Graceful fallback — API failed, continue with default model
-      setPageState({ phase: 'review', config, recommendation: null, answers });
-    }
-  };
-
-  const handleSkipQuestions = () => {
-    if (pageState.phase !== 'questions') return;
-    const { config } = pageState;
-    void handleSaveDraft(config);
-  };
-
-  const handleConfirmModel = (selectedModel: string) => {
-    if (pageState.phase !== 'review') return;
-    const { config } = pageState;
-    void handleSaveDraft(config, selectedModel);
-  };
-
-  const handleBackToQuestions = () => {
-    if (pageState.phase !== 'review') return;
-    const { config } = pageState;
-    setPageState({ phase: 'questions', config });
   };
 
   const pageTitle = (): string => {
-    switch (pageState.phase) {
+    switch (step) {
       case 'generating':
         return 'Generating Configuration…';
-      case 'questions':
-        return 'Pick the right model';
-      case 'recommending':
-        return 'Finding recommendations…';
-      case 'review':
-        return 'Choose your AI model';
+      case 'edit':
+        return 'Review & Edit';
+      case 'previewing':
+        return 'Compiling Preview…';
+      case 'preview':
+        return 'Preview AGENTS.md';
       case 'saving':
         return 'Saving Draft…';
       default:
@@ -157,7 +119,7 @@ export function CreateEmployeePage() {
         <h1 className="text-lg font-semibold">{pageTitle()}</h1>
       </div>
 
-      {pageState.phase === 'idle' && (
+      {step === 'describe' && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Describe what you want your AI employee to do. Be specific about its tasks, schedule,
@@ -218,7 +180,7 @@ export function CreateEmployeePage() {
         </div>
       )}
 
-      {pageState.phase === 'generating' && (
+      {step === 'generating' && (
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground text-center">
@@ -227,46 +189,131 @@ export function CreateEmployeePage() {
         </div>
       )}
 
-      {pageState.phase === 'questions' && (
-        <ModelQuestionsStep
-          onSubmit={(answers) => void handleGetRecommendations(answers)}
-          onSkip={handleSkipQuestions}
-        />
-      )}
-
-      {pageState.phase === 'recommending' && (
-        <div className="flex flex-col items-center gap-4 py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground text-center">
-            Finding the best model for your employee…
+      {step === 'edit' && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Review and edit the generated configuration. These fields become your employee's
+            instruction manual.
           </p>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Employee Name</label>
+            <p className="text-xs text-muted-foreground">
+              Unique identifier for this employee (kebab-case slug)
+            </p>
+            <Input
+              value={editedFields.role_name}
+              onChange={(e) => setEditedFields((f) => ({ ...f, role_name: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Identity</label>
+            <p className="text-xs text-muted-foreground">
+              Who is this employee? Their role, personality, and purpose.
+            </p>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[180px] resize-y"
+              value={editedFields.identity}
+              onChange={(e) => setEditedFields((f) => ({ ...f, identity: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Execution Steps</label>
+            <p className="text-xs text-muted-foreground">
+              Step-by-step instructions for what this employee does.
+            </p>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[200px] resize-y"
+              value={editedFields.execution_steps}
+              onChange={(e) => setEditedFields((f) => ({ ...f, execution_steps: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Delivery Steps</label>
+            <p className="text-xs text-muted-foreground">
+              (Optional) How this employee delivers its results.
+            </p>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[150px] resize-y"
+              value={editedFields.delivery_steps}
+              onChange={(e) => setEditedFields((f) => ({ ...f, delivery_steps: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="approval-toggle"
+                checked={editedFields.approval_required}
+                onChange={(e) =>
+                  setEditedFields((f) => ({ ...f, approval_required: e.target.checked }))
+                }
+                className="h-4 w-4"
+              />
+              <label htmlFor="approval-toggle" className="text-sm font-medium">
+                Requires approval
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Trigger</label>
+              <select
+                value={editedFields.trigger_type}
+                onChange={(e) =>
+                  setEditedFields((f) => ({
+                    ...f,
+                    trigger_type: e.target.value as 'manual' | 'scheduled' | 'webhook',
+                  }))
+                }
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              >
+                <option value="manual">Manual</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="webhook">Webhook</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-between pt-2">
+            <Button variant="outline" onClick={() => setStep('describe')}>
+              ← Back to Describe
+            </Button>
+            <Button
+              onClick={() => {
+                console.log('Preview step — wired in T5');
+              }}
+            >
+              Preview AGENTS.md →
+            </Button>
+          </div>
         </div>
       )}
 
-      {pageState.phase === 'review' && (
-        <ModelRecommendationStep
-          recommendation={pageState.recommendation}
-          defaultModel={pageState.config.model}
-          onConfirm={handleConfirmModel}
-          onBack={handleBackToQuestions}
-        />
+      {step === 'previewing' && (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground text-center">Compiling preview…</p>
+        </div>
       )}
 
-      {pageState.phase === 'saving' && (
+      {step === 'saving' && (
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground text-center">Saving draft…</p>
         </div>
       )}
 
-      {pageState.phase === 'error' && (
+      {step === 'error' && (
         <div className="space-y-4">
           <div className="rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
             <p className="font-semibold">Generation Failed</p>
-            <p className="mt-1 text-destructive/80">{pageState.message}</p>
+            <p className="mt-1 text-destructive/80">{error}</p>
           </div>
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => setPageState({ phase: 'idle' })}>
+            <Button variant="outline" onClick={() => setStep('describe')}>
               Try Again
             </Button>
           </div>
