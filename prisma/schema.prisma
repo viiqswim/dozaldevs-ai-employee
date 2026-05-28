@@ -195,7 +195,7 @@ model Archetype {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   system_prompt     String?  @db.Text
-  instructions      String?  @db.Text
+  execution_instructions String?  @db.Text
   agents_md              String?  @db.Text
   delivery_instructions  String?  @db.Text
   notification_channel   String?  @db.Text
@@ -212,6 +212,10 @@ model Archetype {
   deleted_at        DateTime?
   estimated_manual_minutes          Int?
   estimated_manual_minutes_override Int?
+  identity              String?  @db.Text
+  execution_steps       String?  @db.Text
+  delivery_steps        String?  @db.Text
+  temperature           Float?   @default(1.0)
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
