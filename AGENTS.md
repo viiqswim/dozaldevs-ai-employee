@@ -40,11 +40,11 @@ A single-responsibility AI Employee Platform — deploys autonomous AI agents ("
 
 ## Current Implementation
 
-Employee-specific details are in each archetype's `agents_md` field and in `docs/employees/`. Do not list employees here — this file is injected into every worker container and must not contain employee-specific identity content.
+Employee-specific details are in each archetype's `identity` and `execution_steps` fields and in `docs/employees/`. Do not list employees here — this file is injected into every worker container and must not contain employee-specific identity content.
 
 ## Adding a New Employee
 
-1. Seed a new `archetypes` record: `role_name`, `system_prompt`, `instructions`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`. **Required for delivery**: `delivery_instructions` — must be non-empty for all employees that produce deliverables; the delivery container uses this as its prompt. Optional: `agents_md`, `notification_channel`, `enrichment_adapter`, `vm_size`. For new employees, use the recommendation engine (`POST /admin/tenants/:tenantId/archetypes/recommend-model`) to pick the optimal model from the catalog rather than hardcoding `minimax/minimax-m2.7`.
+1. Seed a new `archetypes` record: `role_name`, `identity`, `execution_steps`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`, `temperature` (default `1.0`). **Required for delivery**: `delivery_steps` and `delivery_instructions` — both must be non-empty for employees that produce deliverables; `delivery_instructions` is the platform constant prompt used by the delivery container. Optional: `notification_channel`, `enrichment_adapter`, `vm_size`. For new employees, use the recommendation engine (`POST /admin/tenants/:tenantId/archetypes/recommend-model`) to pick the optimal model from the catalog rather than hardcoding `minimax/minimax-m2.7`.
 2. If shell tools needed: add TypeScript scripts to `src/worker-tools/{service}/`. Follow the [Shell Tool Checklist](docs/guides/2026-05-04-1645-adding-a-shell-tool.md).
 3. Create `docs/employees/{slug}.md` with operational details (trigger, archetype IDs, channel IDs, gotchas, test resources).
 4. For **scheduled triggers**: configure cron on cron-job.org → `POST /admin/tenants/:tenantId/employees/:slug/trigger`.
@@ -58,7 +58,8 @@ Employee-specific details are in each archetype's `agents_md` field and in `docs
 
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
-- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, starts OpenCode session, injects `instructions` + available tools, monitors until completion
+- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, compiles AGENTS.md via `src/workers/lib/agents-md-compiler.mts`, starts OpenCode session, monitors until completion. The compiled AGENTS.md is saved to `tasks.compiled_agents_md` for debugging.
+- **AGENTS.md compilation**: `agents-md-compiler.mts` assembles the per-task AGENTS.md from archetype fields (`identity`, `execution_steps`, `delivery_steps`), learned rules, knowledge base entries, and the platform base config (`src/workers/config/agents.md`). The `execution_instructions` field is the platform constant prompt injected as the initial OpenCode message — it is not user-editable.
   **Shell tools** at `/tools/` in Docker image — one directory per service:
 
 | Service        | Directory                | Purpose                                                           |
@@ -321,6 +322,7 @@ src/
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
+│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), plus HTTP clients, logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
