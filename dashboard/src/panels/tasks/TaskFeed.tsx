@@ -166,11 +166,25 @@ export function TaskFeed() {
   }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
   const { data: tenantCosts } = usePoll(fetchTenantCosts);
 
+  const fetchDoneTasks = useCallback(() => {
+    const params: Record<string, string> = {
+      ...scopeByTenant(tenantId),
+      select: 'created_at',
+      status: 'eq.Done',
+      limit: 'none',
+    };
+    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
+    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
+    return postgrestFetch<{ created_at: string }>('tasks', params);
+  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
+  const { data: doneTasks } = usePoll(fetchDoneTasks);
+
   const filteredMetrics = tenantMetrics?.filter(
     (m) => m.created_at.slice(0, 10) <= effectiveDateTo,
   );
   const totalWorkMinutes = filteredMetrics?.reduce((sum, m) => sum + m.work_minutes, 0) ?? 0;
-  const tasksCompleted = filteredMetrics?.length ?? 0;
+  const tasksCompleted =
+    doneTasks?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo).length ?? 0;
 
   const filteredCosts = tenantCosts?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo);
   const totalCostUsd =
