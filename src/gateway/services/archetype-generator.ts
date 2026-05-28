@@ -127,11 +127,12 @@ MSGEOF
 
 **5. End with a FINAL STEP that submits output using the submit-output tool:**
 \`\`\`bash
-tsx /tools/platform/submit-output.ts --summary "brief description of what was done" --classification "NEEDS_APPROVAL"
+tsx /tools/platform/submit-output.ts --summary "brief description of what was done" --classification "NEEDS_APPROVAL" --draft-file /tmp/draft.txt
 \`\`\`
+CRITICAL: When classification is \`NEEDS_APPROVAL\`, you MUST include \`--draft-file /tmp/draft.txt\` (or whatever /tmp/ file holds the draft content). This is how the draft reaches the delivery container — without it, the delivery container has nothing to post.
 Classification values (use inline in a step, not as a section header):
-- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery
-- \`NO_ACTION_NEEDED\` — nothing to report or no action required
+- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery (MUST include --draft-file)
+- \`NO_ACTION_NEEDED\` — nothing to report or no action required (no --draft-file needed)
 
 **6. End with a STOP directive:**
 \`**STOP. Do nothing else. Your job is done.**\`
