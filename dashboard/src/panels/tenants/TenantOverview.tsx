@@ -167,25 +167,39 @@ function IntegrationRow({
           </p>
         )}
       </div>
-      {integration ? (
-        <Badge className="shrink-0 border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-          ✓ Connected
-        </Badge>
-      ) : (
-        <a
-          href={connectHref ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          aria-disabled={!connectHref}
-          className={
-            connectHref
-              ? 'shrink-0 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent'
-              : 'shrink-0 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium opacity-40 pointer-events-none'
-          }
-        >
-          {connectLabel}
-        </a>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {integration ? (
+          <>
+            <Badge className="border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+              ✓ Connected
+            </Badge>
+            {connectHref && (
+              <a
+                href={connectHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+              >
+                Reconnect
+              </a>
+            )}
+          </>
+        ) : (
+          <a
+            href={connectHref ?? '#'}
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={!connectHref}
+            className={
+              connectHref
+                ? 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent'
+                : 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium opacity-40 pointer-events-none'
+            }
+          >
+            {connectLabel}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
