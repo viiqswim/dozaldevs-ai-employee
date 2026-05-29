@@ -25,7 +25,7 @@ import { StatusBadge } from './StatusBadge';
 import { StatusTimeline } from './StatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatCostUsd } from '@/lib/utils';
+import { cn, formatCostUsd, formatRelativeTime } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
 
 const RAW_EVENT_TRUNCATE_CHARS = 2000;
@@ -39,17 +39,6 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   rejection: 'bg-red-50 text-red-700 border-red-200',
   edit_diff: 'bg-amber-50 text-amber-700 border-amber-200',
 };
-
-function relativeTime(isoStr: string): string {
-  const diff = Date.now() - new Date(isoStr).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 function formatDuration(startedAt: string | null, completedAt: string | null): string {
   if (!startedAt || !completedAt) return '—';
@@ -399,7 +388,9 @@ export function TaskDetail() {
 
   const durationDisplay = formatDuration(task.started_at, task.completed_at);
 
-  const heartbeatDisplay = execution?.heartbeat_at ? relativeTime(execution.heartbeat_at) : '—';
+  const heartbeatDisplay = execution?.heartbeat_at
+    ? formatRelativeTime(execution.heartbeat_at)
+    : '—';
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -624,7 +615,7 @@ export function TaskDetail() {
                   <span className="font-mono text-xs text-muted-foreground">{evt.actor_id}</span>
                 )}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {relativeTime(evt.created_at)}
+                  {formatRelativeTime(evt.created_at)}
                 </span>
               </li>
             ))}

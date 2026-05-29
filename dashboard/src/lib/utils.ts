@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatRelativeTime(dateStr: string): string {
   if (!dateStr) return '—';
   // PostgREST returns timestamps without a Z suffix; append Z to treat as UTC
-  const normalized = /[Z+\-]\d{0,4}$/.test(dateStr) ? dateStr : dateStr + 'Z';
+  const normalized = /[-Z+]\d{0,4}$/.test(dateStr) ? dateStr : dateStr + 'Z';
   const date = new Date(normalized);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
