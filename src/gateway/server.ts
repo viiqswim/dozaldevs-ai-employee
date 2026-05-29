@@ -28,6 +28,7 @@ import { adminRulesRoutes } from './routes/admin-rules.js';
 import { adminModelCatalogRoutes } from './routes/admin-model-catalog.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { jiraOAuthRoutes } from './routes/jira-oauth.js';
+import { notionOAuthRoutes } from './routes/notion-oauth.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
 import { TenantSecretRepository } from './services/tenant-secret-repository.js';
@@ -66,6 +67,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   if (!process.env.JIRA_CLIENT_ID) {
     logger.warn('JIRA_CLIENT_ID is not set — Jira OAuth install will return 503');
+  }
+
+  if (!process.env.NOTION_CLIENT_ID) {
+    logger.warn('NOTION_CLIENT_ID is not set — Notion OAuth install will return 400');
   }
 
   const prisma = new PrismaClient();
@@ -191,6 +196,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminModelCatalogRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/integrations', jiraOAuthRoutes({ prisma }));
+  app.use('/integrations', notionOAuthRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   // Dashboard static file serving (local dev tool)
