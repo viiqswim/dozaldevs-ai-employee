@@ -181,7 +181,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ## TODOs
 
-- [ ] 1. Read Live DB Archetype as Source of Truth
+- [x] 1. Read Live DB Archetype as Source of Truth
 
   **What to do**:
   - Query live DB: `SELECT row_to_json(a) FROM archetypes a WHERE id = '00000000-0000-0000-0000-000000000015';`
@@ -214,7 +214,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 2. Discover All Tools via Admin Tools API
+- [x] 2. Discover All Tools via Admin Tools API
 
   **What to do**:
   - Call `GET /admin/tools` to get the full tool catalog with parsed metadata
@@ -250,7 +250,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 3. Inject Tool Catalog into Generator Prompt
+- [x] 3. Inject Tool Catalog into Generator Prompt
 
   **What to do**:
   - In `src/gateway/services/archetype-generator.ts`, modify the `generate()` function to:
@@ -319,7 +319,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Files: `src/gateway/services/archetype-generator.ts`, `src/gateway/routes/admin-archetype-generate.ts`
   - Pre-commit: `pnpm build`
 
-- [ ] 4. Add Env Var Mechanism + Approval Pattern + Metadata Contract to Prompt
+- [x] 4. Add Env Var Mechanism + Approval Pattern + Metadata Contract to Prompt
 
   **What to do**:
   - Add a new section to SYSTEM_PROMPT documenting the **env var injection mechanism** (not specific variable names):
@@ -393,7 +393,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: YES (grouped with Tasks 3, 5)
 
-- [ ] 5. Add Hostfully Delivery Template to Prompt
+- [x] 5. Add Hostfully Delivery Template to Prompt
 
   **What to do**:
   - The current SYSTEM_PROMPT delivery template is Slack-only (post-message.ts with --text-file)
@@ -447,7 +447,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: YES (grouped with Tasks 3, 4)
 
-- [ ] 6. Run Wizard with Simple Description + Verify Output Quality
+- [x] 6. Run Wizard with Simple Description + Verify Output Quality
 
   **What to do**:
   - Navigate to `http://localhost:7701/dashboard/employees/new?tenant=00000000-0000-0000-0000-000000000003`
@@ -517,7 +517,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 7. Add Tests for Generator Improvements
+- [x] 7. Add Tests for Generator Improvements
 
   **What to do**:
   - Write Vitest tests for the new generator behavior:
@@ -557,7 +557,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `test(archetype-generator): add tests for tool catalog injection and new prompt sections`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 8. Soft-Delete Old Guest-Messaging Archetype
+- [x] 8. Soft-Delete Old Guest-Messaging Archetype
 
   **What to do**:
   - Soft-delete `00000000-0000-0000-0000-000000000015` via admin API
@@ -586,7 +586,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 9. Activate New Guest-Messaging Archetype
+- [x] 9. Activate New Guest-Messaging Archetype
 
   **What to do**:
   - PATCH new archetype to `status: 'active'`
@@ -615,7 +615,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 10. Build Docker Worker Image
+- [x] 10. Build Docker Worker Image
 
   **What to do**:
   - Build the Docker worker image: `docker build -t ai-employee-worker:latest .`
@@ -644,7 +644,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 11. Full E2E: Airbnb → Hostfully → Webhook → Approval → Delivery → Done
+- [x] 11. Full E2E: Airbnb → Hostfully → Webhook → Approval → Delivery → Done
 
   **What to do**:
   - **Prerequisites check**: Verify gateway (localhost:7700), Inngest (localhost:8288), and Docker worker image are ready
@@ -730,7 +730,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO
 
-- [ ] 12. Notify Completion via Telegram
+- [x] 12. Notify Completion via Telegram
 
   **What to do**:
   - Run: `tsx scripts/telegram-notify.ts "📋 Guest-messaging recreation complete — All tasks done. Come back to review results."`
@@ -759,19 +759,19 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod. Check AI slop.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       Verify: (1) Dashboard shows new archetype for VLRE, (2) Old archetype not visible, (3) Run the wizard with a different description (e.g. "code rotation employee") to verify generator improvements don't break simple employees. Save evidence.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 compliance. Check "Must NOT do" — especially: no guest-messaging-specific hardcoding in the generator.
       Output: `Tasks [N/N compliant] | VERDICT`
 
