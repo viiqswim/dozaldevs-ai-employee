@@ -1275,7 +1275,7 @@ Max Concurrent: 6 (Wave 1)
 
 ---
 
-- [ ] 11. Unit tests for Notion tools (read + write)
+- [x] 11. Unit tests for Notion tools (read + write)
 
   **What to do**:
   - Create `src/worker-tools/notion/__tests__/get-page.test.ts`
@@ -1340,7 +1340,7 @@ Max Concurrent: 6 (Wave 1)
 
 ---
 
-- [ ] 12. Dashboard "Connect Notion" button + OAuth flow verification
+- [x] 12. Dashboard "Connect Notion" button + OAuth flow verification
 
   **What to do**:
   - Add a "Connect Notion" `IntegrationRow` to the dashboard's tenant integrations tab
@@ -1419,7 +1419,7 @@ Max Concurrent: 6 (Wave 1)
   - Files: `dashboard/src/...` (file containing IntegrationRow)
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 13. Docker rebuild + E2E employee trigger test
+- [x] 13. Docker rebuild + E2E employee trigger test
 
   **What to do**:
   - Rebuild the Docker image: `docker build -t ai-employee-worker:latest .`
@@ -1511,7 +1511,7 @@ Max Concurrent: 6 (Wave 1)
 
 ---
 
-- [ ] 14. Update AGENTS.md + tool-usage-reference skill + employee docs
+- [x] 14. Update AGENTS.md + tool-usage-reference skill + employee docs
 
   **What to do**:
   - **AGENTS.md updates**:
@@ -1597,7 +1597,7 @@ Max Concurrent: 6 (Wave 1)
 
 ---
 
-- [ ] 15. Notify completion
+- [x] 15. Notify completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "✅ Cleaning Schedule Employee plan complete — all tasks done (including Notion OAuth). Come back to review results."`
@@ -1634,19 +1634,19 @@ Max Concurrent: 6 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan. **Special focus on OAuth**: verify CSRF protection, token storage, conflict detection, refresh token handling.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. **Security check**: no credential logging (`NOTION_CLIENT_SECRET`, `notion_access_token`), HMAC uses `timingSafeEqual`, no `btoa()`.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `adding-shell-tools` + `e2e-testing` skills)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `adding-shell-tools` + `e2e-testing` skills)
       Start from clean state. Execute EVERY QA scenario from EVERY task. Test cross-task integration: OAuth flow → Notion tool with stored token → trigger employee → verify schedule in Slack. Test edge cases: OAuth not connected, missing date input, zero checkouts. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git log`/`diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
