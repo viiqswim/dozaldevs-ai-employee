@@ -8,7 +8,7 @@
 - **Tenant**: VLRE (`00000000-0000-0000-0000-000000000003`)
 - **role_name**: `cleaning-schedule`
 - **Slack channel**: `C0B71QSMZKQ` (`#ops-cleaning-schedule`)
-- **approval_required**: true
+- **approval_required**: false
 - **Trigger**: Manual — admin API with a `date` input
 
 ## Trigger Command
