@@ -13,6 +13,7 @@ const PLATFORM_ENV_WHITELIST = [
   'NODE_ENV',
   'LOG_LEVEL',
   'AGENT_VERSION_ID',
+  'NOTION_MOCK',
 ];
 
 export async function loadTenantEnv(
