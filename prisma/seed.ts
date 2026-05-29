@@ -3571,9 +3571,10 @@ IMPORTANT NOTES:
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
-          '/tools/notion/get-page.ts',
+          '/tools/hostfully/get-properties.ts',
           '/tools/hostfully/get-reservations.ts',
           '/tools/hostfully/get-property.ts',
+          '/tools/notion/get-page.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
         ],
@@ -3652,9 +3653,10 @@ IMPORTANT NOTES:
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
-          '/tools/notion/get-page.ts',
+          '/tools/hostfully/get-properties.ts',
           '/tools/hostfully/get-reservations.ts',
           '/tools/hostfully/get-property.ts',
+          '/tools/notion/get-page.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
         ],
