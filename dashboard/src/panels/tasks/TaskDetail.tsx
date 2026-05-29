@@ -16,6 +16,7 @@ import { useTenant } from '@/hooks/use-tenant';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { fireApprovalEvent } from '@/lib/gateway';
 import type { Task, TaskStatusLog, PendingApproval } from '@/lib/types';
+import { TERMINAL_STATUSES, POLL_INTERVAL_MS } from '@/lib/constants';
 import { useExecution } from '@/hooks/use-execution';
 import { useDeliverable } from '@/hooks/use-deliverable';
 import { useFeedbackEvents } from '@/hooks/use-feedback-events';
@@ -273,7 +274,11 @@ export function TaskDetail() {
     refresh: refreshTask,
   } = usePoll(fetchTask);
 
-  const { data: logs, loading: logsLoading } = usePoll(fetchLogs);
+  const isTerminal = task
+    ? TERMINAL_STATUSES.includes(task.status as (typeof TERMINAL_STATUSES)[number])
+    : false;
+
+  const { data: logs, loading: logsLoading } = usePoll(fetchLogs, POLL_INTERVAL_MS, !isTerminal);
 
   const fetchApprovals = useCallback(async () => {
     if (!taskId || task?.status !== 'Reviewing') return [];
@@ -282,11 +287,14 @@ export function TaskDetail() {
     });
   }, [taskId, task?.status]);
 
-  const { data: pendingApprovals } = usePoll(fetchApprovals);
+  const { data: pendingApprovals } = usePoll(fetchApprovals, POLL_INTERVAL_MS, !isTerminal);
 
-  const { execution, loading: executionLoading } = useExecution(taskId ?? '');
-  const { deliverable } = useDeliverable(taskId ?? '');
-  const { events: feedbackEvents, error: feedbackError } = useFeedbackEvents(taskId ?? '');
+  const { execution, loading: executionLoading } = useExecution(taskId ?? '', !isTerminal);
+  const { deliverable } = useDeliverable(taskId ?? '', !isTerminal);
+  const { events: feedbackEvents, error: feedbackError } = useFeedbackEvents(
+    taskId ?? '',
+    !isTerminal,
+  );
   const { transcript, loading: transcriptLoading } = useExecutionTranscript(
     showTranscript ? (execution?.id ?? null) : null,
   );

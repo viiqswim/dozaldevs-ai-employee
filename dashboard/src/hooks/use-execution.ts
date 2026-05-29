@@ -3,7 +3,7 @@ import { usePoll } from './use-poll';
 import { postgrestFetch } from '../lib/postgrest';
 import type { Execution } from '../lib/types';
 
-export function useExecution(taskId: string) {
+export function useExecution(taskId: string, enabled = true) {
   const fetchFn = useCallback(async () => {
     const rows = await postgrestFetch<Execution>('executions', {
       task_id: `eq.${taskId}`,
@@ -15,6 +15,6 @@ export function useExecution(taskId: string) {
     return rows[0] ?? null;
   }, [taskId]);
 
-  const { data, loading, error, refresh } = usePoll<Execution | null>(fetchFn);
+  const { data, loading, error, refresh } = usePoll<Execution | null>(fetchFn, undefined, enabled);
   return { execution: data ?? null, loading, error, refresh };
 }
