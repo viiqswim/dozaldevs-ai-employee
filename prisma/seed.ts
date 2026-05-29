@@ -123,6 +123,13 @@ async function main() {
     'hostfully_agency_uid',
     '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
   );
+  // Placeholder for pre-OAuth development — replace with real Notion Internal Integration token
+  // or complete OAuth flow via dashboard once Notion integration is implemented.
+  await seedSecret(
+    '00000000-0000-0000-0000-000000000003',
+    'notion_access_token',
+    'secret_placeholder_replace_me',
+  );
   const vlreSlackBotToken = process.env.VLRE_SLACK_BOT_TOKEN;
   if (!vlreSlackBotToken) {
     console.warn(
@@ -3165,8 +3172,9 @@ No specific house rules provided.
       id: '00000000-0000-0000-0000-000000000012',
       role_name: 'daily-summarizer',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
+      identity:
+        'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
+      execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -3174,7 +3182,6 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      agents_md: DOZALDEVS_SUMMARIZER_AGENTS_MD,
       delivery_instructions:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
@@ -3183,8 +3190,9 @@ No specific house rules provided.
     update: {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
+      identity:
+        'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
+      execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -3192,7 +3200,6 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      agents_md: DOZALDEVS_SUMMARIZER_AGENTS_MD,
       delivery_instructions:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       department_id: '00000000-0000-0000-0000-000000000020',
@@ -3210,8 +3217,9 @@ No specific house rules provided.
       id: '00000000-0000-0000-0000-000000000013',
       role_name: 'daily-summarizer',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: VLRE_SUMMARIZER_INSTRUCTIONS,
+      identity:
+        'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
+      execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -3219,7 +3227,6 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      agents_md: VLRE_SUMMARIZER_AGENTS_MD,
       delivery_instructions:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
@@ -3228,8 +3235,9 @@ No specific house rules provided.
     update: {
       role_name: 'daily-summarizer',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: VLRE_SUMMARIZER_INSTRUCTIONS,
+      identity:
+        'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
+      execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
@@ -3237,7 +3245,6 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      agents_md: VLRE_SUMMARIZER_AGENTS_MD,
       delivery_instructions:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       department_id: '00000000-0000-0000-0000-000000000021',
@@ -3255,8 +3262,9 @@ No specific house rules provided.
       id: '00000000-0000-0000-0000-000000000015',
       role_name: 'guest-messaging',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
+      identity:
+        "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
+      execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'hostfully_message',
       tool_registry: {
@@ -3277,7 +3285,6 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
-      agents_md: GUEST_MESSAGING_AGENTS_MD,
       delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
@@ -3300,8 +3307,9 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
     update: {
       role_name: 'guest-messaging',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
+      identity:
+        "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
+      execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'hostfully_message',
       tool_registry: {
@@ -3322,7 +3330,6 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
-      agents_md: GUEST_MESSAGING_AGENTS_MD,
       delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
@@ -3354,8 +3361,9 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       id: '00000000-0000-0000-0000-000000000016',
       role_name: 'code-rotation',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: `Rotate all lock codes for VLRE properties that have a guest checkout today.
+      identity:
+        'You are the VLRE code rotation specialist. Your job is to rotate Sifely lock passcodes for all managed properties that have a guest checkout today and update Hostfully with the new codes.',
+      execution_steps: `Rotate all lock codes for VLRE properties that have a guest checkout today.
 
 1. Get today's date.
 2. Fetch all VLRE property IDs from the database.
@@ -3387,7 +3395,6 @@ tsx /tools/platform/submit-output.ts \\
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1, // one rotation run at a time — Sifely rate limits
-      agents_md: CODE_ROTATION_AGENTS_MD,
       delivery_instructions:
         'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
@@ -3397,8 +3404,9 @@ tsx /tools/platform/submit-output.ts \\
     update: {
       role_name: 'code-rotation',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: `Rotate all lock codes for VLRE properties that have a guest checkout today.
+      identity:
+        'You are the VLRE code rotation specialist. Your job is to rotate Sifely lock passcodes for all managed properties that have a guest checkout today and update Hostfully with the new codes.',
+      execution_steps: `Rotate all lock codes for VLRE properties that have a guest checkout today.
 
 1. Get today's date.
 2. Fetch all VLRE property IDs from the database.
@@ -3430,7 +3438,6 @@ tsx /tools/platform/submit-output.ts \\
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1,
-      agents_md: CODE_ROTATION_AGENTS_MD,
       delivery_instructions:
         'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
@@ -3450,8 +3457,9 @@ tsx /tools/platform/submit-output.ts \\
       id: '00000000-0000-0000-0000-000000000018',
       role_name: 'jira-motivation-bot',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: `Read the task's triage_result to understand the Jira ticket that was just created.
+      identity:
+        'You are a motivational content creator for a real estate team. Your messages should celebrate new work being added to the backlog and motivate the team. Cover themes relevant to real estate: closing deals, serving clients, property management, building lasting relationships, and growing a thriving portfolio.',
+      execution_steps: `Read the task's triage_result to understand the Jira ticket that was just created.
 
 Select an inspirational quote relevant to the type of work described in the ticket.
 
@@ -3467,7 +3475,6 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
-      agents_md: JIRA_MOTIVATION_BOT_AGENTS_MD,
       delivery_instructions:
         'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
@@ -3477,8 +3484,9 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
     update: {
       role_name: 'jira-motivation-bot',
       runtime: 'opencode',
-      system_prompt: '',
-      instructions: `Read the task's triage_result to understand the Jira ticket that was just created.
+      identity:
+        'You are a motivational content creator for a real estate team. Your messages should celebrate new work being added to the backlog and motivate the team. Cover themes relevant to real estate: closing deals, serving clients, property management, building lasting relationships, and growing a thriving portfolio.',
+      execution_steps: `Read the task's triage_result to understand the Jira ticket that was just created.
 
 Select an inspirational quote relevant to the type of work described in the ticket.
 
@@ -3494,7 +3502,6 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
-      agents_md: JIRA_MOTIVATION_BOT_AGENTS_MD,
       delivery_instructions:
         'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
@@ -3504,6 +3511,177 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
 
   console.log(
     `✅ Archetype upserted: ${vlreJiraMotivationBot.id} (role: ${vlreJiraMotivationBot.role_name}, model: ${vlreJiraMotivationBot.model})`,
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vlreCleaningSchedule = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0000-000000000019' },
+    create: {
+      id: '00000000-0000-0000-0000-000000000019',
+      role_name: 'cleaning-schedule',
+      runtime: 'opencode',
+      identity:
+        'You are a Cleaning Schedule Coordinator for VLRE vacation rental properties. Your job is to generate a daily cleaning schedule by cross-referencing Hostfully checkout data, Notion cleaning zone assignments, and the Notion trash schedule. You read Notion content in Spanish and produce clear, actionable schedules.',
+      execution_steps: `You are a Cleaning Schedule Coordinator for VLRE properties. Your job is to create a daily cleaning schedule.
+
+INPUTS:
+- date: The target checkout date provided in inputs (format: YYYY-MM-DD)
+
+STEP 1 — Get Hostfully checkouts for the target date:
+- Use get-reservations.ts to fetch reservations for each property
+- IMPORTANT: The --from/--to flags filter by CHECK-IN date, NOT checkout date
+- You must fetch a broad date range and filter client-side for reservations where checkout_date matches the target date
+- Run: tsx /tools/hostfully/get-reservations.ts --from <30-days-before-target> --to <target-date> --property-id <id>
+- You must loop through ALL properties to find checkouts on the target date
+- Use get-property.ts to get property details (address, checkOutTime) for each property with a checkout
+
+STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
+- Trash schedule page: tsx /tools/notion/get-page.ts --page-id 36fd540b4380809ca373ca83e90216a3 --fixture trash-schedule
+- Cleaning zones page: tsx /tools/notion/get-page.ts --page-id 36fd540b438080b2be9cf4b4218d657b --fixture cleaning-zones
+- Parse the Spanish content to extract:
+  - From trash schedule: which properties need trash/recycling on the target day of week
+  - From cleaning zones: cleaner names, availability (days/hours), and which properties are in each zone
+
+STEP 3 — Match properties to cleaners:
+- For each property with a checkout on the target date:
+  - Find the property code (e.g., "271-GIN" from Hostfully name "271-GIN-HOME")
+  - Find which zone the property is in (from cleaning zones page)
+  - Find available cleaners for that zone on the target day of week
+  - Assign the primary cleaner; note backup cleaners
+  - If no cleaner is available: mark as ⚠️ UNASSIGNED
+- Also check trash schedule: note which properties need trash/recycling that day
+
+STEP 4 — Build the schedule message:
+- Format as plain mrkdwn text (NO Block Kit tables, NO interactive buttons)
+- Include: date, property address, checkout time, assigned cleaner, service type + duration + cost, lock codes, trash duty if applicable
+- Flag unassigned properties with ⚠️ UNASSIGNED
+- If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
+
+STEP 5 — Post to Slack and submit:
+- Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
+- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NEEDS_APPROVAL
+- If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
+
+IMPORTANT NOTES:
+- All Notion content is in Spanish — parse Spanish day names (LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday)
+- Property code matching: Hostfully name "271-GIN-HOME" → Notion code "271-GIN" (use prefix match)
+- Never send multiple Slack messages — one message to one channel only
+- Never use approval_required=true — this is a report`,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: [
+          '/tools/notion/get-page.ts',
+          '/tools/hostfully/get-reservations.ts',
+          '/tools/hostfully/get-property.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
+      trigger_sources: { type: 'manual' },
+      risk_model: { approval_required: false, timeout_hours: 4 },
+      notification_channel: 'C0B71QSMZKQ',
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      input_schema: {
+        date: {
+          type: 'string',
+          description: 'Target checkout date (YYYY-MM-DD format)',
+          required: true,
+          scope: 'every_run',
+        },
+      },
+      delivery_steps: null,
+      delivery_instructions: null,
+      enrichment_adapter: null,
+      tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
+      department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
+    },
+    update: {
+      role_name: 'cleaning-schedule',
+      runtime: 'opencode',
+      identity:
+        'You are a Cleaning Schedule Coordinator for VLRE vacation rental properties. Your job is to generate a daily cleaning schedule by cross-referencing Hostfully checkout data, Notion cleaning zone assignments, and the Notion trash schedule. You read Notion content in Spanish and produce clear, actionable schedules.',
+      execution_steps: `You are a Cleaning Schedule Coordinator for VLRE properties. Your job is to create a daily cleaning schedule.
+
+INPUTS:
+- date: The target checkout date provided in inputs (format: YYYY-MM-DD)
+
+STEP 1 — Get Hostfully checkouts for the target date:
+- Use get-reservations.ts to fetch reservations for each property
+- IMPORTANT: The --from/--to flags filter by CHECK-IN date, NOT checkout date
+- You must fetch a broad date range and filter client-side for reservations where checkout_date matches the target date
+- Run: tsx /tools/hostfully/get-reservations.ts --from <30-days-before-target> --to <target-date> --property-id <id>
+- You must loop through ALL properties to find checkouts on the target date
+- Use get-property.ts to get property details (address, checkOutTime) for each property with a checkout
+
+STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
+- Trash schedule page: tsx /tools/notion/get-page.ts --page-id 36fd540b4380809ca373ca83e90216a3 --fixture trash-schedule
+- Cleaning zones page: tsx /tools/notion/get-page.ts --page-id 36fd540b438080b2be9cf4b4218d657b --fixture cleaning-zones
+- Parse the Spanish content to extract:
+  - From trash schedule: which properties need trash/recycling on the target day of week
+  - From cleaning zones: cleaner names, availability (days/hours), and which properties are in each zone
+
+STEP 3 — Match properties to cleaners:
+- For each property with a checkout on the target date:
+  - Find the property code (e.g., "271-GIN" from Hostfully name "271-GIN-HOME")
+  - Find which zone the property is in (from cleaning zones page)
+  - Find available cleaners for that zone on the target day of week
+  - Assign the primary cleaner; note backup cleaners
+  - If no cleaner is available: mark as ⚠️ UNASSIGNED
+- Also check trash schedule: note which properties need trash/recycling that day
+
+STEP 4 — Build the schedule message:
+- Format as plain mrkdwn text (NO Block Kit tables, NO interactive buttons)
+- Include: date, property address, checkout time, assigned cleaner, service type + duration + cost, lock codes, trash duty if applicable
+- Flag unassigned properties with ⚠️ UNASSIGNED
+- If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
+
+STEP 5 — Post to Slack and submit:
+- Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
+- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NEEDS_APPROVAL
+- If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
+
+IMPORTANT NOTES:
+- All Notion content is in Spanish — parse Spanish day names (LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday)
+- Property code matching: Hostfully name "271-GIN-HOME" → Notion code "271-GIN" (use prefix match)
+- Never send multiple Slack messages — one message to one channel only
+- Never use approval_required=true — this is a report`,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: [
+          '/tools/notion/get-page.ts',
+          '/tools/hostfully/get-reservations.ts',
+          '/tools/hostfully/get-property.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
+      trigger_sources: { type: 'manual' },
+      risk_model: { approval_required: false, timeout_hours: 4 },
+      notification_channel: 'C0B71QSMZKQ',
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      input_schema: {
+        date: {
+          type: 'string',
+          description: 'Target checkout date (YYYY-MM-DD format)',
+          required: true,
+          scope: 'every_run',
+        },
+      },
+      delivery_steps: null,
+      delivery_instructions: null,
+      enrichment_adapter: null,
+      department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${vlreCleaningSchedule.id} (role: ${vlreCleaningSchedule.role_name}, model: ${vlreCleaningSchedule.model})`,
   );
 
   // KB seed — common (tenant-wide, VLRE)
