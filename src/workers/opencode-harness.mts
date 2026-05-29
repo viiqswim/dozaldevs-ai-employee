@@ -666,6 +666,33 @@ async function main(): Promise<void> {
     }
     const deliverableContent = (deliverable.content as string) ?? '';
 
+    const deliveryExecutionId = crypto.randomUUID();
+    let deliveryExecId: string | null = null;
+    try {
+      const deliveryExecRecord = await db.post('executions', {
+        id: deliveryExecutionId,
+        task_id: TASK_ID,
+        runtime_type: 'opencode',
+        status: 'running',
+        phase: 'delivery',
+        updated_at: new Date().toISOString(),
+      });
+      deliveryExecId =
+        deliveryExecRecord && typeof (deliveryExecRecord as { id?: unknown }).id === 'string'
+          ? (deliveryExecRecord as { id: string }).id
+          : deliveryExecutionId;
+      log.info(
+        { taskId: TASK_ID, deliveryExecId },
+        '[opencode-harness] Delivery execution record created',
+      );
+    } catch (err) {
+      log.warn(
+        { err },
+        '[opencode-harness] Failed to create delivery execution record — non-fatal',
+      );
+      deliveryExecId = null;
+    }
+
     // 3. Build delivery prompt with injected deliverable content — use assembleTaskPrompt for
     //    consistency with the execution phase (adds date/epoch prefix + Task ID suffix).
     const deliveryPrompt = assembleTaskPrompt({
@@ -696,8 +723,9 @@ async function main(): Promise<void> {
     }
 
     // 6. Run the OpenCode delivery session
+    let deliveryResult: Awaited<ReturnType<typeof runOpencodeSession>> | null = null;
     try {
-      await runOpencodeSession(
+      deliveryResult = await runOpencodeSession(
         deliveryPrompt,
         archetype.model ?? 'minimax/minimax-m2.7',
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
@@ -706,8 +734,38 @@ async function main(): Promise<void> {
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
       const deliveryErr = err instanceof Error ? err.message : String(err);
+      if (deliveryExecId) {
+        await db
+          .patch('executions', `id=eq.${deliveryExecId}`, {
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      }
       await markFailed(deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
       return;
+    }
+
+    if (deliveryExecId && deliveryResult) {
+      try {
+        const usage = deliveryResult.tokenUsage;
+        await db.patch('executions', `id=eq.${deliveryExecId}`, {
+          status: 'completed',
+          prompt_tokens: usage.promptTokens,
+          completion_tokens: usage.completionTokens,
+          estimated_cost_usd: usage.estimatedCostUsd,
+          updated_at: new Date().toISOString(),
+        });
+        log.info(
+          { taskId: TASK_ID, deliveryExecId, ...usage },
+          '[opencode-harness] Delivery execution metrics persisted',
+        );
+      } catch (err) {
+        log.warn(
+          { err },
+          '[opencode-harness] Failed to persist delivery execution metrics — non-fatal',
+        );
+      }
     }
 
     // 7. Verify delivery confirmation from /tmp/summary.txt
