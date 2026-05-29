@@ -132,16 +132,24 @@ describe('supersede threading — webhook handler', () => {
   });
 });
 
-vi.mock('@slack/web-api', () => ({
-  WebClient: vi.fn().mockImplementation(() => ({
+const { MockWebClient } = vi.hoisted(() => {
+  const MockWebClient = vi.fn().mockImplementation(() => ({
     chat: { postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts1', channel: 'C1' }) },
-  })),
-}));
+  }));
+  return { MockWebClient };
+});
+
+vi.mock('@slack/web-api', () => ({ WebClient: MockWebClient }));
+vi.mock('../../src/worker-tools/node_modules/@slack/web-api', () => ({ WebClient: MockWebClient }));
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(false),
   readFileSync: vi.fn().mockReturnValue('{}'),
   writeFileSync: vi.fn(),
+}));
+
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
 }));
 
 import { existsSync } from 'node:fs';
@@ -150,8 +158,6 @@ import { WebClient } from '@slack/web-api';
 const baseArgv = [
   'node',
   'post-guest-approval.ts',
-  '--channel',
-  'C-TEST',
   '--task-id',
   'test-task-id',
   '--guest-name',
@@ -183,12 +189,15 @@ const baseArgv = [
 describe('post-guest-approval.ts — empty thread-ts guard', () => {
   let origWrite: typeof process.stdout.write;
   let origEnv: string | undefined;
+  let origChannel: string | undefined;
   let mockPostMessage: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     origEnv = process.env.SLACK_BOT_TOKEN;
+    origChannel = process.env.NOTIFICATION_CHANNEL;
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
-    vi.mocked(existsSync).mockReturnValue(false);
+    process.env.NOTIFICATION_CHANNEL = 'C-TEST';
+    vi.mocked(existsSync).mockImplementation((p) => String(p) === '/tmp/summary.txt');
     origWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = (() => true) as typeof process.stdout.write;
 
@@ -202,6 +211,11 @@ describe('post-guest-approval.ts — empty thread-ts guard', () => {
 
   afterEach(() => {
     process.env.SLACK_BOT_TOKEN = origEnv;
+    if (origChannel !== undefined) {
+      process.env.NOTIFICATION_CHANNEL = origChannel;
+    } else {
+      delete process.env.NOTIFICATION_CHANNEL;
+    }
     process.stdout.write = origWrite;
     vi.mocked(existsSync).mockReturnValue(false);
     vi.mocked(WebClient).mockReset();
@@ -231,12 +245,15 @@ describe('post-guest-approval.ts — empty thread-ts guard', () => {
 describe('post-guest-approval.ts — reply-broadcast flag', () => {
   let origWrite: typeof process.stdout.write;
   let origEnv: string | undefined;
+  let origChannel: string | undefined;
   let mockPostMessage: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     origEnv = process.env.SLACK_BOT_TOKEN;
+    origChannel = process.env.NOTIFICATION_CHANNEL;
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
-    vi.mocked(existsSync).mockReturnValue(false);
+    process.env.NOTIFICATION_CHANNEL = 'C-TEST';
+    vi.mocked(existsSync).mockImplementation((p) => String(p) === '/tmp/summary.txt');
     origWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = (() => true) as typeof process.stdout.write;
 
@@ -250,6 +267,11 @@ describe('post-guest-approval.ts — reply-broadcast flag', () => {
 
   afterEach(() => {
     process.env.SLACK_BOT_TOKEN = origEnv;
+    if (origChannel !== undefined) {
+      process.env.NOTIFICATION_CHANNEL = origChannel;
+    } else {
+      delete process.env.NOTIFICATION_CHANNEL;
+    }
     process.stdout.write = origWrite;
     vi.mocked(existsSync).mockReturnValue(false);
     vi.mocked(WebClient).mockReset();
