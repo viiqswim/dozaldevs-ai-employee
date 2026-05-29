@@ -42,8 +42,8 @@ export interface Task {
   compiled_agents_md: string | null; // Compiled AGENTS.md snapshot for debugging
   // From PostgREST embedded join: ?select=*,archetypes(role_name,model)
   archetypes?: { role_name: string | null; model: string | null } | null;
-  // From PostgREST embedded join: ?select=*,executions(estimated_cost_usd)
-  executions?: { estimated_cost_usd: number | null }[] | null;
+  // From PostgREST embedded join: ?select=*,executions(estimated_cost_usd,phase)
+  executions?: { estimated_cost_usd: number | null; phase: string | null }[] | null;
 }
 
 export interface TaskStatusLog {
@@ -177,6 +177,7 @@ export interface Execution {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   estimated_cost_usd: number | null;
+  phase: string | null;
   heartbeat_at: string | null;
   current_stage: string | null;
   created_at: string;
