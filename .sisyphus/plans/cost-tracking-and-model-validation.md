@@ -1,5 +1,7 @@
 # Cost Tracking Fix + Model Validation
 
+**STATUS: COMPLETE** — All tasks done, Final Wave passed (F1–F4 APPROVE). Completed 2026-05-29.
+
 ## TL;DR
 
 > **Quick Summary**: Fix two gaps — (1) delivery phase LLM costs are silently discarded, making dashboard cost stats understated, and (2) the harness silently falls back to `minimax/minimax-m2.7` when an archetype has no model configured instead of failing fast.
@@ -853,7 +855,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (verification only)
 
-- [ ] 8. Notify completion
+- [x] 8. Notify completion
 
   **What to do**:
   - Send Telegram notification: `tsx scripts/telegram-notify.ts "✅ cost-tracking-and-model-validation complete — All tasks done. Come back to review results."`
