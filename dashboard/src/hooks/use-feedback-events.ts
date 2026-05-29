@@ -3,7 +3,7 @@ import { usePoll } from './use-poll';
 import { postgrestFetch } from '../lib/postgrest';
 import type { FeedbackEvent } from '../lib/types';
 
-export function useFeedbackEvents(taskId: string) {
+export function useFeedbackEvents(taskId: string, enabled = true) {
   const fetchFn = useCallback(async () => {
     return postgrestFetch<FeedbackEvent>('feedback_events', {
       task_id: `eq.${taskId}`,
@@ -12,6 +12,6 @@ export function useFeedbackEvents(taskId: string) {
     });
   }, [taskId]);
 
-  const { data, loading, error, refresh } = usePoll<FeedbackEvent[]>(fetchFn);
+  const { data, loading, error, refresh } = usePoll<FeedbackEvent[]>(fetchFn, undefined, enabled);
   return { events: data ?? [], loading, error, refresh };
 }
