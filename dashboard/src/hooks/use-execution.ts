@@ -8,7 +8,7 @@ export function useExecution(taskId: string, enabled = true) {
     const rows = await postgrestFetch<Execution>('executions', {
       task_id: `eq.${taskId}`,
       select:
-        'id,task_id,runtime_type,status,prompt_tokens,completion_tokens,estimated_cost_usd,heartbeat_at,current_stage,created_at,updated_at',
+        'id,task_id,runtime_type,status,prompt_tokens,completion_tokens,estimated_cost_usd,phase,heartbeat_at,current_stage,created_at,updated_at',
       order: 'created_at.desc',
       limit: '1',
     });

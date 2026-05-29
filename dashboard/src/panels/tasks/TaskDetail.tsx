@@ -25,7 +25,7 @@ import { StatusBadge } from './StatusBadge';
 import { StatusTimeline } from './StatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, formatCostUsd } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
 
 const RAW_EVENT_TRUNCATE_CHARS = 2000;
@@ -253,7 +253,7 @@ export function TaskDetail() {
     const rows = await postgrestFetch<Task>('tasks', {
       id: `eq.${taskId}`,
       ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model)',
+      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase)',
     });
     return rows[0] ?? null;
   }, [taskId, tenantId]);
@@ -385,10 +385,17 @@ export function TaskDetail() {
       ? ((execution.prompt_tokens ?? 0) + (execution.completion_tokens ?? 0)).toLocaleString()
       : '—';
 
-  const costDisplay =
-    execution && (execution.estimated_cost_usd ?? 0) > 0
-      ? `$${(execution.estimated_cost_usd ?? 0).toFixed(4)}`
-      : '—';
+  const execCostTotal =
+    task?.executions
+      ?.filter((e) => e.phase === 'execution')
+      .reduce((s, e) => s + parseFloat(String(e.estimated_cost_usd ?? 0)), 0) ?? 0;
+  const deliveryCostTotal =
+    task?.executions
+      ?.filter((e) => e.phase === 'delivery')
+      .reduce((s, e) => s + parseFloat(String(e.estimated_cost_usd ?? 0)), 0) ?? 0;
+  const totalCostAllPhases = execCostTotal + deliveryCostTotal;
+
+  const costDisplay = totalCostAllPhases > 0 ? formatCostUsd(totalCostAllPhases) : '—';
 
   const durationDisplay = formatDuration(task.started_at, task.completed_at);
 
@@ -485,17 +492,35 @@ export function TaskDetail() {
             <StatCard label="Duration" value={durationDisplay} testId="execution-duration" />
             <StatCard label="Heartbeat" value={heartbeatDisplay} />
           </div>
-        ) : isAutoPass ? (
-          <div className="flex items-start gap-3 rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
-            <span className="text-base leading-none">⚡</span>
-            <p className="text-sm text-zinc-400">
-              Auto-completed — no worker execution. This task was resolved during triage without
-              spawning a worker.
-            </p>
+        ) : null}
+        {execution && totalCostAllPhases > 0 && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+            <span>
+              Execution:{' '}
+              <span className="font-mono text-foreground">{formatCostUsd(execCostTotal)}</span>
+            </span>
+            <span>
+              Delivery:{' '}
+              <span className="font-mono text-foreground">{formatCostUsd(deliveryCostTotal)}</span>
+            </span>
+            <span>
+              Total:{' '}
+              <span className="font-mono text-foreground">{formatCostUsd(totalCostAllPhases)}</span>
+            </span>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground italic">No execution data</p>
         )}
+        {!execution &&
+          (isAutoPass ? (
+            <div className="flex items-start gap-3 rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
+              <span className="text-base leading-none">⚡</span>
+              <p className="text-sm text-zinc-400">
+                Auto-completed — no worker execution. This task was resolved during triage without
+                spawning a worker.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No execution data</p>
+          ))}
       </div>
 
       {execution && !isAutoPass && (

@@ -39,7 +39,7 @@ const STATUS_OPTIONS = [
 function SkeletonRow() {
   return (
     <TableRow>
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 w-full animate-pulse rounded bg-muted" />
         </TableCell>
@@ -128,7 +128,7 @@ export function TaskFeed() {
   const fetchTasks = useCallback(() => {
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model),executions(estimated_cost_usd)',
+      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase)',
       order: 'created_at.desc',
       created_at: `gte.${effectiveDateFrom}T00:00:00`,
       limit: 'none',
@@ -154,14 +154,14 @@ export function TaskFeed() {
   const fetchTenantCosts = useCallback(() => {
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
-      select: 'created_at,executions(estimated_cost_usd)',
+      select: 'created_at,executions(estimated_cost_usd,phase)',
       limit: 'none',
     };
     if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
     if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
     return postgrestFetch<{
       created_at: string;
-      executions: { estimated_cost_usd: number | null }[];
+      executions: { estimated_cost_usd: number | null; phase: string | null }[];
     }>('tasks', params);
   }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
   const { data: tenantCosts } = usePoll(fetchTenantCosts);
@@ -213,7 +213,9 @@ export function TaskFeed() {
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
-              <TableHead>Cost</TableHead>
+              <TableHead className="text-right">Exec Cost</TableHead>
+              <TableHead className="text-right">Delivery Cost</TableHead>
+              <TableHead className="text-right">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -330,7 +332,9 @@ export function TaskFeed() {
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
-              <TableHead>Cost</TableHead>
+              <TableHead className="text-right">Exec Cost</TableHead>
+              <TableHead className="text-right">Delivery Cost</TableHead>
+              <TableHead className="text-right">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -353,13 +357,30 @@ export function TaskFeed() {
                 <TableCell className="text-muted-foreground">
                   {isTerminal(task.status) ? formatDuration(task.created_at, task.updated_at) : '—'}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {(() => {
-                    const cost =
-                      task.executions?.reduce((s, e) => s + (e.estimated_cost_usd ?? 0), 0) ?? 0;
-                    return cost > 0 ? `$${cost.toFixed(4)}` : '—';
-                  })()}
-                </TableCell>
+                {(() => {
+                  const execCost =
+                    task.executions
+                      ?.filter((e) => e.phase === 'execution')
+                      .reduce((s, e) => s + parseFloat(String(e.estimated_cost_usd ?? 0)), 0) ?? 0;
+                  const deliveryCost =
+                    task.executions
+                      ?.filter((e) => e.phase === 'delivery')
+                      .reduce((s, e) => s + parseFloat(String(e.estimated_cost_usd ?? 0)), 0) ?? 0;
+                  const totalCost = execCost + deliveryCost;
+                  return (
+                    <>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatCostUsd(execCost)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatCostUsd(deliveryCost)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatCostUsd(totalCost)}
+                      </TableCell>
+                    </>
+                  );
+                })()}
               </TableRow>
             ))}
           </TableBody>
