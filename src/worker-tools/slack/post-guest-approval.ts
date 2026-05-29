@@ -1,9 +1,10 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { WebClient } from '@slack/web-api';
 
 interface GuestApprovalParams {
-  channel: string;
   taskId: string;
   guestName: string;
   propertyName: string;
@@ -34,7 +35,6 @@ interface PostResult {
 
 function parseArgs(argv: string[]): GuestApprovalParams {
   const args = argv.slice(2);
-  let channel = '';
   let taskId = '';
   let guestName = '';
   let propertyName = '';
@@ -58,9 +58,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
   let replyBroadcast = false;
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--channel' && args[i + 1]) {
-      channel = args[++i];
-    } else if (args[i] === '--task-id' && args[i + 1]) {
+    if (args[i] === '--task-id' && args[i + 1]) {
       taskId = args[++i];
     } else if (args[i] === '--guest-name' && args[i + 1]) {
       guestName = args[++i];
@@ -94,7 +92,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       diagnosis = args[++i];
     } else if (args[i] === '--dry-run') {
       dryRun = true;
-    } else if (args[i] === '--thread-ts') {
+    } else if (args[i] === '--thread-ts' && args[i + 1]) {
       threadTs = args[++i];
     } else if (args[i] === '--reply-broadcast') {
       const nextArg = args[i + 1];
@@ -108,11 +106,46 @@ function parseArgs(argv: string[]): GuestApprovalParams {
       conversationRef = args[++i];
     } else if (args[i] === '--lead-status' && args[i + 1]) {
       leadStatus = args[++i];
+    } else if (args[i] === '--help') {
+      process.stdout.write(
+        'Usage: tsx post-guest-approval.ts [options]\n\n' +
+          'Post a guest message approval card to Slack.\n' +
+          'Channel is read from NOTIFICATION_CHANNEL env var.\n' +
+          'Automatically writes /tmp/summary.txt via submit-output.ts before posting.\n\n' +
+          'Environment variables:\n' +
+          '  NOTIFICATION_CHANNEL  (required) Slack channel to post to\n' +
+          '  NOTIFY_MSG_TS         (auto-read) Thread timestamp; used to reply under task notification\n' +
+          '  SLACK_BOT_TOKEN       (required for posting) Slack bot OAuth token\n\n' +
+          'Required flags:\n' +
+          '  --task-id <uuid>           Task ID\n' +
+          '  --guest-name <string>      Guest name\n' +
+          '  --property-name <string>   Property name\n' +
+          '  --check-in <date>          Check-in date\n' +
+          '  --check-out <date>         Check-out date\n' +
+          '  --booking-channel <string> Booking channel (e.g. AIRBNB, VRBO)\n' +
+          '  --original-message <text>  Guest original message\n' +
+          '  --draft-response <text>    Proposed reply to guest\n' +
+          '  --confidence <0-1>         Confidence score between 0 and 1\n' +
+          '  --category <string>        Message category (e.g. check-in-info)\n' +
+          '  --lead-uid <uuid>          Hostfully lead UID\n' +
+          '  --thread-uid <uuid>        Hostfully thread UID\n' +
+          '  --message-uid <string>     Hostfully message UID\n\n' +
+          'Optional flags:\n' +
+          '  --urgency                  Flag presence marks urgency=true\n' +
+          '  --conversation-summary <text>  Summary of the conversation so far\n' +
+          '  --diagnosis <json>         Lock diagnosis JSON (hasMismatch, diagnosisSummary)\n' +
+          '  --conversation-ref <string>    Hostfully thread UID for superseding detection\n' +
+          '  --lead-status <string>     Lead status (BOOKED, INQUIRY, CLOSED, NEW)\n' +
+          '  --thread-ts <ts>           Override thread timestamp (default: $NOTIFY_MSG_TS env var)\n' +
+          '  --reply-broadcast [bool]   Also send thread reply to main channel\n' +
+          '  --dry-run                  Skip Slack post; still writes /tmp/summary.txt\n' +
+          '  --help                     Show this help message\n',
+      );
+      process.exit(0);
     }
   }
 
   return {
-    channel,
     taskId,
     guestName,
     propertyName,
@@ -302,7 +335,62 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
   return blocks;
 }
 
+function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
+  const SUMMARY_PATH = '/tmp/summary.txt';
+  if (existsSync(SUMMARY_PATH)) return; // already written — idempotency
+
+  const submitOutputPath = path.join(__dirname, '../platform/submit-output.ts');
+
+  // Write draft to temp file for submit-output --draft-file
+  const draftTempPath = '/tmp/post-guest-approval-draft.txt';
+  writeFileSync(draftTempPath, params.draftResponse, 'utf8');
+
+  const metadata: Record<string, unknown> = {
+    guest_name: params.guestName,
+    property_name: params.propertyName,
+    thread_uid: params.threadUid,
+    lead_uid: params.leadUid,
+    message_uid: params.messageUid,
+    booking_channel: params.bookingChannel,
+    check_in: params.checkIn,
+    check_out: params.checkOut,
+    category: params.category,
+    urgency: params.urgency,
+    ...(params.leadStatus != null && { lead_status: params.leadStatus }),
+  };
+
+  try {
+    execFileSync(
+      'tsx',
+      [
+        submitOutputPath,
+        '--summary',
+        `Guest reply drafted for ${params.guestName} — ${params.propertyName}`,
+        '--classification',
+        'NEEDS_APPROVAL',
+        '--draft-file',
+        draftTempPath,
+        '--confidence',
+        String(params.confidence),
+        '--metadata',
+        JSON.stringify(metadata),
+      ],
+      { stdio: 'inherit' },
+    );
+  } catch (err) {
+    process.stderr.write(
+      `[post-guest-approval] Warning: submit-output subprocess failed: ${String(err)}\n`,
+    );
+    // Non-fatal — approval card still proceeds; harness fallback covers this case
+  }
+}
+
 export async function main(): Promise<void> {
+  if (process.argv.includes('--help')) {
+    parseArgs(process.argv);
+    return;
+  }
+
   // Idempotency guard: prevent double-posting if model calls this tool twice
   const APPROVAL_OUTPUT_PATH = '/tmp/approval-message.json';
   if (existsSync(APPROVAL_OUTPUT_PATH)) {
@@ -316,6 +404,9 @@ export async function main(): Promise<void> {
         existing.ts.length > 0 &&
         !/PLACEHOLDER/i.test(existing.ts)
       ) {
+        // Parse args so we can ensure /tmp/summary.txt is written even on guard path
+        const guardParams = parseArgs(process.argv);
+        callSubmitOutputIfNeeded(guardParams);
         process.stderr.write(
           `Idempotency guard: ${APPROVAL_OUTPUT_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
         );
@@ -327,10 +418,20 @@ export async function main(): Promise<void> {
     }
   }
 
+  const channel = process.env.NOTIFICATION_CHANNEL;
+  if (!channel) {
+    process.stderr.write('Error: NOTIFICATION_CHANNEL environment variable is required\n');
+    process.exit(1);
+  }
+
   const params = parseArgs(process.argv);
 
+  if (!params.threadTs) {
+    const envTs = process.env.NOTIFY_MSG_TS;
+    if (envTs) params.threadTs = envTs;
+  }
+
   const requiredStrings: Array<[string, string]> = [
-    [params.channel, '--channel'],
     [params.taskId, '--task-id'],
     [params.guestName, '--guest-name'],
     [params.propertyName, '--property-name'],
@@ -363,6 +464,9 @@ export async function main(): Promise<void> {
     );
   }
 
+  // Write /tmp/summary.txt BEFORE posting to Slack (and before dry-run return)
+  callSubmitOutputIfNeeded(params);
+
   const blocks = buildGuestApprovalBlocks(params);
 
   if (params.dryRun) {
@@ -382,7 +486,7 @@ export async function main(): Promise<void> {
     params.threadTs && params.threadTs.length > 0 ? params.threadTs : undefined;
 
   const postMessageArgs = {
-    channel: params.channel,
+    channel,
     text: `Guest message approval request — ${params.propertyName} (${params.guestName})`,
     blocks: blocks as import('@slack/web-api').KnownBlock[],
     ...(effectiveThreadTs ? { thread_ts: effectiveThreadTs } : {}),
