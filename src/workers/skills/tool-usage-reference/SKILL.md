@@ -60,7 +60,7 @@ NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
 
 **Required flags:**
 
-- `--channel <id>` — Slack channel ID (e.g. `C0960S2Q8RL`)
+- `--channel <id>` — Slack channel ID (e.g. `$NOTIFICATION_CHANNEL`)
 - `--text <string>` — Message text (plain text fallback for notifications)
 
 **Automatic behaviors (no flags needed):**
@@ -104,14 +104,14 @@ Or with `--conversation-ref`:
 ```bash
 # Threading is automatic — NOTIFY_MSG_TS and INNGEST_RUN_ID are read from env automatically
 NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
-  --channel "C0960S2Q8RL" \
+  --channel "$NOTIFICATION_CHANNEL" \
   --text "Daily summary ready for review" \
   --task-id "$TASK_ID" \
   > /tmp/approval-message.json
 
 # Override thread (explicit --thread-ts) or suppress threading (--no-thread):
 NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
-  --channel "C0960S2Q8RL" \
+  --channel "$NOTIFICATION_CHANNEL" \
   --text "Standalone message" \
   --no-thread \
   > /tmp/approval-message.json
@@ -193,7 +193,6 @@ tsx /tools/slack/read-channels.ts \
 
 ```bash
 tsx /tools/slack/post-guest-approval.ts \
-  --channel "C123456" \
   --task-id "uuid" \
   --guest-name "Jane Smith" \
   --property-name "Ocean View Condo" \
@@ -207,16 +206,16 @@ tsx /tools/slack/post-guest-approval.ts \
   --lead-uid "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb" \
   --thread-uid "2f18249a-9523-4acd-a512-20ff06d5c3fa" \
   --message-uid "msg-uid-here" \
-  --thread-ts "$NOTIFY_MSG_TS" \
   [--lead-status "BOOKED"] \
   [--urgency] \
   [--conversation-summary "Guest asking about check-in time"] \
   [--conversation-ref "2f18249a-9523-4acd-a512-20ff06d5c3fa"]
 ```
 
+**Channel:** Always reads from the `NOTIFICATION_CHANNEL` environment variable (injected by the lifecycle). No `--channel` flag — the tool hard-fails if `NOTIFICATION_CHANNEL` is not set.
+
 **Required flags:**
 
-- `--channel <id>` — Slack channel ID to post the approval card
 - `--task-id <uuid>` — Current task UUID
 - `--guest-name <string>` — Guest's full name
 - `--property-name <string>` — Property display name
@@ -239,12 +238,15 @@ tsx /tools/slack/post-guest-approval.ts \
 - `--diagnosis <json>` — JSON string `{"hasMismatch":bool,"diagnosisSummary":"..."}` for lock diagnosis block
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection (defaults to `--thread-uid`)
 - `--dry-run` — Print blocks JSON to stdout without posting to Slack
-- `--thread-ts <ts>` — ALWAYS pass `--thread-ts "$NOTIFY_MSG_TS"` to post the approval card as a thread reply under the task's notification message. `NOTIFY_MSG_TS` is the env var injected by the lifecycle. Omitting this causes the card to post as a new top-level message in the channel.
+- `--thread-ts <ts>` — Override thread timestamp. Defaults to `$NOTIFY_MSG_TS` env var when not provided. Omitting both causes a top-level post (no threading).
 - `--reply-broadcast [true|false]` — Whether to broadcast the thread reply to the channel
+
+**Auto-output:** This tool automatically writes `/tmp/summary.txt` via `submit-output.ts` before posting to Slack. Do NOT call `submit-output.ts` separately after this tool — doing so would cause a double-write.
 
 **Environment variables:**
 
 - `SLACK_BOT_TOKEN` (required, unless `--dry-run`)
+- `NOTIFICATION_CHANNEL` (required) — Slack channel ID; injected by the lifecycle
 
 **Output (stdout):**
 
@@ -1066,6 +1068,8 @@ tsx /tools/platform/submit-output.ts \
 ```
 
 **Side effect:** Writes the output contract JSON to `/tmp/summary.txt` only. Do NOT write `/tmp/approval-message.json` — the platform constructs approval cards automatically from `/tmp/summary.txt`. Do not delete `/tmp/summary.txt`.
+
+**Note:** If your `execution_steps` use `post-guest-approval.ts`, do NOT call `submit-output.ts` separately. `post-guest-approval.ts` calls `submit-output.ts` internally and writes both contract files.
 
 **Exit codes:**
 
