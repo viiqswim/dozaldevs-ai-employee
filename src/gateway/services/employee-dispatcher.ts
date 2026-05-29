@@ -20,7 +20,11 @@ export type DispatchEmployeeResult =
     }
   | {
       kind: 'error';
-      code: 'ARCHETYPE_NOT_FOUND' | 'UNSUPPORTED_RUNTIME' | 'INVALID_ARCHETYPE_CONFIG';
+      code:
+        | 'ARCHETYPE_NOT_FOUND'
+        | 'UNSUPPORTED_RUNTIME'
+        | 'INVALID_ARCHETYPE_CONFIG'
+        | 'MODEL_NOT_CONFIGURED';
       message: string;
     };
 
@@ -47,6 +51,14 @@ export async function dispatchEmployee(
       kind: 'error',
       code: 'UNSUPPORTED_RUNTIME',
       message: `Manual trigger for runtime ${archetype.runtime} is not yet supported`,
+    };
+  }
+
+  if (!archetype.model) {
+    return {
+      kind: 'error',
+      code: 'MODEL_NOT_CONFIGURED',
+      message: `Archetype "${slug}" has no model configured. Set a model via the admin API before triggering.`,
     };
   }
 
