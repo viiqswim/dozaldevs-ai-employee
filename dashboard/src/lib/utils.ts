@@ -46,6 +46,5 @@ export function formatWorkMinutes(totalMinutes: number | null | undefined): stri
 
 export function formatCostUsd(usd: number | null | undefined): string {
   if (usd == null || usd === 0) return '—';
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  return `$${usd.toFixed(2)}`;
+  return `$${usd.toFixed(4)}`;
 }
