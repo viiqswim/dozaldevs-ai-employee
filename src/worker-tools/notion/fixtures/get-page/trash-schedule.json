@@ -1,0 +1,301 @@
+{
+  "object": "list",
+  "results": [
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0001-0000-0000-000000000001",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📅 LUNES (Sacar el Domingo)", "link": null },
+            "plain_text": "📅 LUNES (Sacar el Domingo)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0001-0000-0000-000000000002",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏷️ 271-GIN: General / Reciclaje ♻️", "link": null },
+            "plain_text": "🏷️ 271-GIN: General / Reciclaje ♻️",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0001-0000-0000-000000000003",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏷️ 7213-NUT: General / Reciclaje ♻️", "link": null },
+            "plain_text": "🏷️ 7213-NUT: General / Reciclaje ♻️",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0002-0000-0000-000000000001",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📅 MARTES (Sacar el Lunes)", "link": null },
+            "plain_text": "📅 MARTES (Sacar el Lunes)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0002-0000-0000-000000000002",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏷️ 3401-BRE: General / Reciclaje ♻️", "link": null },
+            "plain_text": "🏷️ 3401-BRE: General / Reciclaje ♻️",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0002-0000-0000-000000000003",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🏷️ 219-PAU: ⚠️ Nota: El bote de basura siempre está en la calle.",
+              "link": null
+            },
+            "plain_text": "🏷️ 219-PAU: ⚠️ Nota: El bote de basura siempre está en la calle.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0003-0000-0000-000000000001",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📅 MIÉRCOLES", "link": null },
+            "plain_text": "📅 MIÉRCOLES",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0003-0000-0000-000000000002",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🛑 Libre: No hay propiedades para sacar bote de basura este día.",
+              "link": null
+            },
+            "plain_text": "🛑 Libre: No hay propiedades para sacar bote de basura este día.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0004-0000-0000-000000000001",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📅 JUEVES (Sacar el Miércoles)", "link": null },
+            "plain_text": "📅 JUEVES (Sacar el Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0004-0000-0000-000000000002",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏷️ 5501-OAK: General ♻️", "link": null },
+            "plain_text": "🏷️ 5501-OAK: General ♻️",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0005-0000-0000-000000000001",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📅 VIERNES (Sacar el Jueves)", "link": null },
+            "plain_text": "📅 VIERNES (Sacar el Jueves)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "a1b2c3d4-0005-0000-0000-000000000002",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏷️ 8821-RIV: General / Reciclaje ♻️", "link": null },
+            "plain_text": "🏷️ 8821-RIV: General / Reciclaje ♻️",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
