@@ -111,6 +111,11 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
           return;
         }
 
+        if (result.code === 'MODEL_NOT_CONFIGURED') {
+          res.status(422).json({ error: 'MODEL_NOT_CONFIGURED', message: result.message });
+          return;
+        }
+
         res.status(500).json({ error: 'INTERNAL_ERROR' });
       } catch (err) {
         logger.error(
