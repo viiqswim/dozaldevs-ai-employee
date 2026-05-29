@@ -168,9 +168,8 @@ a webhook trigger, reference it as an env var ($VAR_NAME), not as an input_schem
 ## Approval Flow Pattern
 When the employee produces content requiring human approval (NEEDS_APPROVAL classification):
 1. Check the Available Tools list for a specialized approval tool for this domain (e.g., a tool named "post-*-approval.ts")
-2. If one exists: call it BEFORE submit-output.ts. Pass --thread-ts "$NOTIFY_MSG_TS" so the card appears as a reply under the task notification. The approval tool writes /tmp/approval-message.json automatically.
-3. Then call submit-output.ts with --classification NEEDS_APPROVAL.
-If no specialized approval tool exists, call submit-output.ts directly with --classification NEEDS_APPROVAL.
+2. If one exists: call it BEFORE submit-output.ts. Pass --thread-ts "$NOTIFY_MSG_TS" so the card appears as a reply under the task notification. The approval tool uses $NOTIFICATION_CHANNEL automatically for the channel — do NOT pass --channel. The approval tool writes /tmp/approval-message.json AND /tmp/summary.txt automatically — do NOT call submit-output.ts separately after it.
+3. If no specialized approval tool exists: call submit-output.ts directly with --classification NEEDS_APPROVAL.
 
 ## Passing Data to the Delivery Phase
 If the delivery phase needs identifiers or data from the execution phase (e.g., external
