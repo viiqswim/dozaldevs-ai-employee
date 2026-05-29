@@ -63,6 +63,7 @@ model Execution {
   id                 String    @id @default(uuid()) @db.Uuid
   task_id            String    @db.Uuid
   runtime_type       String?
+  phase              String    @default("execution")
   runtime_id         String?
   fix_iterations     Int       @default(0)
   status             String    @default("pending")
@@ -203,7 +204,7 @@ model Archetype {
   pre_check_adapter String?
   worker_env        Json?
   input_schema      Json?
-  model             String?
+  model             String
   deliverable_type  String?
   status            String   @default("active")
   overview          Json?
