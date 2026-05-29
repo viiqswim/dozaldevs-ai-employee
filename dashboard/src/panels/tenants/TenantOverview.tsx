@@ -475,6 +475,17 @@ export function TenantOverview() {
                       }
                       connectLabel="Connect Jira"
                     />
+                    <IntegrationRow
+                      name="Notion"
+                      description="Read Notion pages to give AI employees access to your knowledge base and schedules."
+                      integration={integrations?.find((i) => i.provider === 'notion') ?? null}
+                      connectHref={
+                        tenant?.slug
+                          ? `${GATEWAY_URL}/integrations/notion/install?tenant=${tenant.slug}`
+                          : undefined
+                      }
+                      connectLabel="Connect Notion"
+                    />
                   </div>
                 )}
               </CardContent>

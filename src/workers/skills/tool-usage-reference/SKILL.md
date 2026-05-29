@@ -1097,6 +1097,145 @@ tsx /tools/platform/submit-output.ts \
 
 ---
 
+## Notion Tools (`/tools/notion/`)
+
+All Notion tools require `NOTION_ACCESS_TOKEN` (OAuth, preferred) or `NOTION_API_KEY` (fallback). Set `NOTION_MOCK=true` to return fixture data without hitting the real API.
+
+**⚠️ CRITICAL — rich text parsing**: Always read `plain_text` from rich text objects. NEVER use `text.content` — it is the raw input string and may differ from the rendered value. Example: `block.paragraph.rich_text[0].plain_text`.
+
+**⚠️ API version header**: All Notion API calls require `Notion-Version: 2022-06-28`. The tools handle this internally.
+
+---
+
+### `get-page.ts` — Fetch Notion page content
+
+```bash
+tsx /tools/notion/get-page.ts \
+  --page-id <PAGE_ID> \
+  [--fixture <name>]
+```
+
+**Required flags:**
+
+- `--page-id <id>` — Notion page ID (32-char hex, with or without hyphens)
+
+**Optional flags:**
+
+- `--fixture <name>` — Load a named fixture instead of calling the API (for testing)
+
+**Mock mode:** `NOTION_MOCK=true tsx /tools/notion/get-page.ts --page-id <id>`
+
+**Environment variables:**
+
+- `NOTION_ACCESS_TOKEN` (preferred) or `NOTION_API_KEY` (fallback) — at least one required
+
+**Output (stdout):**
+
+```json
+{
+  "success": true,
+  "pageId": "36fd540b-4380-809c-a373-ca83e90216a3",
+  "content": "# Page Title\n\nParagraph text here...",
+  "blockCount": 12
+}
+```
+
+**Notes:**
+
+- Content is returned as plain text (markdown-ish), not raw Notion block JSON.
+- Use `plain_text` fields from rich text arrays — never `text.content`.
+
+**Example:**
+
+```bash
+tsx /tools/notion/get-page.ts \
+  --page-id "36fd540b4380809ca373ca83e90216a3" \
+  > /tmp/notion-page.json
+```
+
+---
+
+### `append-blocks.ts` — Append content to a Notion page
+
+```bash
+tsx /tools/notion/append-blocks.ts \
+  --page-id <PAGE_ID> \
+  --content "<text>" \
+  [--type paragraph|bulleted_list_item|heading_2]
+```
+
+**Required flags:**
+
+- `--page-id <id>` — Notion page ID
+- `--content <text>` — Text content to append
+
+**Optional flags:**
+
+- `--type <type>` — Block type (default: `paragraph`). Options: `paragraph`, `bulleted_list_item`, `heading_2`
+
+**Mock mode:** `NOTION_MOCK=true tsx /tools/notion/append-blocks.ts --page-id <id> --content "text"`
+
+**Environment variables:**
+
+- `NOTION_ACCESS_TOKEN` (preferred) or `NOTION_API_KEY` (fallback)
+
+**Output (stdout):**
+
+```json
+{ "success": true, "blocksAdded": 1 }
+```
+
+**Example:**
+
+```bash
+tsx /tools/notion/append-blocks.ts \
+  --page-id "36fd540b438080b2be9cf4b4218d657b" \
+  --content "Zone A cleaned — 2026-05-29" \
+  --type bulleted_list_item
+```
+
+---
+
+### `update-block.ts` — Update an existing Notion block
+
+```bash
+tsx /tools/notion/update-block.ts \
+  --block-id <BLOCK_ID> \
+  --content "<new text>"
+```
+
+**Required flags:**
+
+- `--block-id <id>` — Notion block ID (32-char hex)
+- `--content <text>` — New text content for the block
+
+**Mock mode:** `NOTION_MOCK=true tsx /tools/notion/update-block.ts --block-id <id> --content "text"`
+
+**Environment variables:**
+
+- `NOTION_ACCESS_TOKEN` (preferred) or `NOTION_API_KEY` (fallback)
+
+**Output (stdout):**
+
+```json
+{ "success": true, "blockId": "block-id-here" }
+```
+
+**Notes:**
+
+- Only updates the text content of the block. Block type cannot be changed via this tool.
+- To find a block ID, call `get-page.ts` first and inspect the raw block data.
+
+**Example:**
+
+```bash
+tsx /tools/notion/update-block.ts \
+  --block-id "abc123def456..." \
+  --content "Updated cleaning note"
+```
+
+---
+
 ## Quick Reference Table
 
 | Tool                      | Container Path           | Required Flags                              | Output Shape                                                                                                    |
@@ -1120,3 +1259,6 @@ tsx /tools/platform/submit-output.ts \
 | `list-comments.ts`        | `/tools/jira/`           | `--issue-key`                               | `{comments:[{id, author, body, created}], total}`                                                               |
 | `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                |
 | `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`   |
+| `get-page.ts`             | `/tools/notion/`         | `--page-id`                                 | `{success, pageId, content, blockCount}`                                                                        |
+| `append-blocks.ts`        | `/tools/notion/`         | `--page-id`, `--content`                    | `{success, blocksAdded}`                                                                                        |
+| `update-block.ts`         | `/tools/notion/`         | `--block-id`, `--content`                   | `{success, blockId}`                                                                                            |

@@ -75,6 +75,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 | Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics |
 | Jira           | `/tools/jira/`           | Issue lookup, search, comments                                    |
 | Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                   |
+| Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                    |
 | Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
@@ -715,5 +716,6 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/code-rotation.md`                                                | Working on code-rotation employee — archetype IDs, lock IDs, trigger command, what it does                                                                                                                                                               |
 | `docs/employees/daily-summarizer.md`                                             | Working on summarizer employee — channel IDs per tenant, failure diagnostics, cron config                                                                                                                                                                |
 | `docs/employees/2026-05-21-1721-jira-motivation-bot.md`                          | Working on jira-motivation-bot employee — archetype ID, webhook setup, trigger command, mock mode, E2E flow, known gotchas, tenant secrets                                                                                                               |
+| `docs/employees/cleaning-schedule.md`                                            | Working on cleaning-schedule employee — archetype ID, trigger command, Notion page IDs, Slack channel, gotchas                                                                                                                                           |
 | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`                        | Slack OAuth or per-tenant token issues — TenantInstallationStore, loadTenantEnv, re-connecting after DB reset                                                                                                                                            |
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
