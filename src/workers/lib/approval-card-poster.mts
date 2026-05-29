@@ -1,6 +1,7 @@
 import type { KnownBlock } from '@slack/web-api';
 import { WebClient } from '@slack/web-api';
 import type { StandardOutput } from './output-schema.mjs';
+import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 
 export interface ApprovalBlockData {
   summary: string;
@@ -69,28 +70,27 @@ export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
     elements: [{ type: 'mrkdwn', text: contextParts.join(' · ') }],
   } as KnownBlock);
 
-  // Action buttons — action_ids must match handlers.ts button handler registrations
   blocks.push({
     type: 'actions',
     elements: [
       {
         type: 'button',
         text: { type: 'plain_text', text: '✅ Approve', emoji: true },
-        action_id: 'approve_task',
+        action_id: SLACK_ACTION_ID.APPROVE,
         value: data.taskId,
         style: 'primary',
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '❌ Reject', emoji: true },
-        action_id: 'reject_task',
+        action_id: SLACK_ACTION_ID.REJECT,
         value: data.taskId,
         style: 'danger',
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
-        action_id: 'edit_task',
+        action_id: SLACK_ACTION_ID.GUEST_EDIT,
         value: data.taskId,
       },
     ],

@@ -20,18 +20,37 @@ export class ArchetypeRepository {
     if (existing.deleted_at !== null) {
       return existing;
     }
-    const activeTasks = await this.prisma.task.findMany({
-      where: {
-        archetype_id: id,
-        status: { notIn: ['Done', 'Failed', 'Cancelled'] },
-      },
-    });
-    if (activeTasks.length > 0) {
-      throw new ActiveTasksError(activeTasks.length);
-    }
-    return this.prisma.archetype.update({
-      where: { id },
-      data: { deleted_at: new Date(), status: 'inactive' },
+    return this.prisma.$transaction(async (tx) => {
+      const activeTasks = await tx.task.findMany({
+        where: {
+          archetype_id: id,
+          status: { notIn: ['Done', 'Failed', 'Cancelled'] },
+        },
+        select: { id: true, status: true },
+      });
+
+      for (const task of activeTasks) {
+        await tx.task.update({
+          where: { id: task.id },
+          data: { status: 'Cancelled' },
+        });
+        await tx.taskStatusLog.create({
+          data: {
+            task_id: task.id,
+            from_status: task.status,
+            to_status: 'Cancelled',
+            actor: 'gateway',
+          },
+        });
+        await tx.pendingApproval.deleteMany({
+          where: { task_id: task.id },
+        });
+      }
+
+      return tx.archetype.update({
+        where: { id },
+        data: { deleted_at: new Date(), status: 'inactive' },
+      });
     });
   }
 

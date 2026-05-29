@@ -4,6 +4,7 @@ import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { SYNTHESIS_THRESHOLD } from '../../inngest/employee-lifecycle.js';
+import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 
 const log = createLogger('slack-handlers');
 
@@ -153,20 +154,20 @@ const GUEST_BUTTON_BLOCKS = (taskId: string) => [
       {
         type: 'button',
         text: { type: 'plain_text', text: '✅ Approve & Send', emoji: true },
-        action_id: 'guest_approve',
+        action_id: SLACK_ACTION_ID.GUEST_APPROVE,
         value: taskId,
         style: 'primary',
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
-        action_id: 'guest_edit',
+        action_id: SLACK_ACTION_ID.GUEST_EDIT,
         value: taskId,
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '❌ Reject', emoji: true },
-        action_id: 'guest_reject',
+        action_id: SLACK_ACTION_ID.GUEST_REJECT,
         value: taskId,
         style: 'danger',
       },
@@ -181,14 +182,14 @@ const BUTTON_BLOCKS = (taskId: string) => [
       {
         type: 'button',
         text: { type: 'plain_text', text: '✅ Approve & Post', emoji: true },
-        action_id: 'approve',
+        action_id: SLACK_ACTION_ID.APPROVE,
         value: taskId,
         style: 'primary',
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '❌ Reject', emoji: true },
-        action_id: 'reject',
+        action_id: SLACK_ACTION_ID.REJECT,
         value: taskId,
         style: 'danger',
       },
@@ -283,7 +284,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('approve', async ({ ack, body, respond }) => {
+  boltApp.action(SLACK_ACTION_ID.APPROVE, async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -361,7 +362,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('reject', async ({ ack, body, respond }) => {
+  boltApp.action(SLACK_ACTION_ID.REJECT, async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -439,7 +440,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('guest_approve', async ({ ack, body, respond }) => {
+  boltApp.action(SLACK_ACTION_ID.GUEST_APPROVE, async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -523,7 +524,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('guest_edit', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.GUEST_EDIT, async ({ ack, body, client }) => {
     const actionBody = body as ActionBody;
     const rawValue = actionBody.actions[0]?.value ?? '{}';
     let taskId = '';
@@ -564,7 +565,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               label: { type: 'plain_text', text: 'Draft Response' },
               element: {
                 type: 'plain_text_input',
-                action_id: 'edited_draft',
+                action_id: SLACK_ACTION_ID.EDITED_DRAFT,
                 multiline: true,
                 initial_value: draftResponse,
               },
@@ -681,7 +682,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('guest_reject', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.GUEST_REJECT, async ({ ack, body, client }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value ?? '';
 
@@ -738,7 +739,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('override_take_action', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.OVERRIDE_TAKE_ACTION, async ({ ack, body, client }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value ?? '';
 
@@ -787,7 +788,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('override_dismiss', async ({ ack, body }) => {
+  boltApp.action(SLACK_ACTION_ID.OVERRIDE_DISMISS, async ({ ack, body }) => {
     const actionBody = body as ActionBody;
     const taskId = actionBody.actions[0]?.value ?? '';
     const user = actionBody.user;
@@ -1011,7 +1012,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('rule_confirm', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.RULE_CONFIRM, async ({ ack, body, client }) => {
     await ack();
     const actionBody = body as ActionBody;
     const ruleId = actionBody.actions[0]?.value;
@@ -1134,7 +1135,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('rule_reject', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.RULE_REJECT, async ({ ack, body, client }) => {
     await ack();
     const actionBody = body as ActionBody;
     const ruleId = actionBody.actions[0]?.value;
@@ -1199,7 +1200,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action('rule_rephrase', async ({ ack, body, client }) => {
+  boltApp.action(SLACK_ACTION_ID.RULE_REPHRASE, async ({ ack, body, client }) => {
     const actionBody = body as ActionBody;
     const ruleId = actionBody.actions[0]?.value;
     if (!ruleId) {
@@ -1340,20 +1341,20 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
                   type: 'button',
                   text: { type: 'plain_text', text: '✅ Confirm' },
                   style: 'primary',
-                  action_id: 'rule_confirm',
+                  action_id: SLACK_ACTION_ID.RULE_CONFIRM,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '❌ Reject' },
                   style: 'danger',
-                  action_id: 'rule_reject',
+                  action_id: SLACK_ACTION_ID.RULE_REJECT,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '✏️ Rephrase' },
-                  action_id: 'rule_rephrase',
+                  action_id: SLACK_ACTION_ID.RULE_REPHRASE,
                   value: ruleId,
                 },
               ],

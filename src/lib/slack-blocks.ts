@@ -1,6 +1,7 @@
 import type { KnownBlock } from '@slack/web-api';
 import { buildHostfullyLink } from './enrichment-adapters/hostfully.js';
 import type { NotificationEnrichment } from './types/notification-enrichment.js';
+import { SLACK_ACTION_ID } from './slack-action-ids.js';
 
 export function buildSupersededBlocks(taskId: string): unknown[] {
   return [
@@ -139,13 +140,13 @@ export function buildOverrideCardBlocks(params: {
       {
         type: 'button',
         text: { type: 'plain_text', text: '🔄 Take Action', emoji: true },
-        action_id: 'override_take_action',
+        action_id: SLACK_ACTION_ID.OVERRIDE_TAKE_ACTION,
         value: taskId,
       },
       {
         type: 'button',
         text: { type: 'plain_text', text: '✅ Dismiss', emoji: true },
-        action_id: 'override_dismiss',
+        action_id: SLACK_ACTION_ID.OVERRIDE_DISMISS,
         value: taskId,
       },
     ],

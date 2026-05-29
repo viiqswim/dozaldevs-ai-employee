@@ -5,6 +5,7 @@ import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
+import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 
 const log = createLogger('rule-extractor');
 
@@ -189,20 +190,20 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
                   type: 'button',
                   text: { type: 'plain_text', text: '✅ Confirm' },
                   style: 'primary',
-                  action_id: 'rule_confirm',
+                  action_id: SLACK_ACTION_ID.RULE_CONFIRM,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '❌ Reject' },
                   style: 'danger',
-                  action_id: 'rule_reject',
+                  action_id: SLACK_ACTION_ID.RULE_REJECT,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '✏️ Rephrase' },
-                  action_id: 'rule_rephrase',
+                  action_id: SLACK_ACTION_ID.RULE_REPHRASE,
                   value: ruleId,
                 },
               ],
