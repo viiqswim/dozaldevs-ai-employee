@@ -86,7 +86,7 @@ COPY src/workers/config/agents.md /app/dist/workers/config/agents.md
 # Copy ALL worker tools into the image — no per-file COPY needed.
 # Adding a new tool or service? Just commit to src/worker-tools/ and rebuild.
 COPY --from=builder /build/src/worker-tools/ /tools/
-RUN cd /tools && npm install --production
+RUN cd /tools && rm -rf node_modules && CI=true pnpm install --prod --frozen-lockfile
 ENV NODE_PATH=/tools/node_modules
 
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"

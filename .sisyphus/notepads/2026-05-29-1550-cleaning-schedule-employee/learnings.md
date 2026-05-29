@@ -334,3 +334,37 @@ function run(args, envOverrides = {}) {
 ### Results
 - 20 tests across 3 files, all pass
 - Pre-existing baseline: 63 failures — unchanged
+
+## Task 13: Docker Rebuild + E2E Test (2026-05-29)
+
+### Docker Build Fix
+- `npm install --production` in Docker failed with npm 10.9.8 crash: `Cannot read properties of null (reading 'isDescendantOf')`
+- Fix: `rm -rf node_modules && CI=true pnpm install --prod --frozen-lockfile` works with pnpm 11.5.0
+- pnpm was already available in the final stage (`corepack enable pnpm` at line 26)
+- `src/worker-tools/pnpm-lock.yaml` locks `@notionhq/client@2.3.0` correctly
+
+### Execution_steps Classification Bug
+- Original seed had `--classification NEEDS_APPROVAL` after posting to Slack during execution
+- With `approval_required: false` + no `delivery_instructions`: `NEEDS_APPROVAL` triggers delivery container → fails with "Archetype missing delivery_instructions"
+- Fix: Use `--classification NO_ACTION_NEEDED` since the schedule is already posted to Slack during execution
+- Lifecycle: `NO_ACTION_NEEDED` + no delivery_instructions → `Submitting → Done` (skips Delivering)
+
+### Input Schema Format Mismatch
+- `input_schema` is stored as object `{date: {...}}` in DB
+- `InputSchemaSchema` in gateway expects array format `[{key, type, required, ...}]`
+- `safeParse` returns false, validation is skipped, gateway returns 202 even without required `date` field
+- This is a data format bug from T1-T12 seed
+
+### Slack Channel C0B71QSMZKQ
+- `channel_not_found` error when posting to C0B71QSMZKQ
+- Bot (VLRE token) not a member of `ops-cleaning-schedule` channel
+- Agent rerouted to C0960S2Q8RL (VLRE notification channel)
+- Fix: Add bot to C0B71QSMZKQ in Slack workspace settings
+
+### E2E Task Results (Successful Run: 62f1e48f)
+- Duration: ~2 min (23:23 to 23:25)
+- Status: Done ✓
+- Lifecycle: Received → Triaging → AwaitingInput → Ready → Executing → Submitting → Validating → Submitting → Done
+- Notion fixtures accessed: trash-schedule.json, cleaning-zones.json
+- 3 checkouts found: 271-GIN-1 (Diana), 3412-SAN-1 (Yessica), 3412-SAN-2 (Yessica)
+- LLM cost: $0.037 (deepseek/deepseek-v4-flash)

@@ -3559,7 +3559,7 @@ STEP 4 — Build the schedule message:
 
 STEP 5 — Post to Slack and submit:
 - Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NEEDS_APPROVAL
+- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
 IMPORTANT NOTES:
@@ -3640,7 +3640,7 @@ STEP 4 — Build the schedule message:
 
 STEP 5 — Post to Slack and submit:
 - Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NEEDS_APPROVAL
+- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
 IMPORTANT NOTES:
