@@ -6,10 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
+  if (!dateStr) return '—';
+  // PostgREST returns timestamps without a Z suffix; append Z to treat as UTC
+  const normalized = /[Z+\-]\d{0,4}$/.test(dateStr) ? dateStr : dateStr + 'Z';
+  const date = new Date(normalized);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
+  // Guard against clock skew producing negative diffs
+  const diffSec = Math.max(0, Math.floor(diffMs / 1000));
   const diffMin = Math.floor(diffSec / 60);
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
