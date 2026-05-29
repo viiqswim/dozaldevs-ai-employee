@@ -188,7 +188,10 @@ export function TaskFeed() {
 
   const filteredCosts = tenantCosts?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo);
   const totalCostUsd =
-    filteredCosts?.reduce((sum, t) => sum + (t.executions?.[0]?.estimated_cost_usd ?? 0), 0) ?? 0;
+    filteredCosts?.reduce(
+      (sum, t) => sum + (t.executions?.reduce((s, e) => s + (e.estimated_cost_usd ?? 0), 0) ?? 0),
+      0,
+    ) ?? 0;
   const costPerWorkHour =
     totalWorkMinutes > 0 && totalCostUsd > 0 ? totalCostUsd / (totalWorkMinutes / 60) : 0;
 
@@ -352,8 +355,9 @@ export function TaskFeed() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {(() => {
-                    const cost = task.executions?.[0]?.estimated_cost_usd;
-                    return cost != null && cost > 0 ? `$${cost.toFixed(4)}` : '—';
+                    const cost =
+                      task.executions?.reduce((s, e) => s + (e.estimated_cost_usd ?? 0), 0) ?? 0;
+                    return cost > 0 ? `$${cost.toFixed(4)}` : '—';
                   })()}
                 </TableCell>
               </TableRow>
