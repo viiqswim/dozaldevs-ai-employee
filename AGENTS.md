@@ -17,6 +17,8 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Seeded catalog models (global):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
 
+**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering.
+
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
 ## Deprecated Components
@@ -44,7 +46,11 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 
 ## Adding a New Employee
 
-1. Seed a new `archetypes` record: `role_name`, `identity`, `execution_steps`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`, `temperature` (default `1.0`). **Required for delivery**: `delivery_steps` and `delivery_instructions` — both must be non-empty for employees that produce deliverables; `delivery_instructions` is the platform constant prompt used by the delivery container. Optional: `notification_channel`, `enrichment_adapter`, `vm_size`. For new employees, use the recommendation engine (`POST /admin/tenants/:tenantId/archetypes/recommend-model`) to pick the optimal model from the catalog rather than hardcoding `minimax/minimax-m2.7`.
+**Wizard (primary path)**: Use the dashboard wizard at `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>`. Describe what the employee does in plain English → the archetype generator (`src/gateway/services/archetype-generator.ts`) auto-generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry` → save as draft → set `status` to `active` → trigger. For field quality validation, see the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md).
+
+**Manual seed (alternative)**:
+
+1. Seed a new `archetypes` record: `role_name`, `identity`, `execution_steps`, `model` (`minimax/minimax-m2.7`), `deliverable_type`, `runtime: 'opencode'`, `temperature` (default `1.0`), `tool_registry` (array of tool paths), `status` (`'draft'` | `'active'` — must be `'active'` to trigger). **Required for delivery**: `delivery_steps` and `delivery_instructions` — both must be non-empty for employees that produce deliverables; `delivery_instructions` is the platform constant prompt used by the delivery container. Optional: `notification_channel`, `enrichment_adapter`, `vm_size`. For new employees, use the recommendation engine (`POST /admin/tenants/:tenantId/archetypes/recommend-model`) to pick the optimal model from the catalog rather than hardcoding `minimax/minimax-m2.7`.
 2. If shell tools needed: add TypeScript scripts to `src/worker-tools/{service}/`. Follow the [Shell Tool Checklist](docs/guides/2026-05-04-1645-adding-a-shell-tool.md).
 3. Create `docs/employees/{slug}.md` with operational details (trigger, archetype IDs, channel IDs, gotchas, test resources).
 4. For **scheduled triggers**: configure cron on cron-job.org → `POST /admin/tenants/:tenantId/employees/:slug/trigger`.
@@ -52,7 +58,7 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 6. Add entry to Reference Documents table in AGENTS.md pointing to `docs/employees/{slug}.md`.
 7. Rebuild Docker image: `docker build -t ai-employee-worker:latest .`
 
-**Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, lifecycle short-circuits from `Submitting` directly to `Done`.
+**Approval gate**: Controlled per-archetype via `risk_model.approval_required`. When `false`, lifecycle short-circuits from `Submitting` to `Delivering` → `Done` (skips `Reviewing` and `Approved`).
 
 ## OpenCode Worker (All Employees)
 
@@ -78,24 +84,25 @@ Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.
 - **`autoupdate: false`**: Must be set in `src/workers/config/opencode.json` and `~/.config/opencode/opencode.json`.
-- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — states: Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done. Terminal: `Failed`, `Cancelled`. Two delivery paths: (1) `approval_required: true` → Submitting → Reviewing → Approved → Delivering → Done; (2) `approval_required: false` → Submitting → Delivering → Done (delivery container always spawns when `delivery_instructions` is set; skips only when `NO_ACTION_NEEDED` AND no `delivery_instructions`).
+- **Lifecycle**: `src/inngest/employee-lifecycle.ts` — states: Received → Triaging → AwaitingInput → Ready → Executing → Validating (auto-pass) → Submitting → Reviewing → Approved → Delivering → Done. Terminal: `Failed`, `Cancelled`. Two delivery paths: (1) `approval_required: true` → Submitting → Reviewing → Approved → Delivering → Done; (2) `approval_required: false` → Submitting → Delivering → Done (delivery container always spawns when `delivery_instructions` is set; skips only when `NO_ACTION_NEEDED` AND no `delivery_instructions`).
 - **Inngest functions** (active — 5): `employee/universal-lifecycle`, `employee/interaction-handler` (intent classification, `feedback_events`), `employee/rule-extractor` (`employee_rules`), `employee/rule-synthesizer` (`SYNTHESIS_THRESHOLD` = 5), `trigger/reviewing-watchdog` (15-min cron, marks stuck `Reviewing` → `Failed` after 30 min).
-- **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json`. Absence of BOTH is a hard failure.
+- **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed.
+- **Container naming**: Execution container: `employee-{taskId.slice(0,8)}`. Delivery container: `employee-delivery-{taskId.slice(0,8)}`. Find both with `docker ps --filter name=employee-`.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
 
 ## Skills System
 
 Skills are on-demand knowledge modules loaded by OpenCode agents. Before any non-trivial task, scan this list — if the domain overlaps, call `skill(name="skill-name")` before starting. Skills are free to load.
 
-| If you are about to…                                              | Load this skill        |
-| ----------------------------------------------------------------- | ---------------------- |
-| Create or modify a shell tool in `src/worker-tools/`              | `adding-shell-tools`   |
-| Debug a stuck or failed task in the lifecycle                     | `debugging-lifecycle`  |
-| Add or configure a new employee archetype                         | `creating-archetypes`  |
-| Call any Hostfully API or fix a Hostfully integration             | `hostfully-api`        |
-| Run or write E2E tests                                            | `e2e-testing`          |
-| Call any shell tool inside a worker container                     | `tool-usage-reference` |
-| Pass UUIDs (lead_uid, thread_uid, property_uid, etc.) to any tool | `uuid-disambiguation`  |
+| If you are about to…                                                              | Load this skill        |
+| --------------------------------------------------------------------------------- | ---------------------- |
+| Create or modify a shell tool in `src/worker-tools/`                              | `adding-shell-tools`   |
+| Debug a stuck or failed task, inspect container logs, or query task observability | `debugging-lifecycle`  |
+| Add or configure a new employee archetype                                         | `creating-archetypes`  |
+| Call any Hostfully API or fix a Hostfully integration                             | `hostfully-api`        |
+| Run or write E2E tests                                                            | `e2e-testing`          |
+| Call any shell tool inside a worker container                                     | `tool-usage-reference` |
+| Pass UUIDs (lead_uid, thread_uid, property_uid, etc.) to any tool                 | `uuid-disambiguation`  |
 
 **Employee skills** (baked into Docker image via `COPY src/workers/skills/ /app/.opencode/skills/`):
 
@@ -136,7 +143,7 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 | `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | `T0601SMSVEU` (Dozal Inc.) — must OAuth separately |
 | `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`)    |
 
-**`SLACK_BOT_TOKEN` in `.env` is the VLRE workspace bot token only.** It cannot access DozalDevs channels. Never store it as the DozalDevs tenant secret.
+**Two VLRE Slack tokens exist in `.env`**: `SLACK_BOT_TOKEN` (used by the gateway Bolt app for Socket Mode) and `VLRE_SLACK_BOT_TOKEN` (seed-only — used by `prisma/seed.ts` to populate `tenant_secrets` on DB reset). For API calls from scripts or testing, use `VLRE_SLACK_BOT_TOKEN`. Both hold the same VLRE workspace bot token value but serve different consumption points. Never store either as the DozalDevs tenant secret.
 
 For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-05-14-0040-slack-tenant-integration.md`.
 
@@ -236,6 +243,8 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
 **Task execution logs**: `/dashboard/tasks/:taskId/logs?tenant=:tenantId` — full-page formatted log viewer (noise-filtered, searchable, color-coded). Only available when a log file exists at `/tmp/employee-{taskId.slice(0,8)}.log` (local Docker mode).
 
+**Employee creation wizard**: `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>` — generates archetype fields from a plain-English description.
+
 ## Pre-existing Test Failures
 
 Do NOT attempt to fix these — they are unrelated to any recent changes:
@@ -316,7 +325,7 @@ src/
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
-│   ├── services/     # Business logic services (dispatcher, task creation, tenant/secret management, archetype generation, interaction classification, and more). Browse `src/gateway/services/` for the full list.
+│   ├── services/     # Business logic services: archetype generator (`archetype-generator.ts` — wizard LLM prompt for employee creation), dispatcher, task creation, tenant/secret management, interaction classification, and more. Browse `src/gateway/services/` for the full list.
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
@@ -447,6 +456,72 @@ Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `
 1. DB task row: `SELECT id, status, archetype_id FROM tasks WHERE id = '<taskId>'`
 2. Gateway structured logs: `grep '"runId":"<runId>"' /tmp/ai-dev.log`
 3. Inngest event payload: `http://localhost:8288` → Events tab → find `employee/task.dispatched`
+
+## Task Debugging Quick Reference
+
+Assumes `TASK_ID` is set in your shell. Container name prefix: `${TASK_ID:0:8}`. For deeper diagnostics (stuck states, root-cause tables, decision tree), load the `debugging-lifecycle` skill.
+
+**Task state:**
+
+```bash
+# Current status
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT status, updated_at FROM tasks WHERE id = '$TASK_ID';"
+
+# Full lifecycle trace
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT from_status, to_status, created_at FROM task_status_log WHERE task_id = '$TASK_ID' ORDER BY created_at;"
+```
+
+**Worker container** (active during `Executing`):
+
+```bash
+docker ps --filter name=employee-${TASK_ID:0:8}
+docker logs -f employee-${TASK_ID:0:8}
+```
+
+**Delivery container** (active during `Delivering`):
+
+```bash
+docker ps --filter name=employee-delivery-${TASK_ID:0:8}
+docker logs -f employee-delivery-${TASK_ID:0:8}
+```
+
+**Harness log** (persists after container exits — more complete than `docker logs`):
+
+```bash
+# Harness events only (skip OpenCode noise)
+grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -30
+
+# Errors and warnings only
+grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
+
+# Dashboard viewer (noise-filtered, recommended)
+# http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
+```
+
+**Execution metrics** (spot runaway LLM loops):
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT prompt_tokens, completion_tokens, estimated_cost_usd FROM executions WHERE task_id = '$TASK_ID';"
+```
+
+**Slack thread** (verify what was actually posted):
+
+```bash
+source .env
+CHANNEL=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -t -c "SELECT metadata->>'notify_slack_channel' FROM tasks WHERE id = '$TASK_ID';" | tr -d ' \n')
+NOTIFY_TS=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -t -c "SELECT metadata->>'notify_slack_ts' FROM tasks WHERE id = '$TASK_ID';" | tr -d ' \n')
+curl -s "https://slack.com/api/conversations.replies" \
+  -H "Authorization: Bearer $VLRE_SLACK_BOT_TOKEN" \
+  -d "channel=$CHANNEL&ts=$NOTIFY_TS&limit=20" \
+  | jq '[.messages[] | {ts: .ts, text: (.text | .[0:200])}]'
+```
+
+---
 
 ## Prometheus Planning — Telegram Notifications (MANDATORY)
 
@@ -585,18 +660,23 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 # http://localhost:7701/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
 ```
 
+**For full approval path testing** (wizard → execution → Reviewing → Approved → Delivering → Done): Use the wizard to generate a motivational message employee per the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md). Override the model to `deepseek/deepseek-v4-flash` via DB after saving. This exercises the full approval flow that `real-estate-motivation-bot-2` (which has `approval_required: false`) skips.
+
 ---
 
 ## Plan E2E Validation (MANDATORY)
 
 Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step.
 
-| Guide                                                              | Scenarios | Domain                                                                                    |
-| ------------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------- |
-| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure |
-| `docs/testing/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                   |
+| Guide                                                              | Scenarios | Domain                                                                                      |
+| ------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
+| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
+| `docs/testing/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                     |
+| `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`       | AC1–AC8   | Wizard generation, field quality, full lifecycle with approval, Slack delivery verification |
 
-**Minimum for any guest-messaging change**: Scenario A (approve happy path). Use the **Quick-Reference table** in each guide to identify which additional scenarios apply to your change.
+**Minimum for any guest-messaging change**: Slack UX Scenario A (approve happy path).
+**Minimum for any archetype generator, wizard, or delivery pipeline change**: AI Employee E2E guide (AC1–AC8).
+Use the **Quick-Reference table** in each guide to identify which additional scenarios apply to your change.
 
 ### Plan template (Final Verification Wave)
 
