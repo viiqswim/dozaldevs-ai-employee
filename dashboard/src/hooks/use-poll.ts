@@ -11,6 +11,7 @@ export interface UsePollResult<T> {
 export function usePoll<T>(
   fetchFn: () => Promise<T>,
   intervalMs: number = POLL_INTERVAL_MS,
+  enabled: boolean = true,
 ): UsePollResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -39,10 +40,11 @@ export function usePoll<T>(
   }, [execute]);
 
   useEffect(() => {
+    if (!enabled) return;
     void execute();
     const id = setInterval(() => void execute(), intervalMs);
     return () => clearInterval(id);
-  }, [execute, intervalMs]);
+  }, [execute, intervalMs, enabled]);
 
   return { data, error, loading, refresh };
 }
