@@ -723,11 +723,27 @@ async function main(): Promise<void> {
     }
 
     // 6. Run the OpenCode delivery session
+    if (!archetype.model) {
+      log.error(
+        { taskId: TASK_ID },
+        '[opencode-harness] Archetype has no model configured for delivery phase',
+      );
+      if (deliveryExecId) {
+        await db
+          .patch('executions', `id=eq.${deliveryExecId}`, {
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      }
+      await markFailed('Archetype has no model configured', null, 'Delivering', 'missing_model');
+      return;
+    }
     let deliveryResult: Awaited<ReturnType<typeof runOpencodeSession>> | null = null;
     try {
       deliveryResult = await runOpencodeSession(
         deliveryPrompt,
-        archetype.model ?? 'minimax/minimax-m2.7',
+        archetype.model,
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
         { minElapsedMs: 10_000 },
       );
@@ -839,7 +855,20 @@ async function main(): Promise<void> {
   const instructions = overrideDirection
     ? `OVERRIDE DIRECTION FROM HUMAN:\n${overrideDirection}\n\n---\n${EXECUTION_PROMPT}`
     : EXECUTION_PROMPT;
-  const model = archetype.model ?? 'minimax/minimax-m2.7';
+  if (!archetype.model) {
+    log.error(
+      { taskId: TASK_ID },
+      '[opencode-harness] Archetype has no model configured — cannot proceed',
+    );
+    await markFailed(
+      'Archetype has no model configured. Set a model in the employee settings before triggering.',
+      null,
+      'Executing',
+      'missing_model',
+    );
+    process.exit(1);
+  }
+  const model = archetype.model;
 
   if (!archetype.identity && !archetype.execution_steps) {
     log.warn(
