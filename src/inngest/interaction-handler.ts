@@ -11,6 +11,7 @@ import { TenantRepository } from '../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../lib/logger.js';
+import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 
 const log = createLogger('interaction-handler');
 
@@ -227,20 +228,20 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
                   type: 'button',
                   text: { type: 'plain_text', text: '✅ Confirm' },
                   style: 'primary',
-                  action_id: 'rule_confirm',
+                  action_id: SLACK_ACTION_ID.RULE_CONFIRM,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '❌ Reject' },
                   style: 'danger',
-                  action_id: 'rule_reject',
+                  action_id: SLACK_ACTION_ID.RULE_REJECT,
                   value: ruleId,
                 },
                 {
                   type: 'button',
                   text: { type: 'plain_text', text: '✏️ Rephrase' },
-                  action_id: 'rule_rephrase',
+                  action_id: SLACK_ACTION_ID.RULE_REPHRASE,
                   value: ruleId,
                 },
               ],
