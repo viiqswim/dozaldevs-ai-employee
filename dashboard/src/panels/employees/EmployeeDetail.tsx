@@ -20,7 +20,6 @@ import type { Archetype, Tenant, ModelCatalogEntry } from '@/lib/types';
 import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { EmployeeProfileLayout } from './EmployeeProfileLayout';
-import { ActivitySection } from './sections/ActivitySection';
 import { InputSchemaSection } from './sections/InputSchemaSection';
 import { TrainingTab } from './TrainingTab';
 import type { ProfileMode } from '@/lib/profile-constants';
@@ -52,6 +51,10 @@ export function EmployeeDetail() {
   const activeTab = searchParams.get('tab') ?? 'profile';
 
   const handleTabChange = (value: string) => {
+    if (value === 'activity') {
+      navigate(`/dashboard/tasks?employee=${archetypeId ?? ''}&tenant=${tenantId}`);
+      return;
+    }
     const next = new URLSearchParams(searchParams);
     if (value === 'profile') {
       next.delete('tab');
@@ -456,12 +459,6 @@ export function EmployeeDetail() {
             tenantId={tenantId}
             onSaved={refresh}
           />
-        </TabsContent>
-
-        <TabsContent value="activity">
-          <div className="rounded-lg border bg-card px-5 py-4">
-            <ActivitySection archetypeId={archetype.id} />
-          </div>
         </TabsContent>
 
         <TabsContent value="training">
