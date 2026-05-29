@@ -49,7 +49,7 @@ Received
 **Shortcircuit paths (approval_required=false):**
 
 ```
-... → Submitting → Done   (no Reviewing step)
+... → Submitting → Delivering → Done   (no Reviewing step)
 ```
 
 **Pre-check shortcircuit (guest-messaging only):**
@@ -63,6 +63,21 @@ Received → Done   (<5s, last message from host — no worker spawned)
 ```
 ... → Submitting → Done   (worker returned NO_ACTION_NEEDED classification)
 ```
+
+---
+
+## Service Health Checks (Run First)
+
+Before diagnosing any task issue, confirm all services are up:
+
+| Service        | Command                                                                   | Expected           |
+| -------------- | ------------------------------------------------------------------------- | ------------------ |
+| Gateway        | `curl -s http://localhost:7700/health \| jq .`                            | `{"status":"ok"}`  |
+| Inngest        | `curl -s http://localhost:8288/health \| jq .`                            | `{"status":"ok"}`  |
+| Dashboard      | `curl -s http://localhost:7701/dashboard/ -o /dev/null -w "%{http_code}"` | `200`              |
+| Inngest Dev UI | Open `http://localhost:8288`                                              | Visual run history |
+
+If gateway is down: `pnpm dev`. If Docker image is stale: `docker build -t ai-employee-worker:latest .`
 
 ---
 
@@ -100,6 +115,22 @@ fly logs -a ai-employee-workers
 # Local Docker
 docker logs employee-<first-8-chars-of-taskId>
 # e.g. for task id abc12345-...: docker logs employee-abc12345
+```
+
+**Harness log file** (persists after container exits — more complete than `docker logs`):
+
+```bash
+# Full log (often 1–5 MB)
+cat /tmp/employee-${TASK_ID:0:8}.log
+
+# Harness events only (skip OpenCode server noise)
+grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -30
+
+# Errors and warnings only (level 40 = warn, level 50 = error)
+grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
+
+# Dashboard viewer (noise-filtered, recommended for human reading)
+# http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
 ```
 
 ---
@@ -165,6 +196,16 @@ fly logs -a ai-employee-workers
 # look for employee-delivery-<first-8-chars>
 ```
 
+**Local Docker mode:**
+
+```bash
+# Find delivery container
+docker ps --filter name=employee-delivery-${TASK_ID:0:8}
+
+# Tail delivery logs
+docker logs -f employee-delivery-${TASK_ID:0:8}
+```
+
 **Possible causes:**
 
 - Archetype missing `delivery_instructions` → lifecycle marks `Failed` with reason `Archetype missing delivery_instructions`
@@ -227,6 +268,19 @@ curl "http://localhost:54331/rest/v1/task_status_log?task_id=eq.<taskId>&order=c
   -H "apikey: $SUPABASE_SECRET_KEY" \
   -H "Authorization: Bearer $SUPABASE_SECRET_KEY"
 ```
+
+---
+
+## Execution Metrics (Token Usage & Cost)
+
+Spot runaway LLM loops or unexpectedly expensive runs:
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT prompt_tokens, completion_tokens, estimated_cost_usd FROM executions WHERE task_id = '$TASK_ID';"
+```
+
+**Red flags**: `completion_tokens > 50000` (model looping), `estimated_cost_usd > 0.50` (expensive run for a simple employee).
 
 ---
 
@@ -373,3 +427,37 @@ Every state change updates the "Task received" Slack notification message (if `n
 | Cancelled / Expired | ⏰ Expired — no action taken          |
 
 If the notification message isn't updating, check `task.metadata.notify_slack_ts` is set (logged as `notify_slack_ts stored in task metadata` in lifecycle logs).
+
+---
+
+## Slack Thread Inspection
+
+Check what was actually posted to the notification thread:
+
+```bash
+source .env
+CHANNEL=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -t -c "SELECT metadata->>'notify_slack_channel' FROM tasks WHERE id = '$TASK_ID';" | tr -d ' \n')
+NOTIFY_TS=$(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -t -c "SELECT metadata->>'notify_slack_ts' FROM tasks WHERE id = '$TASK_ID';" | tr -d ' \n')
+
+curl -s "https://slack.com/api/conversations.replies" \
+  -H "Authorization: Bearer $VLRE_SLACK_BOT_TOKEN" \
+  -d "channel=$CHANNEL&ts=$NOTIFY_TS&limit=20" \
+  | jq '[.messages[] | {ts: .ts, text: (.text | .[0:200])}]'
+```
+
+**Expected thread structure (approval path):**
+
+| Position | Content                                                             |
+| -------- | ------------------------------------------------------------------- |
+| MSG 0    | Original notify-received message (updated to ✅ Done at completion) |
+| MSG 1    | Approval card (ts also stored in `pending_approvals.slack_ts`)      |
+| MSG 2    | Delivery message with actual content                                |
+
+Get channel and ts from `tasks.metadata` if not already set in your shell:
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT metadata->>'notify_slack_channel', metadata->>'notify_slack_ts' FROM tasks WHERE id = '$TASK_ID';"
+```
