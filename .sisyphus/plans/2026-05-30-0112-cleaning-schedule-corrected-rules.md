@@ -695,19 +695,19 @@ Max Concurrent: 2 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` (check for type errors in changed files). Review seed.ts changes for: hardcoded costs (forbidden), missing `--fixture` flags, stale page IDs. Check fixture JSON is valid. Verify no `default.json` references remain.
       Output: `Build [PASS/FAIL] | Fixtures [N valid] | Seed.ts [CLEAN/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Verify the Slack message posted by T4. Check: no "Loft" for Austin properties, correct costs match Reporte Financiero, correct team assignments by ZIP, CHECK-IN/CHECK-OUT context visible, no trash for King Charles/Paul St. If 3420 Hovenweep has a checkout, verify it appears first in Austin section.
       Output: `Billing Rule [PASS/FAIL] | Costs [N/N correct] | Teams [PASS/FAIL] | Context [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Verify only `execution_steps` and `identity` changed in seed.ts (not `risk_model`, `tool_registry`, `input_schema`, `delivery_steps`, `delivery_instructions`). Verify model was restored to `minimax/minimax-m2.7` after testing. Verify old fixtures deleted, new fixtures created. Verify docs updated with all 3 new page IDs.
       Output: `Scope [CLEAN/N issues] | Model [restored/not restored] | Files [N/N correct] | VERDICT`
 
