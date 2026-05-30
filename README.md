@@ -214,7 +214,7 @@ pnpm lint     # ESLint
 pnpm build    # TypeScript compile
 ```
 
-**Expected results**: All tests should pass with 0 failures. Two pre-existing skips are expected and intentional: `inngest-serve.test.ts` (function count check hardcodes `2` but 9 functions are registered; stale assertion, do not fix) and `container-boot.test.ts` (skips all 4 tests when Docker is unavailable — not a failure).
+**Expected results**: All tests should pass with 0 failures. One pre-existing skip is expected and intentional: `container-boot.test.ts` skips all 4 tests when Docker is unavailable — not a failure.
 
 ## Environment File Conventions
 

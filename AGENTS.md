@@ -251,7 +251,6 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 Do NOT attempt to fix these — they are unrelated to any recent changes:
 
 - `container-boot.test.ts` — requires Docker socket; all 4 tests skip via `describe.skipIf` when Docker is unavailable
-- `inngest-serve.test.ts` — function count check hardcodes `function_count === 2` but 9 functions are registered; stale assertion, do not fix
 
 ## Database
 
