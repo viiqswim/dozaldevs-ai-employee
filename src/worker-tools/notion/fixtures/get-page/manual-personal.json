@@ -1,0 +1,645 @@
+{
+  "object": "list",
+  "results": [
+    {
+      "object": "block",
+      "id": "370d540b-4380-8024-a359-c7a34893ce80",
+      "type": "heading_1",
+      "has_children": false,
+      "in_trash": false,
+      "heading_1": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🧑‍🤝‍🧑 DIRECTORIO DE EQUIPOS POR CÓDIGO POSTAL", "link": null },
+            "plain_text": "🧑‍🤝‍🧑 DIRECTORIO DE EQUIPOS POR CÓDIGO POSTAL",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80aa-8efc-d199c930bfb4",
+      "type": "heading_3",
+      "has_children": false,
+      "in_trash": false,
+      "heading_3": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Códigos 78744 y 78640 (Austin / Kyle)", "link": null },
+            "plain_text": "Códigos 78744 y 78640 (Austin / Kyle)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8035-b3ba-f95c7834eb7f",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Yessica:", "link": null },
+            "plain_text": "Yessica:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": {
+              "content": " Equipo principal. Lunes a Viernes (7 horas, 10AM-5PM) y Sábados (11AM - 3PM).",
+              "link": null
+            },
+            "plain_text": " Equipo principal. Lunes a Viernes (7 horas, 10AM-5PM) y Sábados (11AM - 3PM).",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8095-ba00-ec0d9f71d0f3",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Diana:", "link": null },
+            "plain_text": "Diana:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": { "content": " Exclusiva para la propiedad ", "link": null },
+            "plain_text": " Exclusiva para la propiedad ",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": { "content": "271 Gina Dr", "link": null },
+            "plain_text": "271 Gina Dr",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": true,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": {
+              "content": " (78640) todos los días. También es backup entre semana en el resto de los códigos 78744 y 78640 (excepto domingos).",
+              "link": null
+            },
+            "plain_text": " (78640) todos los días. También es backup entre semana en el resto de los códigos 78744 y 78640 (excepto domingos).",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80bc-b41b-feb6eacfd3f3",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Berenice / Angela / Susana: Equipos de backup para fines de semana, o si Yessica excede sus 7 horas diarias. (Susana requiere anticipación).",
+              "link": null
+            },
+            "plain_text": "Berenice / Angela / Susana: Equipos de backup para fines de semana, o si Yessica excede sus 7 horas diarias. (Susana requiere anticipación).",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-805c-a2ad-d13466e3b5ea",
+      "type": "heading_3",
+      "has_children": false,
+      "in_trash": false,
+      "heading_3": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Códigos 78203 y 78109 (San Antonio / Converse)", "link": null },
+            "plain_text": "Códigos 78203 y 78109 (San Antonio / Converse)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8053-a6c8-e074eaddbda0",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Zenaida:", "link": null },
+            "plain_text": "Zenaida:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": { "content": " Equipo primario, disponible todos los días.", "link": null },
+            "plain_text": " Equipo primario, disponible todos los días.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8026-b744-d24b7746da84",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Abi y Rocio:", "link": null },
+            "plain_text": "Abi y Rocio:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": { "content": " Lunes a Viernes.", "link": null },
+            "plain_text": " Lunes a Viernes.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8013-a571-fcae3a6d1f99",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Norma:", "link": null },
+            "plain_text": "Norma:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": { "content": " Fines de semana y backup.", "link": null },
+            "plain_text": " Fines de semana y backup.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-802a-b695-f858db09becd",
+      "type": "heading_3",
+      "has_children": false,
+      "in_trash": false,
+      "heading_3": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Código 80421 (Bailey, CO)", "link": null },
+            "plain_text": "Código 80421 (Bailey, CO)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80d4-98da-e8b4dc19c7c5",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Mary o Carrie", "link": null },
+            "plain_text": "Mary o Carrie",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8074-9047-d737b773ea27",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "⚙️ REGLAS LÓGICAS DE PROGRAMACIÓN", "link": null },
+            "plain_text": "⚙️ REGLAS LÓGICAS DE PROGRAMACIÓN",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8048-b1a9-efd21cd734f4",
+      "type": "numbered_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "numbered_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Regla de Cobro (Check-In): El costo y tiempo de limpieza se calcula siempre en base a los CHECK-INs, no a los CHECK-OUTs. Ejemplos: Si un Home hace checkout y 4 Rooms hacen check-in, se cobran los 4 cuartos. Si 4 Rooms hacen checkout y un Home hace check-in, se cobra el Home. Si hay checkout sin check-in ese día, se cobra como cuartos (no como Home). El output debe indicar claramente qué hace CHECK-IN y qué hace CHECK-OUT para que el limpiador tenga contexto completo.",
+              "link": null
+            },
+            "plain_text": "Regla de Cobro (Check-In): El costo y tiempo de limpieza se calcula siempre en base a los CHECK-INs, no a los CHECK-OUTs. Ejemplos: Si un Home hace checkout y 4 Rooms hacen check-in, se cobran los 4 cuartos. Si 4 Rooms hacen checkout y un Home hace check-in, se cobra el Home. Si hay checkout sin check-in ese día, se cobra como cuartos (no como Home). El output debe indicar claramente qué hace CHECK-IN y qué hace CHECK-OUT para que el limpiador tenga contexto completo.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8068-bfcd-dd21a071e557",
+      "type": "numbered_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "numbered_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Tiempos Extra por Traslado (Operational Overhead):",
+              "link": null
+            },
+            "plain_text": "Tiempos Extra por Traslado (Operational Overhead):",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80b3-9b56-c847b8bb6c4b",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Solo aplica para los códigos 78744 y 78640.", "link": null },
+            "plain_text": "Solo aplica para los códigos 78744 y 78640.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80fc-8ea3-f156893a7f13",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Si no hay check-ins ni limpiezas programadas en el día, pero hay tareas de basura pendientes, programa 45 minutos de traslado (ida y vuelta desde el hogar del limpiador a la propiedad).",
+              "link": null
+            },
+            "plain_text": "Si no hay check-ins ni limpiezas programadas en el día, pero hay tareas de basura pendientes, programa 45 minutos de traslado (ida y vuelta desde el hogar del limpiador a la propiedad).",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80be-a6b8-d3aa6d0432fc",
+      "type": "numbered_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "numbered_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Distribución Equitativa:", "link": null },
+            "plain_text": "Distribución Equitativa:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          },
+          {
+            "type": "text",
+            "text": {
+              "content": " Si hay múltiples equipos operando en el mismo código postal un mismo día, se debe intentar repartir las salidas de una misma casa (ej. varios cuartos) a una sola persona, y equilibrar la carga de horas de manera justa.",
+              "link": null
+            },
+            "plain_text": " Si hay múltiples equipos operando en el mismo código postal un mismo día, se debe intentar repartir las salidas de una misma casa (ej. varios cuartos) a una sola persona, y equilibrar la carga de horas de manera justa.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80b7-88c2-e8b2075a8456",
+      "type": "numbered_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "numbered_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "Reglas de Basura:", "link": null },
+            "plain_text": "Reglas de Basura:",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80ec-9824-f62ec92ce3d7",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "ZIPs 78744 y 78640: Programar recordatorio 1 día antes de la recolección.",
+              "link": null
+            },
+            "plain_text": "ZIPs 78744 y 78640: Programar recordatorio 1 día antes de la recolección.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8075-844c-f4f4bf3f47e0",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "ZIPs 78203 y 78109: Programar recordatorio 2 días antes, y nuevamente 1 día antes.",
+              "link": null
+            },
+            "plain_text": "ZIPs 78203 y 78109: Programar recordatorio 2 días antes, y nuevamente 1 día antes.",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8006-a7b4-d2a6b361da53",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Si el día analizado es día oficial de recolección en esa propiedad, añadir la tarea: \"Confirmar recolección y Guardar botes\".",
+              "link": null
+            },
+            "plain_text": "Si el día analizado es día oficial de recolección en esa propiedad, añadir la tarea: \"Confirmar recolección y Guardar botes\".",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

@@ -26,14 +26,15 @@ Replace `YYYY-MM-DD` with the target date (e.g. `2026-06-01`).
 
 ## Notion Pages
 
-| Page           | ID                                 | URL                                                      |
-| -------------- | ---------------------------------- | -------------------------------------------------------- |
-| Trash schedule | `36fd540b4380809ca373ca83e90216a3` | `https://www.notion.so/36fd540b4380809ca373ca83e90216a3` |
-| Cleaning zones | `36fd540b438080b2be9cf4b4218d657b` | `https://www.notion.so/36fd540b438080b2be9cf4b4218d657b` |
+| Page Name            | Page ID                            | Fixture Name           |
+| -------------------- | ---------------------------------- | ---------------------- |
+| Directorio Operativo | `370d540b4380809a8ea0c11074f92abb` | `directorio-operativo` |
+| Manual de Personal   | `370d540b438080969a72c16c20defc70` | `manual-personal`      |
+| Reporte Financiero   | `370d540b438080ca8676e61856488960` | `reporte-financiero`   |
 
 ## Setup Checklist
 
-1. **Notion OAuth** — connect via `GET /auth/notion/connect?tenantId=00000000-0000-0000-0000-000000000003`. During the Notion page picker, **select BOTH cleaning pages** (trash schedule and cleaning zones). If only one is selected, the employee can only read that page.
+1. **Notion OAuth** — connect via `GET /auth/notion/connect?tenantId=00000000-0000-0000-0000-000000000003`. During the Notion page picker, **select all three cleaning pages** (Directorio Operativo, Manual de Personal, Reporte Financiero). If any page is not selected, the employee cannot read it.
 2. **Verify secrets** — after OAuth, confirm `notion_access_token` is set:
    ```bash
    curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets" \
@@ -97,6 +98,41 @@ The Notion integration only has access to pages explicitly selected during OAuth
    ```
 5. Approve the Slack card in `#ops-cleaning-schedule` when it appears
 6. Verify task reaches `Done` and the Notion page was updated
+
+## Business Rules
+
+### Check-In Billing Rule (replaces Golden Rule)
+
+Cost and cleaning time are determined by what's **checking IN**, not what's checking out:
+
+- Home checks out + Rooms check in → charge Room rates
+- Rooms check out + Home checks in → charge Home rate
+- Checkout with no check-in → prepare as Rooms (not Home)
+- Home + Loft (407 S Gevers) are separate physical units — charge both individually
+
+### Team Assignment by ZIP
+
+- ZIPs 78744 / 78640 (Austin/Kyle): Yessica (primary), Diana (backup)
+- ZIPs 78203 / 78109 (San Antonio/Converse): Zenaida (primary), backup team
+
+### Route Priority
+
+- 3420 Hovenweep Ave gets first slot when it has a checkout (10AM checkout priority)
+
+### Travel Overhead (45 min)
+
+- Only applies to ZIPs 78744/78640 on trash-only days (no cleanings scheduled)
+- Represents round-trip travel time from cleaner's home
+- 271 Gina Dr is NOT an exception
+
+### Trash Skip
+
+- 5306 King Charles Dr: owners handle trash — skip trash tasks
+- 219 Paul St: bin always on street — skip trash tasks
+
+### Backup Threshold
+
+- 7 hours (420 min) — if total work exceeds this, assign backup team
 
 ## Tenant Secrets Required
 
