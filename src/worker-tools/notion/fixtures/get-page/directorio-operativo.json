@@ -1,0 +1,1411 @@
+{
+  "object": "list",
+  "results": [
+    {
+      "object": "block",
+      "id": "370d540b-4380-804d-bdad-fff18e9540fd",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📍 ZIP CODE: 78744 (Austin, TX)", "link": null },
+            "plain_text": "📍 ZIP CODE: 78744 (Austin, TX)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8069-ada6-d5c08005a92f",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "3401 Breckenridge Dr", "link": null },
+            "plain_text": "3401 Breckenridge Dr",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8007-9065-e2e070293c0a",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home | Rooms 1-3", "link": null },
+            "plain_text": "🏠 Unidades: Home | Rooms 1-3",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8040-9534-e544a19d95f9",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80e4-9148-eeaa85c21acb",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "3412 Sand Dunes Ave", "link": null },
+            "plain_text": "3412 Sand Dunes Ave",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8043-bd6b-ff62524d9180",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home | Rooms 1-4", "link": null },
+            "plain_text": "🏠 Unidades: Home | Rooms 1-4",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-804c-94ce-dc1b76dfcbe6",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80c1-b4f3-ca3d0186b960",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "3420 Hovenweep Ave", "link": null },
+            "plain_text": "3420 Hovenweep Ave",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80ed-8f9e-e7c949c7deb7",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home | Rooms 1-3", "link": null },
+            "plain_text": "🏠 Unidades: Home | Rooms 1-3",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8075-8877-fed14d2d7093",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "⏰ Check-out: 10:00 AM (Prioridad de Ruta)", "link": null },
+            "plain_text": "⏰ Check-out: 10:00 AM (Prioridad de Ruta)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-805e-bf48-edf5fff288b7",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-804d-98d9-f2a2f080781f",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "4403 Hayride Ln", "link": null },
+            "plain_text": "4403 Hayride Ln",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8024-b516-d456709c1dff",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home (Unidades A, B y C)", "link": null },
+            "plain_text": "🏠 Unidades: Home (Unidades A, B y C)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8073-b9d4-f1a25202d0a8",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🗑️ Basura: Jueves (Sacar Miércoles)", "link": null },
+            "plain_text": "🗑️ Basura: Jueves (Sacar Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-802f-8430-e367d77e9c8a",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "4405 Hayride Ln", "link": null },
+            "plain_text": "4405 Hayride Ln",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-808d-9d38-f9321ea86706",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home (Unidades A y B)", "link": null },
+            "plain_text": "🏠 Unidades: Home (Unidades A y B)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-805e-a9bf-d50194de837b",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🗑️ Basura: Jueves (Sacar Miércoles)", "link": null },
+            "plain_text": "🗑️ Basura: Jueves (Sacar Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80d9-a942-e7ae6c05059c",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "4410 Hayride Ln", "link": null },
+            "plain_text": "4410 Hayride Ln",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80c6-b489-d78ed6fc2de4",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Bundle | Home (Unidades A y B)", "link": null },
+            "plain_text": "🏠 Unidades: Bundle | Home (Unidades A y B)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8062-9da8-c1a049d5ef9c",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🗑️ Basura: Jueves (Sacar Miércoles)", "link": null },
+            "plain_text": "🗑️ Basura: Jueves (Sacar Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80ce-a45e-c55f19f783ee",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "6002 Palm Circle", "link": null },
+            "plain_text": "6002 Palm Circle",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8099-88bc-e91d02d0627d",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home", "link": null },
+            "plain_text": "🏠 Unidades: Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8025-a3a4-e064dd8ee95e",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes (Sacar Lunes) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8053-b304-d4410c1174de",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "7213 Nutria Run", "link": null },
+            "plain_text": "7213 Nutria Run",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8008-a86c-c74852686f8f",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home | Rooms 1-5", "link": null },
+            "plain_text": "🏠 Unidades: Home | Rooms 1-5",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8039-bddb-ebcda4944016",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-801f-9b9b-ec5915c6c9c4",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "5306 King Charles Dr", "link": null },
+            "plain_text": "5306 King Charles Dr",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8086-90a7-e46dad9c9887",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home A", "link": null },
+            "plain_text": "🏠 Unidades: Home A",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80e7-9a75-f376fae10a99",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Jueves (⚠️ Los propietarios se encargan de sacarlo)",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Jueves (⚠️ Los propietarios se encargan de sacarlo)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80a1-86e6-e857f0a0ece5",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "4402 McKinney Falls Pkwy (4402-MCK)", "link": null },
+            "plain_text": "4402 McKinney Falls Pkwy (4402-MCK)",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-801f-b290-d556ba823b1d",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: (No especificado)", "link": null },
+            "plain_text": "🏠 Unidades: (No especificado)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-800c-bcb8-efeb4fbf893a",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🗑️ Basura: Jueves (Sacar Miércoles)", "link": null },
+            "plain_text": "🗑️ Basura: Jueves (Sacar Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8028-88f0-dda59cd850a4",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📍 ZIP CODE: 78640 (Kyle, TX)", "link": null },
+            "plain_text": "📍 ZIP CODE: 78640 (Kyle, TX)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8012-a67a-ebdab89d2a2b",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "271 Gina Dr", "link": null },
+            "plain_text": "271 Gina Dr",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8086-8708-dcd46ecc4dca",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Rooms 1-4 | Home", "link": null },
+            "plain_text": "🏠 Unidades: Rooms 1-4 | Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8087-9d18-d9c23f35d643",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80db-9342-d112505a2fe0",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "3505 Banton Rd", "link": null },
+            "plain_text": "3505 Banton Rd",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-806d-aaae-c68d9f50a91d",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home | Rooms 1-3", "link": null },
+            "plain_text": "🏠 Unidades: Home | Rooms 1-3",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8014-bf13-fa620abf67f0",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Viernes (Sacar Jueves) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Viernes (Sacar Jueves) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8041-9e41-c5cb5401fd2f",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📍 ZIP CODE: 78203 & 78210 (San Antonio, TX)", "link": null },
+            "plain_text": "📍 ZIP CODE: 78203 & 78210 (San Antonio, TX)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80c0-9aba-c21a762dc8e0",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "407 S Gevers St", "link": null },
+            "plain_text": "407 S Gevers St",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8086-828d-ed35fddc4ae5",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Bundle | Home | Loft", "link": null },
+            "plain_text": "🏠 Unidades: Bundle | Home | Loft",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80eb-918f-e4535f66a820",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes y Jueves (Sacar Lunes y Miércoles)",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes y Jueves (Sacar Lunes y Miércoles)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-808e-8997-d6b22092a46c",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "219 Paul St", "link": null },
+            "plain_text": "219 Paul St",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80d5-8680-cdfb0f63144b",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home", "link": null },
+            "plain_text": "🏠 Unidades: Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80a9-95ea-c98efbaa3077",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes y Jueves (⚠️ El bote siempre está en la calle)",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes y Jueves (⚠️ El bote siempre está en la calle)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-808e-a8b9-fc31e332d7b4",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "8039 Chestnut Cedar", "link": null },
+            "plain_text": "8039 Chestnut Cedar",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-805d-904d-f4a27ff16e0b",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home", "link": null },
+            "plain_text": "🏠 Unidades: Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80de-8300-d32674ce7214",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🗑️ Basura: Martes (Sacar Lunes) - General", "link": null },
+            "plain_text": "🗑️ Basura: Martes (Sacar Lunes) - General",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80a3-8763-d2868877e26e",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📍 ZIP CODE: 78109 (Converse, TX)", "link": null },
+            "plain_text": "📍 ZIP CODE: 78109 (Converse, TX)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-801d-aa6b-cdfe21dd4c47",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "6930 Heron Flats", "link": null },
+            "plain_text": "6930 Heron Flats",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8039-8848-db9e9bdc294c",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home", "link": null },
+            "plain_text": "🏠 Unidades: Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80b9-ae27-ffb4a311fa3c",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Martes y Viernes (Sacar Lunes y Jueves) - General",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Martes y Viernes (Sacar Lunes y Jueves) - General",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8024-8383-c9c35193518a",
+      "type": "heading_2",
+      "has_children": false,
+      "in_trash": false,
+      "heading_2": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "📍 ZIP CODE: 80421 (Bailey, CO)", "link": null },
+            "plain_text": "📍 ZIP CODE: 80421 (Bailey, CO)",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8098-ba74-f232d4bc4768",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "1602 Bluebird Ln", "link": null },
+            "plain_text": "1602 Bluebird Ln",
+            "annotations": {
+              "bold": true,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-80ee-9d90-e8eef7b4449a",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": { "content": "🏠 Unidades: Home", "link": null },
+            "plain_text": "🏠 Unidades: Home",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "object": "block",
+      "id": "370d540b-4380-8022-a736-ccd3fa61ca59",
+      "type": "bulleted_list_item",
+      "has_children": false,
+      "in_trash": false,
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+              "link": null
+            },
+            "plain_text": "🗑️ Basura: Lunes (Sacar Domingo) - General/Reciclaje",
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
