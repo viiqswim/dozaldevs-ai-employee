@@ -76,7 +76,7 @@ async function main(): Promise<void> {
 
   for (;;) {
     const url = cursor
-      ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&cursor=${encodeURIComponent(cursor)}`
+      ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&_cursor=${encodeURIComponent(cursor)}`
       : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
 
     const res = await fetch(url, { headers });
