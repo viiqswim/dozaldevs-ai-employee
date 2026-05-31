@@ -3555,11 +3555,20 @@ STEP 1 — Get Hostfully reservations for the target date:
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
 - ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
+SIBLING UNITS AUDIT (MANDATORY): For each address where you found at least one checkout, you MUST verify ALL other Hostfully listings at that same address. Do NOT assume that because NUT-3 and NUT-5 have checkouts, NUT-2 and NUT-4 have none. Concrete procedure:
+- After building list A (CHECKOUTS), group all properties by street address
+- For every address that has at least one checkout, find ALL Hostfully properties at that same address in your get-properties.ts output
+- For any property at that address that you have NOT yet checked with get-reservations.ts, run get-reservations.ts for it now with the same date range
+- Apply the same date filter: checkOut.substring(0,10) === targetDate → add to list A
+- This audit is especially critical for multi-unit addresses: 7213 Nutria Run (NUT-1 through NUT-5 and NUT-HOME), 3420 Hovenweep Ave (HOV-1 through HOV-5 and HOV-HOME), 4403 Hayride Ln (multiple units), 407 S Gevers St, 271 Gina Dr
+- If you find additional checkouts during this audit, add them to list A before continuing
+
 CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
 - If a property has a checkout AND a check-in on the same day → use the check-in unit type and its rate
 - If Home checks out + Rooms check in → charge Room rates
 - If Rooms check out + Home checks in → charge Home rate ($120/100 min for HOV address)
+  ⚠️ EXAMPLE: HOV-3 checks out AND HOV-HOME checks in on same day → HOV-3 entry uses $120/100 min (Home rate), NOT $30/25 min (Room rate). The billing rule overrides the default room rate.
 - If Rooms check out + Rooms check in → charge Room rates
 - If there is a checkout but NO check-in on that day → still clean the property, but charge it as Rooms (not as Home)
 - RATE LOOKUP EXAMPLE: HOV-3 (Room 3) checks out, HOV-HOME checks in → billing rule says "Rooms out + Home in → Home rate" → look up "3420 Hovenweep Ave Home" in Reporte Financiero → $120/100 min → use THOSE values for the HOV-3 cleaning entry
@@ -3570,6 +3579,16 @@ The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on t
 - 407 S Gevers St has two SEPARATE physical units (Home and Loft) — always charge both individually regardless of check-in/out patterns
 - Bundle = multiple units rented together as one Hostfully booking (listing type is "Bundle") → use Bundle rate
 - Costs and durations come from the Reporte Financiero Notion page — NEVER hardcode them
+- HARD RATE RULE — 7213 Nutria Run (NON-NEGOTIABLE — READ CAREFULLY):
+  - The Reporte Financiero entry for 7213 Nutria Run reads: "Home ($160 - 185 min) | Rooms 1-4 ($30 c/u - 25 min) | Room 5 ($40 - 40 min)"
+  - $160 / 185 min = NUT-HOME ONLY. NEVER apply $160 to any individual room.
+  - NUT-1, NUT-2, NUT-3, NUT-4 (Rooms 1-4): ALWAYS $30 / 25 min each. No exceptions.
+  - NUT-5 (Room 5): ALWAYS $40 / 40 min. No exceptions.
+  - NUT-HOME: $160 / 185 min.
+  - WRONG: NUT-2 = $160 (this is the Home rate — do NOT use for rooms)
+  - CORRECT: NUT-2 = $30 / 25 min
+  - CORRECT: NUT-3 = $30 / 25 min
+  - CORRECT: NUT-5 = $40 / 40 min
 
 STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
 - IMPORTANT: Run Notion commands exactly as shown below WITHOUT setting NOTION_MOCK=true. The --fixture flag is just a name hint — do not enable mock mode.
@@ -3651,9 +3670,14 @@ RULES:
 - Single-unit properties: just show address, no room identifier
 - If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
 
-STEP 5 — Post to Slack and submit:
-- Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output (MANDATORY — task will hang indefinitely without this): tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+STEP 5 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+⚠️ THIS STEP IS ATOMIC AND IRREVERSIBLE. Execute steps A and B in order, then STOP:
+  A. Call post-message.ts ONCE: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
+  B. IMMEDIATELY call submit-output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+     Do NOT re-evaluate or re-examine your work between A and B.
+     Do NOT call post-message.ts a second time under ANY circumstances.
+     If you think you made an error: call submit-output anyway and stop.
+     A second call to post-message.ts = task failure.
 - NEVER call report-issue instead of submit-output — always call submit-output to end the task
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
@@ -3738,11 +3762,20 @@ STEP 1 — Get Hostfully reservations for the target date:
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
 - ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
+SIBLING UNITS AUDIT (MANDATORY): For each address where you found at least one checkout, you MUST verify ALL other Hostfully listings at that same address. Do NOT assume that because NUT-3 and NUT-5 have checkouts, NUT-2 and NUT-4 have none. Concrete procedure:
+- After building list A (CHECKOUTS), group all properties by street address
+- For every address that has at least one checkout, find ALL Hostfully properties at that same address in your get-properties.ts output
+- For any property at that address that you have NOT yet checked with get-reservations.ts, run get-reservations.ts for it now with the same date range
+- Apply the same date filter: checkOut.substring(0,10) === targetDate → add to list A
+- This audit is especially critical for multi-unit addresses: 7213 Nutria Run (NUT-1 through NUT-5 and NUT-HOME), 3420 Hovenweep Ave (HOV-1 through HOV-5 and HOV-HOME), 4403 Hayride Ln (multiple units), 407 S Gevers St, 271 Gina Dr
+- If you find additional checkouts during this audit, add them to list A before continuing
+
 CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
 - If a property has a checkout AND a check-in on the same day → use the check-in unit type and its rate
 - If Home checks out + Rooms check in → charge Room rates
 - If Rooms check out + Home checks in → charge Home rate ($120/100 min for HOV address)
+  ⚠️ EXAMPLE: HOV-3 checks out AND HOV-HOME checks in on same day → HOV-3 entry uses $120/100 min (Home rate), NOT $30/25 min (Room rate). The billing rule overrides the default room rate.
 - If Rooms check out + Rooms check in → charge Room rates
 - If there is a checkout but NO check-in on that day → still clean the property, but charge it as Rooms (not as Home)
 - RATE LOOKUP EXAMPLE: HOV-3 (Room 3) checks out, HOV-HOME checks in → billing rule says "Rooms out + Home in → Home rate" → look up "3420 Hovenweep Ave Home" in Reporte Financiero → $120/100 min → use THOSE values for the HOV-3 cleaning entry
@@ -3753,6 +3786,16 @@ The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on t
 - 407 S Gevers St has two SEPARATE physical units (Home and Loft) — always charge both individually regardless of check-in/out patterns
 - Bundle = multiple units rented together as one Hostfully booking (listing type is "Bundle") → use Bundle rate
 - Costs and durations come from the Reporte Financiero Notion page — NEVER hardcode them
+- HARD RATE RULE — 7213 Nutria Run (NON-NEGOTIABLE — READ CAREFULLY):
+  - The Reporte Financiero entry for 7213 Nutria Run reads: "Home ($160 - 185 min) | Rooms 1-4 ($30 c/u - 25 min) | Room 5 ($40 - 40 min)"
+  - $160 / 185 min = NUT-HOME ONLY. NEVER apply $160 to any individual room.
+  - NUT-1, NUT-2, NUT-3, NUT-4 (Rooms 1-4): ALWAYS $30 / 25 min each. No exceptions.
+  - NUT-5 (Room 5): ALWAYS $40 / 40 min. No exceptions.
+  - NUT-HOME: $160 / 185 min.
+  - WRONG: NUT-2 = $160 (this is the Home rate — do NOT use for rooms)
+  - CORRECT: NUT-2 = $30 / 25 min
+  - CORRECT: NUT-3 = $30 / 25 min
+  - CORRECT: NUT-5 = $40 / 40 min
 
 STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
 - IMPORTANT: Run Notion commands exactly as shown below WITHOUT setting NOTION_MOCK=true. The --fixture flag is just a name hint — do not enable mock mode.
@@ -3834,9 +3877,14 @@ RULES:
 - Single-unit properties: just show address, no room identifier
 - If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
 
-STEP 5 — Post to Slack and submit:
-- Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output (MANDATORY — task will hang indefinitely without this): tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+STEP 5 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+⚠️ THIS STEP IS ATOMIC AND IRREVERSIBLE. Execute steps A and B in order, then STOP:
+  A. Call post-message.ts ONCE: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
+  B. IMMEDIATELY call submit-output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+     Do NOT re-evaluate or re-examine your work between A and B.
+     Do NOT call post-message.ts a second time under ANY circumstances.
+     If you think you made an error: call submit-output anyway and stop.
+     A second call to post-message.ts = task failure.
 - NEVER call report-issue instead of submit-output — always call submit-output to end the task
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
