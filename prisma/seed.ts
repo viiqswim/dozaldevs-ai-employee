@@ -3530,13 +3530,28 @@ INPUTS:
 STEP 1 — Get Hostfully reservations for the target date:
 - Use get-properties.ts to list all VLRE properties
 - Use get-reservations.ts to fetch reservations for each property
+  CRITICAL: Call get-reservations.ts ONCE PER PROPERTY with its literal UUID — NEVER use shell variables or loops.
+  CORRECT: tsx /tools/hostfully/get-reservations.ts --property-id dac5a0e0-3984-4f72-b622-de45a9dd758f --from ...
+  WRONG:   for uid in $uids; do tsx /tools/hostfully/get-reservations.ts --property-id $uid ...; done
+  Shell variable substitution does NOT work — $uid will be sent literally, causing the tool to fail silently.
 - IMPORTANT: The --from/--to flags filter by CHECK-IN date, NOT checkout date
-- Fetch a broad date range: --from <30-days-before-target> --to <30-days-after-target>
-- Filter client-side for reservations where checkout_date OR check_in_date matches the target date
+- Fetch a broad date range: --from <60-days-before-target> --to <30-days-after-target>
+- MANDATORY DATE FILTER — after fetching reservations for each property, apply this rule mechanically to EVERY reservation:
+  TEST: does checkOut.substring(0, 10) === targetDate ?
+  - YES → add to list A (CHECKOUT — needs cleaning)
+  - NO  → do NOT add to list A, regardless of what checkIn is
+  Examples for target date 2026-05-31:
+    checkOut="2026-05-31T10:00:00" → "2026-05-31".substring(0,10)="2026-05-31" === "2026-05-31" → YES → list A
+    checkOut="2026-06-01T11:00:00" → "2026-06-01" !== "2026-05-31" → NO → EXCLUDED
+    checkOut="2026-06-06T11:00:00" → "2026-06-06" !== "2026-05-31" → NO → EXCLUDED even if checkIn="2026-05-31"
+  WARNING: A reservation with checkIn="2026-05-31" and checkOut="2026-06-06" FAILS the test → NOT in list A → NO cleaning
+- Skip reservations with status CANCELLED, CANCELLED_BY_TRAVELER, or CANCELLED_BY_OWNER.
 - Build two lists:
-  (A) CHECKOUTS: properties where checkout_date = target date (need cleaning)
-  (B) CHECK-INS: properties where check_in_date = target date (determines billing rate)
-- Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A
+  (A) CHECKOUTS: reservations where checkOut.substring(0,10) === targetDate → need cleaning
+  (B) CHECK-INS: reservations where checkIn.substring(0,10) === targetDate → billing rate reference only, NO cleaning task
+- SELF-CHECK before continuing: State aloud "List A contains: [property names with their checkOut dates]". If any entry in list A has a checkOut date that does NOT start with the target date, remove it immediately.
+- If list A is empty, post "No hay checkouts para <date>. No se requiere limpieza." and submit NO_ACTION_NEEDED. Stop.
+- Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A ONLY
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
 - ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
@@ -3544,14 +3559,20 @@ CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
 - If a property has a checkout AND a check-in on the same day → use the check-in unit type and its rate
 - If Home checks out + Rooms check in → charge Room rates
-- If Rooms check out + Home checks in → charge Home rate
+- If Rooms check out + Home checks in → charge Home rate ($120/100 min for HOV address)
 - If Rooms check out + Rooms check in → charge Room rates
 - If there is a checkout but NO check-in on that day → still clean the property, but charge it as Rooms (not as Home)
+- RATE LOOKUP EXAMPLE: HOV-3 (Room 3) checks out, HOV-HOME checks in → billing rule says "Rooms out + Home in → Home rate" → look up "3420 Hovenweep Ave Home" in Reporte Financiero → $120/100 min → use THOSE values for the HOV-3 cleaning entry
+- CRITICAL: The billing rule ONLY changes the RATE/DURATION of the checkout unit's cleaning. It does NOT create an additional cleaning task for the check-in unit. Only properties in list A (CHECKOUTS) get cleaning tasks.
+  - CONCRETE EXAMPLE: HOV-3 (checkOut=2026-05-31) is in list A. HOV-HOME (checkIn=2026-05-31, checkOut=2026-06-06) is in list B only — NO cleaning task for HOV-HOME.
+    CORRECT: schedule has 1 line "3420 Hovenweep Ave — Habitación 3" at Casa rate ($120/100 min).
+    WRONG: 2 separate lines for "Casa" and "Habitación 3" at the HOV address — only 1 entry total.
 - 407 S Gevers St has two SEPARATE physical units (Home and Loft) — always charge both individually regardless of check-in/out patterns
 - Bundle = multiple units rented together as one Hostfully booking (listing type is "Bundle") → use Bundle rate
 - Costs and durations come from the Reporte Financiero Notion page — NEVER hardcode them
 
 STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
+- IMPORTANT: Run Notion commands exactly as shown below WITHOUT setting NOTION_MOCK=true. The --fixture flag is just a name hint — do not enable mock mode.
 - Directorio Operativo: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
 - Manual de Personal: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
 - Reporte Financiero: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
@@ -3562,7 +3583,8 @@ Parse the Spanish content to extract:
 - From Reporte Financiero: service costs and cleaning durations per unit type per property
 
 TEAM ASSIGNMENT BY ZIP (from Manual de Personal):
-- ZIP 78744 / ZIP 78640 (Austin/Kyle): Yessica (primary, weekdays 10AM-5PM, Sat 11AM-3PM), Diana (271 Gina Dr exclusive + backup), Berenice/Angela/Susana (weekend backup or when Yessica exceeds 7 hours)
+- ZIP 78744 / ZIP 78640 (Austin/Kyle): Yessica (primary, Mon–Fri 10AM-5PM, Sat 11AM-3PM — NOT available on Sundays), Diana (EXCLUSIVE to 271 Gina Dr ONLY — NEVER assign Diana to any other property even as backup), Berenice/Angela/Susana (weekend backup or when Yessica exceeds 7 hours)
+- SUNDAY RULE: On Sundays, Yessica is NOT available. Assign all Austin/Kyle properties (except 271 Gina Dr) to Berenice, Angela, or Susana.
 - ZIP 78203 / ZIP 78109 (San Antonio/Converse): Zenaida (primary), Abi/Rocio (Mon-Fri), Norma (weekends)
 - ZIP 80421 (Colorado): Mary/Carrie
 
@@ -3631,7 +3653,8 @@ RULES:
 
 STEP 5 — Post to Slack and submit:
 - Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+- Submit output (MANDATORY — task will hang indefinitely without this): tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+- NEVER call report-issue instead of submit-output — always call submit-output to end the task
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
 IMPORTANT NOTES:
@@ -3690,13 +3713,28 @@ INPUTS:
 STEP 1 — Get Hostfully reservations for the target date:
 - Use get-properties.ts to list all VLRE properties
 - Use get-reservations.ts to fetch reservations for each property
+  CRITICAL: Call get-reservations.ts ONCE PER PROPERTY with its literal UUID — NEVER use shell variables or loops.
+  CORRECT: tsx /tools/hostfully/get-reservations.ts --property-id dac5a0e0-3984-4f72-b622-de45a9dd758f --from ...
+  WRONG:   for uid in $uids; do tsx /tools/hostfully/get-reservations.ts --property-id $uid ...; done
+  Shell variable substitution does NOT work — $uid will be sent literally, causing the tool to fail silently.
 - IMPORTANT: The --from/--to flags filter by CHECK-IN date, NOT checkout date
-- Fetch a broad date range: --from <30-days-before-target> --to <30-days-after-target>
-- Filter client-side for reservations where checkout_date OR check_in_date matches the target date
+- Fetch a broad date range: --from <60-days-before-target> --to <30-days-after-target>
+- MANDATORY DATE FILTER — after fetching reservations for each property, apply this rule mechanically to EVERY reservation:
+  TEST: does checkOut.substring(0, 10) === targetDate ?
+  - YES → add to list A (CHECKOUT — needs cleaning)
+  - NO  → do NOT add to list A, regardless of what checkIn is
+  Examples for target date 2026-05-31:
+    checkOut="2026-05-31T10:00:00" → "2026-05-31".substring(0,10)="2026-05-31" === "2026-05-31" → YES → list A
+    checkOut="2026-06-01T11:00:00" → "2026-06-01" !== "2026-05-31" → NO → EXCLUDED
+    checkOut="2026-06-06T11:00:00" → "2026-06-06" !== "2026-05-31" → NO → EXCLUDED even if checkIn="2026-05-31"
+  WARNING: A reservation with checkIn="2026-05-31" and checkOut="2026-06-06" FAILS the test → NOT in list A → NO cleaning
+- Skip reservations with status CANCELLED, CANCELLED_BY_TRAVELER, or CANCELLED_BY_OWNER.
 - Build two lists:
-  (A) CHECKOUTS: properties where checkout_date = target date (need cleaning)
-  (B) CHECK-INS: properties where check_in_date = target date (determines billing rate)
-- Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A
+  (A) CHECKOUTS: reservations where checkOut.substring(0,10) === targetDate → need cleaning
+  (B) CHECK-INS: reservations where checkIn.substring(0,10) === targetDate → billing rate reference only, NO cleaning task
+- SELF-CHECK before continuing: State aloud "List A contains: [property names with their checkOut dates]". If any entry in list A has a checkOut date that does NOT start with the target date, remove it immediately.
+- If list A is empty, post "No hay checkouts para <date>. No se requiere limpieza." and submit NO_ACTION_NEEDED. Stop.
+- Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A ONLY
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
 - ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
@@ -3704,14 +3742,20 @@ CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
 - If a property has a checkout AND a check-in on the same day → use the check-in unit type and its rate
 - If Home checks out + Rooms check in → charge Room rates
-- If Rooms check out + Home checks in → charge Home rate
+- If Rooms check out + Home checks in → charge Home rate ($120/100 min for HOV address)
 - If Rooms check out + Rooms check in → charge Room rates
 - If there is a checkout but NO check-in on that day → still clean the property, but charge it as Rooms (not as Home)
+- RATE LOOKUP EXAMPLE: HOV-3 (Room 3) checks out, HOV-HOME checks in → billing rule says "Rooms out + Home in → Home rate" → look up "3420 Hovenweep Ave Home" in Reporte Financiero → $120/100 min → use THOSE values for the HOV-3 cleaning entry
+- CRITICAL: The billing rule ONLY changes the RATE/DURATION of the checkout unit's cleaning. It does NOT create an additional cleaning task for the check-in unit. Only properties in list A (CHECKOUTS) get cleaning tasks.
+  - CONCRETE EXAMPLE: HOV-3 (checkOut=2026-05-31) is in list A. HOV-HOME (checkIn=2026-05-31, checkOut=2026-06-06) is in list B only — NO cleaning task for HOV-HOME.
+    CORRECT: schedule has 1 line "3420 Hovenweep Ave — Habitación 3" at Casa rate ($120/100 min).
+    WRONG: 2 separate lines for "Casa" and "Habitación 3" at the HOV address — only 1 entry total.
 - 407 S Gevers St has two SEPARATE physical units (Home and Loft) — always charge both individually regardless of check-in/out patterns
 - Bundle = multiple units rented together as one Hostfully booking (listing type is "Bundle") → use Bundle rate
 - Costs and durations come from the Reporte Financiero Notion page — NEVER hardcode them
 
 STEP 2 — Read Notion pages (content is in Spanish — parse accordingly):
+- IMPORTANT: Run Notion commands exactly as shown below WITHOUT setting NOTION_MOCK=true. The --fixture flag is just a name hint — do not enable mock mode.
 - Directorio Operativo: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
 - Manual de Personal: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
 - Reporte Financiero: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
@@ -3722,7 +3766,8 @@ Parse the Spanish content to extract:
 - From Reporte Financiero: service costs and cleaning durations per unit type per property
 
 TEAM ASSIGNMENT BY ZIP (from Manual de Personal):
-- ZIP 78744 / ZIP 78640 (Austin/Kyle): Yessica (primary, weekdays 10AM-5PM, Sat 11AM-3PM), Diana (271 Gina Dr exclusive + backup), Berenice/Angela/Susana (weekend backup or when Yessica exceeds 7 hours)
+- ZIP 78744 / ZIP 78640 (Austin/Kyle): Yessica (primary, Mon–Fri 10AM-5PM, Sat 11AM-3PM — NOT available on Sundays), Diana (EXCLUSIVE to 271 Gina Dr ONLY — NEVER assign Diana to any other property even as backup), Berenice/Angela/Susana (weekend backup or when Yessica exceeds 7 hours)
+- SUNDAY RULE: On Sundays, Yessica is NOT available. Assign all Austin/Kyle properties (except 271 Gina Dr) to Berenice, Angela, or Susana.
 - ZIP 78203 / ZIP 78109 (San Antonio/Converse): Zenaida (primary), Abi/Rocio (Mon-Fri), Norma (weekends)
 - ZIP 80421 (Colorado): Mary/Carrie
 
@@ -3791,7 +3836,8 @@ RULES:
 
 STEP 5 — Post to Slack and submit:
 - Post the schedule to channel C0B71QSMZKQ using: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-- Submit output: tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+- Submit output (MANDATORY — task will hang indefinitely without this): tsx /tools/platform/submit-output.ts --summary "<brief summary>" --classification NO_ACTION_NEEDED
+- NEVER call report-issue instead of submit-output — always call submit-output to end the task
 - If no checkouts: tsx /tools/platform/submit-output.ts --summary "No checkouts on <date>" --classification NO_ACTION_NEEDED
 
 IMPORTANT NOTES:
