@@ -3538,6 +3538,7 @@ STEP 1 — Get Hostfully reservations for the target date:
   (B) CHECK-INS: properties where check_in_date = target date (determines billing rate)
 - Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
+- ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
 CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
@@ -3592,9 +3593,10 @@ STEP 4 — Build the schedule message:
 - Format as Slack mrkdwn text (NO Block Kit JSON, NO interactive buttons)
 - ORGANIZE BY ASSIGNED CLEANER — one section per cleaner
 - Use REAL STREET ADDRESSES (from get-property.ts), NEVER property codes
-- For each property line: show address, city, checkout time, service type, duration, AND whether it is CHECK-IN or CHECK-OUT
-- OUTPUT FORMAT per property line:
-  • [Dirección], [Ciudad] — [checkout/check-in] [Hora] — [TipoServicio] ([Duración]) | [CHECK-IN] o [CHECK-OUT]
+- For each property line: show address, city, checkout time, service type (what to prepare), and duration
+- MULTI-UNIT PROPERTIES: If a property has multiple rooms/units checking out, list EACH room on its own line with its room identifier (e.g., "Habitación 1", "Habitación 2"). The cleaning team must know WHICH specific room to clean.
+- SINGLE-UNIT PROPERTIES: Just show the address — do NOT add a room identifier
+- Do NOT include "CHECK-IN" or "CHECK-OUT" labels — the cleaning team only needs to know the service type (what to prepare the property for)
 - Only show 🗑️ trash line for properties that HAVE trash duty — do NOT show "sin basura" or any negative indicator
 - Do NOT show property codes or lock/door access codes
 - Add a summary section at the bottom with per-cleaner totals (properties, total minutes, total cost) and grand total
@@ -3605,12 +3607,13 @@ EXACT OUTPUT FORMAT:
 🧹 *Limpieza — [DíaDeLaSemana] [Día] de [Mes]*
 
 👤 *[Nombre del Limpiador]*
-  • [Dirección], [Ciudad] — checkout [Hora] — [TipoServicio] ([Duración]) | CHECK-OUT
-  • [Dirección], [Ciudad] — check-in [Hora] — [TipoServicio] ([Duración]) | CHECK-IN
+  • [Dirección], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
+  • [Dirección] — [Habitación N], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
+  • [Dirección] — [Habitación N], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
     🗑️ Sacar basura ([TipoBasura])
 
 👤 *[Nombre del Limpiador]*
-  • [Dirección], [Ciudad] — checkout [Hora] — [TipoServicio] ([Duración]) | CHECK-OUT
+  • [Dirección], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
 
 ---
 📊 *Resumen*
@@ -3622,6 +3625,8 @@ EXACT OUTPUT FORMAT:
 RULES:
 - 🗑️ trash line appears ONLY on properties with trash duty — indented under the property line
 - Properties under each cleaner ordered by geographic proximity (closest addresses first)
+- Multi-unit properties: each room/unit is its own line with identifier (Habitación 1, Habitación 2, Casa, Loft, etc.)
+- Single-unit properties: just show address, no room identifier
 - If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
 
 STEP 5 — Post to Slack and submit:
@@ -3693,6 +3698,7 @@ STEP 1 — Get Hostfully reservations for the target date:
   (B) CHECK-INS: properties where check_in_date = target date (determines billing rate)
 - Use get-property.ts to get property details (full street address, city, ZIP code, checkOutTime) for each property in list A
 - If get-property.ts does not return an address, use the Hostfully property name as fallback
+- ROOM/UNIT IDENTIFICATION: When a property has multiple units (e.g., Hostfully listings ending in -1, -2, -HOME, -LOFT), each unit that has a checkout must be listed as a SEPARATE line in the schedule with its room identifier. Derive room names from the Hostfully listing name suffix (e.g., "271-GIN-1" → "Habitación 1", "271-GIN-2" → "Habitación 2", "271-GIN-HOME" → "Casa"). If the property has only ONE unit checking out, do NOT append a room identifier — just show the address.
 
 CHECK-IN BILLING RULE (CRITICAL — replaces all previous "Golden Rule" logic):
 The cost and cleaning duration are ALWAYS determined by what is CHECKING IN on the target date, NOT what is checking out.
@@ -3747,9 +3753,10 @@ STEP 4 — Build the schedule message:
 - Format as Slack mrkdwn text (NO Block Kit JSON, NO interactive buttons)
 - ORGANIZE BY ASSIGNED CLEANER — one section per cleaner
 - Use REAL STREET ADDRESSES (from get-property.ts), NEVER property codes
-- For each property line: show address, city, checkout time, service type, duration, AND whether it is CHECK-IN or CHECK-OUT
-- OUTPUT FORMAT per property line:
-  • [Dirección], [Ciudad] — [checkout/check-in] [Hora] — [TipoServicio] ([Duración]) | [CHECK-IN] o [CHECK-OUT]
+- For each property line: show address, city, checkout time, service type (what to prepare), and duration
+- MULTI-UNIT PROPERTIES: If a property has multiple rooms/units checking out, list EACH room on its own line with its room identifier (e.g., "Habitación 1", "Habitación 2"). The cleaning team must know WHICH specific room to clean.
+- SINGLE-UNIT PROPERTIES: Just show the address — do NOT add a room identifier
+- Do NOT include "CHECK-IN" or "CHECK-OUT" labels — the cleaning team only needs to know the service type (what to prepare the property for)
 - Only show 🗑️ trash line for properties that HAVE trash duty — do NOT show "sin basura" or any negative indicator
 - Do NOT show property codes or lock/door access codes
 - Add a summary section at the bottom with per-cleaner totals (properties, total minutes, total cost) and grand total
@@ -3760,12 +3767,13 @@ EXACT OUTPUT FORMAT:
 🧹 *Limpieza — [DíaDeLaSemana] [Día] de [Mes]*
 
 👤 *[Nombre del Limpiador]*
-  • [Dirección], [Ciudad] — checkout [Hora] — [TipoServicio] ([Duración]) | CHECK-OUT
-  • [Dirección], [Ciudad] — check-in [Hora] — [TipoServicio] ([Duración]) | CHECK-IN
+  • [Dirección], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
+  • [Dirección] — [Habitación N], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
+  • [Dirección] — [Habitación N], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
     🗑️ Sacar basura ([TipoBasura])
 
 👤 *[Nombre del Limpiador]*
-  • [Dirección], [Ciudad] — checkout [Hora] — [TipoServicio] ([Duración]) | CHECK-OUT
+  • [Dirección], [Ciudad] — [Hora] — [TipoServicio] ([Duración])
 
 ---
 📊 *Resumen*
@@ -3777,6 +3785,8 @@ EXACT OUTPUT FORMAT:
 RULES:
 - 🗑️ trash line appears ONLY on properties with trash duty — indented under the property line
 - Properties under each cleaner ordered by geographic proximity (closest addresses first)
+- Multi-unit properties: each room/unit is its own line with identifier (Habitación 1, Habitación 2, Casa, Loft, etc.)
+- Single-unit properties: just show address, no room identifier
 - If zero checkouts: post "No hay checkouts para [date]. No se requiere limpieza." and submit as NO_ACTION_NEEDED
 
 STEP 5 — Post to Slack and submit:
