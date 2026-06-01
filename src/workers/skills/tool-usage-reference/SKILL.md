@@ -417,6 +417,62 @@ tsx /tools/hostfully/get-property.ts --property-id <uid>
 
 ---
 
+### `get-checkouts.ts` — Fetch all confirmed checkouts for a date (agency-wide)
+
+```bash
+tsx /tools/hostfully/get-checkouts.ts --date YYYY-MM-DD
+```
+
+**Required flags:**
+
+- `--date <YYYY-MM-DD>` — Target checkout date
+
+**Environment variables:**
+
+- `HOSTFULLY_API_KEY` (required)
+- `HOSTFULLY_AGENCY_UID` (required)
+- `HOSTFULLY_API_URL` (optional, default: `https://api.hostfully.com/api/v3.2`)
+- `HOSTFULLY_MOCK` (optional) — Set to `true` to return fixture data
+
+**Output (stdout) — JSON array of CheckoutItem objects:**
+
+```json
+[
+  {
+    "propertyUid": "8daa2e85-8818-4055-9047-bd712c987026",
+    "listingName": "3505-BAN-1",
+    "normalizedAddress": "3505 Banton Rd, Unit B",
+    "roomId": "Habitación 1",
+    "zipCode": "78722",
+    "city": "Austin, TX",
+    "checkIn": "2026-05-26T15:00:00",
+    "checkOut": "2026-06-01T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": null,
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  }
+]
+```
+
+**Notes:**
+
+- Fetches all properties (paginated), then queries leads API per property sequentially (avoids rate limits).
+- Filters: `type === 'BOOKING'` AND status in `{BOOKED, BOOKED_BY_AGENT, BOOKED_BY_CUSTOMER, BOOKED_EXTERNALLY, STAY}` AND `checkOut.substring(0,10) === date`.
+- `normalizedAddress` — stripped of embedded unit letters (e.g. `"4405 - A Hayride lane"` → `"4405 Hayride Lane"`), street types title-cased.
+- `roomId` — derived from listing name: `-N` suffix → `"Habitación N"`, letter after street number → `"Unidad X"`, `-LOFT` → `"Loft"`, otherwise → `"Casa"`.
+- `city` — overridden from ZIP code lookup (ZIP_CITY table).
+- Property detail failures are non-fatal (warning to stderr, listing name used as fallback).
+- Returns `[]` when no checkouts found (exits 0, not an error).
+
+**Example:**
+
+```bash
+tsx /tools/hostfully/get-checkouts.ts --date 2026-06-01
+```
+
+---
+
 ### `get-reservations.ts` — Fetch reservations for a property
 
 ```bash
@@ -1238,27 +1294,28 @@ tsx /tools/notion/update-block.ts \
 
 ## Quick Reference Table
 
-| Tool                      | Container Path           | Required Flags                              | Output Shape                                                                                                    |
-| ------------------------- | ------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `post-message.ts`         | `/tools/slack/`          | `--channel`, `--text`                       | `{ts, channel}`                                                                                                 |
-| `read-channels.ts`        | `/tools/slack/`          | `--channels`                                | `{channels:[{channelId, messages, threadReplies}]}`                                                             |
-| `post-guest-approval.ts`  | `/tools/slack/`          | 13 flags (see above)                        | `{ts, channel}` + writes `/tmp/approval-message.json`                                                           |
-| `get-messages.ts`         | `/tools/hostfully/`      | `--lead-id` OR `--property-id`              | `[{leadUid, threadUid, propertyUid, guestName, channel, checkIn, checkOut, leadStatus, unresponded, messages}]` |
-| `send-message.ts`         | `/tools/hostfully/`      | `--lead-id`, `--message`                    | `{sent, messageId, timestamp}`                                                                                  |
-| `get-property.ts`         | `/tools/hostfully/`      | `--property-id`                             | `{uid, name, address, amenities, houseRules, ...}`                                                              |
-| `get-reservations.ts`     | `/tools/hostfully/`      | `--property-id`                             | `[{uid, guestName, checkIn, checkOut, channel, numberOfGuests, status}]`                                        |
-| `sifely-client.ts`        | `/tools/locks/`          | `--action`, `--lock-id` (most)              | Varies by action (array for list, `{ok:true}` for mutations)                                                    |
-| `generate-code.ts`        | `/tools/locks/`          | (none required)                             | `{code, pattern, length, description}`                                                                          |
-| `update-door-code.ts`     | `/tools/locks/`          | `--property-id`, `--code`                   | `{success, propertyId, previousCode, newCode}`                                                                  |
-| `rotate-property-code.ts` | `/tools/locks/`          | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                             |
-| `search.ts`               | `/tools/knowledge_base/` | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                     |
-| `validate-env.ts`         | `/tools/jira/`           | (none)                                      | `{ok, vars}` or `{ok:false, missing:[]}`                                                                        |
-| `get-issue.ts`            | `/tools/jira/`           | `--issue-key`                               | `{id, key, summary, description, status, priority, assignee, reporter, labels, created, updated, project}`      |
-| `search-issues.ts`        | `/tools/jira/`           | (at least one filter or `--jql`)            | `{issues:[{key, summary, status, priority, assignee}], total, maxResults}`                                      |
-| `add-comment.ts`          | `/tools/jira/`           | `--issue-key`, `--text`                     | `{id, body, created}`                                                                                           |
-| `list-comments.ts`        | `/tools/jira/`           | `--issue-key`                               | `{comments:[{id, author, body, created}], total}`                                                               |
-| `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                |
-| `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`   |
-| `get-page.ts`             | `/tools/notion/`         | `--page-id`                                 | `{success, pageId, content, blockCount}`                                                                        |
-| `append-blocks.ts`        | `/tools/notion/`         | `--page-id`, `--content`                    | `{success, blocksAdded}`                                                                                        |
-| `update-block.ts`         | `/tools/notion/`         | `--block-id`, `--content`                   | `{success, blockId}`                                                                                            |
+| Tool                      | Container Path           | Required Flags                              | Output Shape                                                                                                                          |
+| ------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `post-message.ts`         | `/tools/slack/`          | `--channel`, `--text`                       | `{ts, channel}`                                                                                                                       |
+| `read-channels.ts`        | `/tools/slack/`          | `--channels`                                | `{channels:[{channelId, messages, threadReplies}]}`                                                                                   |
+| `post-guest-approval.ts`  | `/tools/slack/`          | 13 flags (see above)                        | `{ts, channel}` + writes `/tmp/approval-message.json`                                                                                 |
+| `get-messages.ts`         | `/tools/hostfully/`      | `--lead-id` OR `--property-id`              | `[{leadUid, threadUid, propertyUid, guestName, channel, checkIn, checkOut, leadStatus, unresponded, messages}]`                       |
+| `send-message.ts`         | `/tools/hostfully/`      | `--lead-id`, `--message`                    | `{sent, messageId, timestamp}`                                                                                                        |
+| `get-property.ts`         | `/tools/hostfully/`      | `--property-id`                             | `{uid, name, address, amenities, houseRules, ...}`                                                                                    |
+| `get-checkouts.ts`        | `/tools/hostfully/`      | `--date`                                    | `[{propertyUid, listingName, normalizedAddress, roomId, zipCode, city, checkIn, checkOut, checkOutTime, guestName, status, channel}]` |
+| `get-reservations.ts`     | `/tools/hostfully/`      | `--property-id`                             | `[{uid, guestName, checkIn, checkOut, channel, numberOfGuests, status}]`                                                              |
+| `sifely-client.ts`        | `/tools/locks/`          | `--action`, `--lock-id` (most)              | Varies by action (array for list, `{ok:true}` for mutations)                                                                          |
+| `generate-code.ts`        | `/tools/locks/`          | (none required)                             | `{code, pattern, length, description}`                                                                                                |
+| `update-door-code.ts`     | `/tools/locks/`          | `--property-id`, `--code`                   | `{success, propertyId, previousCode, newCode}`                                                                                        |
+| `rotate-property-code.ts` | `/tools/locks/`          | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                                                   |
+| `search.ts`               | `/tools/knowledge_base/` | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                                           |
+| `validate-env.ts`         | `/tools/jira/`           | (none)                                      | `{ok, vars}` or `{ok:false, missing:[]}`                                                                                              |
+| `get-issue.ts`            | `/tools/jira/`           | `--issue-key`                               | `{id, key, summary, description, status, priority, assignee, reporter, labels, created, updated, project}`                            |
+| `search-issues.ts`        | `/tools/jira/`           | (at least one filter or `--jql`)            | `{issues:[{key, summary, status, priority, assignee}], total, maxResults}`                                                            |
+| `add-comment.ts`          | `/tools/jira/`           | `--issue-key`, `--text`                     | `{id, body, created}`                                                                                                                 |
+| `list-comments.ts`        | `/tools/jira/`           | `--issue-key`                               | `{comments:[{id, author, body, created}], total}`                                                                                     |
+| `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                                      |
+| `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`                         |
+| `get-page.ts`             | `/tools/notion/`         | `--page-id`                                 | `{success, pageId, content, blockCount}`                                                                                              |
+| `append-blocks.ts`        | `/tools/notion/`         | `--page-id`, `--content`                    | `{success, blocksAdded}`                                                                                                              |
+| `update-block.ts`         | `/tools/notion/`         | `--block-id`, `--content`                   | `{success, blockId}`                                                                                                                  |

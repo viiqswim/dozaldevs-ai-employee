@@ -53,7 +53,7 @@ Replace `YYYY-MM-DD` with the target date (e.g. `2026-06-01`).
 
 Given a target date, the employee:
 
-1. Fetches reservations from Hostfully for all VLRE properties checking in on that date
+1. Fetches reservations from Hostfully for all VLRE properties checking out on that date
 2. Reads the trash schedule and cleaning zones from Notion
 3. Generates a cleaning schedule matching properties to zones and trash pickup days
 4. Posts the schedule to Slack (`#ops-cleaning-schedule`) for PM approval
@@ -112,7 +112,7 @@ Cost and cleaning time are determined by what's **checking IN**, not what's chec
 
 ### Team Assignment by ZIP
 
-- ZIPs 78744 / 78640 (Austin/Kyle): Yessica (primary), Diana (backup)
+- ZIPs 78744 / 78722 / 78640 (Austin/Kyle): Yessica (weekday primary for Austin), Diana (primary for ALL Kyle properties every day, backup for Austin)
 - ZIPs 78203 / 78109 (San Antonio/Converse): Zenaida (primary), backup team
 
 ### Route Priority
