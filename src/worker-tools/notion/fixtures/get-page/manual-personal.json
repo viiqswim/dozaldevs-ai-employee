@@ -99,50 +99,11 @@
         "rich_text": [
           {
             "type": "text",
-            "text": { "content": "Diana:", "link": null },
-            "plain_text": "Diana:",
-            "annotations": {
-              "bold": true,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          },
-          {
-            "type": "text",
-            "text": { "content": " Exclusiva para la propiedad ", "link": null },
-            "plain_text": " Exclusiva para la propiedad ",
-            "annotations": {
-              "bold": false,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          },
-          {
-            "type": "text",
-            "text": { "content": "271 Gina Dr", "link": null },
-            "plain_text": "271 Gina Dr",
-            "annotations": {
-              "bold": false,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": true,
-              "color": "default"
-            }
-          },
-          {
-            "type": "text",
             "text": {
-              "content": " (78640) todos los días. También es backup entre semana en el resto de los códigos 78744 y 78640 (excepto domingos).",
+              "content": "Diana: Equipo principal para TODAS las propiedades en Kyle (78640), todos los días de la semana. También es backup en Austin (78744) hasta 7 horas si se requiere.",
               "link": null
             },
-            "plain_text": " (78640) todos los días. También es backup entre semana en el resto de los códigos 78744 y 78640 (excepto domingos).",
+            "plain_text": "Diana: Equipo principal para TODAS las propiedades en Kyle (78640), todos los días de la semana. También es backup en Austin (78744) hasta 7 horas si se requiere.",
             "annotations": {
               "bold": false,
               "italic": false,
@@ -166,10 +127,10 @@
           {
             "type": "text",
             "text": {
-              "content": "Berenice / Angela / Susana: Equipos de backup para fines de semana, o si Yessica excede sus 7 horas diarias. (Susana requiere anticipación).",
+              "content": "Berenice / Susana: Equipos de backup para Austin (78744) — fines de semana (principales) o si Yessica excede sus 7 horas entre semana. Susana también cubre Kyle (78640) como backup. (Susana requiere anticipación).",
               "link": null
             },
-            "plain_text": "Berenice / Angela / Susana: Equipos de backup para fines de semana, o si Yessica excede sus 7 horas diarias. (Susana requiere anticipación).",
+            "plain_text": "Berenice / Susana: Equipos de backup para Austin (78744) — fines de semana (principales) o si Yessica excede sus 7 horas entre semana. Susana también cubre Kyle (78640) como backup. (Susana requiere anticipación).",
             "annotations": {
               "bold": false,
               "italic": false,
@@ -243,80 +204,7 @@
         ]
       }
     },
-    {
-      "object": "block",
-      "id": "370d540b-4380-8026-b744-d24b7746da84",
-      "type": "bulleted_list_item",
-      "has_children": false,
-      "in_trash": false,
-      "bulleted_list_item": {
-        "rich_text": [
-          {
-            "type": "text",
-            "text": { "content": "Abi y Rocio:", "link": null },
-            "plain_text": "Abi y Rocio:",
-            "annotations": {
-              "bold": true,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          },
-          {
-            "type": "text",
-            "text": { "content": " Lunes a Viernes.", "link": null },
-            "plain_text": " Lunes a Viernes.",
-            "annotations": {
-              "bold": false,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "object": "block",
-      "id": "370d540b-4380-8013-a571-fcae3a6d1f99",
-      "type": "bulleted_list_item",
-      "has_children": false,
-      "in_trash": false,
-      "bulleted_list_item": {
-        "rich_text": [
-          {
-            "type": "text",
-            "text": { "content": "Norma:", "link": null },
-            "plain_text": "Norma:",
-            "annotations": {
-              "bold": true,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          },
-          {
-            "type": "text",
-            "text": { "content": " Fines de semana y backup.", "link": null },
-            "plain_text": " Fines de semana y backup.",
-            "annotations": {
-              "bold": false,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          }
-        ]
-      }
-    },
+
     {
       "object": "block",
       "id": "370d540b-4380-802a-b695-f858db09becd",
@@ -351,10 +239,13 @@
         "rich_text": [
           {
             "type": "text",
-            "text": { "content": "Mary o Carrie", "link": null },
-            "plain_text": "Mary o Carrie",
+            "text": {
+              "content": "Mary o Carrie: Rotar equitativamente — día par → Mary, día impar → Carrie.",
+              "link": null
+            },
+            "plain_text": "Mary o Carrie: Rotar equitativamente — día par → Mary, día impar → Carrie.",
             "annotations": {
-              "bold": true,
+              "bold": false,
               "italic": false,
               "strikethrough": false,
               "underline": false,
@@ -377,33 +268,6 @@
             "type": "text",
             "text": { "content": "⚙️ REGLAS LÓGICAS DE PROGRAMACIÓN", "link": null },
             "plain_text": "⚙️ REGLAS LÓGICAS DE PROGRAMACIÓN",
-            "annotations": {
-              "bold": false,
-              "italic": false,
-              "strikethrough": false,
-              "underline": false,
-              "code": false,
-              "color": "default"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "object": "block",
-      "id": "370d540b-4380-8048-b1a9-efd21cd734f4",
-      "type": "numbered_list_item",
-      "has_children": false,
-      "in_trash": false,
-      "numbered_list_item": {
-        "rich_text": [
-          {
-            "type": "text",
-            "text": {
-              "content": "Regla de Cobro (Check-In): El costo y tiempo de limpieza se calcula siempre en base a los CHECK-INs, no a los CHECK-OUTs. Ejemplos: Si un Home hace checkout y 4 Rooms hacen check-in, se cobran los 4 cuartos. Si 4 Rooms hacen checkout y un Home hace check-in, se cobra el Home. Si hay checkout sin check-in ese día, se cobra como cuartos (no como Home). El output debe indicar claramente qué hace CHECK-IN y qué hace CHECK-OUT para que el limpiador tenga contexto completo.",
-              "link": null
-            },
-            "plain_text": "Regla de Cobro (Check-In): El costo y tiempo de limpieza se calcula siempre en base a los CHECK-INs, no a los CHECK-OUTs. Ejemplos: Si un Home hace checkout y 4 Rooms hacen check-in, se cobran los 4 cuartos. Si 4 Rooms hacen checkout y un Home hace check-in, se cobra el Home. Si hay checkout sin check-in ese día, se cobra como cuartos (no como Home). El output debe indicar claramente qué hace CHECK-IN y qué hace CHECK-OUT para que el limpiador tenga contexto completo.",
             "annotations": {
               "bold": false,
               "italic": false,
