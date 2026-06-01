@@ -61,3 +61,12 @@ services:
         sync: false
       - key: COST_LIMIT_USD_PER_DEPT_PER_DAY
         value: '50'
+    dockerBuildArgs:
+      - key: VITE_POSTGREST_URL
+        value: https://gjqrysxpvktmibpkwrvy.supabase.co/rest/v1
+      - key: VITE_SUPABASE_ANON_KEY
+        value: sb_publishable_tsF3KzF5nUBhtC5nwhl17w_W0ooWpW2
+      - key: VITE_GATEWAY_URL
+        value: https://ai-employees-laaa.onrender.com
+      - key: VITE_INNGEST_URL
+        value: https://inn.gs

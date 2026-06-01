@@ -35,10 +35,27 @@ COPY dashboard/vite.config.ts ./dashboard/vite.config.ts
 COPY dashboard/tsconfig.json ./dashboard/tsconfig.json
 COPY dashboard/tsconfig.node.json ./dashboard/tsconfig.node.json
 
+# VITE_ vars baked at build time — passed as Docker build args from Render
+ARG VITE_POSTGREST_URL=http://localhost:54331/rest/v1
+ARG VITE_SUPABASE_ANON_KEY=
+ARG VITE_GATEWAY_URL=http://localhost:7700
+ARG VITE_INNGEST_URL=http://localhost:8288
+
 # Build dashboard (installs its own deps + runs vite build → dashboard/dist/)
 # Use npm to avoid pnpm workspace policy conflicts with @swc/core native build scripts.
 # Run vite build directly (skip tsc -b type-check — test files have type errors that don't affect the build).
-RUN cd dashboard && npm install --legacy-peer-deps && npx vite build
+# VITE_ vars are passed as env vars so Vite bakes production URLs into the static bundle.
+RUN cd dashboard && \
+    VITE_POSTGREST_URL=$VITE_POSTGREST_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_GATEWAY_URL=$VITE_GATEWAY_URL \
+    VITE_INNGEST_URL=$VITE_INNGEST_URL \
+    npm install --legacy-peer-deps && \
+    VITE_POSTGREST_URL=$VITE_POSTGREST_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_GATEWAY_URL=$VITE_GATEWAY_URL \
+    VITE_INNGEST_URL=$VITE_INNGEST_URL \
+    npx vite build
 
 
 # Stage 2: runner
