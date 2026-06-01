@@ -39,7 +39,7 @@ const STATUS_OPTIONS = [
 function SkeletonRow() {
   return (
     <TableRow>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 9 }).map((_, i) => (
         <TableCell key={i}>
           <div className="h-4 w-full animate-pulse rounded bg-muted" />
         </TableCell>
@@ -128,7 +128,7 @@ export function TaskFeed() {
   const fetchTasks = useCallback(() => {
     const params: Record<string, string> = {
       ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase)',
+      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase,primary_model_id)',
       order: 'created_at.desc',
       created_at: `gte.${effectiveDateFrom}T00:00:00`,
       limit: 'none',
@@ -210,6 +210,7 @@ export function TaskFeed() {
             <TableRow>
               <TableHead>Status</TableHead>
               <TableHead>Employee</TableHead>
+              <TableHead>Model</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
@@ -329,6 +330,7 @@ export function TaskFeed() {
             <TableRow>
               <TableHead>Status</TableHead>
               <TableHead>Employee</TableHead>
+              <TableHead>Model</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Duration</TableHead>
@@ -349,6 +351,21 @@ export function TaskFeed() {
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {task.archetypes?.role_name ?? task.archetype_id ?? '—'}
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {(() => {
+                    const model =
+                      task.executions?.find((e) => e.phase === 'execution')?.primary_model_id ??
+                      task.archetypes?.model ??
+                      null;
+                    return model ? (
+                      <span className="max-w-[160px] truncate block" title={model}>
+                        {model.includes('/') ? model.split('/').slice(1).join('/') : model}
+                      </span>
+                    ) : (
+                      '—'
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{task.source_system ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground">
