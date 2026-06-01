@@ -147,6 +147,15 @@ export function EmployeeList() {
   const handleTrigger = async (e: React.MouseEvent, archetype: Archetype) => {
     e.stopPropagation();
     if (!archetype.role_name) return;
+
+    const hasEveryRunInputs = (archetype.input_schema ?? []).some(
+      (item) => item.frequency === 'every_run',
+    );
+    if (hasEveryRunInputs) {
+      navigate(`/dashboard/employees/${archetype.id}/trigger`);
+      return;
+    }
+
     setRowLoading(archetype.id, 'trigger', true);
     try {
       const result = await triggerEmployee(tenantId, archetype.role_name, false);
