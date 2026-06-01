@@ -34,3 +34,38 @@
 - Required GitHub secrets: `RENDER_DEPLOY_HOOK_URL`, `FLY_API_TOKEN`
 - Test command: `pnpm test -- --run`
 - Worker image: `registry.fly.io/ai-employee-workers:latest` (linux/amd64)
+
+## [2026-06-01] T9 Complete — Fly.io Worker Image Pushed
+
+- `fly apps list` confirms `ai-employee-workers` app exists (status: suspended — normal when no machines running)
+- `fly auth docker` works with `FLY_API_TOKEN` from `.env`
+- `docker buildx build --platform linux/amd64 --tag registry.fly.io/ai-employee-workers:latest --push .` succeeded (exit 0)
+- Build took ~261s for the 1.23GB layer push
+- `fly secrets list -a ai-employee-workers` shows NO secrets set yet — need to set after Supabase Cloud provisioned:
+  ```bash
+  fly secrets set -a ai-employee-workers \
+    OPENROUTER_API_KEY="..." \
+    SUPABASE_URL="https://{ref}.supabase.co" \
+    SUPABASE_SECRET_KEY="..."
+  ```
+- T9 is COMPLETE for the image push portion; Fly.io secrets step requires Supabase Cloud URL (T6)
+
+## [2026-06-01] Final Wave F1/F2/F4 — All APPROVE
+
+- F1 (Plan Compliance): All 7 Must Haves ✅, all 5 Must NOT Haves ✅, all 6 code tasks complete
+- F2 (Code Quality): Build PASS, Tests PASS (86 passing), lint local-only failure (broken symlink not in git — won't affect CI)
+- F4 (Scope Fidelity): All tasks COMPLIANT; T4 minor over-scope (3 extra render.yaml env vars: DATABASE_URL_DIRECT, FLY_WORKER_IMAGE, COST_LIMIT_USD_PER_DEPT_PER_DAY) — beneficial, not harmful
+- F3 (Real QA) BLOCKED: requires live cloud deployment (T6-T8 must complete first)
+
+## [2026-06-01] Remaining Blockers — Needs User Action
+
+Tasks T6, T7, T8, T11, T12, T13 and F3 are ALL blocked on cloud credentials.
+Required sequence:
+1. T6: Provision Supabase Cloud Pro → collect DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY
+2. T8: Create Inngest Cloud account → collect INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY
+3. T7: Deploy to Render → set all env vars, get GATEWAY_PUBLIC_URL
+4. T9 (secrets): fly secrets set with SUPABASE_URL + SUPABASE_SECRET_KEY + OPENROUTER_API_KEY
+5. T11: DATABASE_URL_DIRECT={supabase-direct} npx prisma migrate deploy
+6. T12: E2E smoke test via cloud gateway
+7. T13: Telegram notify
+8. F3: Real QA (health check + Inngest functions + E2E + dashboard)

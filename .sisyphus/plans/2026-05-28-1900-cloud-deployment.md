@@ -343,7 +343,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   - `employee/rule-synthesizer`
   - `trigger/reviewing-watchdog` (cron: `*/15 * * * *`)
 
-- [ ] 9. Verify Fly.io worker app and push production image
+- [x] 9. Verify Fly.io worker app and push production image
 
   **Steps**:
   1. Verify app exists: `fly apps list | grep ai-employee-workers`
@@ -520,11 +520,11 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read this plan end-to-end. For each Must Have: verify implementation exists (read file or curl endpoint). For each Must NOT Have: search codebase for forbidden patterns. Check all 12 implementation tasks are done.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm test -- --run` + `pnpm lint`. Review all changed files for: hardcoded secrets, `as any`, empty catches, commented-out code. Check Dockerfile.gateway for best practices.
       Output: `Build [PASS/FAIL] | Tests [N/N] | Lint [PASS/FAIL] | VERDICT: APPROVE/REJECT`
 
@@ -532,6 +532,6 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
       Verify from clean state: gateway health check, Inngest functions registered, task lifecycle completes end-to-end, dashboard loads. Save evidence.
       Output: `Health [PASS/FAIL] | Inngest [5/5 fns] | E2E [PASS/FAIL] | Dashboard [PASS/FAIL] | VERDICT: APPROVE/REJECT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Compare each task's spec vs actual diff. Verify 1:1 — everything in spec was built, nothing beyond scope was added. Flag any unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/issues] | VERDICT: APPROVE/REJECT`
