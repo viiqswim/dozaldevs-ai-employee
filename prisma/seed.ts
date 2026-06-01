@@ -3660,9 +3660,13 @@ STEP 4 — Read team assignments and trash schedules:
       6930 Heron Flats (ZIP 78109) → "Sacar Lunes y Jueves" → split → Lunes matches → Zenaida
     If you find 0 trash-only properties → omit the entire Basura section from the message.
 
-4G. Travel overhead:
-    - ONLY when zone is 78744 or 78640 AND cleaner has ZERO cleaning tasks → add 45 min
+4G. Travel overhead (STRICT ZONE RULE — read carefully):
+    - Travel overhead of 45 min applies ONLY to zones 78744 (Austin) and 78640 (Kyle)
+    - It NEVER applies to zones 78203 (San Antonio), 78109 (Converse), or any other ZIP
+    - Condition: zone is 78744 OR 78640 AND cleaner has ZERO cleaning tasks → add 45 min to that cleaner's total
     - If cleaner has cleaning tasks AND trash-only tasks → NO travel overhead (already traveling for cleanings)
+    - Example: Zenaida handles ZIPs 78203 and 78109 → she NEVER gets travel overhead, regardless of cleaning load
+    - Example: Yessica handles ZIPs 78744 and 78640 → overhead only if she has ZERO cleaning tasks
 
 STEP 5 — Build the schedule message:
 
@@ -3921,9 +3925,13 @@ STEP 4 — Read team assignments and trash schedules:
       6930 Heron Flats (ZIP 78109) → "Sacar Lunes y Jueves" → split → Lunes matches → Zenaida
     If you find 0 trash-only properties → omit the entire Basura section from the message.
 
-4G. Travel overhead:
-    - ONLY when zone is 78744 or 78640 AND cleaner has ZERO cleaning tasks → add 45 min
+4G. Travel overhead (STRICT ZONE RULE — read carefully):
+    - Travel overhead of 45 min applies ONLY to zones 78744 (Austin) and 78640 (Kyle)
+    - It NEVER applies to zones 78203 (San Antonio), 78109 (Converse), or any other ZIP
+    - Condition: zone is 78744 OR 78640 AND cleaner has ZERO cleaning tasks → add 45 min to that cleaner's total
     - If cleaner has cleaning tasks AND trash-only tasks → NO travel overhead (already traveling for cleanings)
+    - Example: Zenaida handles ZIPs 78203 and 78109 → she NEVER gets travel overhead, regardless of cleaning load
+    - Example: Yessica handles ZIPs 78744 and 78640 → overhead only if she has ZERO cleaning tasks
 
 STEP 5 — Build the schedule message:
 
