@@ -1,4 +1,4 @@
-import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { NOTION_API_VERSION } from '../lib/notion-types.js';
 
 type RichTextItem = {
   plain_text?: string;
