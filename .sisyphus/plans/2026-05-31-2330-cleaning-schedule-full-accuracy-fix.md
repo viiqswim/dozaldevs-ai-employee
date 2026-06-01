@@ -922,7 +922,7 @@ Max Concurrent: 4 (Wave 1)
 
   **Commit**: NO (commit in Task 7)
 
-- [ ] 7. Commit All Changes
+- [x] 7. Commit All Changes
 
   **What to do**:
   After Task 5 passes verification, commit ALL modified and new files:
@@ -980,7 +980,7 @@ Max Concurrent: 4 (Wave 1)
   - Files: `prisma/seed.ts`, both fixture JSON files, `docs/employees/cleaning-schedule.md`, new verification guide
   - Pre-commit: N/A (no tests)
 
-- [ ] 8. Send Telegram Notification
+- [x] 8. Send Telegram Notification
 
   **What to do**:
 
