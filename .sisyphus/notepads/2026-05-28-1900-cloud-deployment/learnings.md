@@ -69,3 +69,15 @@ Required sequence:
 6. T12: E2E smoke test via cloud gateway
 7. T13: Telegram notify
 8. F3: Real QA (health check + Inngest functions + E2E + dashboard)
+
+## [2026-06-01] Boulder Continuation Check — Still Blocked
+
+Checked .env again on boulder continuation trigger:
+- SUPABASE_URL: still http://localhost:54331 (local)
+- DATABASE_URL: still postgresql://localhost:54322/ai_employee (local)
+- INNGEST_EVENT_KEY: starts with "local" — local dev placeholder, NOT Inngest Cloud key
+- INNGEST_SIGNING_KEY: starts with "local" — local dev placeholder, NOT Inngest Cloud key
+- GATEWAY_PUBLIC_URL: empty
+
+No cloud credentials have been provisioned. T6, T7, T8, T11, T12, T13, F3 remain blocked.
+Cannot proceed without user completing manual cloud provisioning steps.
