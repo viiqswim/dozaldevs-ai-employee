@@ -57,7 +57,7 @@ export function inngestServeRoutes(): Router {
       // learnedRulesExpiryFn, // Deregistered: manual cleanup if needed
       // guestMessagePollFn,
     ],
-    serveOrigin: `http://localhost:${process.env.PORT ?? '7700'}`,
+    serveOrigin: process.env.GATEWAY_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`,
     servePath: '/api/inngest',
   });
 

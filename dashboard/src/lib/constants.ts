@@ -2,9 +2,7 @@ import type { TaskStatus } from './types';
 
 export const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL ?? 'http://localhost:54331/rest/v1';
 
-export const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ??
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc2NzkzNDI4LCJleHAiOjIwOTIxNTM0Mjh9.ggG1F3fTf2dIZbDADkvdrFz5BPJ6vqBax3k7sEFZFgs';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
 export const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:7700';
 

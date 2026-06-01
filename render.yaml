@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: ai-employee-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile.gateway
+    region: ohio
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_RUNTIME
+        value: fly
+      - key: FLY_WORKER_APP
+        value: ai-employee-workers
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+      - key: GATEWAY_PUBLIC_URL
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_REDIRECT_BASE_URL
+        sync: false
+      - key: WEBHOOK_PUBLIC_URL
+        sync: false
+      - key: FLY_API_TOKEN
+        sync: false
+      - key: FLY_WORKER_IMAGE
+        value: registry.fly.io/ai-employee-workers:latest
+      - key: JIRA_CLIENT_ID
+        sync: false
+      - key: JIRA_CLIENT_SECRET
+        sync: false
+      - key: JIRA_WEBHOOK_SECRET
+        sync: false
+      - key: COST_LIMIT_USD_PER_DEPT_PER_DAY
+        value: '50'

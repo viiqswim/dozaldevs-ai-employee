@@ -587,6 +587,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           ISSUES_SLACK_CHANNEL: process.env['ISSUES_SLACK_CHANNEL'] ?? '',
           SUPABASE_URL: effectiveSupabaseUrl,
           SUPABASE_SECRET_KEY: supabaseKey,
+          INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+          INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
           INNGEST_RUN_ID: runId,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
@@ -602,6 +604,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           'APPROVAL_REQUIRED',
           'NOTIFY_MSG_TS',
           'INNGEST_RUN_ID',
+          'INNGEST_BASE_URL',
+          'INNGEST_EVENT_KEY',
           'REPLY_BROADCAST',
           'EMPLOYEE_RULES',
           'EMPLOYEE_KNOWLEDGE',
@@ -1163,6 +1167,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
+                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
                   ...(taskRawEventForDelivery['lead_uid']
                     ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
                     : {}),
@@ -2517,6 +2523,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
+                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
                   ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
                   ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
                   ...(taskRawEvent['property_uid']
