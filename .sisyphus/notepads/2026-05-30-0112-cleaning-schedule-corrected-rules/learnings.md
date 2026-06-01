@@ -29,7 +29,7 @@
 
 - ENCRYPTION_KEY: in `.env` as `ENCRYPTION_KEY`
 - Token stored in `tenant_secrets` table for tenant `00000000-0000-0000-0000-000000000003`, key `notion_access_token`
-- Decrypted token: `[REDACTED]`
+- Decrypted token: [REDACTED]
 
 ### Critical Constraint
 
