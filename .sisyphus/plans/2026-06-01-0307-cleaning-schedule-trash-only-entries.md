@@ -498,7 +498,7 @@ Critical Path: Task 1 → Task 2 → Task 3 → F1-F4 → user okay
       For each task: read "What to do", read actual diff (git diff). Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
 
-- [ ] N. **Notify completion** — Send Telegram: `tsx scripts/telegram-notify.ts "✅ cleaning-schedule-trash-only-entries complete — All tasks done. Come back to review results."`
+- [x] N. **Notify completion** — Send Telegram: `tsx scripts/telegram-notify.ts "✅ cleaning-schedule-trash-only-entries complete — All tasks done. Come back to review results."`
 
 ---
 
