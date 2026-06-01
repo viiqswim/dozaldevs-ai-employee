@@ -501,7 +501,7 @@ async function runOpencodeSession(
         { taskId: TASK_ID, sessionId },
         '[opencode-harness] submit-output not found after session idle — sending recovery nudge',
       );
-      const nudgeMessage = `Your session went idle without completing submit-output. Re-read the <execution-instructions> in AGENTS.md and complete all remaining steps. The final step MUST be:\n${submitOutputCmd}`;
+      const nudgeMessage = `Your session went idle without producing the required output. Re-read your <execution-instructions> in AGENTS.md and complete ALL remaining steps you have not yet executed. You are not done until /tmp/summary.txt exists.`;
       await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
       await sessionManager.monitorSession(sessionId!, {
         timeoutMs: 5 * 60 * 1000,
