@@ -27,6 +27,29 @@ const DELIVERY_IMPORTANT =
 
 const STOP_DIRECTIVE = '**STOP. Do nothing else. Your job is done.**';
 
+/**
+ * Strips STOP-like directives that archetypes may have embedded in their
+ * execution_steps field. The compiler wraps execution_steps with its own
+ * EXEC_IMPORTANT header and STOP_DIRECTIVE footer — if the field already
+ * contains those, the compiled output ends up with 4 STOP-related lines
+ * instead of 2, which confuses LLMs.
+ *
+ * Strips any line that matches:
+ *   - `**STOP\b` (e.g. "**STOP. Do nothing else.**")
+ *   - `**IMPORTANT:` followed by "STOP" anywhere on the same line
+ */
+function stripEmbeddedStopDirectives(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => {
+      const t = line.trim();
+      if (/\*\*STOP\b/i.test(t)) return false;
+      if (/\*\*IMPORTANT:.*STOP/i.test(t)) return false;
+      return true;
+    })
+    .join('\n');
+}
+
 export function compileAgentsMd(input: CompileAgentsMdInput): string {
   const parts: string[] = [];
 
@@ -38,7 +61,7 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
       '<execution-instructions>',
       EXEC_IMPORTANT,
       '',
-      input.executionSteps.trimEnd(),
+      stripEmbeddedStopDirectives(input.executionSteps).trimEnd(),
       '',
       STOP_DIRECTIVE,
       '</execution-instructions>',

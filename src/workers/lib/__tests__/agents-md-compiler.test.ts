@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { compileAgentsMd } from '../agents-md-compiler.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const BASE_INPUT = {
   identity: 'You are a test employee.',
@@ -145,5 +151,111 @@ describe('compileAgentsMd', () => {
     expect(execBlock).not.toContain('DELIVERY_ONLY_MARKER');
     expect(deliveryBlock).toContain('DELIVERY_ONLY_MARKER');
     expect(deliveryBlock).not.toContain('EXEC_ONLY_MARKER');
+  });
+});
+
+describe('compileAgentsMd — STOP deduplication (stripEmbeddedStopDirectives)', () => {
+  it('strips embedded **STOP directives from execution_steps so compiled output has exactly 1 STOP inside execution-instructions', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      executionSteps:
+        '1. Do the thing.\n**STOP. Do nothing else. Your job is done.**\n2. Submit output.',
+    });
+
+    const execOpen = result.indexOf('<execution-instructions>');
+    const execClose =
+      result.indexOf('</execution-instructions>') + '</execution-instructions>'.length;
+    const execBlock = result.slice(execOpen, execClose);
+
+    const stopMatches = execBlock.match(/\*\*STOP\b/gi) ?? [];
+    expect(stopMatches.length).toBe(1);
+  });
+
+  it('strips embedded **IMPORTANT: ... STOP lines from execution_steps', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      executionSteps:
+        '1. Do the thing.\n**IMPORTANT: Follow ONLY these steps. Do NOT read delivery. STOP after the final step.**\n2. Submit output.',
+    });
+
+    const execOpen = result.indexOf('<execution-instructions>');
+    const execClose =
+      result.indexOf('</execution-instructions>') + '</execution-instructions>'.length;
+    const execBlock = result.slice(execOpen, execClose);
+
+    const importantMatches = execBlock.match(/\*\*IMPORTANT:/gi) ?? [];
+    expect(importantMatches.length).toBe(1);
+  });
+
+  it('preserves execution_steps content that does NOT match STOP patterns', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      executionSteps:
+        '1. Do the thing.\n**STOP. Do nothing else. Your job is done.**\n2. Submit output.',
+    });
+
+    const execOpen = result.indexOf('<execution-instructions>');
+    const execClose =
+      result.indexOf('</execution-instructions>') + '</execution-instructions>'.length;
+    const execBlock = result.slice(execOpen, execClose);
+
+    expect(execBlock).toContain('1. Do the thing.');
+    expect(execBlock).toContain('2. Submit output.');
+  });
+
+  it('does NOT strip STOP from delivery_steps — only execution_steps is sanitized', () => {
+    const withEmbeddedStop = compileAgentsMd({
+      ...BASE_INPUT,
+      deliverySteps: '1. Post to Slack.\n**STOP. Do nothing else. Your job is done.**\n2. Confirm.',
+    });
+    const withoutEmbeddedStop = compileAgentsMd({
+      ...BASE_INPUT,
+      deliverySteps: '1. Post to Slack.\n2. Confirm.',
+    });
+
+    const countStops = (src: string) => {
+      const open = src.indexOf('<delivery-instructions>');
+      const close = src.indexOf('</delivery-instructions>') + '</delivery-instructions>'.length;
+      return (src.slice(open, close).match(/\*\*STOP\b/gi) ?? []).length;
+    };
+
+    expect(countStops(withEmbeddedStop)).toBe(countStops(withoutEmbeddedStop) + 1);
+  });
+
+  it('archetype without STOP in execution_steps still has compiler STOP_DIRECTIVE footer', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      executionSteps: '1. Do the thing.\n2. Submit output.',
+    });
+
+    const execOpen = result.indexOf('<execution-instructions>');
+    const execClose =
+      result.indexOf('</execution-instructions>') + '</execution-instructions>'.length;
+    const execBlock = result.slice(execOpen, execClose);
+
+    expect(execBlock).toContain('**STOP. Do nothing else. Your job is done.**');
+  });
+});
+
+describe('opencode-harness — recovery nudge message content', () => {
+  function extractNudgeMessage(): string {
+    const harnessSource = readFileSync(join(__dirname, '../../opencode-harness.mts'), 'utf-8');
+    const match = harnessSource.match(/const nudgeMessage\s*=\s*`([^`]+)`/);
+    if (!match) throw new Error('nudgeMessage constant not found in opencode-harness.mts');
+    return match[1];
+  }
+
+  it('nudge message contains /tmp/summary.txt as the success condition', () => {
+    expect(extractNudgeMessage()).toContain('/tmp/summary.txt');
+  });
+
+  it('nudge message contains execution-instructions reference so the agent re-reads its steps', () => {
+    expect(extractNudgeMessage()).toContain('execution-instructions');
+  });
+
+  it('nudge message does NOT reference submit-output tool path', () => {
+    const nudgeMessage = extractNudgeMessage();
+    expect(nudgeMessage).not.toContain('submit-output');
+    expect(nudgeMessage).not.toContain('/tools/');
   });
 });

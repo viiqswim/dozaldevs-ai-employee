@@ -545,14 +545,29 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
             ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
           };
+          // Always include platform-critical vars and rawEventEnv keys in the manifest so
+          // OpenCode exposes them to the model via the bash tool env whitelist.
+          const localCriticalVars = [
+            'TASK_ID',
+            'TENANT_ID',
+            'EMPLOYEE_ROLE_NAME',
+            'APPROVAL_REQUIRED',
+            'NOTIFY_MSG_TS',
+            'INNGEST_RUN_ID',
+            'REPLY_BROADCAST',
+            'EMPLOYEE_RULES',
+            'EMPLOYEE_KNOWLEDGE',
+            ...Object.keys(rawEventEnv),
+          ].filter((k) => localWorkerEnv[k]);
           if (localWorkerEnv['PLATFORM_ENV_MANIFEST']) {
-            const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST', 'INNGEST_RUN_ID'].filter(
-              (k) => localWorkerEnv[k],
-            );
-            if (extra.length > 0) {
+            const existing = new Set(localWorkerEnv['PLATFORM_ENV_MANIFEST'].split(','));
+            const newKeys = localCriticalVars.filter((k) => !existing.has(k));
+            if (newKeys.length > 0) {
               localWorkerEnv['PLATFORM_ENV_MANIFEST'] =
-                `${localWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
+                `${localWorkerEnv['PLATFORM_ENV_MANIFEST']},${newKeys.join(',')}`;
             }
+          } else if (localCriticalVars.length > 0) {
+            localWorkerEnv['PLATFORM_ENV_MANIFEST'] = localCriticalVars.join(',');
           }
           const localMachine = runLocalDockerContainer({
             taskId,
@@ -580,14 +595,27 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           ...(employeeRules ? { EMPLOYEE_RULES: employeeRules } : {}),
           ...(employeeKnowledge ? { EMPLOYEE_KNOWLEDGE: employeeKnowledge } : {}),
         };
+        const flyCriticalVars = [
+          'TASK_ID',
+          'TENANT_ID',
+          'EMPLOYEE_ROLE_NAME',
+          'APPROVAL_REQUIRED',
+          'NOTIFY_MSG_TS',
+          'INNGEST_RUN_ID',
+          'REPLY_BROADCAST',
+          'EMPLOYEE_RULES',
+          'EMPLOYEE_KNOWLEDGE',
+          ...Object.keys(rawEventEnv),
+        ].filter((k) => flyWorkerEnv[k]);
         if (flyWorkerEnv['PLATFORM_ENV_MANIFEST']) {
-          const extra = ['NOTIFY_MSG_TS', 'REPLY_BROADCAST', 'INNGEST_RUN_ID'].filter(
-            (k) => flyWorkerEnv[k],
-          );
-          if (extra.length > 0) {
+          const existing = new Set(flyWorkerEnv['PLATFORM_ENV_MANIFEST'].split(','));
+          const newKeys = flyCriticalVars.filter((k) => !existing.has(k));
+          if (newKeys.length > 0) {
             flyWorkerEnv['PLATFORM_ENV_MANIFEST'] =
-              `${flyWorkerEnv['PLATFORM_ENV_MANIFEST']},${extra.join(',')}`;
+              `${flyWorkerEnv['PLATFORM_ENV_MANIFEST']},${newKeys.join(',')}`;
           }
+        } else if (flyCriticalVars.length > 0) {
+          flyWorkerEnv['PLATFORM_ENV_MANIFEST'] = flyCriticalVars.join(',');
         }
         const machine = await createMachine(flyApp, {
           image,
