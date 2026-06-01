@@ -275,7 +275,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
 
   No hardcoded secrets or real API keys anywhere in the document.
 
-- [ ] 6. Provision Supabase Cloud Pro and collect credentials
+- [ ] 6. **[BLOCKED: needs user to create Supabase Cloud account at supabase.com/dashboard]** Provision Supabase Cloud Pro and collect credentials
 
   **Manual provisioning steps** (agent assists with verification):
   1. Go to https://supabase.com/dashboard → "New project"
@@ -300,7 +300,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
 
   Save all credentials to Render env vars (Task 7) and to a local secure store (1Password, etc.).
 
-- [ ] 7. Deploy gateway to Render and configure env vars
+- [ ] 7. **[BLOCKED: needs T6 + T8 credentials + user to create Render web service at render.com]** Deploy gateway to Render and configure env vars
 
   **Deployment steps**:
   1. Go to https://render.com → "New Web Service"
@@ -325,7 +325,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   # Expected: {"status":"ok"}
   ```
 
-- [ ] 8. Configure Inngest Cloud and register all functions
+- [ ] 8. **[BLOCKED: needs user to create Inngest Cloud account at app.inngest.com — current INNGEST_EVENT_KEY starts with "local", not a real cloud key]** Configure Inngest Cloud and register all functions
 
   **Setup steps**:
   1. Create account at https://app.inngest.com (or log in)
@@ -438,7 +438,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   - `RENDER_DEPLOY_HOOK_URL` — from Render dashboard → Settings → Deploy Hook
   - `FLY_API_TOKEN` — from `fly auth token`
 
-- [ ] 11. Run database migration against Supabase Cloud
+- [ ] 11. **[BLOCKED: needs T6 DATABASE_URL_DIRECT — currently points to localhost]** Run database migration against Supabase Cloud
 
   Run Prisma migrations against the cloud DB:
 
@@ -474,7 +474,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   DATABASE_URL={supabase-direct-url} pnpm db:seed
   ```
 
-- [ ] 12. End-to-end smoke test in production cloud
+- [ ] 12. **[BLOCKED: needs T7 GATEWAY_PUBLIC_URL — currently empty]** End-to-end smoke test in production cloud
 
   Trigger a complete task lifecycle through the cloud stack. Use `real-estate-motivation-bot-2` (simplest employee, `approval_required: false`, completes in ~60-90s).
 
@@ -511,7 +511,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   - Inngest Cloud: Runs tab → find the run → inspect each step
   - Fly.io machine logs: `fly logs -a ai-employee-workers`
 
-- [ ] 13. Notify completion
+- [ ] 13. **[BLOCKED: needs T12 complete]** Notify completion
   ```bash
   tsx scripts/telegram-notify.ts "✅ Cloud deployment complete — all tasks done. Platform is live at https://{render-url}. Come back to review."
   ```
@@ -528,7 +528,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
       Run `pnpm build` + `pnpm test -- --run` + `pnpm lint`. Review all changed files for: hardcoded secrets, `as any`, empty catches, commented-out code. Check Dockerfile.gateway for best practices.
       Output: `Build [PASS/FAIL] | Tests [N/N] | Lint [PASS/FAIL] | VERDICT: APPROVE/REJECT`
 
-- [ ] F3. **Real QA** — `unspecified-high`
+- [ ] F3. **[BLOCKED: needs live Render + Inngest Cloud + Supabase Cloud — T6/T7/T8 must complete first]** **Real QA** — `unspecified-high`
       Verify from clean state: gateway health check, Inngest functions registered, task lifecycle completes end-to-end, dashboard loads. Save evidence.
       Output: `Health [PASS/FAIL] | Inngest [5/5 fns] | E2E [PASS/FAIL] | Dashboard [PASS/FAIL] | VERDICT: APPROVE/REJECT`
 
