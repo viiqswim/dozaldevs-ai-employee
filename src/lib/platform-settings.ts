@@ -23,7 +23,7 @@ export async function getPlatformSetting(key: string): Promise<string> {
 export async function validateRequiredPlatformSettings(): Promise<void> {
   const requiredSettings = await getPrisma().platformSetting.findMany({
     where: { is_required: true, deleted_at: null },
-    select: { key: true },
+    select: { key: true, value: true },
   });
 
   if (requiredSettings.length === 0) {
@@ -32,15 +32,9 @@ export async function validateRequiredPlatformSettings(): Promise<void> {
     );
   }
 
-  const missingKeys: string[] = [];
-  for (const { key } of requiredSettings) {
-    const setting = await getPrisma().platformSetting.findFirst({
-      where: { key, deleted_at: null },
-    });
-    if (!setting || setting.value === undefined) {
-      missingKeys.push(key);
-    }
-  }
+  const missingKeys = requiredSettings
+    .filter((s) => !s.value || s.value.trim() === '')
+    .map((s) => s.key);
 
   if (missingKeys.length > 0) {
     throw new Error(

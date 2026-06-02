@@ -403,9 +403,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const vmSize = (archetype.vm_size as string | null) ?? defaultVmSize;
         const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
         const flyApp =
-          process.env['FLY_WORKER_APP'] ??
-          process.env['FLY_SUMMARIZER_APP'] ??
-          'ai-employee-workers';
+          process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
 
         const effectiveSupabaseUrl =
           process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
@@ -708,9 +706,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env['FLY_WORKER_APP'] ??
-                process.env['FLY_SUMMARIZER_APP'] ??
-                'ai-employee-workers';
+                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -777,9 +773,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env['FLY_WORKER_APP'] ??
-                process.env['FLY_SUMMARIZER_APP'] ??
-                'ai-employee-workers';
+                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -844,9 +838,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
               } else {
                 const flyApp =
-                  process.env['FLY_WORKER_APP'] ??
-                  process.env['FLY_SUMMARIZER_APP'] ??
-                  'ai-employee-workers';
+                  process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
                 await destroyMachine(flyApp, machineId as string);
               }
             } catch (err) {
@@ -1007,9 +999,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
               } else {
                 const flyApp =
-                  process.env['FLY_WORKER_APP'] ??
-                  process.env['FLY_SUMMARIZER_APP'] ??
-                  'ai-employee-workers';
+                  process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
                 await destroyMachine(flyApp, machineId as string);
               }
             } catch (err) {
@@ -1026,9 +1016,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env['FLY_WORKER_APP'] ??
-                process.env['FLY_SUMMARIZER_APP'] ??
-                'ai-employee-workers';
+                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -1103,9 +1091,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const deliveryImage =
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
           const deliveryFlyApp =
-            process.env['FLY_WORKER_APP'] ??
-            process.env['FLY_SUMMARIZER_APP'] ??
-            'ai-employee-workers';
+            process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
             process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
@@ -1413,9 +1399,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
               const flyApp =
-                process.env['FLY_WORKER_APP'] ??
-                process.env['FLY_SUMMARIZER_APP'] ??
-                'ai-employee-workers';
+                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -2465,9 +2449,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const deliveryImage =
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
           const deliveryFlyApp =
-            process.env['FLY_WORKER_APP'] ??
-            process.env['FLY_SUMMARIZER_APP'] ??
-            'ai-employee-workers';
+            process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
             process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
@@ -3092,9 +3074,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
           } else {
             const flyApp =
-              process.env['FLY_WORKER_APP'] ??
-              process.env['FLY_SUMMARIZER_APP'] ??
-              'ai-employee-workers';
+              process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
             await destroyMachine(flyApp, machineId as string);
           }
         } catch (err) {
