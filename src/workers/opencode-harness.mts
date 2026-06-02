@@ -46,6 +46,7 @@ interface ArchetypeRow {
   enrichment_adapter?: string | null;
   risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
   tool_registry?: { tools?: string[] } | null;
+  platform_rules_override?: string | null;
 }
 
 interface TaskWithArchetype {
@@ -726,6 +727,7 @@ async function main(): Promise<void> {
         deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
         employeeRules: '',
         employeeKnowledge: '',
+        platformRulesOverride: archetype.platform_rules_override ?? undefined,
       });
       await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
       log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');
@@ -955,6 +957,7 @@ async function main(): Promise<void> {
       deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
       employeeRules,
       employeeKnowledge,
+      platformRulesOverride: archetype.platform_rules_override ?? undefined,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written (template compiler)');

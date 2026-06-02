@@ -33,6 +33,7 @@ function makeOkResponse(token = 'ghs_test123', expires_at = '2099-01-01T00:00:00
 describe('generateInstallationToken()', () => {
   describe('env var validation', () => {
     it('throws when GITHUB_APP_ID is not set', async () => {
+      delete process.env.GITHUB_APP_ID; // ensure not inherited from real .env
       process.env.GITHUB_PRIVATE_KEY = TEST_PRIVATE_KEY;
       await expect(generateInstallationToken(123)).rejects.toThrow(
         'GITHUB_APP_ID environment variable is not set',
