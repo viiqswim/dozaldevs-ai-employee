@@ -1,6 +1,6 @@
 # Cloud Deployment Guide
 
-This guide walks through deploying the AI Employee Platform to production. The platform uses four managed services: Supabase Cloud (database + PostgREST), Render (gateway + Slack bot), Inngest Cloud (workflow orchestration), and Fly.io (AI worker containers).
+This guide documents the complete production deployment of the AI Employee Platform. It's written from the actual deployment experience, including every foot-gun encountered. Someone following this guide from scratch should be able to replicate the full production setup.
 
 ---
 
@@ -10,13 +10,14 @@ This guide walks through deploying the AI Employee Platform to production. The p
 | ------------------------------------------ | ------------------ | ---------------------- | ------------------------------------------------------------------- |
 | Express gateway + Slack bot + Inngest host | Render Starter     | $7/mo                  | Persistent process, 100-min HTTP timeout, good for Socket Mode      |
 | PostgreSQL + PostgREST                     | Supabase Cloud Pro | $25/mo                 | Only managed service that bundles PostgREST (mandatory for workers) |
-| AI worker containers                       | Fly.io Machines    | ~$5–15/mo              | Already integrated, pay-per-use, ~$0.002/run                        |
+| AI worker containers                       | Fly.io Machines    | ~$5-15/mo              | Pay-per-use, ~$0.002/run                                            |
 | Workflow orchestration                     | Inngest Cloud      | $0 (50K steps/mo free) | Durable execution, no self-hosting needed                           |
 | CI/CD                                      | GitHub Actions     | $0                     | Auto-deploy on push to main                                         |
 
 **Key topology notes:**
 
-- The gateway serves the dashboard at `/dashboard/` as pre-built static files. No separate frontend deploy is needed.
+- The gateway serves the dashboard at `/dashboard/` as pre-built static files baked into the Docker image at build time. No separate frontend deploy is needed. Production URL: `https://{render-url}/dashboard/`
+- All four `VITE_*` environment variables (`VITE_POSTGREST_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GATEWAY_URL`, `VITE_INNGEST_URL`) are baked into the dashboard bundle by Vite at Docker build time. They are NOT available at runtime. Setting them as runtime env vars has no effect on the dashboard.
 - PostgREST is at `https://{ref}.supabase.co/rest/v1/` in cloud (same pattern as local `localhost:54331/rest/v1/`).
 - Workers get `SUPABASE_URL` injected at machine creation time by `employee-lifecycle.ts`. Set this in Render env vars so it flows through.
 - Fly.io worker image must be built with `--platform linux/amd64` before pushing to the registry.
@@ -25,74 +26,306 @@ This guide walks through deploying the AI Employee Platform to production. The p
 
 ## 2. Prerequisites
 
-Before starting, make sure you have:
+**CLIs required:**
 
-- **fly CLI** installed and authenticated (`fly auth login`)
-- **Render account** connected to your GitHub repo
-- **Inngest Cloud account** created at [app.inngest.com](https://app.inngest.com)
-- **Supabase Cloud account** at [supabase.com](https://supabase.com)
-- **GitHub repo** with Actions enabled
+- `fly` — authenticated via `fly auth login`
+- `docker` — with buildx support for cross-platform builds
+- `psql` — for running migrations and schema cache reloads
+- `curl` + `jq` — for API calls and response inspection
+
+**Accounts required:**
+
+- [Supabase](https://supabase.com) — database + PostgREST
+- [Render](https://render.com) — gateway hosting, connected to your GitHub repo
+- [Inngest Cloud](https://app.inngest.com) — workflow orchestration
+- [Fly.io](https://fly.io) — worker container runtime
+- GitHub — repo with Actions enabled
 
 ---
 
-## 3. Step-by-Step Provisioning
+## 3. Supabase Cloud Setup
 
-### 3.1 Supabase Cloud
+### 3.1 Create the Project
 
-1. Create a new project at [supabase.com/dashboard](https://supabase.com/dashboard).
-2. Choose a region close to your Render deployment region.
-3. Wait for the project to finish provisioning (about 2 minutes).
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard) and create a new project.
+2. Choose a region close to your Render deployment region (e.g. `us-west-2` for Render Ohio).
+3. Wait for provisioning to finish (about 2 minutes).
 4. Collect credentials from **Project Settings > API**:
    - **Project URL** (`https://{ref}.supabase.co`) — this is your `SUPABASE_URL`
    - **anon public** key — this is your `SUPABASE_ANON_KEY`
    - **service_role** key — this is your `SUPABASE_SECRET_KEY`
-5. Collect the direct database connection string from **Project Settings > Database > Connection string > URI** (use the "Direct connection" tab, not the pooler). This is your `DATABASE_URL` and `DATABASE_URL_DIRECT`.
 
-> **Important:** Use the direct connection URL (port 5432) for Prisma migrations, not the pooled connection (port 6543). Prisma's migration engine requires a direct connection.
+### 3.2 Connection Strings
 
-### 3.2 Inngest Cloud
+Three distinct connection URLs exist, each for a different purpose. Using the wrong one for the wrong task causes hard-to-diagnose failures.
+
+**Transaction pooler (port 6543)** — use for runtime gateway connections (`DATABASE_URL`):
+
+```
+postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:6543/postgres
+```
+
+**Session pooler (port 5432)** — use for Prisma migrations and seeding:
+
+```
+postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:5432/postgres
+```
+
+The transaction pooler (port 6543) uses pgbouncer in transaction mode, which doesn't support prepared statements. Prisma's migration engine uses prepared statements and will fail with `"prepared statement already exists"` if you use port 6543 for migrations.
+
+**Direct connection** — use for `DATABASE_URL_DIRECT` (Render and CI only):
+
+```
+postgresql://postgres:{pw}@db.{ref}.supabase.co:5432/postgres
+```
+
+The direct connection is IPv6-only. It's unreachable from a local Mac but works fine from Render and GitHub Actions.
+
+### 3.3 Running Migrations
+
+Always use the session pooler URL (port 5432) for migrations, not the transaction pooler (port 6543):
+
+```bash
+DATABASE_URL="postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:5432/postgres" \
+  npx prisma migrate deploy
+```
+
+### 3.4 Reload PostgREST Schema Cache
+
+After every migration that adds or removes tables, PostgREST needs to reload its schema cache. Without this, workers will get `PGRST205 "Could not find the table in the schema cache"` errors even though the table exists in PostgreSQL.
+
+```bash
+psql "postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:5432/postgres" \
+  -c "NOTIFY pgrst, 'reload schema';"
+```
+
+### 3.5 Verify PostgREST Sees the Tables
+
+```bash
+curl -s "https://{ref}.supabase.co/rest/v1/tasks?limit=1" \
+  -H "apikey: {anon_key}" \
+  -H "Authorization: Bearer {anon_key}"
+# Expected: [] (empty array)
+# NOT expected: {"code":"PGRST205","message":"Could not find the table in the schema cache"}
+```
+
+### 3.6 Seeding
+
+Use the session pooler URL for seeding too. The direct connection is IPv6-only and unreachable locally:
+
+```bash
+DATABASE_URL="postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:5432/postgres" \
+  npx prisma db seed
+```
+
+### 3.7 API Key Format
+
+New Supabase projects use `sb_publishable_*` (anon) and `sb_secret_*` (service*role) instead of the old JWT format. Both formats work with PostgREST Bearer token auth. If you see a JWT-format key in older docs, the `sb*\*` format is the current equivalent.
+
+---
+
+## 4. Inngest Cloud Setup
 
 1. Sign up at [app.inngest.com](https://app.inngest.com) and create a new app.
 2. Go to **Manage > Keys** and collect:
    - **Event Key** — this is your `INNGEST_EVENT_KEY`
    - **Signing Key** — this is your `INNGEST_SIGNING_KEY`
-3. Set `INNGEST_DEV=""` (empty) in production — this tells the SDK to use Inngest Cloud instead of the local dev server.
-4. Set `INNGEST_BASE_URL="https://inn.gs"` so workers know where to fire events.
+3. Set `INNGEST_DEV=""` (empty or absent) in production. This tells the SDK to use Inngest Cloud instead of the local dev server.
+4. Do NOT set `INNGEST_BASE_URL` in Render env vars. The gateway doesn't need it. Workers get it injected separately.
+5. After the gateway is live, register the app: go to **app.inngest.com > Apps > Sync** and enter `https://{render-url}/api/inngest`.
 
-### 3.3 Fly.io
+Verify registration worked:
 
-1. Create a new app: `fly apps create ai-employee-workers`
-2. Set `FLY_WORKER_APP=ai-employee-workers` in Render env vars.
-3. Get your API token: `fly tokens create deploy -x 999999h`
-4. Store this as `FLY_API_TOKEN` in Render env vars and as a GitHub Actions secret.
-5. Build and push the worker image (see Section 6 for CI/CD automation):
-   ```bash
-   docker build --platform linux/amd64 -t registry.fly.io/ai-employee-workers:latest .
-   fly auth docker
-   docker push registry.fly.io/ai-employee-workers:latest
-   ```
-
-### 3.4 Render
-
-1. Create a new **Web Service** in Render, connected to your GitHub repo.
-2. Set the build command: `pnpm install && pnpm build && pnpm dashboard:build`
-3. Set the start command: `node dist/gateway/index.js`
-4. Choose the **Starter** plan ($7/mo) — it provides a persistent process needed for Slack Socket Mode.
-5. Add all environment variables from Section 4.
-6. After the first deploy, copy the Render service URL (e.g. `https://your-app.onrender.com`) and set it as `GATEWAY_PUBLIC_URL` in Render env vars. Then redeploy.
+```bash
+curl https://{render-url}/api/inngest
+# Expected: JSON with a list of 5 registered functions
+```
 
 ---
 
-## 4. Environment Variables Reference
+## 5. Fly.io Worker Setup
 
-Set these in Render's environment variable panel. Variables marked **Build-time** must be set before the build runs (Vite bakes them into the dashboard bundle at build time).
+### 5.1 Create the App
+
+```bash
+fly apps create ai-employee-workers
+```
+
+### 5.2 Build and Push the Worker Image
+
+The worker image must be built for `linux/amd64` regardless of your local machine architecture:
+
+```bash
+fly auth docker
+docker buildx build --platform linux/amd64 -t registry.fly.io/ai-employee-workers:latest --push .
+```
+
+Note: this builds using the root `Dockerfile` (the OpenCode worker image), not `Dockerfile.gateway`.
+
+### 5.3 Set Worker Secrets
+
+Worker secrets are injected into Fly.io machines at runtime. Set them via the CLI, not as env vars:
+
+```bash
+fly secrets set -a ai-employee-workers \
+  OPENROUTER_API_KEY="{your-key}" \
+  SUPABASE_URL="https://{ref}.supabase.co" \
+  SUPABASE_SECRET_KEY="sb_secret_{...}"
+```
+
+Verify:
+
+```bash
+fly secrets list -a ai-employee-workers
+```
+
+---
+
+## 6. Render Gateway Setup
+
+### 6.1 Critical: render.yaml Is NOT Authoritative
+
+The service was created manually via the Render dashboard UI, not via Blueprint/IaC. Any settings in `render.yaml` (dockerfilePath, healthCheckPath, envVars) must be applied manually via the Render API or dashboard. Changes to `render.yaml` alone have no effect on the running service.
+
+### 6.2 Create the Service
+
+1. Go to render.com > **New Web Service** > connect your GitHub repo.
+2. Choose **Docker** runtime.
+3. Choose the **Starter** plan ($7/mo) for a persistent process (required for Slack Socket Mode).
+
+### 6.3 Set the Correct Dockerfile
+
+After creation, the Render dashboard defaults to `./Dockerfile` (the OpenCode worker image). The gateway needs `./Dockerfile.gateway`. Update it via the API:
+
+```bash
+curl -s -X PATCH \
+  -H "Authorization: Bearer {render_api_key}" \
+  -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/{service_id}" \
+  -d '{"serviceDetails": {"envSpecificDetails": {"dockerfilePath": "./Dockerfile.gateway"}}}' \
+  | jq '.serviceDetails.envSpecificDetails.dockerfilePath'
+# Expected: "./Dockerfile.gateway"
+```
+
+### 6.4 Set the Health Check Path
+
+```bash
+curl -s -X PATCH \
+  -H "Authorization: Bearer {render_api_key}" \
+  -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/{service_id}" \
+  -d '{"serviceDetails": {"healthCheckPath": "/health"}}'
+```
+
+### 6.5 Set Docker Build Arguments
+
+The `VITE_*` variables must be set as Docker build arguments, not runtime env vars. Vite bakes them into the dashboard bundle at build time. Setting them as runtime env vars has no effect on the dashboard.
+
+For manually created services, `dockerBuildArgs` in `render.yaml` don't apply. Set them in the Render dashboard:
+
+**Settings > Build & Deploy > Docker Build Arguments**
+
+Add these four:
+
+| Key                      | Value                               |
+| ------------------------ | ----------------------------------- |
+| `VITE_POSTGREST_URL`     | `https://{ref}.supabase.co/rest/v1` |
+| `VITE_SUPABASE_ANON_KEY` | `sb_publishable_{...}`              |
+| `VITE_GATEWAY_URL`       | `https://{render-url}`              |
+| `VITE_INNGEST_URL`       | `https://inn.gs`                    |
+
+### 6.6 Set Environment Variables
+
+**WARNING: `PUT /env-vars` replaces the ENTIRE list.** Always include all variables when calling this endpoint, or you will wipe existing secrets.
+
+Set all env vars in one call:
+
+```bash
+curl -s -X PUT \
+  -H "Authorization: Bearer {render_api_key}" \
+  -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/{service_id}/env-vars" \
+  -d '[
+    {"key": "NODE_ENV", "value": "production"},
+    {"key": "WORKER_RUNTIME", "value": "fly"},
+    {"key": "DATABASE_URL", "value": "postgresql://postgres.{ref}:{pw}@aws-1-{region}.pooler.supabase.com:6543/postgres"},
+    {"key": "DATABASE_URL_DIRECT", "value": "postgresql://postgres:{pw}@db.{ref}.supabase.co:5432/postgres"},
+    {"key": "SUPABASE_URL", "value": "https://{ref}.supabase.co"},
+    {"key": "SUPABASE_SECRET_KEY", "value": "sb_secret_{...}"},
+    {"key": "SUPABASE_ANON_KEY", "value": "sb_publishable_{...}"},
+    {"key": "ENCRYPTION_KEY", "value": "{64-hex-chars}"},
+    {"key": "ADMIN_API_KEY", "value": "{your-key}"},
+    {"key": "INNGEST_EVENT_KEY", "value": "{your-key}"},
+    {"key": "INNGEST_SIGNING_KEY", "value": "{your-key}"},
+    {"key": "GATEWAY_PUBLIC_URL", "value": "https://{render-url}"},
+    {"key": "FLY_API_TOKEN", "value": "{your-token}"},
+    {"key": "FLY_WORKER_APP", "value": "ai-employee-workers"},
+    {"key": "FLY_WORKER_IMAGE", "value": "registry.fly.io/ai-employee-workers:latest"},
+    {"key": "WORKER_VM_SIZE", "value": "shared-cpu-1x"},
+    {"key": "OPENROUTER_API_KEY", "value": "{your-key}"},
+    {"key": "SLACK_SIGNING_SECRET", "value": "{your-secret}"},
+    {"key": "SLACK_BOT_TOKEN", "value": "xoxb-{...}"},
+    {"key": "SLACK_APP_TOKEN", "value": "xapp-{...}"},
+    {"key": "SLACK_CLIENT_ID", "value": "{your-id}"},
+    {"key": "SLACK_CLIENT_SECRET", "value": "{your-secret}"},
+    {"key": "SLACK_REDIRECT_BASE_URL", "value": "https://{render-url}"},
+    {"key": "WEBHOOK_PUBLIC_URL", "value": "https://{render-url}"},
+    {"key": "COST_LIMIT_USD_PER_DEPT_PER_DAY", "value": "50"}
+  ]'
+```
+
+### 6.7 Monitor Deploys via API
+
+Runtime logs (stdout/stderr from the Node.js process) are NOT available via the Render API. They're only visible in the Render dashboard Logs tab. Use the deploy and events APIs for status:
+
+```bash
+# Check latest deploy status
+curl -s -H "Authorization: Bearer {render_api_key}" \
+  "https://api.render.com/v1/services/{service_id}/deploys?limit=1" \
+  | jq '.[0].deploy | {status, id}'
+
+# Get deploy events (includes failure reason)
+curl -s -H "Authorization: Bearer {render_api_key}" \
+  "https://api.render.com/v1/services/{service_id}/events?limit=5" \
+  | jq '[.[] | {type: .event.type, details: .event.details}]'
+
+# Trigger a new deploy
+curl -s -X POST \
+  -H "Authorization: Bearer {render_api_key}" \
+  -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/{service_id}/deploys" \
+  -d '{"clearCache":"do_not_clear"}'
+
+# Cancel a running deploy
+curl -s -X POST \
+  -H "Authorization: Bearer {render_api_key}" \
+  "https://api.render.com/v1/services/{service_id}/deploys/{deploy_id}/cancel"
+```
+
+To debug startup crashes locally before deploying:
+
+```bash
+docker build -f Dockerfile.gateway -t ai-employee-gateway:test .
+docker run --rm \
+  -e ENCRYPTION_KEY={...} \
+  -e ADMIN_API_KEY={...} \
+  -e PORT=10000 \
+  -p 10000:10000 \
+  ai-employee-gateway:test
+```
+
+---
+
+## 7. Environment Variable Reference
+
+Set these in Render's environment variable panel. Variables marked **Build-time** must be set as Docker build arguments before the build runs. Vite bakes them into the dashboard bundle at build time and they cannot be changed at runtime.
 
 ### Database
 
-| Variable              | Where to Find                                          | Notes                           |
-| --------------------- | ------------------------------------------------------ | ------------------------------- |
-| `DATABASE_URL`        | Supabase > Settings > Database > Direct connection URI | Must use port 5432, not 6543    |
-| `DATABASE_URL_DIRECT` | Same as `DATABASE_URL`                                 | Used by Prisma migration engine |
+| Variable              | Where to Find                                           | Notes                                       |
+| --------------------- | ------------------------------------------------------- | ------------------------------------------- |
+| `DATABASE_URL`        | Supabase > Settings > Database > Transaction pooler URI | Port 6543 — for runtime gateway connections |
+| `DATABASE_URL_DIRECT` | Supabase > Settings > Database > Direct connection URI  | IPv6 only — for Render and CI migrations    |
 
 ### Supabase (PostgREST + Auth)
 
@@ -104,21 +337,22 @@ Set these in Render's environment variable panel. Variables marked **Build-time*
 
 ### Platform Core
 
-| Variable             | Value / Source          | Notes                                                                       |
-| -------------------- | ----------------------- | --------------------------------------------------------------------------- |
-| `ENCRYPTION_KEY`     | `openssl rand -hex 32`  | 64 hex chars; never change after first deploy                               |
-| `ADMIN_API_KEY`      | `openssl rand -hex 32`  | Protects all `/admin/*` endpoints                                           |
-| `PORT`               | `7700`                  | Render sets `PORT` automatically; this is the fallback                      |
-| `GATEWAY_PUBLIC_URL` | Your Render service URL | e.g. `https://your-app.onrender.com` — required for Inngest Cloud callbacks |
+| Variable             | Value / Source          | Notes                                                                                |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `ENCRYPTION_KEY`     | `openssl rand -hex 32`  | 64 hex chars; never change after first deploy — all tenant secrets become unreadable |
+| `ADMIN_API_KEY`      | `openssl rand -hex 32`  | Protects all `/admin/*` endpoints                                                    |
+| `PORT`               | `7700`                  | Render sets `PORT` automatically; this is the fallback                               |
+| `GATEWAY_PUBLIC_URL` | Your Render service URL | e.g. `https://{render-url}` — required for Inngest Cloud callbacks                   |
 
 ### Inngest
 
-| Variable              | Value / Source                | Notes                                |
-| --------------------- | ----------------------------- | ------------------------------------ |
-| `INNGEST_DEV`         | `""` (empty)                  | Leave empty in production            |
-| `INNGEST_EVENT_KEY`   | Inngest Cloud > Manage > Keys |                                      |
-| `INNGEST_SIGNING_KEY` | Inngest Cloud > Manage > Keys |                                      |
-| `INNGEST_BASE_URL`    | `https://inn.gs`              | Inngest Cloud ingest URL for workers |
+| Variable              | Value / Source                | Notes                     |
+| --------------------- | ----------------------------- | ------------------------- |
+| `INNGEST_DEV`         | `""` (empty or absent)        | Leave empty in production |
+| `INNGEST_EVENT_KEY`   | Inngest Cloud > Manage > Keys |                           |
+| `INNGEST_SIGNING_KEY` | Inngest Cloud > Manage > Keys |                           |
+
+Do NOT set `INNGEST_BASE_URL` in Render env vars. The gateway doesn't need it.
 
 ### Worker Dispatch
 
@@ -170,67 +404,123 @@ Set these in Render's environment variable panel. Variables marked **Build-time*
 | --------------------------------- | ----- | ------------------------------------ |
 | `COST_LIMIT_USD_PER_DEPT_PER_DAY` | `50`  | Daily circuit breaker per department |
 
-### Dashboard (Build-time only)
+### Dashboard (Build-time Docker build args only)
 
-These are set in Render's environment and must be present **before the build runs**. Vite bakes them into the static bundle.
+These must be set as Docker build arguments in Render (Settings > Build & Deploy > Docker Build Arguments), NOT as runtime env vars. Vite bakes them into the static bundle at build time.
 
-| Variable                 | Value                       | Notes                                     |
-| ------------------------ | --------------------------- | ----------------------------------------- |
-| `VITE_SUPABASE_URL`      | Same as `SUPABASE_URL`      | Baked into dashboard bundle at build time |
-| `VITE_SUPABASE_ANON_KEY` | Same as `SUPABASE_ANON_KEY` | Baked into dashboard bundle at build time |
-
-> **Gotcha:** If the dashboard shows blank or "—" for all data, `VITE_SUPABASE_ANON_KEY` was missing at build time. Set it and trigger a new deploy.
-
----
-
-## 5. Database Migration
-
-Run migrations against Supabase Cloud using the direct connection URL (not the pooled connection):
-
-```bash
-# Set the direct URL (port 5432, not 6543)
-export DATABASE_URL="postgresql://postgres:{password}@db.{ref}.supabase.co:5432/postgres"
-
-# Deploy all pending migrations
-npx prisma migrate deploy
-
-# Seed initial data (tenants, archetypes, model catalog)
-npx prisma db seed
-```
-
-After migrations run, reload the PostgREST schema cache so it picks up new tables:
-
-```bash
-# Connect via psql and notify PostgREST
-psql "$DATABASE_URL" -c "NOTIFY pgrst, 'reload schema';"
-```
-
-Verify PostgREST can see the tables:
-
-```bash
-curl -s "https://{ref}.supabase.co/rest/v1/tasks?limit=1" \
-  -H "apikey: {anon_key}" \
-  -H "Authorization: Bearer {anon_key}"
-# Expected: [] (empty array), NOT a PGRST205 schema cache error
-```
+| Variable                 | Value                               | Notes                                      |
+| ------------------------ | ----------------------------------- | ------------------------------------------ |
+| `VITE_POSTGREST_URL`     | `https://{ref}.supabase.co/rest/v1` | PostgREST endpoint for dashboard API calls |
+| `VITE_SUPABASE_ANON_KEY` | Same as `SUPABASE_ANON_KEY`         | Baked into dashboard bundle at build time  |
+| `VITE_GATEWAY_URL`       | `https://{render-url}`              | Gateway URL for dashboard API calls        |
+| `VITE_INNGEST_URL`       | `https://inn.gs`                    | Inngest Cloud URL                          |
 
 ---
 
-## 6. CI/CD Pipeline
+## 8. Known Build and Runtime Issues
+
+Every foot-gun encountered during the actual production deployment, with symptom, cause, and fix.
+
+### Issue 1: Wrong Dockerfile
+
+**Symptom:** Deploy fails immediately with `deploy_ended: nonZeroExit: 1`. The build log shows it's trying to build the OpenCode worker image (which requires Go, large dependencies, etc.) instead of the gateway.
+
+**Cause:** Render defaults to `./Dockerfile` when you create a service via the dashboard. The root `Dockerfile` is the OpenCode worker image. The gateway needs `./Dockerfile.gateway`.
+
+**Fix:** PATCH the dockerfilePath via the Render API (see Section 6.3). This cannot be set reliably via `render.yaml` for manually created services.
+
+### Issue 2: Missing OpenSSL on Alpine
+
+**Symptom:** Container starts, then crashes immediately with an error about `libssl.so.3` or a Prisma native binary failing to load.
+
+**Cause:** `node:22-alpine` doesn't include OpenSSL. Prisma's native query engine binary requires `libssl.so.3`.
+
+**Fix:** Add `RUN apk add --no-cache openssl` to both the builder and runner stages of `Dockerfile.gateway`. This is already applied in the current Dockerfile.
+
+### Issue 3: Missing agents.md Static Asset
+
+**Symptom:** Container crashes at startup with:
+
+```
+Error: ENOENT: no such file or directory, open '/app/dist/workers/config/agents.md'
+```
+
+**Cause:** `src/gateway/routes/admin-brain-preview.ts` imports `agents-md-compiler.mjs`, which calls `readFileSync` on `agents.md` at module load time (not lazily). TypeScript compilation doesn't copy `.md` files to `dist/`. So the file exists in `src/workers/config/agents.md` but not in `dist/workers/config/agents.md`.
+
+**Fix:** Add this line to `Dockerfile.gateway` after `pnpm build`:
+
+```dockerfile
+RUN mkdir -p dist/workers/config && cp src/workers/config/agents.md dist/workers/config/agents.md
+```
+
+This is already applied in the current Dockerfile.
+
+### Issue 4: Prisma Migration Fails with "Prepared Statement Already Exists"
+
+**Symptom:** `prisma migrate deploy` fails with:
+
+```
+ERROR: prepared statement "s0" already exists
+```
+
+**Cause:** Using the transaction pooler URL (port 6543) for migrations. pgbouncer transaction mode doesn't support prepared statements, which Prisma's migration engine uses.
+
+**Fix:** Use the session pooler URL (port 5432) for migrations. See Section 3.3.
+
+### Issue 5: Supabase Direct Connection Unreachable Locally
+
+**Symptom:** `psql` or `prisma migrate deploy` hangs or times out when using the direct connection URL (`db.{ref}.supabase.co:5432`).
+
+**Cause:** The direct connection endpoint is IPv6-only. Most local Mac setups don't route IPv6 to Supabase's infrastructure.
+
+**Fix:** Use the session pooler URL (port 5432) for local migrations and seeding. The direct connection works fine from Render and GitHub Actions.
+
+### Issue 6: Dashboard Shows Blank or Localhost Data
+
+**Symptom:** The dashboard loads but shows no data, or all API calls go to `localhost:54331` instead of the Supabase Cloud URL.
+
+**Cause:** The `VITE_*` build arguments were not set in Render when the Docker image was built. Vite baked the default localhost values into the bundle.
+
+**Fix:** Set all four `VITE_*` variables as Docker build arguments in Render (Settings > Build & Deploy > Docker Build Arguments) and trigger a new deploy. A restart alone won't help — the bundle must be rebuilt.
+
+### Issue 7: PUT /env-vars Wiped Existing Secrets
+
+**Symptom:** After updating one env var, other secrets stop working. The gateway can't connect to the database, Slack, etc.
+
+**Cause:** `PUT /env-vars` replaces the ENTIRE list of environment variables. Any variable not included in the PUT body is deleted.
+
+**Fix:** Always include ALL env vars when calling `PUT /env-vars`. Fetch the current list first if you're unsure what's set:
+
+```bash
+curl -s -H "Authorization: Bearer {render_api_key}" \
+  "https://api.render.com/v1/services/{service_id}/env-vars" | jq '[.[] | {key, value}]'
+```
+
+### Issue 8: render.yaml Changes Have No Effect
+
+**Symptom:** You update `render.yaml` and push to main, but the Render service doesn't pick up the changes.
+
+**Cause:** The service was created manually via the Render dashboard, not via Blueprint/IaC. Render only applies `render.yaml` to Blueprint-managed services.
+
+**Fix:** Apply all settings via the Render API PATCH endpoint or the dashboard UI directly. Treat `render.yaml` as documentation only for this service.
+
+---
+
+## 9. CI/CD Pipeline
 
 The `.github/workflows/deploy.yml` workflow runs on every push to `main`:
 
 1. **Test** — runs `pnpm test -- --run` and `pnpm lint`
-2. **Build worker image** — `docker build --platform linux/amd64 -t registry.fly.io/ai-employee-workers:latest .`
+2. **Build worker image** — `docker buildx build --platform linux/amd64 -t registry.fly.io/ai-employee-workers:latest .`
 3. **Push to Fly.io registry** — `fly auth docker && docker push registry.fly.io/ai-employee-workers:latest`
 4. **Deploy gateway** — hits the Render deploy hook URL to trigger a new Render build
 
 Required GitHub repository secrets:
 
-| Secret                   | Value                                      |
-| ------------------------ | ------------------------------------------ |
-| `RENDER_DEPLOY_HOOK_URL` | Render > Service > Settings > Deploy Hook  |
-| `FLY_API_TOKEN`          | From `fly tokens create deploy -x 999999h` |
+| Secret                   | Value                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `RENDER_DEPLOY_HOOK_URL` | Render > Service > Settings > Deploy Hooks (copy the URL from the dashboard) |
+| `FLY_API_TOKEN`          | From `fly tokens create deploy -x 999999h`                                   |
 
 Example workflow snippet:
 
@@ -248,18 +538,18 @@ Example workflow snippet:
 
 ---
 
-## 7. Ongoing Costs
+## 10. Ongoing Costs
 
-**Baseline (~$42/mo):**
+**Baseline (~$37-47/mo):**
 
 | Service        | Plan                | Cost           |
 | -------------- | ------------------- | -------------- |
 | Render         | Starter             | $7/mo          |
 | Supabase Cloud | Pro                 | $25/mo         |
-| Fly.io         | Pay-per-use         | ~$5–15/mo      |
+| Fly.io         | Pay-per-use         | ~$5-15/mo      |
 | Inngest Cloud  | Free (50K steps/mo) | $0/mo          |
 | GitHub Actions | Free tier           | $0/mo          |
-| **Total**      |                     | **~$37–47/mo** |
+| **Total**      |                     | **~$37-47/mo** |
 
 **Growth triggers:**
 
@@ -271,102 +561,59 @@ Fly.io costs scale with actual usage. Each worker run costs roughly $0.002 for a
 
 ---
 
-## 8. Troubleshooting
+## 11. Local vs Cloud Differences
 
-### Inngest not connecting
-
-**Symptom:** Inngest Cloud shows no functions registered, or events are not being processed.
-
-**Fix:** Check that `GATEWAY_PUBLIC_URL` is set in Render env vars to the public Render URL (e.g. `https://your-app.onrender.com`). Inngest Cloud needs to reach the gateway to register functions and deliver events. `localhost` will not work.
-
-Also verify the Inngest serve endpoint is reachable:
-
-```bash
-curl https://your-app.onrender.com/api/inngest
-# Expected: JSON with function list
-```
-
-### PostgREST 401 Unauthorized
-
-**Symptom:** Worker containers get 401 errors when reading or writing task data.
-
-**Fix:** Verify `SUPABASE_ANON_KEY` is the Supabase Cloud anon key, not the local dev JWT. The local dev JWT is only valid against the local Docker Compose stack. Get the correct key from Supabase > Settings > API > anon public.
-
-### PostgREST PGRST205 "table not found"
-
-**Symptom:** PostgREST returns `{"code":"PGRST205","message":"Could not find the table in the schema cache"}`.
-
-**Fix:** A migration added a new table but PostgREST hasn't reloaded its schema cache. Run:
-
-```bash
-psql "$DATABASE_URL" -c "NOTIFY pgrst, 'reload schema';"
-```
-
-### Slack Socket Mode not connecting
-
-**Symptom:** Gateway logs don't show `"Slack Bolt — Socket Mode connected"`.
-
-**Fix:** Verify `SLACK_APP_TOKEN` (starts with `xapp-`) is set in Render env vars. Socket Mode is an outbound WebSocket from the gateway to Slack — no inbound URL configuration is needed. If the token is set and it still doesn't connect, check the Slack app's Socket Mode is enabled at api.slack.com > App > Socket Mode.
-
-### Worker not starting
-
-**Symptom:** Tasks get stuck in `Executing` state; no worker container appears in `fly status`.
-
-**Fix:** Check that `WORKER_RUNTIME=fly` is set in Render env vars. Then check Fly.io machine logs:
-
-```bash
-fly logs -a ai-employee-workers
-```
-
-Also verify the worker image was pushed successfully:
-
-```bash
-fly image show -a ai-employee-workers
-```
-
-### Dashboard blank or showing "—" for all data
-
-**Symptom:** The dashboard loads but shows no data, or all stats show "—".
-
-**Fix:** `VITE_SUPABASE_ANON_KEY` was not set at build time. Vite bakes environment variables into the static bundle during the build step — runtime env vars don't help. Set `VITE_SUPABASE_ANON_KEY` in Render env vars and trigger a new deploy (not just a restart).
-
-### Slack approval buttons not working
-
-**Symptom:** Clicking Approve/Reject in Slack does nothing.
-
-**Fix:** This is usually a transient WebSocket drop. Do not change Slack app settings. Use the manual approval fallback:
-
-```bash
-curl -X POST "https://inn.gs/e/{your-inngest-event-key}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"employee/approval.received","data":{"taskId":"{task_id}","action":"approve","userId":"{slack_user_id}","userName":"Your Name"}}'
-```
-
----
-
-## 9. Local vs Cloud Differences
-
-| Variable                  | Local Dev                                                    | Cloud (Render)                                                  |
-| ------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------- |
-| `DATABASE_URL`            | `postgresql://postgres:postgres@localhost:54322/ai_employee` | `postgresql://postgres:{pw}@db.{ref}.supabase.co:5432/postgres` |
-| `SUPABASE_URL`            | `http://localhost:54331`                                     | `https://{ref}.supabase.co`                                     |
-| `SUPABASE_ANON_KEY`       | Local dev JWT (from `docker/.env`)                           | Supabase Cloud anon key                                         |
-| `SUPABASE_SECRET_KEY`     | Local service role JWT                                       | Supabase Cloud service_role key                                 |
-| `INNGEST_DEV`             | `"1"`                                                        | `""` (empty)                                                    |
-| `INNGEST_EVENT_KEY`       | `"local"`                                                    | Inngest Cloud event key                                         |
-| `INNGEST_SIGNING_KEY`     | _(not required)_                                             | Inngest Cloud signing key                                       |
-| `INNGEST_BASE_URL`        | `http://localhost:8288`                                      | `https://inn.gs`                                                |
-| `WORKER_RUNTIME`          | `""` or `"docker"`                                           | `"fly"`                                                         |
-| `TUNNEL_URL`              | Cloudflare tunnel URL (for Fly.io hybrid mode)               | _(not needed)_                                                  |
-| `GATEWAY_PUBLIC_URL`      | _(not required)_                                             | `https://your-app.onrender.com`                                 |
-| `SLACK_REDIRECT_BASE_URL` | Cloudflare tunnel URL                                        | `https://your-app.onrender.com`                                 |
-| `WEBHOOK_PUBLIC_URL`      | Cloudflare tunnel URL                                        | `https://your-app.onrender.com`                                 |
-| `VITE_SUPABASE_URL`       | `http://localhost:54331`                                     | `https://{ref}.supabase.co`                                     |
-| `VITE_SUPABASE_ANON_KEY`  | Local dev JWT                                                | Supabase Cloud anon key                                         |
+| Variable                  | Local Dev                                                    | Cloud (Render)                                   |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
+| `DATABASE_URL`            | `postgresql://postgres:postgres@localhost:54322/ai_employee` | Transaction pooler URL (port 6543)               |
+| `SUPABASE_URL`            | `http://localhost:54331`                                     | `https://{ref}.supabase.co`                      |
+| `SUPABASE_ANON_KEY`       | Local dev JWT (from `docker/.env`)                           | Supabase Cloud anon key (`sb_publishable_*`)     |
+| `SUPABASE_SECRET_KEY`     | Local service role JWT                                       | Supabase Cloud service*role key (`sb_secret*\*`) |
+| `INNGEST_DEV`             | `"1"`                                                        | `""` (empty)                                     |
+| `INNGEST_EVENT_KEY`       | `"local"`                                                    | Inngest Cloud event key                          |
+| `INNGEST_SIGNING_KEY`     | _(not required)_                                             | Inngest Cloud signing key                        |
+| `INNGEST_BASE_URL`        | `http://localhost:8288`                                      | _(not set — gateway doesn't need it)_            |
+| `WORKER_RUNTIME`          | `""` or `"docker"`                                           | `"fly"`                                          |
+| `TUNNEL_URL`              | Cloudflare tunnel URL (for Fly.io hybrid mode)               | _(not needed)_                                   |
+| `GATEWAY_PUBLIC_URL`      | _(not required)_                                             | `https://{render-url}`                           |
+| `SLACK_REDIRECT_BASE_URL` | Cloudflare tunnel URL                                        | `https://{render-url}`                           |
+| `WEBHOOK_PUBLIC_URL`      | Cloudflare tunnel URL                                        | `https://{render-url}`                           |
+| `VITE_POSTGREST_URL`      | `http://localhost:54331/rest/v1` (build arg)                 | `https://{ref}.supabase.co/rest/v1` (build arg)  |
+| `VITE_SUPABASE_ANON_KEY`  | Local dev JWT (build arg)                                    | Supabase Cloud anon key (build arg)              |
+| `VITE_GATEWAY_URL`        | `http://localhost:7700` (build arg)                          | `https://{render-url}` (build arg)               |
+| `VITE_INNGEST_URL`        | `http://localhost:8288` (build arg)                          | `https://inn.gs` (build arg)                     |
 
 **Key differences to remember:**
 
 - Local dev uses Docker Compose for PostgreSQL + PostgREST. Cloud uses Supabase Cloud.
 - Local dev uses the Inngest Dev Server at `localhost:8288`. Cloud uses Inngest Cloud at `inn.gs`.
 - Local dev can run workers in local Docker containers (`WORKER_RUNTIME=docker`). Cloud always uses Fly.io (`WORKER_RUNTIME=fly`).
-- Dashboard env vars (`VITE_*`) must be set before the build runs in Render — they're baked into the static bundle, not read at runtime.
+- All `VITE_*` vars are Docker build arguments, not runtime env vars. They must be set before the build runs and cannot be changed without a full rebuild.
+
+---
+
+## 12. Post-Deploy Checklist
+
+Run through this after every fresh deployment to confirm everything is wired up correctly:
+
+```
+[ ] curl https://{render-url}/health
+    Expected: {"status":"ok"}
+
+[ ] curl https://{render-url}/api/inngest
+    Expected: JSON with 5 functions listed
+
+[ ] Inngest Cloud dashboard shows app registered with 5 functions
+    Go to app.inngest.com > Apps
+
+[ ] Supabase dashboard > Table Editor > tasks table exists and is accessible
+    Also verify via PostgREST: curl https://{ref}.supabase.co/rest/v1/tasks?limit=1
+
+[ ] Dashboard loads at https://{render-url}/dashboard/
+    Check that data loads (not blank or "—" for all stats)
+
+[ ] Trigger a test task via admin API and confirm it reaches Done status
+    curl -X POST -H "X-Admin-Key: {admin_key}" https://{render-url}/admin/tenants/{tenant_id}/employees/{slug}/trigger
+
+[ ] Slack message appears in the configured channel after the task completes
+```
