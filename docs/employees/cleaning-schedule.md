@@ -53,11 +53,15 @@ Replace `YYYY-MM-DD` with the target date (e.g. `2026-06-01`).
 
 Given a target date, the employee:
 
-1. Fetches reservations from Hostfully for all VLRE properties checking out on that date
-2. Reads the trash schedule and cleaning zones from Notion
-3. Generates a cleaning schedule matching properties to zones and trash pickup days
-4. Posts the schedule to Slack (`#ops-cleaning-schedule`) for PM approval
-5. On approval, appends the finalized schedule to the Notion cleaning zones page
+1. Fetches all confirmed checkouts from Hostfully for that date
+2. Looks up cleaning times per property from the Reporte Financiero (Notion)
+3. Reads cleaner assignments by ZIP zone from the Manual de Personal (Notion)
+4. Reads trash schedules for every property from the Directorio Operativo (Notion)
+5. Assigns each checkout property to the right cleaner by ZIP zone; routes overflow to backup if a cleaner exceeds 7 hours
+6. Adds a trash reminder to any checkout property whose trash take-out day matches the target date
+7. Scans ALL properties (not just checkouts) for ones that only need trash taken out that day — assigns those to the right cleaner as 15-minute visits in a separate 🗑️ Basura section
+8. Calculates total time per cleaner (cleaning + trash minutes combined) using the calculate tool
+9. Posts the completed schedule to Slack (`#ops-cleaning-schedule`) — no approval required, posts straight through
 
 ## CRITICAL Gotchas
 
@@ -96,8 +100,8 @@ The Notion integration only has access to pages explicitly selected during OAuth
    PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
      -c "SELECT status, updated_at FROM tasks WHERE id = '$TASK_ID';"
    ```
-5. Approve the Slack card in `#ops-cleaning-schedule` when it appears
-6. Verify task reaches `Done` and the Notion page was updated
+5. Verify task reaches `Done` (no approval card — `approval_required: false`)
+6. Check `#ops-cleaning-schedule` in Slack for the posted schedule
 
 ## Business Rules
 
