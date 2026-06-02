@@ -6,21 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { postgrestFetch } from '@/lib/postgrest';
 import { listSecrets, setSecret } from '@/lib/gateway';
-import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
-import type { Tenant, TenantSecret, Archetype, TenantIntegration } from '@/lib/types';
+import type { Tenant, TenantSecret } from '@/lib/types';
 
 function SkeletonField() {
   return (
@@ -140,70 +131,6 @@ function SecretRow({
   );
 }
 
-interface IntegrationRowProps {
-  name: string;
-  description: string;
-  integration: TenantIntegration | null;
-  connectHref?: string;
-  connectLabel?: string;
-}
-
-function IntegrationRow({
-  name,
-  description,
-  integration,
-  connectHref,
-  connectLabel = 'Connect',
-}: IntegrationRowProps) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
-      <div className="space-y-0.5">
-        <p className="text-sm font-medium">{name}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        {integration && (
-          <p className="text-xs text-muted-foreground">
-            {integration.external_id ? `Connected · ${integration.external_id}` : 'Connected'} ·{' '}
-            {formatRelativeTime(integration.created_at)}
-          </p>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {integration ? (
-          <>
-            <Badge className="border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-              ✓ Connected
-            </Badge>
-            {connectHref && (
-              <a
-                href={connectHref}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
-              >
-                Reconnect
-              </a>
-            )}
-          </>
-        ) : (
-          <a
-            href={connectHref ?? '#'}
-            target="_blank"
-            rel="noreferrer"
-            aria-disabled={!connectHref}
-            className={
-              connectHref
-                ? 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent'
-                : 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium opacity-40 pointer-events-none'
-            }
-          >
-            {connectLabel}
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function TenantOverview() {
   const { tenantId } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -234,32 +161,6 @@ export function TenantOverview() {
     loading: secretsLoading,
     refresh: refreshSecrets,
   } = usePoll(fetchSecrets);
-
-  const fetchArchetypes = useCallback(
-    () =>
-      postgrestFetch<Archetype>('archetypes', {
-        tenant_id: `eq.${tenantId}`,
-        deleted_at: 'is.null',
-      }),
-    [tenantId],
-  );
-  const {
-    data: archetypes,
-    error: archetypesError,
-    loading: archetypesLoading,
-    refresh: refreshArchetypes,
-  } = usePoll(fetchArchetypes);
-
-  const fetchIntegrations = useCallback(
-    () => postgrestFetch<TenantIntegration>('tenant_integrations', { tenant_id: `eq.${tenantId}` }),
-    [tenantId],
-  );
-  const {
-    data: integrations,
-    error: integrationsError,
-    loading: integrationsLoading,
-    refresh: refreshIntegrations,
-  } = usePoll(fetchIntegrations);
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [secretValue, setSecretValue] = useState('');
@@ -323,11 +224,9 @@ export function TenantOverview() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="config">Config</TabsTrigger>
             <TabsTrigger value="secrets">Secrets</TabsTrigger>
-            <TabsTrigger value="archetypes">Archetypes</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
           </TabsList>
 
           <TabsContent value="config">
@@ -387,106 +286,6 @@ export function TenantOverview() {
                       />
                     ))}
                   </ul>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="archetypes">
-            <Card>
-              <CardHeader>
-                <CardTitle>Archetypes</CardTitle>
-                <CardDescription>Employee archetypes configured for this tenant.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {archetypesLoading ? (
-                  <div className="space-y-2">
-                    <SkeletonRow />
-                    <SkeletonRow />
-                  </div>
-                ) : archetypesError ? (
-                  <ErrorBox message={archetypesError.message} onRetry={refreshArchetypes} />
-                ) : !archetypes || archetypes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No archetypes found.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Model</TableHead>
-                        <TableHead>Runtime</TableHead>
-                        <TableHead>Approval</TableHead>
-                        <TableHead>Concurrency</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {archetypes.map((a) => (
-                        <TableRow key={a.id}>
-                          <TableCell className="font-mono text-sm">{a.role_name ?? '—'}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {a.model ?? '—'}
-                          </TableCell>
-                          <TableCell>{a.runtime ?? '—'}</TableCell>
-                          <TableCell>
-                            {(a.risk_model as Record<string, unknown> | null)?.approval_required
-                              ? 'Yes'
-                              : 'No'}
-                          </TableCell>
-                          <TableCell>{a.concurrency_limit ?? '—'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="integrations">
-            <Card>
-              <CardHeader>
-                <CardTitle>Integrations</CardTitle>
-                <CardDescription>External service connections for this tenant.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {integrationsLoading ? (
-                  <div className="space-y-4">
-                    <SkeletonRow />
-                    <SkeletonRow />
-                  </div>
-                ) : integrationsError ? (
-                  <ErrorBox message={integrationsError.message} onRetry={refreshIntegrations} />
-                ) : (
-                  <div className="space-y-4">
-                    <IntegrationRow
-                      name="Slack"
-                      description="Post messages and receive approvals in Slack channels."
-                      integration={integrations?.find((i) => i.provider === 'slack') ?? null}
-                      connectHref={`${GATEWAY_URL}/slack/install?tenant=${tenantId}`}
-                    />
-                    <IntegrationRow
-                      name="Jira"
-                      description="Receive Jira issue events to trigger AI employees."
-                      integration={integrations?.find((i) => i.provider === 'jira') ?? null}
-                      connectHref={
-                        tenant?.slug
-                          ? `${GATEWAY_URL}/integrations/jira/install?tenant=${tenant.slug}`
-                          : undefined
-                      }
-                      connectLabel="Connect Jira"
-                    />
-                    <IntegrationRow
-                      name="Notion"
-                      description="Read Notion pages to give AI employees access to your knowledge base and schedules."
-                      integration={integrations?.find((i) => i.provider === 'notion') ?? null}
-                      connectHref={
-                        tenant?.slug
-                          ? `${GATEWAY_URL}/integrations/notion/install?tenant=${tenant.slug}`
-                          : undefined
-                      }
-                      connectLabel="Connect Notion"
-                    />
-                  </div>
                 )}
               </CardContent>
             </Card>
