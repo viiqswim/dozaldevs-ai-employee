@@ -48,12 +48,6 @@ describe('Build Infrastructure', () => {
     expect(content).toContain('GITHUB_TOKEN=');
   });
 
-  it('.env.example has COST_LIMIT_USD_PER_DEPT_PER_DAY', () => {
-    const path = join(process.cwd(), '.env.example');
-    const content = readFileSync(path, 'utf-8');
-    expect(content).toContain('COST_LIMIT_USD_PER_DEPT_PER_DAY');
-  });
-
   it('package.json build script uses tsconfig.build.json', () => {
     const path = join(process.cwd(), 'package.json');
     const content = readFileSync(path, 'utf-8');

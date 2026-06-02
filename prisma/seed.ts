@@ -4835,6 +4835,68 @@ BOTH must be executed as bash tool calls. A text response without running these 
 
   console.log(`✅ ModelCatalog upserted: ${modelCatalogCount} models (global)`);
 
+  // Platform Settings
+  const platformSettings = [
+    {
+      key: 'default_worker_vm_size',
+      value: 'performance-1x',
+      description:
+        'Default Fly.io VM size for worker machines. OpenCode requires performance-1x minimum (2GB RAM).',
+      is_required: true,
+    },
+    {
+      key: 'cost_limit_usd_per_day',
+      value: '50',
+      description: 'Maximum LLM spend per day in USD. Circuit breaker triggers at this threshold.',
+      is_required: true,
+    },
+    {
+      key: 'synthesis_threshold',
+      value: '5',
+      description: 'Number of confirmed rules before rule synthesis is triggered.',
+      is_required: true,
+    },
+    {
+      key: 'max_employee_rules_chars',
+      value: '8000',
+      description: 'Maximum character length for employee learned rules.',
+      is_required: true,
+    },
+    {
+      key: 'max_employee_knowledge_chars',
+      value: '32000',
+      description: 'Maximum character length for employee knowledge base entries.',
+      is_required: true,
+    },
+    {
+      key: 'worker_bash_timeout_ms',
+      value: '1200000',
+      description: 'Default bash command timeout in worker containers (milliseconds).',
+      is_required: true,
+    },
+    {
+      key: 'issues_slack_channel',
+      value: '',
+      description: 'Slack channel for employee-reported issues. Empty = disabled.',
+      is_required: true,
+    },
+    {
+      key: 'cost_alert_slack_channel',
+      value: '#alerts',
+      description: 'Slack channel for cost circuit breaker alerts.',
+      is_required: true,
+    },
+  ];
+
+  for (const setting of platformSettings) {
+    await prisma.platformSetting.upsert({
+      where: { key: setting.key },
+      update: {}, // Don't overwrite existing values on re-seed
+      create: setting,
+    });
+  }
+  console.log('✅ Platform settings seeded');
+
   console.log('✅ Seeding complete.');
   console.log(
     `Tenants seeded: DozalDevs, VLRE — daily-summarizer archetypes for both, guest-messaging archetype for VLRE. Run /slack/install?tenant=<id> to attach Slack workspaces (or use scripts/setup-two-tenants.ts).`,

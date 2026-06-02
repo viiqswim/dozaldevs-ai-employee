@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
-import {
-  createEmployeeLifecycleFunction,
-  MAX_EMPLOYEE_RULES_CHARS,
-} from '../../src/inngest/employee-lifecycle.js';
+import { createEmployeeLifecycleFunction } from '../../src/inngest/employee-lifecycle.js';
+
+const MAX_EMPLOYEE_RULES_CHARS = 8000;
 
 const {
   mockCreateMachine,
@@ -71,6 +70,11 @@ vi.mock('@prisma/client', () => ({
 
 vi.mock('../../src/lib/call-llm.js', () => ({
   callLLM: mockCallLLM,
+}));
+
+vi.mock('../../src/lib/platform-settings.js', () => ({
+  getPlatformSetting: vi.fn().mockResolvedValue('8000'),
+  validateRequiredPlatformSettings: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../src/lib/logger.js', () => ({

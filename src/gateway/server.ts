@@ -38,6 +38,7 @@ import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
+import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -243,9 +244,17 @@ const calledFile = process.argv[1];
 if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile))) {
   const inngestClient = createInngestClient();
   buildApp({ inngestClient })
-    .then(({ app, boltApp: bolt }) => {
+    .then(async ({ app, boltApp: bolt }) => {
       expressApp = app;
       boltApp = bolt;
+
+      try {
+        await validateRequiredPlatformSettings();
+        logger.info('Platform settings validated');
+      } catch (error) {
+        logger.error({ error }, 'FATAL: Platform settings validation failed');
+        process.exit(1);
+      }
 
       const port = parseInt(process.env.PORT ?? '7700', 10);
       const server = app.listen(port, '0.0.0.0', () => {
