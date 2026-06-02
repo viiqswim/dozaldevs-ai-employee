@@ -32,6 +32,7 @@ import { jiraOAuthRoutes } from './routes/jira-oauth.js';
 import { notionOAuthRoutes } from './routes/notion-oauth.js';
 import { githubOAuthRoutes } from './routes/github-oauth.js';
 import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
+import { adminGithubRoutes } from './routes/admin-github.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
 import { TenantSecretRepository } from './services/tenant-secret-repository.js';
@@ -208,6 +209,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use('/integrations', notionOAuthRoutes({ prisma }));
   app.use('/integrations', githubOAuthRoutes({ prisma }));
   app.use('/internal', internalGithubTokenRoutes({ prisma }));
+  app.use(adminGithubRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   // Dashboard static file serving (local dev tool)
