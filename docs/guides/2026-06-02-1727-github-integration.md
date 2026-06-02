@@ -15,7 +15,7 @@ The integration has four distinct concerns:
 | Token generation (JWT → API token) | `src/gateway/services/github-token-manager.ts`                                         |
 | Token delivery to workers          | `src/gateway/routes/internal-github-token.ts` + `src/worker-tools/github/get-token.ts` |
 
-One GitHub App (`dozaldevs-ai-employee`) is shared across all tenants. Each tenant has its own **installation** of that app, identified by an `installation_id`. Tokens are scoped to the installation, so tenant A cannot access tenant B's repos.
+One GitHub App per environment is deployed — a separate App for local development and another for production. Each tenant installs the App for the environment they're connecting to; the App name is configured via `GITHUB_APP_NAME` in `.env`. Tokens are scoped per installation, so tenant A cannot access tenant B's repos.
 
 ---
 
@@ -27,7 +27,7 @@ One GitHub App (`dozaldevs-ai-employee`) is shared across all tenants. Each tena
 2. Dashboard navigates to `GET /integrations/github/install?tenant=<slug>`
 3. Gateway generates a **signed state** and redirects to GitHub's installation page:
    ```
-   https://github.com/apps/dozaldevs-ai-employee/installations/new?state=<signed>
+   https://github.com/apps/<GITHUB_APP_NAME>/installations/new?state=<signed>
    ```
 4. User installs the app on GitHub, selects which repos to grant access
 5. GitHub redirects to the gateway's **Setup URL** with the installation ID:
@@ -264,13 +264,13 @@ For engineer employees, `GITHUB_REPO_URL` (set by the user in the wizard) lands 
 
 ## 9. Required Environment Variables
 
-| Variable                | Where used                          | Notes                                                                                              |
-| ----------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `GITHUB_APP_ID`         | Token manager                       | Numeric app ID from GitHub App settings                                                            |
-| `GITHUB_APP_NAME`       | Install route                       | App slug (e.g. `dozaldevs-ai-employee`)                                                            |
-| `GITHUB_PRIVATE_KEY`    | Token manager                       | RSA private key from GitHub App settings. Stored with literal `\n` in `.env` — normalized in code. |
-| `GITHUB_WEBHOOK_SECRET` | Webhook handler                     | Set in GitHub App → Webhook settings                                                               |
-| `ENCRYPTION_KEY`        | OAuth state signing, secret storage | 32+ byte random key                                                                                |
+| Variable                | Per-environment?                   | Where used                          | Notes                                                                     |
+| ----------------------- | ---------------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| `GITHUB_APP_ID`         | **YES** — dev and prod differ      | Token manager                       | Numeric App ID from GitHub App settings                                   |
+| `GITHUB_APP_NAME`       | **YES** — dev and prod differ      | Install route                       | App slug (e.g. `my-ai-employee-dev`)                                      |
+| `GITHUB_PRIVATE_KEY`    | **YES** — each App has its own key | Token manager                       | RSA private key. Stored with literal `\n` in `.env` — normalized in code. |
+| `GITHUB_WEBHOOK_SECRET` | **YES — REQUIRED**                 | Webhook handler                     | Must be set; if unset, all webhook payloads are rejected with 401.        |
+| `ENCRYPTION_KEY`        | NO — shared                        | OAuth state signing, secret storage | 32+ byte random key. Not App-specific.                                    |
 
 ---
 
@@ -307,3 +307,42 @@ The token endpoint only works during task execution.
 ### Worker container can't reach gateway
 
 `GATEWAY_URL` defaults to `http://localhost:7700` in the shell tool. Inside Docker containers, `localhost` refers to the container itself — the gateway is at `http://host.docker.internal:7700`. The lifecycle injects the correct `GATEWAY_URL` automatically. If you're testing the tool manually inside a container, set `GATEWAY_URL=http://host.docker.internal:7700`.
+
+---
+
+## 11. Multi-Environment Setup
+
+### Why Two GitHub Apps?
+
+GitHub Apps only allow a **single webhook URL** and a **single setup URL** per App registration. This creates a conflict when you need both local development and production to receive GitHub events and complete OAuth install flows — you can't serve both from one URL.
+
+The solution, used by Vercel, Netlify, and Probot, is **one GitHub App per environment**:
+
+- **Dev App** (`dozaldevs-ai-employee-dev`) — points to the Cloudflare tunnel
+- **Prod App** (`dozaldevs-ai-employee`) — points to the Render deployment
+
+Because the codebase reads all GitHub configuration from environment variables, switching environments requires only different values in `.env` — no code changes.
+
+### Environment Configuration Reference
+
+| Setting                 | Dev App                                                                | Prod App                                                 |
+| ----------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
+| Webhook URL             | `https://local-ai-employee.dozaldevs.com/webhooks/github`              | `https://ai-employees-laaa.onrender.com/webhooks/github` |
+| Setup URL               | `https://local-ai-employee.dozaldevs.com/integrations/github/callback` | `https://ai-employees-laaa.onrender.com/integrations`    |
+| `GITHUB_APP_ID`         | Dev App's numeric ID                                                   | Prod App's numeric ID                                    |
+| `GITHUB_APP_NAME`       | `dozaldevs-ai-employee-dev`                                            | `dozaldevs-ai-employee`                                  |
+| `GITHUB_PRIVATE_KEY`    | Dev App's private key                                                  | Prod App's private key                                   |
+| `GITHUB_WEBHOOK_SECRET` | Unique secret (never share!)                                           | Unique secret (never share!)                             |
+| `ENCRYPTION_KEY`        | Same in both — not App-specific                                        | Same in both — not App-specific                          |
+
+### Setup URL Note
+
+The dev App's Setup URL should point directly to `/integrations/github/callback` (the actual handler). The prod App's Setup URL currently points to `/integrations` (bare path) and relies on the fallback redirect handler — this works correctly and should **not** be changed.
+
+### Security Requirement
+
+The webhook secret **must be unique per environment**. Never copy the production webhook secret to the dev App or vice versa. A compromised development secret cannot be used to forge production webhook payloads.
+
+### Creating the Dev App
+
+See the GitHub App creation checklist: navigate to `https://github.com/settings/apps/new`, set the webhook URL and setup URL to the dev Cloudflare tunnel addresses, generate a new private key, set visibility to "Only on this account", and update your local `.env` with the new App ID, name, key, and webhook secret.
