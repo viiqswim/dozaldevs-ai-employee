@@ -27,16 +27,16 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
 
-| Component                       | File                                              | Reason                                                                                                                                                                                                        |
-| ------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                        |
-| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                             |
-| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                    |
-| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                |
-| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                           |
-| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify.                                                                           |
-| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                           |
-| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. |
+| Component                       | File                                              | Reason                                                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                                                                                                                         |
+| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                                                                                                                              |
+| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                                                                                                                     |
+| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                                                                                                                 |
+| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                                                                                                                            |
+| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify. **Note**: This is the old orchestrator-based engineering employee. The new archetype-based engineer employee (created via wizard) is active and uses the OpenCode harness. |
+| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                                                                                                                            |
+| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active.                                                                                                  |
 
 ## Platform Vision
 
@@ -79,6 +79,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 | Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                   |
 | Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                    |
 | Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
+| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI   |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
@@ -207,6 +208,18 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `POST /admin/tenants/:tenantId/archetypes/recommend-model` — accepts archetype draft + user answers, returns top-3 ranked model recommendations
 - `GET /admin/platform-settings` — list all platform settings (key, value, description, is_required)
 - `PATCH /admin/platform-settings/:key` — update a platform setting value
+- `GET /admin/tenants/:tenantId/github/repos` — list repos accessible to the tenant's GitHub App installation (requires `github_installation_id` tenant secret)
+
+**GitHub OAuth (engineer employee):**
+
+- `GET /auth/github/install` — initiates GitHub App installation flow for a tenant
+- `GET /auth/github/callback` — OAuth callback; stores `github_installation_id` as tenant secret
+
+**Internal (worker containers only):**
+
+- `POST /internal/tasks/:taskId/github-token` — returns a short-lived GitHub App installation token scoped to the task's tenant (auth: `X-Task-ID` header). Used by `tsx /tools/github/get-token.ts` inside worker containers.
+
+**GitHub token manager** (`src/gateway/services/github-token-manager.ts`): generates RS256 JWT + installation tokens via GitHub App API. Tokens have 1-hour TTL; the manager caches them for 55 minutes to avoid redundant API calls.
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY`. Full route table: `docs/snapshots/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
@@ -769,6 +782,7 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/daily-summarizer.md`                                             | Working on summarizer employee — channel IDs per tenant, failure diagnostics, cron config                                                                                                                                                                |
 | `docs/employees/2026-05-21-1721-jira-motivation-bot.md`                          | Working on jira-motivation-bot employee — archetype ID, webhook setup, trigger command, mock mode, E2E flow, known gotchas, tenant secrets                                                                                                               |
 | `docs/employees/cleaning-schedule.md`                                            | Working on cleaning-schedule employee — archetype ID, trigger command, Notion page IDs, Slack channel, gotchas                                                                                                                                           |
+| `docs/employees/2026-06-02-1230-engineer.md`                                     | Working on engineer employee — archetype IDs, GitHub App setup, trigger command, what it does, known gotchas                                                                                                                                             |
 | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`                        | Slack OAuth or per-tenant token issues — TenantInstallationStore, loadTenantEnv, re-connecting after DB reset                                                                                                                                            |
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
 | `docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md`                  | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting.                                                     |

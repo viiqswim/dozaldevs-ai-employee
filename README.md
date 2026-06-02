@@ -59,13 +59,14 @@ The platform follows a single lifecycle pattern for all employees:
 
 ### Active employees
 
-| Employee                    | Trigger                               | Deliverable                                                                |
-| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
-| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval              |
-| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval               |
-| **Code-Rotation (VLRE)**    | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary |
+| Employee                    | Trigger                               | Deliverable                                                                            |
+| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval                          |
+| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval                           |
+| **Code-Rotation (VLRE)**    | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary             |
+| **Engineer (DozalDevs)**    | Manual (admin API or dashboard)       | Receives coding instructions, implements changes in GitHub repo, creates PR for review |
 
-> **Engineering employee** — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features.
+> **Old orchestrator-based engineering employee** (`src/workers/orchestrate.mts`) — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features. The new archetype-based engineer employee (above) is active.
 
 Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](docs/architecture/2026-04-14-0104-full-system-vision.md)
 
@@ -169,6 +170,12 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - Hostfully credentials are stored as **tenant secrets in the database**, not `.env`. See [AGENTS.md](AGENTS.md) for provisioning commands.
 - `WEBHOOK_PUBLIC_URL` — public URL for one-time Hostfully webhook registration (legitimate `.env` exception)
 
+**Engineer employee (archetype-based, active):**
+
+- `GITHUB_APP_ID` — GitHub App ID (numeric, from GitHub App settings)
+- `GITHUB_APP_NAME` — GitHub App URL slug (e.g. `my-ai-employee`)
+- `GITHUB_PRIVATE_KEY` — RSA private key downloaded from GitHub App settings (store with literal `\n` escaping)
+
 **Engineering (deprecated — on hold):**
 
 - `OPENROUTER_API_KEY` — AI code generation
@@ -209,6 +216,7 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Local E2E Testing](docs/testing/2026-05-04-2023-local-e2e-testing.md)                  | Testing without real external APIs — mock conventions, fixture structure, env propagation                                                                                                            |
 | [Airbnb Integration Research](docs/architecture/airbnb-integration/)                    | Research spike: go/no-go decision, Partner API analysis, credential custody, API reverse engineering, ecosystem landscape, next-steps playbook                                                       |
 | [Cloud Deployment Guide](docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md) | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting. |
+| [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                         | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
 
 ## Testing
 
@@ -233,7 +241,7 @@ pnpm build    # TypeScript compile
 5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
 6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE` (note: `WORKER_VM_SIZE` moved to `platform_settings` DB table)
 7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
-8. **GitHub** — `GITHUB_TOKEN`
+8. **GitHub** — `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`
 9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
 10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
 11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
