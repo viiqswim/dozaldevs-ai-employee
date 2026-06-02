@@ -573,6 +573,23 @@ model ModelCatalog {
 }
 
 // ============================================================
+// Platform Settings (global — not tenant-scoped)
+// ============================================================
+
+model PlatformSetting {
+  id          String    @id @default(uuid()) @db.Uuid
+  key         String    @unique
+  value       String
+  description String?
+  is_required Boolean   @default(true)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  @@map("platform_settings")
+}
+
+// ============================================================
 // Time Estimation & Task Metrics
 // ============================================================
 

@@ -26,6 +26,7 @@ import { adminKbRoutes } from './routes/admin-kb.js';
 import { adminPropertyLockRoutes } from './routes/admin-property-locks.js';
 import { adminRulesRoutes } from './routes/admin-rules.js';
 import { adminModelCatalogRoutes } from './routes/admin-model-catalog.js';
+import { adminPlatformSettingsRoutes } from './routes/admin-platform-settings.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { jiraOAuthRoutes } from './routes/jira-oauth.js';
 import { notionOAuthRoutes } from './routes/notion-oauth.js';
@@ -194,6 +195,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminPropertyLockRoutes({ prisma }));
   app.use(adminRulesRoutes({ prisma }));
   app.use(adminModelCatalogRoutes({ prisma }));
+  app.use(adminPlatformSettingsRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/integrations', jiraOAuthRoutes({ prisma }));
   app.use('/integrations', notionOAuthRoutes({ prisma }));
