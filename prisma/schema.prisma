@@ -216,6 +216,7 @@ model Archetype {
   execution_steps       String?  @db.Text
   delivery_steps        String?  @db.Text
   temperature           Float?   @default(1.0)
+  platform_rules_override String?  @db.Text  // When set, replaces the default platform rules section in compiled AGENTS.md
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
