@@ -781,7 +781,7 @@ Wave FINAL (4 parallel reviews → user okay):
 
 ---
 
-- [ ] 16. E2E regression — verify non-code employees unaffected
+- [x] 16. E2E regression — verify non-code employees unaffected
 
   **What to do**:
   - Trigger `real-estate-motivation-bot-2` (VLRE tenant, simplest employee) with an empty body (no `trigger_payload.prompt`)
@@ -798,7 +798,7 @@ Wave FINAL (4 parallel reviews → user okay):
 
 ---
 
-- [ ] 17. Notify completion via Telegram
+- [x] 17. Notify completion via Telegram
 
   **What to do**: `tsx scripts/telegram-notify.ts "Engineering employee plan complete — GitHub App integration, wizard repo picker, and code-writing runtime all live. Come back to review."`
 
@@ -914,19 +914,19 @@ Wave FINAL (4 parallel reviews → user okay):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review all changed files for quality issues. Verify no employee-specific language in shared files. Check all new routes have proper auth. Check all new DB queries are tenant-scoped.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill for UI)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill for UI)
       Execute EVERY QA scenario from EVERY task. Full E2E: GitHub App install → wizard → create code employee → trigger → clone → code → test → PR → approve → delivery → Done. Also verify non-code employees unaffected. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read spec, read actual diff. Verify 1:1. Check "Must NOT do" compliance. Flag unaccounted changes. Kill all tmux sessions created during execution.
       Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
 
