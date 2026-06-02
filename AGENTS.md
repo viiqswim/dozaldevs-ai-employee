@@ -205,6 +205,8 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `DELETE /admin/model-catalog/:id` — soft-delete catalog entry
 - `GET /admin/tenants/:tenantId/archetypes/model-questions` — returns the 3 plain-language recommendation questions
 - `POST /admin/tenants/:tenantId/archetypes/recommend-model` — accepts archetype draft + user answers, returns top-3 ranked model recommendations
+- `GET /admin/platform-settings` — list all platform settings (key, value, description, is_required)
+- `PATCH /admin/platform-settings/:key` — update a platform setting value
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY`. Full route table: `docs/snapshots/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
@@ -262,6 +264,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
 - **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
+- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -402,6 +405,7 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 - **End-user language is non-technical** — The end users of the AI Employee platform are non-technical (property managers, small business owners — not developers). When writing anything visible to end users — user-facing labels, UI copy, error messages, Slack notification text, dashboard copy — always use plain language. Examples: "Organization" not "Tenant", "Employee setup" not "Archetype configuration", "Approval needed" not "`risk_model.approval_required` is true".
 - **AI employee outputs should be concise** — Slack messages, summaries, and guest replies produced by AI employees should be short and to-the-point. Avoid verbose explanations or filler text in delivered content. If the user asks for more detail, provide it; otherwise, keep it brief.
 - **`/tmp/` contract files must be written via tools only** — `/tmp/summary.txt` and `/tmp/approval-message.json` are the harness output contract files. They MUST be written exclusively via TypeScript tools in `/tools/` (e.g., `submit-output.ts`). Never write to these files directly via `echo`, shell redirects, or any non-tool method. The harness reads these files after the OpenCode session completes — if written in the wrong format, the task will fail. This applies to both the execution phase and the delivery phase.
+- **Platform settings over env vars** — Platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels) are stored in the `platform_settings` DB table, not env vars. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Never add hardcoded fallback values — missing required settings throw errors at startup. Managed via `/dashboard/settings` or `PATCH /admin/platform-settings/:key`.
 
 ### Documentation Freshness (MANDATORY)
 
@@ -421,7 +425,7 @@ See README.md for docs directory structure and naming conventions.
 
 ## Environment Variables
 
-Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `ADMIN_API_KEY`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`, `WORKER_VM_SIZE`. See `.env.example` for the full list.
+Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `ADMIN_API_KEY`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`. See `.env.example` for the full list. **Note**: `WORKER_VM_SIZE`, `SUMMARIZER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table — not env vars.
 
 ## Long-Running Commands
 
@@ -769,3 +773,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
 | `docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md`                  | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting.                                                     |
 | `docs/guides/2026-06-01-2246-production-debugging-guide.md`                      | Debugging production issues — topology overview, cloud DB queries (port 5432 only), Fly.io machine inspection via REST API, Render env var gotchas, Inngest retry loop diagnosis, known production bugs and fixes, re-trigger instructions.              |
+| `.sisyphus/plans/2026-06-01-2344-platform-settings-table.md`                     | Platform settings table implementation plan — DB schema, admin API endpoints, dashboard settings page, env var migration                                                                                                                                 |

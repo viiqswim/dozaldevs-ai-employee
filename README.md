@@ -75,18 +75,20 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
 
-| Method   | Path                                               | Description                                         |
-| -------- | -------------------------------------------------- | --------------------------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project                              |
-| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                                   |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project                                |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                                    |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                                    |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee                     |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                                     |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`          | Stream task execution logs (SSE, local Docker only) |
-| `GET`    | `/admin/tools`                                     | List all shell tools with metadata                  |
-| `GET`    | `/admin/tools/:service/:toolName`                  | Get metadata for a single tool                      |
+| Method   | Path                                               | Description                                                       |
+| -------- | -------------------------------------------------- | ----------------------------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project                                            |
+| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                                                 |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project                                              |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                                                  |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                                                  |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee                                   |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                                                   |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`          | Stream task execution logs (SSE, local Docker only)               |
+| `GET`    | `/admin/tools`                                     | List all shell tools with metadata                                |
+| `GET`    | `/admin/tools/:service/:toolName`                  | Get metadata for a single tool                                    |
+| `GET`    | `/admin/platform-settings`                         | List all platform settings (key, value, description, is_required) |
+| `PATCH`  | `/admin/platform-settings/:key`                    | Update a platform setting value                                   |
 
 **Create a project:**
 
@@ -159,7 +161,8 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `SLACK_APP_TOKEN` — `xapp-...` for Socket Mode WebSocket connection
 - `SLACK_SIGNING_SECRET` — verifies Slack interaction webhooks
 - `FLY_WORKER_APP` — Fly.io app name for worker machines (currently: `ai-employee-workers`)
-- `SUMMARIZER_VM_SIZE` — VM size (default: `shared-cpu-1x`)
+
+> **Note**: `SUMMARIZER_VM_SIZE`, `WORKER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table. Use the dashboard at `/dashboard/settings` or `PATCH /admin/platform-settings/:key` to update them.
 
 **Guest-Messaging (VLRE):**
 
@@ -228,13 +231,13 @@ pnpm build    # TypeScript compile
 3. **Platform Core** — `ENCRYPTION_KEY`, `ADMIN_API_KEY`, `PORT`
 4. **Inngest (Event Queue)** — `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
 5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
-6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE`, `WORKER_VM_SIZE`
+6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE` (note: `WORKER_VM_SIZE` moved to `platform_settings` DB table)
 7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
 8. **GitHub** — `GITHUB_TOKEN`
 9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
 10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
 11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-12. **Cost Control** — `COST_LIMIT_USD_PER_DEPT_PER_DAY`, `AGENT_VERSION_ID`
+12. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
 13. **TENANT SECRETS** — reference-only comment block; never real values here
 14. **DEPRECATED** — commented-out superseded vars; always at the bottom
 
@@ -244,7 +247,7 @@ pnpm build    # TypeScript compile
 - **Tenant secrets never go in `.env`** — Hostfully, Sifely, and per-tenant Slack tokens are stored via the admin API (`tenant_secrets` table). The only exception is `VLRE_SLACK_BOT_TOKEN` (seed-only: used by `prisma/seed.ts` on DB reset). See the `TENANT SECRETS` block in `.env.example` for the full list.
 - **Deprecated vars go to the DEPRECATED section** — when a var is superseded, move the old name to the `DEPRECATED` block at the bottom of `.env.example` (commented out with a note of what replaced it). Remove it from `.env` entirely. Never leave deprecated vars active in either file.
 - **Keep both files in sync** — after adding, removing, or renaming any var, update both files in the same commit.
-- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
+- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE` → `platform_settings.default_worker_vm_size`; `COST_LIMIT_USD_PER_DEPT_PER_DAY` → `platform_settings.cost_limit_usd_per_day`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
 
 ## Docs Directory Structure
 
