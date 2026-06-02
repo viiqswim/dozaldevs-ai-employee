@@ -1,0 +1,256 @@
+# Production Debugging Guide
+
+> **AGENTS.md rule**: Load this guide before debugging any production task. Update it immediately if you discover new failure modes, gotchas, or commands that are not already documented here.
+
+## Production Topology
+
+| Component         | Where          | URL / Identifier                                    |
+| ----------------- | -------------- | --------------------------------------------------- |
+| Gateway           | Render         | `https://ai-employees-laaa.onrender.com`            |
+| Database          | Supabase Cloud | project ref `gjqrysxpvktmibpkwrvy`                  |
+| PostgREST         | Supabase Cloud | `https://gjqrysxpvktmibpkwrvy.supabase.co/rest/v1`  |
+| Inngest           | Inngest Cloud  | `https://inn.gs`                                    |
+| Workers           | Fly.io         | app `ai-employee-workers`                           |
+| Render service ID | —              | `srv-d8f1b2gg4nts738dj7jg`                          |
+| Render API key    | `.env`         | `RENDER_API_KEY`                                    |
+| Fly API token     | Render env     | `FLY_API_TOKEN` (available via Render env-vars API) |
+
+**Critical**: Production tasks run in Supabase Cloud, **not** local Docker. Checking `localhost:54322` will return 0 rows for production tasks. Always use the Supabase Cloud pooler.
+
+---
+
+## DB Connection (Production)
+
+Use the **session pooler (port 5432)** for all queries. The transaction pooler (port 6543) has a `search_path` issue that causes `relation "tenants" does not exist` errors.
+
+```bash
+# Cloud DB — always use port 5432
+CLOUD_DB="postgresql://postgres.gjqrysxpvktmibpkwrvy:WFDMjafHkv7Kyju-QbY9@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
+
+# Check task status
+psql "$CLOUD_DB" -c "SELECT status, failure_reason, updated_at FROM tasks WHERE id = '<TASK_ID>';"
+
+# Full lifecycle trace
+psql "$CLOUD_DB" -c "SELECT from_status, to_status, actor, created_at FROM task_status_log WHERE task_id = '<TASK_ID>' ORDER BY created_at;"
+
+# Execution token usage
+psql "$CLOUD_DB" -c "SELECT prompt_tokens, completion_tokens, estimated_cost_usd FROM executions WHERE task_id = '<TASK_ID>';"
+
+# Cross-table row counts (verify migration or data health)
+psql "$CLOUD_DB" -c "SELECT 'tenants' as t, COUNT(*) FROM tenants UNION ALL SELECT 'archetypes', COUNT(*) FROM archetypes UNION ALL SELECT 'tasks', COUNT(*) FROM tasks;"
+```
+
+**Known gotcha**: `pg_stat_user_tables.n_live_tup` is stale — always use `COUNT(*)` for accurate row counts.
+
+---
+
+## Admin API (Production)
+
+```bash
+source .env  # loads ADMIN_API_KEY
+
+# Check task status
+curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "https://ai-employees-laaa.onrender.com/admin/tenants/<tenantId>/tasks/<taskId>" | jq .
+
+# Trigger an employee
+curl -s -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "https://ai-employees-laaa.onrender.com/admin/tenants/<tenantId>/employees/<slug>/trigger" \
+  -H "Content-Type: application/json" -d '{}' | jq .
+
+# Verify SUPABASE_URL is set correctly (gateway uses it for /api/config.js)
+curl -s https://ai-employees-laaa.onrender.com/api/config.js
+# Expected: VITE_POSTGREST_URL should be "https://gjqrysxpvktmibpkwrvy.supabase.co/rest/v1"
+# If empty: SUPABASE_URL is not set on Render
+```
+
+---
+
+## Render: Checking and Managing Env Vars
+
+```bash
+RENDER_API_KEY="rnd_0XF5Yo08XVffYVQReUx0VisS1xSp"
+RENDER_SERVICE_ID="srv-d8f1b2gg4nts738dj7jg"
+
+# List all env vars (WARNING: only returns vars set via API — not dashboard-set vars)
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars" | jq '[.[] | {key: .envVar.key}]'
+
+# Check latest deploy status
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=1" | jq '.[0] | {id: .deploy.id, status: .deploy.status}'
+
+# Trigger a new deploy
+curl -s -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" -d '{"clearCache":"do_not_clear"}' | jq '{id: .id, status: .status}'
+```
+
+**Critical gotcha**: `PUT /env-vars` **replaces ALL env vars**. SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_ANON_KEY, INNGEST_EVENT_KEY, and INNGEST_SIGNING_KEY are set via the Render **dashboard** (not API) and will **not appear** in the `GET /env-vars` response. Never use `PUT /env-vars` without first verifying you have the complete list — it will silently wipe any dashboard-set vars.
+
+**Verifying SUPABASE_URL without the API**: Hit `/api/config.js` — if `VITE_POSTGREST_URL` is non-empty, SUPABASE_URL is set correctly.
+
+---
+
+## Fly.io: Inspecting Worker Machines
+
+`flyctl` requires `fly auth login` interactively — use the Machines REST API directly with the `FLY_API_TOKEN` from Render's env vars.
+
+```bash
+FLY_TOKEN="<FLY_API_TOKEN from Render env vars>"
+
+# List all machines (any state)
+curl -s -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers/machines" \
+  | jq '[.[] | {id: .id, name: .name, state: .state, created_at: .created_at, updated_at: .updated_at}]'
+
+# Check app status
+curl -s -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers" \
+  | jq '{name: .name, status: .status}'
+
+# Get machine details + recent events (useful for crash diagnosis)
+curl -s -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers/machines/<MACHINE_ID>" \
+  | jq '{state: .state, image: .image_ref.digest, events: [.events[-5:] | .[] | {type: .type, status: .status, timestamp: .timestamp}]}'
+
+# Destroy a machine (use force=true if stuck)
+curl -s -X DELETE -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers/machines/<MACHINE_ID>?force=true"
+```
+
+**Diagnosing dispatch loop** — if a task has multiple `Ready → Executing` entries in `task_status_log` all from `lifecycle_fn`, the Inngest `executing` step is failing and retrying. Backoff gaps between entries confirm this pattern:
+
+| # of Ready→Executing entries | Meaning                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| 1                            | Normal — worker dispatched once                                            |
+| 2–5                          | Inngest retry loop — `executing` step is crashing                          |
+| 5 (no more)                  | Inngest exhausted default retries — task is permanently stuck at Executing |
+
+When this happens, **no Fly machine will be created**. The DB shows `Executing` but the machine list is empty (only old stopped machines exist). The task must be manually re-triggered after fixing the root cause.
+
+**App suspended status**: The Fly app may show `status: "suspended"` when all machines are stopped. This does NOT prevent new machine creation via the API — it's a cosmetic status.
+
+---
+
+## Diagnosing the Inngest Retry Loop
+
+The canonical pattern for a crashing `executing` step:
+
+```sql
+-- In task_status_log:
+Ready → Executing  (03:28:30)   ← attempt 1
+Ready → Executing  (03:29:00)   ← attempt 2, ~30s backoff
+Ready → Executing  (03:29:51)   ← attempt 3, ~51s backoff
+Ready → Executing  (03:31:02)   ← attempt 4, ~71s backoff
+Ready → Executing  (03:33:08)   ← attempt 5, ~126s backoff
+-- No more entries — Inngest exhausted 5 attempts (default max)
+-- Task stuck at Executing, no Fly machine was ever created
+```
+
+**Root cause pinpointing**: Look at what the step does BEFORE `createMachine`. If it throws before the machine creation call, no machine appears in Fly.
+
+**Default Inngest retry count**: 4 retries (5 total attempts). No `maxAttempt` override in `createEmployeeLifecycleFunction` — the default applies.
+
+---
+
+## Known Production Bugs and Fixes
+
+### Bug 1: TUNNEL_URL required for Fly workers (FIXED — 2026-06-02)
+
+**Symptom**: `Ready → Executing` repeated 5× in `task_status_log`, no Fly machines created.
+
+**Root cause**: `src/inngest/employee-lifecycle.ts` line ~407:
+
+```typescript
+// BUG (before fix):
+const effectiveSupabaseUrl =
+  process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+```
+
+`getTunnelUrl()` throws if `TUNNEL_URL` is not set. In production (cloud Supabase + Fly workers), no tunnel is needed — `supabaseUrl` is already a cloud URL. But the code unconditionally called `getTunnelUrl()` for any Fly worker deployment.
+
+**Fix (deployed 2026-06-02, commit `0b342742`)**:
+
+```typescript
+// FIXED:
+const effectiveSupabaseUrl =
+  process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
+    ? await getTunnelUrl()
+    : supabaseUrl;
+```
+
+**Rule**: `TUNNEL_URL` is only needed in **hybrid mode** (local Supabase + Fly workers). In full cloud mode (Supabase Cloud + Fly workers), `TUNNEL_URL` should NOT be set and `supabaseUrl` is passed directly to the worker.
+
+---
+
+### Bug 2: Transaction pooler search_path issue (KNOWN)
+
+**Symptom**: `ERROR: relation "tenants" does not exist` when querying via port 6543.
+
+**Cause**: Transaction pooler (port 6543) uses a different `search_path` and may not resolve `public` schema correctly.
+
+**Fix**: Always use the **session pooler (port 5432)** for direct psql queries. Port 6543 is for app connections with proper connection string settings.
+
+---
+
+### Bug 3: Render API doesn't return dashboard-set env vars (KNOWN)
+
+**Symptom**: `GET /env-vars` returns only ~20 vars. SUPABASE_URL, SUPABASE_SECRET_KEY, INNGEST_EVENT_KEY etc. appear missing.
+
+**Reality**: These vars ARE set — via the Render dashboard (not API). The API only returns vars set via the API itself.
+
+**Rule**: Never infer a var is missing just because it's absent from `GET /env-vars`. Verify via `/api/config.js` for SUPABASE_URL, or trigger a task and check if early lifecycle transitions appear (confirms SUPABASE_URL is working).
+
+---
+
+## Re-Triggering a Stuck Task
+
+If a task is permanently stuck at `Executing` (Inngest retries exhausted, no Fly machine created):
+
+```bash
+source .env
+TENANT_ID="00000000-0000-0000-0000-000000000003"
+SLUG="cleaning-schedule"
+
+curl -s -X POST \
+  "https://ai-employees-laaa.onrender.com/admin/tenants/$TENANT_ID/employees/$SLUG/trigger" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"inputs":{"date":"YYYY-MM-DD"}}' | jq '{task_id: .task_id, status_url: .status_url}'
+```
+
+The old stuck task will remain at `Executing` indefinitely (no watchdog cleans non-Reviewing tasks). It can be ignored — it has no effect on new tasks.
+
+---
+
+## Full Production Health Check (Run First for Any Issue)
+
+```bash
+# 1. Gateway health
+curl -s https://ai-employees-laaa.onrender.com/health | jq .
+# Expected: {"status":"ok"}
+
+# 2. Verify SUPABASE_URL is set
+curl -s https://ai-employees-laaa.onrender.com/api/config.js
+# Expected: VITE_POSTGREST_URL non-empty
+
+# 3. Latest Render deploy
+RENDER_API_KEY="rnd_0XF5Yo08XVffYVQReUx0VisS1xSp"
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/srv-d8f1b2gg4nts738dj7jg/deploys?limit=1" \
+  | jq '.[0] | {status: .deploy.status, updated_at: .deploy.updatedAt}'
+# Expected: status = "live"
+
+# 4. Fly app status + machines
+FLY_TOKEN="<from Render env vars FLY_API_TOKEN>"
+curl -s -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers" | jq '{status: .status}'
+curl -s -H "Authorization: Bearer $FLY_TOKEN" \
+  "https://api.machines.dev/v1/apps/ai-employee-workers/machines" \
+  | jq '[.[] | {id: .id, state: .state, name: .name}]'
+# Expected after a triggered task: new machine with state "started" or "running"
+
+# 5. Cloud DB recent tasks
+psql "postgresql://postgres.gjqrysxpvktmibpkwrvy:WFDMjafHkv7Kyju-QbY9@aws-1-us-west-2.pooler.supabase.com:5432/postgres" \
+  -c "SELECT id, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 5;"
+```
