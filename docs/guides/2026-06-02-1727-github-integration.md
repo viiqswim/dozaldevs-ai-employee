@@ -226,7 +226,7 @@ employee. Your workspace IS /tmp/workspace/. The restriction about not modifying
 - If present → replaces the default platform rule with the override text
 - If absent → uses the default "NEVER modify files outside /tools/" rule
 
-`src/workers/opencode-harness.mts` passes `archetype.platform_rules_override` to `compileAgentsMd()` in **both** the execution phase (line 730) and the delivery phase (line 960).
+`src/workers/opencode-harness.mts` passes `archetype.platform_rules_override` to `compileAgentsMd()` in **both** the execution phase (line 960) and the delivery phase (line 730).
 
 ---
 
