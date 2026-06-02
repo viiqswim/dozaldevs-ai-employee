@@ -23,6 +23,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  server: {
+    proxy: {
+      '/api/config.js': 'http://localhost:7700',
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

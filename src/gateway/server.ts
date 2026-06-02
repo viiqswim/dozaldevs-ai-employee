@@ -213,6 +213,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     );
   }
 
+  // Runtime config endpoint — serves env vars to the dashboard at runtime (avoids baking them at build time)
+  app.get('/api/config.js', (_req, res) => {
+    res.type('application/javascript');
+    const supabaseUrl = process.env.SUPABASE_URL ?? '';
+    const config = {
+      VITE_POSTGREST_URL: supabaseUrl ? `${supabaseUrl}/rest/v1` : '',
+      VITE_SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
+      VITE_GATEWAY_URL: process.env.GATEWAY_PUBLIC_URL ?? '',
+      VITE_INNGEST_URL: 'https://inn.gs',
+    };
+    res.send(`window.__RUNTIME_CONFIG__ = ${JSON.stringify(config)};`);
+  });
+
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not Found' });
   });

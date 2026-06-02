@@ -1,12 +1,26 @@
 import type { TaskStatus } from './types';
 
-export const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL ?? 'http://localhost:54331/rest/v1';
+const rc: Record<string, string> =
+  typeof window !== 'undefined'
+    ? (((window as unknown as Record<string, unknown>).__RUNTIME_CONFIG__ as Record<
+        string,
+        string
+      >) ?? {})
+    : {};
 
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+export const POSTGREST_URL =
+  rc['VITE_POSTGREST_URL'] ||
+  import.meta.env.VITE_POSTGREST_URL ||
+  'http://localhost:54331/rest/v1';
 
-export const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:7700';
+export const SUPABASE_ANON_KEY =
+  rc['VITE_SUPABASE_ANON_KEY'] || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const INNGEST_URL = import.meta.env.VITE_INNGEST_URL ?? 'http://localhost:8288';
+export const GATEWAY_URL =
+  rc['VITE_GATEWAY_URL'] || import.meta.env.VITE_GATEWAY_URL || 'http://localhost:7700';
+
+export const INNGEST_URL =
+  rc['VITE_INNGEST_URL'] || import.meta.env.VITE_INNGEST_URL || 'http://localhost:8288';
 
 export const POLL_INTERVAL_MS = 5000;
 
