@@ -108,7 +108,11 @@ export function IntegrationsPage() {
   const { tenantId } = useTenant();
 
   const fetchIntegrations = useCallback(
-    () => postgrestFetch<TenantIntegration>('tenant_integrations', { tenant_id: `eq.${tenantId}` }),
+    () =>
+      postgrestFetch<TenantIntegration>('tenant_integrations', {
+        tenant_id: `eq.${tenantId}`,
+        deleted_at: 'is.null',
+      }),
     [tenantId],
   );
   const {
