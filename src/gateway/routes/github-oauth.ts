@@ -19,6 +19,19 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
   const secretRepo = new TenantSecretRepository(prisma);
   const integrationRepo = new TenantIntegrationRepository(prisma);
 
+  router.get('/', (req, res, next) => {
+    const { installation_id, state } = req.query;
+    if (installation_id && state) {
+      logger.warn(
+        'GitHub App callback hit /integrations instead of /integrations/github/callback — redirecting',
+      );
+      const params = new URLSearchParams(req.query as Record<string, string>);
+      res.redirect(302, `/integrations/github/callback?${params.toString()}`);
+      return;
+    }
+    next();
+  });
+
   router.get('/github/install', async (req, res) => {
     const tenantSlug = req.query['tenant'];
     if (!tenantSlug || typeof tenantSlug !== 'string') {
