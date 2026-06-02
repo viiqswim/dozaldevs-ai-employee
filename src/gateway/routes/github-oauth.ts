@@ -97,7 +97,7 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
         'GitHub App installed — installation_id stored',
       );
 
-      res.redirect(302, '/dashboard/integrations?connected=github');
+      res.redirect(302, `/dashboard/integrations?tenant=${tenantId}&connected=github`);
     } catch (err) {
       logger.error({ err }, 'GitHub App callback failed');
       res.status(500).json({ error: 'INTERNAL_ERROR' });

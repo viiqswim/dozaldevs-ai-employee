@@ -187,7 +187,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(healthRoutes());
   app.use(jiraRoutes({ inngestClient: options.inngestClient, prisma }));
   app.use(hostfullyRoutes({ inngestClient: options.inngestClient, prisma }));
-  app.use(githubRoutes());
+  app.use(githubRoutes({ prisma }));
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
   app.use(adminTasksRoutes({ prisma }));

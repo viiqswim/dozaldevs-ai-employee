@@ -111,7 +111,9 @@ describe('GET /integrations/github/callback', () => {
       `/integrations/github/callback?installation_id=12345678&setup_action=install&state=${encodeURIComponent(state)}`,
     );
     expect(res.status).toBe(302);
-    expect(res.headers['location']).toBe('/dashboard/integrations?connected=github');
+    expect(res.headers['location']).toBe(
+      `/dashboard/integrations?tenant=${TENANT_ID}&connected=github`,
+    );
     expect(mockSecretSet).toHaveBeenCalledWith(TENANT_ID, 'github_installation_id', '12345678');
     expect(mockIntegrationUpsert).toHaveBeenCalledWith(TENANT_ID, 'github', {
       external_id: '12345678',

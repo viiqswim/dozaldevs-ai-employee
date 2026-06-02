@@ -337,3 +337,30 @@ Added "## Code-Writing Employees" section before "## Environment Variables" in `
 
 ### Build
 - `pnpm build` (tsc): exit 0. No TypeScript errors.
+
+## GitHub Webhook Handler (2026-06-02)
+
+### Raw body access pattern
+Express's `express.json()` middleware in `server.ts` uses a `verify` callback that stores `req.rawBody` as a string. Access via `(req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body)` — same pattern as `jira.ts`.
+
+### HMAC verification
+- GitHub sends `X-Hub-Signature-256: sha256=<hex>`
+- Use `crypto.timingSafeEqual` with same-length Buffer check before comparing
+- If signature length differs, `timingSafeEqual` throws — must check lengths first
+
+### installation.created no-op rationale
+The `installation.created` webhook payload has no `tenant_id`. Tenant association only happens via the Setup URL callback (`GET /integrations/github/callback`) where the HMAC-signed `state` param carries `tenant_id`. So `created` is always a no-op with a log message.
+
+### installation.deleted cleanup flow
+1. `integrationRepo.findByExternalId('github', installationId)` → get tenant_id
+2. `integrationRepo.delete(tenantId, 'github')` → soft-delete (`deleted_at` set)
+3. `secretRepo.delete(tenantId, 'github_installation_id')` → hard-delete (existing method does real delete for secrets — not a bug, intentional)
+
+### server.ts registration
+`app.use(githubRoutes({ prisma }))` — updated from `githubRoutes()` to pass prisma client.
+
+### Redirect URL fix
+`github-oauth.ts` line 100: now redirects to `/dashboard/integrations?tenant=${tenantId}&connected=github` so the dashboard knows which tenant just connected.
+
+### Test mocking pattern
+Use `vi.hoisted()` to hoist mock functions, then mock the entire repository module. Don't try to mock `PrismaClient` directly — too complex. Mock at repository class boundary.
