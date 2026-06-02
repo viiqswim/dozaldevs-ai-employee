@@ -121,3 +121,17 @@ pnpm test -- --run
 - 25 tests in `src/workers/__tests__/opencode-harness-prompt.test.ts`, all pass in 1ms.
 - Build: exit 0. Test results: 1566 pass / 4 pre-existing fail (unchanged from baseline).
 - No changes to `employee-lifecycle.ts` or any deprecated files.
+
+## [2026-06-02] Task: T4
+
+**GitHub App OAuth routes — `src/gateway/routes/github-oauth.ts`**
+
+- GitHub App callback is NOT OAuth2: receives `installation_id` (integer as string), no `code`, no token exchange. Store `installation_id` directly as tenant secret.
+- Install route: slug-based tenant lookup (`findBySlug`), HMAC state signed with `ENCRYPTION_KEY`, redirects to `https://github.com/apps/{GITHUB_APP_NAME}/installations/new?state=...`.
+- Callback route: verifyState → store `github_installation_id` via `secretRepo.set()` → upsert `TenantIntegrationRepository` with `provider:'github', external_id: installation_id` → redirect to `/dashboard/integrations?connected=github`.
+- `verifyState` throws `RangeError` when passed a state whose hex sig has the wrong byte length (odd-length hex). Wrapped verifyState in try-catch to map to 400 INVALID_STATE instead of 500.
+- Route registered: `app.use('/integrations', githubOAuthRoutes({ prisma }))` in `server.ts` alongside Jira/Notion OAuth routes.
+- Env warning added to server.ts startup for missing `GITHUB_APP_NAME`.
+- Test pitfall: `makeApp()` must NOT set `GITHUB_APP_NAME` in its body, or `delete process.env.GITHUB_APP_NAME` tests will fail (makeApp() re-sets it). Set env only in `beforeEach`.
+- 9 tests: install redirect 302, missing tenant 400, tenant not found 400, missing app name 503; callback happy-path 302 with both mock calls, missing params 400 (×2), invalid state 400, guard-no-calls.
+- Build: exit 0. Tests: 9 new pass, 0 regressions.
