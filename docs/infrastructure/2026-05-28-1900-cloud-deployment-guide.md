@@ -124,6 +124,81 @@ New Supabase projects use `sb_publishable_*` (anon) and `sb_secret_*` (service*r
 
 ---
 
+## 3.8 Security: Row Level Security (RLS)
+
+### Vulnerability discovered (post-deployment)
+
+When Supabase Cloud is provisioned and `prisma migrate deploy` runs, Prisma's migration engine grants the `anon` role full CRUD privileges (SELECT, INSERT, UPDATE, DELETE, TRUNCATE) on all tables by default. No Row Level Security is enabled.
+
+The anon key (`sb_publishable_*`) is intentionally public. Supabase exposes it via the `/api/config.js` endpoint so the dashboard can make PostgREST calls from the browser. That's by design.
+
+The problem: with no RLS in place, anyone who loaded the dashboard or fetched `/api/config.js` had the anon key and could read or write every table, including `tenant_secrets`, which stores encrypted API credentials for all tenants.
+
+The `tenant_secrets` ciphertext was readable via the anon key. The values were protected at rest by AES-256-GCM encryption using the `ENCRYPTION_KEY` stored only in Render's runtime environment, so an attacker couldn't decrypt them without that key. But the exposure was still a serious misconfiguration.
+
+### How it was discovered
+
+Discovered on 2026-06-02 by confirming that a `curl` to PostgREST using the public anon key returned rows from `tenant_secrets`:
+
+```bash
+curl "https://{ref}.supabase.co/rest/v1/tenant_secrets?limit=1" \
+  -H "apikey: {anon_key}" \
+  -H "Authorization: Bearer {anon_key}"
+# Returned: encrypted rows — readable, not blocked
+```
+
+### Remediation applied (migration `20260601214116_add_rls_policies`)
+
+The migration applied four changes in sequence:
+
+1. Revoked INSERT, UPDATE, DELETE, TRUNCATE from `anon` on all tables in the `public` schema
+2. Revoked SELECT on `tenant_secrets` and `_prisma_migrations` from `anon`
+3. Enabled RLS on all 27 tables
+4. Created `anon_select` policies (`SELECT USING (true)`) on 25 non-sensitive tables; left `tenant_secrets` and `_prisma_migrations` with no policy, which completely blocks `anon` access
+
+Verification after applying the migration:
+
+```
+tenant_secrets SELECT  → {"code":"42501","message":"permission denied for table tenant_secrets"}  ✅
+tasks SELECT           → [] (readable)  ✅
+tasks INSERT           → {"code":"42501","message":"permission denied for table tasks"}  ✅
+tasks DELETE           → {"code":"42501","message":"permission denied for table tasks"}  ✅
+RLS enabled            → 27/27 tables  ✅
+```
+
+The `service_role` key (used by the gateway and workers) has `BYPASSRLS=true` and is unaffected by all of the above.
+
+### For new deployments — apply RLS immediately after migration
+
+> **⚠️ MANDATORY — Apply after every fresh `prisma migrate deploy`**
+>
+> Prisma migrations grant broad privileges to `anon` by default. The RLS migration must run as part of every fresh deployment. Since it's already in `prisma/migrations/`, running `prisma migrate deploy` on a fresh database will apply it automatically as part of the migration sequence.
+>
+> After any fresh deployment, verify both checks pass before going live:
+>
+> ```bash
+> # Must return 42501 — never actual rows
+> curl "https://{ref}.supabase.co/rest/v1/tenant_secrets?limit=1" \
+>   -H "apikey: {anon_key}" -H "Authorization: Bearer {anon_key}"
+>
+> # Must return 27/27
+> psql "{session-pooler-url}" -c \
+>   "SELECT count(*) as rls_on FROM pg_tables WHERE schemaname='public' AND rowsecurity=true;"
+> ```
+>
+> If either check fails, the RLS migration did not apply. Re-run `prisma migrate deploy` and check for errors.
+
+### Current security posture
+
+| Table group                                       | anon SELECT     | anon writes     | Notes                                  |
+| ------------------------------------------------- | --------------- | --------------- | -------------------------------------- |
+| 25 non-sensitive tables (tasks, archetypes, etc.) | Allowed         | Blocked (42501) | Dashboard reads these                  |
+| `tenant_secrets`                                  | Blocked (42501) | Blocked (42501) | Encrypted credentials                  |
+| `_prisma_migrations`                              | Blocked (42501) | Blocked (42501) | Internal metadata                      |
+| All tables via `service_role`                     | Full access     | Full access     | BYPASSRLS — gateway/workers unaffected |
+
+---
+
 ## 4. Inngest Cloud Setup
 
 1. Sign up at [app.inngest.com](https://app.inngest.com) and create a new app.
