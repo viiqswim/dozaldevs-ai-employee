@@ -68,10 +68,14 @@ export async function triggerEmployee(
   slug: string,
   dryRun?: boolean,
   inputs?: Record<string, string>,
+  prompt?: string,
 ): Promise<{ task_id: string; status_url: string }> {
   const body: Record<string, unknown> = dryRun ? { dry_run: true } : {};
   if (inputs !== undefined) {
     body.inputs = inputs;
+  }
+  if (prompt !== undefined && prompt.trim()) {
+    body.prompt = prompt.trim();
   }
   const query = dryRun ? '?dry_run=true' : '';
   return gatewayFetch<{ task_id: string; status_url: string }>(

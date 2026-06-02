@@ -65,6 +65,8 @@ export function EmployeeDetail() {
   };
 
   const [triggering, setTriggering] = useState(false);
+  const [triggerModalOpen, setTriggerModalOpen] = useState(false);
+  const [triggerPrompt, setTriggerPrompt] = useState('');
   const [dryRunning, setDryRunning] = useState(false);
   const [firingWebhook, setFiringWebhook] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -120,11 +122,11 @@ export function EmployeeDetail() {
   );
   const { data: tenant } = usePoll<Tenant | null>(fetchTenant);
 
-  const handleTrigger = async () => {
+  const handleTrigger = async (prompt?: string) => {
     if (!archetype?.role_name) return;
     setTriggering(true);
     try {
-      const result = await triggerEmployee(tenantId, archetype.role_name, false);
+      const result = await triggerEmployee(tenantId, archetype.role_name, false, undefined, prompt);
       if (result.task_id) {
         toast.success('Task created', {
           description: result.task_id,
@@ -134,6 +136,8 @@ export function EmployeeDetail() {
           },
         });
       }
+      setTriggerModalOpen(false);
+      setTriggerPrompt('');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -399,7 +403,7 @@ export function EmployeeDetail() {
               if (hasEveryRunInputs) {
                 navigate(`/dashboard/employees/${archetype.id}/trigger?tenant=${tenantId}`);
               } else {
-                void handleTrigger();
+                setTriggerModalOpen(true);
               }
             }}
           >
@@ -568,6 +572,53 @@ export function EmployeeDetail() {
           <DebugTab archetypeId={archetype.id} tenantId={tenantId} archetype={archetype} />
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={triggerModalOpen}
+        onOpenChange={(open) => {
+          setTriggerModalOpen(open);
+          if (!open) setTriggerPrompt('');
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Trigger {archetype.role_name}</DialogTitle>
+            <DialogDescription>
+              Optionally describe what this employee should work on.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">What should this employee work on?</label>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px] resize-y"
+              placeholder="e.g., Fix the login page timeout bug"
+              value={triggerPrompt}
+              onChange={(e) => setTriggerPrompt(e.target.value)}
+              disabled={triggering}
+              autoFocus
+            />
+          </div>
+          <div className="flex flex-col gap-3 pt-1">
+            <Button
+              disabled={triggering || !triggerPrompt.trim()}
+              onClick={() => void handleTrigger(triggerPrompt)}
+              className="w-full"
+            >
+              {triggering ? 'Starting…' : 'Send'}
+            </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={triggering}
+                onClick={() => void handleTrigger()}
+              >
+                Trigger without instructions
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
