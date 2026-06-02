@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
 import { createLogger } from './logger.js';
+import { getPlatformSetting } from './platform-settings.js';
 import { withRetry } from './retry.js';
 import { createSlackClient } from './slack-client.js';
 
@@ -44,7 +45,6 @@ const COST_CACHE: { value: number; refreshedAt: Date | null } = {
   refreshedAt: null,
 };
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_COST_LIMIT_USD = 50;
 
 let alertSentAt: Date | null = null;
 const ALERT_COOLDOWN_MS = 60 * 60 * 1000;
@@ -58,8 +58,8 @@ type CostRow = { total: number | string | null };
 async function checkCostCircuitBreaker(): Promise<void> {
   if (!process.env.DATABASE_URL) return;
 
-  const limitUsd =
-    parseFloat(process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY ?? '') || DEFAULT_COST_LIMIT_USD;
+  const costLimitStr = await getPlatformSetting('cost_limit_usd_per_day');
+  const limitUsd = parseInt(costLimitStr, 10);
 
   const now = new Date();
   const cacheExpired =
@@ -85,7 +85,7 @@ async function checkCostCircuitBreaker(): Promise<void> {
       if (slackBotToken) {
         const slack = createSlackClient({
           botToken: slackBotToken,
-          defaultChannel: process.env.SLACK_DEFAULT_CHANNEL ?? '#alerts',
+          defaultChannel: await getPlatformSetting('cost_alert_slack_channel'),
         });
         await slack
           .postMessage({

@@ -13,6 +13,8 @@ import {
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
+import { applyResourceCaps } from './lib/resource-caps.js';
+import { getPlatformSetting } from '../lib/platform-settings.js';
 
 const log = createLogger('opencode-harness');
 
@@ -624,8 +626,19 @@ async function runOpencodeSession(
 }
 
 async function main(): Promise<void> {
-  // Set bash tool timeout (same as entrypoint.sh) — prevents tool calls from timing out
-  process.env.OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS ??= '1200000';
+  // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
+  // applyResourceCaps() respects already-set values (if (!env[key]) guard), so the DB value
+  // takes precedence and the hardcoded fallback in resource-caps.ts applies only when DB is unavailable.
+  try {
+    const bashTimeout = await getPlatformSetting('worker_bash_timeout_ms');
+    process.env['OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS'] = bashTimeout;
+  } catch {
+    log.warn(
+      {},
+      '[opencode-harness] worker_bash_timeout_ms not in platform_settings — applyResourceCaps will apply hardcoded fallback',
+    );
+  }
+  applyResourceCaps();
 
   log.info({ taskId: TASK_ID }, 'OpenCode harness starting');
 
