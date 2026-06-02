@@ -178,6 +178,17 @@ export function IntegrationsPage() {
                   }
                   connectLabel="Connect Notion"
                 />
+                <IntegrationRow
+                  name="GitHub"
+                  description="Connect GitHub to let AI employees access your repositories"
+                  integration={integrations?.find((i) => i.provider === 'github') ?? null}
+                  connectHref={
+                    tenant?.slug
+                      ? `${GATEWAY_URL}/integrations/github/install?tenant=${tenant.slug}`
+                      : undefined
+                  }
+                  connectLabel="Connect GitHub"
+                />
               </div>
             )}
           </CardContent>
