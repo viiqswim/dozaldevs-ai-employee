@@ -48,7 +48,7 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 
 ## Adding a New Employee
 
-**Wizard (primary path)**: Use the dashboard wizard at `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>`. Describe what the employee does in plain English → the archetype generator (`src/gateway/services/archetype-generator.ts`) auto-generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry` → save as draft → set `status` to `active` → trigger. For field quality validation, see the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md).
+**Wizard (primary path)**: Use the dashboard wizard at `http://localhost:7700/dashboard/employees/new?tenant=<tenantId>`. Describe what the employee does in plain English → the archetype generator (`src/gateway/services/archetype-generator.ts`) auto-generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry` → save as draft → set `status` to `active` → trigger. For field quality validation, see the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md).
 
 **Manual seed (alternative)**:
 
@@ -252,16 +252,16 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
 ## Dashboard URLs
 
-| Mode        | URL                                | Notes                                                                                                                               |
-| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Development | `http://localhost:7701/dashboard/` | Vite dev server — started automatically by `pnpm dev`. Full HMR; use this URL when inspecting or testing the UI during development. |
-| Production  | `http://localhost:7700/dashboard/` | Served as pre-built static files from `dashboard/dist/`. Requires `pnpm dashboard:build` to reflect source changes.                 |
+| Mode        | URL                                | Notes                                                                                                                                         |
+| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development | `http://localhost:7700/dashboard/` | Gateway proxies to Vite dev server at :7701. Full HMR; use this URL for all development work. `pnpm dev` sets `VITE_DEV_PROXY` automatically. |
+| Production  | `http://localhost:7700/dashboard/` | Served as pre-built static files from `dashboard/dist/`. Requires `pnpm dashboard:build` to reflect source changes.                           |
 
-**For any UI inspection, screenshot, or browser automation task, always use the dev URL (`localhost:7701`) while `pnpm dev` is running.** The production URL at 7700 will lag behind source changes until a manual build.
+**For any UI inspection, screenshot, or browser automation task, always use `localhost:7700/dashboard/`.** When `pnpm dev` is running, the gateway proxies dashboard traffic to the Vite dev server (HMR enabled). Vite still listens on `:7701` as the underlying server but you do not need to use that port directly — `7700` works for everything including OAuth redirects.
 
 **Task execution logs**: `/dashboard/tasks/:taskId/logs?tenant=:tenantId` — full-page formatted log viewer (noise-filtered, searchable, color-coded). Only available when a log file exists at `/tmp/employee-{taskId.slice(0,8)}.log` (local Docker mode).
 
-**Employee creation wizard**: `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>` — generates archetype fields from a plain-English description.
+**Employee creation wizard**: `http://localhost:7700/dashboard/employees/new?tenant=<tenantId>` — generates archetype fields from a plain-English description.
 
 ## Pre-existing Test Failures
 
@@ -563,7 +563,7 @@ grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -3
 grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
 
 # Dashboard viewer (noise-filtered, recommended)
-# http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
+# http://localhost:7700/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
 ```
 
 **Execution metrics** (spot runaway LLM loops):
@@ -723,7 +723,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 # Expected: 1 row, work_minutes = 15
 
 # 3. Load the dashboard and confirm "Hours of Work Done" is non-zero
-# http://localhost:7701/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
+# http://localhost:7700/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
 ```
 
 **For full approval path testing** (wizard → execution → Reviewing → Approved → Delivering → Done): Use the wizard to generate a motivational message employee per the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md). Override the model to `deepseek/deepseek-v4-flash` via DB after saving. This exercises the full approval flow that `real-estate-motivation-bot-2` (which has `approval_required: false`) skips.
