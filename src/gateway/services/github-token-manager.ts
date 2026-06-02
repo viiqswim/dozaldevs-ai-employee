@@ -58,12 +58,18 @@ export async function generateInstallationToken(
     throw new Error('GITHUB_PRIVATE_KEY environment variable is not set');
   }
 
+  // Normalize literal \n (two chars: backslash + n) to real newlines.
+  // .env files store the PEM key with escaped newlines; Node's process.env
+  // does not expand them, so crypto.createSign receives a malformed PEM
+  // and throws ERR_OSSL_UNSUPPORTED without this normalization.
+  const normalizedKey = privateKey.replace(/\\n/g, '\n');
+
   const cached = _tokenCache.get(installationId);
   if (cached !== undefined && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
     return { token: cached.token, expires_at: cached.expires_at };
   }
 
-  const jwt = generateAppJwt(appId, privateKey);
+  const jwt = generateAppJwt(appId, normalizedKey);
 
   const response = await fetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
