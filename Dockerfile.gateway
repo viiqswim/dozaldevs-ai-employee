@@ -27,6 +27,9 @@ RUN pnpm exec prisma generate --schema ./prisma/schema.prisma
 # Compile TypeScript → dist/
 RUN pnpm build
 
+# Copy static assets that TypeScript doesn't emit — agents-md-compiler reads this at module load time
+RUN mkdir -p dist/workers/config && cp src/workers/config/agents.md dist/workers/config/agents.md
+
 # Prune to production dependencies only (in-place, avoids reinstall)
 RUN pnpm prune --prod
 
