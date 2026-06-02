@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -10,9 +10,17 @@ import {
   generateArchetype,
   createArchetype,
   fetchSlackChannels,
+  fetchGitHubRepos,
   compilePreview,
 } from '@/lib/gateway';
-import type { GenerateArchetypeResponse, SlackChannel, InputSchemaItem } from '@/lib/types';
+import { postgrestFetch } from '@/lib/postgrest';
+import type {
+  GenerateArchetypeResponse,
+  SlackChannel,
+  InputSchemaItem,
+  TenantIntegration,
+  GitHubRepo,
+} from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
 
 type WizardStep =
@@ -26,6 +34,7 @@ type WizardStep =
 
 export function CreateEmployeePage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useTenant();
 
   const [step, setStep] = useState<WizardStep>('describe');
@@ -48,6 +57,15 @@ export function CreateEmployeePage() {
   const [error, setError] = useState<string | null>(null);
   const [compiledPreview, setCompiledPreview] = useState<string | null>(null);
 
+  const [repoUrl, setRepoUrl] = useState<string>(() => {
+    const encoded = searchParams.get('repo');
+    return encoded ? decodeURIComponent(encoded) : '';
+  });
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     setSlackLoading(true);
@@ -68,6 +86,62 @@ export function CreateEmployeePage() {
       cancelled = true;
     };
   }, [tenantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    postgrestFetch<TenantIntegration>('tenant_integrations', {
+      tenant_id: `eq.${tenantId}`,
+      provider: 'eq.github',
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        setGithubConnected(rows.length > 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGithubConnected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (!githubConnected) return;
+    let cancelled = false;
+    setReposLoading(true);
+    setReposError(null);
+    fetchGitHubRepos(tenantId)
+      .then((data) => {
+        if (cancelled) return;
+        setRepos(data.repos ?? []);
+        setReposLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setRepos([]);
+        setReposError(err instanceof Error ? err.message : 'Failed to load repositories');
+        setReposLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, githubConnected]);
+
+  useEffect(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (repoUrl) {
+          next.set('repo', encodeURIComponent(repoUrl));
+        } else {
+          next.delete('repo');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }, [repoUrl, setSearchParams]);
 
   const handleGenerate = async () => {
     setStep('generating');
@@ -139,6 +213,7 @@ export function CreateEmployeePage() {
         },
         trigger_sources: triggerSources,
         notification_channel: notificationChannel || null,
+        worker_env: repoUrl ? { GITHUB_REPO_URL: repoUrl } : undefined,
         status: 'draft',
         parent_draft_id: null,
       });
@@ -338,6 +413,36 @@ export function CreateEmployeePage() {
                   it's delivered.
                 </p>
               </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Code Repository" defaultOpen={false}>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Select the repository this employee will work in. Optional — the employee can still
+                run without a repository selected.
+              </p>
+              {githubConnected === null ? (
+                <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+              ) : githubConnected ? (
+                reposLoading ? (
+                  <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+                ) : reposError ? (
+                  <p className="text-xs text-destructive">{reposError}</p>
+                ) : (
+                  <SearchableSelect
+                    options={repos.map((r) => ({ value: r.html_url, label: r.full_name }))}
+                    value={repoUrl}
+                    onValueChange={setRepoUrl}
+                    placeholder="Select a repository..."
+                    searchPlaceholder="Search repositories..."
+                  />
+                )
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Connect GitHub in Settings → Integrations to enable repository selection.
+                </p>
+              )}
             </div>
           </CollapsibleSection>
 

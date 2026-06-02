@@ -339,7 +339,15 @@ export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | '
   status?: string;
   overview?: ArchetypeOverview | null;
   parent_draft_id?: string | null;
+  worker_env?: Record<string, string> | null;
 };
+
+export interface GitHubRepo {
+  full_name: string;
+  html_url: string;
+  default_branch: string;
+  private: boolean;
+}
 
 export interface PlatformSetting {
   id: string;

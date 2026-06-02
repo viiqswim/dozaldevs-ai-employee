@@ -12,6 +12,7 @@ import type {
   ModelRecommendationEntry,
   ModelCatalogEntry,
   PlatformSetting,
+  GitHubRepo,
 } from './types';
 
 export type ModelRecommendation = {
@@ -380,4 +381,8 @@ export async function updatePlatformSetting(key: string, value: string): Promise
     method: 'PATCH',
     body: JSON.stringify({ value }),
   });
+}
+
+export async function fetchGitHubRepos(tenantId: string): Promise<{ repos: GitHubRepo[] }> {
+  return gatewayFetch<{ repos: GitHubRepo[] }>(`/admin/tenants/${tenantId}/github/repos`);
 }
