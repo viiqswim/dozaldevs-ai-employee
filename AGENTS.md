@@ -19,6 +19,8 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering.
 
+**OpenCode VM size requirement**: Any archetype using `runtime: 'opencode'` MUST have `vm_size: 'performance-1x'` set (or larger). The Go-based OpenCode binary reserves ~74GB virtual memory at startup — `shared-cpu-1x` Fly machines (256MB RAM) will OOM-kill it every time. Without `vm_size` set, the archetype defaults to `shared-cpu-1x` and every task fails within 45 seconds with 0 tokens. Set it in both the DB and the seed file: `UPDATE archetypes SET vm_size = 'performance-1x' WHERE id = '<archetype_id>';`
+
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
 ## Deprecated Components

@@ -3749,7 +3749,8 @@ A second post-message.ts call = task failure.
 2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
 BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
 `,
-      model: 'xiaomi/mimo-v2.5-pro',
+      model: 'deepseek/deepseek-v4-flash',
+      vm_size: 'performance-1x',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -4014,7 +4015,8 @@ A second post-message.ts call = task failure.
 2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
 BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
 `,
-      model: 'xiaomi/mimo-v2.5-pro',
+      model: 'deepseek/deepseek-v4-flash',
+      vm_size: 'performance-1x',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
