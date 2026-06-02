@@ -308,6 +308,49 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee < database-backu
 - `pg_dump` inside the container is always version-matched — do not use the host `pg_dump` (version mismatch causes errors)
 - Existing backups live in `database-backups/` — check before overwriting
 
+## Render API (Production Gateway)
+
+The production Express gateway runs on Render. Agents have direct API access to check deploys, fetch logs, and update service config.
+
+- **API key**: stored in `.env` as `RENDER_API_KEY` and in `AGENTS.md` for reference: `rnd_0XF5Yo08XVffYVQReUx0VisS1xSp`
+- **Service ID**: `srv-d8f1b2gg4nts738dj7jg` (also in `.env` as `RENDER_SERVICE_ID`)
+- **Base URL**: `https://api.render.com/v1`
+- **Auth header**: `Authorization: Bearer $RENDER_API_KEY`
+- **Dashboard**: `https://dashboard.render.com/web/srv-d8f1b2gg4nts738dj7jg`
+- **Live URL**: `https://ai-employees-laaa.onrender.com`
+
+**IMPORTANT — Service was created manually (not via Blueprint).** `render.yaml` is NOT authoritative for this service. Any settings in `render.yaml` (dockerfilePath, healthCheckPath, envVars) must be applied via PATCH API or the dashboard manually. Changes to `render.yaml` alone have no effect.
+
+```bash
+# Check latest deploy status
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=1" | jq '.[0] | {id: .deploy.id, status: .deploy.status}'
+
+# Trigger a new deploy
+curl -s -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" -d '{"clearCache":"do_not_clear"}' | jq '{id: .id, status: .status}'
+
+# Update service config (e.g. dockerfilePath)
+curl -s -X PATCH -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID" \
+  -d '{"serviceDetails": {"envSpecificDetails": {"dockerfilePath": "./Dockerfile.gateway"}}}' | jq '.serviceDetails.envSpecificDetails.dockerfilePath'
+
+# Set/replace ALL env vars (PUT replaces entire list — always include ALL vars)
+curl -s -X PUT -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars" -d '[{"key":"FOO","value":"bar"}]'
+
+# Get runtime logs (SSE stream — pipe through head to limit output)
+curl -sN -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/logs?tail=100" | head -c 20000
+```
+
+**Known API quirks:**
+
+- `PUT /env-vars` replaces ALL env vars — always include the full list or you will wipe existing secrets
+- `PATCH /services/{id}` with `serviceDetails.dockerfilePath` does NOT work — must nest under `serviceDetails.envSpecificDetails.dockerfilePath`
+- Runtime logs endpoint: `GET /v1/services/{id}/logs` — returns SSE stream; use `curl -sN` and pipe to `head`
+- Deploy logs (build output) are only visible in the Render dashboard, not via API
+
 ## Infrastructure
 
 Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start` — the CLI hardcodes `database: postgres`, which would break PostgREST. `POSTGRES_DB=ai_employee` in `docker/.env` makes all services use the right database. **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally. Gateway/Inngest code changes take effect immediately via `tsx watch`.
