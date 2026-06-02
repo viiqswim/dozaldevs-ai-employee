@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
@@ -212,9 +213,30 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminGithubRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
-  // Dashboard static file serving (local dev tool)
+  const viteDevProxy = process.env.VITE_DEV_PROXY;
   const dashboardDist = path.resolve(process.cwd(), 'dashboard/dist');
-  if (fs.existsSync(dashboardDist)) {
+  if (viteDevProxy) {
+    app.use(
+      createProxyMiddleware({
+        target: viteDevProxy,
+        changeOrigin: true,
+        pathFilter: (path) => path.startsWith('/dashboard'),
+        on: {
+          error: (_err, _req, res) => {
+            logger.warn('Vite proxy error — dev server may still be starting up');
+            if (typeof (res as { writeHead?: unknown }).writeHead === 'function') {
+              const serverRes = res as import('http').ServerResponse;
+              serverRes.writeHead(502, { 'Content-Type': 'application/json' });
+              serverRes.end(
+                JSON.stringify({ error: 'Dashboard dev server unavailable — is Vite running?' }),
+              );
+            }
+          },
+        },
+      }),
+    );
+    logger.info({ viteDevProxy }, 'Dashboard: proxying to Vite dev server (HMR enabled)');
+  } else if (fs.existsSync(dashboardDist)) {
     app.use('/dashboard', express.static(dashboardDist));
     app.get('/dashboard', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
     app.get('/dashboard/*path', (_req, res) =>
@@ -222,7 +244,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     );
   } else {
     logger.warn(
-      'dashboard/dist not found — run pnpm dashboard:build to build it, or use pnpm dev which starts the Vite dev server at http://localhost:7701/dashboard/',
+      'dashboard/dist not found — run pnpm dashboard:build or pnpm dev (which sets VITE_DEV_PROXY automatically)',
     );
   }
 
