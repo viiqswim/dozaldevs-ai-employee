@@ -17,7 +17,7 @@ This guide documents the complete production deployment of the AI Employee Platf
 **Key topology notes:**
 
 - The gateway serves the dashboard at `/dashboard/` as pre-built static files baked into the Docker image at build time. No separate frontend deploy is needed. Production URL: `https://{render-url}/dashboard/`
-- All four `VITE_*` environment variables (`VITE_POSTGREST_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GATEWAY_URL`, `VITE_INNGEST_URL`) are baked into the dashboard bundle by Vite at Docker build time. They are NOT available at runtime. Setting them as runtime env vars has no effect on the dashboard.
+- The four dashboard config values (`VITE_POSTGREST_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GATEWAY_URL`, `VITE_INNGEST_URL`) are injected at runtime via `GET /api/config.js` — no Docker build args needed. The gateway serves this endpoint using its own runtime env vars (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GATEWAY_PUBLIC_URL`), so the dashboard always reflects the current config without a rebuild.
 - PostgREST is at `https://{ref}.supabase.co/rest/v1/` in cloud (same pattern as local `localhost:54331/rest/v1/`).
 - Workers get `SUPABASE_URL` injected at machine creation time by `employee-lifecycle.ts`. Set this in Render env vars so it flows through.
 - Fly.io worker image must be built with `--platform linux/amd64` before pushing to the registry.
@@ -217,22 +217,22 @@ curl -s -X PATCH \
   -d '{"serviceDetails": {"healthCheckPath": "/health"}}'
 ```
 
-### 6.5 Set Docker Build Arguments
+### 6.5 Dashboard Config (Runtime — no action needed)
 
-The `VITE_*` variables must be set as Docker build arguments, not runtime env vars. Vite bakes them into the dashboard bundle at build time. Setting them as runtime env vars has no effect on the dashboard.
+The dashboard receives its config at runtime via `GET /api/config.js`. The gateway derives all four values from its own runtime env vars — no Docker build arguments are needed.
 
-For manually created services, `dockerBuildArgs` in `render.yaml` don't apply. Set them in the Render dashboard:
+> **How dashboard config works**: The gateway serves `GET /api/config.js` using its runtime environment variables. `dashboard/index.html` loads this script synchronously before React mounts, which sets `window.__RUNTIME_CONFIG__`. `constants.ts` reads from this object first, then falls back to `import.meta.env.VITE_*`, then to localhost defaults. This means you never need to rebuild the Docker image to change dashboard config — just update the Render env vars and restart.
 
-**Settings > Build & Deploy > Docker Build Arguments**
+The four dashboard values are derived automatically:
 
-Add these four:
+| Dashboard value          | Derived from                                          |
+| ------------------------ | ----------------------------------------------------- |
+| `VITE_POSTGREST_URL`     | `SUPABASE_URL` + `/rest/v1` (set in Section 6.6)      |
+| `VITE_SUPABASE_ANON_KEY` | `SUPABASE_ANON_KEY` (set in Section 6.6)              |
+| `VITE_GATEWAY_URL`       | `GATEWAY_PUBLIC_URL` (set in Section 6.6)             |
+| `VITE_INNGEST_URL`       | Hardcoded to `https://inn.gs` in the gateway endpoint |
 
-| Key                      | Value                               |
-| ------------------------ | ----------------------------------- |
-| `VITE_POSTGREST_URL`     | `https://{ref}.supabase.co/rest/v1` |
-| `VITE_SUPABASE_ANON_KEY` | `sb_publishable_{...}`              |
-| `VITE_GATEWAY_URL`       | `https://{render-url}`              |
-| `VITE_INNGEST_URL`       | `https://inn.gs`                    |
+No separate configuration is needed as long as `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `GATEWAY_PUBLIC_URL` are set as runtime env vars (which they are in Section 6.6).
 
 ### 6.6 Set Environment Variables
 
@@ -318,7 +318,7 @@ docker run --rm \
 
 ## 7. Environment Variable Reference
 
-Set these in Render's environment variable panel. Variables marked **Build-time** must be set as Docker build arguments before the build runs. Vite bakes them into the dashboard bundle at build time and they cannot be changed at runtime.
+Set these in Render's environment variable panel. All variables listed here are runtime env vars — no Docker build arguments are required.
 
 ### Database
 
@@ -404,16 +404,16 @@ Do NOT set `INNGEST_BASE_URL` in Render env vars. The gateway doesn't need it.
 | --------------------------------- | ----- | ------------------------------------ |
 | `COST_LIMIT_USD_PER_DEPT_PER_DAY` | `50`  | Daily circuit breaker per department |
 
-### Dashboard (Build-time Docker build args only)
+### Dashboard Config (Runtime — no separate setup needed)
 
-These must be set as Docker build arguments in Render (Settings > Build & Deploy > Docker Build Arguments), NOT as runtime env vars. Vite bakes them into the static bundle at build time.
+The dashboard config is served at runtime via `GET /api/config.js`. The gateway derives all four values from the runtime env vars already set above (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GATEWAY_PUBLIC_URL`). No Docker build arguments are needed.
 
-| Variable                 | Value                               | Notes                                      |
-| ------------------------ | ----------------------------------- | ------------------------------------------ |
-| `VITE_POSTGREST_URL`     | `https://{ref}.supabase.co/rest/v1` | PostgREST endpoint for dashboard API calls |
-| `VITE_SUPABASE_ANON_KEY` | Same as `SUPABASE_ANON_KEY`         | Baked into dashboard bundle at build time  |
-| `VITE_GATEWAY_URL`       | `https://{render-url}`              | Gateway URL for dashboard API calls        |
-| `VITE_INNGEST_URL`       | `https://inn.gs`                    | Inngest Cloud URL                          |
+| Dashboard value          | Source                        | Notes                                      |
+| ------------------------ | ----------------------------- | ------------------------------------------ |
+| `VITE_POSTGREST_URL`     | `SUPABASE_URL` + `/rest/v1`   | PostgREST endpoint for dashboard API calls |
+| `VITE_SUPABASE_ANON_KEY` | `SUPABASE_ANON_KEY`           | Injected at runtime, not baked at build    |
+| `VITE_GATEWAY_URL`       | `GATEWAY_PUBLIC_URL`          | Gateway URL for dashboard API calls        |
+| `VITE_INNGEST_URL`       | Hardcoded to `https://inn.gs` | Inngest Cloud URL                          |
 
 ---
 
@@ -479,9 +479,17 @@ ERROR: prepared statement "s0" already exists
 
 **Symptom:** The dashboard loads but shows no data, or all API calls go to `localhost:54331` instead of the Supabase Cloud URL.
 
-**Cause:** The `VITE_*` build arguments were not set in Render when the Docker image was built. Vite baked the default localhost values into the bundle.
+**Cause:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, or `GATEWAY_PUBLIC_URL` are missing or incorrect in Render's runtime env vars. The gateway's `/api/config.js` endpoint returns empty strings, so the dashboard falls back to localhost defaults.
 
-**Fix:** Set all four `VITE_*` variables as Docker build arguments in Render (Settings > Build & Deploy > Docker Build Arguments) and trigger a new deploy. A restart alone won't help — the bundle must be rebuilt.
+**Fix:** Confirm all three env vars are set correctly in Render (Settings > Environment). Then verify the endpoint is returning populated values:
+
+```bash
+curl https://{render-url}/api/config.js
+# Expected: window.__RUNTIME_CONFIG__ = {"VITE_POSTGREST_URL":"https://...","VITE_SUPABASE_ANON_KEY":"sb_publishable_...","VITE_GATEWAY_URL":"https://...","VITE_INNGEST_URL":"https://inn.gs"};
+# If any value is an empty string, the corresponding env var is missing.
+```
+
+After fixing the env vars, a simple restart is enough — no rebuild needed.
 
 ### Issue 7: PUT /env-vars Wiped Existing Secrets
 
@@ -563,32 +571,32 @@ Fly.io costs scale with actual usage. Each worker run costs roughly $0.002 for a
 
 ## 11. Local vs Cloud Differences
 
-| Variable                  | Local Dev                                                    | Cloud (Render)                                   |
-| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
-| `DATABASE_URL`            | `postgresql://postgres:postgres@localhost:54322/ai_employee` | Transaction pooler URL (port 6543)               |
-| `SUPABASE_URL`            | `http://localhost:54331`                                     | `https://{ref}.supabase.co`                      |
-| `SUPABASE_ANON_KEY`       | Local dev JWT (from `docker/.env`)                           | Supabase Cloud anon key (`sb_publishable_*`)     |
-| `SUPABASE_SECRET_KEY`     | Local service role JWT                                       | Supabase Cloud service*role key (`sb_secret*\*`) |
-| `INNGEST_DEV`             | `"1"`                                                        | `""` (empty)                                     |
-| `INNGEST_EVENT_KEY`       | `"local"`                                                    | Inngest Cloud event key                          |
-| `INNGEST_SIGNING_KEY`     | _(not required)_                                             | Inngest Cloud signing key                        |
-| `INNGEST_BASE_URL`        | `http://localhost:8288`                                      | _(not set — gateway doesn't need it)_            |
-| `WORKER_RUNTIME`          | `""` or `"docker"`                                           | `"fly"`                                          |
-| `TUNNEL_URL`              | Cloudflare tunnel URL (for Fly.io hybrid mode)               | _(not needed)_                                   |
-| `GATEWAY_PUBLIC_URL`      | _(not required)_                                             | `https://{render-url}`                           |
-| `SLACK_REDIRECT_BASE_URL` | Cloudflare tunnel URL                                        | `https://{render-url}`                           |
-| `WEBHOOK_PUBLIC_URL`      | Cloudflare tunnel URL                                        | `https://{render-url}`                           |
-| `VITE_POSTGREST_URL`      | `http://localhost:54331/rest/v1` (build arg)                 | `https://{ref}.supabase.co/rest/v1` (build arg)  |
-| `VITE_SUPABASE_ANON_KEY`  | Local dev JWT (build arg)                                    | Supabase Cloud anon key (build arg)              |
-| `VITE_GATEWAY_URL`        | `http://localhost:7700` (build arg)                          | `https://{render-url}` (build arg)               |
-| `VITE_INNGEST_URL`        | `http://localhost:8288` (build arg)                          | `https://inn.gs` (build arg)                     |
+| Variable                  | Local Dev                                                    | Cloud (Render)                                                     |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `DATABASE_URL`            | `postgresql://postgres:postgres@localhost:54322/ai_employee` | Transaction pooler URL (port 6543)                                 |
+| `SUPABASE_URL`            | `http://localhost:54331`                                     | `https://{ref}.supabase.co`                                        |
+| `SUPABASE_ANON_KEY`       | Local dev JWT (from `docker/.env`)                           | Supabase Cloud anon key (`sb_publishable_*`)                       |
+| `SUPABASE_SECRET_KEY`     | Local service role JWT                                       | Supabase Cloud service*role key (`sb_secret*\*`)                   |
+| `INNGEST_DEV`             | `"1"`                                                        | `""` (empty)                                                       |
+| `INNGEST_EVENT_KEY`       | `"local"`                                                    | Inngest Cloud event key                                            |
+| `INNGEST_SIGNING_KEY`     | _(not required)_                                             | Inngest Cloud signing key                                          |
+| `INNGEST_BASE_URL`        | `http://localhost:8288`                                      | _(not set — gateway doesn't need it)_                              |
+| `WORKER_RUNTIME`          | `""` or `"docker"`                                           | `"fly"`                                                            |
+| `TUNNEL_URL`              | Cloudflare tunnel URL (for Fly.io hybrid mode)               | _(not needed)_                                                     |
+| `GATEWAY_PUBLIC_URL`      | _(not required)_                                             | `https://{render-url}`                                             |
+| `SLACK_REDIRECT_BASE_URL` | Cloudflare tunnel URL                                        | `https://{render-url}`                                             |
+| `WEBHOOK_PUBLIC_URL`      | Cloudflare tunnel URL                                        | `https://{render-url}`                                             |
+| `VITE_POSTGREST_URL`      | `http://localhost:54331/rest/v1` (fallback default)          | `https://{ref}.supabase.co/rest/v1` (runtime via `/api/config.js`) |
+| `VITE_SUPABASE_ANON_KEY`  | Local dev JWT (fallback default)                             | Supabase Cloud anon key (runtime via `/api/config.js`)             |
+| `VITE_GATEWAY_URL`        | `http://localhost:7700` (fallback default)                   | `https://{render-url}` (runtime via `/api/config.js`)              |
+| `VITE_INNGEST_URL`        | `http://localhost:8288` (fallback default)                   | `https://inn.gs` (runtime via `/api/config.js`)                    |
 
 **Key differences to remember:**
 
 - Local dev uses Docker Compose for PostgreSQL + PostgREST. Cloud uses Supabase Cloud.
 - Local dev uses the Inngest Dev Server at `localhost:8288`. Cloud uses Inngest Cloud at `inn.gs`.
 - Local dev can run workers in local Docker containers (`WORKER_RUNTIME=docker`). Cloud always uses Fly.io (`WORKER_RUNTIME=fly`).
-- All `VITE_*` vars are Docker build arguments, not runtime env vars. They must be set before the build runs and cannot be changed without a full rebuild.
+- Dashboard config (`VITE_*` values) is injected at runtime via `/api/config.js` — not baked at build time. Changing `SUPABASE_URL`, `SUPABASE_ANON_KEY`, or `GATEWAY_PUBLIC_URL` in Render env vars takes effect after a restart, no rebuild needed.
 
 ---
 
