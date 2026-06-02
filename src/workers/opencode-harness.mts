@@ -13,6 +13,7 @@ import {
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
+import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 
@@ -983,10 +984,18 @@ async function main(): Promise<void> {
   let sessionTranscript: unknown[] | null = null;
   let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
+  const finalInstructions = injectAssignmentSection(resolvedInstructions, task.trigger_payload);
+  if (finalInstructions !== resolvedInstructions) {
+    log.info(
+      { taskId: TASK_ID },
+      '[opencode-harness] trigger_payload.prompt injected as ## Your Assignment',
+    );
+  }
+
   // Platform-level submit-output reminder appended to every employee's task prompt.
   // Placed at the end to leverage recency effect — last thing the model reads before generating.
   const taskPrompt = assembleTaskPrompt({
-    instructions: resolvedInstructions,
+    instructions: finalInstructions,
     taskId: TASK_ID,
   });
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;

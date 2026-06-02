@@ -26,3 +26,98 @@
 - Unit tests: 9 new tests in `compileAgentsMd — platformRulesOverride` describe block covering: override set, null, undefined, empty string, and replaces-entire-section semantics. All 25 compiler tests pass.
 - Pre-existing test failures: `get-properties.test.ts` (1) + `notion/get-page.test.ts` (3) — unrelated, confirmed pre-existing before any of my changes.
 - Build: exit 0. Tests: 1541 pass / 4 pre-existing fail (unchanged baseline).
+
+## [2026-06-02] Task: T3
+
+**Container capability spike — tool versions + full pipeline test**
+
+### Tool versions confirmed in ai-employee-worker:latest
+- gh: 2.45.0
+- git: 2.39.5
+- pnpm: 11.5.0
+- node: v22.22.3
+- npm: 10.9.8
+- tsx: available at /usr/local/bin/tsx
+- opencode: available at /usr/local/bin/opencode
+- OS: Debian GNU/Linux 12 (bookworm), arch: arm64
+
+All tools required for code development are present.
+
+### Repo URL
+Task instructions specified `dozal-devs/ai-employee` but the actual remote is:
+`viiqswim/dozaldevs-ai-employee`
+The engineering employee's run-tests shell tool MUST use the correct repo URL.
+GITHUB_TOKEN with access to `viiqswim/dozaldevs-ai-employee` works for token-auth clone.
+
+### /tmp/workspace write
+Works perfectly: `mkdir -p /tmp/workspace && echo test > /tmp/workspace/test.txt` ✅
+
+### git clone (HTTPS token auth)
+Works: `git clone --depth=1 https://x-access-token:TOKEN@github.com/viiqswim/dozaldevs-ai-employee /tmp/workspace/repo`
+Timing: **2s** for shallow clone ✅
+
+### pnpm install — BLOCKER: pnpm 11 build approval required
+**CRITICAL FINDING for T8 (run-tests shell tool):**
+
+pnpm 11.5.0 blocks install with `ERR_PNPM_IGNORED_BUILDS` when the repo doesn't have
+build approvals configured. Affected packages:
+- @prisma/client, @prisma/engines, esbuild, prisma, protobufjs
+
+Failed approaches:
+1. `.npmrc` with `onlyBuiltDependencies=...` → pnpm 11 no longer reads this format
+2. `package.json` pnpm.onlyBuiltDependencies → WARN: "no longer read by pnpm" in v11
+3. `pnpm.toml` with `onlyBuiltDependencies = [...]` → Still same error (may need different syntax)
+
+Workaround for spike: `pnpm install --ignore-scripts`
+- Timing: **14s** for 537 packages (no cache, fresh download) ✅
+- This is FAST — no bottleneck at this stage
+
+### pnpm build (TypeScript compilation)
+- With `--ignore-scripts`: build FAILS because prisma generate was skipped
+  → `Module '"@prisma/client"' has no exported member 'PrismaClient'`
+  → build takes 5s before failing
+- Fix required: run `npx prisma generate` after `pnpm install --ignore-scripts`
+  OR use proper build approval so prisma post-install runs automatically
+
+### Recommended approach for T8 (run-tests shell tool)
+```bash
+# 1. Clone repo
+git clone --depth=1 "https://x-access-token:${GITHUB_TOKEN}@github.com/viiqswim/dozaldevs-ai-employee" /tmp/workspace/repo
+cd /tmp/workspace/repo
+
+# 2. Install with build scripts (investigate pnpm.toml v2 syntax or use --ignore-scripts + manual steps)
+# Option A (if pnpm.toml works in final pnpm 11 syntax):
+#   Create pnpm.toml, then: pnpm install
+# Option B (workaround):
+pnpm install --ignore-scripts
+npx prisma generate   # re-runs prisma generate manually
+
+# 3. Build
+pnpm build   # tsc compilation ~5s
+
+# 4. Test
+pnpm test -- --run
+```
+
+### vm_size recommendation
+- Install (537 pkgs, no cache): 14s — memory usage appears moderate
+- Recommend `performance-1x` if running tests (vitest loads test DB, spawns workers)
+- `shared-cpu-1x` (256MB) may be insufficient for full test suite
+
+### Evidence files
+- `.sisyphus/evidence/task-3-tool-versions.txt` — full tool versions
+- `.sisyphus/evidence/task-3-full-pipeline.txt` — full pipeline results with timings
+
+## [2026-06-02] Task: T18
+
+**trigger_payload.prompt forwarding to initial OpenCode message**
+
+- Injection point: after `resolvedInstructions` is set (line ~895) and before `assembleTaskPrompt` call (line ~988) in `main()` execution phase.
+- `task.trigger_payload` is typed as `unknown` via `[key: string]: unknown` index sig on `TaskWithArchetype`. Safe access requires full object+key+type guard chain.
+- Extracted logic into `src/workers/lib/trigger-payload.mts` (two pure exports: `extractTriggerPrompt`, `injectAssignmentSection`) — makes it unit-testable without importing the side-effect-laden harness.
+- Format injected: `${instructions}\n\n## Your Assignment\n\n${prompt}` — appended to the instructions string BEFORE `assembleTaskPrompt` wraps it (so it appears before the Task ID line in the final message).
+- Empty string / whitespace-only prompt → no injection (`.trim()` then falsy check).
+- Import in harness uses `.mjs` extension (matching other lib imports like `prompt-assembler.mjs`).
+- 25 tests in `src/workers/__tests__/opencode-harness-prompt.test.ts`, all pass in 1ms.
+- Build: exit 0. Test results: 1566 pass / 4 pre-existing fail (unchanged from baseline).
+- No changes to `employee-lifecycle.ts` or any deprecated files.
