@@ -4878,13 +4878,13 @@ BOTH must be executed as bash tool calls. A text response without running these 
       key: 'issues_slack_channel',
       value: '',
       description: 'Slack channel for employee-reported issues. Empty = disabled.',
-      is_required: true,
+      is_required: false,
     },
     {
       key: 'cost_alert_slack_channel',
       value: '#alerts',
-      description: 'Slack channel for cost circuit breaker alerts.',
-      is_required: true,
+      description: 'Slack channel for cost circuit breaker alerts. Empty = disabled.',
+      is_required: false,
     },
   ];
 

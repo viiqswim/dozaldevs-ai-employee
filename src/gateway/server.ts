@@ -252,7 +252,7 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
         await validateRequiredPlatformSettings();
         logger.info('Platform settings validated');
       } catch (error) {
-        logger.error({ error }, 'FATAL: Platform settings validation failed');
+        logger.error({ err: error }, 'FATAL: Platform settings validation failed');
         process.exit(1);
       }
 
