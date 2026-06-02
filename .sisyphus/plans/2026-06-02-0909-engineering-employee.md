@@ -760,7 +760,7 @@ Wave FINAL (4 parallel reviews → user okay):
 
 ---
 
-- [ ] 15. E2E happy path — wizard → create → trigger → PR → approve → deliver → Done
+- [x] 15. E2E happy path — wizard → create → trigger → PR → approve → deliver → Done
 
   **What to do**:
   - Ensure all services running (gateway, Inngest, Docker)
