@@ -404,7 +404,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           'ai-employee-workers';
 
         const effectiveSupabaseUrl =
-          process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+          process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
+            ? await getTunnelUrl()
+            : supabaseUrl;
 
         const prismaClient = new PrismaClient();
         const tenantEnv = await loadTenantEnv(
