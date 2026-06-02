@@ -11,6 +11,7 @@ import type {
   EmployeeRule,
   ModelRecommendationEntry,
   ModelCatalogEntry,
+  PlatformSetting,
 } from './types';
 
 export type ModelRecommendation = {
@@ -367,5 +368,16 @@ export async function updateModelCatalogEntry(
 export async function deleteModelCatalogEntry(id: string): Promise<void> {
   await gatewayFetch<unknown>(`/admin/model-catalog/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export async function listPlatformSettings(): Promise<PlatformSetting[]> {
+  return gatewayFetch<PlatformSetting[]>('/admin/platform-settings');
+}
+
+export async function updatePlatformSetting(key: string, value: string): Promise<PlatformSetting> {
+  return gatewayFetch<PlatformSetting>(`/admin/platform-settings/${key}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ value }),
   });
 }

@@ -1,5 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { ListTodo, Users, Building2, BookOpen, HeartPulse, Wrench, Cpu } from 'lucide-react';
+import {
+  ListTodo,
+  Users,
+  Building2,
+  BookOpen,
+  HeartPulse,
+  Wrench,
+  Cpu,
+  Settings,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PreflightStatus } from '@/hooks/use-preflight-status';
 
@@ -17,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: BookOpen, label: 'Rules', to: '/dashboard/rules' },
   { icon: Cpu, label: 'AI Models', to: '/dashboard/models' },
   { icon: Wrench, label: 'Tools', to: '/dashboard/tools' },
+  { icon: Settings, label: 'Platform Settings', to: '/dashboard/settings' },
   { icon: HeartPulse, label: 'Preflight', to: '/dashboard/preflight', healthDot: true },
 ];
 

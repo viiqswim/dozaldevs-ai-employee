@@ -341,6 +341,16 @@ export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | '
   parent_draft_id?: string | null;
 };
 
+export interface PlatformSetting {
+  id: string;
+  key: string;
+  value: string;
+  description: string | null;
+  is_required: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ModelCatalogEntry {
   id: string;
   model_id: string;
