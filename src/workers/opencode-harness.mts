@@ -130,6 +130,51 @@ async function markFailed(
       log.warn({ err }, '[opencode-harness] Failed to PATCH execution status to failed');
     }
   }
+
+  // Update the Slack "Received" notification to show failure state (non-fatal)
+  const slackToken = process.env['SLACK_BOT_TOKEN'];
+  const slackChannel = process.env['NOTIFICATION_CHANNEL'];
+  const slackMsgTs = process.env['NOTIFY_MSG_TS'];
+  const roleName = process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee';
+  if (slackToken && slackChannel && slackMsgTs) {
+    try {
+      const failureText = `❌ ${roleName} — Failed`;
+      const slackBlocks = [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*${failureText}*${reason ? `\n${reason}` : ''}` },
+        },
+        {
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `Task \`${TASK_ID}\`` }],
+        },
+      ];
+      const slackRes = await fetch('https://slack.com/api/chat.update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${slackToken}`,
+        },
+        body: JSON.stringify({
+          channel: slackChannel,
+          ts: slackMsgTs,
+          text: failureText,
+          blocks: slackBlocks,
+        }),
+      });
+      if (!slackRes.ok) {
+        log.warn(
+          { taskId: TASK_ID, status: slackRes.status },
+          '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
+        );
+      }
+    } catch (err) {
+      log.warn(
+        { err },
+        '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
+      );
+    }
+  }
 }
 
 async function fireCompletionEvent(taskId: string): Promise<void> {
@@ -761,7 +806,7 @@ async function main(): Promise<void> {
         deliveryPrompt,
         archetype.model,
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
-        { minElapsedMs: 10_000 },
+        { minElapsedMs: 30_000 },
       );
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
@@ -1008,7 +1053,7 @@ async function main(): Promise<void> {
 
   try {
     const result = await runOpencodeSession(taskPrompt, model, submitOutputCmd, {
-      minElapsedMs: 10_000,
+      minElapsedMs: 60_000,
     });
     content = result.content;
     metadata = result.metadata;
