@@ -25,6 +25,14 @@ import { StatusBadge } from './StatusBadge';
 import { StatusTimeline } from './StatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn, formatCostUsd, formatRelativeTime } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
 
@@ -808,68 +816,55 @@ export function TaskDetail() {
         )}
       </div>
 
-      {rerunOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="relative mx-4 w-full max-w-lg rounded-lg border bg-card p-6 space-y-4 shadow-lg">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-base font-semibold">Re-run Task</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Edit inputs below, then click Re-run to start a new task.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRerunOpen(false)}
-                className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                ✕
-              </button>
-            </div>
+      <Dialog open={rerunOpen} onOpenChange={(open) => !open && setRerunOpen(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Re-run Task</DialogTitle>
+            <DialogDescription>
+              Edit inputs below, then click Re-run to start a new task.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="space-y-4">
-              {(task.archetypes?.input_schema ?? []).filter((f) => f.frequency === 'every_run')
-                .length > 0 ? (
-                (task.archetypes?.input_schema ?? [])
-                  .filter((f) => f.frequency === 'every_run')
-                  .map((item) => (
-                    <FormField
-                      key={item.key}
-                      item={item}
-                      value={rerunInputs[item.key] ?? ''}
-                      onChange={(val) => setRerunInputs((prev) => ({ ...prev, [item.key]: val }))}
-                    />
-                  ))
-              ) : (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Prompt</label>
-                  <textarea
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[120px] resize-y placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={rerunInputs['prompt'] ?? ''}
-                    onChange={(e) =>
-                      setRerunInputs((prev) => ({ ...prev, prompt: e.target.value }))
-                    }
-                    placeholder="Enter instructions for this employee..."
+          <div className="space-y-4">
+            {(task.archetypes?.input_schema ?? []).filter((f) => f.frequency === 'every_run')
+              .length > 0 ? (
+              (task.archetypes?.input_schema ?? [])
+                .filter((f) => f.frequency === 'every_run')
+                .map((item) => (
+                  <FormField
+                    key={item.key}
+                    item={item}
+                    value={rerunInputs[item.key] ?? ''}
+                    onChange={(val) => setRerunInputs((prev) => ({ ...prev, [item.key]: val }))}
                   />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setRerunOpen(false)}
-                disabled={rerunSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button onClick={() => void handleRerun()} disabled={rerunSubmitting}>
-                {rerunSubmitting ? 'Running...' : 'Re-run'}
-              </Button>
-            </div>
+                ))
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Prompt</label>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[120px] resize-y placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={rerunInputs['prompt'] ?? ''}
+                  onChange={(e) => setRerunInputs((prev) => ({ ...prev, prompt: e.target.value }))}
+                  placeholder="Enter instructions for this employee..."
+                />
+              </div>
+            )}
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRerunOpen(false)}
+              disabled={rerunSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleRerun()} disabled={rerunSubmitting}>
+              {rerunSubmitting ? 'Running...' : 'Re-run'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
