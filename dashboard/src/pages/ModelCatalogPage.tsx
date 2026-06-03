@@ -63,6 +63,10 @@ const COST_TIER_CLASS: Record<string, string> = {
     'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
 };
 
+function getServingProvider(): string {
+  return 'OpenRouter';
+}
+
 const QUALITY_TIER_CLASS: Record<string, string> = {
   basic:
     'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400',
@@ -97,6 +101,8 @@ interface ModelForm {
   supports_structured_output: boolean;
   is_active: boolean;
   notes: string;
+  strengths: string;
+  weaknesses: string;
 }
 
 const EMPTY_FORM: ModelForm = {
@@ -121,6 +127,8 @@ const EMPTY_FORM: ModelForm = {
   supports_structured_output: true,
   is_active: true,
   notes: '',
+  strengths: '',
+  weaknesses: '',
 };
 
 function entryToForm(entry: ModelCatalogEntry): ModelForm {
@@ -151,6 +159,8 @@ function entryToForm(entry: ModelCatalogEntry): ModelForm {
     supports_structured_output: entry.supports_structured_output,
     is_active: entry.is_active,
     notes: entry.notes ?? '',
+    strengths: entry.strengths ?? '',
+    weaknesses: entry.weaknesses ?? '',
   };
 }
 
@@ -186,6 +196,8 @@ function formToPayload(
     supports_structured_output: form.supports_structured_output,
     is_active: form.is_active,
     notes: form.notes.trim() || null,
+    strengths: form.strengths.trim() || null,
+    weaknesses: form.weaknesses.trim() || null,
   };
 }
 
@@ -460,6 +472,31 @@ function ModelFormDialog({ open, onClose, onSave, initial, title, saving }: Mode
 
           <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Usage Guidance{' '}
+              <span className="normal-case font-normal text-muted-foreground/60">(optional)</span>
+            </p>
+            <FormField label="Strengths — when to use this model">
+              <textarea
+                value={form.strengths}
+                onChange={(e) => set('strengths', e.target.value)}
+                placeholder="Describe what this model excels at, its best use cases..."
+                rows={4}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              />
+            </FormField>
+            <FormField label="Weaknesses — when NOT to use this model">
+              <textarea
+                value={form.weaknesses}
+                onChange={(e) => set('weaknesses', e.target.value)}
+                placeholder="Describe limitations, failure modes, task types to avoid..."
+                rows={4}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              />
+            </FormField>
+          </div>
+
+          <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </p>
             <SwitchField
@@ -586,7 +623,7 @@ export function ModelCatalogPage() {
     : [];
 
   const providerOptions = [
-    { value: '', label: 'All providers' },
+    { value: '', label: 'All makers' },
     ...allProviders.map((p) => ({ value: p, label: p })),
   ];
 
@@ -596,7 +633,8 @@ export function ModelCatalogPage() {
       q === '' ||
       m.display_name.toLowerCase().includes(q) ||
       m.model_id.toLowerCase().includes(q) ||
-      m.provider.toLowerCase().includes(q);
+      m.provider.toLowerCase().includes(q) ||
+      getServingProvider().toLowerCase().includes(q);
     const matchesProvider = providerFilter === '' || m.provider === providerFilter;
     return matchesQuery && matchesProvider;
   });
@@ -679,7 +717,7 @@ export function ModelCatalogPage() {
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-8"
-              placeholder="Search by name, model ID, or provider…"
+              placeholder="Search by name, model ID, or maker…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -688,8 +726,8 @@ export function ModelCatalogPage() {
             options={providerOptions}
             value={providerFilter}
             onValueChange={setProviderFilter}
-            placeholder="All providers"
-            searchPlaceholder="Search providers…"
+            placeholder="All makers"
+            searchPlaceholder="Search makers…"
             className="w-48"
           />
         </div>
@@ -730,7 +768,7 @@ export function ModelCatalogPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Model</TableHead>
-                <TableHead>Provider</TableHead>
+                <TableHead>Served by</TableHead>
                 <TableHead>Cost tier</TableHead>
                 <TableHead>Quality tier</TableHead>
                 <TableHead>Tools</TableHead>
@@ -765,7 +803,9 @@ export function ModelCatalogPage() {
                         </p>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-muted-foreground">{model.provider}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {getServingProvider()}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={COST_TIER_CLASS[costTier]}>
