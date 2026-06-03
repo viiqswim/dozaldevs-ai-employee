@@ -605,7 +605,7 @@ Wave FINAL (After ALL tasks):
 
   **Commit**: NO (code already committed in Wave 1)
 
-- [ ] 7. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 7. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
