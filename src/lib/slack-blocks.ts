@@ -65,19 +65,70 @@ export function buildNotifyStateBlocks(params: {
   runId?: string;
 }): unknown[] {
   const { emoji, text, taskId, runId } = params;
-  return [
+
+  const textLower = text.toLowerCase();
+  const isNoAction = textLower.includes('no action') || textLower.includes('complete') || textLower.includes('done');
+  const isFailed = textLower.includes('fail') || textLower.includes('error');
+  const isReviewing = textLower.includes('review') || textLower.includes('awaiting');
+  const isProcessing = textLower.includes('process') || textLower.includes('received') || textLower.includes('executing');
+
+  let statusEmoji: string;
+  let statusLabel: string;
+  if (isNoAction) {
+    statusEmoji = '✅';
+    statusLabel = 'Complete';
+  } else if (isFailed) {
+    statusEmoji = '🔴';
+    statusLabel = 'Failed';
+  } else if (isReviewing) {
+    statusEmoji = '🔶';
+    statusLabel = 'Needs Review';
+  } else if (isProcessing) {
+    statusEmoji = '🔄';
+    statusLabel = 'Processing';
+  } else {
+    statusEmoji = emoji;
+    statusLabel = text;
+  }
+
+  const blocks: unknown[] = [
     {
       type: 'section',
-      text: { type: 'mrkdwn', text: `${emoji} *${text}*` },
-    },
-    {
-      type: 'context',
-      elements: [
-        { type: 'mrkdwn', text: `Task \`${taskId}\`` },
-        ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
-      ],
+      text: { type: 'mrkdwn', text: `${statusEmoji} *${statusLabel}*` },
     },
   ];
+
+  if (isProcessing) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+    });
+  } else if (isReviewing) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+    });
+  } else if (isNoAction) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+    });
+  } else if (isFailed) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+    });
+  }
+
+  blocks.push({
+    type: 'context',
+    elements: [
+      { type: 'mrkdwn', text: `Task \`${taskId}\`` },
+      ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+    ],
+  });
+
+  return blocks;
 }
 
 export function buildNoActionThreadBlocks(params: {
@@ -418,10 +469,57 @@ export function buildNotifyBlocks(params: {
 
   const blocks: KnownBlock[] = [];
 
+  const stateLower = state.toLowerCase();
+  const isProcessing = stateLower === 'received' || stateLower === 'executing' || stateLower === 'submitting';
+  const isReviewing = stateLower === 'reviewing';
+  const isDone = stateLower === 'done' || stateLower === 'complete' || stateLower === 'task complete';
+  const isFailed = stateLower === 'failed';
+
+  let statusEmoji: string;
+  let statusLabel: string;
+  if (isProcessing) {
+    statusEmoji = '🔄';
+    statusLabel = 'Processing';
+  } else if (isReviewing) {
+    statusEmoji = '🔶';
+    statusLabel = 'Needs Review';
+  } else if (isDone) {
+    statusEmoji = '✅';
+    statusLabel = 'Complete';
+  } else if (isFailed) {
+    statusEmoji = '🔴';
+    statusLabel = 'Failed';
+  } else {
+    statusEmoji = emoji;
+    statusLabel = state;
+  }
+
   blocks.push({
     type: 'section',
-    text: { type: 'mrkdwn', text: `${emoji} *${archetypeName} — ${state}*` },
+    text: { type: 'mrkdwn', text: `${statusEmoji} *${archetypeName} — ${statusLabel}*` },
   } as KnownBlock);
+
+  if (isProcessing) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+    } as KnownBlock);
+  } else if (isReviewing) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+    } as KnownBlock);
+  } else if (isDone) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+    } as KnownBlock);
+  } else if (isFailed) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+    } as KnownBlock);
+  }
 
   if (enrichment?.displayName || enrichment?.subtitle) {
     const fields: { type: 'mrkdwn'; text: string }[] = [];

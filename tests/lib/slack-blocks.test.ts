@@ -141,14 +141,30 @@ describe('buildNotifyStateBlocks', () => {
     const blocks = buildNotifyStateBlocks({ emoji: '✅', text: 'Done', taskId: 'task-010' });
     const sectionBlock = (blocks as Block[]).find((b) => b.type === 'section');
     expect(sectionBlock).toBeDefined();
-    expect(sectionBlock!.text!.text).toBe('✅ *Done*');
+    expect(sectionBlock!.text!.text).toContain('✅');
+    expect(sectionBlock!.text!.text).toContain('Complete');
   });
 
   it('returns context block containing taskId', () => {
     const blocks = buildNotifyStateBlocks({ emoji: '⏳', text: 'Processing', taskId: 'task-011' });
-    const contextBlock = (blocks as Block[]).find((b) => b.type === 'context');
-    expect(contextBlock).toBeDefined();
-    expect(JSON.stringify(contextBlock)).toContain('task-011');
+    const contextBlocks = (blocks as Block[]).filter((b) => b.type === 'context');
+    const lastContextBlock = contextBlocks[contextBlocks.length - 1];
+    expect(lastContextBlock).toBeDefined();
+    expect(JSON.stringify(lastContextBlock)).toContain('task-011');
+  });
+
+  it('returns processing indicator with 🔄 emoji for processing states', () => {
+    const blocks = buildNotifyStateBlocks({ emoji: '⏳', text: 'Processing', taskId: 'task-012' });
+    const sectionBlock = (blocks as Block[]).find((b) => b.type === 'section');
+    expect(sectionBlock).toBeDefined();
+    expect(sectionBlock!.text!.text).toContain('🔄');
+  });
+
+  it('returns failed indicator with 🔴 emoji for failed states', () => {
+    const blocks = buildNotifyStateBlocks({ emoji: '❌', text: 'Task failed', taskId: 'task-013' });
+    const sectionBlock = (blocks as Block[]).find((b) => b.type === 'section');
+    expect(sectionBlock).toBeDefined();
+    expect(sectionBlock!.text!.text).toContain('🔴');
   });
 });
 
@@ -595,18 +611,19 @@ describe('buildNotifyBlocks', () => {
     fields?: unknown[];
   };
 
-  it('returns blocks without enrichment — section + context', () => {
+  it('returns blocks without enrichment — section + context blocks', () => {
     const blocks = buildNotifyBlocks({
       state: 'Received',
       archetypeName: 'Test Employee',
       taskId: 'task-nb-001',
     });
-    expect(blocks.length).toBe(2);
-    expect((blocks[0] as Block).type).toBe('section');
-    expect((blocks[1] as Block).type).toBe('context');
+    const sectionBlocks = blocks.filter((b) => (b as Block).type === 'section');
+    const contextBlocks = blocks.filter((b) => (b as Block).type === 'context');
+    expect(sectionBlocks.length).toBeGreaterThanOrEqual(1);
+    expect(contextBlocks.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('section text contains archetypeName and state', () => {
+  it('section text contains archetypeName and status label', () => {
     const blocks = buildNotifyBlocks({
       state: 'Executing',
       archetypeName: 'Guest Messaging',
@@ -614,7 +631,7 @@ describe('buildNotifyBlocks', () => {
     });
     const sectionText = (blocks[0] as Block).text?.text ?? '';
     expect(sectionText).toContain('Guest Messaging');
-    expect(sectionText).toContain('Executing');
+    expect(sectionText).toContain('Processing');
   });
 
   it('task ID context block is always the last block', () => {
@@ -635,7 +652,8 @@ describe('buildNotifyBlocks', () => {
       taskId: 'task-nb-004',
       enrichment: null,
     });
-    expect(blocks.length).toBe(2);
+    const sectionBlocks = blocks.filter((b) => (b as Block).type === 'section');
+    expect(sectionBlocks.length).toBeGreaterThanOrEqual(1);
     expect(JSON.stringify(blocks)).toContain('task-nb-004');
   });
 
@@ -691,26 +709,48 @@ describe('buildNotifyBlocks', () => {
     expect(allText).toContain('🔗 View');
   });
 
-  it('uses default emoji ⏳ when none is specified', () => {
+  it('uses 🔄 emoji for Received state', () => {
     const blocks = buildNotifyBlocks({
       state: 'Received',
       archetypeName: 'Test',
       taskId: 'task-nb-009',
     });
     const sectionText = (blocks[0] as Block).text?.text ?? '';
-    expect(sectionText).toContain('⏳');
+    expect(sectionText).toContain('🔄');
+    expect(sectionText).toContain('Processing');
   });
 
-  it('uses the provided emoji when specified', () => {
+  it('uses 🔶 emoji for Reviewing state', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Reviewing',
+      archetypeName: 'Test',
+      taskId: 'task-nb-013',
+    });
+    const sectionText = (blocks[0] as Block).text?.text ?? '';
+    expect(sectionText).toContain('🔶');
+    expect(sectionText).toContain('Needs Review');
+  });
+
+  it('uses ✅ emoji for Done state', () => {
     const blocks = buildNotifyBlocks({
       state: 'Done',
       archetypeName: 'Test',
       taskId: 'task-nb-010',
-      emoji: '✅',
     });
     const sectionText = (blocks[0] as Block).text?.text ?? '';
     expect(sectionText).toContain('✅');
-    expect(sectionText).not.toContain('⏳');
+    expect(sectionText).toContain('Complete');
+  });
+
+  it('uses 🔴 emoji for Failed state', () => {
+    const blocks = buildNotifyBlocks({
+      state: 'Failed',
+      archetypeName: 'Test',
+      taskId: 'task-nb-014',
+    });
+    const sectionText = (blocks[0] as Block).text?.text ?? '';
+    expect(sectionText).toContain('🔴');
+    expect(sectionText).toContain('Failed');
   });
 
   it('adds extraText section before the final task ID context block', () => {
