@@ -1,3 +1,4 @@
+# This project is a test target for the AI Employee platform.
 # AI Employee Platform
 
 A multi-tenant AI Employee Platform. Deploys autonomous AI agents ("digital employees"), each with a single job, triggered by webhooks or schedules, with human-in-the-loop approval gates.
