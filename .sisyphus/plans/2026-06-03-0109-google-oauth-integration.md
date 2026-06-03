@@ -1301,7 +1301,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `feat(google): seed Google Assistant archetype and employee doc`
   - Files: `prisma/seed.ts`, `docs/employees/2026-06-03-*-google-assistant.md`
 
-- [ ] 19. Update AGENTS.md + README.md + tool-usage-reference skill
+- [x] 19. Update AGENTS.md + README.md + tool-usage-reference skill
 
   **What to do**:
   - **AGENTS.md updates**:
@@ -1364,7 +1364,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   - Message: `docs: update AGENTS.md and README for Google integration`
   - Files: `AGENTS.md`, `README.md`, `src/workers/skills/tool-usage-reference/SKILL.md`
 
-- [ ] 20. Docker image rebuild
+- [x] 20. Docker image rebuild
 
   **What to do**:
   - Rebuild the Docker image to include the new Google shell tools and the googleapis npm package:
@@ -1405,7 +1405,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (build artifact)
 
-- [ ] 21. E2E: Connect Google + trigger assistant + verify
+- [x] 21. E2E: Connect Google + trigger assistant + verify
 
   **What to do**:
   - **Prerequisite**: User must have completed GCP setup (Task 4 guide) and set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env`
@@ -1471,7 +1471,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
   **Commit**: NO (test only)
 
-- [ ] 22. Notify completion
+- [x] 22. Notify completion
 
   **What to do**:
   - Send Telegram: `npx tsx scripts/telegram-notify.ts "✅ google-oauth-integration complete — All tasks done. Come back to review results."`
