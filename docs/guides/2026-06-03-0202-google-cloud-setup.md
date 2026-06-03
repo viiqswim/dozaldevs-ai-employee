@@ -4,29 +4,30 @@ This guide walks you through creating Google OAuth credentials from scratch. Fol
 
 **Who this is for**: Anyone setting up the Google integration for the first time, including non-technical PMs.
 
+> **Note on the GCP UI**: Google uses the **Google Auth Platform** interface for OAuth setup. The left sidebar shows: Overview, Branding, Audience, Clients, Data Access, Verification Center, Settings. The steps below match this interface exactly.
+
 ---
 
 ## Step 1: Create a Google Cloud Project
 
-1. Go to [https://console.cloud.google.com](https://console.cloud.google.com)
-2. Sign in with your Google account
-3. Click the project dropdown at the top of the page (it may say "Select a project")
-4. Click **New Project**
-5. Enter a project name (e.g., "AI Employee") and click **Create**
-6. Wait a few seconds for the project to be created, then select it from the dropdown
+1. Go to [https://console.cloud.google.com](https://console.cloud.google.com) and sign in
+2. Click the project dropdown at the top (it may say "Select a project")
+3. Click **New Project**
+4. Enter a project name (e.g., `AI Employee`) and click **Create**
+5. Wait a few seconds, then select the new project from the dropdown
 
-> **Note**: If you already have a Google Cloud project you want to use, just select it instead of creating a new one.
+> If you already have a Google Cloud project you want to use, just select it instead.
 
 ---
 
 ## Step 2: Enable Required APIs
 
-The platform needs access to several Google services. You'll enable each one individually.
+Do this before configuring OAuth — the OAuth flow won't work if the APIs aren't enabled.
 
-1. In the left sidebar, go to **APIs & Services > Library**
-2. Search for and enable each of the following APIs (click the API name, then click **Enable**):
+1. In the top search bar, search for **Gmail API** → click the result → click **Enable**
+2. Repeat for each of the following:
 
-| API                 | What it's used for                   |
+| Search for...       | What it enables                      |
 | ------------------- | ------------------------------------ |
 | Gmail API           | Reading and sending emails           |
 | Google Drive API    | Accessing files and folders          |
@@ -35,30 +36,52 @@ The platform needs access to several Google services. You'll enable each one ind
 | Google Slides API   | Reading and editing presentations    |
 | Google Calendar API | Reading and managing calendar events |
 
-Repeat the search-and-enable process for all six APIs before moving on.
+All six must be enabled before moving on.
 
 ---
 
-## Step 3: Configure the OAuth Consent Screen
+## Step 3: Open Google Auth Platform
 
-This is the screen users see when they authorize the app. You need to configure it before creating credentials.
+1. Click the hamburger menu (top left) → navigate to **Google Auth Platform**
+2. If prompted to configure a project, click through and select your project
+3. You'll land on the **OAuth Overview** page with a left sidebar
 
-1. Go to **APIs & Services > OAuth consent screen**
-2. Select **External** as the user type, then click **Create**
+---
 
-### Fill in the app information
+## Step 4: Configure App Branding
 
-- **App name**: Enter something recognizable, like "AI Employee"
-- **User support email**: Enter your email address
-- **Developer contact information**: Enter your email address again at the bottom of the page
-- Click **Save and Continue**
+1. Click **Branding** in the left sidebar
+2. Fill in:
+   - **App name**: `AI Employee`
+   - **User support email**: your email address
+   - **Developer contact information** (at the bottom): your email address
+3. Click **Save**
 
-### Add scopes
+---
 
-Scopes define what the app is allowed to access. On the Scopes page:
+## Step 5: Set the Audience
 
-1. Click **Add or Remove Scopes**
-2. Add each of the following scopes (paste each one into the filter box to find it, then check the checkbox):
+1. Click **Audience** in the left sidebar
+2. You'll see an **App Information** wizard with an **Audience** step showing two options:
+   - **Internal** — only for Google Workspace organizations (paid). If your account is a personal Gmail, this has no effect.
+   - **External** — works with any Google account. Choose this for personal Gmail accounts.
+3. Select **External** and click **Next**, then complete the Contact Information step and click **Create**
+4. Back on the Audience page, click **Publish App** under Publishing status
+5. Confirm the prompt — the status will change to **In production**
+
+> **You will see a yellow banner**: "Your app requires verification." Ignore it. This is just a recommendation to submit for Google's formal review process, which removes the unverified notice for public apps. For a personal or internal tool, you don't need to submit for verification. The app works fine in Production mode without it.
+
+> **Why Production mode matters**: Testing mode causes OAuth tokens to expire after 7 days, meaning the Google connection breaks weekly. Production mode removes this limitation.
+
+> **Drive delete note**: The `drive.file` scope used by this integration only allows the AI employee to delete files it created. It cannot delete arbitrary existing files from your Drive. If you need that capability, switch to the full `drive` scope in `src/gateway/routes/google-oauth.ts` — but be aware that scope is Restricted and will trigger a more prominent unverified app warning.
+
+---
+
+## Step 6: Add Scopes (Data Access)
+
+1. Click **Data Access** in the left sidebar
+2. Click **Add or Remove Scopes**
+3. Paste each scope below into the filter box, check its checkbox, and repeat for all 10:
 
 ```
 https://www.googleapis.com/auth/gmail.readonly
@@ -73,60 +96,46 @@ https://www.googleapis.com/auth/userinfo.email
 https://www.googleapis.com/auth/userinfo.profile
 ```
 
-All 10 of these scopes are either **Sensitive** or **Basic** — none are Restricted. This means users will see a standard consent screen without a scary "unverified" warning, even before the app goes through Google's formal verification.
+All 10 scopes are **Sensitive** or **Basic** — none are Restricted. Users see a standard consent screen, not a scary red "unverified" warning.
 
-3. Click **Update** to confirm, then **Save and Continue**
-
-### Add test users (optional)
-
-If you want to test before publishing, you can add specific Google accounts as test users. Otherwise, skip this step and click **Save and Continue**.
-
-### Publish to Production mode
-
-> **CRITICAL: Do not skip this step.**
-
-By default, your app is in **Testing** mode. In Testing mode, OAuth tokens expire after 7 days, which means every connected account will stop working after a week and users will need to reconnect.
-
-To fix this permanently:
-
-1. Go back to **APIs & Services > OAuth consent screen**
-2. Under "Publishing status", click **Publish App**
-3. Confirm the prompt
-
-Your app is now in **Production** mode. Tokens will not expire on a 7-day cycle.
-
-> **Why does this matter?** Testing mode is meant for development with a small list of approved test users. Production mode is required for any real usage, even if you haven't gone through Google's formal app verification process. The scopes used by this integration are all Sensitive or Basic, so users will see a standard consent screen — not the scary red "unverified" warning that Restricted scopes (like `gmail.modify` or `drive`) would trigger.
->
-> **Drive delete note**: The `drive.file` scope only allows the AI employee to delete files it created. It cannot delete arbitrary existing files from your Drive. If you need that capability, switch to the full `drive` scope (Restricted — will trigger the unverified warning).
+4. Click **Update** → **Save**
 
 ---
 
-## Step 4: Create OAuth 2.0 Credentials
+## Step 7: Create OAuth Credentials (Clients)
 
-1. Go to **APIs & Services > Credentials**
-2. Click **+ Create Credentials** at the top
-3. Select **OAuth 2.0 Client ID**
-4. Set **Application type** to **Web application**
-5. Give it a name (e.g., "AI Employee Web Client")
+1. Click **Clients** in the left sidebar
+2. Click **Create Client** (or **Create OAuth client** from the Overview page)
+3. Set **Application type** to **Web application**
+4. Name it `AI Employee Web Client`
 
-### Add authorized redirect URIs
+### Authorized JavaScript origins — leave empty
 
-This tells Google which URLs are allowed to receive the OAuth callback. Add both:
+> Do not enter anything here. This field is for browser-side JavaScript apps. Our OAuth flow is server-side and does not need it. Entering a URL with a path here will cause a validation error.
 
-- **Local development**: `http://localhost:7700/integrations/google/callback`
-- **Production**: `https://your-domain.com/integrations/google/callback`
+### Authorized redirect URIs
 
-Replace `your-domain.com` with your actual production domain.
+This is the field that matters. Click **Add URI** and add both:
 
-6. Click **Create**
+```
+http://localhost:7700/integrations/google/callback
+```
 
-A dialog will appear with your **Client ID** and **Client Secret**. Copy both values now, or click **Download JSON** to save them. You'll need these in the next step.
+```
+https://ai-employees-laaa.onrender.com/integrations/google/callback
+```
+
+Replace the production URL with your actual domain if different.
+
+5. Click **Create**
+
+A dialog will show your **Client ID** and **Client Secret**. Copy both now, or click **Download JSON**. You'll need them in the next step.
 
 ---
 
-## Step 5: Configure Environment Variables
+## Step 8: Configure Environment Variables
 
-Open your `.env` file and add the following three variables:
+Open `.env` and set the three Google variables:
 
 ```env
 GOOGLE_CLIENT_ID=your_client_id_here
@@ -134,21 +143,52 @@ GOOGLE_CLIENT_SECRET=your_client_secret_here
 GOOGLE_REDIRECT_BASE_URL=http://localhost:7700
 ```
 
-- Replace `your_client_id_here` with the Client ID from Step 4
-- Replace `your_client_secret_here` with the Client Secret from Step 4
-- For production, change `GOOGLE_REDIRECT_BASE_URL` to your production domain (e.g., `https://your-domain.com`)
+- Replace `your_client_id_here` with the Client ID from Step 7
+- Replace `your_client_secret_here` with the Client Secret from Step 7
+- For production deployments, set `GOOGLE_REDIRECT_BASE_URL` to your production domain
 
-After saving the file, restart the gateway service for the changes to take effect.
+After saving, restart the gateway so it picks up the new values:
+
+```bash
+# Ctrl+C to stop, then:
+pnpm dev
+```
 
 ---
 
-## Step 6: Connect Google in the Dashboard
+## Step 9: Connect Google in the Dashboard
 
-1. Go to [http://localhost:7700/dashboard/integrations](http://localhost:7700/dashboard/integrations)
-2. Find the Google section and click **Connect Google**
-3. A Google sign-in window will open. Sign in with the Google account you want to connect
+1. Go to [http://localhost:7700/dashboard/integrations?tenant=00000000-0000-0000-0000-000000000003](http://localhost:7700/dashboard/integrations?tenant=00000000-0000-0000-0000-000000000003)
+2. Find the **Google** row and click **Connect Google**
+3. Sign in with the Google account you want to connect
 4. Review the permissions and click **Allow**
-5. You'll be redirected back to the dashboard. Verify that the Google section now shows **Connected**
+
+> **If you see "Google hasn't verified this app"**: Click **Advanced** → **Go to AI Employee (unsafe)**. This is expected for apps that haven't gone through Google's formal verification process. It is safe to proceed — you built this app.
+
+5. You'll be redirected back to the dashboard showing **✓ Connected**
+
+---
+
+## Step 10: Verify the Connection
+
+Run this to confirm all 5 secrets were stored:
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT key FROM tenant_secrets WHERE tenant_id='00000000-0000-0000-0000-000000000003' AND key LIKE 'google_%' ORDER BY key;"
+```
+
+Expected output — exactly these 5 rows:
+
+```
+       key
+------------------------
+ google_access_token
+ google_granted_scopes
+ google_refresh_token
+ google_token_expiry
+ google_user_email
+```
 
 The integration is now active.
 
@@ -158,30 +198,36 @@ The integration is now active.
 
 ### "Error 400: redirect_uri_mismatch"
 
-The callback URL in your request doesn't match what's registered in Google Cloud.
+The callback URL doesn't match what's registered in Google Cloud.
 
-**Fix**: Go to **APIs & Services > Credentials**, open your OAuth 2.0 Client ID, and add the exact URL shown in the error message to the authorized redirect URIs list. Make sure there are no trailing slashes or typos.
+**Fix**: Go to **Google Auth Platform → Clients**, open your client, and add the exact URL shown in the error to the **Authorized redirect URIs** list. Check for typos and trailing slashes.
+
+### "Invalid Origin: URIs must not contain a path or end with '/'"
+
+You entered a full URL (with `/integrations/google/callback`) into the **Authorized JavaScript origins** field.
+
+**Fix**: Leave **Authorized JavaScript origins** empty. Enter the full callback URL only in **Authorized redirect URIs**.
 
 ### "Access blocked: This app's request is invalid"
 
-Your app is in Testing mode and is trying to request sensitive scopes that haven't been verified.
+Your app is still in Testing mode.
 
-**Fix**: Follow Step 3 above to publish your app to Production mode.
+**Fix**: Go to **Google Auth Platform → Audience**, click **Publish App**, and confirm.
 
 ### "Token has been expired or revoked"
 
 The connected account's token expired because the app was in Testing mode when the connection was made.
 
-**Fix**: Publish the app to Production mode (Step 3), then disconnect and reconnect the Google account in the dashboard.
+**Fix**: Publish to Production mode (Step 5), then disconnect and reconnect Google in the dashboard.
 
 ### "Refresh token not returned"
 
-The OAuth flow completed but didn't return a refresh token, so the connection can't stay active long-term.
+The OAuth flow completed but Google didn't return a refresh token, so the connection won't survive token expiry.
 
-**Fix**: This usually means the user has already authorized the app before and Google skipped the consent screen. Contact support to reset the OAuth connection, or try revoking access from [https://myaccount.google.com/permissions](https://myaccount.google.com/permissions) and reconnecting.
+**Fix**: Google skips the consent screen if the user previously authorized the app. Revoke access at [https://myaccount.google.com/permissions](https://myaccount.google.com/permissions), then reconnect — the `prompt=consent` parameter will force a fresh consent screen and return a new refresh token.
 
 ### Scopes not appearing in the consent screen
 
-If you added scopes but they don't show up during the OAuth flow, the APIs may not be enabled.
+If you added scopes in Data Access but they don't show during the OAuth flow, the APIs may not be enabled.
 
 **Fix**: Go back to Step 2 and confirm all six APIs are enabled in your project.
