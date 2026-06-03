@@ -402,8 +402,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         const vmSize = (archetype.vm_size as string | null) ?? defaultVmSize;
         const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-        const flyApp =
-          process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+        const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
 
         const effectiveSupabaseUrl =
           process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
@@ -539,6 +538,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
             SUPABASE_SECRET_KEY: supabaseKey,
             INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+            GATEWAY_URL: 'http://host.docker.internal:7700',
             INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
             INNGEST_DEV: '1',
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
@@ -592,6 +592,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           SUPABASE_URL: effectiveSupabaseUrl,
           SUPABASE_SECRET_KEY: supabaseKey,
           INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+          GATEWAY_URL: process.env.GATEWAY_URL ?? '',
           INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
           INNGEST_RUN_ID: runId,
@@ -705,8 +706,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
-              const flyApp =
-                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+              const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -772,8 +772,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
-              const flyApp =
-                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+              const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -837,8 +836,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               if ((machineId as string).startsWith('docker_')) {
                 stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
               } else {
-                const flyApp =
-                  process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+                const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
                 await destroyMachine(flyApp, machineId as string);
               }
             } catch (err) {
@@ -998,8 +996,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               if ((machineId as string).startsWith('docker_')) {
                 stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
               } else {
-                const flyApp =
-                  process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+                const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
                 await destroyMachine(flyApp, machineId as string);
               }
             } catch (err) {
@@ -1015,8 +1012,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
-              const flyApp =
-                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+              const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -1090,8 +1086,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const deliveryVmSize = (archetype.vm_size as string | null) ?? defaultDeliveryVmSize;
           const deliveryImage =
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-          const deliveryFlyApp =
-            process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+          const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
             process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
@@ -1126,6 +1121,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   ),
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+                  GATEWAY_URL: 'http://host.docker.internal:7700',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
                   INNGEST_DEV: '1',
                   ...(taskRawEventForDelivery['lead_uid']
@@ -1157,6 +1153,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
                   ...(taskRawEventForDelivery['lead_uid']
                     ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
@@ -1398,8 +1395,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             if ((machineId as string).startsWith('docker_')) {
               stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
             } else {
-              const flyApp =
-                process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+              const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
               await destroyMachine(flyApp, machineId as string);
             }
           } catch (err) {
@@ -2448,8 +2444,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             (archetype.vm_size as string | null) ?? defaultDeliveryVmSizeForApproval;
           const deliveryImage =
             process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-          const deliveryFlyApp =
-            process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+          const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
             process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
@@ -2481,6 +2476,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   ),
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+                  GATEWAY_URL: 'http://host.docker.internal:7700',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
                   INNGEST_DEV: '1',
                   ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
@@ -2508,6 +2504,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
+                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
                   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
                   ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
                   ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
@@ -3073,8 +3070,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           if ((machineId as string).startsWith('docker_')) {
             stopLocalDockerContainer(`employee-${taskId.slice(0, 8)}`);
           } else {
-            const flyApp =
-              process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
+            const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
             await destroyMachine(flyApp, machineId as string);
           }
         } catch (err) {
