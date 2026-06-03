@@ -4946,7 +4946,7 @@ Read the approved content from the <approved-content> block in your prompt.
     where: { id: '00000000-0000-0000-0001-000000000001' },
     create: {
       id: '00000000-0000-0000-0001-000000000001',
-      role_name: 'google-assistant',
+      role_name: 'Google Workspace Assistant',
       runtime: 'opencode',
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
@@ -4992,7 +4992,7 @@ Read the approved content from the <approved-content> block in your prompt.
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
     },
     update: {
-      role_name: 'google-assistant',
+      role_name: 'Google Workspace Assistant',
       runtime: 'opencode',
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
