@@ -58,11 +58,13 @@ This is the screen users see when they authorize the app. You need to configure 
 Scopes define what the app is allowed to access. On the Scopes page:
 
 1. Click **Add or Remove Scopes**
-2. Add each of the following scopes (you can paste them into the filter box to find them):
+2. Add each of the following scopes (paste each one into the filter box to find it, then check the checkbox):
 
 ```
-https://www.googleapis.com/auth/gmail.modify
-https://www.googleapis.com/auth/drive
+https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.send
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/drive.file
 https://www.googleapis.com/auth/documents
 https://www.googleapis.com/auth/spreadsheets
 https://www.googleapis.com/auth/presentations
@@ -70,6 +72,8 @@ https://www.googleapis.com/auth/calendar
 https://www.googleapis.com/auth/userinfo.email
 https://www.googleapis.com/auth/userinfo.profile
 ```
+
+All 10 of these scopes are either **Sensitive** or **Basic** — none are Restricted. This means users will see a standard consent screen without a scary "unverified" warning, even before the app goes through Google's formal verification.
 
 3. Click **Update** to confirm, then **Save and Continue**
 
@@ -91,7 +95,9 @@ To fix this permanently:
 
 Your app is now in **Production** mode. Tokens will not expire on a 7-day cycle.
 
-> **Why does this matter?** Testing mode is meant for development with a small list of approved test users. Production mode is required for any real usage, even if you haven't gone through Google's formal app verification process. For internal tools using sensitive scopes, Google may show a warning screen to users during OAuth, but the connection will still work.
+> **Why does this matter?** Testing mode is meant for development with a small list of approved test users. Production mode is required for any real usage, even if you haven't gone through Google's formal app verification process. The scopes used by this integration are all Sensitive or Basic, so users will see a standard consent screen — not the scary red "unverified" warning that Restricted scopes (like `gmail.modify` or `drive`) would trigger.
+>
+> **Drive delete note**: The `drive.file` scope only allows the AI employee to delete files it created. It cannot delete arbitrary existing files from your Drive. If you need that capability, switch to the full `drive` scope (Restricted — will trigger the unverified warning).
 
 ---
 

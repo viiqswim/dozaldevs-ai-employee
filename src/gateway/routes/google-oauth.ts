@@ -12,12 +12,18 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/drive',
+  // Gmail — Sensitive (no security audit required)
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.send',
+  // Drive — Sensitive + Basic (no security audit required)
+  'https://www.googleapis.com/auth/drive.readonly', // read all files
+  'https://www.googleapis.com/auth/drive.file', // create/modify/delete app-created files
+  // Docs, Sheets, Slides, Calendar — all Sensitive
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/presentations',
   'https://www.googleapis.com/auth/calendar',
+  // Identity
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
