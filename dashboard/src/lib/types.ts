@@ -385,3 +385,9 @@ export interface ModelCatalogEntry {
   created_at: string;
   updated_at: string;
 }
+
+export interface GitHubInstallation {
+  id: number;
+  account: { login: string; type: string; avatar_url: string };
+  already_linked: boolean;
+}

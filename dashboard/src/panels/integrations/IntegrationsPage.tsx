@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,12 @@ import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
-import type { Tenant, TenantIntegration } from '@/lib/types';
+import {
+  fetchAvailableInstallations,
+  linkGitHubInstallation,
+  disconnectGitHub,
+} from '@/lib/gateway';
+import type { Tenant, TenantIntegration, GitHubInstallation } from '@/lib/types';
 
 function SkeletonRow() {
   return (
@@ -104,6 +109,138 @@ function IntegrationRow({
   );
 }
 
+interface GitHubIntegrationRowProps {
+  integration: TenantIntegration | null;
+  tenantId: string;
+  connectHref?: string;
+  onRefresh: () => void;
+}
+
+function GitHubIntegrationRow({
+  integration,
+  tenantId,
+  connectHref,
+  onRefresh,
+}: GitHubIntegrationRowProps) {
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
+  const [linking, setLinking] = useState(false);
+
+  useEffect(() => {
+    if (integration) return;
+    fetchAvailableInstallations(tenantId)
+      .then((res) => setInstallations(res.installations))
+      .catch(() => setInstallations([]));
+  }, [tenantId, integration]);
+
+  async function handleDisconnect() {
+    const confirmed = window.confirm(
+      "Disconnect GitHub from this organization? Other organizations using the same GitHub account won't be affected.",
+    );
+    if (!confirmed) return;
+    setDisconnecting(true);
+    try {
+      await disconnectGitHub(tenantId);
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to disconnect GitHub:', err);
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  async function handleLink(id: number) {
+    setLinking(true);
+    try {
+      await linkGitHubInstallation(tenantId, String(id));
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to link GitHub installation:', err);
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">GitHub</p>
+        <p className="text-xs text-muted-foreground">
+          Connect GitHub to let AI employees access your repositories
+        </p>
+        {integration && (
+          <p className="text-xs text-muted-foreground">
+            {integration.external_id ? `Connected · ${integration.external_id}` : 'Connected'} ·{' '}
+            {formatRelativeTime(integration.created_at)}
+          </p>
+        )}
+        {!integration && installations.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground">Or link an existing GitHub connection:</p>
+            <div className="mt-1 space-y-1">
+              {installations.map((inst) => (
+                <div key={inst.id} className="flex items-center gap-2">
+                  <span className="text-xs">{inst.account.login}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={linking}
+                    onClick={() => handleLink(inst.id)}
+                  >
+                    Link
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {integration ? (
+          <>
+            <Badge className="border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+              ✓ Connected
+            </Badge>
+            {connectHref && (
+              <a
+                href={connectHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+              >
+                Reconnect
+              </a>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              disabled={disconnecting}
+              onClick={handleDisconnect}
+            >
+              Disconnect
+            </Button>
+          </>
+        ) : (
+          <a
+            href={connectHref ?? '#'}
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={!connectHref}
+            className={
+              connectHref
+                ? 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent'
+                : 'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium opacity-40 pointer-events-none'
+            }
+          >
+            Connect GitHub
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function IntegrationsPage() {
   const { tenantId } = useTenant();
 
@@ -182,16 +319,15 @@ export function IntegrationsPage() {
                   }
                   connectLabel="Connect Notion"
                 />
-                <IntegrationRow
-                  name="GitHub"
-                  description="Connect GitHub to let AI employees access your repositories"
+                <GitHubIntegrationRow
                   integration={integrations?.find((i) => i.provider === 'github') ?? null}
+                  tenantId={tenantId}
                   connectHref={
                     tenant?.slug
                       ? `${GATEWAY_URL}/integrations/github/install?tenant=${tenant.slug}`
                       : undefined
                   }
-                  connectLabel="Connect GitHub"
+                  onRefresh={refreshIntegrations}
                 />
               </div>
             )}

@@ -13,6 +13,7 @@ import type {
   ModelCatalogEntry,
   PlatformSetting,
   GitHubRepo,
+  GitHubInstallation,
 } from './types';
 
 export type ModelRecommendation = {
@@ -389,4 +390,31 @@ export async function updatePlatformSetting(key: string, value: string): Promise
 
 export async function fetchGitHubRepos(tenantId: string): Promise<{ repos: GitHubRepo[] }> {
   return gatewayFetch<{ repos: GitHubRepo[] }>(`/admin/tenants/${tenantId}/github/repos`);
+}
+
+export async function fetchAvailableInstallations(
+  tenantId: string,
+): Promise<{ installations: GitHubInstallation[] }> {
+  return gatewayFetch<{ installations: GitHubInstallation[] }>(
+    `/admin/tenants/${tenantId}/github/available-installations`,
+  );
+}
+
+export async function linkGitHubInstallation(
+  tenantId: string,
+  installationId: string,
+): Promise<{ linked: boolean; installation_id: string }> {
+  return gatewayFetch<{ linked: boolean; installation_id: string }>(
+    `/admin/tenants/${tenantId}/github/link-installation`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ installation_id: installationId }),
+    },
+  );
+}
+
+export async function disconnectGitHub(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/github`, {
+    method: 'DELETE',
+  });
 }
