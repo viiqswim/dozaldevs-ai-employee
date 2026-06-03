@@ -14,8 +14,8 @@ import {
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { fireApprovalEvent } from '@/lib/gateway';
-import type { Task, TaskStatusLog, PendingApproval } from '@/lib/types';
+import { fireApprovalEvent, triggerEmployee } from '@/lib/gateway';
+import type { Task, TaskStatusLog, PendingApproval, InputSchemaItem } from '@/lib/types';
 import { TERMINAL_STATUSES, POLL_INTERVAL_MS } from '@/lib/constants';
 import { useExecution } from '@/hooks/use-execution';
 import { useDeliverable } from '@/hooks/use-deliverable';
@@ -88,7 +88,7 @@ function RawEventViewer({ rawEvent }: { rawEvent: Record<string, unknown> | null
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          Trigger Payload
+          Task Input
         </button>
         {open && (
           <p className="mt-2 text-sm text-muted-foreground italic">
@@ -112,7 +112,7 @@ function RawEventViewer({ rawEvent }: { rawEvent: Record<string, unknown> | null
         className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        Trigger Payload
+        Task Input
       </button>
       {open && (
         <div className="mt-2">
@@ -234,6 +234,74 @@ function CommandRow({ command }: { command: string }) {
   );
 }
 
+const inputCls =
+  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+
+function FormField({
+  item,
+  value,
+  onChange,
+}: {
+  item: InputSchemaItem;
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const placeholder = item.description ?? `Enter ${item.label}`;
+
+  let fieldEl: React.ReactNode;
+
+  if (item.type === 'long_text') {
+    fieldEl = (
+      <textarea
+        className={`${inputCls} min-h-[80px] resize-y`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    );
+  } else if (item.type === 'select' && item.options && item.options.length > 0) {
+    fieldEl = (
+      <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Select…</option>
+        {item.options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    );
+  } else {
+    const typeMap: Record<InputSchemaItem['type'], string> = {
+      text: 'text',
+      long_text: 'text',
+      date: 'date',
+      number: 'number',
+      url: 'url',
+      select: 'text',
+    };
+    fieldEl = (
+      <input
+        className={inputCls}
+        type={typeMap[item.type]}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">
+        {item.label}
+        {item.required && <span className="ml-1 text-destructive">*</span>}
+      </label>
+      {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+      {fieldEl}
+    </div>
+  );
+}
+
 export function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
@@ -241,6 +309,9 @@ export function TaskDetail() {
 
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const [rerunInputs, setRerunInputs] = useState<Record<string, string>>({});
+  const [rerunSubmitting, setRerunSubmitting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const showTranscript = searchParams.has('transcript');
 
@@ -249,7 +320,7 @@ export function TaskDetail() {
     const rows = await postgrestFetch<Task>('tasks', {
       id: `eq.${taskId}`,
       ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase)',
+      select: '*,archetypes(role_name,model,input_schema),executions(estimated_cost_usd,phase)',
     });
     return rows[0] ?? null;
   }, [taskId, tenantId]);
@@ -318,6 +389,28 @@ export function TaskDetail() {
       toast.error(err instanceof Error ? err.message : 'Failed to send rejection');
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const openRerun = () => {
+    const existingInputs = task?.raw_event?.inputs as Record<string, string> | undefined;
+    setRerunInputs(existingInputs ?? {});
+    setRerunOpen(true);
+  };
+
+  const handleRerun = async () => {
+    const slug = task?.archetypes?.role_name;
+    if (!slug) return;
+    setRerunSubmitting(true);
+    try {
+      const result = await triggerEmployee(tenantId, slug, false, rerunInputs);
+      setRerunOpen(false);
+      navigate(`/dashboard/tasks/${result.task_id}?tenant=${tenantId}`);
+      toast.success('Task re-triggered — navigating to new task');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to re-trigger task');
+    } finally {
+      setRerunSubmitting(false);
     }
   };
 
@@ -418,7 +511,20 @@ export function TaskDetail() {
               {truncatedId}
             </p>
           </div>
-          <StatusBadge status={task.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={task.status} />
+            {isTerminal && task.source_system === 'manual' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5"
+                onClick={openRerun}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Re-run
+              </Button>
+            )}
+          </div>
         </div>
 
         {task.status === 'Failed' && task.failure_reason && (
@@ -430,6 +536,10 @@ export function TaskDetail() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="rounded-lg border bg-card p-6">
+        <RawEventViewer rawEvent={task.raw_event} />
       </div>
 
       <div className="rounded-lg border bg-card p-6 space-y-3">
@@ -698,9 +808,68 @@ export function TaskDetail() {
         )}
       </div>
 
-      <div className="rounded-lg border bg-card p-6">
-        <RawEventViewer rawEvent={task.raw_event} />
-      </div>
+      {rerunOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative mx-4 w-full max-w-lg rounded-lg border bg-card p-6 space-y-4 shadow-lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Re-run Task</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Edit inputs below, then click Re-run to start a new task.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRerunOpen(false)}
+                className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {(task.archetypes?.input_schema ?? []).filter((f) => f.frequency === 'every_run')
+                .length > 0 ? (
+                (task.archetypes?.input_schema ?? [])
+                  .filter((f) => f.frequency === 'every_run')
+                  .map((item) => (
+                    <FormField
+                      key={item.key}
+                      item={item}
+                      value={rerunInputs[item.key] ?? ''}
+                      onChange={(val) => setRerunInputs((prev) => ({ ...prev, [item.key]: val }))}
+                    />
+                  ))
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Prompt</label>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[120px] resize-y placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={rerunInputs['prompt'] ?? ''}
+                    onChange={(e) =>
+                      setRerunInputs((prev) => ({ ...prev, prompt: e.target.value }))
+                    }
+                    placeholder="Enter instructions for this employee..."
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setRerunOpen(false)}
+                disabled={rerunSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleRerun()} disabled={rerunSubmitting}>
+                {rerunSubmitting ? 'Running...' : 'Re-run'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
