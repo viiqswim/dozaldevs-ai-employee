@@ -59,12 +59,13 @@ The platform follows a single lifecycle pattern for all employees:
 
 ### Active employees
 
-| Employee                    | Trigger                               | Deliverable                                                                            |
-| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval                          |
-| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval                           |
-| **Code-Rotation (VLRE)**    | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary             |
-| **Engineer (DozalDevs)**    | Manual (admin API or dashboard)       | Receives coding instructions, implements changes in GitHub repo, creates PR for review |
+| Employee                              | Trigger                               | Deliverable                                                                            |
+| ------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Summarizer (Papi Chulo)**           | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval                          |
+| **Guest-Messaging (VLRE)**            | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval                           |
+| **Code-Rotation (VLRE)**              | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary             |
+| **Engineer (DozalDevs)**              | Manual (admin API or dashboard)       | Receives coding instructions, implements changes in GitHub repo, creates PR for review |
+| **Google Workspace Assistant (VLRE)** | Manual (admin API)                    | AI-drafted Google Workspace task results, posted to Slack after PM approval            |
 
 > **Old orchestrator-based engineering employee** (`src/workers/orchestrate.mts`) — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features. The new archetype-based engineer employee (above) is active.
 
@@ -220,6 +221,7 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Airbnb Integration Research](docs/architecture/airbnb-integration/)                    | Research spike: go/no-go decision, Partner API analysis, credential custody, API reverse engineering, ecosystem landscape, next-steps playbook                                                       |
 | [Cloud Deployment Guide](docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md) | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting. |
 | [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                         | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
+| [Google Workspace Assistant](docs/employees/2026-06-03-0243-google-assistant.md)        | Google Workspace Assistant employee operational details — archetype ID, trigger command, available tools, required tenant secrets, known gotchas.                                                    |
 
 ## Testing
 

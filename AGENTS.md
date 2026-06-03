@@ -80,6 +80,7 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 | Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                    |
 | Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
 | GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI   |
+| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                      |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
@@ -217,6 +218,13 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 
 - `GET /auth/github/install` — initiates GitHub App installation flow for a tenant
 - `GET /auth/github/callback` — OAuth callback; stores `github_installation_id` as tenant secret
+
+**Google OAuth (Google Workspace integration):**
+
+- `GET /integrations/google/install?tenant=<slug>` — initiates Google OAuth flow for a tenant
+- `GET /integrations/google/callback` — OAuth callback; stores 5 Google secrets in `tenant_secrets`
+- `DELETE /admin/tenants/:tenantId/integrations/google` — disconnect Google from tenant (soft-delete)
+- `POST /internal/tasks/:taskId/google-token` — returns fresh Google access token for executing tasks (auth: `X-Task-ID` header)
 
 **Internal (worker containers only):**
 
@@ -444,6 +452,12 @@ See README.md for docs directory structure and naming conventions.
 Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `ADMIN_API_KEY`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`. See `.env.example` for the full list. **Note**: `WORKER_VM_SIZE`, `SUMMARIZER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table — not env vars.
 
 **GitHub App — per-environment vars**: `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`, and `GITHUB_WEBHOOK_SECRET` differ between dev and prod. Dev App points to `https://local-ai-employee.dozaldevs.com`; prod App points to `https://ai-employees-laaa.onrender.com`. Each App has its own private key and webhook secret — never shared between environments. See [GitHub Integration Guide](docs/guides/2026-06-02-1727-github-integration.md) § Multi-Environment Setup.
+
+**Google Integration:**
+
+- `GOOGLE_CLIENT_ID` — OAuth 2.0 client ID from Google Cloud Console
+- `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
+- `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
 ## Long-Running Commands
 
@@ -794,3 +808,5 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/guides/2026-06-01-2246-production-debugging-guide.md`                      | Debugging production issues — topology overview, cloud DB queries (port 5432 only), Fly.io machine inspection via REST API, Render env var gotchas, Inngest retry loop diagnosis, known production bugs and fixes, re-trigger instructions.              |
 | `.sisyphus/plans/2026-06-01-2344-platform-settings-table.md`                     | Platform settings table implementation plan — DB schema, admin API endpoints, dashboard settings page, env var migration                                                                                                                                 |
 | `docs/guides/2026-06-02-1727-github-integration.md`                              | Working on GitHub App integration — OAuth install flow, webhook handling, token delivery to workers, multi-environment two-App setup (dev vs prod)                                                                                                       |
+| `docs/employees/2026-06-03-0243-google-assistant.md`                             | Working on Google Workspace Assistant employee — archetype IDs, trigger command, available tools, known gotchas (RESTRICTED scopes, Testing mode token expiry)                                                                                           |
+| `docs/guides/2026-06-03-0202-google-cloud-setup.md`                              | Setting up Google Cloud OAuth credentials for the Google integration                                                                                                                                                                                     |
