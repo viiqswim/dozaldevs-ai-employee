@@ -67,8 +67,8 @@ export function githubRoutes(opts: GitHubWebhookRouteOptions = {}): Router {
     );
 
     if (action === 'deleted') {
-      const integration = await integrationRepo.findByExternalId('github', installationId);
-      if (!integration) {
+      const integrations = await integrationRepo.findManyByExternalId('github', installationId);
+      if (integrations.length === 0) {
         logger.info(
           { installationId },
           'GitHub installation.deleted — unknown installation_id, no-op',
@@ -77,15 +77,26 @@ export function githubRoutes(opts: GitHubWebhookRouteOptions = {}): Router {
         return;
       }
 
-      const { tenant_id: tenantId } = integration;
-      await integrationRepo.delete(tenantId, 'github');
-      await secretRepo.delete(tenantId, 'github_installation_id');
+      let tenantsCleanedCount = 0;
+      for (const integration of integrations) {
+        const { tenant_id: tenantId } = integration;
+        try {
+          await integrationRepo.delete(tenantId, 'github');
+          await secretRepo.delete(tenantId, 'github_installation_id');
+          logger.info(
+            { tenantId, installationId },
+            'GitHub App uninstalled — integration and secret removed',
+          );
+          tenantsCleanedCount++;
+        } catch (err) {
+          logger.error(
+            { tenantId, installationId, err },
+            'GitHub installation.deleted — failed to clean up tenant, continuing',
+          );
+        }
+      }
 
-      logger.info(
-        { tenantId, installationId },
-        'GitHub App uninstalled — integration and secret removed',
-      );
-      res.json({ received: true, action: 'deleted' });
+      res.json({ received: true, action: 'deleted', tenants_cleaned: tenantsCleanedCount });
       return;
     }
 

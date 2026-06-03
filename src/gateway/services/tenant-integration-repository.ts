@@ -24,6 +24,13 @@ export class TenantIntegrationRepository {
     });
   }
 
+  async findManyByExternalId(provider: string, externalId: string): Promise<TenantIntegration[]> {
+    return this.prisma.tenantIntegration.findMany({
+      where: { provider, external_id: externalId, deleted_at: null },
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
   async upsert(
     tenantId: string,
     provider: string,

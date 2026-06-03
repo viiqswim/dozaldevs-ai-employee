@@ -3,15 +3,18 @@ import request from 'supertest';
 import express from 'express';
 import crypto from 'crypto';
 
-const { mockFindByExternalId, mockIntegrationDelete, mockSecretDelete } = vi.hoisted(() => ({
-  mockFindByExternalId: vi.fn(),
-  mockIntegrationDelete: vi.fn(),
-  mockSecretDelete: vi.fn(),
-}));
+const { mockFindByExternalId, mockFindManyByExternalId, mockIntegrationDelete, mockSecretDelete } =
+  vi.hoisted(() => ({
+    mockFindByExternalId: vi.fn(),
+    mockFindManyByExternalId: vi.fn(),
+    mockIntegrationDelete: vi.fn(),
+    mockSecretDelete: vi.fn(),
+  }));
 
 vi.mock('../../services/tenant-integration-repository.js', () => ({
   TenantIntegrationRepository: vi.fn(() => ({
     findByExternalId: mockFindByExternalId,
+    findManyByExternalId: mockFindManyByExternalId,
     delete: mockIntegrationDelete,
   })),
 }));
@@ -68,12 +71,14 @@ describe('POST /webhooks/github', () => {
   });
 
   it('installation.deleted — soft-deletes integration and secret for known installation', async () => {
-    mockFindByExternalId.mockResolvedValue({
-      id: 'int-1',
-      tenant_id: TENANT_ID,
-      provider: 'github',
-      external_id: INSTALLATION_ID,
-    });
+    mockFindManyByExternalId.mockResolvedValue([
+      {
+        id: 'int-1',
+        tenant_id: TENANT_ID,
+        provider: 'github',
+        external_id: INSTALLATION_ID,
+      },
+    ]);
     mockIntegrationDelete.mockResolvedValue(undefined);
     mockSecretDelete.mockResolvedValue(true);
 
@@ -89,8 +94,8 @@ describe('POST /webhooks/github', () => {
       .send(body);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ received: true, action: 'deleted' });
-    expect(mockFindByExternalId).toHaveBeenCalledWith('github', INSTALLATION_ID);
+    expect(res.body).toMatchObject({ received: true, action: 'deleted', tenants_cleaned: 1 });
+    expect(mockFindManyByExternalId).toHaveBeenCalledWith('github', INSTALLATION_ID);
     expect(mockIntegrationDelete).toHaveBeenCalledWith(TENANT_ID, 'github');
     expect(mockSecretDelete).toHaveBeenCalledWith(TENANT_ID, 'github_installation_id');
   });
@@ -165,7 +170,7 @@ describe('POST /webhooks/github', () => {
   });
 
   it('installation.deleted with unknown installation_id returns 200 no-op', async () => {
-    mockFindByExternalId.mockResolvedValue(null);
+    mockFindManyByExternalId.mockResolvedValue([]);
 
     const payload = makeInstallationPayload('deleted', '999999999');
     const body = JSON.stringify(payload);
@@ -229,5 +234,57 @@ describe('POST /webhooks/github', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ received: true, action: 'ignored' });
+  });
+
+  it('installation.deleted — cleans up ALL tenants sharing the installation', async () => {
+    const TENANT_ID_2 = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6';
+    mockFindManyByExternalId.mockResolvedValue([
+      { id: 'int-1', tenant_id: TENANT_ID, provider: 'github', external_id: INSTALLATION_ID },
+      { id: 'int-2', tenant_id: TENANT_ID_2, provider: 'github', external_id: INSTALLATION_ID },
+    ]);
+    mockIntegrationDelete.mockResolvedValue(undefined);
+    mockSecretDelete.mockResolvedValue(true);
+
+    const payload = makeInstallationPayload('deleted');
+    const body = JSON.stringify(payload);
+    const app = makeApp();
+
+    const res = await request(app)
+      .post('/webhooks/github')
+      .set('x-github-event', 'installation')
+      .set('x-hub-signature-256', sign(body, WEBHOOK_SECRET))
+      .set('content-type', 'application/json')
+      .send(body);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ received: true, action: 'deleted', tenants_cleaned: 2 });
+    expect(mockIntegrationDelete).toHaveBeenCalledTimes(2);
+    expect(mockIntegrationDelete).toHaveBeenCalledWith(TENANT_ID, 'github');
+    expect(mockIntegrationDelete).toHaveBeenCalledWith(TENANT_ID_2, 'github');
+  });
+
+  it('installation.deleted — continues cleanup if one tenant fails', async () => {
+    const TENANT_ID_2 = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6';
+    mockFindManyByExternalId.mockResolvedValue([
+      { id: 'int-1', tenant_id: TENANT_ID, provider: 'github', external_id: INSTALLATION_ID },
+      { id: 'int-2', tenant_id: TENANT_ID_2, provider: 'github', external_id: INSTALLATION_ID },
+    ]);
+    mockIntegrationDelete.mockRejectedValueOnce(new Error('DB error')).mockResolvedValue(undefined);
+    mockSecretDelete.mockResolvedValue(true);
+
+    const payload = makeInstallationPayload('deleted');
+    const body = JSON.stringify(payload);
+    const app = makeApp();
+
+    const res = await request(app)
+      .post('/webhooks/github')
+      .set('x-github-event', 'installation')
+      .set('x-hub-signature-256', sign(body, WEBHOOK_SECRET))
+      .set('content-type', 'application/json')
+      .send(body);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ received: true, action: 'deleted', tenants_cleaned: 1 });
+    expect(mockIntegrationDelete).toHaveBeenCalledTimes(2);
   });
 });
