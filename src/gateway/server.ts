@@ -34,6 +34,7 @@ import { notionOAuthRoutes } from './routes/notion-oauth.js';
 import { githubOAuthRoutes } from './routes/github-oauth.js';
 import { googleOAuthRoutes } from './routes/google-oauth.js';
 import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
+import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
@@ -212,6 +213,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use('/integrations', githubOAuthRoutes({ prisma }));
   app.use('/integrations', googleOAuthRoutes({ prisma }));
   app.use('/internal', internalGithubTokenRoutes({ prisma }));
+  app.use('/internal', internalGoogleTokenRoutes({ prisma }));
   app.use(adminGithubRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
