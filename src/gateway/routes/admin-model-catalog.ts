@@ -45,6 +45,8 @@ const CreateModelCatalogBodySchema = z.object({
   non_hallucination_rate: z.number().optional(),
   is_active: z.boolean().default(true),
   notes: z.string().optional(),
+  strengths: z.string().optional(),
+  weaknesses: z.string().optional(),
 });
 
 const PatchModelCatalogBodySchema = z
@@ -70,6 +72,8 @@ const PatchModelCatalogBodySchema = z
     non_hallucination_rate: z.number().optional(),
     is_active: z.boolean().optional(),
     notes: z.string().optional(),
+    strengths: z.string().optional(),
+    weaknesses: z.string().optional(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {

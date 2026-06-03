@@ -32,6 +32,8 @@ function makeModelRow(overrides: Record<string, unknown> = {}) {
     non_hallucination_rate: null,
     description: null,
     notes: null,
+    strengths: null,
+    weaknesses: null,
     created_at: NOW,
     updated_at: NOW,
     ...overrides,
