@@ -39,8 +39,8 @@ describe('resolveProvider', () => {
   });
 
   it('non-Go model + key present → openrouter provider', () => {
-    const result = resolveProvider('tencent/hy3-preview', true);
-    expect(result).toEqual({ providerID: 'openrouter', modelID: 'tencent/hy3-preview' });
+    const result = resolveProvider('google/gemini-flash', true);
+    expect(result).toEqual({ providerID: 'openrouter', modelID: 'google/gemini-flash' });
   });
 
   it('model with openrouter/ prefix → strips prefix and resolves to Go', () => {
@@ -58,8 +58,8 @@ describe('resolveProvider', () => {
     expect(result).toEqual({ providerID: 'opencode-go', modelID: 'deepseek-v4-flash' });
   });
 
-  it('unknown model + key absent → openrouter with original model ID', () => {
-    const result = resolveProvider('openrouter/owl-alpha', false);
-    expect(result).toEqual({ providerID: 'openrouter', modelID: 'owl-alpha' });
+  it('unknown model with openrouter/ prefix + key absent → strips prefix and returns openrouter', () => {
+    const result = resolveProvider('openrouter/some-unknown-model', false);
+    expect(result).toEqual({ providerID: 'openrouter', modelID: 'some-unknown-model' });
   });
 });
