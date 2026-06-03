@@ -418,3 +418,9 @@ export async function disconnectGitHub(tenantId: string): Promise<{ disconnected
     method: 'DELETE',
   });
 }
+
+export async function disconnectGoogle(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
+    method: 'DELETE',
+  });
+}

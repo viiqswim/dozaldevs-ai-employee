@@ -329,6 +329,17 @@ export function IntegrationsPage() {
                   }
                   onRefresh={refreshIntegrations}
                 />
+                <IntegrationRow
+                  name="Google"
+                  description="Connect Google to let AI employees access Gmail, Drive, Docs, Sheets, Slides, and Calendar."
+                  integration={integrations?.find((i) => i.provider === 'google') ?? null}
+                  connectHref={
+                    tenant?.slug
+                      ? `${GATEWAY_URL}/integrations/google/install?tenant=${tenant.slug}`
+                      : undefined
+                  }
+                  connectLabel="Connect Google"
+                />
               </div>
             )}
           </CardContent>
