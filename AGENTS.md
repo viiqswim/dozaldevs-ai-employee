@@ -15,7 +15,7 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global — not tenant-scoped).
 
-**Seeded catalog models (global):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
+**Seeded catalog models (global):** `minimax/minimax-m2.7`
 
 **Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`, `minimax/minimax-m2.7`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering. **Note**: `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) has been verified to reliably call bash tools in the engineer employee context (E2E verified 2026-06-03). `minimax/minimax-m2.7` fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03) — use `deepseek/deepseek-v4-flash` for Go routing tests.
 

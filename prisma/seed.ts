@@ -4767,60 +4767,6 @@ BOTH must be executed as bash tool calls. A text response without running these 
       is_active: true,
       notes: 'Current default model for all AI employees. Approved for production use.',
     },
-    {
-      // Source: openrouter.ai/tencent/hy3-preview + artificialanalysis.ai leaderboard
-      // Input: $0.066/1M, Output: $0.26/1M (OpenRouter)
-      // Intelligence Index: 42, Output speed: 103 t/s, Latency: 4.09s (Artificial Analysis)
-      model_id: 'tencent/hy3-preview',
-      display_name: 'Tencent Hy3 Preview',
-      provider: 'tencent',
-      description:
-        'High-efficiency Mixture-of-Experts model from Tencent designed for agentic workflows. Supports configurable reasoning levels (disabled, low, high). Strong code generation and reliable multi-step workflow performance.',
-      context_window: 262000,
-      input_cost_per_million: 0.066,
-      output_cost_per_million: 0.26,
-      is_free: false,
-      throughput_tokens_per_sec: 103.0,
-      latency_seconds: 4.09,
-      tool_call_error_rate: null,
-      structured_output_error_rate: null,
-      quality_index: 42.0,
-      agentic_score: null,
-      tool_use_score: null,
-      instruction_following_score: null,
-      non_hallucination_rate: null,
-      supports_tools: true,
-      supports_structured_output: true,
-      is_active: true,
-      notes: 'Cost-effective alternative. Released Apr 22, 2026.',
-    },
-    {
-      // Source: openrouter.ai/openrouter/owl-alpha
-      // Free model. Not listed on Artificial Analysis leaderboard — benchmarks set to null.
-      model_id: 'openrouter/owl-alpha',
-      display_name: 'OpenRouter Owl Alpha',
-      provider: 'openrouter',
-      description:
-        'High-performance foundation model designed for agentic workloads. Natively supports tool use and long-context tasks. Strong in code generation, automated workflows, and complex instruction execution. Compatible with Claude Code and other productivity tools.',
-      context_window: 1000000,
-      input_cost_per_million: 0.0,
-      output_cost_per_million: 0.0,
-      is_free: true,
-      throughput_tokens_per_sec: null,
-      latency_seconds: null,
-      tool_call_error_rate: null,
-      structured_output_error_rate: null,
-      quality_index: null,
-      agentic_score: null,
-      tool_use_score: null,
-      instruction_following_score: null,
-      non_hallucination_rate: null,
-      supports_tools: true,
-      supports_structured_output: false,
-      is_active: true,
-      notes:
-        'Free model. Prompts and completions may be logged by the provider. Released Apr 28, 2026.',
-    },
   ];
 
   let modelCatalogCount = 0;
