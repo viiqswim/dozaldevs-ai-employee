@@ -1,19 +1,21 @@
-# Fix Premature Idle Detection & Slack Failure Notifications
+# Fix Premature Idle Detection, Slack Failure Notifications & Task Re-run
 
 ## TL;DR
 
-> **Quick Summary**: Fix two bugs — the session-manager's idle detection kills tasks before slow models respond (10s threshold vs 23s TTFT), and the harness doesn't update Slack notifications when tasks fail.
+> **Quick Summary**: Fix two bugs (premature idle detection kills tasks, Slack stays on "Received" after failure), improve task input visibility on the dashboard, and add a "Re-run with editable inputs" button so failed tasks can be re-triggered with the same (or tweaked) inputs.
 >
 > **Deliverables**:
 >
 > - Increased `minElapsedMs` from 10s to 60s for main execution sessions
 > - Increased `minElapsedMs` from 10s to 30s for delivery sessions
 > - Slack notification update in `markFailed()` so failures are visible in Slack
+> - Trigger Payload section moved higher on task detail page
+> - Re-run button with editable inputs modal on task detail page (manual triggers only)
 > - Docker image rebuild + end-to-end verification
 >
-> **Estimated Effort**: Short
-> **Parallel Execution**: YES - 2 waves
-> **Critical Path**: Tasks 1-3 (parallel) → Task 4 (rebuild + verify)
+> **Estimated Effort**: Medium
+> **Parallel Execution**: YES - 2 waves (5 parallel tasks in Wave 1)
+> **Critical Path**: Tasks 1-3 (parallel) → Task 6 (rebuild + verify)
 
 ---
 
@@ -60,6 +62,8 @@ Fix the premature idle detection that kills tasks before slow models respond, an
 ### Concrete Deliverables
 
 - `src/workers/opencode-harness.mts` — three changes: main session minElapsedMs, delivery minElapsedMs, markFailed() Slack update
+- `dashboard/src/panels/tasks/TaskDetail.tsx` — move Trigger Payload section higher, add Re-run button with editable inputs modal
+- `dashboard/src/lib/types.ts` — add `input_schema` to Task archetypes type
 - Rebuilt Docker image with fixes
 
 ### Definition of Done
@@ -67,6 +71,9 @@ Fix the premature idle detection that kills tasks before slow models respond, an
 - [ ] Engineer task completes (reaches Submitting/Reviewing) without premature idle kill
 - [ ] Slack notification shows ❌ Failed when a task fails (via markFailed path)
 - [ ] Motivation bot regression test passes (fast model still completes normally)
+- [ ] Trigger Payload is visible near the top of task detail page (after failure banner, before status timeline)
+- [ ] Re-run button appears on Failed/Done/Cancelled tasks with `source_system: 'manual'`
+- [ ] Re-run modal pre-fills with original inputs and allows editing before re-triggering
 
 ### Must Have
 
@@ -83,6 +90,9 @@ Fix the premature idle detection that kills tasks before slow models respond, an
 - Do NOT add new env vars to the lifecycle's worker env injection
 - Do NOT add retry logic to the Slack update
 - Do NOT refactor `markFailed()` signature — keep existing API
+- Do NOT show Re-run button for webhook-triggered tasks (`source_system` !== `'manual'`) — webhook payloads have different shapes
+- Do NOT create new API endpoints — the existing trigger endpoint handles re-runs as-is
+- Do NOT use `<Select>` from Radix — use `SearchableSelect` for any dropdowns per project conventions
 
 ---
 
@@ -111,13 +121,15 @@ Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
 ### Parallel Execution Waves
 
 ```
-Wave 1 (Start Immediately — all changes in opencode-harness.mts):
+Wave 1 (Start Immediately — harness fixes + dashboard improvements, ALL parallel):
 ├── Task 1: Increase main execution minElapsedMs [quick]
 ├── Task 2: Increase delivery minElapsedMs [quick]
-└── Task 3: Add Slack failure notification to markFailed() [quick]
+├── Task 3: Add Slack failure notification to markFailed() [quick]
+├── Task 4: Move Trigger Payload section higher on task detail page [visual-engineering]
+└── Task 5: Add Re-run button with editable inputs modal [visual-engineering]
 
 Wave 2 (After Wave 1 — rebuild + verify):
-└── Task 4: Rebuild Docker image + E2E verification [unspecified-high]
+└── Task 6: Rebuild Docker image + E2E verification (includes testing re-run button) [unspecified-high]
 
 Wave FINAL (After ALL tasks):
 ├── Task F1: Plan compliance audit (oracle)
@@ -129,24 +141,26 @@ Wave FINAL (After ALL tasks):
 
 ### Dependency Matrix
 
-| Task | Depends On | Blocks |
-| ---- | ---------- | ------ |
-| 1    | None       | 4      |
-| 2    | None       | 4      |
-| 3    | None       | 4      |
-| 4    | 1, 2, 3    | F1-F4  |
+| Task | Depends On    | Blocks |
+| ---- | ------------- | ------ |
+| 1    | None          | 6      |
+| 2    | None          | 6      |
+| 3    | None          | 6      |
+| 4    | None          | 6      |
+| 5    | None          | 6      |
+| 6    | 1, 2, 3, 4, 5 | F1-F4  |
 
 ### Agent Dispatch Summary
 
-- **Wave 1**: **3** — T1 → `quick`, T2 → `quick`, T3 → `quick`
-- **Wave 2**: **1** — T4 → `unspecified-high`
+- **Wave 1**: **5** — T1 → `quick`, T2 → `quick`, T3 → `quick`, T4 → `visual-engineering`, T5 → `visual-engineering`
+- **Wave 2**: **1** — T6 → `unspecified-high`
 - **FINAL**: **4** — F1 → `oracle`, F2 → `unspecified-high`, F3 → `unspecified-high`, F4 → `deep`
 
 ---
 
 ## TODOs
 
-- [ ] 1. Increase main execution session `minElapsedMs` from 10_000 to 60_000
+- [x] 1. Increase main execution session `minElapsedMs` from 10_000 to 60_000
 
   **What to do**:
   - In `src/workers/opencode-harness.mts`, find the `runOpencodeSession` call in `main()` (line ~1011)
@@ -202,7 +216,7 @@ Wave FINAL (After ALL tasks):
   - Files: `src/workers/opencode-harness.mts`
   - Pre-commit: `pnpm build`
 
-- [ ] 2. Increase delivery session `minElapsedMs` from 10_000 to 30_000
+- [x] 2. Increase delivery session `minElapsedMs` from 10_000 to 30_000
 
   **What to do**:
   - In `src/workers/opencode-harness.mts`, find the delivery `runOpencodeSession` call (line ~764)
@@ -244,7 +258,7 @@ Wave FINAL (After ALL tasks):
   **Commit**: YES (group with Tasks 1, 3)
   - Message: (same commit as Task 1)
 
-- [ ] 3. Add Slack failure notification to `markFailed()` function
+- [x] 3. Add Slack failure notification to `markFailed()` function
 
   **What to do**:
   - In `src/workers/opencode-harness.mts`, modify the `markFailed()` function (starts at line ~95)
@@ -325,12 +339,191 @@ Wave FINAL (After ALL tasks):
   **Commit**: YES (group with Tasks 1, 2)
   - Message: (same commit as Task 1)
 
-- [ ] 4. Rebuild Docker image and run E2E verification
+- [x] 4. Move Trigger Payload section higher on task detail page
+
+  **What to do**:
+  - In `dashboard/src/panels/tasks/TaskDetail.tsx`, move the `<RawEventViewer>` component (currently at lines 78–135, rendered at the bottom of the page) to render immediately after the failure reason banner and before the Status Timeline card
+  - Rename the section header from "Trigger Payload" to "Task Input" for clarity
+  - Keep the existing collapsible JSON behavior — just reposition it
+  - If `raw_event` is null, the component already shows "This task was not triggered by a webhook, so no payload was captured" — this is fine, keep it
+
+  **Must NOT do**:
+  - Do NOT change the `RawEventViewer` component logic — only move where it's rendered in the JSX
+  - Do NOT remove the component from its current position without adding it in the new position
+
+  **Recommended Agent Profile**:
+  - **Category**: `visual-engineering`
+    - Reason: Dashboard UI repositioning task
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 1 (with Tasks 1, 2, 3, 5)
+  - **Blocks**: Task 6
+  - **Blocked By**: None
+
+  **References**:
+
+  **Pattern References**:
+  - `dashboard/src/panels/tasks/TaskDetail.tsx:78-135` — The `RawEventViewer` component definition (inline in file). Shows collapsible JSON with truncation, handles null `raw_event`.
+  - `dashboard/src/panels/tasks/TaskDetail.tsx` — Full component render order. The failure reason banner is near the top (after header card). Move `RawEventViewer` to render after it, before `StatusTimeline`.
+
+  **Acceptance Criteria**:
+
+  **QA Scenarios (MANDATORY):**
+
+  ```
+  Scenario: Trigger Payload visible near top of task detail page
+    Tool: Playwright
+    Preconditions: Services running, at least one task exists with raw_event data (e.g. task 197a00dc)
+    Steps:
+      1. Navigate to http://localhost:7700/dashboard/tasks/197a00dc-dd35-4ee7-9f12-abbb5eedf053?tenant=00000000-0000-0000-0000-000000000002
+      2. Assert: "Task Input" section is visible without scrolling past the status timeline
+      3. Assert: The section contains the JSON payload with "inputs" key
+      4. Click the expand/collapse toggle — assert it expands to show full JSON
+    Expected Result: Task Input section appears early on the page, before status timeline
+    Failure Indicators: Section not found, or appears after execution metrics/container commands
+    Evidence: .sisyphus/evidence/task-4-trigger-payload-position.png
+
+  Scenario: Task with no raw_event shows appropriate message
+    Tool: Playwright
+    Preconditions: A task exists with null raw_event
+    Steps:
+      1. Navigate to that task's detail page
+      2. Assert: "Task Input" section shows "This task was not triggered by a webhook" message
+    Expected Result: Graceful handling of null raw_event
+    Evidence: .sisyphus/evidence/task-4-null-payload.png
+  ```
+
+  **Commit**: YES (group with Task 5)
+  - Message: `feat(dashboard): move task input section higher and add re-run with editable inputs`
+  - Files: `dashboard/src/panels/tasks/TaskDetail.tsx`
+
+- [x] 5. Add Re-run button with editable inputs modal to task detail page
+
+  **What to do**:
+  - In `dashboard/src/panels/tasks/TaskDetail.tsx`, add a "Re-run" button in the header card, next to the status badge. Only visible when:
+    - Task status is terminal (`Failed`, `Done`, or `Cancelled`)
+    - AND `task.source_system === 'manual'`
+  - Clicking the button opens a modal/dialog with:
+    - A form pre-filled with the original inputs from `task.raw_event?.inputs`
+    - If the archetype has `input_schema`, render proper form fields using the same `FormField` pattern from `TriggerEmployeePage.tsx` (text inputs, textareas for long values)
+    - If no `input_schema`, show a single "Prompt" textarea pre-filled with `raw_event?.inputs?.prompt`
+    - A "Re-run" submit button and a "Cancel" button
+  - On submit: call `triggerEmployee(task.tenant_id, task.archetypes.role_name, false, editedInputs)`
+  - On success: navigate to the new task's detail page (the response includes `task_id`)
+  - On error: show toast/error message in the modal
+  - Update the PostgREST select in `fetchTask` to include `input_schema`: change `archetypes(role_name,model)` to `archetypes(role_name,model,input_schema)`
+  - Update the `Task` type in `dashboard/src/lib/types.ts` to include `input_schema` in the archetypes nested type
+
+  **Must NOT do**:
+  - Do NOT show Re-run for webhook-triggered tasks (Hostfully, Jira) — their `raw_event` shape doesn't map to the trigger API's `inputs` format
+  - Do NOT create new API endpoints — use existing `triggerEmployee()` from `dashboard/src/lib/gateway.ts`
+  - Do NOT add new npm dependencies — use existing UI components (Dialog from shadcn, existing form patterns)
+  - Do NOT use `<Select>` from Radix — use `SearchableSelect` if any dropdown is needed
+
+  **Recommended Agent Profile**:
+  - **Category**: `visual-engineering`
+    - Reason: Dashboard UI feature with form, modal, and navigation
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 1 (with Tasks 1, 2, 3, 4)
+  - **Blocks**: Task 6
+  - **Blocked By**: None
+
+  **References**:
+
+  **Pattern References**:
+  - `dashboard/src/panels/employees/TriggerEmployeePage.tsx` — The existing trigger page with input form. Has `FormField` rendering for `input_schema` fields, `triggerEmployee()` call pattern, success/error handling. Copy the form field rendering pattern.
+  - `dashboard/src/panels/employees/TriggerEmployeePage.tsx:229` — "Run Again" button pattern (post-success reset) — similar UX concept
+  - `dashboard/src/panels/tasks/TaskDetail.tsx:170-200` — Existing approval buttons in the header card — similar placement pattern for the Re-run button
+  - `dashboard/src/lib/gateway.ts` — `triggerEmployee(tenantId, slug, dryRun?, inputs?, prompt?)` — the client function to call
+
+  **API/Type References**:
+  - `dashboard/src/lib/types.ts` — `Task` type with `archetypes: { role_name, model }` — add `input_schema` here
+  - `dashboard/src/lib/types.ts` — `InputSchema` type if it exists, or define inline based on `src/gateway/validation/schemas.ts:375` (`InputSchemaSchema`)
+  - `src/gateway/routes/admin-employee-trigger.ts:17-22` — Request body schema: `{ inputs?: Record<string, string>, prompt?: string }`
+
+  **Data Flow for Re-run**:
+  - Read: `task.raw_event?.inputs` (pre-fill form)
+  - Read: `task.archetypes.input_schema` (render form fields — may be null for archetypes without schema)
+  - Write: `triggerEmployee(task.tenant_id, task.archetypes.role_name, false, editedInputs)` → returns `{ task_id }`
+  - Navigate: `/dashboard/tasks/${newTaskId}?tenant=${task.tenant_id}`
+
+  **Acceptance Criteria**:
+
+  **QA Scenarios (MANDATORY):**
+
+  ```
+  Scenario: Re-run button visible on failed manual task
+    Tool: Playwright
+    Preconditions: Task 197a00dc (failed engineer task, source_system='manual') exists
+    Steps:
+      1. Navigate to http://localhost:7700/dashboard/tasks/197a00dc-dd35-4ee7-9f12-abbb5eedf053?tenant=00000000-0000-0000-0000-000000000002
+      2. Assert: "Re-run" button is visible in the header card area
+      3. Assert: Button has recognizable icon/label (e.g. "Re-run" or replay icon)
+    Expected Result: Re-run button present on failed manual task
+    Failure Indicators: Button missing, or appears on non-terminal tasks
+    Evidence: .sisyphus/evidence/task-5-rerun-button-visible.png
+
+  Scenario: Re-run button NOT visible on webhook-triggered task
+    Tool: Playwright
+    Preconditions: A webhook-triggered task exists (source_system='hostfully' or 'jira')
+    Steps:
+      1. Navigate to that task's detail page
+      2. Assert: No "Re-run" button is visible
+    Expected Result: Re-run button hidden for webhook tasks
+    Evidence: .sisyphus/evidence/task-5-rerun-hidden-webhook.png
+
+  Scenario: Re-run modal opens with pre-filled inputs
+    Tool: Playwright
+    Preconditions: Task 197a00dc exists with raw_event.inputs.prompt
+    Steps:
+      1. Navigate to task detail page
+      2. Click "Re-run" button
+      3. Assert: Modal/dialog opens
+      4. Assert: Prompt textarea is pre-filled with the original prompt text (contains "Whenever the AI employees post to Slack")
+      5. Assert: "Re-run" submit button is visible
+      6. Assert: "Cancel" button is visible
+    Expected Result: Modal shows with pre-filled inputs from original task
+    Failure Indicators: Modal doesn't open, inputs empty, or wrong data
+    Evidence: .sisyphus/evidence/task-5-rerun-modal-prefilled.png
+
+  Scenario: Re-run with edited inputs creates new task
+    Tool: Playwright + Bash (psql)
+    Preconditions: Services running, task 197a00dc exists
+    Steps:
+      1. Navigate to task detail page, click "Re-run"
+      2. Edit the prompt text to append " (re-run test)"
+      3. Click "Re-run" submit button
+      4. Assert: Page navigates to a new task detail page (different task ID in URL)
+      5. Run: psql to verify new task exists with status 'Ready' or later
+      6. Assert: New task's raw_event.inputs.prompt contains " (re-run test)"
+    Expected Result: New task created with edited inputs, navigated to new task page
+    Failure Indicators: Error toast, no navigation, or new task has wrong inputs
+    Evidence: .sisyphus/evidence/task-5-rerun-creates-task.png
+
+  Scenario: Re-run button hidden on in-progress task
+    Tool: Playwright
+    Preconditions: A task in Executing or Reviewing state
+    Steps:
+      1. Navigate to that task's detail page
+      2. Assert: No "Re-run" button visible
+    Expected Result: Re-run only on terminal states
+    Evidence: .sisyphus/evidence/task-5-rerun-hidden-active.png
+  ```
+
+  **Commit**: YES (group with Task 4)
+  - Message: (same commit as Task 4)
+
+- [x] 6. Rebuild Docker image and run E2E verification
 
   **What to do**:
   - Rebuild the Docker image: `docker build -t ai-employee-worker:latest .`
   - Run regression test: Trigger `real-estate-motivation-bot-2` (VLRE tenant, fast model) and verify it reaches Done
-  - Run primary test: Re-trigger the engineer task with a simple prompt and verify it survives past 60s
+  - Run primary test: Use the Re-run button on the dashboard to re-trigger the original engineer task (197a00dc) with the same inputs — this tests both the idle detection fix AND the new re-run feature
   - Check harness logs for both tasks to confirm no premature idle detection
   - Check Slack for correct notification states
 
@@ -346,7 +539,7 @@ Wave FINAL (After ALL tasks):
   - **Can Run In Parallel**: NO
   - **Parallel Group**: Wave 2 (sequential)
   - **Blocks**: F1-F4
-  - **Blocked By**: Tasks 1, 2, 3
+  - **Blocked By**: Tasks 1, 2, 3, 4, 5
 
   **References**:
   - AGENTS.md — "CRITICAL — Rebuild after every worker change" and recommended test employee `real-estate-motivation-bot-2`
@@ -365,7 +558,7 @@ Wave FINAL (After ALL tasks):
       2. Wait for completion (check log for EXIT_CODE)
       3. Assert: exit code 0
     Expected Result: Docker image built successfully
-    Evidence: .sisyphus/evidence/task-4-docker-build.txt
+    Evidence: .sisyphus/evidence/task-6-docker-build.txt
 
   Scenario: Regression — motivation bot completes normally
     Tool: Bash (curl + psql)
@@ -378,21 +571,25 @@ Wave FINAL (After ALL tasks):
       5. Check harness log: grep 'idle' /tmp/employee-${TASK_ID:0:8}.log | head -5
     Expected Result: Task reaches Done, no premature idle in logs
     Failure Indicators: status = 'Failed', idle detection log within first 60s
-    Evidence: .sisyphus/evidence/task-4-regression-motivation.txt
+    Evidence: .sisyphus/evidence/task-6-regression-motivation.txt
 
-  Scenario: Engineer task survives past idle threshold
-    Tool: Bash (curl + psql)
-    Preconditions: Docker image rebuilt, services running
+  Scenario: Re-run engineer task via dashboard Re-run button
+    Tool: Playwright + Bash (psql)
+    Preconditions: Docker image rebuilt, services running, dashboard accessible
     Steps:
-      1. Trigger: curl -s -X POST "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/employees/engineer/trigger" -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" -d '{"inputs": {"prompt": "Add a comment to the README explaining what this repo does"}}'
-      2. Wait 90 seconds
-      3. Check status: psql -c "SELECT status FROM tasks WHERE id = '$TASK_ID';"
-      4. Assert: status is NOT 'Failed' (should be 'Executing', 'Submitting', or 'Reviewing')
-      5. Check harness log: grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | grep 'idle'
-      6. Assert: no premature idle detection within first 60s
-    Expected Result: Task survives past 60s, model actively working
-    Failure Indicators: status = 'Failed' with failure_code = 'output_contract_missing'
-    Evidence: .sisyphus/evidence/task-4-engineer-test.txt
+      1. Navigate to http://localhost:7700/dashboard/tasks/197a00dc-dd35-4ee7-9f12-abbb5eedf053?tenant=00000000-0000-0000-0000-000000000002
+      2. Click "Re-run" button
+      3. Verify modal opens with pre-filled prompt
+      4. Click "Re-run" submit button (no edits — use original inputs)
+      5. Assert: Page navigates to new task detail page
+      6. Wait 90 seconds
+      7. Check status: psql -c "SELECT status FROM tasks WHERE id = '$NEW_TASK_ID';"
+      8. Assert: status is NOT 'Failed' (should be 'Executing', 'Submitting', or 'Reviewing')
+      9. Check harness log: grep '"component":"opencode-harness"' /tmp/employee-${NEW_TASK_ID:0:8}.log | grep 'idle'
+      10. Assert: no premature idle detection within first 60s
+    Expected Result: Re-run creates new task, engineer task survives past 60s
+    Failure Indicators: Modal doesn't open, trigger fails, or new task dies with output_contract_missing
+    Evidence: .sisyphus/evidence/task-6-rerun-engineer.png
 
   Scenario: Slack notification shows failure state (if task fails)
     Tool: Bash (curl)
@@ -403,12 +600,12 @@ Wave FINAL (After ALL tasks):
       3. Check Slack: verify the notification message shows "❌" not "⏳"
       4. Alternative: check task metadata for notify_slack_ts and use Slack API to read the message
     Expected Result: Slack message updated to show failure
-    Evidence: .sisyphus/evidence/task-4-slack-failure-check.txt
+    Evidence: .sisyphus/evidence/task-6-slack-failure-check.txt
   ```
 
   **Commit**: NO (code already committed in Wave 1)
 
-- [ ] 5. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [ ] 7. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
@@ -416,20 +613,19 @@ Wave FINAL (After ALL tasks):
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
-      Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for changes). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
+- [x] F1. **Plan Compliance Audit** — `oracle`
+      Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for changes). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan. Verify re-run button only appears for manual + terminal tasks.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
-      Run `pnpm build`. Review all changed files in `src/workers/opencode-harness.mts` for: empty catches, console.log in prod, unused imports. Check that the Slack update follows existing patterns (try/catch, non-fatal logging). Verify no employee-specific language in shared code.
+- [x] F2. **Code Quality Review** — `unspecified-high`
+      Run `pnpm build`. Review all changed files (`src/workers/opencode-harness.mts`, `dashboard/src/panels/tasks/TaskDetail.tsx`, `dashboard/src/lib/types.ts`) for: empty catches, console.log in prod, unused imports. Check Slack update follows existing patterns (try/catch, non-fatal). Verify no employee-specific language in shared code. Check dashboard code follows project conventions (card boundaries, SearchableSelect, URL-encoded state).
       Output: `Build [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
-      Trigger `real-estate-motivation-bot-2` (fast model regression test). Verify it reaches Done within 2 minutes. Check harness logs show no premature idle detection. Check Slack notification shows final status. Save evidence.
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill for dashboard) 1. Trigger `real-estate-motivation-bot-2` (fast model regression). Verify Done within 2 min. Check logs for no premature idle. 2. Open task detail page for task 197a00dc. Verify "Task Input" section is near top. Verify "Re-run" button is visible. 3. Click Re-run. Verify modal opens with pre-filled prompt. Click Re-run submit. Verify new task created. 4. Check Slack notification shows final status for any completed/failed task.
       Output: `Scenarios [N/N pass] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
-      Read the git diff. Verify changes are ONLY in `src/workers/opencode-harness.mts`. Verify exactly 3 changes: line 1011 (10_000→60_000), line 764 (10_000→30_000), and markFailed() Slack addition. No unaccounted changes.
+- [x] F4. **Scope Fidelity Check** — `deep`
+      Read the git diff. Verify changes are ONLY in: `src/workers/opencode-harness.mts` (3 changes: minElapsedMs ×2, markFailed Slack), `dashboard/src/panels/tasks/TaskDetail.tsx` (moved section, re-run button+modal), `dashboard/src/lib/types.ts` (input_schema type). No unaccounted changes.
       Output: `Tasks [N/N compliant] | Unaccounted [CLEAN/N files] | VERDICT`
 
 ---
@@ -437,6 +633,7 @@ Wave FINAL (After ALL tasks):
 ## Commit Strategy
 
 - **1**: `fix(harness): increase idle detection threshold and add Slack failure notifications` — `src/workers/opencode-harness.mts`
+- **2**: `feat(dashboard): move task input section higher and add re-run with editable inputs` — `dashboard/src/panels/tasks/TaskDetail.tsx`, `dashboard/src/lib/types.ts`
 
 ---
 
@@ -468,3 +665,6 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 - [ ] Docker image rebuilt
 - [ ] Engineer task survives past 60s
 - [ ] Motivation bot regression passes
+- [ ] Task Input section visible near top of task detail page
+- [ ] Re-run button works on failed manual tasks (opens modal, pre-fills inputs, creates new task)
+- [ ] Re-run button hidden on webhook tasks and non-terminal tasks
