@@ -23,6 +23,8 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
+**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/workers/lib/go-models.ts`). The gateway verification model (`anthropic/claude-haiku-4-5`) always uses OpenRouter regardless.
+
 ## Deprecated Components
 
 The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
@@ -94,6 +96,7 @@ Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides
 - **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed.
 - **Container naming**: Execution container: `employee-{taskId.slice(0,8)}`. Delivery container: `employee-delivery-{taskId.slice(0,8)}`. Find both with `docker ps --filter name=employee-`.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
+- **Multi-provider routing**: When `OPENCODE_GO_API_KEY` is set, `writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo); others fall back to OpenRouter. Provider selection is logged at task start. See `src/workers/lib/go-models.ts` for the hardcoded 14-model Go list.
 
 ## Skills System
 
@@ -458,6 +461,8 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `GOOGLE_CLIENT_ID` — OAuth 2.0 client ID from Google Cloud Console
 - `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
 - `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
+
+**OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/workers/lib/go-models.ts` (14 models).
 
 ## Long-Running Commands
 
