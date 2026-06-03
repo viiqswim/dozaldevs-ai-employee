@@ -66,6 +66,11 @@ vi.mock('@prisma/client', () => ({
   Prisma: { JsonNull: 'JsonNull' },
 }));
 
+vi.mock('../../src/lib/platform-settings.js', () => ({
+  getPlatformSetting: vi.fn().mockResolvedValue('performance-1x'),
+  validateRequiredPlatformSettings: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../src/lib/call-llm.js', () => ({
   callLLM: mockCallLLM,
 }));

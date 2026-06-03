@@ -17,7 +17,9 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Seeded catalog models (global):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
 
-**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering.
+**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering. **Note**: `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) has been verified to reliably call bash tools in the engineer employee context (E2E verified 2026-06-03).
+
+**OpenCode VM size requirement**: Any archetype using `runtime: 'opencode'` MUST have `vm_size: 'performance-1x'` set (or larger). The Go-based OpenCode binary reserves ~74GB virtual memory at startup — `shared-cpu-1x` Fly machines (256MB RAM) will OOM-kill it every time. Without `vm_size` set, the archetype defaults to `shared-cpu-1x` and every task fails within 45 seconds with 0 tokens. Set it in both the DB and the seed file: `UPDATE archetypes SET vm_size = 'performance-1x' WHERE id = '<archetype_id>';`
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
@@ -25,16 +27,16 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
 
-| Component                       | File                                              | Reason                                                                                                                                                                                                        |
-| ------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                        |
-| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                             |
-| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                    |
-| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                |
-| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                           |
-| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify.                                                                           |
-| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                           |
-| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. |
+| Component                       | File                                              | Reason                                                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                                                                                                                         |
+| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                                                                                                                              |
+| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                                                                                                                     |
+| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                                                                                                                 |
+| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                                                                                                                            |
+| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify. **Note**: This is the old orchestrator-based engineering employee. The new archetype-based engineer employee (created via wizard) is active and uses the OpenCode harness. |
+| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                                                                                                                            |
+| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active.                                                                                                  |
 
 ## Platform Vision
 
@@ -46,7 +48,7 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 
 ## Adding a New Employee
 
-**Wizard (primary path)**: Use the dashboard wizard at `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>`. Describe what the employee does in plain English → the archetype generator (`src/gateway/services/archetype-generator.ts`) auto-generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry` → save as draft → set `status` to `active` → trigger. For field quality validation, see the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md).
+**Wizard (primary path)**: Use the dashboard wizard at `http://localhost:7700/dashboard/employees/new?tenant=<tenantId>`. Describe what the employee does in plain English → the archetype generator (`src/gateway/services/archetype-generator.ts`) auto-generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry` → save as draft → set `status` to `active` → trigger. For field quality validation, see the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md).
 
 **Manual seed (alternative)**:
 
@@ -77,6 +79,8 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 | Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                   |
 | Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                    |
 | Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
+| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI   |
+| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                      |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
@@ -203,6 +207,30 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `DELETE /admin/model-catalog/:id` — soft-delete catalog entry
 - `GET /admin/tenants/:tenantId/archetypes/model-questions` — returns the 3 plain-language recommendation questions
 - `POST /admin/tenants/:tenantId/archetypes/recommend-model` — accepts archetype draft + user answers, returns top-3 ranked model recommendations
+- `GET /admin/platform-settings` — list all platform settings (key, value, description, is_required)
+- `PATCH /admin/platform-settings/:key` — update a platform setting value
+- `GET /admin/tenants/:tenantId/github/repos` — list repos accessible to the tenant's GitHub App installation (requires `github_installation_id` tenant secret)
+- `GET /admin/tenants/:tenantId/github/available-installations` — list GitHub App installations linkable to this tenant (requires App JWT)
+- `POST /admin/tenants/:tenantId/github/link-installation` — link an existing GitHub App installation to this tenant (`installation_id` must be a string)
+- `DELETE /admin/tenants/:tenantId/integrations/github` — disconnect GitHub from this tenant (soft-delete, does not affect other tenants sharing the same installation)
+
+**GitHub OAuth (engineer employee):**
+
+- `GET /auth/github/install` — initiates GitHub App installation flow for a tenant
+- `GET /auth/github/callback` — OAuth callback; stores `github_installation_id` as tenant secret
+
+**Google OAuth (Google Workspace integration):**
+
+- `GET /integrations/google/install?tenant=<slug>` — initiates Google OAuth flow for a tenant
+- `GET /integrations/google/callback` — OAuth callback; stores 5 Google secrets in `tenant_secrets`
+- `DELETE /admin/tenants/:tenantId/integrations/google` — disconnect Google from tenant (soft-delete)
+- `POST /internal/tasks/:taskId/google-token` — returns fresh Google access token for executing tasks (auth: `X-Task-ID` header)
+
+**Internal (worker containers only):**
+
+- `POST /internal/tasks/:taskId/github-token` — returns a short-lived GitHub App installation token scoped to the task's tenant (auth: `X-Task-ID` header). Used by `tsx /tools/github/get-token.ts` inside worker containers.
+
+**GitHub token manager** (`src/gateway/services/github-token-manager.ts`): generates RS256 JWT + installation tokens via GitHub App API. Tokens have 1-hour TTL; the manager caches them for 55 minutes to avoid redundant API calls.
 
 Auth: `X-Admin-Key: $ADMIN_API_KEY`. Full route table: `docs/snapshots/2026-04-20-1314-current-system-state.md` § Gateway and Routes.
 
@@ -235,16 +263,16 @@ Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
 ## Dashboard URLs
 
-| Mode        | URL                                | Notes                                                                                                                               |
-| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Development | `http://localhost:7701/dashboard/` | Vite dev server — started automatically by `pnpm dev`. Full HMR; use this URL when inspecting or testing the UI during development. |
-| Production  | `http://localhost:7700/dashboard/` | Served as pre-built static files from `dashboard/dist/`. Requires `pnpm dashboard:build` to reflect source changes.                 |
+| Mode        | URL                                | Notes                                                                                                                                         |
+| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development | `http://localhost:7700/dashboard/` | Gateway proxies to Vite dev server at :7701. Full HMR; use this URL for all development work. `pnpm dev` sets `VITE_DEV_PROXY` automatically. |
+| Production  | `http://localhost:7700/dashboard/` | Served as pre-built static files from `dashboard/dist/`. Requires `pnpm dashboard:build` to reflect source changes.                           |
 
-**For any UI inspection, screenshot, or browser automation task, always use the dev URL (`localhost:7701`) while `pnpm dev` is running.** The production URL at 7700 will lag behind source changes until a manual build.
+**For any UI inspection, screenshot, or browser automation task, always use `localhost:7700/dashboard/`.** When `pnpm dev` is running, the gateway proxies dashboard traffic to the Vite dev server (HMR enabled). Vite still listens on `:7701` as the underlying server but you do not need to use that port directly — `7700` works for everything including OAuth redirects.
 
 **Task execution logs**: `/dashboard/tasks/:taskId/logs?tenant=:tenantId` — full-page formatted log viewer (noise-filtered, searchable, color-coded). Only available when a log file exists at `/tmp/employee-{taskId.slice(0,8)}.log` (local Docker mode).
 
-**Employee creation wizard**: `http://localhost:7701/dashboard/employees/new?tenant=<tenantId>` — generates archetype fields from a plain-English description.
+**Employee creation wizard**: `http://localhost:7700/dashboard/employees/new?tenant=<tenantId>` — generates archetype fields from a plain-English description.
 
 ## Pre-existing Test Failures
 
@@ -260,6 +288,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
 - **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
+- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -400,6 +429,7 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 - **End-user language is non-technical** — The end users of the AI Employee platform are non-technical (property managers, small business owners — not developers). When writing anything visible to end users — user-facing labels, UI copy, error messages, Slack notification text, dashboard copy — always use plain language. Examples: "Organization" not "Tenant", "Employee setup" not "Archetype configuration", "Approval needed" not "`risk_model.approval_required` is true".
 - **AI employee outputs should be concise** — Slack messages, summaries, and guest replies produced by AI employees should be short and to-the-point. Avoid verbose explanations or filler text in delivered content. If the user asks for more detail, provide it; otherwise, keep it brief.
 - **`/tmp/` contract files must be written via tools only** — `/tmp/summary.txt` and `/tmp/approval-message.json` are the harness output contract files. They MUST be written exclusively via TypeScript tools in `/tools/` (e.g., `submit-output.ts`). Never write to these files directly via `echo`, shell redirects, or any non-tool method. The harness reads these files after the OpenCode session completes — if written in the wrong format, the task will fail. This applies to both the execution phase and the delivery phase.
+- **Platform settings over env vars** — Platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels) are stored in the `platform_settings` DB table, not env vars. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Never add hardcoded fallback values — missing required settings throw errors at startup. Managed via `/dashboard/settings` or `PATCH /admin/platform-settings/:key`.
 
 ### Documentation Freshness (MANDATORY)
 
@@ -419,7 +449,15 @@ See README.md for docs directory structure and naming conventions.
 
 ## Environment Variables
 
-Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `ADMIN_API_KEY`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`, `WORKER_VM_SIZE`. See `.env.example` for the full list.
+Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `ADMIN_API_KEY`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`. See `.env.example` for the full list. **Note**: `WORKER_VM_SIZE`, `SUMMARIZER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table — not env vars.
+
+**GitHub App — per-environment vars**: `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`, and `GITHUB_WEBHOOK_SECRET` differ between dev and prod. Dev App points to `https://local-ai-employee.dozaldevs.com`; prod App points to `https://ai-employees-laaa.onrender.com`. Each App has its own private key and webhook secret — never shared between environments. See [GitHub Integration Guide](docs/guides/2026-06-02-1727-github-integration.md) § Multi-Environment Setup.
+
+**Google Integration:**
+
+- `GOOGLE_CLIENT_ID` — OAuth 2.0 client ID from Google Cloud Console
+- `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
+- `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
 ## Long-Running Commands
 
@@ -544,7 +582,7 @@ grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -3
 grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
 
 # Dashboard viewer (noise-filtered, recommended)
-# http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
+# http://localhost:7700/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
 ```
 
 **Execution metrics** (spot runaway LLM loops):
@@ -704,7 +742,7 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 # Expected: 1 row, work_minutes = 15
 
 # 3. Load the dashboard and confirm "Hours of Work Done" is non-zero
-# http://localhost:7701/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
+# http://localhost:7700/dashboard/tasks?tenant=00000000-0000-0000-0000-000000000003
 ```
 
 **For full approval path testing** (wizard → execution → Reviewing → Approved → Delivering → Done): Use the wizard to generate a motivational message employee per the [AI Employee E2E Test Guide](docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md). Override the model to `deepseek/deepseek-v4-flash` via DB after saving. This exercises the full approval flow that `real-estate-motivation-bot-2` (which has `approval_required: false`) skips.
@@ -763,7 +801,12 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/daily-summarizer.md`                                             | Working on summarizer employee — channel IDs per tenant, failure diagnostics, cron config                                                                                                                                                                |
 | `docs/employees/2026-05-21-1721-jira-motivation-bot.md`                          | Working on jira-motivation-bot employee — archetype ID, webhook setup, trigger command, mock mode, E2E flow, known gotchas, tenant secrets                                                                                                               |
 | `docs/employees/cleaning-schedule.md`                                            | Working on cleaning-schedule employee — archetype ID, trigger command, Notion page IDs, Slack channel, gotchas                                                                                                                                           |
+| `docs/employees/2026-06-02-1230-engineer.md`                                     | Working on engineer employee — archetype IDs, GitHub App setup, trigger command, what it does, known gotchas                                                                                                                                             |
 | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`                        | Slack OAuth or per-tenant token issues — TenantInstallationStore, loadTenantEnv, re-connecting after DB reset                                                                                                                                            |
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
 | `docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md`                  | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting.                                                     |
 | `docs/guides/2026-06-01-2246-production-debugging-guide.md`                      | Debugging production issues — topology overview, cloud DB queries (port 5432 only), Fly.io machine inspection via REST API, Render env var gotchas, Inngest retry loop diagnosis, known production bugs and fixes, re-trigger instructions.              |
+| `.sisyphus/plans/2026-06-01-2344-platform-settings-table.md`                     | Platform settings table implementation plan — DB schema, admin API endpoints, dashboard settings page, env var migration                                                                                                                                 |
+| `docs/guides/2026-06-02-1727-github-integration.md`                              | Working on GitHub App integration — OAuth install flow, webhook handling, token delivery to workers, multi-environment two-App setup (dev vs prod)                                                                                                       |
+| `docs/employees/2026-06-03-0243-google-assistant.md`                             | Working on Google Workspace Assistant employee — archetype IDs, trigger command (`google-workspace-assistant`), available tools, required tenant secrets, known gotchas                                                                                  |
+| `docs/guides/2026-06-03-0202-google-cloud-setup.md`                              | Setting up Google Cloud OAuth credentials for the Google integration                                                                                                                                                                                     |

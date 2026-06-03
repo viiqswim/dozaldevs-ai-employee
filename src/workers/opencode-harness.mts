@@ -13,6 +13,9 @@ import {
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
+import { injectAssignmentSection } from './lib/trigger-payload.mjs';
+import { applyResourceCaps } from './lib/resource-caps.js';
+import { getPlatformSetting } from '../lib/platform-settings.js';
 
 const log = createLogger('opencode-harness');
 
@@ -43,6 +46,7 @@ interface ArchetypeRow {
   enrichment_adapter?: string | null;
   risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
   tool_registry?: { tools?: string[] } | null;
+  platform_rules_override?: string | null;
 }
 
 interface TaskWithArchetype {
@@ -124,6 +128,51 @@ async function markFailed(
       });
     } catch (err) {
       log.warn({ err }, '[opencode-harness] Failed to PATCH execution status to failed');
+    }
+  }
+
+  // Update the Slack "Received" notification to show failure state (non-fatal)
+  const slackToken = process.env['SLACK_BOT_TOKEN'];
+  const slackChannel = process.env['NOTIFICATION_CHANNEL'];
+  const slackMsgTs = process.env['NOTIFY_MSG_TS'];
+  const roleName = process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee';
+  if (slackToken && slackChannel && slackMsgTs) {
+    try {
+      const failureText = `❌ ${roleName} — Failed`;
+      const slackBlocks = [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*${failureText}*${reason ? `\n${reason}` : ''}` },
+        },
+        {
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `Task \`${TASK_ID}\`` }],
+        },
+      ];
+      const slackRes = await fetch('https://slack.com/api/chat.update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${slackToken}`,
+        },
+        body: JSON.stringify({
+          channel: slackChannel,
+          ts: slackMsgTs,
+          text: failureText,
+          blocks: slackBlocks,
+        }),
+      });
+      if (!slackRes.ok) {
+        log.warn(
+          { taskId: TASK_ID, status: slackRes.status },
+          '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
+        );
+      }
+    } catch (err) {
+      log.warn(
+        { err },
+        '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
+      );
     }
   }
 }
@@ -624,8 +673,19 @@ async function runOpencodeSession(
 }
 
 async function main(): Promise<void> {
-  // Set bash tool timeout (same as entrypoint.sh) — prevents tool calls from timing out
-  process.env.OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS ??= '1200000';
+  // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
+  // applyResourceCaps() respects already-set values (if (!env[key]) guard), so the DB value
+  // takes precedence and the hardcoded fallback in resource-caps.ts applies only when DB is unavailable.
+  try {
+    const bashTimeout = await getPlatformSetting('worker_bash_timeout_ms');
+    process.env['OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS'] = bashTimeout;
+  } catch {
+    log.warn(
+      {},
+      '[opencode-harness] worker_bash_timeout_ms not in platform_settings — applyResourceCaps will apply hardcoded fallback',
+    );
+  }
+  applyResourceCaps();
 
   log.info({ taskId: TASK_ID }, 'OpenCode harness starting');
 
@@ -712,6 +772,7 @@ async function main(): Promise<void> {
         deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
         employeeRules: '',
         employeeKnowledge: '',
+        platformRulesOverride: archetype.platform_rules_override ?? undefined,
       });
       await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
       log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');
@@ -745,7 +806,7 @@ async function main(): Promise<void> {
         deliveryPrompt,
         archetype.model,
         'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
-        { minElapsedMs: 10_000 },
+        { minElapsedMs: 30_000 },
       );
     } catch (err) {
       log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
@@ -941,6 +1002,7 @@ async function main(): Promise<void> {
       deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
       employeeRules,
       employeeKnowledge,
+      platformRulesOverride: archetype.platform_rules_override ?? undefined,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written (template compiler)');
@@ -970,17 +1032,28 @@ async function main(): Promise<void> {
   let sessionTranscript: unknown[] | null = null;
   let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
+  const rawEvent = task.raw_event as Record<string, unknown> | null | undefined;
+  const triggerPayload =
+    rawEvent && typeof rawEvent === 'object' && 'inputs' in rawEvent ? rawEvent.inputs : rawEvent;
+  const finalInstructions = injectAssignmentSection(resolvedInstructions, triggerPayload);
+  if (finalInstructions !== resolvedInstructions) {
+    log.info(
+      { taskId: TASK_ID },
+      '[opencode-harness] raw_event.inputs.prompt injected as ## Your Assignment',
+    );
+  }
+
   // Platform-level submit-output reminder appended to every employee's task prompt.
   // Placed at the end to leverage recency effect — last thing the model reads before generating.
   const taskPrompt = assembleTaskPrompt({
-    instructions: resolvedInstructions,
+    instructions: finalInstructions,
     taskId: TASK_ID,
   });
   const submitOutputCmd = `tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "${approvalRequired ? 'NEEDS_APPROVAL' : 'NO_ACTION_NEEDED'}"`;
 
   try {
     const result = await runOpencodeSession(taskPrompt, model, submitOutputCmd, {
-      minElapsedMs: 10_000,
+      minElapsedMs: 60_000,
     });
     content = result.content;
     metadata = result.metadata;

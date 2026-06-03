@@ -10,7 +10,7 @@ export const RESOURCE_CAPS = {
   TURBO_CONCURRENCY: '2',
   /** Vitest worker count limit (prevents OOM on 2-core Fly machines) */
   NEXUS_VITEST_MAX_WORKERS: '2',
-  /** Bash command timeout for OpenCode sessions (20 minutes in ms) */
+  /** Bash command timeout for OpenCode sessions (20 minutes in ms). Fallback if not set by harness from platform_settings DB. */
   OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS: '1200000',
   /** Node.js heap size limit (prevents OOM on large projects) */
   NODE_OPTIONS: '--max-old-space-size=4096',

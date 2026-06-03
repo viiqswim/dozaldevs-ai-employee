@@ -47,6 +47,9 @@
     "@slack/web-api": "^7.15.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "googleapis": "^173.0.0",
+    "http-proxy-middleware": "^4.0.0",
     "inngest": "^4.1.0",
     "pino": "^10.3.1",
     "zod": "^4.3.6"

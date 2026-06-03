@@ -438,7 +438,7 @@ Deploy the entire AI Employee Platform to the cloud. Choose affordable, AI-agent
   - `RENDER_DEPLOY_HOOK_URL` — from Render dashboard → Settings → Deploy Hook
   - `FLY_API_TOKEN` — from `fly auth token`
 
-- [ ] 11. **[BLOCKED: needs T6 DATABASE_URL_DIRECT — currently points to localhost]** Run database migration against Supabase Cloud
+- [x] 11. Run database migration against Supabase Cloud
 
   Run Prisma migrations against the cloud DB:
 

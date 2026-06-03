@@ -112,6 +112,7 @@ if (existsSync('.env')) {
 // Constants
 // ─────────────────────────────────────────────────────
 const GATEWAY_PORT = process.env.PORT ?? '7700';
+const DASHBOARD_PORT = 7701;
 const TUNNEL_CONFIG = path.join(os.homedir(), '.cloudflared/ai-employee-local.yml');
 const TUNNEL_CREDS = path.join(
   os.homedir(),
@@ -562,6 +563,7 @@ log('── Step 6: Starting Event Gateway ──');
 const gatewayEnv: NodeJS.ProcessEnv = {
   ...process.env,
   WORKER_RUNTIME: process.env.WORKER_RUNTIME || 'docker',
+  VITE_DEV_PROXY: `http://localhost:${DASHBOARD_PORT}`,
 };
 
 const gatewayProc = spawn(
@@ -774,7 +776,6 @@ log('');
 // ─────────────────────────────────────────────────────
 log('── Step 8: Starting Dashboard Dev Server ──');
 
-const DASHBOARD_PORT = 7701;
 const dashboardProc = spawn('pnpm', ['dev', '--port', String(DASHBOARD_PORT)], {
   cwd: path.resolve(process.cwd(), 'dashboard'),
   stdio: 'pipe',
@@ -810,7 +811,9 @@ log(`  PostgREST:  http://localhost:54331`);
 log(`  Studio:     http://localhost:54323`);
 log(`  Inngest:    http://localhost:8288`);
 log(`  Gateway:    http://localhost:${GATEWAY_PORT} (auto-restart enabled)`);
-log(`  Dashboard:  http://localhost:${DASHBOARD_PORT}/dashboard/ (HMR enabled)`);
+log(
+  `  Dashboard:  http://localhost:${GATEWAY_PORT}/dashboard/ (HMR via proxy to :${DASHBOARD_PORT})`,
+);
 if (!noTunnelFlag && tunnelAvailable) {
   log(`  Tunnel:     ${TUNNEL_URL}`);
 }

@@ -193,7 +193,35 @@ const effectiveSupabaseUrl =
 
 ---
 
-### Bug 3: Render API doesn't return dashboard-set env vars (KNOWN)
+### Bug 3: Fly worker OOM-killed on shared-cpu-1x — OpenCode needs performance-1x (FIXED 2026-06-02)
+
+**Symptom**: Machine starts (visible in Fly), `OpenCode harness starting` appears in logs, then ~45 seconds later:
+
+```
+[44.992735] Out of memory: Killed process 665 (.opencode) total-vm:74055836kB, anon-rss:119868kB
+[opencode-server] opencode serve exited with code 0
+[opencode-harness] Failed to start OpenCode server
+Process appears to have been OOM killed!
+```
+
+Task fails with 0 tokens in `executions`. Two `machine` failure entries in `task_status_log` (Fly auto-restarts once, fails again).
+
+**Root cause**: The Go-based OpenCode binary reserves ~74GB **virtual** memory at startup (normal Go runtime behavior). On `shared-cpu-1x` Fly machines (256MB RAM, very low VM limits), the OOM killer triggers during health check startup — before any LLM call is made.
+
+**Fix**: Set `vm_size: 'performance-1x'` on the archetype (1 dedicated CPU, 2GB RAM). This gives enough memory headroom for OpenCode's virtual address space reservation.
+
+```sql
+-- Fix in cloud DB:
+UPDATE archetypes SET vm_size = 'performance-1x' WHERE role_name = 'cleaning-schedule';
+```
+
+**Rule**: Any archetype that uses the `opencode` runtime MUST have `vm_size = 'performance-1x'` (or larger) set. `shared-cpu-1x` (256MB) will always OOM-kill OpenCode.
+
+**Verification**: After setting vm_size, a new Fly machine appears with `"cpu_kind":"performance","memory_mb":2048` instead of `"cpu_kind":"shared","memory_mb":256`. OpenCode starts without OOM, and you see `service=llm ... stream` in the logs.
+
+---
+
+### Bug 4: Render API doesn't return dashboard-set env vars (KNOWN)
 
 **Symptom**: `GET /env-vars` returns only ~20 vars. SUPABASE_URL, SUPABASE_SECRET_KEY, INNGEST_EVENT_KEY etc. appear missing.
 

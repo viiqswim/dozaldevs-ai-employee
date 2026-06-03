@@ -14,6 +14,7 @@ export interface CompileAgentsMdInput {
   deliverySteps: string;
   employeeRules?: string;
   employeeKnowledge?: string;
+  platformRulesOverride?: string | null;
 }
 
 const CRITICAL_DIRECTIVE =
@@ -90,7 +91,11 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
     parts.push(`## Knowledge Base\n\n${input.employeeKnowledge.trimEnd()}`);
   }
 
-  parts.push(`## Platform Rules\n\n${PLATFORM_RULES_CONTENT}`);
+  const platformRules =
+    input.platformRulesOverride != null
+      ? input.platformRulesOverride.trimEnd()
+      : PLATFORM_RULES_CONTENT;
+  parts.push(`## Platform Rules\n\n${platformRules}`);
 
   return parts.join('\n\n');
 }

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import path from 'path';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
@@ -336,7 +337,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           config: {
             model: archetype.model ?? 'minimax/minimax-m2.7',
             runtime: archetype.runtime ?? 'opencode',
-            bash_timeout_ms: 1200000,
+            bash_timeout_ms: parseInt(await getPlatformSetting('worker_bash_timeout_ms'), 10),
             permissions: 'all tools allowed (permission: *=allow)',
             opencode_version: '1.14.31',
           },

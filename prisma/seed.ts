@@ -3749,7 +3749,8 @@ A second post-message.ts call = task failure.
 2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
 BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
 `,
-      model: 'xiaomi/mimo-v2.5-pro',
+      model: 'deepseek/deepseek-v4-flash',
+      vm_size: 'performance-1x',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -4014,7 +4015,8 @@ A second post-message.ts call = task failure.
 2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
 BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
 `,
-      model: 'xiaomi/mimo-v2.5-pro',
+      model: 'deepseek/deepseek-v4-flash',
+      vm_size: 'performance-1x',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -4832,6 +4834,213 @@ BOTH must be executed as bash tool calls. A text response without running these 
   }
 
   console.log(`✅ ModelCatalog upserted: ${modelCatalogCount} models (global)`);
+
+  // Platform Settings
+  const platformSettings = [
+    {
+      key: 'default_worker_vm_size',
+      value: 'performance-1x',
+      description:
+        'Default Fly.io VM size for worker machines. OpenCode requires performance-1x minimum (2GB RAM).',
+      is_required: true,
+    },
+    {
+      key: 'cost_limit_usd_per_day',
+      value: '50',
+      description: 'Maximum LLM spend per day in USD. Circuit breaker triggers at this threshold.',
+      is_required: true,
+    },
+    {
+      key: 'synthesis_threshold',
+      value: '5',
+      description: 'Number of confirmed rules before rule synthesis is triggered.',
+      is_required: true,
+    },
+    {
+      key: 'max_employee_rules_chars',
+      value: '8000',
+      description: 'Maximum character length for employee learned rules.',
+      is_required: true,
+    },
+    {
+      key: 'max_employee_knowledge_chars',
+      value: '32000',
+      description: 'Maximum character length for employee knowledge base entries.',
+      is_required: true,
+    },
+    {
+      key: 'worker_bash_timeout_ms',
+      value: '1200000',
+      description: 'Default bash command timeout in worker containers (milliseconds).',
+      is_required: true,
+    },
+    {
+      key: 'issues_slack_channel',
+      value: '',
+      description: 'Slack channel for employee-reported issues. Empty = disabled.',
+      is_required: false,
+    },
+    {
+      key: 'cost_alert_slack_channel',
+      value: '#alerts',
+      description: 'Slack channel for cost circuit breaker alerts. Empty = disabled.',
+      is_required: false,
+    },
+  ];
+
+  for (const setting of platformSettings) {
+    await prisma.platformSetting.upsert({
+      where: { key: setting.key },
+      update: {}, // Don't overwrite existing values on re-seed
+      create: setting,
+    });
+  }
+  console.log('✅ Platform settings seeded');
+
+  // ─── Google Workspace Assistant (VLRE) ──────────────────────────────────────
+  const VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS = `Read the assignment from the "## Your Assignment" section of your initial message.
+
+STEP 1 — Validate Google access:
+   tsx /tools/google/validate-env.ts
+   Confirm output shows all required environment variables are set. If validation fails, stop and report the missing variables.
+
+STEP 2 — Execute the assignment:
+   Based on the assignment, use the appropriate Google tools from /tools/google/:
+   - Gmail: list-emails.ts, get-email.ts, send-email.ts
+   - Drive: list-files.ts, get-file.ts, upload-file.ts, delete-file.ts
+   - Docs: list-documents.ts, get-document.ts, create-document.ts
+   - Sheets: list-spreadsheets.ts, get-sheet-data.ts, update-sheet-data.ts
+   - Slides: list-presentations.ts, get-presentation.ts
+   - Calendar: list-events.ts, create-event.ts, update-event.ts
+
+   Run each tool with --help to see usage if needed.
+   Complete all requested actions before moving to the next step.
+
+STEP 3 — Write a detailed summary to /tmp/summary.txt with the results:
+   Include what was done, any files created or modified, emails sent, events created, etc.
+
+STEP 4 — Submit output (MANDATORY final step):
+   tsx /tools/platform/submit-output.ts \\
+     --summary "<one-sentence description of what was done>" \\
+     --classification "NEEDS_APPROVAL" \\
+     --draft-file /tmp/summary.txt
+
+   Use NEEDS_APPROVAL for all tasks that make changes (send emails, modify Drive files, create events).
+   Use NO_ACTION_NEEDED only for read-only tasks (list, search, retrieve) where no changes were made.`;
+
+  const VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS = `Post the approved Google Workspace task results to Slack.
+
+Read the approved content from the <approved-content> block in your prompt.
+
+1. Extract the summary from the approved content.
+2. Post a brief results message to the notification channel:
+   tsx /tools/slack/post-message.ts \\
+     --channel "$NOTIFY_SLACK_CHANNEL" \\
+     --thread-ts "$NOTIFY_MSG_TS" \\
+     --text "<summary of what was accomplished>"
+3. Write to /tmp/summary.txt:
+   {"delivered": true}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vlreGoogleAssistant = await (prisma.archetype as any).upsert({
+    where: { id: '00000000-0000-0000-0001-000000000001' },
+    create: {
+      id: '00000000-0000-0000-0001-000000000001',
+      role_name: 'google-workspace-assistant',
+      runtime: 'opencode',
+      identity:
+        'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
+      execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: [
+          '/tools/platform/submit-output.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/google/validate-env.ts',
+          '/tools/google/list-emails.ts',
+          '/tools/google/get-email.ts',
+          '/tools/google/send-email.ts',
+          '/tools/google/list-files.ts',
+          '/tools/google/get-file.ts',
+          '/tools/google/upload-file.ts',
+          '/tools/google/delete-file.ts',
+          '/tools/google/list-documents.ts',
+          '/tools/google/get-document.ts',
+          '/tools/google/create-document.ts',
+          '/tools/google/list-spreadsheets.ts',
+          '/tools/google/get-sheet-data.ts',
+          '/tools/google/update-sheet-data.ts',
+          '/tools/google/list-presentations.ts',
+          '/tools/google/get-presentation.ts',
+          '/tools/google/list-events.ts',
+          '/tools/google/create-event.ts',
+          '/tools/google/update-event.ts',
+        ],
+      },
+      trigger_sources: { type: 'manual' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      vm_size: 'performance-1x',
+      delivery_steps: 'Post the task results to the configured Slack channel.',
+      delivery_instructions: VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS,
+      enrichment_adapter: null,
+      tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
+      department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
+    },
+    update: {
+      role_name: 'google-workspace-assistant',
+      runtime: 'opencode',
+      identity:
+        'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
+      execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: [
+          '/tools/platform/submit-output.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/google/validate-env.ts',
+          '/tools/google/list-emails.ts',
+          '/tools/google/get-email.ts',
+          '/tools/google/send-email.ts',
+          '/tools/google/list-files.ts',
+          '/tools/google/get-file.ts',
+          '/tools/google/upload-file.ts',
+          '/tools/google/delete-file.ts',
+          '/tools/google/list-documents.ts',
+          '/tools/google/get-document.ts',
+          '/tools/google/create-document.ts',
+          '/tools/google/list-spreadsheets.ts',
+          '/tools/google/get-sheet-data.ts',
+          '/tools/google/update-sheet-data.ts',
+          '/tools/google/list-presentations.ts',
+          '/tools/google/get-presentation.ts',
+          '/tools/google/list-events.ts',
+          '/tools/google/create-event.ts',
+          '/tools/google/update-event.ts',
+        ],
+      },
+      trigger_sources: { type: 'manual' },
+      risk_model: { approval_required: true, timeout_hours: 24 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      vm_size: 'performance-1x',
+      delivery_steps: 'Post the task results to the configured Slack channel.',
+      delivery_instructions: VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS,
+      enrichment_adapter: null,
+      department_id: '00000000-0000-0000-0000-000000000021',
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${vlreGoogleAssistant.id} (role: ${vlreGoogleAssistant.role_name}, model: ${vlreGoogleAssistant.model})`,
+  );
 
   console.log('✅ Seeding complete.');
   console.log(

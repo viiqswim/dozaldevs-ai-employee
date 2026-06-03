@@ -40,8 +40,12 @@ export interface Task {
   completed_at: string | null;
   failure_code: string | null;
   compiled_agents_md: string | null; // Compiled AGENTS.md snapshot for debugging
-  // From PostgREST embedded join: ?select=*,archetypes(role_name,model)
-  archetypes?: { role_name: string | null; model: string | null } | null;
+  // From PostgREST embedded join: ?select=*,archetypes(role_name,model,input_schema)
+  archetypes?: {
+    role_name: string | null;
+    model: string | null;
+    input_schema?: InputSchemaItem[] | null;
+  } | null;
   // From PostgREST embedded join: ?select=*,executions(estimated_cost_usd,phase,primary_model_id)
   executions?:
     | { estimated_cost_usd: number | null; phase: string | null; primary_model_id: string | null }[]
@@ -339,7 +343,25 @@ export type CreateArchetypePayload = Omit<GenerateArchetypeResponse, 'model' | '
   status?: string;
   overview?: ArchetypeOverview | null;
   parent_draft_id?: string | null;
+  worker_env?: Record<string, string> | null;
 };
+
+export interface GitHubRepo {
+  full_name: string;
+  html_url: string;
+  default_branch: string;
+  private: boolean;
+}
+
+export interface PlatformSetting {
+  id: string;
+  key: string;
+  value: string;
+  description: string | null;
+  is_required: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface ModelCatalogEntry {
   id: string;
@@ -366,4 +388,10 @@ export interface ModelCatalogEntry {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface GitHubInstallation {
+  id: number;
+  account: { login: string; type: string; avatar_url: string };
+  already_linked: boolean;
 }

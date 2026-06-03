@@ -216,6 +216,7 @@ model Archetype {
   execution_steps       String?  @db.Text
   delivery_steps        String?  @db.Text
   temperature           Float?   @default(1.0)
+  platform_rules_override String?  @db.Text  // When set, replaces the default platform rules section in compiled AGENTS.md
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -570,6 +571,23 @@ model ModelCatalog {
 
   @@unique([model_id])
   @@map("model_catalog")
+}
+
+// ============================================================
+// Platform Settings (global — not tenant-scoped)
+// ============================================================
+
+model PlatformSetting {
+  id          String    @id @default(uuid()) @db.Uuid
+  key         String    @unique
+  value       String
+  description String?
+  is_required Boolean   @default(true)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  @@map("platform_settings")
 }
 
 // ============================================================

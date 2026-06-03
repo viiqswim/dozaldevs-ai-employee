@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
@@ -26,9 +27,16 @@ import { adminKbRoutes } from './routes/admin-kb.js';
 import { adminPropertyLockRoutes } from './routes/admin-property-locks.js';
 import { adminRulesRoutes } from './routes/admin-rules.js';
 import { adminModelCatalogRoutes } from './routes/admin-model-catalog.js';
+import { adminPlatformSettingsRoutes } from './routes/admin-platform-settings.js';
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { jiraOAuthRoutes } from './routes/jira-oauth.js';
 import { notionOAuthRoutes } from './routes/notion-oauth.js';
+import { githubOAuthRoutes } from './routes/github-oauth.js';
+import { googleOAuthRoutes } from './routes/google-oauth.js';
+import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
+import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
+import { adminGithubRoutes } from './routes/admin-github.js';
+import { adminGoogleRoutes } from './routes/admin-google.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from './services/tenant-repository.js';
 import { TenantSecretRepository } from './services/tenant-secret-repository.js';
@@ -37,6 +45,7 @@ import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
+import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -71,6 +80,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
   if (!process.env.NOTION_CLIENT_ID) {
     logger.warn('NOTION_CLIENT_ID is not set — Notion OAuth install will return 400');
+  }
+
+  if (!process.env.GITHUB_APP_NAME) {
+    logger.warn('GITHUB_APP_NAME is not set — GitHub App install will return 503');
   }
 
   const prisma = new PrismaClient();
@@ -178,7 +191,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(healthRoutes());
   app.use(jiraRoutes({ inngestClient: options.inngestClient, prisma }));
   app.use(hostfullyRoutes({ inngestClient: options.inngestClient, prisma }));
-  app.use(githubRoutes());
+  app.use(githubRoutes({ prisma }));
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
   app.use(adminTasksRoutes({ prisma }));
@@ -194,14 +207,42 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminPropertyLockRoutes({ prisma }));
   app.use(adminRulesRoutes({ prisma }));
   app.use(adminModelCatalogRoutes({ prisma }));
+  app.use(adminPlatformSettingsRoutes({ prisma }));
   app.use(slackOAuthRoutes({ prisma }));
   app.use('/integrations', jiraOAuthRoutes({ prisma }));
   app.use('/integrations', notionOAuthRoutes({ prisma }));
+  app.use('/integrations', githubOAuthRoutes({ prisma }));
+  app.use('/integrations', googleOAuthRoutes({ prisma }));
+  app.use('/internal', internalGithubTokenRoutes({ prisma }));
+  app.use('/internal', internalGoogleTokenRoutes({ prisma }));
+  app.use(adminGithubRoutes({ prisma }));
+  app.use(adminGoogleRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
-  // Dashboard static file serving (local dev tool)
+  const viteDevProxy = process.env.VITE_DEV_PROXY;
   const dashboardDist = path.resolve(process.cwd(), 'dashboard/dist');
-  if (fs.existsSync(dashboardDist)) {
+  if (viteDevProxy) {
+    app.use(
+      createProxyMiddleware({
+        target: viteDevProxy,
+        changeOrigin: true,
+        pathFilter: (path) => path.startsWith('/dashboard'),
+        on: {
+          error: (_err, _req, res) => {
+            logger.warn('Vite proxy error — dev server may still be starting up');
+            if (typeof (res as { writeHead?: unknown }).writeHead === 'function') {
+              const serverRes = res as import('http').ServerResponse;
+              serverRes.writeHead(502, { 'Content-Type': 'application/json' });
+              serverRes.end(
+                JSON.stringify({ error: 'Dashboard dev server unavailable — is Vite running?' }),
+              );
+            }
+          },
+        },
+      }),
+    );
+    logger.info({ viteDevProxy }, 'Dashboard: proxying to Vite dev server (HMR enabled)');
+  } else if (fs.existsSync(dashboardDist)) {
     app.use('/dashboard', express.static(dashboardDist));
     app.get('/dashboard', (_req, res) => res.sendFile(path.join(dashboardDist, 'index.html')));
     app.get('/dashboard/*path', (_req, res) =>
@@ -209,7 +250,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     );
   } else {
     logger.warn(
-      'dashboard/dist not found — run pnpm dashboard:build to build it, or use pnpm dev which starts the Vite dev server at http://localhost:7701/dashboard/',
+      'dashboard/dist not found — run pnpm dashboard:build or pnpm dev (which sets VITE_DEV_PROXY automatically)',
     );
   }
 
@@ -241,9 +282,17 @@ const calledFile = process.argv[1];
 if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile))) {
   const inngestClient = createInngestClient();
   buildApp({ inngestClient })
-    .then(({ app, boltApp: bolt }) => {
+    .then(async ({ app, boltApp: bolt }) => {
       expressApp = app;
       boltApp = bolt;
+
+      try {
+        await validateRequiredPlatformSettings();
+        logger.info('Platform settings validated');
+      } catch (error) {
+        logger.error({ err: error }, 'FATAL: Platform settings validation failed');
+        process.exit(1);
+      }
 
       const port = parseInt(process.env.PORT ?? '7700', 10);
       const server = app.listen(port, '0.0.0.0', () => {

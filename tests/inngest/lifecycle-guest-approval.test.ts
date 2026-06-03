@@ -63,6 +63,11 @@ vi.mock('@prisma/client', () => ({
   Prisma: { JsonNull: 'JsonNull' },
 }));
 
+vi.mock('../../src/lib/platform-settings.js', () => ({
+  getPlatformSetting: vi.fn().mockResolvedValue('performance-1x'),
+  validateRequiredPlatformSettings: vi.fn().mockResolvedValue(undefined),
+}));
+
 const TEST_TASK_ID = '22222222-2222-2222-2222-222222222222';
 const TEST_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const TEST_ARCHETYPE_ID = '00000000-0000-0000-0000-000000000012';

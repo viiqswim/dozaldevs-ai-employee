@@ -68,6 +68,7 @@ const PatchArchetypeBodySchema = z
     execution_steps: z.string().nullable().optional(),
     delivery_steps: z.string().nullable().optional(),
     temperature: z.number().min(0).max(2).optional(),
+    platform_rules_override: z.string().nullable().optional(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {
@@ -111,6 +112,7 @@ const CreateArchetypeBodySchema = z.object({
   execution_steps: z.string().max(10000).optional().default(''),
   delivery_steps: z.string().max(10000).nullable().optional().default(null),
   temperature: z.number().min(0).max(2).optional().default(1.0),
+  platform_rules_override: z.string().nullable().optional().default(null),
 });
 
 const RecommendModelBodySchema = z.object({

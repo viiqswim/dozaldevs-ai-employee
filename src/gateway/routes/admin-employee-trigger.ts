@@ -15,7 +15,10 @@ import type { InngestLike } from '../types.js';
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
 const TriggerEmployeeBodySchema = z
-  .object({ inputs: z.record(z.string(), z.string()).optional() })
+  .object({
+    inputs: z.record(z.string(), z.string()).optional(),
+    prompt: z.string().optional(),
+  })
   .optional();
 
 export interface AdminEmployeeTriggerRouteOptions {
@@ -54,7 +57,10 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
 
       const { tenantId, slug } = paramsResult.data;
       const dryRun = queryResult.data.dry_run ?? false;
-      const inputs = bodyResult.data?.inputs;
+      const rawInputs = bodyResult.data?.inputs;
+      const prompt = bodyResult.data?.prompt?.trim();
+      const inputs: Record<string, string> | undefined =
+        rawInputs || prompt ? { ...(rawInputs ?? {}), ...(prompt ? { prompt } : {}) } : undefined;
 
       try {
         const archetype = await prisma.archetype.findFirst({

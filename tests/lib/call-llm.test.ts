@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { callLLM, _resetAlertState } from '../../src/lib/call-llm.js';
 import { createSlackClient } from '../../src/lib/slack-client.js';
+import { getPlatformSetting } from '../../src/lib/platform-settings.js';
 import {
   CostCircuitBreakerError,
   LLMTimeoutError,
@@ -21,6 +22,17 @@ const mockPostMessage = vi.hoisted(() =>
 
 vi.mock('../../src/lib/slack-client.js', () => ({
   createSlackClient: vi.fn().mockReturnValue({ postMessage: mockPostMessage }),
+}));
+
+vi.mock('../../src/lib/platform-settings.js', () => ({
+  getPlatformSetting: vi.fn(async (key: string) => {
+    const defaults: Record<string, string> = {
+      cost_limit_usd_per_day: '999999',
+      cost_alert_slack_channel: '#test-alerts',
+    };
+    if (key in defaults) return defaults[key];
+    throw new Error(`Unknown key in mock: ${key}`);
+  }),
 }));
 
 const mockOpenRouterResponse = {
@@ -52,10 +64,17 @@ function makeAbortAwareFetch(): typeof fetch {
 describe('callLLM', () => {
   beforeEach(() => {
     process.env.OPENROUTER_API_KEY = 'test-key';
-    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '999999';
     _resetAlertState();
     vi.clearAllMocks();
     mockQueryRaw.mockResolvedValue([{ total: 0 }]);
+    vi.mocked(getPlatformSetting).mockImplementation(async (key: string) => {
+      const defaults: Record<string, string> = {
+        cost_limit_usd_per_day: '999999',
+        cost_alert_slack_channel: '#test-alerts',
+      };
+      if (key in defaults) return defaults[key];
+      throw new Error(`Unknown key in mock: ${key}`);
+    });
     vi.mocked(createSlackClient).mockReturnValue({
       postMessage: mockPostMessage,
       updateMessage: vi.fn(),
@@ -252,7 +271,11 @@ describe('callLLM', () => {
     vi.setSystemTime(new Date(Date.now() + 6 * 60 * 1_000));
 
     mockQueryRaw.mockResolvedValueOnce([{ total: 100 }]);
-    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    vi.mocked(getPlatformSetting).mockImplementation(async (key: string) => {
+      if (key === 'cost_limit_usd_per_day') return '50';
+      if (key === 'cost_alert_slack_channel') return '#test-alerts';
+      throw new Error(`Unknown key in mock: ${key}`);
+    });
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(mockOpenRouterResponse));
 
@@ -293,7 +316,11 @@ describe('callLLM', () => {
     vi.setSystemTime(new Date('2099-01-01T08:00:00Z'));
 
     mockQueryRaw.mockResolvedValue([{ total: 75 }]);
-    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    vi.mocked(getPlatformSetting).mockImplementation(async (key: string) => {
+      if (key === 'cost_limit_usd_per_day') return '50';
+      if (key === 'cost_alert_slack_channel') return '#test-alerts';
+      throw new Error(`Unknown key in mock: ${key}`);
+    });
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
 
     await expect(
@@ -316,7 +343,11 @@ describe('callLLM', () => {
     vi.setSystemTime(new Date('2099-01-01T09:00:00Z'));
 
     mockQueryRaw.mockResolvedValue([{ total: 75 }]);
-    process.env.COST_LIMIT_USD_PER_DEPT_PER_DAY = '50';
+    vi.mocked(getPlatformSetting).mockImplementation(async (key: string) => {
+      if (key === 'cost_limit_usd_per_day') return '50';
+      if (key === 'cost_alert_slack_channel') return '#test-alerts';
+      throw new Error(`Unknown key in mock: ${key}`);
+    });
     process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
 
     await expect(

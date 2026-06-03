@@ -237,6 +237,60 @@ describe('compileAgentsMd — STOP deduplication (stripEmbeddedStopDirectives)',
   });
 });
 
+describe('compileAgentsMd — platformRulesOverride', () => {
+  it('override set → compiled output contains override text, NOT default platform rules', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      platformRulesOverride: 'You are authorized to code.',
+    });
+
+    expect(result).toContain('## Platform Rules');
+    expect(result).toContain('You are authorized to code.');
+    expect(result).not.toContain('NEVER modify files outside /tools/');
+  });
+
+  it('override null → compiled output contains default platform rules', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      platformRulesOverride: null,
+    });
+
+    expect(result).toContain('## Platform Rules');
+    expect(result).toContain('NEVER modify files outside');
+  });
+
+  it('override undefined → compiled output contains default platform rules', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+    });
+
+    expect(result).toContain('## Platform Rules');
+    expect(result).toContain('NEVER modify files outside');
+  });
+
+  it('override empty string → uses override (empty content after Platform Rules header)', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      platformRulesOverride: '',
+    });
+
+    expect(result).toContain('## Platform Rules');
+    expect(result).not.toContain('NEVER modify files outside');
+  });
+
+  it('override replaces the entire platform rules section, not appends', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      platformRulesOverride: 'Custom rule A.\nCustom rule B.',
+    });
+
+    expect(result).toContain('Custom rule A.');
+    expect(result).toContain('Custom rule B.');
+    expect(result).not.toContain('NEVER modify files outside /tools/');
+    expect(result).not.toContain('NEVER access the database directly');
+  });
+});
+
 describe('opencode-harness — recovery nudge message content', () => {
   function extractNudgeMessage(): string {
     const harnessSource = readFileSync(join(__dirname, '../../opencode-harness.mts'), 'utf-8');

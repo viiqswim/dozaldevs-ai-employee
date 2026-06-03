@@ -11,6 +11,9 @@ import type {
   EmployeeRule,
   ModelRecommendationEntry,
   ModelCatalogEntry,
+  PlatformSetting,
+  GitHubRepo,
+  GitHubInstallation,
 } from './types';
 
 export type ModelRecommendation = {
@@ -66,10 +69,14 @@ export async function triggerEmployee(
   slug: string,
   dryRun?: boolean,
   inputs?: Record<string, string>,
+  prompt?: string,
 ): Promise<{ task_id: string; status_url: string }> {
   const body: Record<string, unknown> = dryRun ? { dry_run: true } : {};
   if (inputs !== undefined) {
     body.inputs = inputs;
+  }
+  if (prompt !== undefined && prompt.trim()) {
+    body.prompt = prompt.trim();
   }
   const query = dryRun ? '?dry_run=true' : '';
   return gatewayFetch<{ task_id: string; status_url: string }>(
@@ -366,6 +373,54 @@ export async function updateModelCatalogEntry(
 
 export async function deleteModelCatalogEntry(id: string): Promise<void> {
   await gatewayFetch<unknown>(`/admin/model-catalog/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function listPlatformSettings(): Promise<PlatformSetting[]> {
+  return gatewayFetch<PlatformSetting[]>('/admin/platform-settings');
+}
+
+export async function updatePlatformSetting(key: string, value: string): Promise<PlatformSetting> {
+  return gatewayFetch<PlatformSetting>(`/admin/platform-settings/${key}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function fetchGitHubRepos(tenantId: string): Promise<{ repos: GitHubRepo[] }> {
+  return gatewayFetch<{ repos: GitHubRepo[] }>(`/admin/tenants/${tenantId}/github/repos`);
+}
+
+export async function fetchAvailableInstallations(
+  tenantId: string,
+): Promise<{ installations: GitHubInstallation[] }> {
+  return gatewayFetch<{ installations: GitHubInstallation[] }>(
+    `/admin/tenants/${tenantId}/github/available-installations`,
+  );
+}
+
+export async function linkGitHubInstallation(
+  tenantId: string,
+  installationId: string,
+): Promise<{ linked: boolean; installation_id: string }> {
+  return gatewayFetch<{ linked: boolean; installation_id: string }>(
+    `/admin/tenants/${tenantId}/github/link-installation`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ installation_id: installationId }),
+    },
+  );
+}
+
+export async function disconnectGitHub(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/github`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectGoogle(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
     method: 'DELETE',
   });
 }

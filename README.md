@@ -59,13 +59,15 @@ The platform follows a single lifecycle pattern for all employees:
 
 ### Active employees
 
-| Employee                    | Trigger                               | Deliverable                                                                |
-| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
-| **Summarizer (Papi Chulo)** | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval              |
-| **Guest-Messaging (VLRE)**  | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval               |
-| **Code-Rotation (VLRE)**    | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary |
+| Employee                              | Trigger                               | Deliverable                                                                            |
+| ------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Summarizer (Papi Chulo)**           | Daily cron (8am UTC, weekdays)        | Slack digest of configured channels, posted after PM approval                          |
+| **Guest-Messaging (VLRE)**            | Hostfully `NEW_INBOX_MESSAGE` webhook | AI-drafted guest reply, sent via Hostfully after PM approval                           |
+| **Code-Rotation (VLRE)**              | Manual (admin API)                    | Rotates Sifely lock passcodes for all VLRE properties, posts Slack summary             |
+| **Engineer (DozalDevs)**              | Manual (admin API or dashboard)       | Receives coding instructions, implements changes in GitHub repo, creates PR for review |
+| **Google Workspace Assistant (VLRE)** | Manual (admin API)                    | AI-drafted Google Workspace task results, posted to Slack after PM approval            |
 
-> **Engineering employee** — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features.
+> **Old orchestrator-based engineering employee** (`src/workers/orchestrate.mts`) — receives Jira tickets, delivers GitHub PRs. **On hold / deprecated** — do not add features. The new archetype-based engineer employee (above) is active.
 
 Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](docs/architecture/2026-04-14-0104-full-system-vision.md)
 
@@ -75,18 +77,23 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
 
-| Method   | Path                                               | Description                                         |
-| -------- | -------------------------------------------------- | --------------------------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                | Register a new project                              |
-| `GET`    | `/admin/tenants/:tenantId/projects`                | List all projects                                   |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`            | Get a single project                                |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`            | Update a project                                    |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`            | Delete a project                                    |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger` | Manually trigger an AI employee                     |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`               | Get task status                                     |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`          | Stream task execution logs (SSE, local Docker only) |
-| `GET`    | `/admin/tools`                                     | List all shell tools with metadata                  |
-| `GET`    | `/admin/tools/:service/:toolName`                  | Get metadata for a single tool                      |
+| Method   | Path                                                      | Description                                                                     |
+| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                          |
+| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                               |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                            |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                 |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                 |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                             |
+| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                              |
+| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                  |
+| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)               |
+| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                 |
+| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                           |
+| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                         |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants) |
 
 **Create a project:**
 
@@ -159,12 +166,19 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `SLACK_APP_TOKEN` — `xapp-...` for Socket Mode WebSocket connection
 - `SLACK_SIGNING_SECRET` — verifies Slack interaction webhooks
 - `FLY_WORKER_APP` — Fly.io app name for worker machines (currently: `ai-employee-workers`)
-- `SUMMARIZER_VM_SIZE` — VM size (default: `shared-cpu-1x`)
+
+> **Note**: `SUMMARIZER_VM_SIZE`, `WORKER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table. Use the dashboard at `/dashboard/settings` or `PATCH /admin/platform-settings/:key` to update them.
 
 **Guest-Messaging (VLRE):**
 
 - Hostfully credentials are stored as **tenant secrets in the database**, not `.env`. See [AGENTS.md](AGENTS.md) for provisioning commands.
 - `WEBHOOK_PUBLIC_URL` — public URL for one-time Hostfully webhook registration (legitimate `.env` exception)
+
+**Engineer employee (archetype-based, active):**
+
+- `GITHUB_APP_ID` — GitHub App ID (numeric, from GitHub App settings)
+- `GITHUB_APP_NAME` — GitHub App URL slug (e.g. `my-ai-employee`)
+- `GITHUB_PRIVATE_KEY` — RSA private key downloaded from GitHub App settings (store with literal `\n` escaping)
 
 **Engineering (deprecated — on hold):**
 
@@ -206,6 +220,8 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Local E2E Testing](docs/testing/2026-05-04-2023-local-e2e-testing.md)                  | Testing without real external APIs — mock conventions, fixture structure, env propagation                                                                                                            |
 | [Airbnb Integration Research](docs/architecture/airbnb-integration/)                    | Research spike: go/no-go decision, Partner API analysis, credential custody, API reverse engineering, ecosystem landscape, next-steps playbook                                                       |
 | [Cloud Deployment Guide](docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md) | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting. |
+| [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                         | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
+| [Google Workspace Assistant](docs/employees/2026-06-03-0243-google-assistant.md)        | Google Workspace Assistant employee operational details — archetype ID, trigger command, available tools, required tenant secrets, known gotchas.                                                    |
 
 ## Testing
 
@@ -228,13 +244,13 @@ pnpm build    # TypeScript compile
 3. **Platform Core** — `ENCRYPTION_KEY`, `ADMIN_API_KEY`, `PORT`
 4. **Inngest (Event Queue)** — `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
 5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
-6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE`, `WORKER_VM_SIZE`
+6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE` (note: `WORKER_VM_SIZE` moved to `platform_settings` DB table)
 7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
-8. **GitHub** — `GITHUB_TOKEN`
+8. **GitHub** — `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`
 9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
 10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
 11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-12. **Cost Control** — `COST_LIMIT_USD_PER_DEPT_PER_DAY`, `AGENT_VERSION_ID`
+12. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
 13. **TENANT SECRETS** — reference-only comment block; never real values here
 14. **DEPRECATED** — commented-out superseded vars; always at the bottom
 
@@ -244,7 +260,7 @@ pnpm build    # TypeScript compile
 - **Tenant secrets never go in `.env`** — Hostfully, Sifely, and per-tenant Slack tokens are stored via the admin API (`tenant_secrets` table). The only exception is `VLRE_SLACK_BOT_TOKEN` (seed-only: used by `prisma/seed.ts` on DB reset). See the `TENANT SECRETS` block in `.env.example` for the full list.
 - **Deprecated vars go to the DEPRECATED section** — when a var is superseded, move the old name to the `DEPRECATED` block at the bottom of `.env.example` (commented out with a note of what replaced it). Remove it from `.env` entirely. Never leave deprecated vars active in either file.
 - **Keep both files in sync** — after adding, removing, or renaming any var, update both files in the same commit.
-- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
+- **Known deprecated aliases** — `SUMMARIZER_VM_SIZE` → `WORKER_VM_SIZE` → `platform_settings.default_worker_vm_size`; `COST_LIMIT_USD_PER_DEPT_PER_DAY` → `platform_settings.cost_limit_usd_per_day`; `FLY_SUMMARIZER_APP` → `FLY_WORKER_APP`; `USE_LOCAL_DOCKER` / `USE_FLY_HYBRID` / `FLY_HYBRID_POLL_MAX` → `WORKER_RUNTIME` + `TUNNEL_URL`.
 
 ## Docs Directory Structure
 

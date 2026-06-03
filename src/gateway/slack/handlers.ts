@@ -3,7 +3,7 @@ import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { SYNTHESIS_THRESHOLD } from '../../inngest/employee-lifecycle.js';
+import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 
 const log = createLogger('slack-handlers');
@@ -1086,7 +1086,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       const confirmedRules = (await countRes.json()) as Array<{ id: string }>;
       const confirmedCount = confirmedRules.length;
 
-      if (confirmedCount > 0 && confirmedCount % SYNTHESIS_THRESHOLD === 0) {
+      if (
+        confirmedCount > 0 &&
+        confirmedCount % parseInt(await getPlatformSetting('synthesis_threshold'), 10) === 0
+      ) {
         await inngest.send({
           name: 'employee/rule.synthesize-requested',
           data: { tenantId, archetypeId, triggerRuleId: ruleId },

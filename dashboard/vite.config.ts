@@ -24,8 +24,12 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
+    port: 7701,
     proxy: {
       '/api/config.js': 'http://localhost:7700',
+    },
+    hmr: {
+      clientPort: 7701,
     },
   },
   resolve: {
