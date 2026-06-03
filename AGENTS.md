@@ -209,6 +209,9 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 - `GET /admin/platform-settings` — list all platform settings (key, value, description, is_required)
 - `PATCH /admin/platform-settings/:key` — update a platform setting value
 - `GET /admin/tenants/:tenantId/github/repos` — list repos accessible to the tenant's GitHub App installation (requires `github_installation_id` tenant secret)
+- `GET /admin/tenants/:tenantId/github/available-installations` — list GitHub App installations linkable to this tenant (requires App JWT)
+- `POST /admin/tenants/:tenantId/github/link-installation` — link an existing GitHub App installation to this tenant (`installation_id` must be a string)
+- `DELETE /admin/tenants/:tenantId/integrations/github` — disconnect GitHub from this tenant (soft-delete, does not affect other tenants sharing the same installation)
 
 **GitHub OAuth (engineer employee):**
 

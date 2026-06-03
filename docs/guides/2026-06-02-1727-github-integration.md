@@ -346,3 +346,53 @@ The webhook secret **must be unique per environment**. Never copy the production
 ### Creating the Dev App
 
 See the GitHub App creation checklist: navigate to `https://github.com/settings/apps/new`, set the webhook URL and setup URL to the dev Cloudflare tunnel addresses, generate a new private key, set visibility to "Only on this account", and update your local `.env` with the new App ID, name, key, and webhook secret.
+
+---
+
+## 12. Multi-Tenant Shared Installation
+
+Multiple organizations (tenants) can connect to the same GitHub account. GitHub App installations are 1-per-account — when a second tenant tries to install, GitHub shows "Configure" with a disabled Save button and no redirect fires.
+
+### How It Works
+
+The platform uses the GitHub API to detect existing installations and lets tenants link them directly:
+
+1. **First tenant** installs the GitHub App normally via the dashboard "Connect GitHub" button
+2. **Second tenant** sees available installations in the dashboard and clicks "Link"
+3. Both tenants share the same `installation_id` — each gets their own `tenant_integrations` row
+
+### API Endpoints
+
+**List available installations** (for linking):
+
+```bash
+curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "http://localhost:7700/admin/tenants/$TENANT_ID/github/available-installations" | jq .
+# Returns: { installations: [{ id, account: { login, type, avatar_url }, already_linked }] }
+```
+
+**Link an existing installation**:
+
+```bash
+curl -s -X POST -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  "http://localhost:7700/admin/tenants/$TENANT_ID/github/link-installation" \
+  -d '{"installation_id": "137599429"}' | jq .
+# Returns: { linked: true, installation_id: "137599429" }
+# NOTE: installation_id must be a string (quoted), not a number
+```
+
+**Disconnect GitHub from a tenant**:
+
+```bash
+curl -s -X DELETE -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "http://localhost:7700/admin/tenants/$TENANT_ID/integrations/github" | jq .
+# Returns: { disconnected: true, tenant_id: "..." }
+# NOTE: Only removes the requesting tenant's records. Other tenants sharing the same installation are unaffected.
+```
+
+### Disconnect Behavior
+
+- Disconnect is **tenant-scoped**: only removes the requesting tenant's `tenant_integrations` row and `github_installation_id` secret
+- Does NOT call the GitHub API to uninstall the App (would break other tenants)
+- Idempotent: calling disconnect twice returns 200 both times
+- After disconnect, the tenant can re-link via the dashboard "Link" flow
