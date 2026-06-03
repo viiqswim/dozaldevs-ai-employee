@@ -6,7 +6,7 @@
 
 - **Archetype ID**: `00000000-0000-0000-0001-000000000001`
 - **Tenant**: VLRE (`00000000-0000-0000-0000-000000000003`)
-- **role_name**: `google-assistant`
+- **role_name**: `google-workspace-assistant`
 - **model**: `minimax/minimax-m2.7`
 - **approval_required**: `true` (can send emails and modify Drive files — needs human review)
 - **vm_size**: `performance-1x` (required — OpenCode binary reserves ~74GB virtual memory)
@@ -26,7 +26,7 @@ source .env
 TENANT=00000000-0000-0000-0000-000000000003
 
 curl -s -X POST \
-  "http://localhost:7700/admin/tenants/$TENANT/employees/google-assistant/trigger" \
+  "http://localhost:7700/admin/tenants/$TENANT/employees/google-workspace-assistant/trigger" \
   -H "X-Admin-Key: $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"inputs": {"prompt": "List the 5 most recent emails in the inbox and summarize their subjects"}}' \
@@ -112,7 +112,7 @@ docker logs -f employee-${TASK_ID:0:8}
 
 ## Known Gotchas
 
-**RESTRICTED OAuth scopes require GCP Production mode**: The Google OAuth scopes required for Gmail send and Drive write (`https://www.googleapis.com/auth/gmail.send`, `https://www.googleapis.com/auth/drive`) are classified as "restricted" by Google. In GCP Testing mode, these are blocked for users outside the test user allowlist. To use them with any Google account, the GCP project must be in **Production** mode with the app verified by Google.
+**GCP must be in Production mode**: All OAuth scopes used by this employee are Sensitive or Basic (none are Restricted). However, the GCP project must still be in Production mode — Testing mode causes refresh tokens to expire after 7 days, breaking the connection weekly.
 
 **Testing mode 7-day token expiry**: In GCP Testing mode, refresh tokens expire after 7 days. If the `google_refresh_token` secret starts returning `invalid_grant` errors, re-run the OAuth consent flow to get a new refresh token and update the tenant secret.
 
