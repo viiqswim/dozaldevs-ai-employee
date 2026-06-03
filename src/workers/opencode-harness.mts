@@ -987,11 +987,14 @@ async function main(): Promise<void> {
   let sessionTranscript: unknown[] | null = null;
   let sessionTokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
-  const finalInstructions = injectAssignmentSection(resolvedInstructions, task.trigger_payload);
+  const rawEvent = task.raw_event as Record<string, unknown> | null | undefined;
+  const triggerPayload =
+    rawEvent && typeof rawEvent === 'object' && 'inputs' in rawEvent ? rawEvent.inputs : rawEvent;
+  const finalInstructions = injectAssignmentSection(resolvedInstructions, triggerPayload);
   if (finalInstructions !== resolvedInstructions) {
     log.info(
       { taskId: TASK_ID },
-      '[opencode-harness] trigger_payload.prompt injected as ## Your Assignment',
+      '[opencode-harness] raw_event.inputs.prompt injected as ## Your Assignment',
     );
   }
 

@@ -135,3 +135,35 @@ describe('injectAssignmentSection', () => {
     expect(occurrences).toBe(1);
   });
 });
+
+describe('raw_event envelope unwrapping (harness behavior)', () => {
+  it('extractTriggerPrompt does NOT inject when given the raw_event envelope { inputs: { prompt } } directly (confirms unwrapping is needed)', () => {
+    // raw_event is stored as { inputs: { prompt: "..." } }
+    // Without unwrapping, extractTriggerPrompt sees no top-level .prompt → returns ''
+    const rawEvent = { inputs: { prompt: 'hello' } };
+    expect(extractTriggerPrompt(rawEvent)).toBe('');
+  });
+
+  it('extractTriggerPrompt DOES inject when given the unwrapped inputs { prompt } (confirms unwrapping works)', () => {
+    // After unwrapping rawEvent.inputs, extractTriggerPrompt sees .prompt at top level
+    const rawEvent = { inputs: { prompt: 'hello' } };
+    const unwrapped = (rawEvent as Record<string, unknown>).inputs;
+    expect(extractTriggerPrompt(unwrapped)).toBe('hello');
+  });
+
+  it('injectAssignmentSection injects prompt when passed unwrapped inputs', () => {
+    const rawEvent = { inputs: { prompt: 'Implement the feature' } };
+    const unwrapped = (rawEvent as Record<string, unknown>).inputs;
+    const result = injectAssignmentSection(BASE_INSTRUCTIONS, unwrapped);
+    expect(result).toContain('## Your Assignment');
+    expect(result).toContain('Implement the feature');
+  });
+
+  it('injectAssignmentSection returns instructions unchanged for webhook raw_event (no inputs key)', () => {
+    // Webhook-triggered tasks: raw_event = { property_uid: "...", lead_uid: "..." }
+    const webhookEvent = { property_uid: 'abc', lead_uid: 'def' };
+    const result = injectAssignmentSection(BASE_INSTRUCTIONS, webhookEvent);
+    expect(result).toBe(BASE_INSTRUCTIONS);
+    expect(result).not.toContain('## Your Assignment');
+  });
+});
