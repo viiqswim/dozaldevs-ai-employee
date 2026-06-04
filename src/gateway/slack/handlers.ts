@@ -1381,4 +1381,209 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       log.error({ ruleId, err }, 'Failed to process rule_rephrase_modal submission');
     }
   });
+
+  boltApp.action(SLACK_ACTION_ID.TRIGGER_CONFIRM, async ({ ack, body, respond }) => {
+    const actionBody = body as ActionBody;
+    const valueStr = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    if (!valueStr) {
+      await ack();
+      log.warn('trigger_confirm action received without value');
+      return;
+    }
+
+    let ctx: {
+      archetypeId: string;
+      tenantId: string;
+      userId: string;
+      channelId: string;
+      threadTs: string;
+      text: string;
+    };
+    try {
+      ctx = JSON.parse(valueStr) as typeof ctx;
+    } catch {
+      await ack();
+      log.warn({ valueStr }, 'trigger_confirm: failed to parse button value as JSON');
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: '⏳ Triggering employee...',
+      blocks: [
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Triggering employee...' } },
+        {
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+        },
+      ],
+    });
+
+    log.info(
+      { archetypeId: ctx.archetypeId, tenantId: ctx.tenantId, userId: user.id },
+      'trigger_confirm action received — dispatching task',
+    );
+
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const supabaseKey = SUPABASE_KEY();
+      const headers = supabaseHeaders();
+
+      const archetypeRes = await fetch(
+        `${supabaseUrl}/rest/v1/archetypes?id=eq.${ctx.archetypeId}&tenant_id=eq.${ctx.tenantId}&status=eq.active&deleted_at=is.null&select=id,role_name`,
+        { headers },
+      );
+      const archetypes = (await archetypeRes.json()) as Array<{ id: string; role_name: string }>;
+      if (!archetypes.length) {
+        throw new Error(`Archetype not found or inactive: ${ctx.archetypeId}`);
+      }
+      const archetype = archetypes[0];
+
+      const externalId = `slack-trigger-${ctx.threadTs}-${ctx.archetypeId}`;
+
+      const dupRes = await fetch(
+        `${supabaseUrl}/rest/v1/tasks?external_id=eq.${externalId}&status=not.in.(Done,Failed,Cancelled)&tenant_id=eq.${ctx.tenantId}&select=id`,
+        { headers },
+      );
+      const duplicates = (await dupRes.json()) as Array<{ id: string }>;
+      if (duplicates.length > 0) {
+        const existingTaskId = duplicates[0].id;
+        log.warn(
+          { existingTaskId, externalId },
+          'trigger_confirm: duplicate task detected — returning existing',
+        );
+        await respond({
+          replace_original: true,
+          text: `⚠️ A task for this employee is already running. Task \`${existingTaskId}\``,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `⚠️ A task for this employee is already running.`,
+              },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${existingTaskId}\`` }],
+            },
+          ],
+        });
+        return;
+      }
+
+      const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          archetype_id: archetype.id,
+          external_id: externalId,
+          source_system: 'slack',
+          status: 'Ready',
+          tenant_id: ctx.tenantId,
+        }),
+      });
+      const tasks = (await createRes.json()) as Array<{ id: string }>;
+      if (!tasks.length) {
+        throw new Error('Task creation returned empty response');
+      }
+      const taskId = tasks[0].id;
+
+      await inngest.send({
+        name: 'employee/task.dispatched',
+        data: { taskId, archetypeId: archetype.id },
+        id: `employee-dispatch-${externalId}`,
+      });
+
+      log.info(
+        { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, userId: user.id },
+        'Task dispatched from Slack trigger confirmation',
+      );
+
+      await respond({
+        replace_original: true,
+        text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+            },
+          },
+          {
+            type: 'context',
+            elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+          },
+        ],
+      });
+    } catch (err) {
+      log.error(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to dispatch task from trigger_confirm',
+      );
+      try {
+        await respond({
+          replace_original: true,
+          text: '⚠️ Failed to trigger employee. Please try again.',
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: '⚠️ Failed to trigger employee. Please try again.',
+              },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+            },
+          ],
+        });
+      } catch (respondErr) {
+        log.warn({ err: respondErr }, 'Failed to update message after trigger_confirm failure');
+      }
+    }
+  });
+
+  boltApp.action(SLACK_ACTION_ID.TRIGGER_CANCEL, async ({ ack, body, respond }) => {
+    const actionBody = body as ActionBody;
+    const valueStr = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    let archetypeId = '';
+    if (valueStr) {
+      try {
+        const ctx = JSON.parse(valueStr) as { archetypeId?: string };
+        archetypeId = ctx.archetypeId ?? '';
+      } catch {
+        archetypeId = '';
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (ack as any)({
+      replace_original: true,
+      text: `🚫 Cancelled by <@${user.id}>`,
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `🚫 Cancelled by <@${user.id}>` },
+        },
+        ...(archetypeId
+          ? [
+              {
+                type: 'context' as const,
+                elements: [{ type: 'mrkdwn', text: `Archetype \`${archetypeId}\`` }],
+              },
+            ]
+          : []),
+      ],
+    });
+
+    log.info({ userId: user.id, archetypeId }, 'trigger_cancel action received');
+  });
 }
