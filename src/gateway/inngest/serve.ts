@@ -11,6 +11,10 @@ import { createInteractionHandlerFunction } from '../../inngest/interaction-hand
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
 import { createRuleSynthesizerFunction } from '../../inngest/rule-synthesizer.js';
 import { createReviewingWatchdogTrigger } from '../../inngest/triggers/reviewing-watchdog.js';
+import {
+  createSlackTriggerHandlerFunction,
+  createSlackInputCollectorFunction,
+} from '../../inngest/slack-trigger-handler.js';
 // import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js'; // Deregistered: manual cleanup if needed
 // import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
 // import { createSlackClient } from '../../lib/slack-client.js'; // Dead code: only used by engineering fns (deregistered)
@@ -39,6 +43,8 @@ export function inngestServeRoutes(): Router {
   const ruleExtractorFn = createRuleExtractorFunction(inngest);
   const ruleSynthesizerFn = createRuleSynthesizerFunction(inngest);
   const reviewingWatchdogFn = createReviewingWatchdogTrigger(inngest);
+  const slackTriggerHandlerFn = createSlackTriggerHandlerFunction(inngest);
+  const slackInputCollectorFn = createSlackInputCollectorFunction(inngest);
   // const learnedRulesExpiryFn = createLearnedRulesExpiryTrigger(inngest); // Deregistered: manual cleanup if needed — DELETE FROM learned_rules WHERE expires_at < NOW();
   // const guestMessagePollFn = createGuestMessagePollTrigger(inngest); // Disabled: cron tasks have incomplete raw_event data, causing broken approval cards
 
@@ -56,6 +62,8 @@ export function inngestServeRoutes(): Router {
       reviewingWatchdogFn,
       // learnedRulesExpiryFn, // Deregistered: manual cleanup if needed
       // guestMessagePollFn,
+      slackTriggerHandlerFn,
+      slackInputCollectorFn,
     ],
     serveOrigin: process.env.GATEWAY_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`,
     servePath: '/api/inngest',

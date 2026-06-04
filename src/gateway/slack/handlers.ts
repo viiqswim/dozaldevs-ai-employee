@@ -53,6 +53,18 @@ interface ActionBody {
 const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
 const TERMINAL_STATUSES = new Set(['Done', 'Cancelled', 'Failed', 'Delivering']);
 
+// ─── Pending input collection (in-memory, per process) ────────────────────────
+interface PendingInputCollection {
+  archetypeId: string;
+  tenantId: string;
+  userId: string;
+  channelId: string;
+  text: string;
+  roleName: string;
+  requiredInputs: Array<{ key: string; label: string; description?: string }>;
+}
+const pendingInputCollections = new Map<string, PendingInputCollection>();
+
 async function isTaskAwaitingApproval(
   taskId: string,
   { maxRetries = 0, retryDelayMs = 2000 }: { maxRetries?: number; retryDelayMs?: number } = {},
@@ -213,6 +225,29 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (!msg.thread_ts || msg.thread_ts === msg.ts) return;
     if (msg.subtype === 'bot_message' || msg.bot_id) return;
     if (!msg.user || !msg.text) return;
+
+    const pending = pendingInputCollections.get(msg.thread_ts);
+    if (pending) {
+      pendingInputCollections.delete(msg.thread_ts);
+      try {
+        await inngest.send({
+          name: 'employee/trigger.input-received',
+          data: {
+            threadTs: msg.thread_ts,
+            text: msg.text,
+            tenantId: pending.tenantId,
+            pending,
+          },
+        });
+        log.info(
+          { threadTs: msg.thread_ts, tenantId: pending.tenantId, userId: msg.user },
+          'Input-received event sent for pending input collection',
+        );
+      } catch (err) {
+        log.error({ threadTs: msg.thread_ts, err }, 'Failed to send trigger.input-received event');
+      }
+      return;
+    }
 
     const taskId = await findTaskIdByThreadTs(msg.thread_ts);
     if (!taskId) return;
@@ -1382,7 +1417,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.action(SLACK_ACTION_ID.TRIGGER_CONFIRM, async ({ ack, body, respond }) => {
+  boltApp.action(SLACK_ACTION_ID.TRIGGER_CONFIRM, async ({ ack, body, respond, client }) => {
     const actionBody = body as ActionBody;
     const valueStr = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -1429,14 +1464,17 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     try {
       const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
       const headers = supabaseHeaders();
 
       const archetypeRes = await fetch(
-        `${supabaseUrl}/rest/v1/archetypes?id=eq.${ctx.archetypeId}&tenant_id=eq.${ctx.tenantId}&status=eq.active&deleted_at=is.null&select=id,role_name`,
+        `${supabaseUrl}/rest/v1/archetypes?id=eq.${ctx.archetypeId}&tenant_id=eq.${ctx.tenantId}&status=eq.active&deleted_at=is.null&select=id,role_name,input_schema`,
         { headers },
       );
-      const archetypes = (await archetypeRes.json()) as Array<{ id: string; role_name: string }>;
+      const archetypes = (await archetypeRes.json()) as Array<{
+        id: string;
+        role_name: string;
+        input_schema: unknown;
+      }>;
       if (!archetypes.length) {
         throw new Error(`Archetype not found or inactive: ${ctx.archetypeId}`);
       }
@@ -1475,6 +1513,82 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         return;
       }
 
+      const requiredInputs = Array.isArray(archetype.input_schema)
+        ? (
+            archetype.input_schema as Array<{
+              key: string;
+              label: string;
+              description?: string;
+              required?: boolean;
+              frequency?: string;
+            }>
+          )
+            .filter(
+              (item) =>
+                item.required === true &&
+                (item.frequency === 'every_run' || item.frequency === undefined),
+            )
+            .map((item) => ({ key: item.key, label: item.label, description: item.description }))
+        : [];
+
+      if (requiredInputs.length > 0) {
+        const inputList = requiredInputs
+          .map(
+            (item, i) =>
+              `${i + 1}. *${item.label}*${item.description ? ` — ${item.description}` : ''}`,
+          )
+          .join('\n');
+
+        pendingInputCollections.set(ctx.threadTs, {
+          archetypeId: archetype.id,
+          tenantId: ctx.tenantId,
+          userId: user.id,
+          channelId: ctx.channelId,
+          text: ctx.text,
+          roleName: archetype.role_name,
+          requiredInputs,
+        });
+
+        await client.chat.postMessage({
+          channel: ctx.channelId,
+          thread_ts: ctx.threadTs,
+          text: `Before I can trigger *${archetype.role_name}*, I need a few details:\n\n${inputList}\n\nReply in this thread with the information above.`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `Before I can trigger *${archetype.role_name}*, I need a few details:\n\n${inputList}\n\nReply in this thread with the information above.`,
+              },
+            },
+          ],
+        });
+
+        await respond({
+          replace_original: true,
+          text: `⏳ Waiting for your inputs in this thread before triggering *${archetype.role_name}*...`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `⏳ Waiting for your inputs in this thread before triggering *${archetype.role_name}*...`,
+              },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+            },
+          ],
+        });
+
+        log.info(
+          { archetypeId: archetype.id, tenantId: ctx.tenantId, threadTs: ctx.threadTs },
+          'Waiting for inputs in thread before dispatching task',
+        );
+        return;
+      }
+
       const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
         method: 'POST',
         headers,
@@ -1484,6 +1598,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           source_system: 'slack',
           status: 'Ready',
           tenant_id: ctx.tenantId,
+          raw_event: { inputs: { prompt: ctx.text } },
         }),
       });
       const tasks = (await createRes.json()) as Array<{ id: string }>;
