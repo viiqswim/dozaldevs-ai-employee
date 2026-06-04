@@ -8,10 +8,10 @@
 
 Two categories of model use exist in this codebase. Each has its own rule.
 
-| Category                               | Model                                                   | Rule                                                                                                |
-| -------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`. |
-| **Verification/judge** (gateway calls) | `anthropic/claude-haiku-4-5`                            | Hardcoded in `call-llm.ts`. Never change this.                                                      |
+| Category                               | Model                                                                                                | Rule                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table                                              | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`.                                                                                                                                                                                                                                          |
+| **Verification/judge** (gateway calls) | Configurable via `platform_settings` key `gateway_llm_model`. Default: `deepseek/deepseek-v4-flash`. | Read at runtime via `getPlatformSetting('gateway_llm_model')` in `call-llm.ts`. When `OPENCODE_GO_API_KEY` is set and the model is OpenAI-compatible on Go, routes through OpenCodeGo; Anthropic-format Go models fall back to OpenRouter. Change via dashboard `/dashboard/settings` or `PATCH /admin/platform-settings/gateway_llm_model`. |
 
 **Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global — not tenant-scoped).
 
@@ -23,7 +23,7 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
-**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/workers/lib/go-models.ts`). The gateway verification model (`anthropic/claude-haiku-4-5`) always uses OpenRouter regardless.
+**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/lib/go-models.ts`). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
 
 ## Deprecated Components
 
@@ -98,7 +98,7 @@ Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides
 - **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed.
 - **Container naming**: Execution container: `employee-{taskId.slice(0,8)}`. Delivery container: `employee-delivery-{taskId.slice(0,8)}`. Find both with `docker ps --filter name=employee-`.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
-- **Multi-provider routing**: When `OPENCODE_GO_API_KEY` is set, `writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo); others fall back to OpenRouter. Provider selection is logged at task start. See `src/workers/lib/go-models.ts` for the hardcoded 14-model Go list.
+- **Multi-provider routing**: When `OPENCODE_GO_API_KEY` is set, `writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo subscription); others fall back to OpenRouter. Provider selection is logged at task start. See `src/lib/go-models.ts` for the hardcoded 14-model Go list (moved from `src/workers/lib/` — now shared between gateway and worker). **OpenCodeGo usage limits**: $12/5hr, $30/week, $60/month metered on top of the $10/mo subscription. Gateway calls are negligible (~$0.50/mo). Track usage at https://opencode.ai/auth. **Go two-endpoint formats**: Go models use two API formats — OpenAI-compatible (`/zen/go/v1/chat/completions`) and Anthropic-compatible (`/zen/go/v1/messages`). `call-llm.ts` gateway routing only works with OpenAI-compatible models on Go. Worker harness handles both formats via OpenCode internally.
 
 ## Skills System
 
@@ -293,7 +293,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
 - **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
-- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`.
+- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`, `gateway_llm_model` (controls which LLM model is used for gateway verification calls; default: `deepseek/deepseek-v4-flash`).
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -464,7 +464,7 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
 - `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
-**OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/workers/lib/go-models.ts` (14 models).
+**OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
 
 ## Long-Running Commands
 
