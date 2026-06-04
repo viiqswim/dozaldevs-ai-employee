@@ -17,6 +17,17 @@ function makeLLMResult(json: object): ReturnType<typeof vi.fn> {
   });
 }
 
+function makeLLMResultRaw(content: string): ReturnType<typeof vi.fn> {
+  return vi.fn().mockResolvedValue({
+    content,
+    model: 'anthropic/claude-haiku-4-5',
+    promptTokens: 10,
+    completionTokens: 50,
+    estimatedCostUsd: 0.0001,
+    latencyMs: 50,
+  });
+}
+
 const BASE_RESPONSE = {
   role_name: 'test-employee',
   model: 'minimax/minimax-m2.7',
@@ -202,5 +213,130 @@ describe('ArchetypeGenerator — code-writing detection', () => {
     const result = await generator.generate('Write code and submit pull requests to GitHub');
 
     expect(result.risk_model.approval_required).toBe(true);
+  });
+});
+
+describe('ArchetypeGenerator — JSON parse retry', () => {
+  it('no-retry path: succeeds on first attempt when LLM returns valid JSON', async () => {
+    const mockCallLLM = makeLLMResult(BASE_RESPONSE);
+    const generator = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+    const result = await generator.generate('Daily Slack digest of team activity');
+
+    expect(result.role_name).toBe('test-employee');
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+  });
+
+  it('retry-success path: succeeds on second attempt when first response is invalid JSON', async () => {
+    const validJson = JSON.stringify(BASE_RESPONSE);
+    const mockCallLLM = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: 'not valid json at all {{{',
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      })
+      .mockResolvedValueOnce({
+        content: validJson,
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      })
+      .mockResolvedValue({
+        content: validJson,
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      });
+
+    const generator = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+    const result = await generator.generate('Daily Slack digest of team activity');
+
+    expect(result.role_name).toBe('test-employee');
+    expect(mockCallLLM).toHaveBeenCalledTimes(3);
+  });
+
+  it('retry-fail path: throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
+    const mockCallLLM = vi.fn().mockResolvedValue({
+      content: 'not valid json {{{',
+      model: 'anthropic/claude-haiku-4-5',
+      promptTokens: 10,
+      completionTokens: 50,
+      estimatedCostUsd: 0.0001,
+      latencyMs: 50,
+    });
+
+    const generator = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+
+    await expect(generator.generate('Daily Slack digest of team activity')).rejects.toThrow(
+      'GENERATION_FAILED',
+    );
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+  });
+
+  it('retry-success path for refine(): succeeds on second attempt when first response is invalid JSON', async () => {
+    const validJson = JSON.stringify(BASE_RESPONSE);
+    const mockCallLLM = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: 'not valid json {{{',
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      })
+      .mockResolvedValueOnce({
+        content: validJson,
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      })
+      .mockResolvedValue({
+        content: validJson,
+        model: 'anthropic/claude-haiku-4-5',
+        promptTokens: 10,
+        completionTokens: 50,
+        estimatedCostUsd: 0.0001,
+        latencyMs: 50,
+      });
+
+    const generator = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+    const result = await generator.refine(
+      { ...BASE_RESPONSE, estimated_manual_minutes: null },
+      'Make it more concise',
+    );
+
+    expect(result.role_name).toBe('test-employee');
+    expect(mockCallLLM).toHaveBeenCalledTimes(3);
+  });
+
+  it('retry-fail path for refine(): throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
+    const mockCallLLM = vi.fn().mockResolvedValue({
+      content: 'not valid json {{{',
+      model: 'anthropic/claude-haiku-4-5',
+      promptTokens: 10,
+      completionTokens: 50,
+      estimatedCostUsd: 0.0001,
+      latencyMs: 50,
+    });
+
+    const generator = new ArchetypeGenerator(mockCallLLM as typeof callLLM);
+
+    await expect(
+      generator.refine(
+        { ...BASE_RESPONSE, estimated_manual_minutes: null },
+        'Make it more concise',
+      ),
+    ).rejects.toThrow('GENERATION_FAILED');
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
   });
 });
