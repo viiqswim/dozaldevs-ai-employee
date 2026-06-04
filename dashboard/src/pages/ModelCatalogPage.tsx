@@ -63,9 +63,17 @@ const COST_TIER_CLASS: Record<string, string> = {
     'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
 };
 
-function getServingProvider(): string {
-  return 'OpenRouter';
-}
+const GATEWAY_LABEL: Record<string, string> = {
+  'opencode-go': 'OpenCodeGo',
+  openrouter: 'OpenRouter',
+};
+
+const GATEWAY_CLASS: Record<string, string> = {
+  'opencode-go':
+    'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300',
+  openrouter:
+    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300',
+};
 
 const QUALITY_TIER_CLASS: Record<string, string> = {
   basic:
@@ -173,7 +181,7 @@ function parseOptionalFloat(val: string): number | null {
 
 function formToPayload(
   form: ModelForm,
-): Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'> {
+): Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at' | 'supported_gateways'> {
   return {
     model_id: form.model_id.trim(),
     display_name: form.display_name.trim(),
@@ -634,7 +642,9 @@ export function ModelCatalogPage() {
       m.display_name.toLowerCase().includes(q) ||
       m.model_id.toLowerCase().includes(q) ||
       m.provider.toLowerCase().includes(q) ||
-      getServingProvider().toLowerCase().includes(q);
+      m.supported_gateways.some(
+        (gw) => gw.toLowerCase().includes(q) || (GATEWAY_LABEL[gw] ?? '').toLowerCase().includes(q),
+      );
     const matchesProvider = providerFilter === '' || m.provider === providerFilter;
     return matchesQuery && matchesProvider;
   });
@@ -803,9 +813,13 @@ export function ModelCatalogPage() {
                         </p>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          {getServingProvider()}
-                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                          {model.supported_gateways.map((gw) => (
+                            <Badge key={gw} variant="outline" className={GATEWAY_CLASS[gw] ?? ''}>
+                              {GATEWAY_LABEL[gw] ?? gw}
+                            </Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={COST_TIER_CLASS[costTier]}>

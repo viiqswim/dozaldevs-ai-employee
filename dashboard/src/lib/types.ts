@@ -388,6 +388,7 @@ export interface ModelCatalogEntry {
   notes: string | null;
   strengths: string | null;
   weaknesses: string | null;
+  supported_gateways: string[];
   created_at: string;
   updated_at: string;
 }

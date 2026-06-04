@@ -3,6 +3,7 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
+import { GO_MODEL_MAP } from '../../workers/lib/go-models.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
@@ -84,6 +85,10 @@ const PatchModelCatalogBodySchema = z
     }
   });
 
+function computeSupportedGateways(modelId: string): string[] {
+  return GO_MODEL_MAP.has(modelId) ? ['opencode-go', 'openrouter'] : ['openrouter'];
+}
+
 export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): Router {
   const router = Router();
   const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -105,7 +110,11 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         },
         orderBy: { created_at: 'desc' },
       });
-      res.status(200).json(models);
+      res
+        .status(200)
+        .json(
+          models.map((m) => ({ ...m, supported_gateways: computeSupportedGateways(m.model_id) })),
+        );
     } catch (err) {
       logger.error({ err }, 'Failed to list model catalog');
       res.status(500).json({ error: 'INTERNAL_ERROR' });
@@ -131,7 +140,9 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         return;
       }
 
-      res.status(200).json(model);
+      res
+        .status(200)
+        .json({ ...model, supported_gateways: computeSupportedGateways(model.model_id) });
     } catch (err) {
       logger.error({ err }, 'Failed to get model catalog entry');
       res.status(500).json({ error: 'INTERNAL_ERROR' });

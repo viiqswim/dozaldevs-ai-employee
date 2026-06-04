@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { adminModelCatalogRoutes } from '../admin-model-catalog.js';
+import { GO_MODEL_MAP } from '../../../workers/lib/go-models.js';
 
 const ADMIN_KEY = 'test-admin-key';
 const MODEL_ID = 'c1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d6';
@@ -95,6 +96,25 @@ describe('GET /admin/model-catalog', () => {
     expect(findMany).toHaveBeenCalledOnce();
   });
 
+  it('annotates each model with supported_gateways=["openrouter"] when model is not in GO_MODEL_MAP', async () => {
+    const model = makeModelRow({ model_id: 'provider/model-name' });
+    const findMany = vi.fn().mockResolvedValue([model]);
+    const app = makeApp({ findMany });
+    const res = await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body[0].supported_gateways).toEqual(['openrouter']);
+  });
+
+  it('annotates each model with ["opencode-go","openrouter"] when model is in GO_MODEL_MAP', async () => {
+    const goModelId = [...GO_MODEL_MAP.keys()][0];
+    const model = makeModelRow({ model_id: goModelId });
+    const findMany = vi.fn().mockResolvedValue([model]);
+    const app = makeApp({ findMany });
+    const res = await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body[0].supported_gateways).toEqual(['opencode-go', 'openrouter']);
+  });
+
   it('passes deleted_at:null filter to findMany', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const app = makeApp({ findMany });
@@ -127,6 +147,7 @@ describe('GET /admin/model-catalog/:id', () => {
       .set('X-Admin-Key', ADMIN_KEY);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(MODEL_ID);
+    expect(res.body.supported_gateways).toEqual(['openrouter']);
   });
 
   it('returns 404 when model is not found', async () => {

@@ -353,7 +353,7 @@ export async function listModelCatalog(): Promise<ModelCatalogEntry[]> {
 }
 
 export async function createModelCatalogEntry(
-  payload: Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'>,
+  payload: Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at' | 'supported_gateways'>,
 ): Promise<ModelCatalogEntry> {
   return gatewayFetch<ModelCatalogEntry>(`/admin/model-catalog`, {
     method: 'POST',
@@ -363,7 +363,9 @@ export async function createModelCatalogEntry(
 
 export async function updateModelCatalogEntry(
   id: string,
-  payload: Partial<Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at'>>,
+  payload: Partial<
+    Omit<ModelCatalogEntry, 'id' | 'created_at' | 'updated_at' | 'supported_gateways'>
+  >,
 ): Promise<ModelCatalogEntry> {
   return gatewayFetch<ModelCatalogEntry>(`/admin/model-catalog/${id}`, {
     method: 'PATCH',
