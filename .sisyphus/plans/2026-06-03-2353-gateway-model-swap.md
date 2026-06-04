@@ -201,7 +201,7 @@ Max Concurrent: 2 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Add `gateway_llm_model` platform setting (migration + seed)
+- [x] 1. Add `gateway_llm_model` platform setting (migration + seed)
 
   **What to do**:
   - Create a Prisma migration adding a new row to `platform_settings`:
@@ -280,7 +280,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `prisma/migrations/*/migration.sql`, `prisma/seed.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 2. Move `go-models.ts` to `src/lib/` and add endpoint type metadata
+- [x] 2. Move `go-models.ts` to `src/lib/` and add endpoint type metadata
 
   **What to do**:
   - Move `src/workers/lib/go-models.ts` to `src/lib/go-models.ts`
@@ -421,7 +421,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `src/lib/go-models.ts`, `src/workers/opencode-harness.mts`, test files
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 3. Modify `call-llm.ts` — platform setting + Go routing + Flash pricing
+- [x] 3. Modify `call-llm.ts` — platform setting + Go routing + Flash pricing
 
   **What to do**:
   - **Add Flash pricing** to `PRICING_PER_1M_TOKENS`:
@@ -596,7 +596,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `src/lib/call-llm.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 4. Remove hardcoded model from all 8 caller sites
+- [x] 4. Remove hardcoded model from all 8 caller sites
 
   **What to do**:
   - Remove `model: 'anthropic/claude-haiku-4-5'` from all 8 call sites. Since `model` is now optional in `CallLLMOptions` (defaults to platform setting), simply delete the `model` property from each `callLLM()` call.
@@ -662,7 +662,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `src/gateway/services/interaction-classifier.ts`, `src/gateway/services/archetype-generator.ts`, `src/gateway/services/time-estimator.ts`, `src/inngest/interaction-handler.ts`, `src/inngest/rule-extractor.ts`, `src/inngest/rule-synthesizer.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 5. Add JSON parse retry in `archetype-generator.ts`
+- [x] 5. Add JSON parse retry in `archetype-generator.ts`
 
   **What to do**:
   - In `ArchetypeGenerator.generate()` and `ArchetypeGenerator.refine()`, wrap the `JSON.parse()` call with a single retry:
@@ -737,7 +737,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `src/gateway/services/archetype-generator.ts`
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 6. Update all test files for configurable gateway model
+- [x] 6. Update all test files for configurable gateway model
 
   **What to do**:
   - Update ALL test files that reference `claude-haiku-4-5` — these tests currently assert the hardcoded model and will fail after Tasks 3-4.
@@ -810,7 +810,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: All test files listed above
   - Pre-commit: `pnpm test -- --run`
 
-- [ ] 7. E2E smoke test — wizard + Go routing verification
+- [x] 7. E2E smoke test — wizard + Go routing verification
 
   **What to do**:
   - **Prerequisite**: Ensure `pnpm dev` is running and Docker image is rebuilt (`docker build -t ai-employee-worker:latest .`)
@@ -893,7 +893,7 @@ Max Concurrent: 2 (Wave 1)
 
   **Commit**: NO (verification only)
 
-- [ ] 8. Update AGENTS.md documentation
+- [x] 8. Update AGENTS.md documentation
 
   **What to do**:
   - **Remove the "Never change this" constraint** — In the "Approved LLM Models" table, update the row for verification/judge model:
@@ -978,7 +978,7 @@ Max Concurrent: 2 (Wave 1)
   - Files: `AGENTS.md`
   - Pre-commit: —
 
-- [ ] 9. Send Telegram notification
+- [x] 9. Send Telegram notification
 
   **What to do**:
   - Run: `tsx scripts/telegram-notify.ts "📋 Gateway model swap complete — Haiku 4.5 replaced with DeepSeek V4 Flash. Come back to review results."`
@@ -1001,21 +1001,25 @@ Max Concurrent: 2 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
+      **RESULT**: APPROVE — haiku pricing entry removed, rate limit error genericized. `grep -r "claude-haiku" src/` → 0 results. All DoD criteria met.
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm test -- --run` and `pnpm build`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify `grep -r "claude-haiku" src/ --include="*.ts" --include="*.mts"` returns 0 results.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Haiku refs [N] | Files [N clean/N issues] | VERDICT`
+      **RESULT**: APPROVE — Build PASS, tests pass (1 pre-existing Hostfully failure unrelated), 0 haiku refs, code clean.
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Run the archetype generation wizard with Flash — verify JSON output parses correctly. Test interaction classification (if possible via curl). Verify dashboard settings page shows `gateway_llm_model` row. Verify Go routing logs appear when `OPENCODE_GO_API_KEY` is set. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
+      **RESULT**: APPROVE — 5/5 scenarios pass, Go routing confirmed in logs, dashboard shows setting, JSON retry fired and recovered correctly in live E2E.
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (`git log/diff`). Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
+      **RESULT**: APPROVE — All 9 tasks compliant, no scope creep, no forbidden patterns, no unaccounted files.
 
 ---
 
