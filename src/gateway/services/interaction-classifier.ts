@@ -24,7 +24,7 @@ export class InteractionClassifier {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `<user_message>${text}</user_message>` },
       ],
-      maxTokens: 10,
+      maxTokens: 500,
       temperature: 0,
     });
 

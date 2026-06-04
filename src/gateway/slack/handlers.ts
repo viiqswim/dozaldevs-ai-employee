@@ -210,6 +210,12 @@ const BUTTON_BLOCKS = (taskId: string) => [
 ];
 
 export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void {
+  boltApp.use(async ({ body, next }) => {
+    const eventType = (body as { event?: { type?: string } }).event?.type ?? body.type ?? 'unknown';
+    log.debug({ eventType, bodyType: body.type }, 'Bolt middleware: raw payload received');
+    await next();
+  });
+
   boltApp.event('message', async ({ event }) => {
     const msg = event as {
       subtype?: string;
@@ -283,10 +289,13 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       bot_id?: string;
     };
 
-    // Guard: ignore bot self-mentions (bot_id is set on bot-posted messages)
+    log.info(
+      { channel: mention.channel, user: mention.user, hasBotId: !!mention.bot_id },
+      'app_mention event received',
+    );
+
     if (mention.bot_id) return;
 
-    // Guard: ignore DMs (Slack DM channel IDs start with 'D')
     if (mention.channel.startsWith('D')) return;
 
     const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();

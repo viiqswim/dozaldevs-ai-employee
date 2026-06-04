@@ -116,7 +116,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
             enterpriseId: undefined,
             isEnterpriseInstall: false,
           });
-          return { botToken: installation.bot?.token, botId: installation.bot?.id };
+          const botToken = installation.bot?.token;
+          const botId = installation.bot?.id || undefined;
+          return { botToken, botId };
         },
         logger: createFilteredBoltLogger(logger),
       });

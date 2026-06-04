@@ -154,6 +154,8 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 | `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | `T0601SMSVEU` (Dozal Inc.) — must OAuth separately |
 | `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`)    |
 
+**Papi Chulo = the platform Slack bot, NOT an employee name.** App ID `A09678HT90S`, installed on VLRE workspace. ALL AI employees communicate through this single bot — it is not tied to the daily-summarizer or any specific employee. The daily-summarizer archetype uses a "dramatic Spanish TV news correspondent" persona in its prompt, but the Papi Chulo name belongs to the bot/app, not that employee.
+
 **Two VLRE Slack tokens exist in `.env`**: `SLACK_BOT_TOKEN` (used by the gateway Bolt app for Socket Mode) and `VLRE_SLACK_BOT_TOKEN` (seed-only — used by `prisma/seed.ts` to populate `tenant_secrets` on DB reset). For API calls from scripts or testing, use `VLRE_SLACK_BOT_TOKEN`. Both hold the same VLRE workspace bot token value but serve different consumption points. Never store either as the DozalDevs tenant secret.
 
 For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-05-14-0040-slack-tenant-integration.md`.
