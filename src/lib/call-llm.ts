@@ -32,7 +32,6 @@ export interface CallLLMResult {
 
 const PRICING_PER_1M_TOKENS: Record<string, { prompt: number; completion: number }> = {
   'minimax/minimax-m2.7': { prompt: 0.3, completion: 1.1 },
-  'anthropic/claude-haiku-4-5': { prompt: 0.8, completion: 4.0 },
   'deepseek/deepseek-v4-flash': { prompt: 0.14, completion: 0.28 },
 };
 
@@ -137,8 +136,8 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 async function fetchWithRateLimitCheck(url: string, options: RequestInit): Promise<Response> {
   const response = await fetch(url, options);
   if (response.status === 429) {
-    throw new RateLimitExceededError('OpenRouter rate limit hit', {
-      service: 'openrouter',
+    throw new RateLimitExceededError('LLM rate limit hit', {
+      service: 'llm-provider',
       attempts: 1,
     });
   }
