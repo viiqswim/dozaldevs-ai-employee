@@ -319,6 +319,13 @@ async function writeOpencodeAuth(temperature: number = 1.0): Promise<void> {
   // The "*": "allow" wildcard covers all permission types including "skill" — no explicit skill permission needed
   const configJson = JSON.stringify(
     {
+      provider: {
+        'opencode-go': {
+          options: {
+            baseURL: 'https://opencode.ai/zen/go/v1',
+          },
+        },
+      },
       agent: { build: { temperature } },
       permission: { '*': 'allow', question: 'deny' },
       autoupdate: false,
