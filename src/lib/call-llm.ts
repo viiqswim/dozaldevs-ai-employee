@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
+import { GO_OPENAI_ENDPOINT, GoEndpointType, resolveProvider } from './go-models.js';
 import { createLogger } from './logger.js';
 import { getPlatformSetting } from './platform-settings.js';
 import { withRetry } from './retry.js';
@@ -11,7 +12,7 @@ interface Message {
 }
 
 export interface CallLLMOptions {
-  model: string; // OpenRouter model ID — ONLY approved models: "minimax/minimax-m2.7" or "anthropic/claude-haiku-4-5"
+  model?: string; // Optional — defaults to gateway_llm_model platform setting
   messages: Message[];
   taskType: 'triage' | 'execution' | 'review';
   taskId?: string;
@@ -32,6 +33,7 @@ export interface CallLLMResult {
 const PRICING_PER_1M_TOKENS: Record<string, { prompt: number; completion: number }> = {
   'minimax/minimax-m2.7': { prompt: 0.3, completion: 1.1 },
   'anthropic/claude-haiku-4-5': { prompt: 0.8, completion: 4.0 },
+  'deepseek/deepseek-v4-flash': { prompt: 0.14, completion: 0.28 },
 };
 
 let _prisma: PrismaClient | null = null;
@@ -45,6 +47,31 @@ const COST_CACHE: { value: number; refreshedAt: Date | null } = {
   refreshedAt: null,
 };
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+const GATEWAY_MODEL_CACHE: { value: string | null; refreshedAt: Date | null } = {
+  value: null,
+  refreshedAt: null,
+};
+const GATEWAY_MODEL_CACHE_TTL_MS = 60 * 1000;
+
+export function _resetGatewayModelCache(): void {
+  GATEWAY_MODEL_CACHE.value = null;
+  GATEWAY_MODEL_CACHE.refreshedAt = null;
+}
+
+async function getGatewayModel(): Promise<string> {
+  const now = new Date();
+  const cacheExpired =
+    GATEWAY_MODEL_CACHE.refreshedAt === null ||
+    now.getTime() - GATEWAY_MODEL_CACHE.refreshedAt.getTime() > GATEWAY_MODEL_CACHE_TTL_MS;
+
+  if (cacheExpired || GATEWAY_MODEL_CACHE.value === null) {
+    GATEWAY_MODEL_CACHE.value = await getPlatformSetting('gateway_llm_model');
+    GATEWAY_MODEL_CACHE.refreshedAt = now;
+  }
+
+  return GATEWAY_MODEL_CACHE.value;
+}
 
 let alertSentAt: Date | null = null;
 const ALERT_COOLDOWN_MS = 60 * 60 * 1000;
@@ -128,7 +155,9 @@ interface OpenRouterResponse {
 }
 
 export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
-  const { model, messages, temperature, maxTokens, timeoutMs = 120_000 } = options;
+  const { messages, temperature, maxTokens, timeoutMs = 120_000 } = options;
+
+  const effectiveModel = options.model ?? (await getGatewayModel());
 
   try {
     await checkCostCircuitBreaker();
@@ -142,11 +171,43 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
     );
   }
 
+  const resolved = resolveProvider(effectiveModel, !!process.env.OPENCODE_GO_API_KEY);
+
+  let apiUrl: string;
+  let authKey: string;
+  let requestModelId: string;
+
+  if (resolved.providerID === 'opencode-go') {
+    if (resolved.goEndpointType === 'openai') {
+      apiUrl = GO_OPENAI_ENDPOINT;
+      authKey = process.env.OPENCODE_GO_API_KEY ?? '';
+      requestModelId = resolved.modelID; // Go model ID (no vendor prefix)
+    } else {
+      // Anthropic-format model — fall back to OpenRouter
+      createLogger('call-llm').warn(
+        { model: effectiveModel },
+        'Model uses Anthropic format on Go — falling back to OpenRouter for gateway call',
+      );
+      apiUrl = OPENROUTER_URL;
+      authKey = process.env.OPENROUTER_API_KEY ?? '';
+      requestModelId = effectiveModel; // Full OpenRouter model ID
+    }
+  } else {
+    apiUrl = OPENROUTER_URL;
+    authKey = process.env.OPENROUTER_API_KEY ?? '';
+    requestModelId = effectiveModel; // Full OpenRouter model ID
+  }
+
+  createLogger('call-llm').info(
+    { provider: resolved.providerID, model: effectiveModel },
+    'Gateway LLM call',
+  );
+
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
   const requestBody: Record<string, unknown> = {
-    model,
+    model: requestModelId,
     messages,
     temperature: temperature ?? 0,
     ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
@@ -156,7 +217,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ''}`,
+      Authorization: `Bearer ${authKey}`,
       'HTTP-Referer': 'https://ai-employee-platform',
       'X-Title': 'AI Employee Platform',
     },
@@ -168,14 +229,14 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   let response: Response;
 
   try {
-    response = await withRetry(() => fetchWithRateLimitCheck(OPENROUTER_URL, fetchOptions), {
+    response = await withRetry(() => fetchWithRateLimitCheck(apiUrl, fetchOptions), {
       retryOn: (e) => e instanceof RateLimitExceededError,
     });
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new LLMTimeoutError(`LLM call timed out after ${timeoutMs}ms`, {
         timeoutMs,
-        model,
+        model: effectiveModel,
       });
     }
     throw err;
@@ -184,7 +245,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   }
 
   if (!response.ok) {
-    throw new Error(`OpenRouter returned ${response.status}: ${await response.text()}`);
+    throw new Error(`LLM provider returned ${response.status}: ${await response.text()}`);
   }
 
   const latencyMs = Date.now() - startMs;
@@ -195,7 +256,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   const promptTokens = data.usage.prompt_tokens;
   const completionTokens = data.usage.completion_tokens;
 
-  const pricing = PRICING_PER_1M_TOKENS[model];
+  const pricing = PRICING_PER_1M_TOKENS[effectiveModel];
   const estimatedCostUsd = pricing
     ? (promptTokens * pricing.prompt + completionTokens * pricing.completion) / 1_000_000
     : 0;
