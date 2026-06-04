@@ -108,7 +108,7 @@ describe('callLLM', () => {
 
     it('uses explicit model when provided, skips platform setting for model', async () => {
       await callLLM({
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         messages: baseMessages,
         taskType: 'review',
       });
@@ -290,7 +290,7 @@ describe('callLLM', () => {
 
       await expect(
         callLLM({
-          model: 'anthropic/claude-haiku-4-5',
+          model: 'deepseek/deepseek-v4-flash',
           messages: baseMessages,
           taskType: 'review',
         }),

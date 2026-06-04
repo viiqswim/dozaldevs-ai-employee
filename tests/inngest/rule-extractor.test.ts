@@ -5,7 +5,7 @@ import { createRuleExtractorFunction } from '../../src/inngest/rule-extractor.js
 const { mockCallLLM, mockDecrypt } = vi.hoisted(() => ({
   mockCallLLM: vi.fn().mockResolvedValue({
     content: '{"extractable":true,"rule":"Always mention checkout time"}',
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     estimatedCostUsd: 0.001,
   }),
   mockDecrypt: vi.fn().mockReturnValue('xoxb-test-token'),
@@ -102,7 +102,7 @@ describe('createRuleExtractorFunction', () => {
 
     mockCallLLM.mockResolvedValue({
       content: '{"extractable":true,"rule":"Always mention checkout time"}',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       estimatedCostUsd: 0.001,
     });
     mockDecrypt.mockReturnValue('xoxb-test-token');
@@ -234,7 +234,7 @@ describe('createRuleExtractorFunction', () => {
   it('fallback — LLM returns extractable:false → no DB proposed insert → "What should I learn?" posted → awaiting_input row inserted', async () => {
     mockCallLLM.mockResolvedValue({
       content: '{"extractable":false}',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       estimatedCostUsd: 0.001,
     });
 
@@ -360,7 +360,7 @@ describe('createRuleExtractorFunction', () => {
   it('LLM returns invalid JSON → treated as non-extractable → fallback path (awaiting_input)', async () => {
     mockCallLLM.mockResolvedValue({
       content: 'not valid json at all',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       estimatedCostUsd: 0.001,
     });
 
@@ -390,15 +390,15 @@ describe('createRuleExtractorFunction', () => {
   });
 
   // ── Test 9: Model enforcement ──
-  it('model enforcement — callLLM always called with model: anthropic/claude-haiku-4-5', async () => {
+  it('model enforcement — callLLM always called without explicit model (uses platform setting)', async () => {
     const fn = createRuleExtractorFunction(inngest);
     const step = makeStep();
 
     await invokeExtractor(fn, makeEvent(), step);
 
     expect(mockCallLLM).toHaveBeenCalledOnce();
-    const callArgs = mockCallLLM.mock.calls[0][0] as { model: string };
-    expect(callArgs.model).toBe('anthropic/claude-haiku-4-5');
+    const callArgs = mockCallLLM.mock.calls[0][0] as { model?: string };
+    expect(callArgs.model).toBeUndefined();
   });
 
   // ── Test 10 (bonus): edit_diff with no content at all → returns early ──

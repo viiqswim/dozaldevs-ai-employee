@@ -8,7 +8,7 @@ type MockCallLLM = ReturnType<typeof vi.fn>;
 function makeCallLLM(content: string): MockCallLLM {
   return vi.fn().mockResolvedValue({
     content,
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 5,
     completionTokens: 1,
     estimatedCostUsd: 0,

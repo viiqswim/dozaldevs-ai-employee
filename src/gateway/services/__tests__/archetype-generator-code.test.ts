@@ -9,7 +9,7 @@ import {
 function makeLLMResult(json: object): ReturnType<typeof vi.fn> {
   return vi.fn().mockResolvedValue({
     content: JSON.stringify(json),
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 10,
     completionTokens: 50,
     estimatedCostUsd: 0.0001,
@@ -20,7 +20,7 @@ function makeLLMResult(json: object): ReturnType<typeof vi.fn> {
 function makeLLMResultRaw(content: string): ReturnType<typeof vi.fn> {
   return vi.fn().mockResolvedValue({
     content,
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 10,
     completionTokens: 50,
     estimatedCostUsd: 0.0001,
@@ -232,7 +232,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       .fn()
       .mockResolvedValueOnce({
         content: 'not valid json at all {{{',
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -240,7 +240,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       })
       .mockResolvedValueOnce({
         content: validJson,
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -248,7 +248,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       })
       .mockResolvedValue({
         content: validJson,
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -265,7 +265,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
   it('retry-fail path: throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
     const mockCallLLM = vi.fn().mockResolvedValue({
       content: 'not valid json {{{',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       promptTokens: 10,
       completionTokens: 50,
       estimatedCostUsd: 0.0001,
@@ -286,7 +286,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       .fn()
       .mockResolvedValueOnce({
         content: 'not valid json {{{',
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -294,7 +294,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       })
       .mockResolvedValueOnce({
         content: validJson,
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -302,7 +302,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
       })
       .mockResolvedValue({
         content: validJson,
-        model: 'anthropic/claude-haiku-4-5',
+        model: 'deepseek/deepseek-v4-flash',
         promptTokens: 10,
         completionTokens: 50,
         estimatedCostUsd: 0.0001,
@@ -322,7 +322,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
   it('retry-fail path for refine(): throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
     const mockCallLLM = vi.fn().mockResolvedValue({
       content: 'not valid json {{{',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       promptTokens: 10,
       completionTokens: 50,
       estimatedCostUsd: 0.0001,

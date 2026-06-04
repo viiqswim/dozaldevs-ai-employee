@@ -131,7 +131,7 @@ beforeEach(() => {
   });
   mockCallLLM.mockResolvedValue({
     content: '[{"theme":"rejection","frequency":1,"representative_quote":"formal tone"}]',
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 5,
     completionTokens: 1,
     estimatedCostUsd: 0,

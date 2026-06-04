@@ -11,7 +11,7 @@ type MockCallLLM = ReturnType<typeof vi.fn>;
 function makeCallLLM(content: string): MockCallLLM {
   return vi.fn().mockResolvedValue({
     content,
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 5,
     completionTokens: 1,
     estimatedCostUsd: 0,
@@ -75,10 +75,10 @@ describe('InteractionClassifier', () => {
       expect(intent).toBe('feedback');
     });
 
-    it('uses anthropic/claude-haiku-4-5 model for classification', async () => {
+    it('does not pass explicit model (uses platform setting)', async () => {
       await classifier.classifyIntent('some text');
-      expect(mockCallLLM).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'anthropic/claude-haiku-4-5' }),
+      expect(mockCallLLM).not.toHaveBeenCalledWith(
+        expect.objectContaining({ model: expect.any(String) }),
       );
     });
 

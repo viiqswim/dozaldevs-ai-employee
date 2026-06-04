@@ -14,7 +14,7 @@ const { mockCallLLM, mockDecrypt } = vi.hoisted(() => ({
       ],
       contradictions: [],
     }),
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     estimatedCostUsd: 0.001,
   }),
   mockDecrypt: vi.fn().mockReturnValue('xoxb-fake-token'),
@@ -142,7 +142,7 @@ describe('createRuleSynthesizerFunction — synthesize-rules step', () => {
         ],
         contradictions: [],
       }),
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       estimatedCostUsd: 0.001,
     });
     mockDecrypt.mockReturnValue('xoxb-fake-token');
@@ -291,7 +291,7 @@ describe('createRuleSynthesizerFunction — synthesize-rules step', () => {
   it('LLM returns { merges: [], contradictions: [] } → no new rows created, no Slack posted', async () => {
     mockCallLLM.mockResolvedValue({
       content: JSON.stringify({ merges: [], contradictions: [] }),
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       estimatedCostUsd: 0.001,
     });
 
