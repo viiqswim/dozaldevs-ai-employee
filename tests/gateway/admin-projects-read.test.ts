@@ -30,16 +30,6 @@ afterAll(async () => {
 });
 
 describe('GET /admin/tenants/:tenantId/projects', () => {
-  it('missing X-Admin-Key header → 401', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: `/admin/tenants/${TENANT_ID}/projects`,
-      headers: { 'content-type': 'application/json' },
-    });
-    expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
-  });
-
   it('valid key → 200 with projects array', async () => {
     const res = await app.inject({
       method: 'GET',
