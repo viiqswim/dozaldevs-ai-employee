@@ -459,6 +459,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             channelId,
             archetypeId: context.archetypeId,
             threadTs,
+            taskId: taskId ?? undefined,
           },
         });
       }

@@ -1482,37 +1482,6 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
       const externalId = `slack-trigger-${ctx.threadTs}-${ctx.archetypeId}`;
 
-      const dupRes = await fetch(
-        `${supabaseUrl}/rest/v1/tasks?external_id=eq.${externalId}&status=not.in.(Done,Failed,Cancelled)&tenant_id=eq.${ctx.tenantId}&select=id`,
-        { headers },
-      );
-      const duplicates = (await dupRes.json()) as Array<{ id: string }>;
-      if (duplicates.length > 0) {
-        const existingTaskId = duplicates[0].id;
-        log.warn(
-          { existingTaskId, externalId },
-          'trigger_confirm: duplicate task detected — returning existing',
-        );
-        await respond({
-          replace_original: true,
-          text: `⚠️ A task for this employee is already running. Task \`${existingTaskId}\``,
-          blocks: [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `⚠️ A task for this employee is already running.`,
-              },
-            },
-            {
-              type: 'context',
-              elements: [{ type: 'mrkdwn', text: `Task \`${existingTaskId}\`` }],
-            },
-          ],
-        });
-        return;
-      }
-
       const requiredInputs = Array.isArray(archetype.input_schema)
         ? (
             archetype.input_schema as Array<{

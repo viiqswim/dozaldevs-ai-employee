@@ -106,18 +106,26 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async ({ event, step }: { event: any; step: any }) => {
-      const { tenantId, text, userId, channelId, archetypeId, threadTs } = event.data as {
+      const { tenantId, text, userId, channelId, archetypeId, threadTs, taskId } = event.data as {
         tenantId: string | null;
         text: string;
         userId: string;
         channelId: string;
         archetypeId: string | null;
         threadTs?: string;
+        taskId?: string;
       };
 
       const context = await step.run('validate-context', async () => {
         if (!tenantId) {
           log.warn({ userId, channelId }, 'task.requested missing tenantId — skipping');
+          return null;
+        }
+        if (taskId) {
+          log.info(
+            { taskId, channelId },
+            'task.requested in existing task thread — skipping trigger flow',
+          );
           return null;
         }
         return { tenantId, text, userId, channelId, archetypeId, threadTs };
@@ -314,22 +322,6 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
       };
 
       const externalId = `slack-trigger-${threadTs}-${pending.archetypeId}`;
-
-      const dupRes = await step.run('check-duplicate', async () => {
-        const res = await fetch(
-          `${supabaseUrl}/rest/v1/tasks?external_id=eq.${externalId}&status=not.in.(Done,Failed,Cancelled)&tenant_id=eq.${tenantId}&select=id`,
-          { headers: supabaseHeaders },
-        );
-        return (await res.json()) as Array<{ id: string }>;
-      });
-
-      if (dupRes.length > 0) {
-        log.warn(
-          { externalId, existingTaskId: dupRes[0].id },
-          'slack-input-collector: duplicate task detected — skipping',
-        );
-        return;
-      }
 
       const collectedInputs: Record<string, string> = {};
       for (const input of pending.requiredInputs) {
