@@ -1643,6 +1643,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
   });
 
   boltApp.action(SLACK_ACTION_ID.TRIGGER_CANCEL, async ({ ack, body, respond }) => {
+    await ack();
+
     const actionBody = body as ActionBody;
     const valueStr = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -1657,26 +1659,32 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
-      replace_original: true,
-      text: `🚫 Cancelled by <@${user.id}>`,
-      blocks: [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `🚫 Cancelled by <@${user.id}>` },
-        },
-        ...(archetypeId
-          ? [
-              {
-                type: 'context' as const,
-                elements: [{ type: 'mrkdwn', text: `Archetype \`${archetypeId}\`` }],
-              },
-            ]
-          : []),
-      ],
-    });
-
     log.info({ userId: user.id, archetypeId }, 'trigger_cancel action received');
+
+    try {
+      await respond({
+        replace_original: true,
+        text: `🚫 Cancelled by <@${user.id}>`,
+        blocks: [
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `🚫 Cancelled by <@${user.id}>` },
+          },
+          ...(archetypeId
+            ? [
+                {
+                  type: 'context' as const,
+                  elements: [{ type: 'mrkdwn' as const, text: `Archetype \`${archetypeId}\`` }],
+                },
+              ]
+            : []),
+        ],
+      });
+    } catch (err) {
+      log.warn(
+        { userId: user.id, archetypeId, err },
+        'Failed to update message after trigger_cancel',
+      );
+    }
   });
 }
