@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { unescapeShellArg } from '../lib/unescape-args.js';
 
 type SendResponse = {
   id: string;
@@ -28,7 +29,7 @@ function parseArgs(argv: string[]): {
     } else if (args[i] === '--subject' && args[i + 1]) {
       subject = args[++i];
     } else if (args[i] === '--body' && args[i + 1]) {
-      body = args[++i];
+      body = unescapeShellArg(args[++i]);
     } else if (args[i] === '--cc' && args[i + 1]) {
       cc = args[++i];
     } else if (args[i] === '--bcc' && args[i + 1]) {
@@ -41,15 +42,32 @@ function parseArgs(argv: string[]): {
   return { to, subject, body, cc, bcc, help };
 }
 
+function plainTextToHtml(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((para) =>
+      para
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0)
+        .join(' '),
+    )
+    .filter((para) => para.length > 0)
+    .map((para) => `<p>${para}</p>`)
+    .join('\n');
+}
+
 function buildRfc2822(to: string, subject: string, body: string, cc: string, bcc: string): string {
-  const lines: string[] = [`To: ${to}`, `Subject: ${subject}`];
+  const lines: string[] = ['MIME-Version: 1.0', `To: ${to}`, `Subject: ${subject}`];
 
   if (cc) lines.push(`Cc: ${cc}`);
   if (bcc) lines.push(`Bcc: ${bcc}`);
 
-  lines.push('Content-Type: text/plain; charset=utf-8');
+  lines.push('Content-Type: text/html; charset=utf-8');
   lines.push('');
-  lines.push(body);
+
+  const hasHtmlTags = /<[a-z][\s\S]*?>/i.test(body);
+  lines.push(hasHtmlTags ? body : plainTextToHtml(body));
 
   return lines.join('\r\n');
 }
@@ -64,7 +82,7 @@ async function main(): Promise<void> {
         'Options:\n' +
         '  --to <string>       (required) Recipient email address\n' +
         '  --subject <string>  (required) Email subject line\n' +
-        '  --body <string>     (required) Plain text email body\n' +
+        '  --body <string>     (required) Email body. Plain text: use \\n\\n between paragraphs — hard-wrapped lines are auto-reflowed. HTML: pass tags directly for rich formatting (bold, links, etc.).\n' +
         '  --cc <string>       (optional) CC recipient email address\n' +
         '  --bcc <string>      (optional) BCC recipient email address\n' +
         '  --help              Show this help message\n\n' +

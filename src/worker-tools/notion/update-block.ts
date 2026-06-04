@@ -1,5 +1,6 @@
 import { resolveNotionAuth } from './auth.js';
 import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { unescapeShellArg } from '../lib/unescape-args.js';
 
 function parseArgs(argv: string[]): {
   blockId: string;
@@ -15,7 +16,7 @@ function parseArgs(argv: string[]): {
     if (args[i] === '--block-id' && args[i + 1]) {
       blockId = args[++i];
     } else if (args[i] === '--content' && args[i + 1]) {
-      content = args[++i];
+      content = unescapeShellArg(args[++i]);
     } else if (args[i] === '--help') {
       help = true;
     }

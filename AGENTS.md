@@ -87,6 +87,8 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
 
+**Shared utility — `src/worker-tools/lib/unescape-args.ts`**: When writing a new shell tool, import `unescapeShellArg` and wrap every free-text CLI argument (`--body`, `--message`, `--content`, `--description`, etc.) at parse time. LLMs generate commands with literal `\n` in string arguments (e.g. `--body "Hello\nWorld"`); the shell passes `\`+`n` to `process.argv`, not a real newline. `unescapeShellArg` converts `\n` → newline, `\t` → tab, `\r` → carriage return. Omitting this causes literal backslash-n to reach external APIs (email, Notion, Jira, Hostfully, etc.).
+
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31`. Version `1.14.33` has a confirmed 6-second exit regression. **Never upgrade without explicit testing.**
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.

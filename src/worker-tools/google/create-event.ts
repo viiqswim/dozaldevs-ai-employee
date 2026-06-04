@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { unescapeShellArg } from '../lib/unescape-args.js';
 
 interface ParsedArgs {
   calendarId: string;
@@ -32,7 +33,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     } else if (args[i] === '--end' && args[i + 1]) {
       end = args[++i];
     } else if (args[i] === '--description' && args[i + 1]) {
-      description = args[++i];
+      description = unescapeShellArg(args[++i]);
     } else if (args[i] === '--location' && args[i + 1]) {
       location = args[++i];
     } else if (args[i] === '--attendees' && args[i + 1]) {

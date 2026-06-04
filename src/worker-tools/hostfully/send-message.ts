@@ -29,6 +29,8 @@
  *   The guest will see the message as coming from the property manager.
  */
 
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
 type RawCreatedMessage = {
   uid?: string;
   leadUid?: string;
@@ -62,7 +64,7 @@ function parseArgs(argv: string[]): {
     } else if (args[i] === '--thread-id' && args[i + 1]) {
       threadId = args[++i];
     } else if (args[i] === '--message' && args[i + 1]) {
-      message = args[++i];
+      message = unescapeShellArg(args[++i]);
     } else if (args[i] === '--help') {
       help = true;
     }
