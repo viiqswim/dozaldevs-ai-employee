@@ -808,7 +808,7 @@ Critical Path: Task 1 → Task 4 → Task 6 → F1-F4 → user okay
 
   **Commit**: NO (regression test, no source changes)
 
-- [ ] 8. Send Telegram Notification
+- [x] 8. Send Telegram Notification
 
   **What to do**:
   - Send Telegram notification that the plan is complete
