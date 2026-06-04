@@ -15,7 +15,7 @@ import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.j
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
 import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
-import { resolveProvider } from './lib/go-models.js';
+import { resolveProvider } from '../lib/go-models.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 
 const log = createLogger('opencode-harness');

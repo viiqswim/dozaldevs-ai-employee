@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { adminModelCatalogRoutes } from '../admin-model-catalog.js';
-import { GO_MODEL_MAP } from '../../../workers/lib/go-models.js';
+import { GO_MODEL_MAP } from '../../../lib/go-models.js';
 
 const ADMIN_KEY = 'test-admin-key';
 const MODEL_ID = 'c1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d6';

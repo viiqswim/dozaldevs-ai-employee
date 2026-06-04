@@ -30,7 +30,11 @@ describe('GO_MODEL_MAP', () => {
 describe('resolveProvider', () => {
   it('Go model + key present → opencode-go provider with Go model ID', () => {
     const result = resolveProvider('minimax/minimax-m2.7', true);
-    expect(result).toEqual({ providerID: 'opencode-go', modelID: 'minimax-m2.7' });
+    expect(result).toEqual({
+      providerID: 'opencode-go',
+      modelID: 'minimax-m2.7',
+      goEndpointType: 'anthropic',
+    });
   });
 
   it('Go model + key absent → openrouter provider with cleaned model ID', () => {
@@ -45,7 +49,11 @@ describe('resolveProvider', () => {
 
   it('model with openrouter/ prefix → strips prefix and resolves to Go', () => {
     const result = resolveProvider('openrouter/minimax/minimax-m2.7', true);
-    expect(result).toEqual({ providerID: 'opencode-go', modelID: 'minimax-m2.7' });
+    expect(result).toEqual({
+      providerID: 'opencode-go',
+      modelID: 'minimax-m2.7',
+      goEndpointType: 'anthropic',
+    });
   });
 
   it('model with openrouter/ prefix + key absent → strips prefix and returns openrouter', () => {
@@ -55,7 +63,11 @@ describe('resolveProvider', () => {
 
   it('deepseek model + key present → opencode-go with correct Go ID', () => {
     const result = resolveProvider('deepseek/deepseek-v4-flash', true);
-    expect(result).toEqual({ providerID: 'opencode-go', modelID: 'deepseek-v4-flash' });
+    expect(result).toEqual({
+      providerID: 'opencode-go',
+      modelID: 'deepseek-v4-flash',
+      goEndpointType: 'openai',
+    });
   });
 
   it('unknown model with openrouter/ prefix + key absent → strips prefix and returns openrouter', () => {

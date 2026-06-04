@@ -3,7 +3,7 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { GO_MODEL_MAP } from '../../workers/lib/go-models.js';
+import { GO_MODEL_MAP } from '../../lib/go-models.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
