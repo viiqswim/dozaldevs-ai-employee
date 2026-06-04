@@ -300,6 +300,34 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
+    if (mention.thread_ts && mention.thread_ts !== mention.ts) {
+      const pending = pendingInputCollections.get(mention.thread_ts);
+      if (pending) {
+        pendingInputCollections.delete(mention.thread_ts);
+        try {
+          await inngest.send({
+            name: 'employee/trigger.input-received',
+            data: {
+              threadTs: mention.thread_ts,
+              text,
+              tenantId: pending.tenantId,
+              pending,
+            },
+          });
+          log.info(
+            { threadTs: mention.thread_ts, tenantId: pending.tenantId, userId: mention.user },
+            'Input-received event sent from app_mention (thread reply with @mention)',
+          );
+        } catch (err) {
+          log.error(
+            { threadTs: mention.thread_ts, err },
+            'Failed to send trigger.input-received from app_mention',
+          );
+        }
+        return;
+      }
+    }
+
     let tenantId: string | null = null;
     if (mention.team) {
       try {
@@ -1525,19 +1553,9 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           )
           .join('\n');
 
-        pendingInputCollections.set(ctx.threadTs, {
-          archetypeId: archetype.id,
-          tenantId: ctx.tenantId,
-          userId: user.id,
-          channelId: ctx.channelId,
-          text: ctx.text,
-          roleName: archetype.role_name,
-          requiredInputs,
-        });
-
-        await client.chat.postMessage({
+        const inputMsgResult = await client.chat.postMessage({
           channel: ctx.channelId,
-          thread_ts: ctx.threadTs,
+          ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
           text: `Before I can trigger *${archetype.role_name}*, I need a few details:\n\n${inputList}\n\nReply in this thread with the information above.`,
           blocks: [
             {
@@ -1548,6 +1566,18 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               },
             },
           ],
+        });
+
+        const pendingKey = (inputMsgResult.ts as string | undefined) ?? ctx.threadTs;
+
+        pendingInputCollections.set(pendingKey, {
+          archetypeId: archetype.id,
+          tenantId: ctx.tenantId,
+          userId: user.id,
+          channelId: ctx.channelId,
+          text: ctx.text,
+          roleName: archetype.role_name,
+          requiredInputs,
         });
 
         await respond({
@@ -1569,7 +1599,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         });
 
         log.info(
-          { archetypeId: archetype.id, tenantId: ctx.tenantId, threadTs: ctx.threadTs },
+          { archetypeId: archetype.id, tenantId: ctx.tenantId, pendingKey },
           'Waiting for inputs in thread before dispatching task',
         );
         return;

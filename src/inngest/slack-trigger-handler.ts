@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inngest } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
@@ -333,12 +334,14 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
           method: 'POST',
           headers: supabaseHeaders,
           body: JSON.stringify({
+            id: randomUUID(),
             archetype_id: pending.archetypeId,
             external_id: externalId,
             source_system: 'slack',
             status: 'Ready',
             tenant_id: tenantId,
             raw_event: { inputs: { prompt: pending.text, ...collectedInputs } },
+            updated_at: new Date().toISOString(),
           }),
         });
         const tasks = (await createRes.json()) as Array<{ id: string }>;
