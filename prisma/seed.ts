@@ -5230,6 +5230,13 @@ BOTH must be executed as bash tool calls. A text response without running these 
       description: 'Slack channel for cost circuit breaker alerts. Empty = disabled.',
       is_required: false,
     },
+    {
+      key: 'gateway_llm_model',
+      value: 'deepseek/deepseek-v4-flash',
+      description:
+        'LLM model used for gateway calls (classification, archetype generation, rule extraction). Must be a valid OpenRouter model ID. If available on OpenCodeGo and OPENCODE_GO_API_KEY is set, calls route through Go automatically.',
+      is_required: true,
+    },
   ];
 
   for (const setting of platformSettings) {
