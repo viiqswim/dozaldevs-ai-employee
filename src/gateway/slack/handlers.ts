@@ -1453,23 +1453,31 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
-      replace_original: true,
-      text: '⏳ Triggering employee...',
-      blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Triggering employee...' } },
-        {
-          type: 'context',
-          elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
-        },
-      ],
-    });
+    await ack();
 
     log.info(
       { archetypeId: ctx.archetypeId, tenantId: ctx.tenantId, userId: user.id },
       'trigger_confirm action received — dispatching task',
     );
+
+    try {
+      await respond({
+        replace_original: true,
+        text: '⏳ Triggering employee...',
+        blocks: [
+          { type: 'section', text: { type: 'mrkdwn', text: '⏳ Triggering employee...' } },
+          {
+            type: 'context',
+            elements: [{ type: 'mrkdwn' as const, text: `Archetype \`${ctx.archetypeId}\`` }],
+          },
+        ],
+      });
+    } catch (err) {
+      log.warn(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to show pending feedback on trigger_confirm',
+      );
+    }
 
     try {
       const supabaseUrl = SUPABASE_URL();
