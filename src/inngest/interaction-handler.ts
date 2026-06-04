@@ -345,7 +345,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             kbEntries.map((e) => e.content).join('\n\n') || 'No knowledge base entries found.';
           const roleName = context.roleName ?? 'AI Employee';
           const llmResult = await callLLM({
-            model: 'anthropic/claude-haiku-4-5',
             taskType: 'review',
             messages: [
               {
@@ -382,7 +381,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         if (intent === 'feedback' || intent === 'teaching') {
           const roleName = context.roleName ?? 'AI Employee';
           const llmResult = await callLLM({
-            model: 'anthropic/claude-haiku-4-5',
             taskType: 'review',
             messages: [
               {

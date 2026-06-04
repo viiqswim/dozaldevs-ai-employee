@@ -550,7 +550,6 @@ export class ArchetypeGenerator {
     const systemPrompt = await buildSystemPrompt();
 
     const llmResult = await this.callLLMFn({
-      model: 'anthropic/claude-haiku-4-5',
       taskType: 'review',
       temperature: 0.3,
       maxTokens: 6000,
@@ -616,7 +615,6 @@ export class ArchetypeGenerator {
     );
 
     const llmResult = await this.callLLMFn({
-      model: 'anthropic/claude-haiku-4-5',
       taskType: 'review',
       temperature: 0.3,
       maxTokens: 6000,

@@ -104,7 +104,6 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
           .join('\n');
 
         const llmResult = await callLLM({
-          model: 'anthropic/claude-haiku-4-5',
           taskType: 'review',
           messages: [
             { role: 'system', content: RULE_SYNTHESIZER_SYSTEM_PROMPT },

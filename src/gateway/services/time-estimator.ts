@@ -33,7 +33,6 @@ export class TimeEstimator {
         .join('\n');
 
       const result = await this.callLLMFn({
-        model: 'anthropic/claude-haiku-4-5',
         taskType: 'review',
         temperature: 0,
         maxTokens: 50,

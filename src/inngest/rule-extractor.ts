@@ -118,7 +118,6 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
 
       const llmResult = await step.run('extract-rule', async () => {
         return callLLM({
-          model: 'anthropic/claude-haiku-4-5',
           taskType: 'review',
           taskId: taskId ?? undefined,
           messages: [

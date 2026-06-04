@@ -19,7 +19,6 @@ export class InteractionClassifier {
       : `Classify this interaction into exactly one category: feedback, teaching, question, task. Respond with one word only.${injectionBoundary}`;
 
     const result = await this.callLLMFn({
-      model: 'anthropic/claude-haiku-4-5',
       taskType: 'review',
       messages: [
         { role: 'system', content: systemPrompt },
