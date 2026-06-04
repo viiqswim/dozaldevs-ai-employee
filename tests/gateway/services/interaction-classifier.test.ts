@@ -166,9 +166,8 @@ describe('resolveArchetypeFromChannel', () => {
     const result = await resolveArchetypeFromChannel('C123', 'tenant-1');
 
     expect(result).toEqual({
-      id: 'arch-1',
-      role_name: 'Papi Chulo',
-      notification_channel: 'C123',
+      archetype: { id: 'arch-1', role_name: 'Papi Chulo', notification_channel: 'C123' },
+      isExactMatch: true,
     });
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -182,9 +181,8 @@ describe('resolveArchetypeFromChannel', () => {
     const result = await resolveArchetypeFromChannel('C999', 'tenant-1');
 
     expect(result).toEqual({
-      id: 'arch-2',
-      role_name: 'Summarizer',
-      notification_channel: null,
+      archetype: { id: 'arch-2', role_name: 'Summarizer', notification_channel: null },
+      isExactMatch: false,
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
@@ -195,7 +193,7 @@ describe('resolveArchetypeFromChannel', () => {
 
     const result = await resolveArchetypeFromChannel('C999', 'tenant-1');
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ archetype: null, isExactMatch: false });
   });
 
   it('uses correct PostgREST URL with channel and tenant filters', async () => {

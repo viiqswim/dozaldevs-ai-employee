@@ -45,7 +45,10 @@ function getPostgrestHeaders(): Record<string, string> {
 export async function resolveArchetypeFromChannel(
   channelId: string,
   tenantId: string,
-): Promise<{ id: string; role_name: string; notification_channel: string | null } | null> {
+): Promise<{
+  archetype: { id: string; role_name: string; notification_channel: string | null } | null;
+  isExactMatch: boolean;
+}> {
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const headers = getPostgrestHeaders();
 
@@ -59,7 +62,7 @@ export async function resolveArchetypeFromChannel(
     }>;
 
     if (data1.length > 0) {
-      return data1[0];
+      return { archetype: data1[0], isExactMatch: true };
     }
 
     const url2 = `${supabaseUrl}/rest/v1/archetypes?tenant_id=eq.${tenantId}&status=eq.active&select=id,role_name,notification_channel&order=created_at.asc&limit=1`;
@@ -71,13 +74,13 @@ export async function resolveArchetypeFromChannel(
     }>;
 
     if (data2.length > 0) {
-      return data2[0];
+      return { archetype: data2[0], isExactMatch: false };
     }
 
-    return null;
+    return { archetype: null, isExactMatch: false };
   } catch (err) {
     log.warn({ channelId, tenantId, err }, 'Failed to resolve archetype from channel');
-    return null;
+    return { archetype: null, isExactMatch: false };
   }
 }
 

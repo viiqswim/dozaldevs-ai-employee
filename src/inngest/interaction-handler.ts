@@ -52,11 +52,11 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             log.warn({ userId }, 'Mention missing tenantId — skipping');
             return null;
           }
-          const archetype = await resolveArchetypeFromChannel(channelId, tenantId);
+          const result = await resolveArchetypeFromChannel(channelId, tenantId);
           return {
             tenantId,
-            archetypeId: archetype?.id ?? null,
-            roleName: archetype?.role_name ?? null,
+            archetypeId: result.archetype?.id ?? null,
+            roleName: result.archetype?.role_name ?? null,
           };
         }
       });
@@ -376,7 +376,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
           return;
         }
 
-        let ackText: string;
+        let ackText: string | null;
 
         if (intent === 'feedback' || intent === 'teaching') {
           const roleName = context.roleName ?? 'AI Employee';
@@ -396,8 +396,10 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         } else if (intent === 'question') {
           ackText = routeResult.answer ?? 'I was unable to find an answer.';
         } else {
-          ackText = "Got it! I'll work on that.";
+          ackText = null;
         }
+
+        if (!ackText) return;
 
         const contextId = taskId ?? context.archetypeId ?? 'unknown';
         const ackBlocks = [
@@ -456,6 +458,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             userId,
             channelId,
             archetypeId: context.archetypeId,
+            threadTs,
           },
         });
       }

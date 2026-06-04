@@ -245,7 +245,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       thread_ts?: string;
       ts: string;
       team?: string;
+      bot_id?: string;
     };
+
+    // Guard: ignore bot self-mentions (bot_id is set on bot-posted messages)
+    if (mention.bot_id) return;
+
+    // Guard: ignore DMs (Slack DM channel IDs start with 'D')
+    if (mention.channel.startsWith('D')) return;
 
     const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
