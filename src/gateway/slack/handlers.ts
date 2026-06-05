@@ -7,6 +7,7 @@ import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { extractInputsFromText } from '../../lib/extract-inputs.js';
 import { callLLM } from '../../lib/call-llm.js';
+import { randomUUID } from 'node:crypto';
 
 const log = createLogger('slack-handlers');
 
@@ -1567,10 +1568,13 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             }))
         : [];
 
-      const extractedInputs =
+      let extractedInputs =
         requiredInputs.length > 0
           ? await extractInputsFromText(ctx.text, requiredInputs, callLLM)
           : {};
+      if (requiredInputs.length > 0 && Object.keys(extractedInputs).length === 0) {
+        extractedInputs = await extractInputsFromText(ctx.text, requiredInputs, callLLM);
+      }
 
       const missingInputs = requiredInputs.filter((inp) => !(inp.key in extractedInputs));
       const allFound = requiredInputs.length > 0 && missingInputs.length === 0;
@@ -1623,6 +1627,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           method: 'POST',
           headers,
           body: JSON.stringify({
+            id: randomUUID(),
             archetype_id: archetype.id,
             external_id: externalId,
             source_system: 'slack',
@@ -1632,8 +1637,23 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           }),
         });
         const tasks = (await createRes.json()) as Array<{ id: string }>;
-        if (!tasks.length) throw new Error('Task creation returned empty response');
-        const taskId = tasks[0].id;
+        let taskId: string;
+        if (!tasks.length) {
+          // PostgREST returns [] on duplicate unique constraint — check if task already exists
+          const existingRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?external_id=eq.${encodeURIComponent(externalId)}&select=id`,
+            { headers },
+          );
+          const existing = (await existingRes.json()) as Array<{ id: string }>;
+          if (!existing.length) throw new Error('Task creation returned empty response');
+          taskId = existing[0].id;
+          log.info(
+            { taskId, externalId, tenantId: ctx.tenantId },
+            'Reusing existing task for duplicate trigger_confirm (idempotent)',
+          );
+        } else {
+          taskId = tasks[0].id;
+        }
 
         await inngest.send({
           name: 'employee/task.dispatched',
@@ -1735,6 +1755,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         method: 'POST',
         headers,
         body: JSON.stringify({
+          id: randomUUID(),
           archetype_id: archetype.id,
           external_id: externalId,
           source_system: 'slack',
