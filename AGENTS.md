@@ -611,10 +611,10 @@ Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `
 
 ```bash
 # Count gateway leaf processes (should be exactly 1)
-pgrep -f "$(pwd)/src/gateway/server.ts" | wc -l
+pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l
 ```
 
-**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that anchors on the absolute path, matching all three process forms (supervisor, leaf, and any tsx variant). If you still see stale processes, kill them manually:
+**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that anchors on the absolute repo path, matching all three process forms (npm exec supervisor, tsx CLI supervisor, node leaf). The `.*` is required because `$(pwd)` appears in the tsx module path (`node_modules`), not directly prefixed to the script argument. If you still see stale processes, kill them manually:
 
 ```bash
 pkill -f "$(pwd)/src/gateway/server.ts" || true
@@ -839,7 +839,7 @@ Every plan for an AI employee feature must include a **real browser E2E validati
 
 **Slack trigger workflow changes require live @mention E2E.** Any plan that modifies the Slack trigger workflow — `app_mention` handler, `slack-trigger-handler`, `interaction-handler`/classifier, confirmation cards, `slack-copy`, or any code in the path from @mention to task dispatch — MUST include all three of the following before the plan passes:
 
-1. **Single-gateway pre-flight**: `pgrep -f "$(pwd)/src/gateway/server.ts" | wc -l` must return `1`. If it returns more, kill the zombies before proceeding — a stale socket will silently absorb ~50% of test events.
+1. **Single-gateway pre-flight**: `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` must return `1`. If it returns more, kill the zombies before proceeding — a stale socket will silently absorb ~50% of test events.
 2. **Live @mention → Confirm → Done E2E**: Send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
 3. **"Verified from code" or "unit tests pass" is explicitly insufficient** for this workflow — the live Slack path must be exercised.
 

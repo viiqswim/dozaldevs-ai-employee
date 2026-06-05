@@ -214,10 +214,31 @@ log('');
 // ─────────────────────────────────────────────────────
 log('── Step 0: Killing stale processes from previous sessions ──');
 
+// Anchor on the absolute repo root so patterns never accidentally match processes from
+// other git clones, editors (LSP), or unrelated projects on the same machine.
+const repoRoot = process.cwd();
+
 for (const [name, pattern] of [
-  ['Inngest', 'inngest-cli.*8288'],
-  ['Gateway', 'tsx.*watch.*server\\.ts'],
-  ['Dashboard', `vite.*${DASHBOARD_PORT}`],
+  // Inngest: npm exec (supervisor) spawns the inngest Go binary as a direct child.
+  // Real binary cmdline: "inngest dev -u ... --port 8288" — no "inngest-cli" token.
+  // OLD "inngest-cli.*8288" killed only the npm exec supervisor, potentially leaving
+  // the binary alive with port 8288 still held. Dropping "-cli" catches both layers.
+  // Port 8288 anchors the match; the inngest Go binary has no repo path in its argv.
+  ['Inngest', 'inngest.*8288'],
+  // Gateway: tsx spawns a 3-process tree — npm exec (supervisor) → tsx CLI (supervisor)
+  // → node leaf (node --require preflight.cjs --import loader.mjs src/gateway/server.ts).
+  // OLD "tsx.*watch.*server\.ts" killed both supervisors but MISSED the leaf because it
+  // has no "watch" token — the leaf kept its Slack Socket Mode WebSocket open, stealing
+  // ~50% of app_mention events. Both the tsx CLI supervisor and the leaf carry ${repoRoot}
+  // in their tsx module paths (node_modules), so this pattern catches them both.
+  // The `.*` is required because repoRoot appears in the tsx module path, not directly
+  // prefixed to the script argument. npm exec dies transitively when tsx CLI exits.
+  ['Gateway', `${repoRoot}.*src/gateway/server\\.ts`],
+  // Dashboard: pnpm (supervisor) spawns vite (node .../dashboard/node_modules/.../vite.js).
+  // The pnpm supervisor has no "vite" in its argv; the vite leaf does. Anchoring on
+  // repoRoot/dashboard avoids matching vite from other projects (e.g. a separate project
+  // that happens to use the same port). pnpm exits transitively when the vite leaf dies.
+  ['Dashboard', `${repoRoot}/dashboard.*vite`],
 ] as [string, string][]) {
   try {
     const pids = execSync(`pgrep -f "${pattern}" || true`, { encoding: 'utf8' }).trim();
