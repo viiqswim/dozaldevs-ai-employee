@@ -352,6 +352,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           userId: mention.user,
           channelId: mention.channel,
           threadTs: mention.thread_ts,
+          messageTs: mention.ts,
           taskId: taskId ?? undefined,
           tenantId,
           team: mention.team,
