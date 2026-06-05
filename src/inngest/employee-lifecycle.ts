@@ -275,7 +275,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               await slackClientForSupersede.updateMessage(
                 supersededNotifyChannel,
                 supersededNotifyTs,
-                `⏳ Task received — processing (${roleName})`,
+                `⏳ On it — *${roleName}* is working on it`,
                 blocks,
               );
               try {
@@ -316,7 +316,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const slackClientForNotify = createSlackClient({ botToken, defaultChannel: channel });
           const result = await slackClientForNotify.postMessage({
             channel,
-            text: `⏳ Task received — processing (${roleName})`,
+            text: `⏳ On it — *${roleName}* is working on it`,
             blocks,
             unfurl_links: false,
           });
@@ -739,7 +739,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   botToken: botTokenForFail,
                   defaultChannel: '',
                 });
-                const failText = `❌ Task failed`;
+                const failText = `❌ Something went wrong — *${(archetype.role_name as string) ?? 'unknown'}* ran into a problem`;
                 const taskForFailReason = await fetch(
                   `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=failure_reason`,
                   { headers },
@@ -1053,7 +1053,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               status: 'Failed',
               failure_reason: 'Archetype missing delivery_instructions',
             });
-            const configFailText = `❌ Task failed — missing delivery configuration`;
+            const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
             if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
               try {
                 const botTokenForConfigFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
@@ -1068,7 +1068,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                     configFailText,
                     notifyStateBlocks({
                       emoji: '❌',
-                      text: 'Task failed — missing delivery configuration',
+                      text: "Something went wrong — this employee isn't set up for delivery yet",
                     }),
                   );
                 }
@@ -1220,7 +1220,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                       botToken: botTokenForFail,
                       defaultChannel: '',
                     });
-                    const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
+                    const deliveryFailText = `❌ Something went wrong — the delivery did not go through`;
                     const delivFailBlocks = notifyBlocks({
                       state: 'Delivery failed',
                       archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -2333,7 +2333,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               status: 'Failed',
               failure_reason: 'Archetype missing delivery_instructions',
             });
-            const configFailText = `❌ Task failed — missing delivery configuration`;
+            const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
             if (approvalMsgTs && targetChannel) {
               try {
                 await slackClient.updateMessage(targetChannel, approvalMsgTs, configFailText, [
@@ -2355,7 +2355,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   configFailText,
                   notifyStateBlocks({
                     emoji: '❌',
-                    text: 'Task failed — missing delivery configuration',
+                    text: "Something went wrong — this employee isn't set up for delivery yet",
                   }),
                 );
               } catch (err) {
@@ -2560,7 +2560,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 failure_reason: 'Delivery failed after 3 attempts',
               });
               if (approvalMsgTs && targetChannel) {
-                const errorText = `❌ Delivery failed after 3 attempts. Task \`${taskId}\` marked as failed.`;
+                const errorText = `❌ Delivery ran into a problem after 3 attempts — I've marked this one as failed`;
                 try {
                   await slackClient.updateMessage(targetChannel, approvalMsgTs, errorText, [
                     { type: 'section', text: { type: 'mrkdwn', text: errorText } },
@@ -2575,7 +2575,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               }
               if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
                 try {
-                  const deliveryFailText = `❌ Task failed — delivery unsuccessful`;
+                  const deliveryFailText = `❌ Something went wrong — the delivery did not go through`;
                   const delivFailBlocks = notifyBlocks({
                     state: 'Delivery failed',
                     archetypeName: (archetype.role_name as string) ?? 'unknown',

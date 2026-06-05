@@ -314,7 +314,7 @@ describe('buildEnrichedTerminalBlocks', () => {
       taskId: 'task-fail-001',
     });
     const allText = JSON.stringify(blocks);
-    expect(allText).toContain('❌ *Task failed*');
+    expect(allText).toContain('❌ *Something went wrong*');
     expect(allText).toContain('task-fail-001');
   });
 

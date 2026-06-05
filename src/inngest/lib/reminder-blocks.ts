@@ -34,10 +34,7 @@ export function buildReminderBlocks(threads: ReminderThread[]): unknown[] {
   blocks.push({
     type: 'context',
     elements: [
-      {
-        type: 'mrkdwn',
-        text: '⚡ Unresponded message alert — AI Employee Platform',
-      },
+      { type: 'mrkdwn', text: '⚡ These guests are still waiting on a reply' },
     ],
   });
 

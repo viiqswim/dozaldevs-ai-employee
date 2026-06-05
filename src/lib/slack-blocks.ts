@@ -36,7 +36,7 @@ export function buildEnrichedNotifyBlocks(params: {
   if (bookingChannel) subtitleParts.push(bookingChannel);
   if (checkIn && checkOut) subtitleParts.push(`${checkIn}–${checkOut}`);
 
-  let mainText = `⏳ *Processing reply for ${guestName}*`;
+  let mainText = `⏳ *Working on a reply for ${guestName}*`;
   if (subtitleParts.length > 0) {
     mainText += `\n_${subtitleParts.join(' · ')}_`;
   }
@@ -101,22 +101,22 @@ export function buildNotifyStateBlocks(params: {
   if (isProcessing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+      elements: [{ type: 'mrkdwn', text: "⏳ On it — I'll post an update here when it's ready" }],
     });
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+      elements: [{ type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' }],
     });
   } else if (isNoAction) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+      elements: [{ type: 'mrkdwn', text: '✅ All done!' }],
     });
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+      elements: [{ type: 'mrkdwn', text: '❌ Something went wrong on my end — check the thread for details' }],
     });
   }
 
@@ -169,7 +169,7 @@ export function buildOverrideCardBlocks(params: {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `🤖 *AI skipped this task*\n_Employee: ${roleName}_\n\n*Reasoning:* ${reasoning}`,
+        text: `ℹ️ *I decided to skip this one*\n_${roleName}_\n\n${reasoning}`,
       },
     },
   ];
@@ -308,7 +308,7 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'failed') {
-    const mainText = `❌ *Task failed*${guestSuffix}${propertyLine}`;
+    const mainText = `❌ *Something went wrong*${guestSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
@@ -343,7 +343,7 @@ export function buildEnrichedTerminalBlocks(params: {
     return blocks;
   }
 
-  const mainText = `❌ *Delivery failed — reply not sent*${guestSuffix}${propertyLine}`;
+  const mainText = `❌ *Delivery failed — the reply wasn't sent*${guestSuffix}${propertyLine}`;
   blocks.push({
     type: 'section',
     text: { type: 'mrkdwn', text: mainText },
@@ -502,22 +502,22 @@ export function buildNotifyBlocks(params: {
   if (isProcessing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+      elements: [{ type: 'mrkdwn', text: "⏳ On it — I'll post an update here when it's ready" }],
     } as KnownBlock);
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+      elements: [{ type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' }],
     } as KnownBlock);
   } else if (isDone) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+      elements: [{ type: 'mrkdwn', text: '✅ All done!' }],
     } as KnownBlock);
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+      elements: [{ type: 'mrkdwn', text: '❌ Something went wrong on my end — check the thread for details' }],
     } as KnownBlock);
   }
 

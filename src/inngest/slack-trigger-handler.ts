@@ -404,13 +404,13 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
           body: JSON.stringify({
             channel: pending.channelId,
             thread_ts: threadTs,
-            text: `✅ *${employeeName}* has been triggered by <@${pending.userId}>`,
+            text: `✅ Done — *${employeeName}* is on it, kicked off by <@${pending.userId}>`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `✅ *${employeeName}* has been triggered by <@${pending.userId}>`,
+                  text: `✅ Done — *${employeeName}* is on it, kicked off by <@${pending.userId}>`,
                 },
               },
               {
