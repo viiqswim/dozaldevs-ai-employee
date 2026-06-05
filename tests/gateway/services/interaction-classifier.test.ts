@@ -68,11 +68,11 @@ describe('InteractionClassifier', () => {
       expect(intent).toBe('unclear');
     });
 
-    it('falls back to question for unrecognized LLM response', async () => {
+    it('falls back to unclear for unrecognized LLM response', async () => {
       mockCallLLM = makeCallLLM('unknown_intent');
       classifier = new InteractionClassifier(mockCallLLM as typeof callLLM);
       const intent = await classifier.classifyIntent('some text');
-      expect(intent).toBe('question');
+      expect(intent).toBe('unclear');
     });
 
     it('trims and lowercases LLM response', async () => {

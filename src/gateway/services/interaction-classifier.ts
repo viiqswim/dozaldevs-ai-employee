@@ -41,7 +41,7 @@ Respond with exactly one word: feedback, teaching, question, task, or unclear. N
       { intent, roleName: archetypeContext?.role_name ?? null, textLength: text.length },
       'Intent classified',
     );
-    return validIntents.includes(intent as MentionIntent) ? (intent as MentionIntent) : 'question';
+    return validIntents.includes(intent as MentionIntent) ? (intent as MentionIntent) : 'unclear';
   }
 }
 
