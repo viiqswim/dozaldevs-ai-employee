@@ -76,10 +76,10 @@ Make `extractInputsFromText` reliably return the extracted inputs when the user'
 
 ### Definition of Done
 
-- [ ] Live reproduction: 8/8 extractions of "puedes generarme el itinerario de limpieza para Junio 8, 2026?" return `{"date":"2026-06-08"}` (vs. pre-fix ~38-50% failure).
-- [ ] Slack E2E: @mention with the date-bearing Spanish message → Confirm → task dispatched (NOT re-prompted); DB `raw_event->'inputs'->>'date'` = `2026-06-08`.
-- [ ] `pnpm test -- --run tests/lib/extract-inputs.test.ts` → 0 failures (11 existing + 8 new).
-- [ ] No changes outside `src/lib/extract-inputs.ts` and `tests/lib/extract-inputs.test.ts`.
+- [x] Live reproduction: 8/8 extractions of "puedes generarme el itinerario de limpieza para Junio 8, 2026?" return `{"date":"2026-06-08"}` (vs. pre-fix ~38-50% failure).
+- [x] Slack E2E: @mention with the date-bearing Spanish message → Confirm → task dispatched (NOT re-prompted); DB `raw_event->'inputs'->>'date'` = `2026-06-08`.
+- [x] `pnpm test -- --run tests/lib/extract-inputs.test.ts` → 0 failures (11 existing + 8 new).
+- [x] No changes outside `src/lib/extract-inputs.ts` and `tests/lib/extract-inputs.test.ts`.
 
 ### Must Have
 
@@ -334,7 +334,7 @@ Note: Single-file change — intentionally sequential, no parallelism benefit.
   - Files: `tests/lib/extract-inputs.test.ts`
   - Pre-commit: `pnpm test -- --run tests/lib/extract-inputs.test.ts`
 
-- [ ] 3. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 3. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
   **What to do**:
   - After F1-F4 pass and user approves, run: `tsx scripts/telegram-notify.ts "✅ fix-extraction-truncation complete — extraction retry shipped, Junio 8 repro 8/8. Come back to review."`
@@ -421,8 +421,8 @@ git diff --name-only
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Live reproduction 8/8 success
-- [ ] Slack E2E dispatches with `date=2026-06-08` in DB
-- [ ] All tests pass; only 2 files changed
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Live reproduction 8/8 success
+- [x] Slack E2E dispatches with `date=2026-06-08` in DB
+- [x] All tests pass; only 2 files changed
