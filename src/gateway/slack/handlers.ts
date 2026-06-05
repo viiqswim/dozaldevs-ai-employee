@@ -13,6 +13,7 @@ import {
   successMessage,
   failureMessage,
   missingInfoMessage,
+  ruleProposedMessage,
 } from '../../lib/slack-copy.js';
 import { randomUUID } from 'node:crypto';
 
@@ -756,6 +757,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
 
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_edit modal (non-fatal)',
+        );
+      }
+    }
+
     try {
       await client.views.open({
         trigger_id: (body as { trigger_id: string }).trigger_id,
@@ -824,6 +844,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
 
     const user = body.user;
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: '⏳ Got it — working on your edit…',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ Got it — working on your edit…' },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_edit_modal poll (non-fatal)',
+        );
+      }
+    }
 
     try {
       const stillAwaiting = await isTaskAwaitingApproval(taskId, {
@@ -905,6 +947,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
 
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_reject modal (non-fatal)',
+        );
+      }
+    }
+
     try {
       await client.views.open({
         trigger_id: (body as { trigger_id: string }).trigger_id,
@@ -961,6 +1022,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before override_take_action modal (non-fatal)',
+        );
+      }
+    }
 
     try {
       await client.views.open({
@@ -1063,6 +1143,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (!taskId) {
       log.error('override_take_action_modal submitted without taskId in private_metadata');
       return;
+    }
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: '⏳ On it — working on your direction…',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before override_take_action_modal work (non-fatal)',
+        );
+      }
     }
 
     const stillAwaiting = await isTaskAwaitingOverride(taskId);
@@ -1237,6 +1339,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_confirm work (non-fatal)',
+        );
+      }
+    }
+
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -1363,6 +1485,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_reject work (non-fatal)',
+        );
+      }
+    }
+
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -1430,6 +1572,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
     await ack();
 
+    const channel = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_rephrase work (non-fatal)',
+        );
+      }
+    }
+
     let currentRuleText = '';
     try {
       const supabaseUrl = SUPABASE_URL();
@@ -1455,7 +1619,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         view: {
           type: 'modal',
           callback_id: 'rule_rephrase_modal',
-          private_metadata: JSON.stringify({ ruleId }),
+          private_metadata: JSON.stringify({
+            ruleId,
+            channelId: channel ?? '',
+            messageTs: messageTs ?? '',
+          }),
           title: { type: 'plain_text', text: 'Rephrase Rule' },
           submit: { type: 'plain_text', text: 'Save' },
           close: { type: 'plain_text', text: 'Cancel' },
@@ -1495,9 +1663,17 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     await ack();
 
     let ruleId = '';
+    let rephraseChannelId = '';
+    let rephraseMessageTs = '';
     try {
-      const meta = JSON.parse(view.private_metadata ?? '{}') as { ruleId?: string };
+      const meta = JSON.parse(view.private_metadata ?? '{}') as {
+        ruleId?: string;
+        channelId?: string;
+        messageTs?: string;
+      };
       ruleId = meta.ruleId ?? '';
+      rephraseChannelId = meta.channelId ?? '';
+      rephraseMessageTs = meta.messageTs ?? '';
     } catch {
       log.error('Failed to parse rule_rephrase_modal private_metadata');
       return;
@@ -1506,6 +1682,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (!ruleId) {
       log.error('rule_rephrase_modal submitted without ruleId in private_metadata');
       return;
+    }
+
+    if (rephraseChannelId && rephraseMessageTs) {
+      try {
+        await client.chat.update({
+          channel: rephraseChannelId,
+          ts: rephraseMessageTs,
+          text: 'On it — saving your rephrase…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — saving your rephrase…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_rephrase_modal work (non-fatal)',
+        );
+      }
     }
 
     try {
@@ -1544,13 +1739,13 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         await client.chat.update({
           channel: slack_channel,
           ts: slack_ts,
-          text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+          text: ruleProposedMessage(newText.trim()),
           blocks: [
             {
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+                text: ruleProposedMessage(newText.trim()),
               },
             },
             { type: 'divider' },
