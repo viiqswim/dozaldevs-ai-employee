@@ -1551,6 +1551,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       );
     }
 
+    let dispatched = false;
+
     try {
       const supabaseUrl = SUPABASE_URL();
       const headers = supabaseHeaders();
@@ -1628,7 +1630,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               },
             ],
           });
-          confirmText = confirmResult.content.trim();
+          confirmText = confirmResult.content?.trim() ?? '';
           if (!confirmText) {
             confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
           }
@@ -1682,29 +1684,38 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           data: { taskId, archetypeId: archetype.id },
           id: `employee-dispatch-${externalId}`,
         });
+        dispatched = true;
 
         log.info(
           { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, extractedInputs },
           'Task dispatched from trigger_confirm with extracted inputs',
         );
 
-        await respond({
-          replace_original: true,
-          text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
-          blocks: [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+        try {
+          await respond({
+            replace_original: true,
+            text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+                },
               },
-            },
-            {
-              type: 'context',
-              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-            },
-          ],
-        });
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+              },
+            ],
+          });
+        } catch (err) {
+          log.warn(
+            { archetypeId: ctx.archetypeId, err },
+            'Failed to show pending feedback on trigger_confirm',
+          );
+        }
+        return;
       } else if (someFound || requiredInputs.length > 0) {
         const inputsToAsk = someFound ? missingInputs : requiredInputs;
         const inputList = inputsToAsk
@@ -1806,54 +1817,69 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         data: { taskId, archetypeId: archetype.id },
         id: `employee-dispatch-${externalId}`,
       });
+      dispatched = true;
 
       log.info(
         { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, userId: user.id },
         'Task dispatched from Slack trigger confirmation',
       );
 
-      await respond({
-        replace_original: true,
-        text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
-            },
-          },
-          {
-            type: 'context',
-            elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
-          },
-        ],
-      });
-    } catch (err) {
-      log.error(
-        { archetypeId: ctx.archetypeId, err },
-        'Failed to dispatch task from trigger_confirm',
-      );
       try {
         await respond({
           replace_original: true,
-          text: '⚠️ Failed to trigger employee. Please try again.',
+          text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
           blocks: [
             {
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: '⚠️ Failed to trigger employee. Please try again.',
+                text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
               },
             },
             {
               type: 'context',
-              elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
             },
           ],
         });
-      } catch (respondErr) {
-        log.warn({ err: respondErr }, 'Failed to update message after trigger_confirm failure');
+      } catch (err) {
+        log.warn(
+          { archetypeId: ctx.archetypeId, err },
+          'Failed to show pending feedback on trigger_confirm',
+        );
+      }
+    } catch (err) {
+      log.error(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to dispatch task from trigger_confirm',
+      );
+      if (!dispatched) {
+        try {
+          await respond({
+            replace_original: true,
+            text: '⚠️ Failed to trigger employee. Please try again.',
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: '⚠️ Failed to trigger employee. Please try again.',
+                },
+              },
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+              },
+            ],
+          });
+        } catch (respondErr) {
+          log.warn({ err: respondErr }, 'Failed to update message after trigger_confirm failure');
+        }
+      } else {
+        log.warn(
+          { archetypeId: ctx.archetypeId, err },
+          'trigger_confirm: post-dispatch error after successful dispatch (suppressed false-failure message)',
+        );
       }
     }
   });
