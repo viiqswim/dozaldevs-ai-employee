@@ -18,7 +18,13 @@ interface PendingInputContext {
   channelId: string;
   text: string;
   roleName: string;
-  requiredInputs: Array<{ key: string; label: string; description?: string }>;
+  requiredInputs: Array<{
+    key: string;
+    label: string;
+    description?: string;
+    type?: string;
+    options?: string[];
+  }>;
   extractedInputs?: Record<string, string>;
 }
 
@@ -321,8 +327,18 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
       let collectedInputs: Record<string, string> = {};
 
       if (pending.requiredInputs.length === 1) {
-        // Single input — assign directly, no LLM needed
-        collectedInputs[pending.requiredInputs[0].key] = text;
+        const input = pending.requiredInputs[0];
+        const extracted = await extractInputsFromText(text, [input], callLLM);
+        if (extracted[input.key]) {
+          collectedInputs[input.key] = extracted[input.key];
+        } else {
+          // LLM extraction failed — fall back to raw text with warning
+          log.warn(
+            { key: input.key, type: input.type, text },
+            'LLM extraction returned empty for single input — falling back to raw text',
+          );
+          collectedInputs[input.key] = text;
+        }
       } else if (pending.requiredInputs.length > 1) {
         // Multi-input — use per-field LLM extraction
         const extracted = await extractInputsFromText(text, pending.requiredInputs, callLLM);

@@ -1714,6 +1714,21 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           )
           .join('\n');
 
+        const pendingData: PendingInputCollection = {
+          archetypeId: archetype.id,
+          tenantId: ctx.tenantId,
+          userId: user.id,
+          channelId: ctx.channelId,
+          text: ctx.text,
+          roleName: archetype.role_name,
+          requiredInputs,
+          extractedInputs: someFound ? extractedInputs : undefined,
+        };
+
+        if (ctx.threadTs) {
+          pendingInputCollections.set(ctx.threadTs, pendingData);
+        }
+
         const inputMsgResult = await client.chat.postMessage({
           channel: ctx.channelId,
           ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
@@ -1731,16 +1746,9 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
         const pendingKey = ctx.threadTs ?? (inputMsgResult.ts as string | undefined);
 
-        pendingInputCollections.set(pendingKey, {
-          archetypeId: archetype.id,
-          tenantId: ctx.tenantId,
-          userId: user.id,
-          channelId: ctx.channelId,
-          text: ctx.text,
-          roleName: archetype.role_name,
-          requiredInputs,
-          extractedInputs: someFound ? extractedInputs : undefined,
-        });
+        if (!ctx.threadTs) {
+          pendingInputCollections.set(pendingKey, pendingData);
+        }
 
         await respond({
           replace_original: true,
