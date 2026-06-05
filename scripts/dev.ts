@@ -210,6 +210,32 @@ log('╚════════════════════════
 log('');
 
 // ─────────────────────────────────────────────────────
+// Step 0: Kill stale processes from previous sessions
+// ─────────────────────────────────────────────────────
+log('── Step 0: Killing stale processes from previous sessions ──');
+
+for (const [name, pattern] of [
+  ['Inngest', 'inngest-cli.*8288'],
+  ['Gateway', 'tsx.*watch.*server\\.ts'],
+  ['Dashboard', `vite.*${DASHBOARD_PORT}`],
+] as [string, string][]) {
+  try {
+    const pids = execSync(`pgrep -f "${pattern}" || true`, { encoding: 'utf8' }).trim();
+    if (pids) {
+      const count = pids.split('\n').filter(Boolean).length;
+      warn(`Killing ${count} stale ${name} process(es) from previous session`);
+      execSync(`pkill -f "${pattern}" || true`, { encoding: 'utf8' });
+    }
+  } catch {
+    /* ignore — process may have already exited */
+  }
+}
+
+await new Promise((r) => setTimeout(r, 500));
+ok('Stale process check complete');
+log('');
+
+// ─────────────────────────────────────────────────────
 // Step 1: Pre-flight checks
 // ─────────────────────────────────────────────────────
 log('── Step 1: Pre-flight checks ──');
