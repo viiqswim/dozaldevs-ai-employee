@@ -62,6 +62,7 @@ const defaultData = {
   userId: 'U123',
   channelId: 'C123',
   threadTs: '1234567890.000100',
+  messageTs: undefined as string | undefined,
   taskId: 'task-abc-123',
   tenantId: undefined as string | undefined,
   team: undefined as string | undefined,
@@ -257,6 +258,46 @@ describe('createInteractionHandlerFunction', () => {
       'emit-task-requested',
       expect.objectContaining({ name: 'employee/task.requested' }),
     );
+  });
+
+  it('mention + unclear intent: posts clarifying message and Confirm/Cancel card', async () => {
+    mockClassifyIntent.mockResolvedValue('unclear');
+    mockCallLLM.mockResolvedValue({
+      content: 'Not sure what you need — want me to run a task?',
+      usage: {},
+    });
+    const fn = createInteractionHandlerFunction(inngest);
+    const step = makeStep();
+
+    await invokeHandler(
+      fn,
+      makeEvent({
+        source: 'mention',
+        taskId: undefined,
+        tenantId: 'tenant-1',
+        messageTs: '1780613576.083000',
+      }),
+      step,
+    );
+
+    expect(mockCallLLM).toHaveBeenCalled();
+
+    const slackCalls = mockFetch.mock.calls.filter(
+      (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('slack.com'),
+    );
+    expect(slackCalls.length).toBeGreaterThanOrEqual(2);
+
+    const firstSlackBody = JSON.parse((slackCalls[0]![1] as RequestInit).body as string);
+    expect(firstSlackBody.text).toBe('Not sure what you need — want me to run a task?');
+
+    const secondSlackBody = JSON.parse((slackCalls[1]![1] as RequestInit).body as string);
+    const actionsBlock = secondSlackBody.blocks?.find(
+      (b: { type: string }) => b.type === 'actions',
+    );
+    expect(actionsBlock).toBeDefined();
+    const actionIds = actionsBlock.elements.map((e: { action_id: string }) => e.action_id);
+    expect(actionIds).toContain('trigger_confirm');
+    expect(actionIds).toContain('trigger_cancel');
   });
 
   it('missing tenantId on mention: returns early, no classification', async () => {
