@@ -1599,6 +1599,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             ],
           });
           confirmText = confirmResult.content.trim();
+          if (!confirmText) {
+            const summaryParts = requiredInputs
+              .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
+              .join(', ');
+            confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
+          }
         } catch {
           const summaryParts = requiredInputs
             .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
