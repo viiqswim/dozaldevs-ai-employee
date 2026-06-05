@@ -1568,24 +1568,21 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             }))
         : [];
 
-      let extractedInputs =
+      const extractedInputs =
         requiredInputs.length > 0
           ? await extractInputsFromText(ctx.text, requiredInputs, callLLM)
           : {};
-      if (requiredInputs.length > 0 && Object.keys(extractedInputs).length === 0) {
-        extractedInputs = await extractInputsFromText(ctx.text, requiredInputs, callLLM);
-      }
 
       const missingInputs = requiredInputs.filter((inp) => !(inp.key in extractedInputs));
       const allFound = requiredInputs.length > 0 && missingInputs.length === 0;
       const someFound = Object.keys(extractedInputs).length > 0 && missingInputs.length > 0;
 
       if (allFound) {
+        const summaryParts = requiredInputs
+          .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
+          .join(', ');
         let confirmText: string;
         try {
-          const summaryParts = requiredInputs
-            .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
-            .join(', ');
           const confirmResult = await callLLM({
             taskType: 'review',
             temperature: 0.3,
@@ -1604,15 +1601,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           });
           confirmText = confirmResult.content.trim();
           if (!confirmText) {
-            const summaryParts = requiredInputs
-              .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
-              .join(', ');
             confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
           }
-        } catch {
-          const summaryParts = requiredInputs
-            .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
-            .join(', ');
+        } catch (err) {
+          log.warn({ err }, 'Failed to generate LLM confirmation text, using fallback');
           confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
         }
 

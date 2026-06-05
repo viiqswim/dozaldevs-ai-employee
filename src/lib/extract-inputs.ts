@@ -1,4 +1,7 @@
 import type { callLLM } from './call-llm.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('extract-inputs');
 
 export function stripFences(s: string): string {
   return s
@@ -70,7 +73,8 @@ export async function extractInputsFromText(
     }
 
     return result;
-  } catch {
+  } catch (err) {
+    log.warn({ err }, 'extractInputsFromText: LLM extraction failed, returning empty');
     return {};
   }
 }

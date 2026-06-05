@@ -280,17 +280,7 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async ({ event, step }: { event: any; step: any }) => {
-      const {
-        threadTs,
-        text,
-        tenantId,
-        pending,
-      }: {
-        threadTs: string;
-        text: string;
-        tenantId: string;
-        pending: PendingInputContext;
-      } = event.data as {
+      const { threadTs, text, tenantId, pending } = event.data as {
         threadTs: string;
         text: string;
         tenantId: string;
