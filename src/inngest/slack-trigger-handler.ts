@@ -9,6 +9,7 @@ import { TenantSecretRepository } from '../gateway/services/tenant-secret-reposi
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { createLogger } from '../lib/logger.js';
 import { callLLM } from '../lib/call-llm.js';
+import { extractInputsFromText } from '../lib/extract-inputs.js';
 
 interface PendingInputContext {
   archetypeId: string;
@@ -18,6 +19,7 @@ interface PendingInputContext {
   text: string;
   roleName: string;
   requiredInputs: Array<{ key: string; label: string; description?: string }>;
+  extractedInputs?: Record<string, string>;
 }
 
 const log = createLogger('slack-trigger-handler');
@@ -326,10 +328,35 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
 
       const externalId = `slack-trigger-${threadTs}-${pending.archetypeId}`;
 
-      const collectedInputs: Record<string, string> = {};
-      for (const input of pending.requiredInputs) {
-        collectedInputs[input.key] = text;
+      let collectedInputs: Record<string, string> = {};
+
+      if (pending.requiredInputs.length === 1) {
+        // Single input — assign directly, no LLM needed
+        collectedInputs[pending.requiredInputs[0].key] = text;
+      } else if (pending.requiredInputs.length > 1) {
+        // Multi-input — use per-field LLM extraction
+        const extracted = await extractInputsFromText(text, pending.requiredInputs, callLLM);
+        if (Object.keys(extracted).length >= pending.requiredInputs.length) {
+          // Full extraction succeeded
+          collectedInputs = extracted;
+        } else if (Object.keys(extracted).length > 0) {
+          // Partial extraction — merge extracted with text fallback for missing
+          for (const input of pending.requiredInputs) {
+            collectedInputs[input.key] = extracted[input.key] ?? text;
+          }
+        } else {
+          // Extraction failed — fall back to assigning text to all keys (safety net)
+          for (const input of pending.requiredInputs) {
+            collectedInputs[input.key] = text;
+          }
+        }
       }
+
+      // Merge pre-extracted inputs from the handler (user reply overrides pre-extracted)
+      const finalInputs: Record<string, string> = {
+        ...(pending.extractedInputs ?? {}),
+        ...collectedInputs,
+      };
 
       const taskId = await step.run('create-task', async () => {
         const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
@@ -342,7 +369,7 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
             source_system: 'slack',
             status: 'Ready',
             tenant_id: tenantId,
-            raw_event: { inputs: { prompt: pending.text, ...collectedInputs } },
+            raw_event: { inputs: { prompt: pending.text, ...finalInputs } },
             updated_at: new Date().toISOString(),
           }),
         });
