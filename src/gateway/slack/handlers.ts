@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
+import { extractInputsFromText } from '../../lib/extract-inputs.js';
+import { callLLM } from '../../lib/call-llm.js';
 
 const log = createLogger('slack-handlers');
 
@@ -61,9 +63,20 @@ interface PendingInputCollection {
   channelId: string;
   text: string;
   roleName: string;
-  requiredInputs: Array<{ key: string; label: string; description?: string }>;
+  requiredInputs: Array<{
+    key: string;
+    label: string;
+    description?: string;
+    type?: string;
+    options?: string[];
+  }>;
+  extractedInputs?: Record<string, string>;
 }
 const pendingInputCollections = new Map<string, PendingInputCollection>();
+
+export function _clearPendingInputCollections(): void {
+  pendingInputCollections.clear();
+}
 
 async function isTaskAwaitingApproval(
   taskId: string,
@@ -1536,6 +1549,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
               description?: string;
               required?: boolean;
               frequency?: string;
+              type?: string;
+              options?: string[];
             }>
           )
             .filter(
@@ -1543,11 +1558,108 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
                 item.required === true &&
                 (item.frequency === 'every_run' || item.frequency === undefined),
             )
-            .map((item) => ({ key: item.key, label: item.label, description: item.description }))
+            .map((item) => ({
+              key: item.key,
+              label: item.label,
+              description: item.description,
+              type: item.type,
+              options: item.options,
+            }))
         : [];
 
-      if (requiredInputs.length > 0) {
-        const inputList = requiredInputs
+      const extractedInputs =
+        requiredInputs.length > 0
+          ? await extractInputsFromText(ctx.text, requiredInputs, callLLM)
+          : {};
+
+      const missingInputs = requiredInputs.filter((inp) => !(inp.key in extractedInputs));
+      const allFound = requiredInputs.length > 0 && missingInputs.length === 0;
+      const someFound = Object.keys(extractedInputs).length > 0 && missingInputs.length > 0;
+
+      if (allFound) {
+        let confirmText: string;
+        try {
+          const summaryParts = requiredInputs
+            .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
+            .join(', ');
+          const confirmResult = await callLLM({
+            taskType: 'review',
+            temperature: 0.3,
+            maxTokens: 100,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a helpful assistant. Write a single natural-sounding confirmation message for the user. Be concise and friendly.',
+              },
+              {
+                role: 'user',
+                content: `The user wants to trigger "${archetype.role_name}" with these details: ${summaryParts}. Write a brief, friendly confirmation like "Just to confirm, you want me to..." and end with "Working on it!" or similar. Keep it to 1-2 sentences.`,
+              },
+            ],
+          });
+          confirmText = confirmResult.content.trim();
+        } catch {
+          const summaryParts = requiredInputs
+            .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
+            .join(', ');
+          confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
+        }
+
+        await client.chat.postMessage({
+          channel: ctx.channelId,
+          ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
+          text: confirmText,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: confirmText } }],
+        });
+
+        const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            archetype_id: archetype.id,
+            external_id: externalId,
+            source_system: 'slack',
+            status: 'Ready',
+            tenant_id: ctx.tenantId,
+            raw_event: { inputs: { prompt: ctx.text, ...extractedInputs } },
+          }),
+        });
+        const tasks = (await createRes.json()) as Array<{ id: string }>;
+        if (!tasks.length) throw new Error('Task creation returned empty response');
+        const taskId = tasks[0].id;
+
+        await inngest.send({
+          name: 'employee/task.dispatched',
+          data: { taskId, archetypeId: archetype.id },
+          id: `employee-dispatch-${externalId}`,
+        });
+
+        log.info(
+          { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, extractedInputs },
+          'Task dispatched from trigger_confirm with extracted inputs',
+        );
+
+        await respond({
+          replace_original: true,
+          text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `✅ *${archetype.role_name}* has been triggered by <@${user.id}>`,
+              },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            },
+          ],
+        });
+      } else if (someFound || requiredInputs.length > 0) {
+        const inputsToAsk = someFound ? missingInputs : requiredInputs;
+        const inputList = inputsToAsk
           .map(
             (item, i) =>
               `${i + 1}. *${item.label}*${item.description ? ` — ${item.description}` : ''}`,
@@ -1579,6 +1691,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           text: ctx.text,
           roleName: archetype.role_name,
           requiredInputs,
+          extractedInputs: someFound ? extractedInputs : undefined,
         });
 
         await respond({
@@ -1600,7 +1713,13 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         });
 
         log.info(
-          { archetypeId: archetype.id, tenantId: ctx.tenantId, pendingKey },
+          {
+            archetypeId: archetype.id,
+            tenantId: ctx.tenantId,
+            pendingKey,
+            someFound,
+            extractedCount: Object.keys(extractedInputs).length,
+          },
           'Waiting for inputs in thread before dispatching task',
         );
         return;
