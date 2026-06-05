@@ -140,4 +140,18 @@ describe('extractInputsFromText', () => {
     expect(result).toEqual({});
     expect(mockLLM).not.toHaveBeenCalled();
   });
+
+  it('system prompt includes general multilingual instruction', async () => {
+    const mockLLM = makeCallLLM('{"date": "2026-06-05"}');
+    await extractInputsFromText(
+      'Junio 5',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    const callArgs = (mockLLM as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const systemMessage = callArgs.messages.find((m) => m.role === 'system');
+    expect(systemMessage?.content).toContain('any language');
+  });
 });

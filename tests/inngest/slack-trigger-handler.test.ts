@@ -3,18 +3,25 @@ import { Inngest } from 'inngest';
 import {
   prettifyRoleName,
   createSlackTriggerHandlerFunction,
+  createSlackInputCollectorFunction,
 } from '../../src/inngest/slack-trigger-handler.js';
 
-const { mockLoadTenantEnv, mockResolveArchetypeFromChannel } = vi.hoisted(() => ({
-  mockLoadTenantEnv: vi.fn().mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test' }),
-  mockResolveArchetypeFromChannel: vi.fn().mockResolvedValue({
-    archetype: { id: 'arch-1', role_name: 'guest-messaging', notification_channel: 'C123' },
-    isExactMatch: true,
-  }),
-}));
+const { mockLoadTenantEnv, mockResolveArchetypeFromChannel, mockExtractInputsFromText } =
+  vi.hoisted(() => ({
+    mockLoadTenantEnv: vi.fn().mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test' }),
+    mockResolveArchetypeFromChannel: vi.fn().mockResolvedValue({
+      archetype: { id: 'arch-1', role_name: 'guest-messaging', notification_channel: 'C123' },
+      isExactMatch: true,
+    }),
+    mockExtractInputsFromText: vi.fn(),
+  }));
 
 vi.mock('@prisma/client', () => ({
   PrismaClient: vi.fn(() => ({ $disconnect: vi.fn().mockResolvedValue(undefined) })),
+}));
+vi.mock('../../src/lib/extract-inputs.js', () => ({
+  extractInputsFromText: mockExtractInputsFromText,
+  stripFences: (s: string) => s,
 }));
 vi.mock('../../src/gateway/services/tenant-env-loader.js', () => ({
   loadTenantEnv: mockLoadTenantEnv,
@@ -170,5 +177,121 @@ describe('createSlackTriggerHandlerFunction', () => {
     await invokeHandler(fn, makeEvent(), step);
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('createSlackInputCollectorFunction', () => {
+  let inngest: Inngest;
+
+  beforeEach(() => {
+    inngest = new Inngest({ id: 'test-app' });
+    mockExtractInputsFromText.mockReset();
+  });
+
+  function makeCollectorEvent(overrides: Record<string, unknown> = {}) {
+    return {
+      data: {
+        threadTs: '1234567890.000001',
+        text: 'Junio 5',
+        tenantId: 'tenant-1',
+        pending: {
+          archetypeId: 'arch-1',
+          tenantId: 'tenant-1',
+          userId: 'U123',
+          channelId: 'C123',
+          text: 'puedes generar el itinerario?',
+          roleName: 'cleaning-schedule',
+          requiredInputs: [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+        },
+        ...overrides,
+      },
+    };
+  }
+
+  async function invokeCollector(
+    fn: ReturnType<typeof createSlackInputCollectorFunction>,
+    event: ReturnType<typeof makeCollectorEvent>,
+    step: ReturnType<typeof makeStep>,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (fn as any).fn({ event, step });
+  }
+
+  it('single-input uses LLM extraction — normalized value stored in task', async () => {
+    mockExtractInputsFromText.mockResolvedValueOnce({ date: '2026-06-05' });
+
+    const fn = createSlackInputCollectorFunction(inngest);
+    const step = makeStep();
+
+    await invokeCollector(fn, makeCollectorEvent(), step);
+
+    expect(mockExtractInputsFromText).toHaveBeenCalledOnce();
+    expect(mockExtractInputsFromText).toHaveBeenCalledWith(
+      'Junio 5',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      expect.any(Function),
+    );
+
+    const createTaskCall = (mockFetch.mock.calls as Array<[string, RequestInit]>).find(([url]) =>
+      (url as string).includes('/rest/v1/tasks'),
+    );
+    expect(createTaskCall).toBeDefined();
+    const body = JSON.parse(createTaskCall![1].body as string) as {
+      raw_event: { inputs: Record<string, string> };
+    };
+    expect(body.raw_event.inputs.date).toBe('2026-06-05');
+  });
+
+  it('single text-type input also uses LLM extraction — no bypass for non-date types', async () => {
+    mockExtractInputsFromText.mockResolvedValueOnce({ prompt: 'do the thing' });
+
+    const fn = createSlackInputCollectorFunction(inngest);
+    const step = makeStep();
+
+    await invokeCollector(
+      fn,
+      makeCollectorEvent({
+        text: 'do the thing',
+        pending: {
+          archetypeId: 'arch-1',
+          tenantId: 'tenant-1',
+          userId: 'U123',
+          channelId: 'C123',
+          text: 'what should I do?',
+          roleName: 'motivation-bot',
+          requiredInputs: [{ key: 'prompt', label: 'Prompt', type: 'text' }],
+        },
+      }),
+      step,
+    );
+
+    expect(mockExtractInputsFromText).toHaveBeenCalledOnce();
+
+    const createTaskCall = (mockFetch.mock.calls as Array<[string, RequestInit]>).find(([url]) =>
+      (url as string).includes('/rest/v1/tasks'),
+    );
+    expect(createTaskCall).toBeDefined();
+    const body = JSON.parse(createTaskCall![1].body as string) as {
+      raw_event: { inputs: Record<string, string> };
+    };
+    expect(body.raw_event.inputs.prompt).toBe('do the thing');
+  });
+
+  it('extraction failure falls back to raw text', async () => {
+    mockExtractInputsFromText.mockResolvedValueOnce({});
+
+    const fn = createSlackInputCollectorFunction(inngest);
+    const step = makeStep();
+
+    await invokeCollector(fn, makeCollectorEvent(), step);
+
+    const createTaskCall = (mockFetch.mock.calls as Array<[string, RequestInit]>).find(([url]) =>
+      (url as string).includes('/rest/v1/tasks'),
+    );
+    expect(createTaskCall).toBeDefined();
+    const body = JSON.parse(createTaskCall![1].body as string) as {
+      raw_event: { inputs: Record<string, string> };
+    };
+    expect(body.raw_event.inputs.date).toBe('Junio 5');
   });
 });
