@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { extractInputsFromText, stripFences } from '../../src/lib/extract-inputs.js';
 import type { callLLM } from '../../src/lib/call-llm.js';
+import { CostCircuitBreakerError } from '../../src/lib/errors.js';
 
 function makeCallLLM(content: string): typeof callLLM {
   return vi.fn().mockResolvedValue({
@@ -11,6 +12,21 @@ function makeCallLLM(content: string): typeof callLLM {
     estimatedCostUsd: 0,
     latencyMs: 0,
   }) as unknown as typeof callLLM;
+}
+
+function makeSequencedCallLLM(contents: string[]): typeof callLLM {
+  const mock = vi.fn();
+  for (const content of contents) {
+    mock.mockResolvedValueOnce({
+      content,
+      model: 'test',
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+    });
+  }
+  return mock as unknown as typeof callLLM;
 }
 
 describe('stripFences', () => {
@@ -152,6 +168,123 @@ describe('extractInputsFromText', () => {
       messages: Array<{ role: string; content: string }>;
     };
     const systemMessage = callArgs.messages.find((m) => m.role === 'system');
+    expect(systemMessage?.content).toContain('any language');
+  });
+
+  it('retry — succeeds on 2nd attempt when 1st returns empty', async () => {
+    const mockLLM = makeSequencedCallLLM(['', '{"date":"2026-06-08"}']);
+    const result = await extractInputsFromText(
+      'Junio 8, 2026',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    expect(result).toEqual({ date: '2026-06-08' });
+    expect(mockLLM).toHaveBeenCalledTimes(2);
+  });
+
+  it('retry — succeeds on 3rd attempt when 1st empty and 2nd truncated', async () => {
+    const mockLLM = makeSequencedCallLLM(['', '{"date": "2026-06', '{"date":"2026-06-08"}']);
+    const result = await extractInputsFromText(
+      'Junio 8, 2026',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    expect(result).toEqual({ date: '2026-06-08' });
+    expect(mockLLM).toHaveBeenCalledTimes(3);
+  });
+
+  it('retry — all 3 attempts exhausted returns {}', async () => {
+    const mockLLM = makeSequencedCallLLM(['', '', '']);
+    const result = await extractInputsFromText(
+      'some text',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    expect(result).toEqual({});
+    expect(mockLLM).toHaveBeenCalledTimes(3);
+  });
+
+  it('retry — escalates maxTokens [800, 1600, 3200] and uses timeoutMs 20000 per attempt', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      content: '',
+      model: 'test',
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+    }) as unknown as typeof callLLM;
+
+    await extractInputsFromText(
+      'some text',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mock,
+    );
+
+    expect(mock).toHaveBeenCalledTimes(3);
+    const calls = (mock as ReturnType<typeof vi.fn>).mock.calls as Array<
+      [{ maxTokens: number; timeoutMs: number }]
+    >;
+    expect(calls[0][0].maxTokens).toBe(800);
+    expect(calls[1][0].maxTokens).toBe(1600);
+    expect(calls[2][0].maxTokens).toBe(3200);
+    expect(calls[0][0].timeoutMs).toBe(20_000);
+    expect(calls[1][0].timeoutMs).toBe(20_000);
+    expect(calls[2][0].timeoutMs).toBe(20_000);
+  });
+
+  it('no retry — valid parse with null value returns {} after exactly 1 call', async () => {
+    const mockLLM = makeCallLLM('{"date": null}');
+    const result = await extractInputsFromText(
+      'hello',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    expect(result).toEqual({});
+    expect(mockLLM).toHaveBeenCalledTimes(1);
+  });
+
+  it('no retry — valid extraction returns result after exactly 1 call', async () => {
+    const mockLLM = makeCallLLM('{"date":"2026-06-08"}');
+    const result = await extractInputsFromText(
+      'Junio 8, 2026',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    expect(result).toEqual({ date: '2026-06-08' });
+    expect(mockLLM).toHaveBeenCalledTimes(1);
+  });
+
+  it('CostCircuitBreakerError aborts retries — returns {} after exactly 1 call', async () => {
+    const mock = vi.fn().mockRejectedValue(
+      new CostCircuitBreakerError('Daily limit exceeded', {
+        department: 'test',
+        currentSpendUsd: 50,
+        limitUsd: 50,
+      }),
+    ) as unknown as typeof callLLM;
+
+    const result = await extractInputsFromText(
+      'some text',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mock,
+    );
+    expect(result).toEqual({});
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('system prompt contains JSON-only nudge and multilingual instruction', async () => {
+    const mockLLM = makeCallLLM('{"date": "2026-06-08"}');
+    await extractInputsFromText(
+      'Junio 8, 2026',
+      [{ key: 'date', label: 'Checkout Date', type: 'date' }],
+      mockLLM,
+    );
+    const callArgs = (mockLLM as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const systemMessage = callArgs.messages.find((m) => m.role === 'system');
+    expect(systemMessage?.content).toContain('no preamble');
+    expect(systemMessage?.content).toContain('no markdown code fences');
     expect(systemMessage?.content).toContain('any language');
   });
 });
