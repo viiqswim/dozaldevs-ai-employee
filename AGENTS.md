@@ -552,6 +552,32 @@ Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `
 2. Gateway structured logs: `grep '"runId":"<runId>"' /tmp/ai-dev.log`
 3. Inngest event payload: `http://localhost:8288` → Events tab → find `employee/task.dispatched`
 
+### 4. Stale detached processes from previous `pnpm dev` sessions
+
+**Symptom**: @mention or webhook triggers produce no Slack response, or produce responses from old/stale code (missing recent fixes). Gateway logs show the event was received and Inngest function initialized, but step output logs are missing or show old behavior.
+
+**Root cause**: `dev.ts` spawns Inngest, Gateway, and Dashboard with `detached: true`. If the parent `dev.ts` process dies without a clean SIGINT/SIGTERM (tmux session killed, terminal closed, `kill -9`, crash), the detached children survive as orphans. On the next `pnpm dev`, new processes spawn alongside the stale ones. Inngest executors from previous sessions intercept function executions and run old code.
+
+**Diagnosis**:
+
+```bash
+# Count Inngest executors (should be exactly 1)
+pgrep -f "inngest-cli.*8288" | wc -l
+
+# List all dev-related processes with start times
+ps aux | grep -E "inngest-cli|tsx.*server|vite" | grep -v grep
+```
+
+**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that detects and kills stale processes on startup. If you still see stale processes, kill them manually:
+
+```bash
+pkill -f "inngest-cli.*8288" || true
+pkill -f "tsx.*watch.*server\.ts" || true
+pkill -f "vite.*7701" || true
+```
+
+**Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, first run the manual kill commands above.
+
 ## Task Debugging Quick Reference
 
 Assumes `TASK_ID` is set in your shell. Container name prefix: `${TASK_ID:0:8}`. For deeper diagnostics (stuck states, root-cause tables, decision tree), load the `debugging-lifecycle` skill.
