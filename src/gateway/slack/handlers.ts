@@ -3,6 +3,7 @@ import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
+import { resolveArchetypeFromChannel } from '../services/interaction-classifier.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { extractInputsFromText } from '../../lib/extract-inputs.js';
@@ -309,7 +310,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.event('app_mention', async ({ event }) => {
+  boltApp.event('app_mention', async ({ event, client }) => {
     const mention = event as {
       text: string;
       user: string;
@@ -378,6 +379,18 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     }
 
+    let ackTs: string | undefined;
+    try {
+      const ackResult = await client.chat.postMessage({
+        channel: mention.channel,
+        thread_ts: mention.thread_ts ?? mention.ts,
+        text: 'On it — one moment…',
+      });
+      ackTs = typeof ackResult.ts === 'string' ? ackResult.ts : undefined;
+    } catch (ackErr) {
+      log.warn({ err: ackErr }, 'Failed to post app_mention ack — continuing without ack');
+    }
+
     let tenantId: string | null = null;
     if (mention.team) {
       try {
@@ -392,6 +405,56 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
 
     const taskId = mention.thread_ts ? await findTaskIdByThreadTs(mention.thread_ts) : null;
+
+    if (tenantId) {
+      try {
+        const resolution = await resolveArchetypeFromChannel(mention.channel, tenantId);
+        if (!resolution.archetype) {
+          const declineText =
+            "I don't have any employees assigned to this channel. An admin can assign one in the dashboard.";
+          if (ackTs) {
+            try {
+              await client.chat.update({
+                channel: mention.channel,
+                ts: ackTs,
+                text: declineText,
+              });
+            } catch (updateErr) {
+              log.warn(
+                { err: updateErr },
+                'Failed to update ack with decline — posting separately',
+              );
+              try {
+                await client.chat.postMessage({
+                  channel: mention.channel,
+                  thread_ts: mention.thread_ts ?? mention.ts,
+                  text: declineText,
+                });
+              } catch (postErr) {
+                log.warn({ err: postErr }, 'Failed to post decline fallback');
+              }
+            }
+          } else {
+            try {
+              await client.chat.postMessage({
+                channel: mention.channel,
+                thread_ts: mention.thread_ts ?? mention.ts,
+                text: declineText,
+              });
+            } catch (postErr) {
+              log.warn({ err: postErr }, 'Failed to post decline message');
+            }
+          }
+          log.info(
+            { channel: mention.channel, tenantId },
+            'No archetype for channel — declined at gateway',
+          );
+          return;
+        }
+      } catch (resolveErr) {
+        log.warn({ err: resolveErr }, 'Failed to check channel assignment — forwarding to Inngest');
+      }
+    }
 
     try {
       await inngest.send({
