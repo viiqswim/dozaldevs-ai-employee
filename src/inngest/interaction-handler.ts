@@ -566,6 +566,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             channelId,
             archetypeId: context.archetypeId,
             threadTs,
+            messageTs,
             taskId: taskId ?? undefined,
           },
         });

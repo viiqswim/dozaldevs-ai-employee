@@ -107,15 +107,17 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async ({ event, step }: { event: any; step: any }) => {
-      const { tenantId, text, userId, channelId, archetypeId, threadTs, taskId } = event.data as {
-        tenantId: string | null;
-        text: string;
-        userId: string;
-        channelId: string;
-        archetypeId: string | null;
-        threadTs?: string;
-        taskId?: string;
-      };
+      const { tenantId, text, userId, channelId, archetypeId, threadTs, messageTs, taskId } =
+        event.data as {
+          tenantId: string | null;
+          text: string;
+          userId: string;
+          channelId: string;
+          archetypeId: string | null;
+          threadTs?: string;
+          messageTs?: string;
+          taskId?: string;
+        };
 
       const context = await step.run('validate-context', async () => {
         if (!tenantId) {
@@ -129,7 +131,7 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
           );
           return null;
         }
-        return { tenantId, text, userId, channelId, archetypeId, threadTs };
+        return { tenantId, text, userId, channelId, archetypeId, threadTs, messageTs };
       });
 
       if (!context) return;
@@ -155,7 +157,7 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
         return;
       }
 
-      const replyTs = threadTs ?? (event.data.ts as string | undefined);
+      const replyTs = threadTs ?? messageTs;
 
       const routedArchetype = await step.run('route-employee', async () => {
         if (!resolution.archetype || resolution.isExactMatch) {
