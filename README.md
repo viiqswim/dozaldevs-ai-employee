@@ -222,6 +222,7 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Cloud Deployment Guide](docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md) | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting. |
 | [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                         | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
 | [Google Workspace Assistant](docs/employees/2026-06-03-0243-google-assistant.md)        | Google Workspace Assistant employee operational details — archetype ID, trigger command, available tools, required tenant secrets, known gotchas.                                                    |
+| [Maintainability Audit](docs/guides/2026-06-05-0111-maintainability-audit.md)           | Comprehensive maintainability findings (architecture, large files, code smells, tests, types, conventions, docs, build) with a companion remediation plan in .sisyphus/plans/.                       |
 
 ## Testing
 
