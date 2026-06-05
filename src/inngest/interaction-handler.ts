@@ -12,6 +12,7 @@ import { TenantSecretRepository } from '../gateway/services/tenant-secret-reposi
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
+import { ruleProposedMessage, questionNoAnswerFallback } from '../lib/slack-copy.js';
 
 const log = createLogger('interaction-handler');
 
@@ -220,7 +221,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
           const blocks = [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: `🧠 *New behavioral rule proposed:*\n\n> ${text}` },
+              text: { type: 'mrkdwn', text: ruleProposedMessage(text) },
             },
             { type: 'divider' },
             {
@@ -256,7 +257,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${slackToken}` },
             body: JSON.stringify({
               channel: channelId,
-              text: `New behavioral rule proposed: ${text}`,
+              text: ruleProposedMessage(text),
               blocks,
               ...(threadTs ? { thread_ts: threadTs } : {}),
             }),
@@ -430,7 +431,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
           });
           ackText = llmResult.content;
         } else if (intent === 'question') {
-          ackText = routeResult.answer ?? 'I was unable to find an answer.';
+          ackText = routeResult.answer ?? questionNoAnswerFallback();
         } else if (intent === 'unclear') {
           ackText =
             routeResult.answer ??

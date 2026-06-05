@@ -2,6 +2,7 @@ import type { KnownBlock } from '@slack/web-api';
 import { buildHostfullyLink } from './enrichment-adapters/hostfully.js';
 import type { NotificationEnrichment } from './types/notification-enrichment.js';
 import { SLACK_ACTION_ID } from './slack-action-ids.js';
+import { expiredMessage } from './slack-copy.js';
 
 export function buildSupersededBlocks(taskId: string): unknown[] {
   return [
@@ -67,10 +68,14 @@ export function buildNotifyStateBlocks(params: {
   const { emoji, text, taskId, runId } = params;
 
   const textLower = text.toLowerCase();
-  const isNoAction = textLower.includes('no action') || textLower.includes('complete') || textLower.includes('done');
+  const isNoAction =
+    textLower.includes('no action') || textLower.includes('complete') || textLower.includes('done');
   const isFailed = textLower.includes('fail') || textLower.includes('error');
   const isReviewing = textLower.includes('review') || textLower.includes('awaiting');
-  const isProcessing = textLower.includes('process') || textLower.includes('received') || textLower.includes('executing');
+  const isProcessing =
+    textLower.includes('process') ||
+    textLower.includes('received') ||
+    textLower.includes('executing');
 
   let statusEmoji: string;
   let statusLabel: string;
@@ -106,7 +111,9 @@ export function buildNotifyStateBlocks(params: {
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' }],
+      elements: [
+        { type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' },
+      ],
     });
   } else if (isNoAction) {
     blocks.push({
@@ -116,7 +123,12 @@ export function buildNotifyStateBlocks(params: {
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ Something went wrong on my end — check the thread for details' }],
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: '❌ Something went wrong on my end — check the thread for details',
+        },
+      ],
     });
   }
 
@@ -326,7 +338,7 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'expired') {
-    const mainText = `⏰ *Expired — no action taken*${guestSuffix}${propertyLine}`;
+    const mainText = `${expiredMessage()}${guestSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
@@ -470,9 +482,11 @@ export function buildNotifyBlocks(params: {
   const blocks: KnownBlock[] = [];
 
   const stateLower = state.toLowerCase();
-  const isProcessing = stateLower === 'received' || stateLower === 'executing' || stateLower === 'submitting';
+  const isProcessing =
+    stateLower === 'received' || stateLower === 'executing' || stateLower === 'submitting';
   const isReviewing = stateLower === 'reviewing';
-  const isDone = stateLower === 'done' || stateLower === 'complete' || stateLower === 'task complete';
+  const isDone =
+    stateLower === 'done' || stateLower === 'complete' || stateLower === 'task complete';
   const isFailed = stateLower === 'failed';
 
   let statusEmoji: string;
@@ -507,7 +521,9 @@ export function buildNotifyBlocks(params: {
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' }],
+      elements: [
+        { type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' },
+      ],
     } as KnownBlock);
   } else if (isDone) {
     blocks.push({
@@ -517,7 +533,12 @@ export function buildNotifyBlocks(params: {
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ Something went wrong on my end — check the thread for details' }],
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: '❌ Something went wrong on my end — check the thread for details',
+        },
+      ],
     } as KnownBlock);
   }
 

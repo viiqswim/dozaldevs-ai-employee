@@ -30,6 +30,14 @@ import {
   clearPendingApproval,
 } from './lib/pending-approvals.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
+import {
+  supersededMessage,
+  expiredMessage,
+  needsReviewMessage,
+  reviewingDraftedMessage,
+  completedNoApprovalMessage,
+  noActionSkippedMessage,
+} from '../lib/slack-copy.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -679,7 +687,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   botToken: botTokenForCancelled,
                   defaultChannel: '',
                 });
-                const supersededText = `⏭️ Superseded`;
+                const supersededText = supersededMessage();
                 const supersededNotifyBlocks = notifyBlocks({
                   state: 'Superseded',
                   archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -1327,11 +1335,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   await slackForCleanup.updateMessage(
                     approvalCardRow['channel_id'] as string,
                     approvalCardRow['slack_ts'] as string,
-                    '✅ Completed — no approval required',
+                    completedNoApprovalMessage(),
                     [
                       {
                         type: 'section',
-                        text: { type: 'mrkdwn', text: '✅ Completed — no approval required' },
+                        text: { type: 'mrkdwn', text: completedNoApprovalMessage() },
                       },
                       {
                         type: 'context',
@@ -1452,7 +1460,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
             const result = await slackForCard.postMessage({
               channel: channelForCard,
-              text: `🤖 No action needed — AI skipped this task`,
+              text: noActionSkippedMessage(roleName, reasoning || undefined),
               blocks,
               thread_ts: notifyMsgRef?.ts ?? undefined,
             });
@@ -1805,7 +1813,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             await slackClientForSupersede.updateMessage(
               oldApprovalChannel,
               oldApprovalMsgTs,
-              '⏭️ Superseded',
+              supersededMessage(),
               buildSupersededBlocks(oldTaskId),
             );
           } catch (err) {
@@ -1893,9 +1901,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
             | string
             | undefined;
-          const reviewingText = reviewingGuestName
-            ? `Awaiting approval — reply drafted for ${reviewingGuestName}`
-            : 'Awaiting approval — reply drafted';
+          const reviewingText = reviewingDraftedMessage(reviewingGuestName);
           const reviewingBlocks = notifyBlocks({
             state: 'Reviewing',
             archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -1987,9 +1993,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
               const nudgeGuestName = delivMeta.guest_name as string | undefined;
               const nudgePropertyName = delivMeta.property_name as string | undefined;
-              const nudgeText = nudgeGuestName
-                ? `⏳ ${nudgeGuestName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''} — Needs your review`
-                : '⏳ Needs your review';
+              const nudgeText = needsReviewMessage(
+                nudgeGuestName
+                  ? `${nudgeGuestName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
+                  : undefined,
+              );
 
               const { WebClient } = await import('@slack/web-api');
               const web = new WebClient(botTokenForNudge);
@@ -2120,7 +2128,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         if (!approvalEvent) {
           if (approvalMsgTs && targetChannel) {
             try {
-              const expiryText = '⏰ Expired — no action taken.';
+              const expiryText = expiredMessage();
               const expiryGuestName = metadata['guest_name'] as string | undefined;
               const expiryCardBlocks = expiryGuestName
                 ? buildEnrichedTerminalBlocks({
@@ -2150,7 +2158,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
-              const expiredNotifyText = `⏰ Expired — no action taken.`;
+              const expiredNotifyText = expiredMessage();
               const notifyExpiryBlocks = notifyBlocks({
                 state: 'Expired',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -2667,7 +2675,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
               await slackClient.updateMessage(
                 targetChannel,
                 approvalMsgTs,
-                '⏭️ Superseded',
+                supersededMessage(),
                 buildSupersededBlocks(taskId),
               );
             } catch (err) {
@@ -2679,7 +2687,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           }
           if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
             try {
-              const supersededNotifyText = `⏭️ Superseded`;
+              const supersededNotifyText = supersededMessage();
               const supersededNotifyBlocks = notifyBlocks({
                 state: 'Superseded',
                 archetypeName: (archetype.role_name as string) ?? 'unknown',
