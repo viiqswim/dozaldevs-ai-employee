@@ -159,7 +159,7 @@ Max Concurrent: 3 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. Fix `PendingInputContext` interface to include `type` and `options`
+- [x] 1. Fix `PendingInputContext` interface to include `type` and `options`
 
   **What to do**:
   - In `src/inngest/slack-trigger-handler.ts`, update the `PendingInputContext` interface (line 21) from:
@@ -225,7 +225,7 @@ Max Concurrent: 3 (Wave 1)
   - Message: `fix(input-collector): always use LLM extraction for single inputs`
   - Files: `src/inngest/slack-trigger-handler.ts`
 
-- [ ] 2. Add general multilingual instruction to extraction prompt
+- [x] 2. Add general multilingual instruction to extraction prompt
 
   **What to do**:
   - In `src/lib/extract-inputs.ts`, update the system prompt (lines 28-35) to add a general multilingual instruction
@@ -282,7 +282,7 @@ Max Concurrent: 3 (Wave 1)
   - Message: `fix(input-collector): always use LLM extraction for single inputs`
   - Files: `src/lib/extract-inputs.ts`
 
-- [ ] 3. Fix race condition — reorder Map set vs postMessage
+- [x] 3. Fix race condition — reorder Map set vs postMessage
 
   **What to do**:
   - In `src/gateway/slack/handlers.ts`, move the `pendingInputCollections.set()` call (currently at line 1734) to BEFORE the `client.chat.postMessage()` call (currently at line 1717)
@@ -341,7 +341,7 @@ Max Concurrent: 3 (Wave 1)
   - Message: `fix(input-collector): always use LLM extraction for single inputs`
   - Files: `src/gateway/slack/handlers.ts`
 
-- [ ] 4. Change single-input path to always use LLM extraction
+- [x] 4. Change single-input path to always use LLM extraction
 
   **What to do**:
   - In `src/inngest/slack-trigger-handler.ts`, replace the single-input bypass at lines 323-325:
@@ -426,7 +426,7 @@ Max Concurrent: 3 (Wave 1)
   - Message: `fix(input-collector): always use LLM extraction for single inputs`
   - Files: `src/inngest/slack-trigger-handler.ts`
 
-- [ ] 5. Add tests for all changes
+- [x] 5. Add tests for all changes
 
   **What to do**:
   - **In `tests/inngest/slack-trigger-handler.test.ts`**, add 3 new test cases inside a new `describe('createSlackInputCollectorFunction', ...)` block (the current file only tests `createSlackTriggerHandlerFunction`):
