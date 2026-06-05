@@ -617,9 +617,9 @@ pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l
 **Fix**: `dev.ts` now includes a preflight kill step (Step 0) that anchors on the absolute repo path, matching all three process forms (npm exec supervisor, tsx CLI supervisor, node leaf). The `.*` is required because `$(pwd)` appears in the tsx module path (`node_modules`), not directly prefixed to the script argument. If you still see stale processes, kill them manually:
 
 ```bash
-pkill -f "$(pwd)/src/gateway/server.ts" || true
-pkill -f "inngest-cli.*8288" || true
-pkill -f "vite.*7701" || true
+pkill -f "$(pwd).*src/gateway/server.ts" || true
+pkill -f "inngest.*8288" || true
+pkill -f "$(pwd)/dashboard.*vite" || true
 ```
 
 Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gateway from connecting Socket Mode even if the reaper misses a zombie — the second instance logs a warning and skips the Socket Mode connection.
