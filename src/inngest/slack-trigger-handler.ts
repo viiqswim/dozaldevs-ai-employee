@@ -10,6 +10,7 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { createLogger } from '../lib/logger.js';
 import { callLLM } from '../lib/call-llm.js';
 import { extractInputsFromText } from '../lib/extract-inputs.js';
+import { triggerCardPrompt } from '../lib/slack-copy.js';
 
 interface PendingInputContext {
   archetypeId: string;
@@ -200,23 +201,106 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
         return;
       }
 
+      const extractedInputs = await step.run(
+        'pre-extract-inputs',
+        async (): Promise<Record<string, string>> => {
+          try {
+            const supabaseUrl = process.env.SUPABASE_URL ?? '';
+            const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
+            const headers = {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            };
+            const archId = routedArchetype.id;
+            const archetypeRes = await fetch(
+              `${supabaseUrl}/rest/v1/archetypes?id=eq.${archId}&tenant_id=eq.${tenantId!}&status=eq.active&deleted_at=is.null&select=input_schema`,
+              { headers },
+            );
+            const archetypes = (await archetypeRes.json()) as Array<{ input_schema: unknown }>;
+            if (!archetypes.length) {
+              return {};
+            }
+            const { input_schema } = archetypes[0];
+            const requiredInputs = Array.isArray(input_schema)
+              ? (
+                  input_schema as Array<{
+                    key: string;
+                    label: string;
+                    description?: string;
+                    required?: boolean;
+                    frequency?: string;
+                    type?: string;
+                    options?: string[];
+                  }>
+                )
+                  .filter(
+                    (item) =>
+                      item.required === true &&
+                      (item.frequency === 'every_run' || item.frequency === undefined),
+                  )
+                  .map((item) => ({
+                    key: item.key,
+                    label: item.label,
+                    description: item.description,
+                    type: item.type,
+                    options: item.options,
+                  }))
+              : [];
+            if (requiredInputs.length === 0) {
+              return {};
+            }
+            try {
+              return await extractInputsFromText(text, requiredInputs, callLLM);
+            } catch (err) {
+              log.warn(
+                { archetypeId: archId, err },
+                'pre-extract-inputs: extraction failed — returning {}',
+              );
+              return {};
+            }
+          } catch (err) {
+            log.warn({ err }, 'pre-extract-inputs: unexpected error — returning {}');
+            return {};
+          }
+        },
+      );
+
       await step.run('send-confirmation', async () => {
         const archetype = routedArchetype;
         const employeeName = prettifyRoleName(archetype.role_name);
         const truncatedText = text.length > 200 ? text.slice(0, 197) + '...' : text;
-        const contextValue = JSON.stringify({
+
+        const baseValue = {
           archetypeId: archetype.id,
           tenantId,
           userId,
           channelId,
           threadTs: replyTs,
           text,
-        });
+        };
+
+        let contextValue = JSON.stringify(baseValue);
+
+        if (Object.keys(extractedInputs).length > 0) {
+          const valueWithExtracted = JSON.stringify({ ...baseValue, extractedInputs });
+          if (Buffer.byteLength(valueWithExtracted, 'utf8') <= 1800) {
+            contextValue = valueWithExtracted;
+          } else {
+            log.warn(
+              {
+                archetypeId: archetype.id,
+                byteLength: Buffer.byteLength(valueWithExtracted, 'utf8'),
+              },
+              'pre-extract-inputs: value with extractedInputs exceeds 1800 bytes — omitting',
+            );
+          }
+        }
 
         const blocks = [
           {
             type: 'section',
-            text: { type: 'mrkdwn', text: `Trigger *${employeeName}*?` },
+            text: { type: 'mrkdwn', text: triggerCardPrompt(employeeName) },
           },
           {
             type: 'context',
@@ -256,7 +340,7 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
           body: JSON.stringify({
             channel: channelId,
             ...(replyTs ? { thread_ts: replyTs } : {}),
-            text: `Trigger ${employeeName}?`,
+            text: triggerCardPrompt(employeeName),
             blocks,
           }),
         });
