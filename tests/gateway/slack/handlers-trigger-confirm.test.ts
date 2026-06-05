@@ -99,6 +99,7 @@ function makeActionBody(
     channelId?: string;
     threadTs?: string;
     text?: string;
+    extractedInputs?: Record<string, string>;
   } = {},
 ) {
   return {
@@ -111,6 +112,7 @@ function makeActionBody(
           channelId: ctx.channelId ?? 'C123',
           threadTs: ctx.threadTs ?? '1234567890.000001',
           text: ctx.text ?? 'trigger cleaning schedule for June 5th',
+          ...(ctx.extractedInputs !== undefined ? { extractedInputs: ctx.extractedInputs } : {}),
         }),
       },
     ],
@@ -455,5 +457,136 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
     expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
       false,
     );
+  });
+
+  // ── New tests (Task 4) ────────────────────────────────────────────────────
+
+  it('pre-extracted inputs present → zero LLM on click, dispatches immediately', async () => {
+    // value includes extractedInputs: { date: '2026-06-10' } — handler must skip extractInputsFromText
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const respond = makeRespond();
+    const client = makeClient();
+
+    await handler({
+      ack: makeAck(),
+      body: makeActionBody({ extractedInputs: { date: '2026-06-10' } }),
+      respond,
+      client,
+    });
+
+    // extractInputsFromText must NOT be called — inputs were pre-extracted
+    expect(mockExtractInputsFromText).not.toHaveBeenCalled();
+    // callLLM must NOT be called — cosmetic LLM was removed
+    expect(mockCallLLM).not.toHaveBeenCalled();
+    // Task dispatched exactly once
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    // First respond call (loading) contains "One moment"
+    const firstRespondText = (respond.mock.calls[0][0] as { text: string }).text;
+    expect(firstRespondText).toContain('One moment');
+  });
+
+  it('allFound path — zero callLLM (cosmetic removal verified)', async () => {
+    // Standard allFound path: archetype has required `date`, extractInputsFromText returns { date }
+    // Verifies that callLLM is never invoked anywhere in the handler
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const client = makeClient();
+
+    await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
+
+    // callLLM must never be invoked — cosmetic LLM was removed from the handler
+    expect(mockCallLLM).not.toHaveBeenCalled();
+    // Dispatch still happened
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('backward-compat fallback — no extractedInputs in value → extractInputsFromText IS called', async () => {
+    // value has NO extractedInputs field → handler falls back to calling extractInputsFromText
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const client = makeClient();
+
+    // makeActionBody() with no extractedInputs → value JSON has no extractedInputs key
+    await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
+
+    // extractInputsFromText MUST be called (backward-compat path)
+    expect(mockExtractInputsFromText).toHaveBeenCalledOnce();
+    // Dispatch still happened
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('loading respond has no actions block (buttons removed on click)', async () => {
+    // The first respond call (loading state) must have replace_original: true and no actions block
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const respond = makeRespond();
+    const client = makeClient();
+
+    await handler({ ack: makeAck(), body: makeActionBody(), respond, client });
+
+    // First respond call is the loading message
+    expect(respond).toHaveBeenCalled();
+    const firstRespondPayload = respond.mock.calls[0][0] as {
+      replace_original?: boolean;
+      blocks?: Array<{ type: string }>;
+    };
+    // Must replace original (removes the confirm/cancel buttons)
+    expect(firstRespondPayload.replace_original).toBe(true);
+    // Must NOT contain an actions block (buttons are gone)
+    const hasActionsBlock = (firstRespondPayload.blocks ?? []).some((b) => b.type === 'actions');
+    expect(hasActionsBlock).toBe(false);
+  });
+
+  it('someFound with pre-extracted partial → missing-info path without calling extractInputsFromText', async () => {
+    // Archetype requires both `date` and `location`; pre-extracted only has `date`
+    // Handler should detect someFound (date present, location missing) WITHOUT calling extractInputsFromText
+    mockFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
+        return Promise.resolve(
+          makeArchetypeResponse([
+            { key: 'date', label: 'Checkout Date', type: 'date', required: true },
+            { key: 'location', label: 'Property Location', type: 'text', required: true },
+          ]),
+        );
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const client = makeClient();
+
+    await handler({
+      ack: makeAck(),
+      body: makeActionBody({ extractedInputs: { date: '2026-06-10' } }),
+      respond: makeRespond(),
+      client,
+    });
+
+    // extractInputsFromText must NOT be called — pre-extracted inputs were provided
+    expect(mockExtractInputsFromText).not.toHaveBeenCalled();
+    // Task must NOT be dispatched (missing `location`)
+    expect(inngest.send).not.toHaveBeenCalled();
+    // Missing-info message must mention the missing field
+    expect(client.chat.postMessage).toHaveBeenCalledOnce();
+    const postBody = client.chat.postMessage.mock.calls[0][0] as { text: string };
+    expect(postBody.text).toContain('Property Location');
+    expect(postBody.text).not.toContain('Checkout Date');
   });
 });
