@@ -79,6 +79,16 @@ export function _clearPendingInputCollections(): void {
   pendingInputCollections.clear();
 }
 
+/** Deduplicates app_mention events — Slack Socket Mode delivers at-least-once.
+ *  Key: `${ts}:${channel}`, Value: timestamp (ms).
+ *  Single-process scoped — acceptable for current single-instance deployment. */
+const recentMentions = new Map<string, number>();
+const MENTION_DEDUP_TTL_MS = 30_000;
+
+export function _clearRecentMentions(): void {
+  recentMentions.clear();
+}
+
 async function isTaskAwaitingApproval(
   taskId: string,
   { maxRetries = 0, retryDelayMs = 2000 }: { maxRetries?: number; retryDelayMs?: number } = {},
@@ -311,6 +321,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (mention.bot_id) return;
 
     if (mention.channel.startsWith('D')) return;
+
+    // Dedup: skip duplicate app_mention events (Slack Socket Mode at-least-once delivery)
+    const dedupKey = `${mention.ts}:${mention.channel}`;
+    const now = Date.now();
+    if (
+      recentMentions.has(dedupKey) &&
+      now - recentMentions.get(dedupKey)! < MENTION_DEDUP_TTL_MS
+    ) {
+      log.info(
+        { ts: mention.ts, channel: mention.channel },
+        'Duplicate app_mention suppressed — skipping',
+      );
+      return;
+    }
+    recentMentions.set(dedupKey, now);
+    // Lazy cleanup: evict expired entries to prevent unbounded growth
+    for (const [key, timestamp] of recentMentions) {
+      if (now - timestamp > MENTION_DEDUP_TTL_MS) recentMentions.delete(key);
+    }
 
     const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
