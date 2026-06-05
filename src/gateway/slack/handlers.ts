@@ -1633,6 +1633,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             source_system: 'slack',
             status: 'Ready',
             tenant_id: ctx.tenantId,
+            updated_at: new Date().toISOString(),
             raw_event: { inputs: { prompt: ctx.text, ...extractedInputs } },
           }),
         });
@@ -1761,6 +1762,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           source_system: 'slack',
           status: 'Ready',
           tenant_id: ctx.tenantId,
+          updated_at: new Date().toISOString(),
           raw_event: { inputs: { prompt: ctx.text } },
         }),
       });
