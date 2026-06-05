@@ -1,7 +1,11 @@
 import type { callLLM } from './call-llm.js';
+import { CostCircuitBreakerError, RateLimitExceededError } from './errors.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('extract-inputs');
+
+const MAX_ATTEMPTS = 3;
+const TOKEN_BUDGETS = [800, 1600, 3200] as const;
 
 export function stripFences(s: string): string {
   return s
@@ -29,6 +33,7 @@ export async function extractInputsFromText(
       'You are an input extraction assistant. Extract the requested field values from the user message. ' +
       'Respond ONLY with a JSON object where each key is a field key and each value is the extracted string value, ' +
       'or null if not found. Do not include any other text. ' +
+      'Output the JSON object directly with no preamble, no explanation, and no markdown code fences. ' +
       `Today's date is ${today}. ` +
       'For fields with type "date": convert any natural-language date (e.g. "June 10th", "next Monday", "tomorrow", "June 10") ' +
       'to YYYY-MM-DD format. If no year is mentioned, use the current year. Never return null for a date field if a date is mentioned — normalize it instead. ' +
@@ -47,33 +52,76 @@ export async function extractInputsFromText(
 
     const userMessage = `${fieldList}\n\n<user_message>${text}</user_message>`;
 
-    const llmResult = await callLLMFn({
-      taskType: 'review',
-      temperature: 0,
-      maxTokens: 200,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-    });
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: userMessage },
+    ];
 
-    const raw = llmResult.content.trim();
-    const stripped = stripFences(raw);
-    const parsed = JSON.parse(stripped) as Record<string, string | null>;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      let llmResult: Awaited<ReturnType<typeof callLLMFn>>;
 
-    const result: Record<string, string> = {};
+      try {
+        llmResult = await callLLMFn({
+          taskType: 'review',
+          temperature: 0,
+          maxTokens: TOKEN_BUDGETS[attempt],
+          timeoutMs: 20_000,
+          messages,
+        });
+      } catch (err) {
+        if (err instanceof CostCircuitBreakerError || err instanceof RateLimitExceededError) {
+          throw err;
+        }
+        log.warn(
+          { attempt, maxTokens: TOKEN_BUDGETS[attempt], reason: 'llm_error', err },
+          'extractInputsFromText: LLM call failed, retrying',
+        );
+        continue;
+      }
 
-    for (const field of fields) {
-      const val = parsed[field.key];
+      const raw = (llmResult.content ?? '').trim();
 
-      if (val === null || val === undefined) continue;
+      if (!raw) {
+        log.warn(
+          { attempt, maxTokens: TOKEN_BUDGETS[attempt], reason: 'empty' },
+          'extractInputsFromText: empty response, retrying',
+        );
+        continue;
+      }
 
-      if (field.type === 'select' && field.options && !field.options.includes(val)) continue;
+      const stripped = stripFences(raw);
 
-      result[field.key] = val;
+      try {
+        const parsed = JSON.parse(stripped) as Record<string, string | null>;
+
+        const result: Record<string, string> = {};
+
+        for (const field of fields) {
+          const val = parsed[field.key];
+
+          if (val === null || val === undefined) continue;
+
+          if (field.type === 'select' && field.options && !field.options.includes(val)) continue;
+
+          result[field.key] = val;
+        }
+
+        return result;
+      } catch {
+        log.warn(
+          {
+            attempt,
+            maxTokens: TOKEN_BUDGETS[attempt],
+            reason: 'parse_error',
+            contentPreview: stripped.slice(0, 80),
+          },
+          'extractInputsFromText: parse failed, retrying',
+        );
+        continue;
+      }
     }
 
-    return result;
+    return {};
   } catch (err) {
     log.warn({ err }, 'extractInputsFromText: LLM extraction failed, returning empty');
     return {};
