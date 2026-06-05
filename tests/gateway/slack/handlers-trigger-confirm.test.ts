@@ -179,7 +179,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
     expect(client.chat.postMessage).toHaveBeenCalledOnce();
     const postMessageCall = client.chat.postMessage.mock.calls[0][0];
     expect(postMessageCall.text).not.toContain('I need a few details');
-    expect(postMessageCall.text).toContain('Working on it');
+    expect(postMessageCall.text).toContain('One moment');
 
     expect(inngest.send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -271,9 +271,9 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
     ).resolves.not.toThrow();
 
     const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
-    expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
-      true,
-    );
+    expect(
+      respondTexts.some((t) => t.includes('ran into a problem') || t.includes('trying again')),
+    ).toBe(true);
     expect(inngest.send).not.toHaveBeenCalled();
   });
 

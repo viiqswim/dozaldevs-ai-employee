@@ -7,6 +7,12 @@ import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { extractInputsFromText } from '../../lib/extract-inputs.js';
 import { callLLM } from '../../lib/call-llm.js';
+import {
+  loadingMessage,
+  successMessage,
+  failureMessage,
+  missingInfoMessage,
+} from '../../lib/slack-copy.js';
 import { randomUUID } from 'node:crypto';
 
 const log = createLogger('slack-handlers');
@@ -176,7 +182,8 @@ async function getTaskStatusMessage(taskId: string): Promise<string> {
     if (status === 'Done') return '✅ Already approved and delivered — nothing left to do here.';
     if (status === 'Cancelled')
       return '⏭️ This task is no longer active — it may have been superseded by a newer message.';
-    if (status === 'Failed') return '❌ This one ran into a problem — it has already been marked as failed.';
+    if (status === 'Failed')
+      return '❌ This one ran into a problem — it has already been marked as failed.';
     return 'Looks like this one has already been handled.';
   } catch {
     return 'Looks like this one has already been handled.';
@@ -425,7 +432,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       replace_original: true,
       text: '⏳ Got it — sending this for approval…',
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' } },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' },
+        },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
@@ -473,7 +483,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: 'Hmm, something went wrong on my end — mind trying that again?' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
@@ -551,7 +564,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: 'Hmm, something went wrong on my end — mind trying that again?' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
@@ -581,7 +597,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       replace_original: true,
       text: '⏳ Got it — sending this for approval…',
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' } },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' },
+        },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
@@ -632,7 +651,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: 'Hmm, something went wrong on my end — mind trying that again?' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...GUEST_BUTTON_BLOCKS(taskId),
@@ -1003,7 +1025,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             ts: messageTs,
             text: '⏳ On it — working on your direction…',
             blocks: [
-              { type: 'section', text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' } },
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
+              },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
@@ -1055,7 +1080,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           ts: messageTs,
           text: '⏳ Got it — noting your rejection…',
           blocks: [
-            { type: 'section', text: { type: 'mrkdwn', text: '⏳ Got it — noting your rejection…' } },
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ Got it — noting your rejection…' },
+            },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
           ],
         });
@@ -1119,7 +1147,10 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: 'Hmm, something went wrong on my end — mind trying that again?' },
+                text: {
+                  type: 'mrkdwn',
+                  text: 'Hmm, something went wrong on my end — mind trying that again?',
+                },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
               ...GUEST_BUTTON_BLOCKS(taskId),
@@ -1516,6 +1547,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       channelId: string;
       threadTs: string;
       text: string;
+      extractedInputs?: Record<string, string>;
     };
     try {
       ctx = JSON.parse(valueStr) as typeof ctx;
@@ -1526,23 +1558,19 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
 
     await ack();
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
     log.info(
       { archetypeId: ctx.archetypeId, tenantId: ctx.tenantId, userId: user.id },
       'trigger_confirm action received — dispatching task',
     );
 
+    const loadingText = loadingMessage('your request');
     try {
       await respond({
         replace_original: true,
-        text: '⏳ On it — getting them started…',
-        blocks: [
-          { type: 'section', text: { type: 'mrkdwn', text: '⏳ On it — getting them started…' } },
-          {
-            type: 'context',
-            elements: [{ type: 'mrkdwn' as const, text: `Archetype \`${ctx.archetypeId}\`` }],
-          },
-        ],
+        text: loadingText,
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: loadingText } }],
       });
     } catch (err) {
       log.warn(
@@ -1599,9 +1627,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
             }))
         : [];
 
+      const preExtracted = ctx.extractedInputs;
       const extractedInputs =
         requiredInputs.length > 0
-          ? await extractInputsFromText(ctx.text, requiredInputs, callLLM)
+          ? preExtracted && Object.keys(preExtracted).length > 0
+            ? preExtracted
+            : await extractInputsFromText(ctx.text, requiredInputs, callLLM)
           : {};
 
       const missingInputs = requiredInputs.filter((inp) => !(inp.key in extractedInputs));
@@ -1609,35 +1640,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       const someFound = Object.keys(extractedInputs).length > 0 && missingInputs.length > 0;
 
       if (allFound) {
-        const summaryParts = requiredInputs
-          .map((inp) => `${inp.label}: ${extractedInputs[inp.key]}`)
-          .join(', ');
-        let confirmText: string;
-        try {
-          const confirmResult = await callLLM({
-            taskType: 'review',
-            temperature: 0.3,
-            maxTokens: 100,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a helpful assistant. Write a single natural-sounding confirmation message for the user. Be concise and friendly.',
-              },
-              {
-                role: 'user',
-                content: `The user wants to trigger "${archetype.role_name}" with these details: ${summaryParts}. Write a brief, friendly confirmation like "Just to confirm, you want me to..." and end with "Working on it!" or similar. Keep it to 1-2 sentences.`,
-              },
-            ],
-          });
-          confirmText = confirmResult.content?.trim() ?? '';
-          if (!confirmText) {
-            confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
-          }
-        } catch (err) {
-          log.warn({ err }, 'Failed to generate LLM confirmation text, using fallback');
-          confirmText = `Just to confirm, you want me to trigger *${archetype.role_name}* with ${summaryParts}. Working on it!`;
-        }
+        const confirmText = loadingMessage(archetype.role_name);
 
         await client.chat.postMessage({
           channel: ctx.channelId,
@@ -1691,17 +1694,15 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           'Task dispatched from trigger_confirm with extracted inputs',
         );
 
+        const successText = successMessage(archetype.role_name, user.id);
         try {
           await respond({
             replace_original: true,
-            text: `✅ Done — *${archetype.role_name}* is on it, kicked off by <@${user.id}>`,
+            text: successText,
             blocks: [
               {
                 type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: `✅ Done — *${archetype.role_name}* is on it, kicked off by <@${user.id}>`,
-                },
+                text: { type: 'mrkdwn', text: successText },
               },
               {
                 type: 'context',
@@ -1740,17 +1741,15 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           pendingInputCollections.set(ctx.threadTs, pendingData);
         }
 
+        const missingInfoText = missingInfoMessage(archetype.role_name, inputList);
         const inputMsgResult = await client.chat.postMessage({
           channel: ctx.channelId,
           ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
-          text: `Before I can trigger *${archetype.role_name}*, I need a few details:\n\n${inputList}\n\nReply in this thread with the information above.`,
+          text: missingInfoText,
           blocks: [
             {
               type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `Before I can trigger *${archetype.role_name}*, I need a few details:\n\n${inputList}\n\nReply in this thread with the information above.`,
-              },
+              text: { type: 'mrkdwn', text: missingInfoText },
             },
           ],
         });
@@ -1761,16 +1760,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           pendingInputCollections.set(pendingKey, pendingData);
         }
 
+        const waitingText = loadingMessage(archetype.role_name);
         await respond({
           replace_original: true,
-          text: `⏳ Almost there — just reply in this thread with the details and I'll kick off *${archetype.role_name}*`,
+          text: waitingText,
           blocks: [
             {
               type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `⏳ Almost there — just reply in this thread with the details and I'll kick off *${archetype.role_name}*`,
-              },
+              text: { type: 'mrkdwn', text: waitingText },
             },
             {
               type: 'context',
@@ -1824,17 +1821,15 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         'Task dispatched from Slack trigger confirmation',
       );
 
+      const successText = successMessage(archetype.role_name, user.id);
       try {
         await respond({
           replace_original: true,
-          text: `✅ Done — *${archetype.role_name}* is on it, kicked off by <@${user.id}>`,
+          text: successText,
           blocks: [
             {
               type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `✅ Done — *${archetype.role_name}* is on it, kicked off by <@${user.id}>`,
-              },
+              text: { type: 'mrkdwn', text: successText },
             },
             {
               type: 'context',
@@ -1854,17 +1849,15 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         'Failed to dispatch task from trigger_confirm',
       );
       if (!dispatched) {
+        const failText = failureMessage();
         try {
           await respond({
             replace_original: true,
-            text: 'Hmm, something went wrong on my end — mind trying that again?',
+            text: failText,
             blocks: [
               {
                 type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: 'Hmm, something went wrong on my end — mind trying that again?',
-                },
+                text: { type: 'mrkdwn', text: failText },
               },
               {
                 type: 'context',
