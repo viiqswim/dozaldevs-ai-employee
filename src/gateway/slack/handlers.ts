@@ -1708,7 +1708,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           ],
         });
 
-        const pendingKey = (inputMsgResult.ts as string | undefined) ?? ctx.threadTs;
+        const pendingKey = ctx.threadTs ?? (inputMsgResult.ts as string | undefined);
 
         pendingInputCollections.set(pendingKey, {
           archetypeId: archetype.id,
