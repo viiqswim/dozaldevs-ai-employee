@@ -17,7 +17,13 @@
  */
 import { Inngest } from 'inngest';
 import type { InngestFunction } from 'inngest';
+import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
+import { loadTenantEnv } from '../../gateway/services/tenant-env-loader.js';
+import { TenantRepository } from '../../gateway/services/tenant-repository.js';
+import { TenantSecretRepository } from '../../gateway/services/tenant-secret-repository.js';
+import { createSlackClient } from '../../lib/slack-client.js';
+import { watchdogFailureMessage } from '../../lib/slack-copy.js';
 
 const log = createLogger('reviewing-watchdog');
 
@@ -28,6 +34,7 @@ interface TaskRow {
   tenant_id: string;
   status: string;
   updated_at: string;
+  metadata: Record<string, unknown> | null;
 }
 
 interface PendingApprovalRow {
@@ -64,7 +71,7 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
 
       const reviewingTasks = await step.run('load-reviewing-tasks', async () => {
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/tasks?status=eq.Reviewing&updated_at=lt.${encodeURIComponent(cutoff)}&select=id,tenant_id,status,updated_at`,
+          `${supabaseUrl}/rest/v1/tasks?status=eq.Reviewing&updated_at=lt.${encodeURIComponent(cutoff)}&select=id,tenant_id,status,updated_at,metadata`,
           { headers },
         );
         if (!res.ok) {
@@ -141,6 +148,58 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
               actor: 'reviewing-watchdog',
             }),
           });
+
+          try {
+            const notifyTs = task.metadata?.notify_slack_ts as string | undefined;
+            const notifyChannel = task.metadata?.notify_slack_channel as string | undefined;
+            if (!notifyTs || !notifyChannel) {
+              log.info(
+                { taskId: task.id },
+                'Reviewing watchdog: no notify message to update — skipping Slack update',
+              );
+            } else {
+              const prismaForSlack = new PrismaClient();
+              let botToken: string | undefined;
+              try {
+                const tenantEnv = await loadTenantEnv(
+                  task.tenant_id,
+                  {
+                    tenantRepo: new TenantRepository(prismaForSlack),
+                    secretRepo: new TenantSecretRepository(prismaForSlack),
+                  },
+                  null,
+                );
+                botToken = tenantEnv['SLACK_BOT_TOKEN'] ?? undefined;
+              } finally {
+                await prismaForSlack.$disconnect();
+              }
+              if (!botToken) {
+                log.warn(
+                  { taskId: task.id, tenantId: task.tenant_id },
+                  'Reviewing watchdog: no SLACK_BOT_TOKEN — skipping Slack update',
+                );
+              } else {
+                const slackClient = createSlackClient({ botToken, defaultChannel: '' });
+                const failText = watchdogFailureMessage();
+                await slackClient.updateMessage(notifyChannel, notifyTs, failText, [
+                  { type: 'section', text: { type: 'mrkdwn', text: failText } },
+                  {
+                    type: 'context',
+                    elements: [{ type: 'mrkdwn', text: `Task \`${task.id}\`` }],
+                  },
+                ]);
+                log.info(
+                  { taskId: task.id },
+                  'Reviewing watchdog: updated frozen notify message to ❌',
+                );
+              }
+            }
+          } catch (err) {
+            log.warn(
+              { taskId: task.id, err },
+              'Reviewing watchdog: failed to update Slack notify message (non-fatal)',
+            );
+          }
 
           log.info({ taskId: task.id }, 'Reviewing watchdog: zombie task marked Failed');
           return true;
