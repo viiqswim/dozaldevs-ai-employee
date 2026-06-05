@@ -187,6 +187,49 @@ curl -X POST "http://localhost:8288/e/local" \
 
 **Reference implementation**: `src/inngest/employee-lifecycle.ts` (`handle-approval-result` step) and `src/worker-tools/slack/post-message.ts` (`buildApprovalBlocks`).
 
+## Slack Voice & Tone (MANDATORY — Every Message, No Exceptions)
+
+**Every Slack message sent by an AI employee or by the platform on behalf of one MUST sound like a person wrote it — not a machine.** This applies to all contexts: trigger confirmations, approval cards, status updates, error messages, missing-info prompts, terminal-state notifications, and any other user-facing string. No exceptions.
+
+### The Rule
+
+Before writing any Slack copy, ask: _"Would a thoughtful colleague send this exact message?"_ If the answer is no, rewrite it.
+
+**Forbidden patterns (robotic):**
+
+- Status codes or technical identifiers as prose: `"Task status: NEEDS_APPROVAL"`, `"Error: inngest.send() failed"`
+- Passive system-speak: `"Your request has been received and is being processed."`, `"Action required: approval pending."`
+- Dry confirmations with no personality: `"Trigger confirmed. Employee started."`, `"Operation completed successfully."`
+- All-caps emphasis: `"WARNING: task failed"`, `"NOTE: this action is irreversible"`
+- Filler preamble: `"Please note that..."`, `"It is worth mentioning that..."`
+
+**Required patterns (human):**
+
+- First person, present tense, active voice: `"On it — I'll post the results here when it's ready."`, `"Hmm, I ran into a problem. Mind trying again in a moment?"`
+- Address the user by mention when relevant: `"<@userId>, I just need one more thing before I can start."`
+- Acknowledge what the user asked for before pivoting: `"Almost there — before I kick off *${roleName}*, I just need a couple of details."` (not: `"Required inputs missing."`)
+- Friendly closure on success: `"✅ Done — *${roleName}* is now working on it. I'll post the results here when it's ready."` (not: `"Task dispatched."`)
+- Empathetic framing on failure: `"Something went wrong on my end — could you try that again in a moment?"` (not: `"Internal server error."`)
+
+### Tone Spectrum (use these as calibration anchors)
+
+| Situation              | ❌ Robotic                        | ✅ Human                                                                                     |
+| ---------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| Confirm click, loading | `"Processing your request..."`    | `"On it — I'm getting *Daily Summarizer* started. One moment…"`                              |
+| Success                | `"Task dispatched successfully."` | `"✅ Done — I'm on it. I'll post the results here when it's ready."`                         |
+| Missing info           | `"Required field: date"`          | `"Almost there — I just need to know the date before I can start."`                          |
+| Failure                | `"Error: dispatch failed."`       | `"Hmm, something went wrong. Mind trying again in a moment?"`                                |
+| Awaiting approval      | `"Pending approval."`             | `"Just sent this to the team for a quick review — I'll follow up as soon as it's approved."` |
+| Rejected               | `"Request rejected."`             | `"Got it — I'll leave this one for now. Let me know if you'd like me to try again."`         |
+
+### Where This Applies
+
+Every user-facing string: trigger-flow messages (`trigger-copy.ts` and equivalents), approval card text, `notify-received` updates, terminal-state updates (Done, Failed, Cancelled), in-thread replies, missing-info prompts, and any copy written in archetype `delivery_steps` or `execution_steps` that surfaces to Slack.
+
+**Centralise copy in one place per flow** — inline prose scattered across handler logic is a maintainability bug and a tone-consistency risk. Write named constants (e.g. `loadingMessage(roleName)`) and import them.
+
+---
+
 ## Slack Message Hygiene (MANDATORY — No Message Accumulation)
 
 Every task gets ONE primary top-level Slack message per channel. All status progressions MUST use one of:
@@ -554,29 +597,34 @@ Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `
 
 ### 4. Stale detached processes from previous `pnpm dev` sessions
 
-**Symptom**: @mention or webhook triggers produce no Slack response, or produce responses from old/stale code (missing recent fixes). Gateway logs show the event was received and Inngest function initialized, but step output logs are missing or show old behavior.
+**Symptom**: @mention triggers produce no Slack response roughly 50% of the time, or produce responses from old/stale code (missing recent fixes). Gateway logs show the event was received and Inngest function initialized, but step output logs are missing or show old behavior.
 
-**Root cause**: `dev.ts` spawns Inngest, Gateway, and Dashboard with `detached: true`. If the parent `dev.ts` process dies without a clean SIGINT/SIGTERM (tmux session killed, terminal closed, `kill -9`, crash), the detached children survive as orphans. On the next `pnpm dev`, new processes spawn alongside the stale ones. Inngest executors from previous sessions intercept function executions and run old code.
+**Root cause — two compounding mechanisms:**
+
+1. **Slack Socket Mode load-balancing.** Slack delivers each event to exactly ONE connected socket and load-balances across all connected sockets. With two gateway processes alive, ~50% of `app_mention` events go to the zombie process, which has no live Inngest connection, so the event is silently dropped — no log, no ack, no task created.
+
+2. **Broken reaper regex left the real gateway leaf alive.** `tsx watch` spawns two processes: a SUPERVISOR (`tsx watch src/gateway/server.ts`) and a CHILD `node` process (the real gateway). The real gateway leaf cmdline is `node …/tsx/dist/loader.mjs src/gateway/server.ts` — it has NO "watch" token. The old reaper pattern `tsx.*watch.*server\.ts` matched and killed the supervisor but left the leaf alive. The leaf kept the Slack Socket Mode WebSocket open, becoming the zombie.
+
+**When orphaning occurs**: ONLY on unclean death (`kill -9`, tmux session killed, crash). Clean Ctrl+C already group-kills correctly via `process.kill(-child.pid, 'SIGTERM')` in `dev.ts:154` — that path is not broken.
 
 **Diagnosis**:
 
 ```bash
-# Count Inngest executors (should be exactly 1)
-pgrep -f "inngest-cli.*8288" | wc -l
-
-# List all dev-related processes with start times
-ps aux | grep -E "inngest-cli|tsx.*server|vite" | grep -v grep
+# Count gateway leaf processes (should be exactly 1)
+pgrep -f "$(pwd)/src/gateway/server.ts" | wc -l
 ```
 
-**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that detects and kills stale processes on startup. If you still see stale processes, kill them manually:
+**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that anchors on the absolute path, matching all three process forms (supervisor, leaf, and any tsx variant). If you still see stale processes, kill them manually:
 
 ```bash
+pkill -f "$(pwd)/src/gateway/server.ts" || true
 pkill -f "inngest-cli.*8288" || true
-pkill -f "tsx.*watch.*server\.ts" || true
 pkill -f "vite.*7701" || true
 ```
 
-**Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, first run the manual kill commands above.
+Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gateway from connecting Socket Mode even if the reaper misses a zombie — the second instance logs a warning and skips the Socket Mode connection.
+
+**Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, run the manual kill commands above first.
 
 ## Task Debugging Quick Reference
 
@@ -789,6 +837,12 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 
 Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step.
 
+**Slack trigger workflow changes require live @mention E2E.** Any plan that modifies the Slack trigger workflow — `app_mention` handler, `slack-trigger-handler`, `interaction-handler`/classifier, confirmation cards, `slack-copy`, or any code in the path from @mention to task dispatch — MUST include all three of the following before the plan passes:
+
+1. **Single-gateway pre-flight**: `pgrep -f "$(pwd)/src/gateway/server.ts" | wc -l` must return `1`. If it returns more, kill the zombies before proceeding — a stale socket will silently absorb ~50% of test events.
+2. **Live @mention → Confirm → Done E2E**: Send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
+3. **"Verified from code" or "unit tests pass" is explicitly insufficient** for this workflow — the live Slack path must be exercised.
+
 | Guide                                                              | Scenarios | Domain                                                                                      |
 | ------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
 | `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
@@ -797,6 +851,7 @@ Every plan for an AI employee feature must include a **real browser E2E validati
 
 **Minimum for any guest-messaging change**: Slack UX Scenario A (approve happy path).
 **Minimum for any archetype generator, wizard, or delivery pipeline change**: AI Employee E2E guide (AC1–AC8).
+**Minimum for any Slack trigger workflow change** (app_mention, slack-trigger-handler, interaction-handler, confirmation cards): Single-gateway pre-flight + live @mention → Confirm → Done E2E.
 Use the **Quick-Reference table** in each guide to identify which additional scenarios apply to your change.
 
 ### Plan template (Final Verification Wave)
