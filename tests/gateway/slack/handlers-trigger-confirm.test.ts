@@ -312,4 +312,148 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('_clearPendingInputCollections — clears the map without throwing', () => {
     expect(() => _clearPendingInputCollections()).not.toThrow();
   });
+
+  it('allFound path — dispatches exactly once, no double-dispatch', async () => {
+    // Default mocks: archetype with required `date` input, extractedInputs returns { date: '2026-06-05' }
+    // This is the regression guard: pre-fix, inngest.send would be called twice (fall-through)
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const respond = makeRespond();
+    const client = makeClient();
+
+    await handler({ ack: makeAck(), body: makeActionBody(), respond, client });
+
+    // Primary assertion: inngest.send called exactly once (not twice due to fall-through)
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    // Secondary: chat.postMessage called exactly once (the confirmation message)
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
+    // No failure message in any respond call
+    const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
+    expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
+      false,
+    );
+  });
+
+  it('allFound path — respond throws after dispatch → no failure message shown', async () => {
+    // Default mocks: allFound path (date extracted)
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    // First call (⏳ Triggering employee...) resolves; second call (✅ success) rejects
+    const respond = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('expired_url'));
+    const client = makeClient();
+
+    await expect(
+      handler({ ack: makeAck(), body: makeActionBody(), respond, client }),
+    ).resolves.not.toThrow();
+
+    // Task was dispatched
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    // No failure message in any respond call
+    const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
+    expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
+      false,
+    );
+  });
+
+  it('allFound path — empty LLM confirmText → fallback used, dispatch succeeds', async () => {
+    mockCallLLM.mockResolvedValue({
+      content: '',
+      model: 'test',
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+    });
+
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const client = makeClient();
+
+    await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
+
+    // chat.postMessage must be called with non-empty text (fallback was used)
+    expect(client.chat.postMessage).toHaveBeenCalledOnce();
+    const postMessageCall = client.chat.postMessage.mock.calls[0][0] as { text: string };
+    expect(postMessageCall.text.length).toBeGreaterThan(0);
+    // Dispatch still happened
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('allFound path — undefined LLM content → no TypeError, fallback used', async () => {
+    mockCallLLM.mockResolvedValue({
+      content: undefined as unknown as string,
+      model: 'test',
+      promptTokens: 0,
+      completionTokens: 0,
+      estimatedCostUsd: 0,
+      latencyMs: 0,
+    });
+
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    const client = makeClient();
+
+    // Must not throw TypeError from undefined.trim()
+    await expect(
+      handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client }),
+    ).resolves.not.toThrow();
+
+    // Fallback text was used — postMessage called with non-empty text
+    expect(client.chat.postMessage).toHaveBeenCalledOnce();
+    const postMessageCall = client.chat.postMessage.mock.calls[0][0] as { text: string };
+    expect(postMessageCall.text.length).toBeGreaterThan(0);
+    // Dispatch still happened
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('default path (no required inputs) — respond throws after dispatch → no failure message', async () => {
+    // Override fetch to return archetype with empty input_schema
+    mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
+      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
+        return Promise.resolve(makeArchetypeResponse([]));
+      }
+      if (typeof url === 'string' && url.includes('/rest/v1/tasks') && opts?.method === 'POST') {
+        return Promise.resolve(makeTaskCreationResponse());
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    const boltApp = makeMockBoltApp();
+    const inngest = makeMockInngest();
+    registerSlackHandlers(boltApp as unknown as App, inngest);
+
+    const handler = boltApp._getAction('trigger_confirm');
+    // First call (⏳ Triggering employee...) resolves; second call (✅ success) rejects
+    const respond = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('expired_url'));
+
+    await expect(
+      handler({ ack: makeAck(), body: makeActionBody(), respond, client: makeClient() }),
+    ).resolves.not.toThrow();
+
+    // Task was dispatched
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    // No failure message in any respond call
+    const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
+    expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
+      false,
+    );
+  });
 });
