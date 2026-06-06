@@ -25,23 +25,59 @@ Respond with exactly one word: feedback, teaching, question, task, or unclear. N
       ? `You are the ${archetypeContext.role_name} employee. Your job is to perform tasks when requested. ${categoryDefinitions}${injectionBoundary}`
       : `${categoryDefinitions}${injectionBoundary}`;
 
-    const result = await this.callLLMFn({
-      taskType: 'review',
+    const llmArgs = {
+      taskType: 'review' as const,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `<user_message>${text}</user_message>` },
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: `<user_message>${text}</user_message>` },
       ],
       maxTokens: 500,
       temperature: 0,
-    });
+    };
 
-    const intent = result.content.trim().toLowerCase();
     const validIntents: MentionIntent[] = ['feedback', 'teaching', 'question', 'task', 'unclear'];
-    log.info(
-      { intent, roleName: archetypeContext?.role_name ?? null, textLength: text.length },
-      'Intent classified',
+
+    const parseIntent = (content: string): MentionIntent | null => {
+      const cleaned = content
+        .trim()
+        .toLowerCase()
+        .replace(/^["'`]+|["'`]+$/g, '')
+        .trim();
+      return validIntents.includes(cleaned as MentionIntent) ? (cleaned as MentionIntent) : null;
+    };
+
+    const result1 = await this.callLLMFn(llmArgs);
+    const intent1 = parseIntent(result1.content);
+
+    if (intent1 !== null) {
+      log.info(
+        { intent: intent1, roleName: archetypeContext?.role_name ?? null, textLength: text.length },
+        'Intent classified',
+      );
+      return intent1;
+    }
+
+    const result2 = await this.callLLMFn(llmArgs);
+    const intent2 = parseIntent(result2.content);
+
+    if (intent2 !== null) {
+      log.info(
+        {
+          intent: intent2,
+          roleName: archetypeContext?.role_name ?? null,
+          textLength: text.length,
+          retried: true,
+        },
+        'Intent classified (after retry)',
+      );
+      return intent2;
+    }
+
+    log.warn(
+      { rawOutput: result2.content.slice(0, 100), attempt: 2, textLength: text.length },
+      'Intent classification fell back to unclear after retry',
     );
-    return validIntents.includes(intent as MentionIntent) ? (intent as MentionIntent) : 'unclear';
+    return 'unclear';
   }
 }
 
