@@ -422,7 +422,7 @@ Wave FINAL (after fixes — verification + live E2E, then user okay):
       `git diff --name-only` — confirm only in-scope files: `src/lib/logger.ts`, `src/gateway/server.ts`, `src/gateway/services/interaction-classifier.ts`, `src/inngest/interaction-handler.ts`, `AGENTS.md`, + test files. Confirm singleton-fix files not regressed (`socket-mode-lock.ts`, dev.ts reaper, server.ts lock/stop). Confirm channel→employee resolution, admin-trigger lifecycle, and delivery path untouched. No tokens in diffs, no `.playwright-mcp/`, no `LOG_LEVEL=debug` committed.
       Output: `Files [N/N in scope] | Singleton-fix intact [Y/N] | No tokens leaked [Y/N] | VERDICT`
 
-- [ ] F5. **Cleanup + docs freshness** — kill all `ai-*` tmux sessions created during execution; kill any stray Socket Mode probe processes; remove temp/scratch + `.playwright-mcp/` artifacts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md updates landed. Commit plan + notepads per git cleanup rules. Send Telegram completion notice.
+- [x] F5. **Cleanup + docs freshness** — kill all `ai-*` tmux sessions created during execution; kill any stray Socket Mode probe processes; remove temp/scratch + `.playwright-mcp/` artifacts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md updates landed. Commit plan + notepads per git cleanup rules. Send Telegram completion notice.
 
 ---
 
