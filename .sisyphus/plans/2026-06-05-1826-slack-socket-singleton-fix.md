@@ -410,15 +410,15 @@ Critical Path: Task 1 → Task 4 → Task 6 → Final Wave (live E2E)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed. Never check F1-F4 before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists. Confirm: reaper anchored on absolute repo path (no bare relative substring); single-instance lock gated on `boltApp.start()` + conditional on `SLACK_APP_TOKEN` + takeover-capable + liveness/identity validated; `boltApp.stop()` added to both signal handlers; AGENTS.md Issue #4 names all three root-cause elements; E2E mandate added. For each "Must NOT Have": grep for violations (SIGINT cleanup NOT relabeled broken; no :7700-bind-based gating; no reusable lock library; no Inngest/Dashboard locks; handlers.ts dedup untouched; lock file not on persistent volume; 38 zombies untouched).
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality + Build** — `unspecified-high`
+- [x] F2. **Code Quality + Build** — `unspecified-high`
       Run `pnpm exec vitest run` on the lock-helper test file + `pnpm build` + `pnpm exec eslint` on changed files. Review changed lines for: `as any`/`@ts-ignore`, empty catches, lock acquired BEFORE `boltApp.start()` and released in shutdown, guard short-circuits when `SLACK_APP_TOKEN` unset, reaper anchor uses absolute path. Confirm no NEW test failures vs baseline.
       Output: `Tests [N pass/N fail] | Lint [PASS/FAIL] | Build [PASS/FAIL] | VERDICT`
 
-- [ ] F3. **Real QA — process behavior + LIVE Slack @mention E2E** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Real QA — process behavior + LIVE Slack @mention E2E** — `unspecified-high` (+ `e2e-testing` skill)
       (a) Reaper: start `pnpm dev` in tmux; simulate unclean death (`kill -9` the dev.ts parent, leave the gateway child orphaned); confirm an orphan survives; run `pnpm dev` again; assert Step 0 reaped it → `pgrep -f "$(pwd)/src/gateway/server.ts" | wc -l` = 1.
       (b) Over-match guard: spawn a decoy `sleep 300` whose argv contains `gateway/server.ts` from a DIFFERENT path; run Step 0; assert `kill -0 <decoy>` still succeeds (NOT killed).
       (c) Second-gateway: with one gateway holding the lock, start `npx tsx src/gateway/server.ts` in another shell; assert it refuses Socket Mode, exits non-zero, logs the refusal.
@@ -426,11 +426,11 @@ Critical Path: Task 1 → Task 4 → Task 6 → Final Wave (live E2E)
       (e) **LIVE Slack E2E**: pre-flight assert exactly ONE gateway alive; ask the user to @mention the cleaning-schedule bot in `ops-cleaning-schedule` (or trigger a channel-assigned employee); watch DB + Inngest + Slack thread; click Confirm; assert `tasks.status` reaches `Done` and record task ID + `task_status_log` trace. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Reaper count=1 [Y/N] | Decoy survived [Y/N] | 2nd-gateway refused [Y/N] | Hot-reload count=1 [Y/N] | Live E2E Done [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       `git diff --name-only` — confirm ONLY in-scope files changed: `scripts/dev.ts`, `src/gateway/server.ts`, `src/gateway/lib/socket-mode-lock.ts`, `AGENTS.md`, + the lock test file. Confirm `handlers.ts`, Inngest/Dashboard lock-free, dedup logic, and production shutdown (beyond `boltApp.stop()`) untouched. Confirm the SIGINT cleanup path was NOT relabeled as broken. Confirm the 38 zombies were not touched. Detect cross-task contamination.
       Output: `Files [N/N in scope] | SIGINT-path-untouched [Y/N] | Contamination [CLEAN/N] | VERDICT`
 
-- [ ] F5. **Tmux/scratch cleanup + docs freshness** — kill all tmux sessions created during E2E (`tmux list-sessions -F '#{session_name}' | grep '^ai-' | xargs ...`); delete temp/decoy scripts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md updates landed. Commit plan + notepads per git cleanup rules.
+- [x] F5. **Tmux/scratch cleanup + docs freshness** — kill all tmux sessions created during E2E (`tmux list-sessions -F '#{session_name}' | grep '^ai-' | xargs ...`); delete temp/decoy scripts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md updates landed. Commit plan + notepads per git cleanup rules.
 
 ---
 
