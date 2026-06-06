@@ -46,6 +46,7 @@ import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
 import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
+import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -122,6 +123,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         },
         logger: createFilteredBoltLogger(logger),
       });
+
+      const lockResult = await acquireSocketModeLock();
+      if (!lockResult.acquired) {
+        logger.warn(
+          { holderPid: lockResult.holderPid },
+          'Another gateway already holds the Slack Socket Mode lock — refusing to start Socket Mode to avoid stealing events',
+        );
+        process.exit(1);
+      }
 
       void boltApp
         .start()
@@ -302,11 +312,23 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       });
 
       process.on('SIGTERM', () => {
-        server.close(() => process.exit(0));
+        void (async () => {
+          if (bolt) {
+            await bolt.stop();
+          }
+          releaseSocketModeLock();
+          server.close(() => process.exit(0));
+        })();
       });
 
       process.on('SIGINT', () => {
-        server.close(() => process.exit(0));
+        void (async () => {
+          if (bolt) {
+            await bolt.stop();
+          }
+          releaseSocketModeLock();
+          server.close(() => process.exit(0));
+        })();
       });
     })
     .catch((err: unknown) => {
