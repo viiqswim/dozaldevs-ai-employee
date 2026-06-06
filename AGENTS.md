@@ -634,6 +634,18 @@ Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gatewa
 
 **How it differs from Known Issue #4**: Known Issue #4 is a local zombie process (still running on your machine). A phantom is a Slack-side stranded WebSocket pointing at a dead process. The local process count check (`pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l`) returns `1` even when a phantom is present.
 
+**Confirmed operational trigger (2026-06-06)**: Running multiple concurrent `pnpm dev` instances is the most reliable way to create a phantom. The new instance's Step 0 preflight `pkill`s the old gateway and returns immediately, without waiting for the old gateway's `await bolt.stop()` WS close frame to complete. If the close frame doesn't reach Slack before the new gateway connects, the old socket is stranded at Slack as a phantom. Confirmed incident: `num_connections: 3` (1 live gateway + 1 phantom + 1 probe socket); the old gateway process exited at the exact second the user's @mention was dropped.
+
+**Prevention now in place** (as of 2026-06-06):
+
+1. **Single-instance guard in `dev.ts`**: If another `scripts/dev.ts` for this repo is already running, `pnpm dev` prints the conflicting PID list and exits 1 without killing anything. This is the highest-leverage fix — it prevents the problem at the source.
+2. **Grace-wait in `dev.ts`**: The Step 0 kill loop now uses `killAndWait()` instead of bare `pkill`. It sends SIGTERM, polls `pgrep` every 200ms until the process is gone (up to 3s), then falls back to SIGKILL + 200ms reap wait. The new gateway only starts after the old one has fully exited.
+3. **Clean-shutdown log in `server.ts`**: After `await bolt.stop()` completes in both SIGTERM and SIGINT handlers, the gateway logs `"Socket Mode WS closed cleanly on shutdown — no phantom expected"`. Presence of this log in a post-mortem means the WS close frame was sent cleanly. Absence means a dirty death (kill -9, tmux session killed) and a phantom is likely.
+
+**tsx watch restart signal**: [FINDING PENDING — will be filled in by orchestrator before commit]
+
+**Operational rule**: **Run exactly ONE `pnpm dev` at a time.** Always stop with Ctrl+C (SIGINT). If you see `num_connections > (expected local gateways + 1)`, a phantom is present. Wait for Slack to expire it (typically 2-15 min). There is no Slack API to force-close phantom sockets.
+
 **Mitigation**: The gateway logs `num_connections` from the Socket Mode `hello` frame at startup. If `num_connections > (expected local gateways + 1)`, a phantom is present. Slack's stale-socket expiry reclaims it automatically (typically within minutes to hours). Always stop `pnpm dev` with Ctrl+C (SIGINT) to prevent phantoms from forming.
 
 **Diagnostics**:
