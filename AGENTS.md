@@ -642,7 +642,7 @@ Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gatewa
 2. **Grace-wait in `dev.ts`**: The Step 0 kill loop now uses `killAndWait()` instead of bare `pkill`. It sends SIGTERM, polls `pgrep` every 200ms until the process is gone (up to 3s), then falls back to SIGKILL + 200ms reap wait. The new gateway only starts after the old one has fully exited.
 3. **Clean-shutdown log in `server.ts`**: After `await bolt.stop()` completes in both SIGTERM and SIGINT handlers, the gateway logs `"Socket Mode WS closed cleanly on shutdown — no phantom expected"`. Presence of this log in a post-mortem means the WS close frame was sent cleanly. Absence means a dirty death (kill -9, tmux session killed) and a phantom is likely.
 
-**tsx watch restart signal**: [FINDING PENDING — will be filled in by orchestrator before commit]
+**tsx watch restart signal**: `tsx watch` (v4.21.0) sends **SIGTERM** to the node leaf on file-save restart — `bolt.stop()` CAN run on watch restarts. The `killProcess` helper defaults to `SIGTERM` with a 5-second SIGKILL fallback (only fires if the process fails to exit in time). Normal `bolt.stop()` completes in <1s, so watch-triggered restarts are safe. Residual phantom-creation paths that bypass SIGTERM entirely: `kill -9`, OOM kills, tmux session killed without Ctrl+C — documented risk, not fixed in this plan.
 
 **Operational rule**: **Run exactly ONE `pnpm dev` at a time.** Always stop with Ctrl+C (SIGINT). If you see `num_connections > (expected local gateways + 1)`, a phantom is present. Wait for Slack to expire it (typically 2-15 min). There is no Slack API to force-close phantom sockets.
 
