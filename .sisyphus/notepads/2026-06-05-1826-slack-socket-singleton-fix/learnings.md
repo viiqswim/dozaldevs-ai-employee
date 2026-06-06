@@ -99,3 +99,83 @@ pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l  # Should be 1
 - **Lint**: eslint on the 4 changed files = 0 errors, 1 warning (unused `eslint-disable no-constant-condition` directive at socket-mode-lock.ts:87 — trivial, removable).
 - **dev.ts**: diff vs baseline starts at line 214 (Step 0 banner) — `cleanup()` at 130-162 is verifiably untouched. Reaper anchors on `process.cwd()` (line 219) embedded in pattern `${repoRoot}.*src/gateway/server\.ts` (line 236).
 - **server.ts**: lock acquired (127) BEFORE boltApp.start() (136); `acquired===false` logs holderPid + `process.exit(1)` (128-134); SIGTERM (314) & SIGINT (324) both guard `if(bolt) bolt.stop()` + `releaseSocketModeLock()`; import uses `.js` (49).
+
+## [2026-06-06] CRITICAL: F3(e) was a FALSE PASS — NEW BUG discovered via real browser E2E
+
+### What happened
+
+- User correctly challenged the F3(e) "PASS". I had pattern-matched an unrelated Hostfully-webhook task (5efaaa40) to the user's @mention. They were never the same.
+- Drove Slack via Playwright MCP (already logged in as Victor Dozal, VLRE workspace) and ran REAL @mention tests.
+
+### Admin-trigger path: BOTH employees PASS end-to-end
+
+- `real-estate-motivation-bot-2` (task efea7d91): Received→...→Done, work_minutes=15, REAL motivational message posted to C0960S2Q8RL. Verified via Slack API.
+- `cleaning-schedule` (task 6d70a586, date input 2026-06-10): Received→...→Done, REAL cleaning schedule (8 properties, 3 cleaners, Spanish) posted to C0B71QSMZKQ. Verified via Slack API.
+
+### @mention path: BUG REPRODUCED (2 independent live tests)
+
+- Test 1 (stale socket, PID 41941): posted `<@U096LNDCW1F> ...Junio 14... [e2e-test]` ts=1780711551 → ZERO gateway log lines, ZERO new tasks, no reply.
+- Test 2 (FRESH restart, PID 72257, socket connected <2min prior): posted ts=1780711969 [e2e-fresh] → SAME: zero gateway activity, no task.
+- Both messages posted correctly with valid bot mention (verified via conversations.history).
+
+### Timeline (UTC) — when it broke
+
+- @mention worked ALL DAY via app_mention until **23:21 UTC (6:21pm CDT)** — last successful slack-trigger task 26db7547 (external_id slack-trigger-1780701672...).
+- My T4 server.ts commit (23e17d76) landed 00:01 UTC — 2.5h BEFORE the last working mention. **My code did NOT break it** (mentions worked after it was live).
+- Channel history shows: 5:10pm & 5:20pm CDT mentions = NO reply (the ORIGINAL zombie incident), 5:51pm & 6:21pm = worked (after restart). Then stopped entirely.
+
+### Root-cause evidence (ruled in / out)
+
+- ❌ NOT zombie gateway: exactly 1 leaf (lock held), confirmed via pgrep + lock file.
+- ❌ NOT stale socket alone: fresh restart, socket "connected" once, 0 disconnect/reconnect events, still broken.
+- ❌ NOT bot-token auth: DB `slack_bot_token` is VALID (deliveries to Slack succeeded for both employees). authorize() uses DB token via loadTenantEnv, not the env var.
+- ⚠️ `SLACK_BOT_TOKEN` ENV VAR = `invalid_auth` (dead). Used by employee-lifecycle delivery via tenantEnv['SLACK_BOT_TOKEN'] — but that comes from loadTenantEnv (DB), not raw env. Worth verifying the env var isn't used for Socket Mode receiver.
+- ❌ NO `slack_bolt_authorization_error` logs — event never reaches authorize/handler at all.
+- ❌ NO `app_mention event received` (info-level, line 325-328 handlers.ts) — handler never fires.
+- ⚠️ Bolt middleware `'raw payload received'` is DEBUG level; createLogger() in logger.ts has NO level config (defaults to info) and does NOT read LOG_LEVEL → debug suppressed. Cannot see raw WS traffic without code change. **This is itself a diagnosability gap.**
+- ⚠️ apps.connections.open succeeds (app token valid). Prod (Render) last deploy update_failed 2026-06-03 → not competing.
+
+### Conclusion
+
+The @mention/app_mention Socket Mode event delivery is broken at the WebSocket→Bolt layer for reasons NOT explained by the singleton fix. Likely candidates: (1) Bolt SocketModeReceiver silent stall / Slack-side connection registration drift, (2) the gateway's createFilteredBoltLogger swallowing the events or errors, (3) event subscription routing. Needs a dedicated diagnostic+fix plan with debug-level Bolt logging as step 1.
+
+### Process note
+
+- Restart of pnpm dev: clean Ctrl+C → 0 gateway procs (SIGINT group-kill works), then relaunch. Step 0 reaper also proved itself when ai-dev tmux had died earlier (orphan reaped on restart).
+
+## [2026-06-06] DEFINITIVE ROOT CAUSE — dual issue, proven with an independent Socket Mode probe
+
+Deeper diagnosis (Opus, before handing to executor). Ran an INDEPENDENT raw Socket Mode probe (Node 22 global WebSocket + apps.connections.open) to observe Slack's actual delivery.
+
+### PROOF 1 — Auth is NOT the problem (ruled out definitively)
+
+- Decrypted the DB `slack_bot_token` (AES-256-GCM via the project's own algorithm, inline node -e, token value never printed).
+- DB token md5 = `71b740fd...` = IDENTICAL to `VLRE_SLACK_BOT_TOKEN`. `auth.test` on it = `ok:true` (VLRE/papichulo/U096LNDCW1F).
+- The dead `SLACK_BOT_TOKEN` env var (`invalid_auth`) is a RED HERRING — the Bolt authorize callback uses `TenantInstallationStore.fetchInstallation` → `tenant_secrets.slack_bot_token` (DB), NOT the env var. `tenant_integrations` has `T06KFDGLHS6 → VLRE (...003)`; decrypted DB token is valid.
+
+### PROOF 2 — ROOT CAUSE A: PHANTOM Socket Mode connection (the intermittent-drop cause)
+
+- Independent probe connected → Slack `hello` reported **num_connections = 3**.
+- Local reality: only 1 gateway leaf holds an ESTABLISHED TLS conn to Slack (lsof), + my 1 probe = 2 expected. Slack says 3. Re-checked after probe closed: still 3.
+- The 3rd is a PHANTOM — a stranded WebSocket from an earlier unclean gateway death (kill -9 / tmux-kill) Slack STILL has registered.
+- Slack Socket Mode ROUND-ROBINS events across ALL connected sockets. A dead phantom in the pool → ~1/N of app_mention events delivered to it VANISH. **Zombie bug at the Slack-connection layer — the local singleton lock cannot reclaim a WS Slack still holds.** Explains the INTERMITTENT original drops (5:10/5:20pm no reply, 5:51pm worked).
+
+### PROOF 3 — ROOT CAUSE B: classifier returns unclear/empty → silent no-op (the OTHER half)
+
+- During the probe test Slack DID deliver my mention; the gateway DID receive it (logged `app_mention event received`, posted `"On it — one moment…"` ack — probe captured the ack too).
+- BUT the chain died at classification: `interaction-classifier` logged `intent: ""` → defaulted to `unclear` → `Interaction handled intent:unclear` → NO `task.requested` → NO card → NO task (0 new tasks confirmed).
+- Code: `src/gateway/services/interaction-classifier.ts:35-48` — `intent = result.content.trim().toLowerCase(); return validIntents.includes(intent) ? intent : 'unclear'`. Gateway LLM (deepseek-v4-flash) returned empty/non-matching for terse `"Papi chulo itinerario limpieza Junio 14 [probe-test]"`.
+- Full natural sentences classified as `task` and worked earlier today. Terse text + empty-LLM-response → `unclear` silent drop. No retry, no user feedback on `unclear`.
+
+### CONCLUSION — what the fix plan targets (NOT speculative branches)
+
+1. **Phantom Socket Mode connections**: local lock/reaper can't help (Slack holds the registration). Fix: verify/ensure `boltApp.stop()` truly closes the SocketModeClient WS on shutdown; document Slack stale-socket expiry; consider a startup reconcile/health check. Round-robin across a stale socket = silent ~1/N loss = the intermittent @mention failure.
+2. **Classifier `unclear` silent no-op**: empty/ambiguous LLM result drops the request silently. Fix: on empty/non-matching result, retry once; never silently no-op on `unclear` — post a short clarifying reply so the user knows. (Optionally bias clearly-actionable mentions toward `task`.)
+
+### Diagnosability enabler (still needed first)
+
+- `createLogger()` (logger.ts) ignores LOG_LEVEL; Bolt debug middleware suppressed. `createFilteredBoltLogger` (slack-logger.ts:42-47) setLevel = NO-OP, getLevel hardcoded INFO. LOG_LEVEL support = right first step.
+
+### Reusable technique
+
+- Independent Socket Mode probe: `apps.connections.open` (POST, app token) → `new WebSocket(url)` → on `hello` read `num_connections` → ack envelopes by echoing `envelope_id`. Counts phantom connections; observes raw delivery independent of the gateway.
