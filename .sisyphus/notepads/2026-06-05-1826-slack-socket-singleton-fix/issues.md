@@ -25,6 +25,19 @@
 - Must NOT be on a persistent Render volume (would block restart after crash)
 - os.tmpdir() is ephemeral per container — correct behavior
 
+## [2026-06-06] macOS temp file purge — lock file disappears while process lives
+
+- Observed: PID 88108 (gateway leaf) still running, Socket Mode still connected, but lock file at
+  os.tmpdir()/ai-employee-gateway-socketmode.lock was purged by macOS periodic temp cleanup
+- macOS purges /var/folders files that haven't been accessed recently (typically after 3 days,
+  but can be sooner under memory pressure)
+- Impact: if lock file is purged while gateway is running, a second gateway could start and
+  connect Socket Mode without being blocked — the lock's protection is lost
+- Mitigation: the reaper in dev.ts (Step 0) is the primary defense; the lock is a secondary guard
+- Future improvement: could use a heartbeat to keep the lock file "accessed" (touch it periodically)
+  or use a named pipe / Unix socket instead of a file lock for stronger liveness guarantees
+- For now: acceptable — the reaper fix (T2) is the primary fix; lock is defense-in-depth
+
 ## [2026-06-05] F3(e) Blocker — Live Slack @mention E2E
 
 - F3(e) requires the user to physically send a Slack @mention in ops-cleaning-schedule
