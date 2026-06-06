@@ -626,6 +626,55 @@ Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gatewa
 
 **Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, run the manual kill commands above first.
 
+### 5. Phantom Socket Mode connections (intermittent @mention silence)
+
+**Symptom**: `@mention` of the bot produces no response intermittently (roughly 1-in-N of the time), even with a single local gateway process running. No gateway log entry for the missed event.
+
+**Root cause**: An unclean gateway death (`kill -9`, tmux session killed without Ctrl+C) leaves a WebSocket registered with Slack that Slack still routes events to. Slack Socket Mode **round-robins** each event across ALL registered sockets, including dead phantoms. Events delivered to the phantom vanish silently. The local singleton lock (Known Issue #4) prevents duplicate local processes but cannot reclaim a WebSocket that Slack holds server-side.
+
+**How it differs from Known Issue #4**: Known Issue #4 is a local zombie process (still running on your machine). A phantom is a Slack-side stranded WebSocket pointing at a dead process. The local process count check (`pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l`) returns `1` even when a phantom is present.
+
+**Mitigation**: The gateway logs `num_connections` from the Socket Mode `hello` frame at startup. If `num_connections > (expected local gateways + 1)`, a phantom is present. Slack's stale-socket expiry reclaims it automatically (typically within minutes to hours). Always stop `pnpm dev` with Ctrl+C (SIGINT) to prevent phantoms from forming.
+
+**Diagnostics**:
+
+1. **`LOG_LEVEL=debug pnpm dev`** — surfaces Bolt raw-payload debug logs (every Socket Mode frame, including `hello` with `num_connections`). Do NOT commit `LOG_LEVEL=debug` as a default.
+
+2. **Inline Socket Mode probe** — reads `num_connections` without starting the full gateway:
+
+```bash
+node --input-type=module << 'EOF'
+import { WebSocket } from 'ws';
+import { readFileSync } from 'fs';
+import { config } from 'dotenv';
+config();
+const resp = await fetch('https://slack.com/api/apps.connections.open', {
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer ' + process.env.SLACK_APP_TOKEN,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  },
+});
+const { url } = await resp.json();
+const ws = new WebSocket(url + '&debug_reconnects=true');
+ws.on('message', (data) => {
+  const msg = JSON.parse(data.toString());
+  if (msg.type === 'hello') {
+    console.log('num_connections:', msg.num_connections);
+    ws.close();
+  } else if (msg.envelope_id) {
+    ws.send(JSON.stringify({ envelope_id: msg.envelope_id }));
+  }
+});
+EOF
+```
+
+If `num_connections > (local gateways + 1)`, a phantom is present. Wait for Slack to expire it, or restart the gateway with Ctrl+C to force a clean reconnect (which does not remove the phantom but ensures your socket is the active one for new events).
+
+**`SLACK_BOT_TOKEN` env var note**: The `SLACK_BOT_TOKEN` env var in `.env` is NOT used for Socket Mode authorization. Bolt's `authorize` callback reads `tenant_secrets.slack_bot_token` from the DB via `TenantInstallationStore.fetchInstallation`. The env var is a legacy artifact. When debugging Socket Mode auth issues, check the DB record, not the env var.
+
+**Classifier `unclear` behavior**: The intent classifier retries once on an empty or non-matching LLM result. If both attempts fail, it returns `unclear`. The interaction handler posts a short clarifying reply and a confirmation card on `unclear` — it never goes silent. If you see a clarification card in Slack but no task was created, the classifier returned `unclear` (not a phantom).
+
 ## Task Debugging Quick Reference
 
 Assumes `TASK_ID` is set in your shell. Container name prefix: `${TASK_ID:0:8}`. For deeper diagnostics (stuck states, root-cause tables, decision tree), load the `debugging-lifecycle` skill.
