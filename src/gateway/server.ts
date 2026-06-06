@@ -330,6 +330,10 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
         void (async () => {
           if (bolt) {
             await bolt.stop();
+            logger.info(
+              { pid: process.pid },
+              'Socket Mode WS closed cleanly on shutdown — no phantom expected',
+            );
           }
           releaseSocketModeLock();
           server.close(() => process.exit(0));
@@ -340,6 +344,10 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
         void (async () => {
           if (bolt) {
             await bolt.stop();
+            logger.info(
+              { pid: process.pid },
+              'Socket Mode WS closed cleanly on shutdown — no phantom expected',
+            );
           }
           releaseSocketModeLock();
           server.close(() => process.exit(0));
