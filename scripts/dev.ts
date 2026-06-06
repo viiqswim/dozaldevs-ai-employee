@@ -201,6 +201,34 @@ function decryptSecret(ciphertext: string, iv: string, authTag: string, keyHex: 
 }
 
 // ─────────────────────────────────────────────────────
+// killAndWait — SIGTERM with grace poll, SIGKILL fallback
+// Injectable deps (listPids / sendSignal) allow unit testing without spawning real processes.
+// ─────────────────────────────────────────────────────
+async function killAndWait(
+  name: string,
+  pattern: string,
+  graceMs = 3000,
+  listPids: (p: string) => string = (p) =>
+    execSync(`pgrep -f "${p}" || true`, { encoding: 'utf8' }).trim(),
+  sendSignal: (sig: string, p: string) => void = (sig, p) =>
+    execSync(`pkill -${sig} -f "${p}" || true`, { encoding: 'utf8' }),
+): Promise<void> {
+  sendSignal('TERM', pattern);
+  const deadline = Date.now() + graceMs;
+  while (Date.now() < deadline) {
+    const pids = listPids(pattern);
+    if (!pids) {
+      ok(`${name} stopped gracefully`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  warn(`${name} did not stop within ${graceMs}ms — force-killing`);
+  sendSignal('KILL', pattern);
+  await new Promise((r) => setTimeout(r, 200));
+}
+
+// ─────────────────────────────────────────────────────
 // Opening banner
 // ─────────────────────────────────────────────────────
 log('');
@@ -208,6 +236,22 @@ log('╔════════════════════════
 log('║   Local Full-Stack Environment — Starting       ║');
 log('╚══════════════════════════════════════════════════╝');
 log('');
+
+// ─────────────────────────────────────────────────────
+// Single-instance guard
+// ─────────────────────────────────────────────────────
+const selfPids = new Set([String(process.pid), String(process.ppid)]);
+const otherDevPids = execSync(`pgrep -f "scripts/dev.ts" || true`, { encoding: 'utf8' })
+  .trim()
+  .split('\n')
+  .filter(Boolean)
+  .filter((p) => !selfPids.has(p));
+if (otherDevPids.length > 0) {
+  console.error(
+    `\nERROR: Another \`pnpm dev\` is already running (PID(s): ${otherDevPids.join(', ')}).\nStop it first (Ctrl+C in its terminal) or kill it, then retry.\n`,
+  );
+  process.exit(1);
+}
 
 // ─────────────────────────────────────────────────────
 // Step 0: Kill stale processes from previous sessions
@@ -245,14 +289,13 @@ for (const [name, pattern] of [
     if (pids) {
       const count = pids.split('\n').filter(Boolean).length;
       warn(`Killing ${count} stale ${name} process(es) from previous session`);
-      execSync(`pkill -f "${pattern}" || true`, { encoding: 'utf8' });
+      await killAndWait(name, pattern);
     }
   } catch {
     /* ignore — process may have already exited */
   }
 }
 
-await new Promise((r) => setTimeout(r, 500));
 ok('Stale process check complete');
 log('');
 
