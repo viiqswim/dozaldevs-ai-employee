@@ -147,6 +147,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
           smClient.on('connected', () => {
             logger.info('Slack Bolt — Socket Mode reconnected');
           });
+          smClient.on('hello', (event: { num_connections?: number }) => {
+            const numConnections = event.num_connections ?? 1;
+            logger.info(
+              { numConnections },
+              'Socket Mode hello — num_connections=' + String(numConnections),
+            );
+            if (numConnections > 1) {
+              logger.warn(
+                { numConnections },
+                'Socket Mode phantom connection warning — num_connections=' +
+                  String(numConnections) +
+                  '; a prior unclean shutdown may have left a stranded WebSocket. Slack will round-robin events to it. Restart cleanly to recover.',
+              );
+            }
+          });
         })
         .catch((err: unknown) => {
           logger.error({ err }, 'Slack Bolt — Socket Mode failed to connect');
