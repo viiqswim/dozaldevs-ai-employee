@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
 
 export interface CreateTaskAndDispatchParams {
@@ -54,11 +55,13 @@ export async function createTaskAndDispatch(
       method: 'POST',
       headers,
       body: JSON.stringify({
+        id: randomUUID(),
         archetype_id: archetypeId,
         external_id: externalId,
         source_system: sourceSystem,
         status: 'Ready',
         tenant_id: tenantId,
+        updated_at: new Date().toISOString(),
       }),
     });
     const tasks = (await createRes.json()) as Array<{ id: string }>;

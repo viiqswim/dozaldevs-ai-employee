@@ -1,8 +1,10 @@
-# Papi Chulo — The Summarizer AI Employee
+# Daily Summarizer Employee — Overview
+
+> **Note on "Papi Chulo"**: Papi Chulo is the **Slack bot/app** (`A09678HT90S`) installed on the platform — it is NOT this employee. All AI employees communicate through Papi Chulo. The daily-summarizer archetype uses a dramatic Spanish news-correspondent persona internally, but that is a prompt style, not this employee's name.
 
 ## What is it?
 
-Papi Chulo is an AI employee that **automatically reads your Slack channels, generates a dramatic Spanish news-style summary, and asks a human to approve it before posting it publicly** — every weekday morning.
+The Daily Summarizer is an AI employee that **automatically reads your Slack channels, generates a dramatic Spanish news-style summary, and asks a human to approve it before posting it publicly** — every weekday morning.
 
 Before this work, the platform only knew how to do one thing: receive a Jira ticket and open a GitHub pull request. Papi Chulo is the first proof that the platform is truly **generic** — new AI employees can be created by adding a database record, not writing new code.
 

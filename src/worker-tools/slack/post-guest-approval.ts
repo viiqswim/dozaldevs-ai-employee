@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import { WebClient } from '@slack/web-api';
 
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
 interface GuestApprovalParams {
   taskId: string;
   guestName: string;
@@ -71,9 +73,9 @@ function parseArgs(argv: string[]): GuestApprovalParams {
     } else if (args[i] === '--booking-channel' && args[i + 1]) {
       bookingChannel = args[++i];
     } else if (args[i] === '--original-message' && args[i + 1]) {
-      originalMessage = args[++i];
+      originalMessage = unescapeShellArg(args[++i]);
     } else if (args[i] === '--draft-response' && args[i + 1]) {
-      draftResponse = args[++i];
+      draftResponse = unescapeShellArg(args[++i]);
     } else if (args[i] === '--confidence' && args[i + 1]) {
       confidence = parseFloat(args[++i]);
     } else if (args[i] === '--category' && args[i + 1]) {
@@ -265,9 +267,7 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
     }
   }
 
-  const normalizedMessage = params.originalMessage.replace(/\\n/g, '\n');
-  const normalizedDraft = params.draftResponse.replace(/\\n/g, '\n');
-  const quotedMessage = normalizedMessage
+  const quotedMessage = params.originalMessage
     .split('\n')
     .map((line) => `>${line}`)
     .join('\n');
@@ -284,7 +284,7 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Proposed Response:*\n${normalizedDraft}`,
+        text: `*Proposed Response:*\n${params.draftResponse}`,
       },
     },
     {

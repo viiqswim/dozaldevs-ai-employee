@@ -386,6 +386,9 @@ export interface ModelCatalogEntry {
   supports_structured_output: boolean;
   is_active: boolean;
   notes: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  supported_gateways: string[];
   created_at: string;
   updated_at: string;
 }

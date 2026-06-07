@@ -9,6 +9,7 @@ export type Logger = pino.Logger;
  */
 export function createLogger(component: string): pino.Logger {
   return pino({
+    level: process.env.LOG_LEVEL ?? 'info',
     timestamp: pino.stdTimeFunctions.isoTime,
     redact: {
       paths: [

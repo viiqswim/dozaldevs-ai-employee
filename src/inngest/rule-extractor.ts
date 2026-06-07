@@ -6,6 +6,7 @@ import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
+import { ruleProposedMessage } from '../lib/slack-copy.js';
 
 const log = createLogger('rule-extractor');
 
@@ -118,7 +119,6 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
 
       const llmResult = await step.run('extract-rule', async () => {
         return callLLM({
-          model: 'anthropic/claude-haiku-4-5',
           taskType: 'review',
           taskId: taskId ?? undefined,
           messages: [
@@ -179,7 +179,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `🧠 *New behavioral rule proposed:*\n\n> ${ruleText}`,
+                text: ruleProposedMessage(ruleText),
               },
             },
             { type: 'divider' },
@@ -222,7 +222,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
             },
             body: JSON.stringify({
               channel: notificationChannel,
-              text: `New behavioral rule proposed: ${ruleText}`,
+              text: ruleProposedMessage(ruleText),
               blocks,
             }),
           });

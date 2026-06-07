@@ -4766,46 +4766,23 @@ BOTH must be executed as bash tool calls. A text response without running these 
       supports_structured_output: true,
       is_active: true,
       notes: 'Current default model for all AI employees. Approved for production use.',
+      strengths:
+        'Balanced cost/performance. Currently the default model for new archetypes. Proven reliable in production for non-tool-calling workflows.',
+      weaknesses:
+        'Fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03). Not frontier-tier. Use deepseek/deepseek-v4-flash instead when tool calling is required.',
     },
     {
-      // Source: openrouter.ai/tencent/hy3-preview + artificialanalysis.ai leaderboard
-      // Input: $0.066/1M, Output: $0.26/1M (OpenRouter)
-      // Intelligence Index: 42, Output speed: 103 t/s, Latency: 4.09s (Artificial Analysis)
-      model_id: 'tencent/hy3-preview',
-      display_name: 'Tencent Hy3 Preview',
-      provider: 'tencent',
+      // Source: openrouter.ai/z-ai/glm-5.1 (OpenCodeGo slug: zhipu/glm-5.1)
+      // Input: $0.98/1M, Output: $3.08/1M (OpenRouter pricing via z-ai/glm-5.1)
+      model_id: 'zhipu/glm-5.1',
+      display_name: 'GLM-5.1',
+      provider: 'zhipu',
       description:
-        'High-efficiency Mixture-of-Experts model from Tencent designed for agentic workflows. Supports configurable reasoning levels (disabled, low, high). Strong code generation and reliable multi-step workflow performance.',
-      context_window: 262000,
-      input_cost_per_million: 0.066,
-      output_cost_per_million: 0.26,
+        'Zhipu AI GLM-5.1 — best-in-class software engineering model with top SWE-Bench Pro scores (58.4%). Long-horizon agentic capability supporting up to 8-hour autonomous runs. MIT license. Compatible with Claude Code tooling.',
+      context_window: 202752,
+      input_cost_per_million: 0.98,
+      output_cost_per_million: 3.08,
       is_free: false,
-      throughput_tokens_per_sec: 103.0,
-      latency_seconds: 4.09,
-      tool_call_error_rate: null,
-      structured_output_error_rate: null,
-      quality_index: 42.0,
-      agentic_score: null,
-      tool_use_score: null,
-      instruction_following_score: null,
-      non_hallucination_rate: null,
-      supports_tools: true,
-      supports_structured_output: true,
-      is_active: true,
-      notes: 'Cost-effective alternative. Released Apr 22, 2026.',
-    },
-    {
-      // Source: openrouter.ai/openrouter/owl-alpha
-      // Free model. Not listed on Artificial Analysis leaderboard — benchmarks set to null.
-      model_id: 'openrouter/owl-alpha',
-      display_name: 'OpenRouter Owl Alpha',
-      provider: 'openrouter',
-      description:
-        'High-performance foundation model designed for agentic workloads. Natively supports tool use and long-context tasks. Strong in code generation, automated workflows, and complex instruction execution. Compatible with Claude Code and other productivity tools.',
-      context_window: 1000000,
-      input_cost_per_million: 0.0,
-      output_cost_per_million: 0.0,
-      is_free: true,
       throughput_tokens_per_sec: null,
       latency_seconds: null,
       tool_call_error_rate: null,
@@ -4816,10 +4793,377 @@ BOTH must be executed as bash tool calls. A text response without running these 
       instruction_following_score: null,
       non_hallucination_rate: null,
       supports_tools: true,
-      supports_structured_output: false,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Best SWE-Bench Pro score among Go-catalog models.',
+      strengths:
+        'Best-in-class software engineering (SWE-Bench Pro 58.4%). Long-horizon agentic capability with runs up to 8 hours. Top CyberGym score (68.7%). Open-source MIT license. Compatible with Claude Code tooling.',
+      weaknesses:
+        'Text-only — no multimodal (vision/audio) support. Expensive token usage on long autonomous tasks. Relatively new with limited third-party benchmarking.',
+    },
+    {
+      // Source: openrouter.ai/z-ai/glm-5 (OpenCodeGo slug: zhipu/glm-5)
+      // Input: $0.60/1M, Output: $1.92/1M (OpenRouter pricing via z-ai/glm-5)
+      model_id: 'zhipu/glm-5',
+      display_name: 'GLM-5',
+      provider: 'zhipu',
+      description:
+        'Zhipu AI GLM-5 — strong open-source coding and agent model (744B total, 40B active). Leading BrowseComp score (62.0%). MIT license. Good balance of capability and cost.',
+      context_window: 202752,
+      input_cost_per_million: 0.6,
+      output_cost_per_million: 1.92,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Predecessor to GLM-5.1; lower cost at reduced performance.',
+      strengths:
+        'Strong open-source model for coding and agent tasks (744B total, 40B active). Leading BrowseComp score (62.0%). MIT license. Good balance of capability and openness.',
+      weaknesses:
+        'Superseded by GLM-5.1 in most benchmarks. Text-only — no multimodal support. Not frontier-tier on latest coding benchmarks.',
+    },
+    {
+      // Source: openrouter.ai/moonshotai/kimi-k2.5 (OpenCodeGo slug: moonshot/kimi-k2.5)
+      // Input: $0.40/1M, Output: $1.90/1M (OpenRouter pricing via moonshotai/kimi-k2.5)
+      model_id: 'moonshot/kimi-k2.5',
+      display_name: 'Kimi K2.5',
+      provider: 'moonshot',
+      description:
+        'Moonshot Kimi K2.5 — native multimodal model with Agent Swarm architecture that orchestrates up to 100 sub-agents. Strong agentic search and long-horizon reasoning. 256K context window.',
+      context_window: 262144,
+      input_cost_per_million: 0.4,
+      output_cost_per_million: 1.9,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
       is_active: true,
       notes:
-        'Free model. Prompts and completions may be logged by the provider. Released Apr 28, 2026.',
+        'OpenCodeGo-routed. Agent Swarm reduces latency 4.5x vs single-agent. Budget-friendly multimodal option.',
+      strengths:
+        'Native multimodal (vision + text). Agent Swarm architecture orchestrates up to 100 sub-agents, reducing latency 4.5x. Strong agentic search capabilities. 256K context window.',
+      weaknesses:
+        "256K context is smaller than competitors offering 1M. Older generation — superseded by Kimi K2.6. Agent Swarm less mature than K2.6's 300-agent version.",
+    },
+    {
+      // Source: openrouter.ai/moonshotai/kimi-k2.6 (OpenCodeGo slug: moonshot/kimi-k2.6)
+      // Input: $0.684/1M, Output: $3.42/1M (OpenRouter pricing via moonshotai/kimi-k2.6)
+      model_id: 'moonshot/kimi-k2.6',
+      display_name: 'Kimi K2.6',
+      provider: 'moonshot',
+      description:
+        'Moonshot Kimi K2.6 — strongest open-weight reasoning model at release (AA Intelligence Index 54). Upgraded Agent Swarm with 300 sub-agents and proactive orchestration. Excellent long-horizon coding.',
+      context_window: 262144,
+      input_cost_per_million: 0.684,
+      output_cost_per_million: 3.42,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Strongest open-weight model in Go catalog at release.',
+      strengths:
+        'Strongest open-weight reasoning model at release (AA Intelligence Index 54). Upgraded Agent Swarm with 300 sub-agents and proactive orchestration. Excellent long-horizon coding. 256K context.',
+      weaknesses:
+        '256K context window — half the size of 1M-context competitors. Vision support but no audio input. Open-weight but very large model footprint.',
+    },
+    {
+      // Source: openrouter.ai/xiaomi/mimo-v2.5-pro (OpenCodeGo slug: xiaomi/mimo-v2.5-pro)
+      // Input: $0.435/1M, Output: $0.87/1M (OpenRouter pricing)
+      model_id: 'xiaomi/mimo-v2.5-pro',
+      display_name: 'MiMo-V2.5-Pro',
+      provider: 'xiaomi',
+      description:
+        'Xiaomi MiMo-V2.5-Pro — most token-efficient agentic model (ClawEval 64% at ~70K tokens). Perfect compiler build rate. Highest GDPVal-AA score (1581). 1M context window. MIT open-source.',
+      context_window: 1048576,
+      input_cost_per_million: 0.435,
+      output_cost_per_million: 0.87,
+      is_free: false,
+      throughput_tokens_per_sec: 47.0,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. E2E verified reliable for bash tool calling (2026-06-03).',
+      strengths:
+        'Most token-efficient agentic model (ClawEval 64% at ~70K tokens). Perfect compiler build rate. Highest GDPVal-AA score (1581). 1M context window. MIT open-source. AA Intelligence Index 54.',
+      weaknesses:
+        'Text-only — no multimodal support. Slow inference (47 t/s). Very verbose outputs (92M tokens on AA eval). Large model footprint (1.02T total, 42B active).',
+    },
+    {
+      // Source: openrouter.ai/xiaomi/mimo-v2.5 (OpenCodeGo slug: xiaomi/mimo-v2.5)
+      // Input: $0.14/1M, Output: $0.28/1M (OpenRouter pricing)
+      model_id: 'xiaomi/mimo-v2.5',
+      display_name: 'MiMo-V2.5',
+      provider: 'xiaomi',
+      description:
+        'Xiaomi MiMo-V2.5 — native multimodal (vision + audio input) agentic model with 1M context. Half the cost of MiMo-V2.5-Pro. Strong agentic capability for the size. MIT open-source.',
+      context_window: 1048576,
+      input_cost_per_million: 0.14,
+      output_cost_per_million: 0.28,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. E2E verified: may fail bash tool calling in some contexts.',
+      strengths:
+        'Native multimodal (vision + audio input). 1M context window. Half the cost of MiMo-V2.5-Pro. Strong agentic capability for the size. MIT open-source.',
+      weaknesses:
+        'Smaller model (310B/15B active) — less capable than Pro on hardest reasoning tasks. Less proven in production than Pro variant. E2E verified: may fail bash tool calling in some contexts.',
+    },
+    {
+      // Source: openrouter.ai/qwen/qwen3.7-max (OpenCodeGo slug: alibaba/qwen3.7-max)
+      // Input: $1.25/1M, Output: $3.75/1M (OpenRouter pricing)
+      model_id: 'alibaba/qwen3.7-max',
+      display_name: 'Qwen3.7 Max',
+      provider: 'alibaba',
+      description:
+        'Alibaba Qwen3.7 Max — flagship with 35-hour autonomous coding runs. AA Intelligence Index 56.6 (#5 global). APEX 44.5 (beats Claude Opus 4.6). MCP-Atlas 76.4. 1M context window.',
+      context_window: 1000000,
+      input_cost_per_million: 1.25,
+      output_cost_per_million: 3.75,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. OpenRouter slug: qwen/qwen3.7-max.',
+      strengths:
+        'Flagship with 35-hour autonomous coding runs. AA Intelligence Index 56.6 (#5 global). APEX 44.5 (beats Claude Opus 4.6). MCP-Atlas 76.4. 1M context window.',
+      weaknesses:
+        'Proprietary — no open weights. High abstention rate (48%) means frequent refusals. Expensive vs Chinese peers ($2.50/$7.50 per million tokens). Not the cheapest option for routine tasks.',
+    },
+    {
+      // Source: openrouter.ai/qwen/qwen3.7-plus (OpenCodeGo slug: alibaba/qwen3.7-plus)
+      // Input: $0.40/1M, Output: $1.60/1M (OpenRouter pricing)
+      model_id: 'alibaba/qwen3.7-plus',
+      display_name: 'Qwen3.7 Plus',
+      provider: 'alibaba',
+      description:
+        'Alibaba Qwen3.7 Plus — native multimodal with vision and video input. Very affordable ($0.40/$1.60). Terminal-Bench 70.3. ScreenSpot Pro 79.0. 1M context window. Released June 2, 2026.',
+      context_window: 1000000,
+      input_cost_per_million: 0.4,
+      output_cost_per_million: 1.6,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes:
+        'OpenCodeGo-routed. OpenRouter slug: qwen/qwen3.7-plus. Brand new (released June 2026).',
+      strengths:
+        'Native multimodal with vision and video input. Very affordable ($0.40/$1.60). Terminal-Bench 70.3. ScreenSpot Pro 79.0. 1M context window. Released June 2, 2026 — latest generation.',
+      weaknesses:
+        'Sub-SOTA on pure reasoning benchmarks. Proprietary — no open weights. Brand new (released June 2026) with minimal community testing. Not yet proven for complex agentic workflows.',
+    },
+    {
+      // Source: openrouter.ai/qwen/qwen3.6-plus (OpenCodeGo slug: alibaba/qwen3.6-plus)
+      // Input: $0.325/1M, Output: $1.95/1M (OpenRouter pricing)
+      model_id: 'alibaba/qwen3.6-plus',
+      display_name: 'Qwen3.6 Plus',
+      provider: 'alibaba',
+      description:
+        'Alibaba Qwen3.6 Plus — budget-friendly model with good general coding capability. Agent programming enhancement. 1M context window. Solid baseline for cost-sensitive tasks.',
+      context_window: 1000000,
+      input_cost_per_million: 0.325,
+      output_cost_per_million: 1.95,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. OpenRouter slug: qwen/qwen3.6-plus.',
+      strengths:
+        'Budget-friendly Alibaba model with good general coding capability. Agent programming enhancement. Solid baseline for cost-sensitive tasks.',
+      weaknesses:
+        'Superseded by Qwen 3.7 series. Not frontier-tier on any benchmark. Limited community benchmarking compared to newer models.',
+    },
+    {
+      // Source: openrouter.ai/minimax/minimax-m2.5
+      // Input: $0.15/1M, Output: $1.15/1M (OpenRouter pricing)
+      model_id: 'minimax/minimax-m2.5',
+      display_name: 'MiniMax M2.5',
+      provider: 'minimax',
+      description:
+        'MiniMax M2.5 — very cheap budget model with surprisingly strong coding performance. SWE-Bench Verified ~80.2%. Good for simple, high-volume tasks where cost matters most.',
+      context_window: 204800,
+      input_cost_per_million: 0.15,
+      output_cost_per_million: 1.15,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Predecessor to M2.7.',
+      strengths:
+        'Very cheap budget model. SWE-Bench Verified ~80.2% — high score for the price tier. Good for simple, high-volume tasks where cost matters most.',
+      weaknesses:
+        'Older generation — less capable than M2.7 and M3 on complex agentic tasks. Not suitable for multi-step reasoning or long-horizon workflows.',
+    },
+    {
+      // Source: openrouter.ai/minimax/minimax-m3
+      // Input: $0.30/1M, Output: $1.20/1M (OpenRouter pricing)
+      // Released: June 1, 2026
+      model_id: 'minimax/minimax-m3',
+      display_name: 'MiniMax M3',
+      provider: 'minimax',
+      description:
+        'MiniMax M3 — first open-weight model combining frontier coding (SWE-Bench Pro 59.0%) with 1M context and multimodal capability. MSA architecture uses 1/20th compute at 1M context. Very affordable ($0.30/$1.20). Released June 1, 2026.',
+      context_window: 1048576,
+      input_cost_per_million: 0.3,
+      output_cost_per_million: 1.2,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Brand new (released June 1, 2026). Open-weight.',
+      strengths:
+        'First open-weight model combining frontier coding (SWE-Bench Pro 59.0%) + 1M context + multimodal. MSA architecture uses 1/20th compute at 1M context. Very affordable ($0.30/$1.20). Open-weight.',
+      weaknesses:
+        'Brand new (released June 1, 2026) — benchmarks not yet verified by third parties. Multimodal ranking lower than text-only peers (#69 on multimodal leaderboard). Limited production track record.',
+    },
+    {
+      // Source: openrouter.ai/deepseek/deepseek-v4-pro
+      // Input: $0.435/1M, Output: $0.87/1M (OpenRouter)
+      model_id: 'deepseek/deepseek-v4-pro',
+      display_name: 'DeepSeek V4 Pro',
+      provider: 'deepseek',
+      description:
+        'DeepSeek V4 Pro — leading agentic open-weight model. LiveCodeBench 93.5. 1M context window. AA Intelligence Index 52. Strong at complex multi-step reasoning and coding tasks.',
+      context_window: 1048576,
+      input_cost_per_million: 0.435,
+      output_cost_per_million: 0.87,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes: 'OpenCodeGo-routed. Leading agentic open-weight model.',
+      strengths:
+        'Leading agentic open-weight model (GDPVal-AA 1554). LiveCodeBench 93.5. 1M context window. AA Intelligence Index 52. Strong at complex multi-step reasoning and coding.',
+      weaknesses:
+        'Very high hallucination rate (94% on AA eval). Expensive for an open-weight model ($0.435/$0.87). High token usage — verbose outputs. Not suitable for tasks requiring factual accuracy.',
+    },
+    {
+      // Source: openrouter.ai/deepseek/deepseek-v4-flash
+      // Input: $0.0983/1M, Output: $0.1966/1M (OpenRouter)
+      model_id: 'deepseek/deepseek-v4-flash',
+      display_name: 'DeepSeek V4 Flash',
+      provider: 'deepseek',
+      description:
+        'DeepSeek V4 Flash — extremely cheap model with reliable tool calling. E2E verified in production. 1M context window. Best value for high-volume, tool-calling tasks.',
+      context_window: 1048576,
+      input_cost_per_million: 0.0983,
+      output_cost_per_million: 0.1966,
+      is_free: false,
+      throughput_tokens_per_sec: null,
+      latency_seconds: null,
+      tool_call_error_rate: null,
+      structured_output_error_rate: null,
+      quality_index: null,
+      agentic_score: null,
+      tool_use_score: null,
+      instruction_following_score: null,
+      non_hallucination_rate: null,
+      supports_tools: true,
+      supports_structured_output: true,
+      is_active: true,
+      notes:
+        'OpenCodeGo-routed. E2E verified for reliable tool calling. Recommended for high-volume tool-calling tasks.',
+      strengths:
+        'Extremely cheap ($0.098/$0.197 per million tokens). Reliable tool calling — E2E verified in production. 1M context window. Fast inference. Best value option for high-volume, tool-calling tasks.',
+      weaknesses:
+        'Less capable on hardest reasoning tasks. Very high hallucination rate (96%). Not suitable for complex multi-step reasoning or factual accuracy tasks.',
     },
   ];
 
@@ -4885,6 +5229,13 @@ BOTH must be executed as bash tool calls. A text response without running these 
       value: '#alerts',
       description: 'Slack channel for cost circuit breaker alerts. Empty = disabled.',
       is_required: false,
+    },
+    {
+      key: 'gateway_llm_model',
+      value: 'deepseek/deepseek-v4-flash',
+      description:
+        'LLM model used for gateway calls (classification, archetype generation, rule extraction). Must be a valid OpenRouter model ID. If available on OpenCodeGo and OPENCODE_GO_API_KEY is set, calls route through Go automatically.',
+      is_required: true,
     },
   ];
 

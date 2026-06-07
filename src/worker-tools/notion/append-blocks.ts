@@ -1,5 +1,6 @@
 import { resolveNotionAuth } from './auth.js';
 import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { unescapeShellArg } from '../lib/unescape-args.js';
 
 type BlockType = 'paragraph' | 'bulleted_list_item' | 'heading_2';
 
@@ -19,7 +20,7 @@ function parseArgs(argv: string[]): {
     if (args[i] === '--page-id' && args[i + 1]) {
       pageId = args[++i];
     } else if (args[i] === '--content' && args[i + 1]) {
-      content = args[++i];
+      content = unescapeShellArg(args[++i]);
     } else if (args[i] === '--type' && args[i + 1]) {
       type = args[++i] as BlockType;
     } else if (args[i] === '--help') {

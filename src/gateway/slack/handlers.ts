@@ -3,8 +3,19 @@ import type { InngestLike } from '../types.js';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
+import { resolveArchetypeFromChannel } from '../services/interaction-classifier.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
+import { extractInputsFromText } from '../../lib/extract-inputs.js';
+import { callLLM } from '../../lib/call-llm.js';
+import {
+  loadingMessage,
+  successMessage,
+  failureMessage,
+  missingInfoMessage,
+  ruleProposedMessage,
+} from '../../lib/slack-copy.js';
+import { randomUUID } from 'node:crypto';
 
 const log = createLogger('slack-handlers');
 
@@ -52,6 +63,39 @@ interface ActionBody {
 
 const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
 const TERMINAL_STATUSES = new Set(['Done', 'Cancelled', 'Failed', 'Delivering']);
+
+// ─── Pending input collection (in-memory, per process) ────────────────────────
+interface PendingInputCollection {
+  archetypeId: string;
+  tenantId: string;
+  userId: string;
+  channelId: string;
+  text: string;
+  roleName: string;
+  requiredInputs: Array<{
+    key: string;
+    label: string;
+    description?: string;
+    type?: string;
+    options?: string[];
+  }>;
+  extractedInputs?: Record<string, string>;
+}
+const pendingInputCollections = new Map<string, PendingInputCollection>();
+
+export function _clearPendingInputCollections(): void {
+  pendingInputCollections.clear();
+}
+
+/** Deduplicates app_mention events — Slack Socket Mode delivers at-least-once.
+ *  Key: `${ts}:${channel}`, Value: timestamp (ms).
+ *  Single-process scoped — acceptable for current single-instance deployment. */
+const recentMentions = new Map<string, number>();
+const MENTION_DEDUP_TTL_MS = 30_000;
+
+export function _clearRecentMentions(): void {
+  recentMentions.clear();
+}
 
 async function isTaskAwaitingApproval(
   taskId: string,
@@ -130,20 +174,21 @@ async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
 async function getTaskStatusMessage(taskId: string): Promise<string> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !supabaseKey) return '⚠️ This task has already been processed.';
+  if (!supabaseUrl || !supabaseKey) return 'Looks like this one has already been handled.';
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     });
     const rows = (await res.json()) as Array<{ status: string }>;
     const status = rows[0]?.status;
-    if (status === 'Done') return '✅ This task has already been approved and delivered.';
+    if (status === 'Done') return '✅ Already approved and delivered — nothing left to do here.';
     if (status === 'Cancelled')
       return '⏭️ This task is no longer active — it may have been superseded by a newer message.';
-    if (status === 'Failed') return '❌ This task has failed.';
-    return '⚠️ This task has already been processed.';
+    if (status === 'Failed')
+      return '❌ This one ran into a problem — it has already been marked as failed.';
+    return 'Looks like this one has already been handled.';
   } catch {
-    return '⚠️ This task has already been processed.';
+    return 'Looks like this one has already been handled.';
   }
 }
 
@@ -198,6 +243,12 @@ const BUTTON_BLOCKS = (taskId: string) => [
 ];
 
 export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void {
+  boltApp.use(async ({ body, next }) => {
+    const eventType = (body as { event?: { type?: string } }).event?.type ?? body.type ?? 'unknown';
+    log.debug({ eventType, bodyType: body.type }, 'Bolt middleware: raw payload received');
+    await next();
+  });
+
   boltApp.event('message', async ({ event }) => {
     const msg = event as {
       subtype?: string;
@@ -213,6 +264,29 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (!msg.thread_ts || msg.thread_ts === msg.ts) return;
     if (msg.subtype === 'bot_message' || msg.bot_id) return;
     if (!msg.user || !msg.text) return;
+
+    const pending = pendingInputCollections.get(msg.thread_ts);
+    if (pending) {
+      pendingInputCollections.delete(msg.thread_ts);
+      try {
+        await inngest.send({
+          name: 'employee/trigger.input-received',
+          data: {
+            threadTs: msg.thread_ts,
+            text: msg.text,
+            tenantId: pending.tenantId,
+            pending,
+          },
+        });
+        log.info(
+          { threadTs: msg.thread_ts, tenantId: pending.tenantId, userId: msg.user },
+          'Input-received event sent for pending input collection',
+        );
+      } catch (err) {
+        log.error({ threadTs: msg.thread_ts, err }, 'Failed to send trigger.input-received event');
+      }
+      return;
+    }
 
     const taskId = await findTaskIdByThreadTs(msg.thread_ts);
     if (!taskId) return;
@@ -237,7 +311,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
   });
 
-  boltApp.event('app_mention', async ({ event }) => {
+  boltApp.event('app_mention', async ({ event, client }) => {
     const mention = event as {
       text: string;
       user: string;
@@ -245,9 +319,78 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       thread_ts?: string;
       ts: string;
       team?: string;
+      bot_id?: string;
     };
 
+    log.info(
+      { channel: mention.channel, user: mention.user, hasBotId: !!mention.bot_id },
+      'app_mention event received',
+    );
+
+    if (mention.bot_id) return;
+
+    if (mention.channel.startsWith('D')) return;
+
+    // Dedup: skip duplicate app_mention events (Slack Socket Mode at-least-once delivery)
+    const dedupKey = `${mention.ts}:${mention.channel}`;
+    const now = Date.now();
+    if (
+      recentMentions.has(dedupKey) &&
+      now - recentMentions.get(dedupKey)! < MENTION_DEDUP_TTL_MS
+    ) {
+      log.info(
+        { ts: mention.ts, channel: mention.channel },
+        'Duplicate app_mention suppressed — skipping',
+      );
+      return;
+    }
+    recentMentions.set(dedupKey, now);
+    // Lazy cleanup: evict expired entries to prevent unbounded growth
+    for (const [key, timestamp] of recentMentions) {
+      if (now - timestamp > MENTION_DEDUP_TTL_MS) recentMentions.delete(key);
+    }
+
     const text = mention.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+
+    if (mention.thread_ts && mention.thread_ts !== mention.ts) {
+      const pending = pendingInputCollections.get(mention.thread_ts);
+      if (pending) {
+        pendingInputCollections.delete(mention.thread_ts);
+        try {
+          await inngest.send({
+            name: 'employee/trigger.input-received',
+            data: {
+              threadTs: mention.thread_ts,
+              text,
+              tenantId: pending.tenantId,
+              pending,
+            },
+          });
+          log.info(
+            { threadTs: mention.thread_ts, tenantId: pending.tenantId, userId: mention.user },
+            'Input-received event sent from app_mention (thread reply with @mention)',
+          );
+        } catch (err) {
+          log.error(
+            { threadTs: mention.thread_ts, err },
+            'Failed to send trigger.input-received from app_mention',
+          );
+        }
+        return;
+      }
+    }
+
+    let ackTs: string | undefined;
+    try {
+      const ackResult = await client.chat.postMessage({
+        channel: mention.channel,
+        thread_ts: mention.thread_ts ?? mention.ts,
+        text: 'On it — one moment…',
+      });
+      ackTs = typeof ackResult.ts === 'string' ? ackResult.ts : undefined;
+    } catch (ackErr) {
+      log.warn({ err: ackErr }, 'Failed to post app_mention ack — continuing without ack');
+    }
 
     let tenantId: string | null = null;
     if (mention.team) {
@@ -264,6 +407,56 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const taskId = mention.thread_ts ? await findTaskIdByThreadTs(mention.thread_ts) : null;
 
+    if (tenantId) {
+      try {
+        const resolution = await resolveArchetypeFromChannel(mention.channel, tenantId);
+        if (!resolution.archetype) {
+          const declineText =
+            "I don't have any employees assigned to this channel. An admin can assign one in the dashboard.";
+          if (ackTs) {
+            try {
+              await client.chat.update({
+                channel: mention.channel,
+                ts: ackTs,
+                text: declineText,
+              });
+            } catch (updateErr) {
+              log.warn(
+                { err: updateErr },
+                'Failed to update ack with decline — posting separately',
+              );
+              try {
+                await client.chat.postMessage({
+                  channel: mention.channel,
+                  thread_ts: mention.thread_ts ?? mention.ts,
+                  text: declineText,
+                });
+              } catch (postErr) {
+                log.warn({ err: postErr }, 'Failed to post decline fallback');
+              }
+            }
+          } else {
+            try {
+              await client.chat.postMessage({
+                channel: mention.channel,
+                thread_ts: mention.thread_ts ?? mention.ts,
+                text: declineText,
+              });
+            } catch (postErr) {
+              log.warn({ err: postErr }, 'Failed to post decline message');
+            }
+          }
+          log.info(
+            { channel: mention.channel, tenantId },
+            'No archetype for channel — declined at gateway',
+          );
+          return;
+        }
+      } catch (resolveErr) {
+        log.warn({ err: resolveErr }, 'Failed to check channel assignment — forwarding to Inngest');
+      }
+    }
+
     try {
       await inngest.send({
         name: 'employee/interaction.received',
@@ -273,6 +466,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           userId: mention.user,
           channelId: mention.channel,
           threadTs: mention.thread_ts,
+          messageTs: mention.ts,
           taskId: taskId ?? undefined,
           tenantId,
           team: mention.team,
@@ -300,9 +494,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: '⏳ Processing approval...',
+      text: '⏳ Got it — sending this for approval…',
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing approval...' } },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' },
+        },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
@@ -346,11 +543,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       try {
         await respond({
           replace_original: true,
-          text: '⚠️ Failed to process approval. Please try again.',
+          text: 'Hmm, something went wrong on my end — mind trying that again?',
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
@@ -378,9 +578,9 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: '⏳ Processing rejection...',
+      text: '⏳ Got it — noting your rejection…',
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Got it — noting your rejection…' } },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
@@ -424,11 +624,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       try {
         await respond({
           replace_original: true,
-          text: '⚠️ Failed to process rejection. Please try again.',
+          text: 'Hmm, something went wrong on my end — mind trying that again?',
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...BUTTON_BLOCKS(taskId),
@@ -456,9 +659,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (ack as any)({
       replace_original: true,
-      text: '⏳ Processing approval...',
+      text: '⏳ Got it — sending this for approval…',
       blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing approval...' } },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '⏳ Got it — sending this for approval…' },
+        },
         { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
       ],
     });
@@ -505,11 +711,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       try {
         await respond({
           replace_original: true,
-          text: '⚠️ Failed to process approval. Please try again.',
+          text: 'Hmm, something went wrong on my end — mind trying that again?',
           blocks: [
             {
               type: 'section',
-              text: { type: 'mrkdwn', text: '⚠️ Failed to process approval. Please try again.' },
+              text: {
+                type: 'mrkdwn',
+                text: 'Hmm, something went wrong on my end — mind trying that again?',
+              },
             },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ...GUEST_BUTTON_BLOCKS(taskId),
@@ -547,6 +756,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_edit modal (non-fatal)',
+        );
+      }
+    }
 
     try {
       await client.views.open({
@@ -617,6 +845,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const user = body.user;
 
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: '⏳ Got it — working on your edit…',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ Got it — working on your edit…' },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_edit_modal poll (non-fatal)',
+        );
+      }
+    }
+
     try {
       const stillAwaiting = await isTaskAwaitingApproval(taskId, {
         maxRetries: 10,
@@ -664,11 +914,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           await client.chat.update({
             channel: channelId,
             ts: messageTs,
-            text: '⏳ Processing edited response...',
+            text: '⏳ Got it — sending your edited version…',
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⏳ Processing edited response...' },
+                text: { type: 'mrkdwn', text: '⏳ Got it — sending your edited version…' },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
@@ -696,6 +946,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before guest_reject modal (non-fatal)',
+        );
+      }
+    }
 
     try {
       await client.views.open({
@@ -753,6 +1022,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
 
     const channelId = actionBody.channel?.id ?? '';
     const messageTs = actionBody.message?.ts ?? '';
+
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before override_take_action modal (non-fatal)',
+        );
+      }
+    }
 
     try {
       await client.views.open({
@@ -857,6 +1145,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       return;
     }
 
+    if (channelId && messageTs) {
+      try {
+        await client.chat.update({
+          channel: channelId,
+          ts: messageTs,
+          text: '⏳ On it — working on your direction…',
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
+            },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { taskId, updateErr },
+          'Failed to remove buttons before override_take_action_modal work (non-fatal)',
+        );
+      }
+    }
+
     const stillAwaiting = await isTaskAwaitingOverride(taskId);
     if (!stillAwaiting) {
       log.warn({ taskId }, 'Task already resolved — ignoring duplicate override submission');
@@ -878,9 +1188,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           await client.chat.update({
             channel: channelId,
             ts: messageTs,
-            text: '⏳ Processing override...',
+            text: '⏳ On it — working on your direction…',
             blocks: [
-              { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing override...' } },
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
+              },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
             ],
           });
@@ -930,9 +1243,12 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         await client.chat.update({
           channel: channelId,
           ts: messageTs,
-          text: '⏳ Processing rejection...',
+          text: '⏳ Got it — noting your rejection…',
           blocks: [
-            { type: 'section', text: { type: 'mrkdwn', text: '⏳ Processing rejection...' } },
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: '⏳ Got it — noting your rejection…' },
+            },
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
           ],
         });
@@ -992,11 +1308,14 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           await client.chat.update({
             channel: channelId,
             ts: messageTs,
-            text: '⚠️ Failed to process rejection. Please try again.',
+            text: 'Hmm, something went wrong on my end — mind trying that again?',
             blocks: [
               {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ Failed to process rejection. Please try again.' },
+                text: {
+                  type: 'mrkdwn',
+                  text: 'Hmm, something went wrong on my end — mind trying that again?',
+                },
               },
               { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
               ...GUEST_BUTTON_BLOCKS(taskId),
@@ -1020,6 +1339,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_confirm work (non-fatal)',
+        );
+      }
+    }
+
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -1146,6 +1485,26 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     const channel = actionBody.channel?.id;
     const messageTs = actionBody.message?.ts;
     if (!ruleId) return;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_reject work (non-fatal)',
+        );
+      }
+    }
+
     try {
       const supabaseUrl = SUPABASE_URL();
       const supabaseKey = SUPABASE_KEY();
@@ -1213,6 +1572,28 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
     await ack();
 
+    const channel = actionBody.channel?.id;
+    const messageTs = actionBody.message?.ts;
+
+    if (channel && messageTs) {
+      try {
+        await client.chat.update({
+          channel,
+          ts: messageTs,
+          text: 'On it — one moment…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — one moment…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_rephrase work (non-fatal)',
+        );
+      }
+    }
+
     let currentRuleText = '';
     try {
       const supabaseUrl = SUPABASE_URL();
@@ -1238,7 +1619,11 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         view: {
           type: 'modal',
           callback_id: 'rule_rephrase_modal',
-          private_metadata: JSON.stringify({ ruleId }),
+          private_metadata: JSON.stringify({
+            ruleId,
+            channelId: channel ?? '',
+            messageTs: messageTs ?? '',
+          }),
           title: { type: 'plain_text', text: 'Rephrase Rule' },
           submit: { type: 'plain_text', text: 'Save' },
           close: { type: 'plain_text', text: 'Cancel' },
@@ -1278,9 +1663,17 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     await ack();
 
     let ruleId = '';
+    let rephraseChannelId = '';
+    let rephraseMessageTs = '';
     try {
-      const meta = JSON.parse(view.private_metadata ?? '{}') as { ruleId?: string };
+      const meta = JSON.parse(view.private_metadata ?? '{}') as {
+        ruleId?: string;
+        channelId?: string;
+        messageTs?: string;
+      };
       ruleId = meta.ruleId ?? '';
+      rephraseChannelId = meta.channelId ?? '';
+      rephraseMessageTs = meta.messageTs ?? '';
     } catch {
       log.error('Failed to parse rule_rephrase_modal private_metadata');
       return;
@@ -1289,6 +1682,25 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     if (!ruleId) {
       log.error('rule_rephrase_modal submitted without ruleId in private_metadata');
       return;
+    }
+
+    if (rephraseChannelId && rephraseMessageTs) {
+      try {
+        await client.chat.update({
+          channel: rephraseChannelId,
+          ts: rephraseMessageTs,
+          text: 'On it — saving your rephrase…',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: 'On it — saving your rephrase…' } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
+          ],
+        });
+      } catch (updateErr) {
+        log.warn(
+          { ruleId, updateErr },
+          'Failed to remove buttons before rule_rephrase_modal work (non-fatal)',
+        );
+      }
     }
 
     try {
@@ -1327,13 +1739,13 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         await client.chat.update({
           channel: slack_channel,
           ts: slack_ts,
-          text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+          text: ruleProposedMessage(newText.trim()),
           blocks: [
             {
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `🧠 *New behavioral rule proposed:*\n\n> ${newText.trim()}`,
+                text: ruleProposedMessage(newText.trim()),
               },
             },
             { type: 'divider' },
@@ -1372,6 +1784,400 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       }
     } catch (err) {
       log.error({ ruleId, err }, 'Failed to process rule_rephrase_modal submission');
+    }
+  });
+
+  boltApp.action(SLACK_ACTION_ID.TRIGGER_CONFIRM, async ({ ack, body, respond, client }) => {
+    const actionBody = body as ActionBody;
+    const valueStr = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    if (!valueStr) {
+      await ack();
+      log.warn('trigger_confirm action received without value');
+      return;
+    }
+
+    let ctx: {
+      archetypeId: string;
+      tenantId: string;
+      userId: string;
+      channelId: string;
+      threadTs: string;
+      text: string;
+      extractedInputs?: Record<string, string>;
+    };
+    try {
+      ctx = JSON.parse(valueStr) as typeof ctx;
+    } catch {
+      await ack();
+      log.warn({ valueStr }, 'trigger_confirm: failed to parse button value as JSON');
+      return;
+    }
+
+    await ack();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    log.info(
+      { archetypeId: ctx.archetypeId, tenantId: ctx.tenantId, userId: user.id },
+      'trigger_confirm action received — dispatching task',
+    );
+
+    const loadingText = loadingMessage('your request');
+    try {
+      await respond({
+        replace_original: true,
+        text: loadingText,
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: loadingText } }],
+      });
+    } catch (err) {
+      log.warn(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to show pending feedback on trigger_confirm',
+      );
+    }
+
+    let dispatched = false;
+
+    try {
+      const supabaseUrl = SUPABASE_URL();
+      const headers = supabaseHeaders();
+
+      const archetypeRes = await fetch(
+        `${supabaseUrl}/rest/v1/archetypes?id=eq.${ctx.archetypeId}&tenant_id=eq.${ctx.tenantId}&status=eq.active&deleted_at=is.null&select=id,role_name,input_schema`,
+        { headers },
+      );
+      const archetypes = (await archetypeRes.json()) as Array<{
+        id: string;
+        role_name: string;
+        input_schema: unknown;
+      }>;
+      if (!archetypes.length) {
+        throw new Error(`Archetype not found or inactive: ${ctx.archetypeId}`);
+      }
+      const archetype = archetypes[0];
+
+      const externalId = `slack-trigger-${ctx.threadTs}-${ctx.archetypeId}`;
+
+      const requiredInputs = Array.isArray(archetype.input_schema)
+        ? (
+            archetype.input_schema as Array<{
+              key: string;
+              label: string;
+              description?: string;
+              required?: boolean;
+              frequency?: string;
+              type?: string;
+              options?: string[];
+            }>
+          )
+            .filter(
+              (item) =>
+                item.required === true &&
+                (item.frequency === 'every_run' || item.frequency === undefined),
+            )
+            .map((item) => ({
+              key: item.key,
+              label: item.label,
+              description: item.description,
+              type: item.type,
+              options: item.options,
+            }))
+        : [];
+
+      const preExtracted = ctx.extractedInputs;
+      const extractedInputs =
+        requiredInputs.length > 0
+          ? preExtracted && Object.keys(preExtracted).length > 0
+            ? preExtracted
+            : await extractInputsFromText(ctx.text, requiredInputs, callLLM)
+          : {};
+
+      const missingInputs = requiredInputs.filter((inp) => !(inp.key in extractedInputs));
+      const allFound = requiredInputs.length > 0 && missingInputs.length === 0;
+      const someFound = Object.keys(extractedInputs).length > 0 && missingInputs.length > 0;
+
+      if (allFound) {
+        const confirmText = loadingMessage(archetype.role_name);
+
+        await client.chat.postMessage({
+          channel: ctx.channelId,
+          ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
+          text: confirmText,
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: confirmText } }],
+        });
+
+        const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            id: randomUUID(),
+            archetype_id: archetype.id,
+            external_id: externalId,
+            source_system: 'slack',
+            status: 'Ready',
+            tenant_id: ctx.tenantId,
+            updated_at: new Date().toISOString(),
+            raw_event: { inputs: { prompt: ctx.text, ...extractedInputs } },
+          }),
+        });
+        const tasks = (await createRes.json()) as Array<{ id: string }>;
+        let taskId: string;
+        if (!tasks.length) {
+          // PostgREST returns [] on duplicate unique constraint — check if task already exists
+          const existingRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?external_id=eq.${encodeURIComponent(externalId)}&select=id`,
+            { headers },
+          );
+          const existing = (await existingRes.json()) as Array<{ id: string }>;
+          if (!existing.length) throw new Error('Task creation returned empty response');
+          taskId = existing[0].id;
+          log.info(
+            { taskId, externalId, tenantId: ctx.tenantId },
+            'Reusing existing task for duplicate trigger_confirm (idempotent)',
+          );
+        } else {
+          taskId = tasks[0].id;
+        }
+
+        await inngest.send({
+          name: 'employee/task.dispatched',
+          data: { taskId, archetypeId: archetype.id },
+          id: `employee-dispatch-${externalId}`,
+        });
+        dispatched = true;
+
+        log.info(
+          { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, extractedInputs },
+          'Task dispatched from trigger_confirm with extracted inputs',
+        );
+
+        const successText = successMessage(archetype.role_name, user.id);
+        try {
+          await respond({
+            replace_original: true,
+            text: successText,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: successText },
+              },
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+              },
+            ],
+          });
+        } catch (err) {
+          log.warn(
+            { archetypeId: ctx.archetypeId, err },
+            'Failed to show pending feedback on trigger_confirm',
+          );
+        }
+        return;
+      } else if (someFound || requiredInputs.length > 0) {
+        const inputsToAsk = someFound ? missingInputs : requiredInputs;
+        const inputList = inputsToAsk
+          .map(
+            (item, i) =>
+              `${i + 1}. *${item.label}*${item.description ? ` — ${item.description}` : ''}`,
+          )
+          .join('\n');
+
+        const pendingData: PendingInputCollection = {
+          archetypeId: archetype.id,
+          tenantId: ctx.tenantId,
+          userId: user.id,
+          channelId: ctx.channelId,
+          text: ctx.text,
+          roleName: archetype.role_name,
+          requiredInputs,
+          extractedInputs: someFound ? extractedInputs : undefined,
+        };
+
+        if (ctx.threadTs) {
+          pendingInputCollections.set(ctx.threadTs, pendingData);
+        }
+
+        const missingInfoText = missingInfoMessage(archetype.role_name, inputList);
+        const inputMsgResult = await client.chat.postMessage({
+          channel: ctx.channelId,
+          ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
+          text: missingInfoText,
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: missingInfoText },
+            },
+          ],
+        });
+
+        const pendingKey = ctx.threadTs ?? (inputMsgResult.ts as string | undefined);
+
+        if (!ctx.threadTs) {
+          pendingInputCollections.set(pendingKey, pendingData);
+        }
+
+        const waitingText = loadingMessage(archetype.role_name);
+        await respond({
+          replace_original: true,
+          text: waitingText,
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: waitingText },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+            },
+          ],
+        });
+
+        log.info(
+          {
+            archetypeId: archetype.id,
+            tenantId: ctx.tenantId,
+            pendingKey,
+            someFound,
+            extractedCount: Object.keys(extractedInputs).length,
+          },
+          'Waiting for inputs in thread before dispatching task',
+        );
+        return;
+      }
+
+      const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          id: randomUUID(),
+          archetype_id: archetype.id,
+          external_id: externalId,
+          source_system: 'slack',
+          status: 'Ready',
+          tenant_id: ctx.tenantId,
+          updated_at: new Date().toISOString(),
+          raw_event: { inputs: { prompt: ctx.text } },
+        }),
+      });
+      const tasks = (await createRes.json()) as Array<{ id: string }>;
+      if (!tasks.length) {
+        throw new Error('Task creation returned empty response');
+      }
+      const taskId = tasks[0].id;
+
+      await inngest.send({
+        name: 'employee/task.dispatched',
+        data: { taskId, archetypeId: archetype.id },
+        id: `employee-dispatch-${externalId}`,
+      });
+      dispatched = true;
+
+      log.info(
+        { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, userId: user.id },
+        'Task dispatched from Slack trigger confirmation',
+      );
+
+      const successText = successMessage(archetype.role_name, user.id);
+      try {
+        await respond({
+          replace_original: true,
+          text: successText,
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: successText },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            },
+          ],
+        });
+      } catch (err) {
+        log.warn(
+          { archetypeId: ctx.archetypeId, err },
+          'Failed to show pending feedback on trigger_confirm',
+        );
+      }
+    } catch (err) {
+      log.error(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to dispatch task from trigger_confirm',
+      );
+      if (!dispatched) {
+        const failText = failureMessage();
+        try {
+          await respond({
+            replace_original: true,
+            text: failText,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: failText },
+              },
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+              },
+            ],
+          });
+        } catch (respondErr) {
+          log.warn({ err: respondErr }, 'Failed to update message after trigger_confirm failure');
+        }
+      } else {
+        log.warn(
+          { archetypeId: ctx.archetypeId, err },
+          'trigger_confirm: post-dispatch error after successful dispatch (suppressed false-failure message)',
+        );
+      }
+    }
+  });
+
+  boltApp.action(SLACK_ACTION_ID.TRIGGER_CANCEL, async ({ ack, body, respond }) => {
+    await ack();
+
+    const actionBody = body as ActionBody;
+    const valueStr = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    let archetypeId = '';
+    if (valueStr) {
+      try {
+        const ctx = JSON.parse(valueStr) as { archetypeId?: string };
+        archetypeId = ctx.archetypeId ?? '';
+      } catch {
+        archetypeId = '';
+      }
+    }
+
+    log.info({ userId: user.id, archetypeId }, 'trigger_cancel action received');
+
+    try {
+      await respond({
+        replace_original: true,
+        text: `🚫 Cancelled by <@${user.id}>`,
+        blocks: [
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `🚫 Cancelled by <@${user.id}>` },
+          },
+          ...(archetypeId
+            ? [
+                {
+                  type: 'context' as const,
+                  elements: [{ type: 'mrkdwn' as const, text: `Archetype \`${archetypeId}\`` }],
+                },
+              ]
+            : []),
+        ],
+      });
+    } catch (err) {
+      log.warn(
+        { userId: user.id, archetypeId, err },
+        'Failed to update message after trigger_cancel',
+      );
     }
   });
 }

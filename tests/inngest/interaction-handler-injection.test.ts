@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../src/lib/call-llm.js', () => ({
   callLLM: vi.fn().mockResolvedValue({
     content: 'mock response',
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 5,
     completionTokens: 1,
     estimatedCostUsd: 0,
@@ -116,7 +116,7 @@ describe('interaction-handler injection protection', () => {
     mockCallLLM = callLLM as ReturnType<typeof vi.fn>;
     mockCallLLM.mockResolvedValue({
       content: 'mock response',
-      model: 'anthropic/claude-haiku-4-5',
+      model: 'deepseek/deepseek-v4-flash',
       promptTokens: 5,
       completionTokens: 1,
       estimatedCostUsd: 0,

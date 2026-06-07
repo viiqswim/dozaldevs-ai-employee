@@ -16,6 +16,8 @@
 
 import fs from 'fs';
 
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
 interface Args {
   summary: string;
   classification: string;
@@ -45,17 +47,17 @@ function parseArgs(argv: string[]): Args {
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--summary' && args[i + 1]) {
-      summary = args[++i];
+      summary = unescapeShellArg(args[++i]);
     } else if (args[i] === '--classification' && args[i + 1]) {
       classification = args[++i];
     } else if (args[i] === '--draft' && args[i + 1]) {
-      draft = args[++i];
+      draft = unescapeShellArg(args[++i]);
     } else if (args[i] === '--draft-file' && args[i + 1]) {
       draftFile = args[++i];
     } else if (args[i] === '--confidence' && args[i + 1]) {
       confidence = parseFloat(args[++i]);
     } else if (args[i] === '--reasoning' && args[i + 1]) {
-      reasoning = args[++i];
+      reasoning = unescapeShellArg(args[++i]);
     } else if (args[i] === '--urgency') {
       urgency = true;
     } else if (args[i] === '--metadata' && args[i + 1]) {

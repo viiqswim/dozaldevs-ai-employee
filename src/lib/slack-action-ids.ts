@@ -10,6 +10,8 @@ export const SLACK_ACTION_ID = {
   RULE_CONFIRM: 'rule_confirm',
   RULE_REJECT: 'rule_reject',
   RULE_REPHRASE: 'rule_rephrase',
+  TRIGGER_CONFIRM: 'trigger_confirm',
+  TRIGGER_CANCEL: 'trigger_cancel',
 } as const;
 
 export type SlackActionId = (typeof SLACK_ACTION_ID)[keyof typeof SLACK_ACTION_ID];

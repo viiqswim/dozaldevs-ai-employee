@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
 import { InngestTestEngine, mockCtx } from '@inngest/test';
 import { createEmployeeLifecycleFunction } from '../../src/inngest/employee-lifecycle.js';
+import { reviewingDraftedMessage } from '../../src/lib/slack-copy.js';
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
@@ -600,7 +601,7 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
     expect(mockUpdateMessage).toHaveBeenCalled();
     const updateCalls = mockUpdateMessage.mock.calls as Array<[string, string, string, unknown[]]>;
     const reviewingCall = updateCalls.find(([, , text]) =>
-      (text as string).includes('Awaiting approval'),
+      (text as string).includes("I've drafted"),
     );
     expect(reviewingCall).toBeDefined();
     expect(reviewingCall![2]).toContain('Jane Smith');
@@ -663,14 +664,14 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
 
     expect(error).toBeUndefined();
 
-    // updateMessage was called with generic "Awaiting approval — reply drafted" (no name)
+    // updateMessage was called with the generic drafted message (no name)
     expect(mockUpdateMessage).toHaveBeenCalled();
     const updateCalls = mockUpdateMessage.mock.calls as Array<[string, string, string, unknown[]]>;
     const reviewingCall = updateCalls.find(([, , text]) =>
-      (text as string).includes('Awaiting approval'),
+      (text as string).includes("I've drafted"),
     );
     expect(reviewingCall).toBeDefined();
     // Should NOT contain a specific name — just the generic fallback
-    expect(reviewingCall![2]).toBe('Awaiting approval — reply drafted');
+    expect(reviewingCall![2]).toBe(reviewingDraftedMessage());
   });
 });

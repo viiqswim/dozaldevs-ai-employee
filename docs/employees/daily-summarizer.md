@@ -1,10 +1,12 @@
-# Daily Summarizer (Papi Chulo) — Operational Details
+# Daily Summarizer — Operational Details
 
 > This document is loaded on-demand. For platform-wide rules, see AGENTS.md.
 
 ## Identity & Configuration
 
-**Summarizer (Papi Chulo)** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
+**Daily Summarizer** — runs daily via cron, reads configured Slack channels, generates a digest with an LLM, posts to a target channel for human approval, then publishes on approval.
+
+> **Note on "Papi Chulo"**: Papi Chulo is the **Slack bot/app** (`A09678HT90S`) installed on the platform — it handles all Slack communication across every AI employee. It is not the name of this employee. The daily-summarizer archetype historically used a "dramatic Spanish TV news correspondent" persona internally, but the Papi Chulo name belongs to the platform bot, not this employee.
 
 **Summarizer archetype slug**: `daily-summarizer` (seeded in `prisma/seed.ts`). Duplicate prevention: `external_id: summary-{YYYY-MM-DD}`.
 

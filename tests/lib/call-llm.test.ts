@@ -235,7 +235,7 @@ describe('callLLM', () => {
 
     await expect(
       callLLM({ model: 'minimax/minimax-m2.7', messages: [], taskType: 'execution' }),
-    ).rejects.toThrow('OpenRouter returned 500');
+    ).rejects.toThrow('LLM provider returned 500');
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });

@@ -167,7 +167,7 @@ beforeEach(() => {
   mockLoadTenantEnv.mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test-bot-token' });
   mockCallLLM.mockResolvedValue({
     content: '[{"theme":"tone","frequency":1,"representative_quote":"be warmer"}]',
-    model: 'anthropic/claude-haiku-4-5',
+    model: 'deepseek/deepseek-v4-flash',
     promptTokens: 5,
     completionTokens: 1,
     estimatedCostUsd: 0,

@@ -2,6 +2,7 @@ import type { KnownBlock } from '@slack/web-api';
 import { buildHostfullyLink } from './enrichment-adapters/hostfully.js';
 import type { NotificationEnrichment } from './types/notification-enrichment.js';
 import { SLACK_ACTION_ID } from './slack-action-ids.js';
+import { expiredMessage } from './slack-copy.js';
 
 export function buildSupersededBlocks(taskId: string): unknown[] {
   return [
@@ -36,7 +37,7 @@ export function buildEnrichedNotifyBlocks(params: {
   if (bookingChannel) subtitleParts.push(bookingChannel);
   if (checkIn && checkOut) subtitleParts.push(`${checkIn}–${checkOut}`);
 
-  let mainText = `⏳ *Processing reply for ${guestName}*`;
+  let mainText = `⏳ *Working on a reply for ${guestName}*`;
   if (subtitleParts.length > 0) {
     mainText += `\n_${subtitleParts.join(' · ')}_`;
   }
@@ -67,10 +68,14 @@ export function buildNotifyStateBlocks(params: {
   const { emoji, text, taskId, runId } = params;
 
   const textLower = text.toLowerCase();
-  const isNoAction = textLower.includes('no action') || textLower.includes('complete') || textLower.includes('done');
+  const isNoAction =
+    textLower.includes('no action') || textLower.includes('complete') || textLower.includes('done');
   const isFailed = textLower.includes('fail') || textLower.includes('error');
   const isReviewing = textLower.includes('review') || textLower.includes('awaiting');
-  const isProcessing = textLower.includes('process') || textLower.includes('received') || textLower.includes('executing');
+  const isProcessing =
+    textLower.includes('process') ||
+    textLower.includes('received') ||
+    textLower.includes('executing');
 
   let statusEmoji: string;
   let statusLabel: string;
@@ -101,22 +106,29 @@ export function buildNotifyStateBlocks(params: {
   if (isProcessing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+      elements: [{ type: 'mrkdwn', text: "⏳ On it — I'll post an update here when it's ready" }],
     });
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+      elements: [
+        { type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' },
+      ],
     });
   } else if (isNoAction) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+      elements: [{ type: 'mrkdwn', text: '✅ All done!' }],
     });
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: '❌ Something went wrong on my end — check the thread for details',
+        },
+      ],
     });
   }
 
@@ -169,7 +181,7 @@ export function buildOverrideCardBlocks(params: {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `🤖 *AI skipped this task*\n_Employee: ${roleName}_\n\n*Reasoning:* ${reasoning}`,
+        text: `ℹ️ *I decided to skip this one*\n_${roleName}_\n\n${reasoning}`,
       },
     },
   ];
@@ -308,7 +320,7 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'failed') {
-    const mainText = `❌ *Task failed*${guestSuffix}${propertyLine}`;
+    const mainText = `❌ *Something went wrong*${guestSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
@@ -326,7 +338,7 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'expired') {
-    const mainText = `⏰ *Expired — no action taken*${guestSuffix}${propertyLine}`;
+    const mainText = `${expiredMessage()}${guestSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
@@ -343,7 +355,7 @@ export function buildEnrichedTerminalBlocks(params: {
     return blocks;
   }
 
-  const mainText = `❌ *Delivery failed — reply not sent*${guestSuffix}${propertyLine}`;
+  const mainText = `❌ *Delivery failed — the reply wasn't sent*${guestSuffix}${propertyLine}`;
   blocks.push({
     type: 'section',
     text: { type: 'mrkdwn', text: mainText },
@@ -470,9 +482,11 @@ export function buildNotifyBlocks(params: {
   const blocks: KnownBlock[] = [];
 
   const stateLower = state.toLowerCase();
-  const isProcessing = stateLower === 'received' || stateLower === 'executing' || stateLower === 'submitting';
+  const isProcessing =
+    stateLower === 'received' || stateLower === 'executing' || stateLower === 'submitting';
   const isReviewing = stateLower === 'reviewing';
-  const isDone = stateLower === 'done' || stateLower === 'complete' || stateLower === 'task complete';
+  const isDone =
+    stateLower === 'done' || stateLower === 'complete' || stateLower === 'task complete';
   const isFailed = stateLower === 'failed';
 
   let statusEmoji: string;
@@ -502,22 +516,29 @@ export function buildNotifyBlocks(params: {
   if (isProcessing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '⏳ Task is being processed — no action needed yet' }],
+      elements: [{ type: 'mrkdwn', text: "⏳ On it — I'll post an update here when it's ready" }],
     } as KnownBlock);
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '👀 *Awaiting your approval* — please review and take action' }],
+      elements: [
+        { type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' },
+      ],
     } as KnownBlock);
   } else if (isDone) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '✅ Task completed successfully' }],
+      elements: [{ type: 'mrkdwn', text: '✅ All done!' }],
     } as KnownBlock);
   } else if (isFailed) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: '❌ *Error occurred* — please check details' }],
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: '❌ Something went wrong on my end — check the thread for details',
+        },
+      ],
     } as KnownBlock);
   }
 

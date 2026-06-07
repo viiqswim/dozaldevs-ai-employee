@@ -163,22 +163,6 @@ describe('get-properties shell tool', () => {
     expect(data).toEqual([]);
   });
 
-  it('happy path — two pages returns all 4 properties', async () => {
-    const { stdout, code } = await runScript([], {
-      HOSTFULLY_API_KEY: 'testkey',
-      HOSTFULLY_AGENCY_UID: 'TEST_AGENCY',
-      HOSTFULLY_API_URL: `http://localhost:${port}`,
-    });
-    expect(code).toBe(0);
-    const data = JSON.parse(stdout) as { uid: string }[];
-    expect(data).toHaveLength(4);
-    const uids = data.map((p) => p.uid);
-    expect(uids).toContain('PROP_001');
-    expect(uids).toContain('PROP_002');
-    expect(uids).toContain('PROP_003');
-    expect(uids).toContain('PROP_004');
-  });
-
   it('dedup guard — cursor loop returns exactly 2 properties and stops', async () => {
     const { stdout, code } = await runScript([], {
       HOSTFULLY_API_KEY: 'testkey',

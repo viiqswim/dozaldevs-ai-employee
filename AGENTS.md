@@ -8,20 +8,22 @@
 
 Two categories of model use exist in this codebase. Each has its own rule.
 
-| Category                               | Model                                                   | Rule                                                                                                |
-| -------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`. |
-| **Verification/judge** (gateway calls) | `anthropic/claude-haiku-4-5`                            | Hardcoded in `call-llm.ts`. Never change this.                                                      |
+| Category                               | Model                                                                                                | Rule                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Execution** (employee work)          | Any model present in the tenant's `model_catalog` table                                              | Selected via the recommendation engine at archetype creation. Default seed: `minimax/minimax-m2.7`.                                                                                                                                                                                                                                          |
+| **Verification/judge** (gateway calls) | Configurable via `platform_settings` key `gateway_llm_model`. Default: `deepseek/deepseek-v4-flash`. | Read at runtime via `getPlatformSetting('gateway_llm_model')` in `call-llm.ts`. When `OPENCODE_GO_API_KEY` is set and the model is OpenAI-compatible on Go, routes through OpenCodeGo; Anthropic-format Go models fall back to OpenRouter. Change via dashboard `/dashboard/settings` or `PATCH /admin/platform-settings/gateway_llm_model`. |
 
 **Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global — not tenant-scoped).
 
-**Seeded catalog models (global):** `minimax/minimax-m2.7` · `tencent/hy3-preview` · `openrouter/owl-alpha`
+**Seeded catalog models (global):** `minimax/minimax-m2.7` · `minimax/minimax-m2.5` · `minimax/minimax-m3` · `zhipu/glm-5.1` · `zhipu/glm-5` · `moonshot/kimi-k2.5` · `moonshot/kimi-k2.6` · `xiaomi/mimo-v2.5-pro` · `xiaomi/mimo-v2.5` · `alibaba/qwen3.7-max` · `alibaba/qwen3.7-plus` · `alibaba/qwen3.6-plus` · `deepseek/deepseek-v4-pro` · `deepseek/deepseek-v4-flash`
 
-**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering. **Note**: `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) has been verified to reliably call bash tools in the engineer employee context (E2E verified 2026-06-03).
+**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`, `minimax/minimax-m2.7`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering. **Note**: `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) has been verified to reliably call bash tools in the engineer employee context (E2E verified 2026-06-03). `minimax/minimax-m2.7` fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03) — use `deepseek/deepseek-v4-flash` for Go routing tests.
 
 **OpenCode VM size requirement**: Any archetype using `runtime: 'opencode'` MUST have `vm_size: 'performance-1x'` set (or larger). The Go-based OpenCode binary reserves ~74GB virtual memory at startup — `shared-cpu-1x` Fly machines (256MB RAM) will OOM-kill it every time. Without `vm_size` set, the archetype defaults to `shared-cpu-1x` and every task fails within 45 seconds with 0 tokens. Set it in both the DB and the seed file: `UPDATE archetypes SET vm_size = 'performance-1x' WHERE id = '<archetype_id>';`
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
+
+**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/lib/go-models.ts`). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
 
 ## Deprecated Components
 
@@ -85,15 +87,19 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
 
+**Shared utility — `src/worker-tools/lib/unescape-args.ts`**: When writing a new shell tool, import `unescapeShellArg` and wrap every free-text CLI argument (`--body`, `--message`, `--content`, `--description`, etc.) at parse time. LLMs generate commands with literal `\n` in string arguments (e.g. `--body "Hello\nWorld"`); the shell passes `\`+`n` to `process.argv`, not a real newline. `unescapeShellArg` converts `\n` → newline, `\t` → tab, `\r` → carriage return. Omitting this causes literal backslash-n to reach external APIs (email, Notion, Jira, Hostfully, etc.).
+
 - **OpenCode version — CRITICAL**: Pinned to `1.14.31`. Version `1.14.33` has a confirmed 6-second exit regression. **Never upgrade without explicit testing.**
 - **`WORKER_RUNTIME` flag**: `docker` = local containers (default), `fly` = Fly.io machines (requires `TUNNEL_URL`).
 - **Task-fetch-first**: Harness fetches task from DB before starting OpenCode. Fake `TASK_ID` exits at "Task not found" — OpenCode never launches.
 - **`autoupdate: false`**: Must be set in `src/workers/config/opencode.json` and `~/.config/opencode/opencode.json`.
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — states: Received → Triaging → AwaitingInput → Ready → Executing → Validating (auto-pass) → Submitting → Reviewing → Approved → Delivering → Done. Terminal: `Failed`, `Cancelled`. Two delivery paths: (1) `approval_required: true` → Submitting → Reviewing → Approved → Delivering → Done; (2) `approval_required: false` → Submitting → Delivering → Done (delivery container always spawns when `delivery_instructions` is set; skips only when `NO_ACTION_NEEDED` AND no `delivery_instructions`).
-- **Inngest functions** (active — 5): `employee/universal-lifecycle`, `employee/interaction-handler` (intent classification, `feedback_events`), `employee/rule-extractor` (`employee_rules`), `employee/rule-synthesizer` (`SYNTHESIS_THRESHOLD` = 5), `trigger/reviewing-watchdog` (15-min cron, marks stuck `Reviewing` → `Failed` after 30 min).
+- **Inngest functions** (active — 7): `employee/universal-lifecycle`, `employee/interaction-handler` (intent classification, `feedback_events`), `employee/rule-extractor` (`employee_rules`), `employee/rule-synthesizer` (`SYNTHESIS_THRESHOLD` = 5), `trigger/reviewing-watchdog` (15-min cron, marks stuck `Reviewing` → `Failed` after 30 min), `employee/slack-trigger-handler` (handles `employee/task.requested` from Slack @mentions — resolves channel → employee, posts confirmation card, dispatches task), `employee/slack-input-collector` (handles `employee/trigger.input-received` — collects required inputs from thread replies before dispatching).
+- **Slack @mention triggering**: Users can trigger AI employees by @mentioning the bot in a Slack channel. The `app_mention` handler fires `employee/interaction.received` → classified as `task` intent → emits `employee/task.requested` → `slack-trigger-handler` resolves the channel's assigned employee, posts a Block Kit confirmation card in thread. User clicks Confirm → task dispatched (or input collection starts if employee has required `input_schema` fields). Cancel → no task. Unassigned channels get a polite decline. Multi-employee channels use LLM routing (`routeToEmployee()` in `src/inngest/slack-trigger-handler.ts`). Action IDs: `SLACK_ACTION_ID.TRIGGER_CONFIRM` / `TRIGGER_CANCEL` in `src/lib/slack-action-ids.ts`. In-memory `pendingInputCollections` Map tracks threads awaiting input (keyed by `channelId:threadTs`).
 - **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed.
 - **Container naming**: Execution container: `employee-{taskId.slice(0,8)}`. Delivery container: `employee-delivery-{taskId.slice(0,8)}`. Find both with `docker ps --filter name=employee-`.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
+- **Multi-provider routing**: When `OPENCODE_GO_API_KEY` is set, `writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo subscription); others fall back to OpenRouter. Provider selection is logged at task start. See `src/lib/go-models.ts` for the hardcoded 14-model Go list (moved from `src/workers/lib/` — now shared between gateway and worker). **OpenCodeGo usage limits**: $12/5hr, $30/week, $60/month metered on top of the $10/mo subscription. Gateway calls are negligible (~$0.50/mo). Track usage at https://opencode.ai/auth. **Go two-endpoint formats**: Go models use two API formats — OpenAI-compatible (`/zen/go/v1/chat/completions`) and Anthropic-compatible (`/zen/go/v1/messages`). `call-llm.ts` gateway routing only works with OpenAI-compatible models on Go. Worker harness handles both formats via OpenCode internally.
 
 ## Skills System
 
@@ -148,6 +154,8 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 | `00000000-0000-0000-0000-000000000002` | DozalDevs | dozaldevs | `T0601SMSVEU` (Dozal Inc.) — must OAuth separately |
 | `00000000-0000-0000-0000-000000000003` | VLRE      | vlre      | `vlreworkspace.slack.com` (team: `T06KFDGLHS6`)    |
 
+**Papi Chulo = the platform Slack bot, NOT an employee name.** App ID `A09678HT90S`, installed on VLRE workspace. ALL AI employees communicate through this single bot — it is not tied to the daily-summarizer or any specific employee. The daily-summarizer archetype uses a "dramatic Spanish TV news correspondent" persona in its prompt, but the Papi Chulo name belongs to the bot/app, not that employee.
+
 **Two VLRE Slack tokens exist in `.env`**: `SLACK_BOT_TOKEN` (used by the gateway Bolt app for Socket Mode) and `VLRE_SLACK_BOT_TOKEN` (seed-only — used by `prisma/seed.ts` to populate `tenant_secrets` on DB reset). For API calls from scripts or testing, use `VLRE_SLACK_BOT_TOKEN`. Both hold the same VLRE workspace bot token value but serve different consumption points. Never store either as the DozalDevs tenant secret.
 
 For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-05-14-0040-slack-tenant-integration.md`.
@@ -178,6 +186,49 @@ curl -X POST "http://localhost:8288/e/local" \
 2. **User mention for actions** — use `<@userId>` mrkdwn syntax (never raw username strings). `userId` available from `actionBody.user.id` in handlers.
 
 **Reference implementation**: `src/inngest/employee-lifecycle.ts` (`handle-approval-result` step) and `src/worker-tools/slack/post-message.ts` (`buildApprovalBlocks`).
+
+## Slack Voice & Tone (MANDATORY — Every Message, No Exceptions)
+
+**Every Slack message sent by an AI employee or by the platform on behalf of one MUST sound like a person wrote it — not a machine.** This applies to all contexts: trigger confirmations, approval cards, status updates, error messages, missing-info prompts, terminal-state notifications, and any other user-facing string. No exceptions.
+
+### The Rule
+
+Before writing any Slack copy, ask: _"Would a thoughtful colleague send this exact message?"_ If the answer is no, rewrite it.
+
+**Forbidden patterns (robotic):**
+
+- Status codes or technical identifiers as prose: `"Task status: NEEDS_APPROVAL"`, `"Error: inngest.send() failed"`
+- Passive system-speak: `"Your request has been received and is being processed."`, `"Action required: approval pending."`
+- Dry confirmations with no personality: `"Trigger confirmed. Employee started."`, `"Operation completed successfully."`
+- All-caps emphasis: `"WARNING: task failed"`, `"NOTE: this action is irreversible"`
+- Filler preamble: `"Please note that..."`, `"It is worth mentioning that..."`
+
+**Required patterns (human):**
+
+- First person, present tense, active voice: `"On it — I'll post the results here when it's ready."`, `"Hmm, I ran into a problem. Mind trying again in a moment?"`
+- Address the user by mention when relevant: `"<@userId>, I just need one more thing before I can start."`
+- Acknowledge what the user asked for before pivoting: `"Almost there — before I kick off *${roleName}*, I just need a couple of details."` (not: `"Required inputs missing."`)
+- Friendly closure on success: `"✅ Done — *${roleName}* is now working on it. I'll post the results here when it's ready."` (not: `"Task dispatched."`)
+- Empathetic framing on failure: `"Something went wrong on my end — could you try that again in a moment?"` (not: `"Internal server error."`)
+
+### Tone Spectrum (use these as calibration anchors)
+
+| Situation              | ❌ Robotic                        | ✅ Human                                                                                     |
+| ---------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| Confirm click, loading | `"Processing your request..."`    | `"On it — I'm getting *Daily Summarizer* started. One moment…"`                              |
+| Success                | `"Task dispatched successfully."` | `"✅ Done — I'm on it. I'll post the results here when it's ready."`                         |
+| Missing info           | `"Required field: date"`          | `"Almost there — I just need to know the date before I can start."`                          |
+| Failure                | `"Error: dispatch failed."`       | `"Hmm, something went wrong. Mind trying again in a moment?"`                                |
+| Awaiting approval      | `"Pending approval."`             | `"Just sent this to the team for a quick review — I'll follow up as soon as it's approved."` |
+| Rejected               | `"Request rejected."`             | `"Got it — I'll leave this one for now. Let me know if you'd like me to try again."`         |
+
+### Where This Applies
+
+Every user-facing string: trigger-flow messages (`trigger-copy.ts` and equivalents), approval card text, `notify-received` updates, terminal-state updates (Done, Failed, Cancelled), in-thread replies, missing-info prompts, and any copy written in archetype `delivery_steps` or `execution_steps` that surfaces to Slack.
+
+**Centralise copy in one place per flow** — inline prose scattered across handler logic is a maintainability bug and a tone-consistency risk. Write named constants (e.g. `loadingMessage(roleName)`) and import them.
+
+---
 
 ## Slack Message Hygiene (MANDATORY — No Message Accumulation)
 
@@ -288,7 +339,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **Test DB**: `ai_employee_test` — setup via `pnpm test:db:setup` (one-time, idempotent). Safety guard: `globalSetup` throws if `DATABASE_URL` doesn't contain `ai_employee_test`.
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
 - **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
-- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`.
+- **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`, `gateway_llm_model` (controls which LLM model is used for gateway verification calls; default: `deepseek/deepseek-v4-flash`).
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -459,6 +510,8 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
 - `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
+**OpenCode Go**: `OPENCODE_GO_API_KEY` — optional in local dev and CI (calls fall back to OpenRouter when unset); **required in production** (the gateway throws at boot if `NODE_ENV=production` and the key is missing — enforced by `validateProductionEnv()` in `src/gateway/server.ts`). When set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var locally to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
+
 ## Long-Running Commands
 
 **NEVER** run commands expected to take >30 seconds with a blocking shell call. Launch in a detached tmux session with output piped to a log file. Poll every 30–60 seconds.
@@ -541,6 +594,102 @@ Use the named Cloudflare Tunnel (`local-ai-employee.dozaldevs.com`) — tunnel `
 1. DB task row: `SELECT id, status, archetype_id FROM tasks WHERE id = '<taskId>'`
 2. Gateway structured logs: `grep '"runId":"<runId>"' /tmp/ai-dev.log`
 3. Inngest event payload: `http://localhost:8288` → Events tab → find `employee/task.dispatched`
+
+### 4. Stale detached processes from previous `pnpm dev` sessions
+
+**Symptom**: @mention triggers produce no Slack response roughly 50% of the time, or produce responses from old/stale code (missing recent fixes). Gateway logs show the event was received and Inngest function initialized, but step output logs are missing or show old behavior.
+
+**Root cause — two compounding mechanisms:**
+
+1. **Slack Socket Mode load-balancing.** Slack delivers each event to exactly ONE connected socket and load-balances across all connected sockets. With two gateway processes alive, ~50% of `app_mention` events go to the zombie process, which has no live Inngest connection, so the event is silently dropped — no log, no ack, no task created.
+
+2. **Broken reaper regex left the real gateway leaf alive.** `tsx watch` spawns two processes: a SUPERVISOR (`tsx watch src/gateway/server.ts`) and a CHILD `node` process (the real gateway). The real gateway leaf cmdline is `node …/tsx/dist/loader.mjs src/gateway/server.ts` — it has NO "watch" token. The old reaper pattern `tsx.*watch.*server\.ts` matched and killed the supervisor but left the leaf alive. The leaf kept the Slack Socket Mode WebSocket open, becoming the zombie.
+
+**When orphaning occurs**: ONLY on unclean death (`kill -9`, tmux session killed, crash). Clean Ctrl+C already group-kills correctly via `process.kill(-child.pid, 'SIGTERM')` in `dev.ts:154` — that path is not broken.
+
+**Diagnosis**:
+
+```bash
+# Count gateway leaf processes (should be exactly 1)
+pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l
+```
+
+**Fix**: `dev.ts` now includes a preflight kill step (Step 0) that anchors on the absolute repo path, matching all three process forms (npm exec supervisor, tsx CLI supervisor, node leaf). The `.*` is required because `$(pwd)` appears in the tsx module path (`node_modules`), not directly prefixed to the script argument. If you still see stale processes, kill them manually:
+
+```bash
+pkill -f "$(pwd).*src/gateway/server.ts" || true
+pkill -f "inngest.*8288" || true
+pkill -f "$(pwd)/dashboard.*vite" || true
+```
+
+Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gateway from connecting Socket Mode even if the reaper misses a zombie — the second instance logs a warning and skips the Socket Mode connection.
+
+**Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, run the manual kill commands above first.
+
+### 5. Phantom Socket Mode connections + dev/prod shared token (intermittent @mention silence)
+
+**Symptom**: `@mention` of the bot produces no response intermittently (roughly 1-in-N of the time), even with a single local gateway process running. No gateway log entry for the missed event.
+
+**Two distinct root causes** (both cause the same symptom):
+
+**Root cause A — dev/prod shared `SLACK_APP_TOKEN`** (empirically confirmed 2026-06-06): Production (Render) and local `pnpm dev` share the same `SLACK_APP_TOKEN`. Slack round-robins each event per-APP across ALL open sockets (max 10). ~50% of @mentions land on prod; prod silently drops them (missing Inngest key, now fixed). The other ~50% land on local and work. **Resolution**: each developer creates their own Slack app at `api.slack.com`, gets a personal `xapp-` token, sets `SLACK_APP_TOKEN=xapp-<personal>` in local `.env`, and registers their sandbox workspace via `pnpm register-dev-slack`. See `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`.
+
+**Root cause B — phantom socket** (Slack-side stranded WebSocket): An unclean gateway death (`kill -9`, tmux session killed without Ctrl+C) leaves a WebSocket registered with Slack that Slack still routes events to. Events delivered to the phantom vanish silently. The local singleton lock (Known Issue #4) prevents duplicate local processes but cannot reclaim a WebSocket that Slack holds server-side.
+
+**How it differs from Known Issue #4**: Known Issue #4 is a local zombie process (still running on your machine). A phantom is a Slack-side stranded WebSocket pointing at a dead process. The local process count check (`pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l`) returns `1` even when a phantom is present.
+
+**Confirmed operational trigger (2026-06-06)**: Running multiple concurrent `pnpm dev` instances is the most reliable way to create a phantom. The new instance's Step 0 preflight `pkill`s the old gateway and returns immediately, without waiting for the old gateway's `await bolt.stop()` WS close frame to complete. If the close frame doesn't reach Slack before the new gateway connects, the old socket is stranded at Slack as a phantom. Confirmed incident: `num_connections: 3` (1 live gateway + 1 phantom + 1 probe socket); the old gateway process exited at the exact second the user's @mention was dropped.
+
+**Prevention now in place** (as of 2026-06-06):
+
+1. **Single-instance guard in `dev.ts`**: If another `scripts/dev.ts` for this repo is already running, `pnpm dev` prints the conflicting PID list and exits 1 without killing anything. This is the highest-leverage fix — it prevents the problem at the source.
+2. **Grace-wait in `dev.ts`**: The Step 0 kill loop now uses `killAndWait()` instead of bare `pkill`. It sends SIGTERM, polls `pgrep` every 200ms until the process is gone (up to 3s), then falls back to SIGKILL + 200ms reap wait. The new gateway only starts after the old one has fully exited.
+3. **Clean-shutdown log in `server.ts`**: After `await bolt.stop()` completes in both SIGTERM and SIGINT handlers, the gateway logs `"Socket Mode WS closed cleanly on shutdown — no phantom expected"`. Presence of this log in a post-mortem means the WS close frame was sent cleanly. Absence means a dirty death (kill -9, tmux session killed) and a phantom is likely.
+
+**tsx watch restart signal**: `tsx watch` (v4.21.0) sends **SIGTERM** to the node leaf on file-save restart — `bolt.stop()` CAN run on watch restarts. The `killProcess` helper defaults to `SIGTERM` with a 5-second SIGKILL fallback (only fires if the process fails to exit in time). Normal `bolt.stop()` completes in <1s, so watch-triggered restarts are safe. Residual phantom-creation paths that bypass SIGTERM entirely: `kill -9`, OOM kills, tmux session killed without Ctrl+C — documented risk, not fixed in this plan.
+
+**Operational rule**: **Run exactly ONE `pnpm dev` at a time.** Always stop with Ctrl+C (SIGINT). If you see `num_connections > (expected local gateways + 1)`, a phantom is present. Wait for Slack to expire it (typically 2-15 min). There is no Slack API to force-close phantom sockets.
+
+**Mitigation**: The gateway logs `num_connections` from the Socket Mode `hello` frame at startup. If `num_connections > (expected local gateways + 1)`, a phantom is present. Slack's stale-socket expiry reclaims it automatically (typically within minutes to hours). Always stop `pnpm dev` with Ctrl+C (SIGINT) to prevent phantoms from forming.
+
+**Diagnostics**:
+
+1. **`LOG_LEVEL=debug pnpm dev`** — surfaces Bolt raw-payload debug logs (every Socket Mode frame, including `hello` with `num_connections`). Do NOT commit `LOG_LEVEL=debug` as a default.
+
+2. **Inline Socket Mode probe** — reads `num_connections` without starting the full gateway:
+
+```bash
+node --input-type=module << 'EOF'
+import { WebSocket } from 'ws';
+import { readFileSync } from 'fs';
+import { config } from 'dotenv';
+config();
+const resp = await fetch('https://slack.com/api/apps.connections.open', {
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer ' + process.env.SLACK_APP_TOKEN,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  },
+});
+const { url } = await resp.json();
+const ws = new WebSocket(url + '&debug_reconnects=true');
+ws.on('message', (data) => {
+  const msg = JSON.parse(data.toString());
+  if (msg.type === 'hello') {
+    console.log('num_connections:', msg.num_connections);
+    ws.close();
+  } else if (msg.envelope_id) {
+    ws.send(JSON.stringify({ envelope_id: msg.envelope_id }));
+  }
+});
+EOF
+```
+
+If `num_connections > (local gateways + 1)`, a phantom is present. Wait for Slack to expire it, or restart the gateway with Ctrl+C to force a clean reconnect (which does not remove the phantom but ensures your socket is the active one for new events).
+
+**`SLACK_BOT_TOKEN` env var note**: The `SLACK_BOT_TOKEN` env var in `.env` is NOT used for Socket Mode authorization. Bolt's `authorize` callback reads `tenant_secrets.slack_bot_token` from the DB via `TenantInstallationStore.fetchInstallation`. The env var is a legacy artifact. When debugging Socket Mode auth issues, check the DB record, not the env var.
+
+**Classifier `unclear` behavior**: The intent classifier retries once on an empty or non-matching LLM result. If both attempts fail, it returns `unclear`. The interaction handler posts a short clarifying reply and a confirmation card on `unclear` — it never goes silent. If you see a clarification card in Slack but no task was created, the classifier returned `unclear` (not a phantom).
 
 ## Task Debugging Quick Reference
 
@@ -753,6 +902,12 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee \
 
 Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step.
 
+**Slack trigger workflow changes require live @mention E2E.** Any plan that modifies the Slack trigger workflow — `app_mention` handler, `slack-trigger-handler`, `interaction-handler`/classifier, confirmation cards, `slack-copy`, or any code in the path from @mention to task dispatch — MUST include all three of the following before the plan passes:
+
+1. **Single-gateway pre-flight**: `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` must return `1`. If it returns more, kill the zombies before proceeding — a stale socket will silently absorb ~50% of test events.
+2. **Live @mention → Confirm → Done E2E**: Send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
+3. **"Verified from code" or "unit tests pass" is explicitly insufficient** for this workflow — the live Slack path must be exercised.
+
 | Guide                                                              | Scenarios | Domain                                                                                      |
 | ------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
 | `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
@@ -761,6 +916,7 @@ Every plan for an AI employee feature must include a **real browser E2E validati
 
 **Minimum for any guest-messaging change**: Slack UX Scenario A (approve happy path).
 **Minimum for any archetype generator, wizard, or delivery pipeline change**: AI Employee E2E guide (AC1–AC8).
+**Minimum for any Slack trigger workflow change** (app_mention, slack-trigger-handler, interaction-handler, confirmation cards): Single-gateway pre-flight + live @mention → Confirm → Done E2E.
 Use the **Quick-Reference table** in each guide to identify which additional scenarios apply to your change.
 
 ### Plan template (Final Verification Wave)
@@ -803,6 +959,7 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/cleaning-schedule.md`                                            | Working on cleaning-schedule employee — archetype ID, trigger command, Notion page IDs, Slack channel, gotchas                                                                                                                                           |
 | `docs/employees/2026-06-02-1230-engineer.md`                                     | Working on engineer employee — archetype IDs, GitHub App setup, trigger command, what it does, known gotchas                                                                                                                                             |
 | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`                        | Slack OAuth or per-tenant token issues — TenantInstallationStore, loadTenantEnv, re-connecting after DB reset                                                                                                                                            |
+| `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`                    | Per-developer Slack app setup — create dev app, enable Socket Mode, register sandbox teamId, set personal xapp- token in .env. Required for every new engineer to avoid round-robin event drops with prod.                                               |
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
 | `docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md`                  | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting.                                                     |
 | `docs/guides/2026-06-01-2246-production-debugging-guide.md`                      | Debugging production issues — topology overview, cloud DB queries (port 5432 only), Fly.io machine inspection via REST API, Render env var gotchas, Inngest retry loop diagnosis, known production bugs and fixes, re-trigger instructions.              |
@@ -810,3 +967,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/guides/2026-06-02-1727-github-integration.md`                              | Working on GitHub App integration — OAuth install flow, webhook handling, token delivery to workers, multi-environment two-App setup (dev vs prod)                                                                                                       |
 | `docs/employees/2026-06-03-0243-google-assistant.md`                             | Working on Google Workspace Assistant employee — archetype IDs, trigger command (`google-workspace-assistant`), available tools, required tenant secrets, known gotchas                                                                                  |
 | `docs/guides/2026-06-03-0202-google-cloud-setup.md`                              | Setting up Google Cloud OAuth credentials for the Google integration                                                                                                                                                                                     |
+| `docs/guides/2026-06-05-0111-maintainability-audit.md`                           | Reviewing or planning maintainability/refactoring work — full findings by dimension with file:line evidence and finding IDs.                                                                                                                             |

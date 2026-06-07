@@ -541,6 +541,37 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
 export class ArchetypeGenerator {
   constructor(private readonly callLLMFn: typeof callLLM) {}
 
+  private async callLLMWithJsonRetry(
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    options: {
+      taskType: 'triage' | 'execution' | 'review';
+      temperature: number;
+      maxTokens: number;
+    },
+  ): Promise<string> {
+    const result = await this.callLLMFn({ ...options, messages });
+    const raw = stripFences(result.content);
+    try {
+      JSON.parse(raw);
+      return raw;
+    } catch (firstError) {
+      log.warn({ error: firstError }, 'JSON parse failed on first attempt — retrying with nudge');
+      const retryMessages = [
+        ...messages,
+        { role: 'assistant' as const, content: result.content },
+        {
+          role: 'user' as const,
+          content:
+            'Your previous response was not valid JSON. Please respond with ONLY a valid JSON object matching the required schema. No explanations, no markdown, just the JSON.',
+        },
+      ];
+      const retryResult = await this.callLLMFn({ ...options, messages: retryMessages });
+      const retryRaw = stripFences(retryResult.content);
+      JSON.parse(retryRaw); // throws if still invalid
+      return retryRaw;
+    }
+  }
+
   async generate(
     description: string,
     catalog?: ModelCatalogRow[],
@@ -549,24 +580,18 @@ export class ArchetypeGenerator {
 
     const systemPrompt = await buildSystemPrompt();
 
-    const llmResult = await this.callLLMFn({
-      model: 'anthropic/claude-haiku-4-5',
-      taskType: 'review',
-      temperature: 0.3,
-      maxTokens: 6000,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `<user_description>${description}</user_description>` },
-      ],
-    });
-
-    const stripped = stripFences(llmResult.content);
+    const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
+    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `<user_description>${description}</user_description>` },
+    ];
 
     let parsed: unknown;
     try {
+      const stripped = await this.callLLMWithJsonRetry(messages, llmOptions);
       parsed = JSON.parse(stripped);
     } catch (err) {
-      log.error({ err, rawContent: stripped.slice(0, 200) }, 'GENERATION_FAILED: JSON parse error');
+      log.error({ err }, 'GENERATION_FAILED: JSON parse error');
       throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${String(err)}`);
     }
 
@@ -615,30 +640,21 @@ export class ArchetypeGenerator {
       'Refining archetype config',
     );
 
-    const llmResult = await this.callLLMFn({
-      model: 'anthropic/claude-haiku-4-5',
-      taskType: 'review',
-      temperature: 0.3,
-      maxTokens: 6000,
-      messages: [
-        { role: 'system', content: REFINE_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `Current configuration:\n${JSON.stringify(previousConfig, null, 2)}\n\nRefinement instruction:\n<user_description>${refinementInstruction}</user_description>`,
-        },
-      ],
-    });
-
-    const stripped = stripFences(llmResult.content);
+    const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
+    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+      { role: 'system', content: REFINE_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `Current configuration:\n${JSON.stringify(previousConfig, null, 2)}\n\nRefinement instruction:\n<user_description>${refinementInstruction}</user_description>`,
+      },
+    ];
 
     let parsed: unknown;
     try {
+      const stripped = await this.callLLMWithJsonRetry(messages, llmOptions);
       parsed = JSON.parse(stripped);
     } catch (err) {
-      log.error(
-        { err, rawContent: stripped.slice(0, 200) },
-        'GENERATION_FAILED: JSON parse error during refine',
-      );
+      log.error({ err }, 'GENERATION_FAILED: JSON parse error during refine');
       throw new Error(
         `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${String(err)}`,
       );

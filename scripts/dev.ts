@@ -201,12 +201,102 @@ function decryptSecret(ciphertext: string, iv: string, authTag: string, keyHex: 
 }
 
 // ─────────────────────────────────────────────────────
+// killAndWait — SIGTERM with grace poll, SIGKILL fallback
+// Injectable deps (listPids / sendSignal) allow unit testing without spawning real processes.
+// ─────────────────────────────────────────────────────
+async function killAndWait(
+  name: string,
+  pattern: string,
+  graceMs = 3000,
+  listPids: (p: string) => string = (p) =>
+    execSync(`pgrep -f "${p}" || true`, { encoding: 'utf8' }).trim(),
+  sendSignal: (sig: string, p: string) => void = (sig, p) =>
+    execSync(`pkill -${sig} -f "${p}" || true`, { encoding: 'utf8' }),
+): Promise<void> {
+  sendSignal('TERM', pattern);
+  const deadline = Date.now() + graceMs;
+  while (Date.now() < deadline) {
+    const pids = listPids(pattern);
+    if (!pids) {
+      ok(`${name} stopped gracefully`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  warn(`${name} did not stop within ${graceMs}ms — force-killing`);
+  sendSignal('KILL', pattern);
+  await new Promise((r) => setTimeout(r, 200));
+}
+
+// ─────────────────────────────────────────────────────
 // Opening banner
 // ─────────────────────────────────────────────────────
 log('');
 log('╔══════════════════════════════════════════════════╗');
 log('║   Local Full-Stack Environment — Starting       ║');
 log('╚══════════════════════════════════════════════════╝');
+log('');
+
+// ─────────────────────────────────────────────────────
+// Single-instance guard
+// ─────────────────────────────────────────────────────
+const selfPids = new Set([String(process.pid), String(process.ppid)]);
+const otherDevPids = execSync(`pgrep -f "scripts/dev.ts" || true`, { encoding: 'utf8' })
+  .trim()
+  .split('\n')
+  .filter(Boolean)
+  .filter((p) => !selfPids.has(p));
+if (otherDevPids.length > 0) {
+  console.error(
+    `\nERROR: Another \`pnpm dev\` is already running (PID(s): ${otherDevPids.join(', ')}).\nStop it first (Ctrl+C in its terminal) or kill it, then retry.\n`,
+  );
+  process.exit(1);
+}
+
+// ─────────────────────────────────────────────────────
+// Step 0: Kill stale processes from previous sessions
+// ─────────────────────────────────────────────────────
+log('── Step 0: Killing stale processes from previous sessions ──');
+
+// Anchor on the absolute repo root so patterns never accidentally match processes from
+// other git clones, editors (LSP), or unrelated projects on the same machine.
+const repoRoot = process.cwd();
+
+for (const [name, pattern] of [
+  // Inngest: npm exec (supervisor) spawns the inngest Go binary as a direct child.
+  // Real binary cmdline: "inngest dev -u ... --port 8288" — no "inngest-cli" token.
+  // OLD "inngest-cli.*8288" killed only the npm exec supervisor, potentially leaving
+  // the binary alive with port 8288 still held. Dropping "-cli" catches both layers.
+  // Port 8288 anchors the match; the inngest Go binary has no repo path in its argv.
+  ['Inngest', 'inngest.*8288'],
+  // Gateway: tsx spawns a 3-process tree — npm exec (supervisor) → tsx CLI (supervisor)
+  // → node leaf (node --require preflight.cjs --import loader.mjs src/gateway/server.ts).
+  // OLD "tsx.*watch.*server\.ts" killed both supervisors but MISSED the leaf because it
+  // has no "watch" token — the leaf kept its Slack Socket Mode WebSocket open, stealing
+  // ~50% of app_mention events. Both the tsx CLI supervisor and the leaf carry ${repoRoot}
+  // in their tsx module paths (node_modules), so this pattern catches them both.
+  // The `.*` is required because repoRoot appears in the tsx module path, not directly
+  // prefixed to the script argument. npm exec dies transitively when tsx CLI exits.
+  ['Gateway', `${repoRoot}.*src/gateway/server\\.ts`],
+  // Dashboard: pnpm (supervisor) spawns vite (node .../dashboard/node_modules/.../vite.js).
+  // The pnpm supervisor has no "vite" in its argv; the vite leaf does. Anchoring on
+  // repoRoot/dashboard avoids matching vite from other projects (e.g. a separate project
+  // that happens to use the same port). pnpm exits transitively when the vite leaf dies.
+  ['Dashboard', `${repoRoot}/dashboard.*vite`],
+] as [string, string][]) {
+  try {
+    const pids = execSync(`pgrep -f "${pattern}" || true`, { encoding: 'utf8' }).trim();
+    if (pids) {
+      const count = pids.split('\n').filter(Boolean).length;
+      warn(`Killing ${count} stale ${name} process(es) from previous session`);
+      await killAndWait(name, pattern);
+    }
+  } catch {
+    /* ignore — process may have already exited */
+  }
+}
+
+ok('Stale process check complete');
 log('');
 
 // ─────────────────────────────────────────────────────
@@ -256,6 +346,19 @@ for (const v of REQUIRED_VARS) {
     fail(`${v} is not set — add it to .env`);
     prereqFail = true;
   }
+}
+
+// Slack round-robins each event per-app across all open sockets, so prod and local dev
+// sharing one xapp- token silently drops ~50% of @mentions (AGENTS.md Known Issue #5).
+// Informational only — never blocks startup.
+const slackAppToken = process.env.SLACK_APP_TOKEN;
+if (slackAppToken?.startsWith('xapp-')) {
+  info(
+    `Using SLACK_APP_TOKEN from .env (…${slackAppToken.slice(-6)}) — make sure this is YOUR personal dev app token, not the shared prod token.`,
+  );
+  info(
+    '  Sharing the prod token drops ~50% of @mentions. See docs/guides/*-slack-per-dev-app-onboarding.md',
+  );
 }
 
 // cloudflared binary

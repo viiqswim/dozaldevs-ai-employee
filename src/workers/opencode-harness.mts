@@ -15,6 +15,7 @@ import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.j
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
 import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
+import { resolveProvider } from '../lib/go-models.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 
 const log = createLogger('opencode-harness');
@@ -302,15 +303,29 @@ async function writeOpencodeAuth(temperature: number = 1.0): Promise<void> {
   const { join } = await import('path');
   const authDir = join(homedir(), '.local', 'share', 'opencode');
   await mkdir(authDir, { recursive: true });
-  const authJson = JSON.stringify({ openrouter: { type: 'api', key: apiKey } }, null, 2);
+  const goApiKey = process.env.OPENCODE_GO_API_KEY;
+  const authProviders: Record<string, { type: string; key: string }> = {
+    openrouter: { type: 'api', key: apiKey },
+  };
+  if (goApiKey) {
+    authProviders['opencode-go'] = { type: 'api', key: goApiKey };
+  }
+  const authJson = JSON.stringify(authProviders, null, 2);
   await writeFile(join(authDir, 'auth.json'), authJson, 'utf8');
-  log.info('[opencode-harness] OpenRouter auth.json written');
+  log.info({ goProviderEnabled: Boolean(goApiKey) }, '[opencode-harness] auth.json written');
 
   const configDir = join(process.cwd(), '.opencode');
   await mkdir(configDir, { recursive: true });
   // The "*": "allow" wildcard covers all permission types including "skill" — no explicit skill permission needed
   const configJson = JSON.stringify(
     {
+      provider: {
+        'opencode-go': {
+          options: {
+            baseURL: 'https://opencode.ai/zen/go/v1',
+          },
+        },
+      },
       agent: { build: { temperature } },
       permission: { '*': 'allow', question: 'deny' },
       autoupdate: false,
@@ -355,10 +370,12 @@ async function runOpencodeSession(
   // Task ID is already embedded in the prompt by assembleTaskPrompt — use instructions as-is.
   const fullPrompt = instructions;
 
-  const modelID = model.startsWith('openrouter/') ? model.slice('openrouter/'.length) : model;
+  const cleanModel = model.startsWith('openrouter/') ? model.slice('openrouter/'.length) : model;
+  const goKeyPresent = Boolean(process.env.OPENCODE_GO_API_KEY);
+  const resolved = resolveProvider(cleanModel, goKeyPresent);
 
   log.info(
-    { taskId: TASK_ID, model: modelID },
+    { taskId: TASK_ID, model: cleanModel },
     '[opencode-harness] Starting opencode serve + session',
   );
 
@@ -379,8 +396,19 @@ async function runOpencodeSession(
   let tokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
   try {
-    process.env.OPENROUTER_MODEL = modelID;
-    process.env.OPENCODE_PROVIDER_ID = 'openrouter';
+    process.env.OPENROUTER_MODEL = resolved.modelID;
+    process.env.OPENCODE_PROVIDER_ID = resolved.providerID;
+
+    log.info(
+      {
+        component: 'opencode-harness',
+        provider: resolved.providerID,
+        model: resolved.modelID,
+        originalModel: cleanModel,
+        goKeyPresent,
+      },
+      `LLM provider resolved: ${resolved.providerID}/${resolved.modelID}`,
+    );
 
     const sessionManager = createSessionManager(serverHandle.url);
 

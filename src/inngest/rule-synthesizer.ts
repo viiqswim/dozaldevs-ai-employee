@@ -5,6 +5,7 @@ import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
+import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
 
 const log = createLogger('rule-synthesizer');
 
@@ -104,7 +105,6 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
           .join('\n');
 
         const llmResult = await callLLM({
-          model: 'anthropic/claude-haiku-4-5',
           taskType: 'review',
           messages: [
             { role: 'system', content: RULE_SYNTHESIZER_SYSTEM_PROMPT },
@@ -189,7 +189,7 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `🔀 *Merged behavioral rule proposed:*\n\n> ${merge.merged_text}\n\n*Replaces:*\n${originalsText}`,
+                text: ruleMergedMessage(merge.merged_text, originalsText),
               },
             },
             { type: 'divider' },
@@ -232,7 +232,7 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
             },
             body: JSON.stringify({
               channel: notificationChannel,
-              text: `Merged behavioral rule proposed: ${merge.merged_text}`,
+              text: ruleMergedMessage(merge.merged_text, originalsText),
               blocks,
             }),
           });
@@ -285,7 +285,7 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
             },
             body: JSON.stringify({
               channel: notificationChannel,
-              text: `⚠️ Contradictory rules detected: ${contradiction.description}\n${conflictRules}`,
+              text: ruleContradictionMessage(contradiction.description, conflictRules),
             }),
           });
 

@@ -565,6 +565,8 @@ model ModelCatalog {
   supports_structured_output  Boolean   @default(false)
   is_active                   Boolean   @default(true)
   notes                       String?   @db.Text
+  strengths                   String?   @db.Text
+  weaknesses                  String?   @db.Text
   created_at                  DateTime  @default(now())
   updated_at                  DateTime  @updatedAt
   deleted_at                  DateTime?

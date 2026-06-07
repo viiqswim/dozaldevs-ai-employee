@@ -46,8 +46,18 @@ import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
 import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
+import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+
+function validateProductionEnv(): void {
+  if (process.env.NODE_ENV === 'production' && !process.env.OPENCODE_GO_API_KEY) {
+    throw new Error(
+      'OPENCODE_GO_API_KEY is required in production (set it in Render). ' +
+        'It is optional locally and in CI where calls fall back to OpenRouter.',
+    );
+  }
+}
 
 export type { InngestLike } from './types.js';
 import type { InngestLike } from './types.js';
@@ -116,10 +126,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
             enterpriseId: undefined,
             isEnterpriseInstall: false,
           });
-          return { botToken: installation.bot?.token, botId: installation.bot?.id };
+          const botToken = installation.bot?.token;
+          const botId = installation.bot?.id || undefined;
+          return { botToken, botId };
         },
         logger: createFilteredBoltLogger(logger),
       });
+
+      const lockResult = await acquireSocketModeLock();
+      if (!lockResult.acquired) {
+        logger.warn(
+          { holderPid: lockResult.holderPid },
+          'Another gateway already holds the Slack Socket Mode lock — refusing to start Socket Mode to avoid stealing events',
+        );
+        process.exit(1);
+      }
 
       void boltApp
         .start()
@@ -134,6 +155,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
           });
           smClient.on('connected', () => {
             logger.info('Slack Bolt — Socket Mode reconnected');
+          });
+          smClient.on('hello', (event: { num_connections?: number }) => {
+            const numConnections = event.num_connections ?? 1;
+            logger.info(
+              { numConnections },
+              'Socket Mode hello — num_connections=' + String(numConnections),
+            );
+            if (numConnections > 1) {
+              logger.warn(
+                { numConnections },
+                'Socket Mode phantom connection warning — num_connections=' +
+                  String(numConnections) +
+                  '; a prior unclean shutdown may have left a stranded WebSocket. Slack will round-robin events to it. Restart cleanly to recover.',
+              );
+            }
           });
         })
         .catch((err: unknown) => {
@@ -287,6 +323,7 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       boltApp = bolt;
 
       try {
+        validateProductionEnv();
         await validateRequiredPlatformSettings();
         logger.info('Platform settings validated');
       } catch (error) {
@@ -300,11 +337,31 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       });
 
       process.on('SIGTERM', () => {
-        server.close(() => process.exit(0));
+        void (async () => {
+          if (bolt) {
+            await bolt.stop();
+            logger.info(
+              { pid: process.pid },
+              'Socket Mode WS closed cleanly on shutdown — no phantom expected',
+            );
+          }
+          releaseSocketModeLock();
+          server.close(() => process.exit(0));
+        })();
       });
 
       process.on('SIGINT', () => {
-        server.close(() => process.exit(0));
+        void (async () => {
+          if (bolt) {
+            await bolt.stop();
+            logger.info(
+              { pid: process.pid },
+              'Socket Mode WS closed cleanly on shutdown — no phantom expected',
+            );
+          }
+          releaseSocketModeLock();
+          server.close(() => process.exit(0));
+        })();
       });
     })
     .catch((err: unknown) => {

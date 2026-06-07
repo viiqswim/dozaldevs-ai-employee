@@ -1,3 +1,5 @@
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
 function adfToPlainText(adf: unknown): string {
   if (!adf || typeof adf !== 'object') return '';
   const texts: string[] = [];
@@ -33,7 +35,7 @@ function parseArgs(argv: string[]): { issueKey: string; body: string; help: bool
     if (args[i] === '--issue-key' && args[i + 1]) {
       issueKey = args[++i];
     } else if (args[i] === '--body' && args[i + 1]) {
-      body = args[++i];
+      body = unescapeShellArg(args[++i]);
     } else if (args[i] === '--help') {
       help = true;
     }
