@@ -670,6 +670,240 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `ci: run split unit/integration suites; default pnpm test = fast unit`
 
+### WAVE 1 — Foundation (shared helpers + infrastructure)
+
+- [ ] 1. Extract shared gateway helpers
+
+  **What to do**:
+  - Create `src/gateway/lib/prisma-helpers.ts` with `isPrismaError(err: unknown): err is { code: string; meta?: Record<string, unknown> }` — extracted from the duplicate implementations at `admin-archetypes.ts:17` and `admin-model-catalog.ts:10` (both verified to exist).
+  - Ensure `sendError` in `src/gateway/lib/http-response.ts:3` has clear JSDoc for the standard error body: `{ error: string, message?: string, issues?: ZodIssue[] }`.
+  - Define standard error-code constants: `INVALID_ID`, `INVALID_REQUEST`, `NOT_FOUND`, `INTERNAL_ERROR`, `UNAUTHORIZED`.
+  - Delete the local `isPrismaError` from both route files; import from the shared module.
+
+  **Must NOT do**: Do NOT change route handler behavior; do NOT add error codes beyond what's used.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: 8, 9, 11, 15, 16. Blocked By: W0 green.
+
+  **References**:
+  - `src/gateway/routes/admin-archetypes.ts:17`; `src/gateway/routes/admin-model-catalog.ts:10` (dup `isPrismaError`)
+  - `src/gateway/lib/http-response.ts:3` (`sendError`)
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `src/gateway/lib/prisma-helpers.ts` exports `isPrismaError`; both route files import it (zero local defs)
+  - [ ] `pnpm build` + `pnpm test` pass
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Shared helper exported and imported
+    Tool: Bash
+    Steps:
+      1. grep -c "function isPrismaError" src/gateway/routes/admin-archetypes.ts src/gateway/routes/admin-model-catalog.ts (expect 0,0)
+      2. grep "prisma-helpers" src/gateway/routes/admin-archetypes.ts (import present)
+      3. pnpm build && pnpm test -- --run
+    Expected Result: Dedup complete, build+tests green
+    Evidence: .sisyphus/evidence/task-1-shared-helpers.txt
+  ```
+
+  **Commit**: YES — `refactor(gateway): extract shared isPrismaError and standardize error codes`
+
+- [ ] 2. Create new contributor setup guide
+
+  **What to do**:
+  - Create `docs/guides/2026-06-07-XXXX-new-contributor-setup.md` (replace XXXX with `date "+%H%M"`). Cover: (1) prerequisites (Node ≥20, pnpm, Docker), (2) `pnpm setup`, (3) personal Cloudflare Tunnel setup, (4) personal Slack dev app (link `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`), (5) env-var checklist (personal vs shared), (6) running `pnpm dev` + banner meaning, (7) common first-day issues (tunnel not found, Socket Mode, PostgREST schema cache).
+  - Link from CONTRIBUTING.md "Where to Find More" table. Add a banner line to `scripts/dev.ts` startup: "📖 First time? See docs/guides/...-new-contributor-setup.md".
+
+  **Must NOT do**: Do NOT include the repo owner's personal tunnel UUID/creds; do NOT duplicate existing guides — link them.
+
+  **Recommended Agent Profile**: Category `writing`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: none. Blocked By: W0 green.
+
+  **References**:
+  - `scripts/dev.ts` (hardcoded personal tunnel config — what new contributors hit)
+  - `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`; `CONTRIBUTING.md`; `.env.example`
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] Guide exists in `docs/guides/`; CONTRIBUTING.md links it; covers all 7 sections; `grep -c "e160ac6d" docs/guides/*new-contributor*` → 0
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Guide exists and is linked
+    Tool: Bash
+    Steps:
+      1. ls docs/guides/*new-contributor*
+      2. grep "new-contributor" CONTRIBUTING.md
+      3. grep -c "e160ac6d" docs/guides/*new-contributor* (expect 0)
+    Expected Result: File exists, linked, no personal data
+    Evidence: .sisyphus/evidence/task-2-contributor-guide.txt
+  ```
+
+  **Commit**: YES — `docs: add new contributor setup guide`
+
+- [ ] 3. Add PR template + husky + lint-staged
+
+  **What to do**:
+  - Create `.github/PULL_REQUEST_TEMPLATE.md` with a checklist: tenant-scoped queries; soft-delete only; shared files employee-agnostic; no employee-specific language in shared code; `pnpm lint` zero warnings; `pnpm test` passes; AGENTS.md updated for new routes/tools/models/employees; no hardcoded secrets.
+  - `pnpm add -D husky lint-staged`; add `"prepare": "husky"`; create `.husky/pre-commit` running `pnpm lint-staged`; add `"lint-staged": { "*.{ts,tsx}": ["eslint --max-warnings 0"] }`; run `pnpm prepare`.
+
+  **Must NOT do**: Do NOT add `--fix` to lint-staged; do NOT add prettier; do NOT run integration tests on pre-commit.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: none. Blocked By: W0 green.
+
+  **References**: `package.json`; `eslint.config.mjs`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `.github/PULL_REQUEST_TEMPLATE.md` exists with checklist; `husky`+`lint-staged` in devDeps; `.husky/pre-commit` exists; `pnpm lint-staged` runs clean
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Pre-commit hook fires on staged lint error
+    Tool: Bash
+    Steps:
+      1. cat .husky/pre-commit (contains lint-staged)
+      2. Stage a file with `const x: any = 1` and attempt commit on a throwaway branch — commit is REJECTED
+      3. grep "tenant-scoped" .github/PULL_REQUEST_TEMPLATE.md
+    Expected Result: Hook blocks the bad commit; template present
+    Evidence: .sisyphus/evidence/task-3-husky-pr.txt
+  ```
+
+  **Commit**: YES — `feat(dx): add PR template, husky pre-commit hook, and lint-staged`
+
+- [ ] 4. Add test convenience scripts to package.json
+
+  **What to do**:
+  - **VERIFIED**: `test:coverage` ALREADY exists (package.json:20) — do NOT re-add. Wave 0 already added `test:unit`/`test:integration`. Here, add only what's still missing for DX: `"test:file": "vitest run --config vitest.config.ts"` (usage: `pnpm test:file tests/unit/...`) and `"test:watch": "vitest --config vitest.config.ts"`.
+  - Add a "Running Tests" subsection to CONTRIBUTING.md explaining: `pnpm test` (unit watch), `pnpm test -- --run` (unit one-shot, CI), `pnpm test:integration`, `pnpm test:file <path>`, `pnpm test:coverage`.
+
+  **Must NOT do**: Do NOT re-add `test:coverage`; do NOT change the `test` script semantics set in Wave 0.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: none. Blocked By: W0 green.
+
+  **References**: `package.json` scripts; `CONTRIBUTING.md`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `test:file` + `test:watch` present; `pnpm test:file <one unit file>` runs only that file; CONTRIBUTING.md documents all scripts; `node -e "require('./package.json')"` valid
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Test scripts work
+    Tool: Bash
+    Steps:
+      1. pnpm test:file tests/unit/lib/classify-message.test.ts (runs one file)
+      2. grep "test:file\|test:integration" CONTRIBUTING.md
+    Expected Result: Single-file run works; docs updated
+    Evidence: .sisyphus/evidence/task-4-test-scripts.txt
+  ```
+
+  **Commit**: YES — `feat(dx): add test:file and test:watch scripts`
+
+- [ ] 5. Create current architecture diagram
+
+  **What to do**:
+  - Create `docs/architecture/CURRENT-ARCHITECTURE.md` (no timestamp — living doc). One Mermaid diagram (≤20 nodes): Gateway (Express) → Inngest → Worker (Docker/Fly) → Shell Tools → External APIs; Slack @mention trigger path; approval-gate path; OpenCodeGo routing; Dashboard via Gateway; Prisma (gateway) + PostgREST (workers). Load `v-mermaid` skill, follow its conventions. Add "Last updated" line + a Flow Walkthrough table. Link from AGENTS.md Reference Documents.
+
+  **Must NOT do**: Do NOT include employee-specific flows; do NOT exceed 20 nodes; do NOT timestamp the filename.
+
+  **Recommended Agent Profile**: Category `writing`; Skills: [`v-mermaid`].
+
+  **Parallelization**: Wave 1. Blocks: none. Blocked By: W0 green.
+
+  **References**: `docs/architecture/2026-04-14-0104-full-system-vision.md`; `docs/snapshots/2026-04-29-2255-current-system-state.md`; `AGENTS.md`; `src/gateway/server.ts`; `src/inngest/employee-lifecycle.ts`; `src/workers/opencode-harness.mts`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] File exists; valid Mermaid block; ≤20 nodes; AGENTS.md links it; Flow Walkthrough table present
+
+  **QA Scenarios**:
+
+  ````
+  Scenario: Diagram valid and linked
+    Tool: Bash
+    Steps:
+      1. ls docs/architecture/CURRENT-ARCHITECTURE.md
+      2. grep '```mermaid' docs/architecture/CURRENT-ARCHITECTURE.md
+      3. grep "CURRENT-ARCHITECTURE" AGENTS.md
+    Expected Result: Exists, has diagram, linked
+    Evidence: .sisyphus/evidence/task-5-arch-diagram.txt
+  ````
+
+  **Commit**: YES — `docs: add current architecture diagram as living reference`
+
+- [ ] 6. Remove tenant-env barrel re-export
+
+  **What to do**:
+  - **VERIFIED**: `scripts/` one-shots are ALREADY archived — do NOT touch `scripts/`. Delete `src/inngest/lib/tenant-env.ts` (3-line barrel re-exporting `loadTenantEnv`, `TenantRepository`, `TenantSecretRepository`).
+  - **VERIFIED importers (exactly 2)** — rewrite to import directly from `../../gateway/services/`:
+    - `src/inngest/employee-lifecycle.ts:15` (`from './lib/tenant-env.js'`)
+    - `src/inngest/lifecycle/steps/approval-handler.ts:14` (`from '../../lib/tenant-env.js'`)
+  - Replace each with three direct imports from `tenant-env-loader.js`, `tenant-repository.js`, `tenant-secret-repository.js` (mind relative depth).
+
+  **Must NOT do**: Do NOT touch `scripts/`; do NOT change the three services' behavior.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: none. Blocked By: W0 green. (Run before Task 14, which also edits `employee-lifecycle.ts`.)
+
+  **References**: `src/inngest/lib/tenant-env.ts`; `src/gateway/services/tenant-env-loader.ts`/`tenant-repository.ts`/`tenant-secret-repository.ts`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `test ! -f src/inngest/lib/tenant-env.ts`; `grep -rl "lib/tenant-env" src/` empty; `pnpm build` + `pnpm test` green
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Barrel removed, imports rewired
+    Tool: Bash
+    Steps:
+      1. test ! -f src/inngest/lib/tenant-env.ts && echo GONE
+      2. grep -rl "lib/tenant-env" src/ (empty)
+      3. pnpm build && pnpm test -- --run
+    Expected Result: Barrel gone, direct imports resolve, green
+    Evidence: .sisyphus/evidence/task-6-barrel.txt
+  ```
+
+  **Commit**: YES — `refactor(inngest): remove tenant-env barrel, import gateway services directly`
+
+- [ ] 7. Add optionalEnv() to worker-tools shared lib
+
+  **What to do**:
+  - **VERIFIED**: `src/worker-tools/lib/require-env.ts` exports `requireEnv(name)` which on a missing var writes stderr + `process.exit(1)` (does NOT throw). `get-arg.ts` exports `getArg(args, flag)`. Both exist.
+  - Add `optionalEnv(name: string): string | undefined` → `process.env[name] || undefined`. JSDoc: `requireEnv` aborts (`process.exit(1)`); `optionalEnv` is graceful.
+  - Add `src/worker-tools/lib/__tests__/require-env.test.ts` (matches existing `src/worker-tools/**/__tests__/` convention) testing `optionalEnv` returns value when set, `undefined` when unset/empty.
+
+  **Must NOT do**: Do NOT change `requireEnv` behavior; do NOT migrate any tool files yet (Wave 4).
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 1. Blocks: 20-25. Blocked By: W0 green.
+
+  **References**: `src/worker-tools/lib/require-env.ts`; `src/worker-tools/slack/post-message.ts` (6 optional env vars — future consumer).
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `optionalEnv` exported; test file passes; JSDoc present
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: optionalEnv works
+    Tool: Bash
+    Steps:
+      1. pnpm test:file src/worker-tools/lib/__tests__/require-env.test.ts
+      2. grep "optionalEnv" src/worker-tools/lib/require-env.ts
+    Expected Result: Tests pass, exported
+    Evidence: .sisyphus/evidence/task-7-optional-env.txt
+  ```
+
+  **Commit**: YES — `feat(worker-tools): add optionalEnv helper`
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
