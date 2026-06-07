@@ -167,6 +167,8 @@ For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-0
 - `SLACK_APP_TOKEN=xapp-...` enables Bolt Socket Mode automatically — confirmed working when gateway logs show `"Slack Bolt — Socket Mode connected"`.
 - If a button click does not reach the gateway, it is a **transient WebSocket drop**. Do NOT change Slack app settings.
 
+**Approval action IDs — unified for ALL employees**: The approval card uses three generic action IDs defined in `src/lib/slack-action-ids.ts`: `APPROVE`, `EDIT_AND_SEND`, and `REJECT`. These apply to every employee (guest-messaging, summarizer, google-assistant, and any future employee). The old guest-specific `GUEST_APPROVE`, `GUEST_EDIT`, and `GUEST_REJECT` action IDs have been removed. Handler: `src/gateway/slack/handlers/approval-handlers.ts`.
+
 **Manual approval fallback** (use when button click doesn't work):
 
 ```bash
@@ -454,11 +456,13 @@ src/
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
+│   ├── lifecycle/    # Extracted lifecycle step modules
+│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers)
 │   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
 ├── workers/      # Docker container code — runs inside the worker machine
 │   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
-└── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), plus HTTP clients, logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
+└── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 ```
