@@ -904,6 +904,204 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(worker-tools): add optionalEnv helper`
 
+### WAVE 2 — Type safety + test factory
+
+- [ ] 8. Typed PostgREST client with generics
+
+  **What to do**:
+  - Create `src/workers/lib/postgrest-types.ts` with interfaces for key models read via PostgREST: `TaskRow`, `ArchetypeRow`, `ExecutionRow`, `TenantRow`, `PendingApprovalRow`, `TaskStatusLogRow`, `TaskMetricsRow` — field names in snake_case (PostgREST), derived from `prisma/schema.prisma`.
+  - Refactor `src/workers/lib/postgrest-client.ts` to generic: `query<T>(table, params): Promise<T[] | null>`, `insert<T>`, `update<T>`.
+  - Update 3-5 common callers in `employee-lifecycle.ts` to typed queries (demonstration). Add a test validating the generic client.
+
+  **Must NOT do**: Do NOT change runtime behavior; do NOT migrate ALL callers (Task 14 does that); do NOT use Prisma camelCase types (PostgREST is snake_case).
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: 14. Blocked By: 1.
+
+  **References**: `src/workers/lib/postgrest-client.ts`; `prisma/schema.prisma`; `src/inngest/employee-lifecycle.ts` (inline fetch callers); `src/inngest/lifecycle/steps/delivery-retry.ts`.
+
+  **Acceptance Criteria** (Tier A + PostgREST round-trip):
+  - [ ] `postgrest-types.ts` has 7+ interfaces; client exports generic `query<T>`/`insert<T>`/`update<T>`; ≥3 lifecycle callers typed
+  - [ ] `pnpm build` (type-safe); test validates client
+  - [ ] PostgREST round-trip: `curl localhost:54331/rest/v1/tasks?limit=1 -H "apikey:$SUPABASE_ANON_KEY"` → `[]`
+  - [ ] Tier A: `real-estate-motivation-bot-2` → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Typed client compiles and round-trips
+    Tool: Bash
+    Steps:
+      1. pnpm build (0 type errors)
+      2. grep "query<TaskRow>" src/inngest/employee-lifecycle.ts
+      3. curl PostgREST tasks?limit=1 → []
+      4. Tier A trigger → Done
+    Expected Result: Types defined, callers typed, real read works, employee runs
+    Evidence: .sisyphus/evidence/task-8-tierA-{build,postgrest,db}.txt
+  ```
+
+  **Commit**: YES — `feat(types): add typed PostgREST client with generic query/insert/update`
+
+- [ ] 9. Inngest typed event schemas
+
+  **What to do**:
+  - **DERIVE payloads from real call sites** — `grep -rn "inngest.send\|\.send({" src/ --include="*.ts"` and read each `name:`/`data:`. Active events/functions are in AGENTS.md ("Inngest functions (active — 7)"). Names include `employee/task.dispatched`, `employee/interaction.received`, `employee/task.requested`, `employee/approval.received`, `employee/trigger.input-received`, rule events.
+  - Create `src/inngest/events.ts` with a typed schema per event (VERIFY fields against senders). Use Inngest `EventSchemas` to make a typed client. Update `src/gateway/inngest/client.ts` to use it. Update 2-3 functions (e.g. `rule-extractor.ts`, `reviewing-watchdog.ts`) to typed `event` and remove their `eslint-disable no-explicit-any`.
+
+  **Must NOT do**: Do NOT change event payloads at runtime; do NOT update ALL functions (Task 13 does the bulk); do NOT change client init logic.
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: 10, 13, 14, 18, 19. Blocked By: 1.
+
+  **References**: `src/gateway/inngest/client.ts`; `src/inngest/interaction-handler.ts:22` (eslint-disable); `src/inngest/rule-extractor.ts:25`; Inngest EventSchemas docs.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `src/inngest/events.ts` has typed schemas for all platform events; client uses them; 2-3 functions de-suppressed; `pnpm build`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Typed events compile, suppressions removed
+    Tool: Bash
+    Steps:
+      1. pnpm build
+      2. grep -c "eslint-disable.*no-explicit-any" src/inngest/rule-extractor.ts (expect 0)
+      3. Tier A trigger → Done
+    Expected Result: Typed events, demo files clean, employee runs
+    Evidence: .sisyphus/evidence/task-9-tierA-{build,db}.txt
+  ```
+
+  **Commit**: YES — `feat(types): add Inngest typed event schemas and typed client`
+
+- [ ] 10. Create lifecycle test mock factory
+
+  **What to do**:
+  - Create `tests/helpers/lifecycle-mocks.ts` exporting `createLifecycleMocks()` returning pre-configured stubs for `fly-client`, `tunnel-client`, `tenant-env-loader`, `tenant-repository`, `tenant-secret-repository`, `@slack/web-api` WebClient, `postgrest-client`. Sensible overridable defaults. JSDoc usage. Add a "Writing Lifecycle Tests" section to CONTRIBUTING.md.
+  - **NOTE**: place this in `tests/helpers/` (shared by integration tests after the Wave 0 split — most lifecycle tests are integration).
+
+  **Must NOT do**: Do NOT refactor existing tests to use it (too risky now); do NOT mock Prisma here (gateway tests use `createTestApp`).
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: none. Blocked By: 9.
+
+  **References**: `tests/integration/.../lifecycle-*.test.ts` (post-split path); `tests/setup.ts`; `src/inngest/employee-lifecycle.ts`; `CONTRIBUTING.md`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `tests/helpers/lifecycle-mocks.ts` exports `createLifecycleMocks()` covering 7+ modules; CONTRIBUTING.md section added; a sample test using it compiles+passes
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Mock factory usable
+    Tool: Bash
+    Steps:
+      1. ls tests/helpers/lifecycle-mocks.ts
+      2. pnpm build
+      3. grep "Writing Lifecycle Tests" CONTRIBUTING.md
+    Expected Result: Factory exists, compiles, documented
+    Evidence: .sisyphus/evidence/task-10-mock-factory.txt
+  ```
+
+  **Commit**: YES — `feat(test): add lifecycle mock factory`
+
+- [ ] 11. Fix raw pino() + base64url duplication
+
+  **What to do**:
+  - **VERIFIED**: Replace raw `pino()` with `createLogger` at `src/gateway/middleware/admin-auth.ts:5` and `src/gateway/server.ts:52`.
+  - **VERIFIED**: Delete `base64url()` + `generateAppJwt()` from `src/gateway/routes/admin-github.ts:27,32`; import from `src/gateway/services/github-token-manager.ts` (which has them at :24,29 — but they're currently NOT exported; add `export` to both there).
+
+  **Must NOT do**: Do NOT change logger levels/format or token-gen logic.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: none. Blocked By: 1.
+
+  **References**: `src/gateway/middleware/admin-auth.ts:5`; `src/gateway/server.ts:52`; `src/gateway/routes/admin-github.ts:27,32`; `src/gateway/services/github-token-manager.ts:24,29`; `src/lib/logger.ts`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] No `from 'pino'` in src/ except `logger.ts`; `admin-github.ts` imports base64url/generateAppJwt from the service; `pnpm build` + `pnpm test` green
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Dedup complete
+    Tool: Bash
+    Steps:
+      1. grep -rl "from 'pino'" src/ | grep -v logger.ts (empty)
+      2. grep -c "function base64url" src/gateway/routes/admin-github.ts (expect 0)
+      3. pnpm build && pnpm test -- --run
+    Expected Result: No raw pino, no local base64url, green
+    Evidence: .sisyphus/evidence/task-11-dedup.txt
+  ```
+
+  **Commit**: YES — `refactor: deduplicate pino/base64url/generateAppJwt`
+
+- [ ] 12. Fix \_resetCacheForTest production leak + ClassifyResult employee fields
+
+  **What to do**:
+  - **VERIFIED**: `src/gateway/routes/admin-google.ts:7,54` imports and calls `_resetCacheForTest()` (a test-only fn from `google-token-manager.ts:20`) inside the production DELETE handler. Extract a production `clearTokenCache()` in `google-token-manager.ts` (same cache-clear, non-test name), export it, call that from the route.
+  - **VERIFIED**: `src/lib/classify-message.ts:1,11-13` — `ClassifyResult` has guest-specific fields (`guestName?`, `propertyName?`, `checkIn?`, ...) at top level in a SHARED type used by the universal lifecycle. Restructure: keep universal `intent`/`confidence` at top level, move employee-specific fields under a `context?: Record<string, unknown>` (or a discriminated subtype). Update consumers.
+
+  **Must NOT do**: Do NOT break classification runtime behavior; do NOT remove fields that are actively used — restructure the type.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: none. Blocked By: W0 green.
+
+  **References**: `src/gateway/routes/admin-google.ts:7,54`; `src/gateway/services/google-token-manager.ts:20`; `src/lib/classify-message.ts:1,11-13`; `src/inngest/employee-lifecycle.ts` (consumer).
+
+  **Acceptance Criteria** (Tier A — classifier + google route are runtime paths):
+  - [ ] `grep -c "resetCacheForTest" src/gateway/routes/admin-google.ts` → 0; `ClassifyResult` has no guest field at top level; `pnpm build` + `pnpm test`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: No test fn in prod, type employee-agnostic
+    Tool: Bash
+    Steps:
+      1. grep -c "resetCacheForTest" src/gateway/routes/admin-google.ts (0)
+      2. grep -c "guestName" src/lib/classify-message.ts at top-level interface (0)
+      3. pnpm build && pnpm test -- --run; Tier A trigger → Done
+    Expected Result: Leak fixed, type restructured, employee runs
+    Evidence: .sisyphus/evidence/task-12-tierA-{grep,db}.txt
+  ```
+
+  **Commit**: YES — `fix: remove test-only fn from prod path; make ClassifyResult employee-agnostic`
+
+- [ ] 13. ESLint escalation — warn→error + fix existing violations
+
+  **What to do**:
+  - **VERIFIED**: 13 `eslint-disable @typescript-eslint/no-explicit-any` across 9 files: `guest-message-poll.ts:48`, `reviewing-watchdog.ts:58`, `interaction-handler.ts:22`, `create-task-and-dispatch.ts:6`, `rule-synthesizer.ts:26`, `slack-trigger-handler.ts:117,371`, `rule-extractor.ts:25`, `approval-handlers.ts:30,180,575,602`, `rule-handlers.ts:333`.
+  - In `eslint.config.mjs` set `@typescript-eslint/no-explicit-any` and `no-unused-vars` to `'error'`. Run `pnpm lint`. Fix each: Inngest `event:any`/`step:any` → typed events from Task 9; Bolt `ack` casts → a typed wrapper or `Parameters<typeof ack>[0]`; unused vars → remove or `_`-prefix. Remove now-unneeded disables. Truly-unfixable → `eslint-disable-next-line` WITH a reason comment.
+
+  **Must NOT do**: Do NOT add file-level blanket disables; do NOT suppress without a reason; do NOT change runtime behavior to satisfy types.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [].
+
+  **Parallelization**: Wave 2. Blocks: 19. Blocked By: 9.
+
+  **References**: `eslint.config.mjs`; the 9 files above; Task 9 typed events.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `pnpm lint` exits 0 (zero warnings/errors); both rules `'error'`; zero `eslint-disable no-explicit-any` in non-deprecated files (or each has a reason)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Lint clean after escalation
+    Tool: Bash
+    Steps:
+      1. pnpm lint (exit 0, zero warnings)
+      2. grep -rl "eslint-disable.*no-explicit-any" src/ | grep -v deprecated (empty)
+    Expected Result: Clean lint, suppressions gone
+    Evidence: .sisyphus/evidence/task-13-eslint.txt
+  ```
+
+  **Commit**: YES — `refactor(lint): escalate no-explicit-any and no-unused-vars to error`
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
