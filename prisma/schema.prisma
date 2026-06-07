@@ -56,6 +56,8 @@ model Task {
   taskMetric        TaskMetric?
 
   @@unique([external_id, source_system, tenant_id])
+  @@index([archetype_id])
+  @@index([tenant_id])
   @@map("tasks")
 }
 
@@ -86,6 +88,7 @@ model Execution {
   validationRuns ValidationRun[]
   deliverables   Deliverable[]
 
+  @@index([task_id])
   @@map("executions")
 }
 
@@ -105,6 +108,7 @@ model Deliverable {
   execution Execution @relation(fields: [execution_id], references: [id])
   reviews   Review[]
 
+  @@index([execution_id])
   @@map("deliverables")
 }
 
@@ -159,6 +163,7 @@ model TaskStatusLog {
   // Relations — CHECK constraint enforced via raw SQL migration (Task 5)
   task Task @relation(fields: [task_id], references: [id])
 
+  @@index([task_id])
   @@map("task_status_log")
 }
 
