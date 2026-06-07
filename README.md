@@ -128,7 +128,7 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 | `trigger-task.ts`      | `pnpm trigger-task`                    | Send mock webhook and monitor                                                                                                                                                                        |
 | `verify-e2e.ts`        | `pnpm verify:e2e --task-id <uuid>`     | 12-point E2E verification                                                                                                                                                                            |
 | `stress-test.ts`       | `pnpm stress-test`                     | Run an employee N times and report success rate, p50/p90/p99 timing, and anomaly detection (tag bleed, retries, missing Slack posts). Options: `--count`, `--concurrency`, `--employee`, `--timeout` |
-| `setup-two-tenants.ts` | `pnpm setup:two-tenants`               | Multi-tenant setup: provisions DozalDevs + VLRE tenants with archetypes                                                                                                                              |
+| `setup-two-tenants.ts` | (archived)                             | One-shot multi-tenant setup script — moved to `scripts/archive/`. Run manually if needed: `pnpm exec tsx scripts/archive/setup-two-tenants.ts`                                                       |
 | `telegram-notify.ts`   | `tsx scripts/telegram-notify.ts "msg"` | Send developer Telegram push notification                                                                                                                                                            |
 
 ## Project Structure
@@ -224,6 +224,7 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                             | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
 | [Google Workspace Assistant](docs/employees/2026-06-03-0243-google-assistant.md)            | Google Workspace Assistant employee operational details — archetype ID, trigger command, available tools, required tenant secrets, known gotchas.                                                    |
 | [Maintainability Audit](docs/guides/2026-06-05-0111-maintainability-audit.md)               | Comprehensive maintainability findings (architecture, large files, code smells, tests, types, conventions, docs, build) with a companion remediation plan in .sisyphus/plans/.                       |
+| [Contributing Guide](CONTRIBUTING.md)                                                       | Active vs deprecated component map, task-creation paths (Prisma vs PostgREST), how to add a shell tool, how to add an employee, how to run E2E tests, and key conventions.                           |
 
 ## Testing
 
