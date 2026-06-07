@@ -668,7 +668,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **VERIFY [Tier B]**: full real-Airbnb→draft→Slack-card→approve→reply loop still works (data/blocks generalized, behavior identical). Evidence: `.sisyphus/evidence/task-31-tierB-*`
         **Commit**: YES — `refactor: remove employee-specific language from shared files`
 
-- [ ] 32. **Merge the two approval flows into ONE generic flow (every employee)**
+- [x] 32. **Merge the two approval flows into ONE generic flow (every employee)**
 
   **What to do** ([ARCH-8]): Today there are TWO parallel approval-button systems in `src/gateway/slack/handlers.ts`: generic `APPROVE`/`REJECT` (handlers `:481`, `:565`) and guest-specific `GUEST_APPROVE`/`GUEST_EDIT`/`GUEST_REJECT` (handlers `:646`, `:736`, `:935`). The only real difference is the guest flow's "Edit the draft, then send" step — which is NOT guest-specific (any employee with an editable text deliverable wants it). **Re-grep before editing — these moved with the recent overhaul and will move again if Task 21 runs first.** **Merge them into a single generic flow that EVERY employee uses, always showing Approve / Edit / Reject** (user decision):
   - In `src/lib/slack-action-ids.ts`: collapse to ONE set — `APPROVE`, `EDIT_AND_SEND` (absorbs `GUEST_EDIT`+`EDITED_DRAFT`), `REJECT`. DELETE `GUEST_APPROVE`/`GUEST_EDIT`/`GUEST_REJECT`.

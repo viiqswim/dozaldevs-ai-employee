@@ -559,6 +559,7 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 ## Task 28: SearchableSelect + Non-Technical Copy (2026-06-07)
 
 ### SearchableSelect migration pattern
+
 - Props: `options: {value, label}[]`, `value`, `onValueChange`, `placeholder?`, `searchPlaceholder?`, `className?`, `disabled?`
 - In Header.tsx: `Object.entries(TENANTS).map(([id, name]) => ({ value: id, label: name }))` — note the tuple destructure
 - In InputSchemaEditor.tsx: define a `TYPE_OPTIONS` constant above the component with `{value, label}[]` shape
@@ -566,6 +567,7 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 - The `className` prop replaces the full `className` on the container, including `w-full` default — pass `"w-36"` to size the header trigger
 
 ### Files changed
+
 - `dashboard/src/components/layout/Header.tsx` — replaced Radix Select with SearchableSelect; "Select organization" placeholder
 - `dashboard/src/components/InputSchemaEditor.tsx` — replaced Radix Select for type picker with SearchableSelect + TYPE_OPTIONS constant
 - `dashboard/src/panels/rules/RulesPanel.tsx` — "No archetypes found for this tenant" → "No employees found for this organization"
@@ -574,23 +576,26 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 - `dashboard/src/panels/employees/CreateEmployeePage.tsx` — Slack copy plain-languaged
 
 ### Verification
+
 - `grep -rl "from '@/components/ui/select'" dashboard/src` → empty (zero unjustified imports remain)
 - `pnpm build` in dashboard → EXIT_CODE:0
 - Playwright: tenant switcher shows "Search organizations..." search input + DozalDevs/VLRE options with checkmark — confirmed functional
 - Screenshot: `.sisyphus/evidence/task-28-ux.png`
 
 ### Copy replacements reference
-| Before | After |
-|--------|-------|
-| "Select tenant" | "Select organization" |
-| "No archetypes found for this tenant" | "No employees found for this organization" |
-| "No employees found for this tenant" | "No employees found for this organization" |
-| "Select an employee archetype and fire a task manually via the admin API." | "Pick an employee below and start a task manually." |
-| "Slack not configured for this tenant. Enter a channel ID manually." | "Slack isn't connected yet — enter a channel ID manually." |
+
+| Before                                                                     | After                                                      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| "Select tenant"                                                            | "Select organization"                                      |
+| "No archetypes found for this tenant"                                      | "No employees found for this organization"                 |
+| "No employees found for this tenant"                                       | "No employees found for this organization"                 |
+| "Select an employee archetype and fire a task manually via the admin API." | "Pick an employee below and start a task manually."        |
+| "Slack not configured for this tenant. Enter a channel ID manually."       | "Slack isn't connected yet — enter a channel ID manually." |
 
 ## Task 29 — Dashboard shared components + dedup
 
 ### What was done
+
 - `WEBHOOK_FIXTURES` moved from `EmployeeList.tsx` + `EmployeeDetail.tsx` → `constants.ts` export
 - `computeCostTierLabel` moved from `EmployeeDetail.tsx` + `ModelCatalogPage.tsx` → `utils.ts` (lowercase return type; `EmployeeDetail` now capitalizes on use)
 - `deleteRule` in `gateway.ts` converted from raw `fetch` to `gatewayFetch<unknown>` matching pattern from `deleteModelCatalogEntry`
@@ -599,12 +604,14 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 - `InputSchemaFormField` extracted to `dashboard/src/components/ui/input-schema-form-field.tsx` (was near-identical `FormField` in `TriggerEmployeePage.tsx` and `RerunDialog.tsx`)
 
 ### Key decisions
+
 - `computeCostTierLabel` returns lowercase (`'free'|'budget'|'standard'|'premium'`) since `ModelCatalogPage.tsx` uses it as a lookup key; `EmployeeDetail.tsx` capitalizes with `.charAt(0).toUpperCase() + tier.slice(1)`
 - `deleteRule` uses `gatewayFetch<unknown>` (not `<void>`) to match established `deleteModelCatalogEntry` pattern; assumes endpoint returns JSON (not 204)
 - `DeleteEmployeeDialog` not extracted — delete dialogs in `EmployeeList.tsx` and `EmployeeDetail.tsx` have different logic (name lookup vs static) and are not identical enough to dedup cleanly
 - `Textarea` not extracted — no locally-defined `Textarea` component existed; just raw `<textarea>` HTML elements
 
 ### Build / test result
+
 - `pnpm build`: 0 TS errors ✓
 - `pnpm test`: 27/27 passed ✓
 - Commit: `df0d33e2` on `victor/feat/refactor-codebase`
@@ -632,3 +639,29 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 - CONTRIBUTING.md links to AGENTS.md sections rather than duplicating content — keeps it maintainable
 - Skill file updated in-place (not a new file) — same path, same name, just richer content
 - `setup-two-tenants.ts` row kept in README Scripts table (marked archived) so people know it exists and where to find it
+
+## Task 32 — Unify guest and generic approval flows (2026-06-07)
+
+### What was done
+
+- Deleted `src/gateway/slack/handlers/guest-handlers.ts` (501 lines)
+- Merged all guest handler logic into `approval-handlers.ts` (~660 lines)
+- Removed `GUEST_APPROVE`, `GUEST_EDIT`, `GUEST_REJECT`, `EDITED_DRAFT` from `slack-action-ids.ts`
+- Added `EDIT_AND_SEND` action ID
+- `BUTTON_BLOCKS` in `shared.ts` now always shows 3 buttons: Approve / Edit & Send / Reject
+- REJECT now opens a modal (richer UX, optional rejection reason field)
+- `approval-card-poster.mts` and `post-guest-approval.ts` updated to use generic IDs
+- `guest-handlers.test.ts` updated: new action/callback IDs, added `use: vi.fn()` to mock boltApp
+
+### Key gotcha
+
+- `registerEventHandlers` calls `boltApp.use(...)` — the test mock `makeMockBoltApp()` was missing `use: vi.fn()`, causing all 10 tests to fail with `TypeError: boltApp.use is not a function`. Fix: add `use: vi.fn()` to the mock.
+
+### Verification
+
+- `grep -ri "GUEST_APPROVE|GUEST_EDIT|GUEST_REJECT|GUEST_BUTTON" src/` → 0 matches
+- `pnpm build` → clean
+- `pnpm exec vitest run tests/gateway/slack/guest-handlers.test.ts` → 10/10 pass
+- Full suite: 61 failed (all pre-existing) | 1776 passed | 26 skipped
+- `real-estate-motivation-bot-2` task `9d53431c` → Done (full lifecycle trace verified)
+- Commit: `c82617db`
