@@ -38,7 +38,7 @@ export function prettifyRoleName(roleName: string): string {
     .join(' ');
 }
 
-export async function routeToEmployee(
+async function routeToEmployee(
   text: string,
   archetypes: Array<{ id: string; role_name: string; identity?: string | null }>,
   callLLMFn: typeof callLLM,

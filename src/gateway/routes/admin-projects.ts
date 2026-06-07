@@ -16,9 +16,9 @@ import {
   TenantProjectParamSchema,
 } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('admin-projects');
 
 export interface AdminProjectRouteOptions {
   prisma?: PrismaClient;

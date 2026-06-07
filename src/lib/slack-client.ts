@@ -2,8 +2,8 @@
  * Slack Web API client — postMessage and updateMessage.
  * IMPORTANT: Slack returns HTTP 200 even for errors. Always check response.ok field.
  */
-import { ExternalApiError, RateLimitExceededError } from './errors.js';
-import { withRetry } from './retry.js';
+import { ExternalApiError } from './errors.js';
+import { createHttpClient } from './http-client.js';
 
 export interface SlackClientConfig {
   botToken: string;
@@ -28,67 +28,42 @@ export interface SlackClient {
   updateMessage(channel: string, ts: string, text: string, blocks?: unknown[]): Promise<void>;
 }
 
-/**
- * Create a Slack Web API client.
- */
 export function createSlackClient(config: SlackClientConfig): SlackClient {
+  const http = createHttpClient(
+    'https://slack.com',
+    {
+      Authorization: `Bearer ${config.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    { service: 'slack', maxAttempts: 3, baseDelayMs: 1000 },
+  );
+
   return {
     async postMessage(params: SlackMessageParams): Promise<SlackMessageResult> {
-      return withRetry(
-        async () => {
-          const response = await fetch('https://slack.com/api/chat.postMessage', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${config.botToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              channel: params.channel ?? config.defaultChannel,
-              text: params.text,
-              ...(params.blocks ? { blocks: params.blocks } : {}),
-              ...(params.thread_ts ? { thread_ts: params.thread_ts } : {}),
-              ...(params.unfurl_links !== undefined ? { unfurl_links: params.unfurl_links } : {}),
-            }),
-          });
+      const response = await http.post('/api/chat.postMessage', {
+        channel: params.channel ?? config.defaultChannel,
+        text: params.text,
+        ...(params.blocks ? { blocks: params.blocks } : {}),
+        ...(params.thread_ts ? { thread_ts: params.thread_ts } : {}),
+        ...(params.unfurl_links !== undefined ? { unfurl_links: params.unfurl_links } : {}),
+      });
 
-          if (response.status === 429) {
-            const retryAfterHeader = response.headers.get('Retry-After');
-            const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
-            const retryAfterMs = retryAfterSeconds ? retryAfterSeconds * 1000 : undefined;
+      const data = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        ts?: string;
+        channel?: string;
+      };
 
-            throw new RateLimitExceededError(`Slack rate limit exceeded: ${response.statusText}`, {
-              service: 'slack',
-              attempts: 1,
-              retryAfterMs,
-            });
-          }
+      if (!data.ok) {
+        throw new ExternalApiError(`Slack API error: ${data.error || 'unknown error'}`, {
+          service: 'slack',
+          statusCode: 200,
+          endpoint: '/api/chat.postMessage',
+        });
+      }
 
-          const data = (await response.json()) as {
-            ok: boolean;
-            error?: string;
-            ts?: string;
-            channel?: string;
-          };
-
-          if (!data.ok) {
-            throw new ExternalApiError(`Slack API error: ${data.error || 'unknown error'}`, {
-              service: 'slack',
-              statusCode: 200,
-              endpoint: '/api/chat.postMessage',
-            });
-          }
-
-          return {
-            ts: data.ts!,
-            channel: data.channel!,
-          };
-        },
-        {
-          maxAttempts: 3,
-          baseDelayMs: 1000,
-          retryOn: (err) => err instanceof RateLimitExceededError,
-        },
-      );
+      return { ts: data.ts!, channel: data.channel! };
     },
 
     async updateMessage(
@@ -97,48 +72,20 @@ export function createSlackClient(config: SlackClientConfig): SlackClient {
       text: string,
       blocks?: unknown[],
     ): Promise<void> {
-      return withRetry(
-        async () => {
-          const body: Record<string, unknown> = { channel, ts, text };
-          if (blocks) body.blocks = blocks;
+      const body: Record<string, unknown> = { channel, ts, text };
+      if (blocks) body.blocks = blocks;
 
-          const response = await fetch('https://slack.com/api/chat.update', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${config.botToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-          });
+      const response = await http.post('/api/chat.update', body);
 
-          if (response.status === 429) {
-            const retryAfterHeader = response.headers.get('Retry-After');
-            const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
-            const retryAfterMs = retryAfterSeconds ? retryAfterSeconds * 1000 : undefined;
+      const data = (await response.json()) as { ok: boolean; error?: string };
 
-            throw new RateLimitExceededError(`Slack rate limit exceeded: ${response.statusText}`, {
-              service: 'slack',
-              attempts: 1,
-              retryAfterMs,
-            });
-          }
-
-          const data = (await response.json()) as { ok: boolean; error?: string };
-
-          if (!data.ok) {
-            throw new ExternalApiError(`Slack API error: ${data.error ?? 'unknown error'}`, {
-              service: 'slack',
-              statusCode: 200,
-              endpoint: '/api/chat.update',
-            });
-          }
-        },
-        {
-          maxAttempts: 3,
-          baseDelayMs: 1000,
-          retryOn: (err) => err instanceof RateLimitExceededError,
-        },
-      );
+      if (!data.ok) {
+        throw new ExternalApiError(`Slack API error: ${data.error ?? 'unknown error'}`, {
+          service: 'slack',
+          statusCode: 200,
+          endpoint: '/api/chat.update',
+        });
+      }
     },
   };
 }

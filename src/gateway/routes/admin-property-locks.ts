@@ -7,9 +7,9 @@ import {
   TenantIdParamSchema,
   TenantPropertyLockParamSchema,
 } from '../validation/schemas.js';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('admin-property-locks');
 
 export interface AdminPropertyLockRouteOptions {
   prisma?: PrismaClient;

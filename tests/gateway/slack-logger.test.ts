@@ -13,6 +13,7 @@ describe('createFilteredBoltLogger', () => {
 
   it('filters pong-timeout warn — demotes to debug', () => {
     const pino = makeMockPino();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal mock; pino.Logger has 30+ overloads not needed here
     const logger = createFilteredBoltLogger(pino as any);
     logger.warn("A pong wasn't received from the server before the timeout of 5000ms!");
     expect(pino.warn).not.toHaveBeenCalled();
@@ -21,6 +22,7 @@ describe('createFilteredBoltLogger', () => {
 
   it('filters ping-timeout warn — demotes to debug', () => {
     const pino = makeMockPino();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal mock; pino.Logger has 30+ overloads not needed here
     const logger = createFilteredBoltLogger(pino as any);
     logger.warn("A ping wasn't received from the server before the timeout of 10000ms!");
     expect(pino.warn).not.toHaveBeenCalled();
@@ -29,6 +31,7 @@ describe('createFilteredBoltLogger', () => {
 
   it('forwards unrelated warn to pino warn (false-positive guard)', () => {
     const pino = makeMockPino();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal mock; pino.Logger has 30+ overloads not needed here
     const logger = createFilteredBoltLogger(pino as any);
     logger.warn('Slack workspace not found');
     expect(pino.warn).toHaveBeenCalled();
@@ -37,6 +40,7 @@ describe('createFilteredBoltLogger', () => {
 
   it('never filters error — forwards to pino error (auth failure guard)', () => {
     const pino = makeMockPino();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal mock; pino.Logger has 30+ overloads not needed here
     const logger = createFilteredBoltLogger(pino as any);
     logger.error('invalid_auth');
     expect(pino.error).toHaveBeenCalled();

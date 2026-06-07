@@ -1,7 +1,3 @@
-import { execSync, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { Inngest, NonRetriableError } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
@@ -9,9 +5,14 @@ import { createMachine, destroyMachine } from '../lib/fly-client.js';
 import { createSlackClient } from '../lib/slack-client.js';
 import { createLogger } from '../lib/logger.js';
 import { getTunnelUrl } from '../lib/tunnel-client.js';
-import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
-import { TenantRepository } from '../gateway/services/tenant-repository.js';
-import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
+import {
+  patchTask,
+  logStatusTransition,
+  recordWorkMetric,
+  runLocalDockerContainer,
+  stopLocalDockerContainer,
+} from './lib/lifecycle-helpers.js';
+import { loadTenantEnv, TenantRepository, TenantSecretRepository } from './lib/tenant-env.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
 import { getAdapter } from '../lib/enrichment-adapters/index.js';
 import type { NotificationEnrichment } from '../lib/types/notification-enrichment.js';
@@ -19,8 +20,6 @@ import {
   buildSupersededBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
-  buildEnrichedTerminalBlocks,
-  buildContextThreadBlocks,
   createTaskNotifyBuilders,
 } from '../lib/slack-blocks.js';
 import {
@@ -31,142 +30,29 @@ import {
 } from './lib/pending-approvals.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 import {
+  requireEnv,
+  INNGEST_EVENT_KEY,
+  INNGEST_BASE_URL,
+  GATEWAY_URL,
+  WORKER_RUNTIME,
+  FLY_WORKER_IMAGE,
+} from '../lib/config.js';
+import {
   supersededMessage,
-  expiredMessage,
   needsReviewMessage,
   reviewingDraftedMessage,
   completedNoApprovalMessage,
   noActionSkippedMessage,
 } from '../lib/slack-copy.js';
+import { runDeliveryWithRetry } from './lifecycle/steps/delivery-retry.js';
+import {
+  handleApprove,
+  handleReject,
+  handleSupersede,
+  handleExpiry,
+} from './lifecycle/steps/approval-handler.js';
 
 const log = createLogger('employee-lifecycle');
-
-async function patchTask(
-  supabaseUrl: string,
-  headers: Record<string, string>,
-  taskId: string,
-  fields: Record<string, unknown>,
-): Promise<void> {
-  const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '(unreadable)');
-    throw new Error(`patchTask failed: HTTP ${res.status} — ${body}`);
-  }
-}
-
-async function logStatusTransition(
-  supabaseUrl: string,
-  headers: Record<string, string>,
-  taskId: string,
-  toStatus: string,
-  fromStatus?: string,
-): Promise<void> {
-  const res = await fetch(`${supabaseUrl}/rest/v1/task_status_log`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      task_id: taskId,
-      from_status: fromStatus ?? null,
-      to_status: toStatus,
-      actor: 'lifecycle_fn',
-      updated_at: new Date().toISOString(),
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '(unreadable)');
-    throw new Error(`logStatusTransition failed: HTTP ${res.status} — ${body}`);
-  }
-}
-
-async function recordWorkMetric(
-  supabaseUrl: string,
-  headers: Record<string, string>,
-  taskId: string,
-  archetypeId: string | null,
-  tenantId: string,
-): Promise<void> {
-  if (!archetypeId) return;
-  const archetypeRes = await fetch(
-    `${supabaseUrl}/rest/v1/archetypes?id=eq.${archetypeId}&select=estimated_manual_minutes,estimated_manual_minutes_override`,
-    { headers },
-  );
-  if (!archetypeRes.ok) return;
-  const archetypes = (await archetypeRes.json()) as Array<{
-    estimated_manual_minutes: number | null;
-    estimated_manual_minutes_override: number | null;
-  }>;
-  const archetype = archetypes[0];
-  if (!archetype) return;
-  const effectiveMinutes =
-    archetype.estimated_manual_minutes_override ?? archetype.estimated_manual_minutes;
-  if (effectiveMinutes == null) return;
-  const metricsRes = await fetch(`${supabaseUrl}/rest/v1/task_metrics`, {
-    method: 'POST',
-    headers: { ...headers, Prefer: 'return=minimal' },
-    body: JSON.stringify({
-      task_id: taskId,
-      archetype_id: archetypeId,
-      tenant_id: tenantId,
-      work_minutes: effectiveMinutes,
-    }),
-  });
-  if (!metricsRes.ok) {
-    const body = await metricsRes.text().catch(() => '(unreadable)');
-    log.warn(
-      { taskId, status: metricsRes.status, body },
-      'Failed to write task_metrics row — non-fatal',
-    );
-  }
-}
-
-function runLocalDockerContainer(opts: {
-  taskId: string;
-  env: Record<string, string>;
-  name: string;
-  cmd?: string[];
-}): { id: string } {
-  stopLocalDockerContainer(opts.name);
-  const cmd = opts.cmd ?? ['node', '/app/dist/workers/opencode-harness.mjs'];
-  const envArgs = Object.entries(opts.env)
-    .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
-    .join(' ');
-  const workerToolsPath = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../src/worker-tools',
-  );
-  let volumeFlag = '';
-  if (existsSync(workerToolsPath)) {
-    volumeFlag = `-v "${workerToolsPath}:/tools"`;
-  } else {
-    log.warn({ workerToolsPath }, 'worker-tools path not found — skipping bind mount');
-  }
-  const dockerCmd = `docker run -d --rm --add-host=host.docker.internal:host-gateway ${volumeFlag} --name ${JSON.stringify(opts.name)} ${envArgs} ai-employee-worker:latest ${cmd.join(' ')}`;
-  const containerId = execSync(dockerCmd, { encoding: 'utf8' }).trim();
-  const logFile = `/tmp/${opts.name}.log`;
-  const logProc = spawn('sh', ['-c', `docker logs -f ${containerId} > ${logFile} 2>&1`], {
-    detached: true,
-    stdio: 'ignore',
-  });
-  logProc.unref();
-  log.info(
-    { taskId: opts.taskId, containerId, name: opts.name },
-    'Local Docker container dispatched',
-  );
-  return { id: 'docker_' + containerId.slice(0, 12) };
-}
-
-function stopLocalDockerContainer(name: string): void {
-  try {
-    execSync(`docker stop ${JSON.stringify(name)} 2>/dev/null || true`, { encoding: 'utf8' });
-    execSync(`docker rm -f ${JSON.stringify(name)} 2>/dev/null || true`, { encoding: 'utf8' });
-  } catch {
-    /* Container may not exist — safe to ignore */
-  }
-}
 
 export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
@@ -179,8 +65,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const { notifyBlocks, notifyStateBlocks } = createTaskNotifyBuilders({ taskId, runId });
       log.info({ taskId, runId, archetypeId }, 'Lifecycle started');
 
-      const supabaseUrl = process.env.SUPABASE_URL!;
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
+      const supabaseUrl = requireEnv('SUPABASE_URL');
+      const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
       const headers: Record<string, string> = {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -256,7 +142,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           let enrichment: NotificationEnrichment | null = null;
           if (archetype.enrichment_adapter) {
             try {
-              await import('../lib/enrichment-adapters/hostfully.js');
+              await import('../lib/enrichment-adapters/all.js');
               const adapter = getAdapter(archetype.enrichment_adapter as string);
               if (adapter) {
                 enrichment = await adapter(
@@ -409,13 +295,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const issuesSlackChannel = await getPlatformSetting('issues_slack_channel');
 
         const vmSize = (archetype.vm_size as string | null) ?? defaultVmSize;
-        const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+        const image = FLY_WORKER_IMAGE;
         const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
 
         const effectiveSupabaseUrl =
-          process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
-            ? await getTunnelUrl()
-            : supabaseUrl;
+          WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL ? await getTunnelUrl() : supabaseUrl;
 
         const prismaClient = new PrismaClient();
         const tenantEnv = await loadTenantEnv(
@@ -535,7 +419,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         const workerEnvVars = (archetype.worker_env as Record<string, string> | null) ?? {};
 
-        if (process.env.WORKER_RUNTIME !== 'fly') {
+        if (WORKER_RUNTIME !== 'fly') {
           const localWorkerEnv: Record<string, string> = {
             ...tenantEnv,
             ...workerEnvVars,
@@ -547,7 +431,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_SECRET_KEY: supabaseKey,
             INNGEST_BASE_URL: 'http://host.docker.internal:8288',
             GATEWAY_URL: 'http://host.docker.internal:7700',
-            INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+            INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
             INNGEST_DEV: '1',
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
             INNGEST_RUN_ID: runId,
@@ -599,9 +483,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           ...(issuesSlackChannel ? { ISSUES_SLACK_CHANNEL: issuesSlackChannel } : {}),
           SUPABASE_URL: effectiveSupabaseUrl,
           SUPABASE_SECRET_KEY: supabaseKey,
-          INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-          GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-          INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
+          INNGEST_BASE_URL: INNGEST_BASE_URL,
+          GATEWAY_URL: GATEWAY_URL,
+          INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
           INNGEST_RUN_ID: runId,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
@@ -812,7 +696,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const classificationCheckNoApproval = await step.run(
           'check-classification-no-approval',
           async () => {
-            const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+            const supabaseUrlInner = requireEnv('SUPABASE_URL');
             for (let attempt = 1; attempt <= 3; attempt++) {
               const res = await fetch(
                 `${supabaseUrlInner}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
@@ -1035,7 +919,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           log.info({ taskId }, 'State: Delivering (no approval required)');
         });
 
-        // ── STEPS 6–8: Load tenant env, fetch delivery_instructions, spawn container ─
         const noApprovalDeliveryResult = await step.run('run-delivery-no-approval', async () => {
           const prismaForDelivery = new PrismaClient();
           const tenantEnvForDelivery = await loadTenantEnv(
@@ -1047,214 +930,20 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             (archetype.notification_channel as string | null) ?? null,
           );
           await prismaForDelivery.$disconnect();
-
-          const archetypeForDeliveryRes = await fetch(
-            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
-            { headers },
-          );
-          const archetypeRows = (await archetypeForDeliveryRes.json()) as Array<{
-            archetypes?: { delivery_instructions?: string | null };
-          }>;
-          const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
-          if (!deliveryInstructions) {
-            await patchTask(supabaseUrl, headers, taskId, {
-              status: 'Failed',
-              failure_reason: 'Archetype missing delivery_instructions',
-            });
-            const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
-            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-              try {
-                const botTokenForConfigFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
-                if (botTokenForConfigFail) {
-                  const slackForConfigFail = createSlackClient({
-                    botToken: botTokenForConfigFail,
-                    defaultChannel: '',
-                  });
-                  await slackForConfigFail.updateMessage(
-                    notifyMsgRef.channel,
-                    notifyMsgRef.ts,
-                    configFailText,
-                    notifyStateBlocks({
-                      emoji: '❌',
-                      text: "Something went wrong — this employee isn't set up for delivery yet",
-                    }),
-                  );
-                }
-              } catch (err) {
-                log.warn(
-                  { taskId, err },
-                  'Failed to update notify-received on config error (non-fatal)',
-                );
-              }
-            }
-            return { status: 'config-fail' as const };
-          }
-
-          const defaultDeliveryVmSize = await getPlatformSetting('default_worker_vm_size');
-          const deliveryVmSize = (archetype.vm_size as string | null) ?? defaultDeliveryVmSize;
-          const deliveryImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-          const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
-          const effectiveSupabaseUrlForDelivery =
-            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
-
           const taskRawEventForDelivery =
             (taskData.raw_event as Record<string, string> | null) ?? {};
-
-          let deliveryFinalStatus = '';
-          const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const deliveryContainerName =
-              attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
-            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
-              const prevName =
-                attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
-              stopLocalDockerContainer(prevName);
-            }
-            let deliveryMachine: { id: string };
-            if (process.env.WORKER_RUNTIME !== 'fly') {
-              deliveryMachine = runLocalDockerContainer({
-                taskId,
-                name: deliveryContainerName,
-                env: {
-                  ...tenantEnvForDelivery,
-                  TASK_ID: taskId,
-                  EMPLOYEE_PHASE: 'delivery',
-                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-                  APPROVAL_REQUIRED: String(approvalRequired),
-                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-                  SUPABASE_URL: supabaseUrl.replace(
-                    /localhost|127\.0\.0\.1/,
-                    'host.docker.internal',
-                  ),
-                  SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: 'http://host.docker.internal:8288',
-                  GATEWAY_URL: 'http://host.docker.internal:7700',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
-                  INNGEST_DEV: '1',
-                  ...(taskRawEventForDelivery['lead_uid']
-                    ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
-                    : {}),
-                  ...(taskRawEventForDelivery['thread_uid']
-                    ? { THREAD_UID: taskRawEventForDelivery['thread_uid'] }
-                    : {}),
-                  ...(taskRawEventForDelivery['property_uid']
-                    ? { PROPERTY_UID: taskRawEventForDelivery['property_uid'] }
-                    : {}),
-                },
-                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-              });
-            } else {
-              deliveryMachine = await createMachine(deliveryFlyApp, {
-                image: deliveryImage,
-                vm_size: deliveryVmSize,
-                auto_destroy: true,
-                kill_timeout: 1800,
-                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-                env: {
-                  ...tenantEnvForDelivery,
-                  TASK_ID: taskId,
-                  EMPLOYEE_PHASE: 'delivery',
-                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-                  APPROVAL_REQUIRED: String(approvalRequired),
-                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-                  SUPABASE_URL: effectiveSupabaseUrlForDelivery,
-                  SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
-                  ...(taskRawEventForDelivery['lead_uid']
-                    ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
-                    : {}),
-                  ...(taskRawEventForDelivery['thread_uid']
-                    ? { THREAD_UID: taskRawEventForDelivery['thread_uid'] }
-                    : {}),
-                  ...(taskRawEventForDelivery['property_uid']
-                    ? { PROPERTY_UID: taskRawEventForDelivery['property_uid'] }
-                    : {}),
-                },
-              });
-            }
-            log.info(
-              { taskId, deliveryMachineId: deliveryMachine.id, attempt },
-              'Delivery machine spawned',
-            );
-
-            const maxDeliveryPolls = 20;
-            const deliveryIntervalMs = 15_000;
-            let finalStatus = '';
-            for (let i = 0; i < maxDeliveryPolls; i++) {
-              await new Promise<void>((resolve) => setTimeout(resolve, deliveryIntervalMs));
-              const res = await fetch(
-                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
-                { headers },
-              );
-              const rows = (await res.json()) as Array<{ status: string }>;
-              finalStatus = rows[0]?.status ?? '';
-              if (finalStatus === 'Done' || finalStatus === 'Failed') break;
-            }
-            deliveryFinalStatus = finalStatus;
-
-            if (process.env.WORKER_RUNTIME === 'fly') {
-              try {
-                await destroyMachine(deliveryFlyApp, deliveryMachine.id);
-              } catch (err) {
-                log.warn(
-                  { taskId, deliveryMachineId: deliveryMachine.id, err },
-                  'Failed to destroy delivery machine',
-                );
-              }
-            } else {
-              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
-            }
-
-            if (deliveryFinalStatus === 'Done') break;
-
-            if (attempt < 2) {
-              log.warn({ taskId, attempt }, 'Delivery machine failed — retrying');
-              await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
-            } else {
-              log.error({ taskId }, 'Delivery failed after 3 attempts — marking Failed');
-              await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-              await patchTask(supabaseUrl, headers, taskId, {
-                status: 'Failed',
-                failure_reason: 'Delivery failed after 3 attempts',
-              });
-              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-                try {
-                  const botTokenForFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
-                  if (botTokenForFail) {
-                    const slackForFail = createSlackClient({
-                      botToken: botTokenForFail,
-                      defaultChannel: '',
-                    });
-                    const deliveryFailText = `❌ Something went wrong — the delivery did not go through`;
-                    const delivFailBlocks = notifyBlocks({
-                      state: 'Delivery failed',
-                      archetypeName: (archetype.role_name as string) ?? 'unknown',
-                      enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                      emoji: '❌',
-                    });
-                    await slackForFail.updateMessage(
-                      notifyMsgRef.channel,
-                      notifyMsgRef.ts,
-                      deliveryFailText,
-                      delivFailBlocks,
-                    );
-                  }
-                } catch (err) {
-                  log.warn(
-                    { taskId, err },
-                    'Failed to update notify-received on delivery failure (non-fatal)',
-                  );
-                }
-              }
-            }
-          }
-
-          return {
-            status: deliveryFinalStatus === 'Done' ? ('done' as const) : ('failed' as const),
-          };
+          return runDeliveryWithRetry({
+            taskId,
+            tenantId,
+            supabaseUrl,
+            supabaseKey,
+            headers,
+            archetype,
+            approvalRequired,
+            notifyMsgRef,
+            tenantEnv: tenantEnvForDelivery,
+            taskRawEvent: taskRawEventForDelivery,
+          });
         });
 
         // ── STEP 9: On delivery success, update notify message ────────────────────
@@ -1372,7 +1061,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       // ── Classification check: auto-complete NO_ACTION_NEEDED ─────────────────
       const classificationCheck = await step.run('check-classification', async () => {
-        const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+        const supabaseUrlInner = requireEnv('SUPABASE_URL');
 
         // Retry up to 3 times with 1s delay — deliverable may not be committed yet
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1898,10 +1587,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingDelivRows = (await reviewingDelivRes.json()) as Array<{
             metadata: Record<string, unknown> | null;
           }>;
-          const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
+          const reviewingRecipientName = reviewingDelivRows[0]?.metadata?.['recipient_name'] as
             | string
             | undefined;
-          const reviewingText = reviewingDraftedMessage(reviewingGuestName);
+          const reviewingText = reviewingDraftedMessage(reviewingRecipientName);
           const reviewingBlocks = notifyBlocks({
             state: 'Reviewing',
             archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -1945,8 +1634,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return;
         }
 
-        // For guest-messaging employees, use the Hostfully thread_uid for supersede detection.
-        // For all other employees, fall back to taskId as a stable unique identifier.
         const threadUid = threadUidForTracking ?? taskId;
 
         await trackPendingApproval(supabaseUrl, supabaseKey, {
@@ -1955,7 +1642,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
-          recipientName: delivMeta.guest_name as string | undefined,
+          recipientName: delivMeta.recipient_name as string | undefined,
           contextLabel: delivMeta.property_name as string | undefined,
           urgency: delivMeta.urgency as boolean | undefined,
         });
@@ -1991,11 +1678,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 return;
               }
 
-              const nudgeGuestName = delivMeta.guest_name as string | undefined;
+              const nudgeRecipientName = delivMeta.recipient_name as string | undefined;
               const nudgePropertyName = delivMeta.property_name as string | undefined;
               const nudgeText = needsReviewMessage(
-                nudgeGuestName
-                  ? `${nudgeGuestName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
+                nudgeRecipientName
+                  ? `${nudgeRecipientName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
                   : undefined,
               );
 
@@ -2073,7 +1760,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         timeout: `${timeoutHours}h`,
       });
 
-      // ── State: Approved or Cancelled ─────────────────────────────────────────
       await step.run('handle-approval-result', async () => {
         const prismaForApproval = new PrismaClient();
         const tenantEnvForApproval = await loadTenantEnv(tenantId, {
@@ -2083,11 +1769,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         await prismaForApproval.$disconnect();
 
         const botToken = tenantEnvForApproval.SLACK_BOT_TOKEN ?? '';
-
-        const slackClient = createSlackClient({
-          botToken,
-          defaultChannel: '',
-        });
+        const slackClient = createSlackClient({ botToken, defaultChannel: '' });
 
         const delivRes = await fetch(
           `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=*&order=created_at.desc&limit=1`,
@@ -2106,13 +1788,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const taskRawEvent = taskRawEventRows[0]?.raw_event ?? {};
 
         const metadata = (deliverable?.metadata as Record<string, unknown>) ?? {};
-        const approvalMsgTs = metadata.approval_message_ts as string | undefined;
-        const targetChannel =
-          (metadata.target_channel as string) ??
-          tenantEnvForApproval['NOTIFICATION_CHANNEL'] ??
-          tenantEnvForApproval['SUMMARY_TARGET_CHANNEL'] ??
-          '';
-        // Delete nudge broadcast if it exists (non-fatal)
         const nudgeTs = metadata.nudge_ts as string | undefined;
         const nudgeChannel = metadata.nudge_channel as string | undefined;
         if (nudgeTs && nudgeChannel) {
@@ -2125,59 +1800,24 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             log.warn({ taskId, err }, 'Failed to delete nudge broadcast (non-fatal)');
           }
         }
+
+        const approvalCtx = {
+          taskId,
+          tenantId,
+          archetypeId,
+          supabaseUrl,
+          supabaseKey,
+          headers,
+          archetype,
+          notifyMsgRef,
+          notifyBlocks,
+          notifyStateBlocks,
+          inngest,
+          runDelivery: runDeliveryWithRetry,
+        };
+
         if (!approvalEvent) {
-          if (approvalMsgTs && targetChannel) {
-            try {
-              const expiryText = expiredMessage();
-              const expiryGuestName = metadata['guest_name'] as string | undefined;
-              const expiryCardBlocks = expiryGuestName
-                ? buildEnrichedTerminalBlocks({
-                    status: 'expired',
-                    guestName: expiryGuestName,
-                    propertyName: metadata['property_name'] as string | undefined,
-                    threadUid: metadata['thread_uid'] as string | undefined,
-                    leadUid: metadata['lead_uid'] as string | undefined,
-                    taskId,
-                  })
-                : [
-                    { type: 'section', text: { type: 'mrkdwn', text: expiryText } },
-                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                  ];
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                expiryText,
-                expiryCardBlocks,
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Expiry message update failed (non-fatal)',
-              );
-            }
-          }
-          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-            try {
-              const expiredNotifyText = expiredMessage();
-              const notifyExpiryBlocks = notifyBlocks({
-                state: 'Expired',
-                archetypeName: (archetype.role_name as string) ?? 'unknown',
-                enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                emoji: '⏰',
-              });
-              await slackClient.updateMessage(
-                notifyMsgRef.channel,
-                notifyMsgRef.ts,
-                expiredNotifyText,
-                notifyExpiryBlocks,
-              );
-            } catch (err) {
-              log.warn({ taskId, err }, 'Failed to update notify-received on expiry (non-fatal)');
-            }
-          }
-          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
+          await handleExpiry(approvalCtx, deliverable, slackClient);
           return;
         }
 
@@ -2194,863 +1834,18 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         };
 
         if (action === 'approve') {
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Approved' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Approved', 'Reviewing');
-          log.info({ taskId }, 'State: Approved');
-
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Delivering', 'Approved');
-          log.info({ taskId }, 'State: Delivering');
-
-          if (editedContent) {
-            const rawDeliverableContent = deliverable?.content as string | undefined;
-            // Extract just the draftResponse text for rule extraction — passing the full JSON blob
-            // causes the LLM to fail to identify what changed between original and edited.
-            let originalDraft: string | undefined;
-            try {
-              const parsed = JSON.parse(rawDeliverableContent ?? '{}') as Record<string, unknown>;
-              originalDraft =
-                typeof parsed.draft === 'string' ? parsed.draft : rawDeliverableContent;
-            } catch {
-              originalDraft = rawDeliverableContent;
-            }
-            try {
-              const deliverableId = deliverable?.id as string | undefined;
-              if (deliverableId) {
-                const currentContent = rawDeliverableContent;
-                let updatedContent = currentContent ?? '{}';
-                try {
-                  const parsed = JSON.parse(currentContent ?? '{}') as Record<string, unknown>;
-                  parsed.draft = editedContent;
-                  updatedContent = JSON.stringify(parsed);
-                } catch {
-                  // If content is not valid JSON, replace entirely with a minimal object
-                  updatedContent = JSON.stringify({ draft: editedContent });
-                }
-                const patchRes = await fetch(
-                  `${supabaseUrl}/rest/v1/deliverables?id=eq.${deliverableId}`,
-                  {
-                    method: 'PATCH',
-                    headers,
-                    body: JSON.stringify({
-                      content: updatedContent,
-                      updated_at: new Date().toISOString(),
-                    }),
-                  },
-                );
-                if (!patchRes.ok) {
-                  log.warn(
-                    { taskId, deliverableId },
-                    'Failed to patch deliverable content with editedContent (non-fatal)',
-                  );
-                } else {
-                  log.info(
-                    { taskId, deliverableId },
-                    'Deliverable content patched with editedContent',
-                  );
-                }
-              }
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Error patching deliverable content with editedContent (non-fatal)',
-              );
-            }
-            try {
-              const currentMetaRows = (await fetch(
-                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-                { headers },
-              ).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>;
-              const existingMeta = currentMetaRows[0]?.metadata ?? {};
-              await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-                method: 'PATCH',
-                headers,
-                body: JSON.stringify({
-                  metadata: { ...existingMeta, draft_response: editedContent },
-                  updated_at: new Date().toISOString(),
-                }),
-              });
-              log.info({ taskId }, 'Task metadata draft_response updated with editedContent');
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to update task metadata draft_response (non-fatal)',
-              );
-            }
-            try {
-              const feedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
-                method: 'POST',
-                headers: {
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({
-                  id: crypto.randomUUID(),
-                  tenant_id: tenantId,
-                  archetype_id: archetypeId,
-                  task_id: taskId,
-                  event_type: 'edit_diff',
-                  correction_content: editedContent,
-                  original_content: originalDraft ?? null,
-                  actor_id: actorUserId,
-                }),
-              });
-              if (!feedbackEvtRes.ok) {
-                const body = await feedbackEvtRes.text();
-                log.warn(
-                  { taskId, status: feedbackEvtRes.status, body },
-                  'Failed to write edit_diff feedback_event (non-fatal)',
-                );
-              } else {
-                log.info({ taskId }, 'edit_diff feedback_event written');
-              }
-            } catch (err) {
-              log.warn({ taskId, err }, 'Error writing edit_diff feedback_event (non-fatal)');
-            }
-            await inngest.send({
-              name: 'employee/rule.extract-requested',
-              data: {
-                tenantId,
-                feedbackId: null,
-                feedbackType: 'edit_diff',
-                taskId,
-                archetypeId,
-                content: null,
-                originalContent: originalDraft ?? '',
-                editedContent,
-                actorUserId,
-                approvalMsgTs,
-                targetChannel,
-              },
-            });
-          }
-
-          const archetypeRes = await fetch(
-            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
-            { headers },
+          await handleApprove(
+            approvalCtx,
+            deliverable,
+            slackClient,
+            actorUserId,
+            editedContent,
+            taskRawEvent,
           );
-          const archetypeRows = (await archetypeRes.json()) as Array<{
-            archetypes?: { delivery_instructions?: string | null };
-          }>;
-          const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
-          if (!deliveryInstructions) {
-            await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-            await patchTask(supabaseUrl, headers, taskId, {
-              status: 'Failed',
-              failure_reason: 'Archetype missing delivery_instructions',
-            });
-            const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
-            if (approvalMsgTs && targetChannel) {
-              try {
-                await slackClient.updateMessage(targetChannel, approvalMsgTs, configFailText, [
-                  { type: 'section', text: { type: 'mrkdwn', text: configFailText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ]);
-              } catch (err) {
-                log.warn(
-                  { taskId, err },
-                  'Failed to update approval card on config error (non-fatal)',
-                );
-              }
-            }
-            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-              try {
-                await slackClient.updateMessage(
-                  notifyMsgRef.channel,
-                  notifyMsgRef.ts,
-                  configFailText,
-                  notifyStateBlocks({
-                    emoji: '❌',
-                    text: "Something went wrong — this employee isn't set up for delivery yet",
-                  }),
-                );
-              } catch (err) {
-                log.warn(
-                  { taskId, err },
-                  'Failed to update notify-received on config error (non-fatal)',
-                );
-              }
-            }
-            return;
-          }
-
-          if (approvalMsgTs && targetChannel) {
-            const approvedText = `✅ Approved by <@${actorUserId}> — delivering now.`;
-            try {
-              await slackClient.updateMessage(targetChannel, approvalMsgTs, approvedText, [
-                { type: 'section', text: { type: 'mrkdwn', text: approvedText } },
-                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-              ]);
-              log.info({ taskId }, 'Approval message updated');
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Approval message update failed (non-fatal) — message may have been deleted',
-              );
-            }
-          }
-
-          if (metadata['original_message'] && approvalMsgTs && targetChannel) {
-            try {
-              const contextBlocks = buildContextThreadBlocks({
-                action: editedContent ? 'edit' : 'approve',
-                actorUserId,
-                guestName: metadata['guest_name'] as string | undefined,
-                propertyName: metadata['property_name'] as string | undefined,
-                checkIn: metadata['check_in'] as string | undefined,
-                checkOut: metadata['check_out'] as string | undefined,
-                bookingChannel: metadata['booking_channel'] as string | undefined,
-                originalMessage: metadata['original_message'] as string,
-                sentResponse: editedContent ?? (metadata['draft_response'] as string | undefined),
-                draftResponse: metadata['draft_response'] as string | undefined,
-                editedResponse: editedContent,
-                confidence:
-                  typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
-                category: metadata['category'] as string | undefined,
-                threadUid: metadata['thread_uid'] as string | undefined,
-                leadUid: metadata['lead_uid'] as string | undefined,
-                taskId,
-              });
-              await slackClient.postMessage({
-                channel: targetChannel,
-                thread_ts: approvalMsgTs,
-                text: '📋 Message context preserved for reference',
-                blocks: contextBlocks as import('@slack/web-api').KnownBlock[],
-              });
-              log.info({ taskId }, 'Context thread reply posted');
-            } catch (err) {
-              log.warn({ taskId, err }, 'Failed to post context thread reply (non-fatal)');
-            }
-          }
-
-          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-            try {
-              const approvedNotifyText = `✅ Approved by <@${actorUserId}> — delivering now.`;
-              const approveNotifyBlocks = notifyBlocks({
-                state: 'Approved — delivering now',
-                archetypeName: (archetype.role_name as string) ?? 'unknown',
-                enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                emoji: '✅',
-                extraText: `Approved by <@${actorUserId}>`,
-              });
-              await slackClient.updateMessage(
-                notifyMsgRef.channel,
-                notifyMsgRef.ts,
-                approvedNotifyText,
-                approveNotifyBlocks,
-              );
-            } catch (err) {
-              log.warn({ taskId, err }, 'Failed to update notify-received on approval (non-fatal)');
-            }
-          }
-
-          const defaultDeliveryVmSizeForApproval =
-            await getPlatformSetting('default_worker_vm_size');
-          const deliveryVmSize =
-            (archetype.vm_size as string | null) ?? defaultDeliveryVmSizeForApproval;
-          const deliveryImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
-          const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
-          const effectiveSupabaseUrlForDelivery =
-            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
-
-          let deliveryFinalStatus = '';
-          const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const deliveryContainerName =
-              attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
-            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
-              const prevName =
-                attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
-              stopLocalDockerContainer(prevName);
-            }
-            let deliveryMachine: { id: string };
-            if (process.env.WORKER_RUNTIME !== 'fly') {
-              deliveryMachine = runLocalDockerContainer({
-                taskId,
-                name: deliveryContainerName,
-                env: {
-                  ...tenantEnvForApproval,
-                  TASK_ID: taskId,
-                  EMPLOYEE_PHASE: 'delivery',
-                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-                  APPROVAL_REQUIRED: String(approvalRequired),
-                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-                  SUPABASE_URL: supabaseUrl.replace(
-                    /localhost|127\.0\.0\.1/,
-                    'host.docker.internal',
-                  ),
-                  SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: 'http://host.docker.internal:8288',
-                  GATEWAY_URL: 'http://host.docker.internal:7700',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
-                  INNGEST_DEV: '1',
-                  ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
-                  ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
-                  ...(taskRawEvent['property_uid']
-                    ? { PROPERTY_UID: taskRawEvent['property_uid'] }
-                    : {}),
-                },
-                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-              });
-            } else {
-              deliveryMachine = await createMachine(deliveryFlyApp, {
-                image: deliveryImage,
-                vm_size: deliveryVmSize,
-                auto_destroy: true,
-                kill_timeout: 1800,
-                cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-                env: {
-                  ...tenantEnvForApproval,
-                  TASK_ID: taskId,
-                  EMPLOYEE_PHASE: 'delivery',
-                  EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-                  APPROVAL_REQUIRED: String(approvalRequired),
-                  NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-                  SUPABASE_URL: effectiveSupabaseUrlForDelivery,
-                  SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
-                  ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
-                  ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
-                  ...(taskRawEvent['property_uid']
-                    ? { PROPERTY_UID: taskRawEvent['property_uid'] }
-                    : {}),
-                },
-              });
-            }
-            log.info(
-              { taskId, deliveryMachineId: deliveryMachine.id, attempt },
-              'Delivery machine spawned',
-            );
-
-            const maxDeliveryPolls = 20;
-            const deliveryIntervalMs = 15_000;
-            let finalStatus = '';
-            for (let i = 0; i < maxDeliveryPolls; i++) {
-              await new Promise<void>((resolve) => setTimeout(resolve, deliveryIntervalMs));
-              const res = await fetch(
-                `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
-                { headers },
-              );
-              const rows = (await res.json()) as Array<{ status: string }>;
-              finalStatus = rows[0]?.status ?? '';
-              if (finalStatus === 'Done' || finalStatus === 'Failed') break;
-            }
-            deliveryFinalStatus = finalStatus;
-
-            if (process.env.WORKER_RUNTIME === 'fly') {
-              try {
-                await destroyMachine(deliveryFlyApp, deliveryMachine.id);
-              } catch (err) {
-                log.warn(
-                  { taskId, deliveryMachineId: deliveryMachine.id, err },
-                  'Failed to destroy delivery machine',
-                );
-              }
-            } else {
-              stopLocalDockerContainer(`employee-delivery-${taskId.slice(0, 8)}`);
-            }
-
-            if (deliveryFinalStatus === 'Done') break;
-
-            if (attempt < 2) {
-              log.warn({ taskId, attempt }, 'Delivery machine failed — retrying');
-              await patchTask(supabaseUrl, headers, taskId, { status: 'Delivering' });
-            } else {
-              log.error({ taskId }, 'Delivery failed after 3 attempts — marking Failed');
-              await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-              await patchTask(supabaseUrl, headers, taskId, {
-                status: 'Failed',
-                failure_reason: 'Delivery failed after 3 attempts',
-              });
-              if (approvalMsgTs && targetChannel) {
-                const errorText = `❌ Delivery ran into a problem after 3 attempts — I've marked this one as failed`;
-                try {
-                  await slackClient.updateMessage(targetChannel, approvalMsgTs, errorText, [
-                    { type: 'section', text: { type: 'mrkdwn', text: errorText } },
-                    { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                  ]);
-                } catch (err) {
-                  log.warn(
-                    { taskId, approvalMsgTs, targetChannel, err },
-                    'Error message update failed (non-fatal)',
-                  );
-                }
-              }
-              if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-                try {
-                  const deliveryFailText = `❌ Something went wrong — the delivery did not go through`;
-                  const delivFailBlocks = notifyBlocks({
-                    state: 'Delivery failed',
-                    archetypeName: (archetype.role_name as string) ?? 'unknown',
-                    enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                    emoji: '❌',
-                  });
-                  await slackClient.updateMessage(
-                    notifyMsgRef.channel,
-                    notifyMsgRef.ts,
-                    deliveryFailText,
-                    delivFailBlocks,
-                  );
-                } catch (err) {
-                  log.warn(
-                    { taskId, err },
-                    'Failed to update notify-received on delivery failure (non-fatal)',
-                  );
-                }
-              }
-            }
-          }
-
-          if (deliveryFinalStatus === 'Done' && approvalMsgTs && targetChannel) {
-            const epoch = Math.floor(Date.now() / 1000);
-            const isoFallback = new Date().toISOString();
-            const sentText = `✅ Delivered <!date^${epoch}^{date_short_pretty} at {time}|${isoFallback}>`;
-            log.info({ taskId }, 'State: Done');
-            try {
-              const doneBlocks = buildEnrichedTerminalBlocks({
-                status: 'done',
-                actorUserId,
-                guestName: metadata['guest_name'] as string | undefined,
-                propertyName: metadata['property_name'] as string | undefined,
-                threadUid: metadata['thread_uid'] as string | undefined,
-                leadUid: metadata['lead_uid'] as string | undefined,
-                sentSnippet: (
-                  editedContent ?? (metadata['draft_response'] as string | undefined)
-                )?.slice(0, 150),
-                taskId,
-              });
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                sentText,
-                doneBlocks as import('@slack/web-api').KnownBlock[],
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Sent message update failed (non-fatal)',
-              );
-            }
-            if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-              try {
-                const terminalRecipientName = metadata['guest_name'] as string | undefined;
-                const sentNotifyText = terminalRecipientName
-                  ? `Reply sent to ${terminalRecipientName}`
-                  : 'Reply sent';
-                const notifyDoneBlocks = notifyBlocks({
-                  state: 'Done',
-                  archetypeName: (archetype.role_name as string) ?? 'unknown',
-                  enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                  emoji: '✅',
-                  extraText: `Approved by <@${actorUserId}>`,
-                  sentSnippet: (
-                    editedContent ?? (metadata['draft_response'] as string | undefined)
-                  )?.slice(0, 150),
-                  threadHint: true,
-                });
-                await slackClient.updateMessage(
-                  notifyMsgRef.channel,
-                  notifyMsgRef.ts,
-                  sentNotifyText,
-                  notifyDoneBlocks as import('@slack/web-api').KnownBlock[],
-                );
-              } catch (err) {
-                log.warn(
-                  { taskId, err },
-                  'Failed to update notify-received after delivery (non-fatal)',
-                );
-              }
-            }
-            await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-          }
         } else if (action === 'superseded') {
-          log.info({ taskId }, 'Task superseded by newer message for same conversation');
-          if (approvalMsgTs && targetChannel) {
-            try {
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                supersededMessage(),
-                buildSupersededBlocks(taskId),
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Superseded message update failed (non-fatal)',
-              );
-            }
-          }
-          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-            try {
-              const supersededNotifyText = supersededMessage();
-              const supersededNotifyBlocks = notifyBlocks({
-                state: 'Superseded',
-                archetypeName: (archetype.role_name as string) ?? 'unknown',
-                enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                emoji: '⏭️',
-              });
-              await slackClient.updateMessage(
-                notifyMsgRef.channel,
-                notifyMsgRef.ts,
-                supersededNotifyText,
-                supersededNotifyBlocks,
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to update notify-received on supersede (non-fatal)',
-              );
-            }
-          }
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
-          log.info({ taskId }, 'State: Cancelled (superseded)');
-          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-          try {
-            const nudgeRetryRes = await fetch(
-              `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
-              { headers },
-            );
-            const nudgeRetryRows = (await nudgeRetryRes.json()) as Array<{
-              metadata: Record<string, unknown> | null;
-            }>;
-            const nudgeRetryMeta = (nudgeRetryRows[0]?.metadata as Record<string, unknown>) ?? {};
-            const retryNudgeTs = nudgeRetryMeta.nudge_ts as string | undefined;
-            const retryNudgeChannel = nudgeRetryMeta.nudge_channel as string | undefined;
-            if (retryNudgeTs && retryNudgeChannel) {
-              const { WebClient } = await import('@slack/web-api');
-              const web = new WebClient(botToken);
-              await web.chat.delete({ channel: retryNudgeChannel, ts: retryNudgeTs });
-              log.info(
-                { taskId, retryNudgeTs },
-                'Supersede branch: orphaned nudge deleted on re-read',
-              );
-            }
-          } catch (err) {
-            log.warn(
-              { taskId, err },
-              'Supersede branch: failed to clean up nudge on re-read (non-fatal)',
-            );
-          }
+          await handleSupersede(approvalCtx, deliverable, slackClient, botToken);
         } else {
-          if (rejectionReason) {
-            try {
-              const currentMetadata =
-                (
-                  (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
-                    headers,
-                  }).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>
-                )[0]?.metadata ?? {};
-
-              const updatedMetadata = { ...currentMetadata, rejectionReason };
-              const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-                method: 'PATCH',
-                headers,
-                body: JSON.stringify({
-                  metadata: updatedMetadata,
-                  updated_at: new Date().toISOString(),
-                }),
-              });
-              if (!metaPatchRes.ok) {
-                log.warn(
-                  { taskId },
-                  'Failed to store rejectionReason in task metadata (non-fatal)',
-                );
-              } else {
-                log.info({ taskId }, 'Rejection reason stored in task metadata');
-              }
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Error storing rejectionReason in task metadata (non-fatal)',
-              );
-            }
-          }
-
-          // Store rejection reason in feedback_events table (in addition to task metadata)
-          if (rejectionReason) {
-            try {
-              const feedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
-                method: 'POST',
-                headers: {
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({
-                  id: crypto.randomUUID(),
-                  tenant_id: tenantId,
-                  archetype_id: archetypeId,
-                  task_id: taskId,
-                  event_type: 'rejection_reason',
-                  correction_content: rejectionReason,
-                  actor_id: actorUserId,
-                }),
-              });
-              if (!feedbackEvtRes.ok) {
-                const body = await feedbackEvtRes.text();
-                log.warn(
-                  { taskId, status: feedbackEvtRes.status, body },
-                  'Failed to store rejection_reason in feedback_events (non-fatal)',
-                );
-              } else {
-                log.info({ taskId }, 'rejection_reason feedback_event written');
-              }
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to store rejection_reason in feedback_events (non-fatal)',
-              );
-            }
-            try {
-              await inngest.send({
-                name: 'employee/rule.extract-requested',
-                data: {
-                  tenantId,
-                  feedbackId: null,
-                  feedbackType: 'rejection_reason',
-                  taskId,
-                  archetypeId,
-                  content: rejectionReason,
-                  originalContent: null,
-                  editedContent: null,
-                  actorUserId,
-                  approvalMsgTs,
-                  targetChannel,
-                },
-              });
-              log.info({ taskId }, 'rule.extract-requested fired for rejection_reason');
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to fire rule extraction for rejection_reason (non-fatal)',
-              );
-            }
-          }
-
-          if (approvalMsgTs && targetChannel) {
-            const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
-            try {
-              const rejectedBlocks = buildEnrichedTerminalBlocks({
-                status: 'rejected',
-                actorUserId,
-                guestName: metadata['guest_name'] as string | undefined,
-                propertyName: metadata['property_name'] as string | undefined,
-                threadUid: metadata['thread_uid'] as string | undefined,
-                leadUid: metadata['lead_uid'] as string | undefined,
-                taskId,
-              });
-              await slackClient.updateMessage(
-                targetChannel,
-                approvalMsgTs,
-                rejectedText,
-                rejectedBlocks as import('@slack/web-api').KnownBlock[],
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, approvalMsgTs, targetChannel, err },
-                'Rejection message update failed (non-fatal)',
-              );
-            }
-          }
-          if (metadata['original_message'] && approvalMsgTs && targetChannel) {
-            try {
-              const contextBlocks = buildContextThreadBlocks({
-                action: 'reject',
-                actorUserId,
-                guestName: metadata['guest_name'] as string | undefined,
-                propertyName: metadata['property_name'] as string | undefined,
-                checkIn: metadata['check_in'] as string | undefined,
-                checkOut: metadata['check_out'] as string | undefined,
-                bookingChannel: metadata['booking_channel'] as string | undefined,
-                originalMessage: metadata['original_message'] as string,
-                draftResponse: metadata['draft_response'] as string | undefined,
-                confidence:
-                  typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
-                category: metadata['category'] as string | undefined,
-                threadUid: metadata['thread_uid'] as string | undefined,
-                leadUid: metadata['lead_uid'] as string | undefined,
-                taskId,
-              });
-              await slackClient.postMessage({
-                channel: targetChannel,
-                thread_ts: approvalMsgTs,
-                text: '📋 Message context preserved for reference',
-                blocks: contextBlocks as import('@slack/web-api').KnownBlock[],
-              });
-              log.info({ taskId }, 'Context thread reply posted');
-            } catch (err) {
-              log.warn({ taskId, err }, 'Failed to post context thread reply (non-fatal)');
-            }
-          }
-          if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-            try {
-              const rejectedNotifyText = `❌ Rejected by <@${actorUserId}>.`;
-              const notifyRejectBlocks = notifyBlocks({
-                state: 'Rejected',
-                archetypeName: (archetype.role_name as string) ?? 'unknown',
-                enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                emoji: '❌',
-                extraText: `Rejected by <@${actorUserId}>`,
-              });
-              await slackClient.updateMessage(
-                notifyMsgRef.channel,
-                notifyMsgRef.ts,
-                rejectedNotifyText,
-                notifyRejectBlocks as import('@slack/web-api').KnownBlock[],
-              );
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to update notify-received on rejection (non-fatal)',
-              );
-            }
-          }
-          if (rejectionReason && approvalMsgTs && targetChannel) {
-            try {
-              const learnedText = `📝 Noted: "${rejectionReason}" — I'll apply this next time.`;
-              await slackClient.postMessage({
-                channel: targetChannel,
-                thread_ts: approvalMsgTs,
-                text: learnedText,
-                blocks: [{ type: 'section', text: { type: 'mrkdwn', text: learnedText } }],
-              });
-              log.info({ taskId }, 'Rejection acknowledgment posted in thread');
-            } catch (err) {
-              log.warn({ taskId, err }, 'Failed to post rejection acknowledgment (non-fatal)');
-            }
-          }
-
-          try {
-            const currentMetaRes = await fetch(
-              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-              { headers },
-            );
-            const currentMetaRows = (await currentMetaRes.json()) as Array<{
-              metadata: Record<string, unknown> | null;
-            }>;
-            const currentMeta = (currentMetaRows[0]?.metadata as Record<string, unknown>) ?? {};
-
-            const updatedMeta = {
-              ...currentMeta,
-              rejection_feedback_requested: true,
-              rejection_user_id: actorUserId,
-            };
-
-            await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-              method: 'PATCH',
-              headers,
-              body: JSON.stringify({
-                metadata: updatedMeta,
-                updated_at: new Date().toISOString(),
-              }),
-            });
-            log.info({ taskId }, 'Rejection feedback flag set in task metadata');
-          } catch (err) {
-            log.warn({ taskId, err }, 'Failed to set rejection feedback flag (non-fatal)');
-          }
-
-          if (!rejectionReason && approvalMsgTs && targetChannel) {
-            try {
-              const feedbackText = `Got it, <@${actorUserId}>. What should I have done differently?`;
-              await slackClient.postMessage({
-                channel: targetChannel,
-                thread_ts: approvalMsgTs,
-                text: feedbackText,
-                blocks: [
-                  { type: 'section', text: { type: 'mrkdwn', text: feedbackText } },
-                  { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-                ],
-              });
-              log.info({ taskId }, 'Rejection feedback solicitation posted in thread');
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to post rejection feedback solicitation (non-fatal)',
-              );
-            }
-          }
-
-          if (!rejectionReason) {
-            try {
-              const rejFeedbackEvtRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
-                method: 'POST',
-                headers: {
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({
-                  id: crypto.randomUUID(),
-                  tenant_id: tenantId,
-                  archetype_id: archetypeId,
-                  task_id: taskId,
-                  event_type: 'rejection',
-                  actor_id: actorUserId,
-                }),
-              });
-              if (!rejFeedbackEvtRes.ok) {
-                const body = await rejFeedbackEvtRes.text();
-                log.warn(
-                  { taskId, status: rejFeedbackEvtRes.status, body },
-                  'Failed to write rejection feedback_event (non-fatal)',
-                );
-              } else {
-                log.info({ taskId }, 'rejection feedback_event written');
-              }
-            } catch (err) {
-              log.warn({ taskId, err }, 'Error writing rejection feedback_event (non-fatal)');
-            }
-            try {
-              const empRuleRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules`, {
-                method: 'POST',
-                headers: {
-                  apikey: supabaseKey,
-                  Authorization: `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({
-                  id: crypto.randomUUID(),
-                  tenant_id: tenantId,
-                  archetype_id: archetypeId,
-                  rule_text: '',
-                  source: 'rejection',
-                  status: 'awaiting_input',
-                  source_task_id: taskId,
-                }),
-              });
-              if (!empRuleRes.ok) {
-                const body = await empRuleRes.text();
-                log.warn(
-                  { taskId, status: empRuleRes.status, body },
-                  'Failed to create awaiting_input employee_rule for rejection (non-fatal)',
-                );
-              } else {
-                log.info(
-                  { taskId },
-                  'awaiting_input employee_rule created for rejection without reason',
-                );
-              }
-            } catch (err) {
-              log.warn(
-                { taskId, err },
-                'Failed to create awaiting_input employee_rule for rejection (non-fatal)',
-              );
-            }
-          }
-
-          await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
-          await patchTask(supabaseUrl, headers, taskId, { status: 'Cancelled' });
-          await logStatusTransition(supabaseUrl, headers, taskId, 'Cancelled', 'Reviewing');
-          log.info({ taskId }, 'State: Cancelled (rejected)');
+          await handleReject(approvalCtx, deliverable, slackClient, actorUserId, rejectionReason);
         }
       });
       log.info(

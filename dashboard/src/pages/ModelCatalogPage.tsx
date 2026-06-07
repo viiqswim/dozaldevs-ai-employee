@@ -30,18 +30,7 @@ import {
 import { toast } from 'sonner';
 import { Pencil, Trash2, Plus, Search } from 'lucide-react';
 import type { ModelCatalogEntry } from '@/lib/types';
-
-function computeCostTierLabel(
-  inputCost: number,
-  outputCost: number,
-  isFree: boolean,
-): 'free' | 'budget' | 'standard' | 'premium' {
-  if (isFree) return 'free';
-  const avg = (inputCost + outputCost) / 2;
-  if (avg < 0.5) return 'budget';
-  if (avg < 3.0) return 'standard';
-  return 'premium';
-}
+import { computeCostTierLabel } from '@/lib/utils';
 
 function computeQualityTierLabel(
   qualityIndex: number | null,

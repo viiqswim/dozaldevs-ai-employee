@@ -1,16 +1,15 @@
 import type { KnownBlock } from '@slack/web-api';
-import { buildHostfullyLink } from './enrichment-adapters/hostfully.js';
 import type { NotificationEnrichment } from './types/notification-enrichment.js';
 import { SLACK_ACTION_ID } from './slack-action-ids.js';
 import { expiredMessage } from './slack-copy.js';
 
-export function buildSupersededBlocks(taskId: string): unknown[] {
+export function buildSupersededBlocks(taskId: string): KnownBlock[] {
   return [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '⏭️ *Superseded* — a newer message from this guest is pending review below.\n_This suggested response was not sent._',
+        text: '⏭️ *Superseded* — a newer pending item is replacing this one.\n_This suggested response was not sent._',
       },
     },
     {
@@ -20,16 +19,16 @@ export function buildSupersededBlocks(taskId: string): unknown[] {
   ];
 }
 
-export function buildEnrichedNotifyBlocks(params: {
-  guestName: string;
+export function buildNotifyBlocksWithContext(params: {
+  recipientName: string;
   propertyName?: string;
   checkIn?: string;
   checkOut?: string;
   bookingChannel?: string;
   messageSnippet?: string;
   taskId: string;
-}): unknown[] {
-  const { guestName, propertyName, checkIn, checkOut, bookingChannel, messageSnippet, taskId } =
+}): KnownBlock[] {
+  const { recipientName, propertyName, checkIn, checkOut, bookingChannel, messageSnippet, taskId } =
     params;
 
   const subtitleParts: string[] = [];
@@ -37,7 +36,7 @@ export function buildEnrichedNotifyBlocks(params: {
   if (bookingChannel) subtitleParts.push(bookingChannel);
   if (checkIn && checkOut) subtitleParts.push(`${checkIn}–${checkOut}`);
 
-  let mainText = `⏳ *Working on a reply for ${guestName}*`;
+  let mainText = `⏳ *Working on a reply for ${recipientName}*`;
   if (subtitleParts.length > 0) {
     mainText += `\n_${subtitleParts.join(' · ')}_`;
   }
@@ -64,7 +63,7 @@ export function buildNotifyStateBlocks(params: {
   text: string;
   taskId: string;
   runId?: string;
-}): unknown[] {
+}): KnownBlock[] {
   const { emoji, text, taskId, runId } = params;
 
   const textLower = text.toLowerCase();
@@ -96,7 +95,7 @@ export function buildNotifyStateBlocks(params: {
     statusLabel = text;
   }
 
-  const blocks: unknown[] = [
+  const blocks: KnownBlock[] = [
     {
       type: 'section',
       text: { type: 'mrkdwn', text: `${statusEmoji} *${statusLabel}*` },
@@ -135,8 +134,8 @@ export function buildNotifyStateBlocks(params: {
   blocks.push({
     type: 'context',
     elements: [
-      { type: 'mrkdwn', text: `Task \`${taskId}\`` },
-      ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+      { type: 'mrkdwn' as const, text: `Task \`${taskId}\`` },
+      ...(runId ? [{ type: 'mrkdwn' as const, text: `Run \`${runId}\`` }] : []),
     ],
   });
 
@@ -148,7 +147,7 @@ export function buildNoActionThreadBlocks(params: {
   taskId: string;
   propertyUid?: string;
   leadUid?: string;
-}): unknown[] {
+}): KnownBlock[] {
   const { reasoning, taskId, propertyUid, leadUid } = params;
 
   const contextParts: string[] = [];
@@ -173,10 +172,10 @@ export function buildOverrideCardBlocks(params: {
   taskId: string;
   roleName: string;
   displayContext?: Record<string, string>;
-}): unknown[] {
+}): KnownBlock[] {
   const { reasoning, taskId, roleName, displayContext } = params;
 
-  const blocks: unknown[] = [
+  const blocks: KnownBlock[] = [
     {
       type: 'section',
       text: {
@@ -222,24 +221,24 @@ export function buildOverrideCardBlocks(params: {
   return blocks;
 }
 
-export function buildEnrichedTerminalBlocks(params: {
+export function buildTerminalBlocksWithContext(params: {
   status: 'done' | 'rejected' | 'failed' | 'expired' | 'delivery_failed';
   actorUserId?: string;
-  guestName?: string;
+  recipientName?: string;
   propertyName?: string;
-  threadUid?: string;
-  leadUid?: string;
+  contextUrl?: string;
+  contextLabel?: string;
   sentSnippet?: string;
   taskId: string;
   timestamp?: number;
-}): unknown[] {
+}): KnownBlock[] {
   const {
     status,
     actorUserId,
-    guestName,
+    recipientName,
     propertyName,
-    threadUid,
-    leadUid,
+    contextUrl,
+    contextLabel,
     sentSnippet,
     taskId,
     timestamp,
@@ -249,24 +248,23 @@ export function buildEnrichedTerminalBlocks(params: {
   const isoFallback = new Date(epoch * 1000).toISOString();
   const slackDate = `<!date^${epoch}^{date_short_pretty} at {time}|${isoFallback}>`;
 
-  const hasHostfullyLink = threadUid && leadUid;
-  const hostfullyMrkdwn = hasHostfullyLink
-    ? `<${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>`
+  const contextLinkMrkdwn = contextUrl
+    ? `<${contextUrl}|${contextLabel ?? '🔗 View details'}>`
     : null;
 
-  const guestSuffix = guestName ? ` · ${guestName}` : '';
+  const recipientSuffix = recipientName ? ` · ${recipientName}` : '';
   const propertyLine = propertyName ? `\n_${propertyName}_` : '';
   const actorMention = actorUserId ? `<@${actorUserId}>` : 'Unknown';
 
-  const contextBlock = {
+  const contextBlock: KnownBlock = {
     type: 'context',
-    elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+    elements: [{ type: 'mrkdwn' as const, text: `Task \`${taskId}\`` }],
   };
 
-  const blocks: unknown[] = [];
+  const blocks: KnownBlock[] = [];
 
   if (status === 'done') {
-    const mainText = `✅ *Approved by ${actorMention}*${guestSuffix}${propertyLine}`;
+    const mainText = `✅ *Approved by ${actorMention}*${recipientSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
@@ -283,13 +281,13 @@ export function buildEnrichedTerminalBlocks(params: {
     }
 
     const footerParts: string[] = [];
-    if (hostfullyMrkdwn) footerParts.push(hostfullyMrkdwn);
+    if (contextLinkMrkdwn) footerParts.push(contextLinkMrkdwn);
     footerParts.push(slackDate);
 
     if (footerParts.length > 0) {
       blocks.push({
         type: 'context',
-        elements: footerParts.map((text) => ({ type: 'mrkdwn', text })),
+        elements: footerParts.map((text) => ({ type: 'mrkdwn' as const, text })),
       });
     }
 
@@ -298,20 +296,20 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'rejected') {
-    const mainText = `❌ *Rejected by ${actorMention}*${guestSuffix}${propertyLine}`;
+    const mainText = `❌ *Rejected by ${actorMention}*${recipientSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
     });
 
     const footerParts: string[] = [];
-    if (hostfullyMrkdwn) footerParts.push(hostfullyMrkdwn);
+    if (contextLinkMrkdwn) footerParts.push(contextLinkMrkdwn);
     footerParts.push(slackDate);
 
     if (footerParts.length > 0) {
       blocks.push({
         type: 'context',
-        elements: footerParts.map((text) => ({ type: 'mrkdwn', text })),
+        elements: footerParts.map((text) => ({ type: 'mrkdwn' as const, text })),
       });
     }
 
@@ -320,16 +318,16 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'failed') {
-    const mainText = `❌ *Something went wrong*${guestSuffix}${propertyLine}`;
+    const mainText = `❌ *Something went wrong*${recipientSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
     });
 
-    if (hostfullyMrkdwn) {
+    if (contextLinkMrkdwn) {
       blocks.push({
         type: 'context',
-        elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+        elements: [{ type: 'mrkdwn', text: contextLinkMrkdwn }],
       });
     }
 
@@ -338,16 +336,16 @@ export function buildEnrichedTerminalBlocks(params: {
   }
 
   if (status === 'expired') {
-    const mainText = `${expiredMessage()}${guestSuffix}${propertyLine}`;
+    const mainText = `${expiredMessage()}${recipientSuffix}${propertyLine}`;
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: mainText },
     });
 
-    if (hostfullyMrkdwn) {
+    if (contextLinkMrkdwn) {
       blocks.push({
         type: 'context',
-        elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+        elements: [{ type: 'mrkdwn', text: contextLinkMrkdwn }],
       });
     }
 
@@ -355,16 +353,16 @@ export function buildEnrichedTerminalBlocks(params: {
     return blocks;
   }
 
-  const mainText = `❌ *Delivery failed — the reply wasn't sent*${guestSuffix}${propertyLine}`;
+  const mainText = `❌ *Delivery failed — the reply wasn't sent*${recipientSuffix}${propertyLine}`;
   blocks.push({
     type: 'section',
     text: { type: 'mrkdwn', text: mainText },
   });
 
-  if (hostfullyMrkdwn) {
+  if (contextLinkMrkdwn) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: hostfullyMrkdwn }],
+      elements: [{ type: 'mrkdwn', text: contextLinkMrkdwn }],
     });
   }
 
@@ -383,18 +381,18 @@ export function buildCompactNotifyBlocks(params: {
     | 'delivery_failed'
     | 'no_action'
     | 'superseded';
-  guestName?: string;
+  recipientName?: string;
   propertyName?: string;
   actorUserId?: string;
-  threadUid?: string;
-  leadUid?: string;
+  contextUrl?: string;
+  contextLabel?: string;
   taskId: string;
-}): unknown[] {
-  const { status, guestName, propertyName, actorUserId, threadUid, leadUid, taskId } = params;
+}): KnownBlock[] {
+  const { status, recipientName, propertyName, actorUserId, contextUrl, contextLabel, taskId } =
+    params;
 
-  const identity = [guestName, propertyName].filter(Boolean).join(' · ');
-  const linkText =
-    threadUid && leadUid ? ` <${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>` : '';
+  const identity = [recipientName, propertyName].filter(Boolean).join(' · ');
+  const linkText = contextUrl ? ` <${contextUrl}|${contextLabel ?? '🔗 View details'}>` : '';
   const actorMention = actorUserId ? `<@${actorUserId}>` : 'Unknown';
 
   let statusText: string;
@@ -511,25 +509,25 @@ export function buildNotifyBlocks(params: {
   blocks.push({
     type: 'section',
     text: { type: 'mrkdwn', text: `${statusEmoji} *${archetypeName} — ${statusLabel}*` },
-  } as KnownBlock);
+  });
 
   if (isProcessing) {
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: "⏳ On it — I'll post an update here when it's ready" }],
-    } as KnownBlock);
+    });
   } else if (isReviewing) {
     blocks.push({
       type: 'context',
       elements: [
         { type: 'mrkdwn', text: '👀 *Needs your review* — take a look when you get a chance' },
       ],
-    } as KnownBlock);
+    });
   } else if (isDone) {
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: '✅ All done!' }],
-    } as KnownBlock);
+    });
   } else if (isFailed) {
     blocks.push({
       type: 'context',
@@ -539,7 +537,7 @@ export function buildNotifyBlocks(params: {
           text: '❌ Something went wrong on my end — check the thread for details',
         },
       ],
-    } as KnownBlock);
+    });
   }
 
   if (enrichment?.displayName || enrichment?.subtitle) {
@@ -550,7 +548,7 @@ export function buildNotifyBlocks(params: {
     if (enrichment.subtitle) {
       fields.push({ type: 'mrkdwn', text: enrichment.subtitle });
     }
-    blocks.push({ type: 'section', fields } as KnownBlock);
+    blocks.push({ type: 'section', fields });
   }
 
   if (enrichment?.metadata && Object.keys(enrichment.metadata).length > 0) {
@@ -560,21 +558,26 @@ export function buildNotifyBlocks(params: {
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: metadataText }],
-    } as KnownBlock);
+    });
   }
 
   if (enrichment?.contextUrl) {
     blocks.push({
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `<${enrichment.contextUrl}|🔗 View in Hostfully>` }],
-    } as KnownBlock);
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `<${enrichment.contextUrl}|${enrichment.contextLabel ?? '🔗 View details'}>`,
+        },
+      ],
+    });
   }
 
   if (extraText) {
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: extraText },
-    } as KnownBlock);
+    });
   }
 
   if (sentSnippet) {
@@ -582,23 +585,23 @@ export function buildNotifyBlocks(params: {
     blocks.push({
       type: 'section',
       text: { type: 'mrkdwn', text: `> ${snippet}` },
-    } as KnownBlock);
+    });
   }
 
   if (threadHint) {
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: '_See thread for full details_' }],
-    } as KnownBlock);
+    });
   }
 
   blocks.push({
     type: 'context',
     elements: [
-      { type: 'mrkdwn', text: `Task \`${taskId}\`` },
-      ...(runId ? [{ type: 'mrkdwn', text: `Run \`${runId}\`` }] : []),
+      { type: 'mrkdwn' as const, text: `Task \`${taskId}\`` },
+      ...(runId ? [{ type: 'mrkdwn' as const, text: `Run \`${runId}\`` }] : []),
     ],
-  } as KnownBlock);
+  });
 
   return blocks;
 }
@@ -616,7 +619,7 @@ export function createTaskNotifyBuilders({ taskId, runId }: { taskId: string; ru
 export function buildContextThreadBlocks(params: {
   action: 'approve' | 'edit' | 'reject';
   actorUserId?: string;
-  guestName?: string;
+  recipientName?: string;
   propertyName?: string;
   checkIn?: string;
   checkOut?: string;
@@ -627,13 +630,13 @@ export function buildContextThreadBlocks(params: {
   editedResponse?: string;
   confidence?: number;
   category?: string;
-  threadUid?: string;
-  leadUid?: string;
+  contextUrl?: string;
+  contextLabel?: string;
   taskId: string;
-}): unknown[] {
+}): KnownBlock[] {
   const {
     action,
-    guestName,
+    recipientName,
     checkIn,
     checkOut,
     bookingChannel,
@@ -643,12 +646,12 @@ export function buildContextThreadBlocks(params: {
     editedResponse,
     confidence,
     category,
-    threadUid,
-    leadUid,
+    contextUrl,
+    contextLabel,
     taskId,
   } = params;
 
-  const blocks: unknown[] = [];
+  const blocks: KnownBlock[] = [];
 
   blocks.push({
     type: 'section',
@@ -656,7 +659,7 @@ export function buildContextThreadBlocks(params: {
   });
 
   const contextRowParts: string[] = [];
-  if (guestName) contextRowParts.push(`*Guest:* ${guestName}`);
+  if (recipientName) contextRowParts.push(`*Recipient:* ${recipientName}`);
   if (checkIn && checkOut) contextRowParts.push(`*Dates:* ${checkIn}–${checkOut}`);
   if (bookingChannel) contextRowParts.push(`*Channel:* ${bookingChannel}`);
   if (contextRowParts.length > 0) {
@@ -673,7 +676,7 @@ export function buildContextThreadBlocks(params: {
       .join('\n');
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: `*💬 Guest message:*\n${quotedMessage}` },
+      text: { type: 'mrkdwn', text: `*💬 Message:*\n${quotedMessage}` },
     });
   }
 
@@ -684,7 +687,7 @@ export function buildContextThreadBlocks(params: {
       .join('\n');
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: `*📤 Response sent to guest:*\n${quotedSent}` },
+      text: { type: 'mrkdwn', text: `*📤 Response sent:*\n${quotedSent}` },
     });
   } else if (action === 'edit') {
     if (draftResponse) {
@@ -718,12 +721,11 @@ export function buildContextThreadBlocks(params: {
     });
   }
 
-  const footerElements: unknown[] = [];
-  const hasHostfullyLink = threadUid && leadUid;
-  if (hasHostfullyLink) {
+  const footerElements: { type: 'mrkdwn'; text: string }[] = [];
+  if (contextUrl) {
     footerElements.push({
       type: 'mrkdwn',
-      text: `<${buildHostfullyLink(threadUid, leadUid)}|🔗 View in Hostfully>`,
+      text: `<${contextUrl}|${contextLabel ?? '🔗 View details'}>`,
     });
   }
   if (confidence !== undefined) {

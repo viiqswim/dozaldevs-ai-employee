@@ -7,7 +7,6 @@ import {
   JiraIssueDeletedSchema,
   GitHubPRWebhookSchema,
   parseJiraWebhook,
-  parseJiraIssueDeletion,
   type JiraWebhookPayload,
   CreateTenantBodySchema,
   UpdateTenantBodySchema,

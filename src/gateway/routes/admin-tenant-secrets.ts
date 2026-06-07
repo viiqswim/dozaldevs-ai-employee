@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantRepository } from '../services/tenant-repository.js';
@@ -16,7 +16,7 @@ export interface AdminTenantSecretsRouteOptions {
 
 export function adminTenantSecretsRoutes(opts: AdminTenantSecretsRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-tenant-secrets');
   const prisma = opts.prisma ?? new PrismaClient();
   const tenantRepo = new TenantRepository(prisma);
   const secretRepo = new TenantSecretRepository(prisma);

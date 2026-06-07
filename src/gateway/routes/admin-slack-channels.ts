@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { WebClient } from '@slack/web-api';
 import { requireAdminKey } from '../middleware/admin-auth.js';
@@ -12,7 +12,7 @@ export interface AdminSlackChannelsRouteOptions {
 
 export function adminSlackChannelsRoutes(opts: AdminSlackChannelsRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-slack-channels');
   const prisma = opts.prisma ?? new PrismaClient();
   const secretRepo = new TenantSecretRepository(prisma);
 

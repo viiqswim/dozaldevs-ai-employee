@@ -23,19 +23,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { GATEWAY_URL } from '@/lib/constants';
+import { GATEWAY_URL, WEBHOOK_FIXTURES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype } from '@/lib/types';
 import { toast } from 'sonner';
-
-// Fixed VLRE test fixtures — do not change
-const WEBHOOK_FIXTURES = {
-  agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
-  thread_uid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
-  lead_uid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
-  property_uid: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
-} as const;
 
 function shortModel(model: string | null): string {
   if (!model) return '—';

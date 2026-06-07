@@ -1,11 +1,6 @@
-export function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    process.stderr.write(`Error: ${name} environment variable is required\n`);
-    process.exit(1);
-  }
-  return value;
-}
+import { requireEnv } from '../lib/require-env.js';
+
+export { requireEnv };
 
 async function refreshGoogleToken(): Promise<string | null> {
   const taskId = process.env['TASK_ID'];

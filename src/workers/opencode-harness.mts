@@ -5,18 +5,17 @@ import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager, extractUsage } from './lib/session-manager.js';
 import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
 import { classifyFailure } from './lib/failure-codes.js';
-import {
-  parseStandardOutput,
-  isApprovalRequired,
-  type StandardOutput,
-} from './lib/output-schema.mjs';
+import { type StandardOutput } from './lib/output-schema.mjs';
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
 import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
-import { resolveProvider } from '../lib/go-models.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
+import { INNGEST_EVENT_KEY, INNGEST_BASE_URL } from '../lib/config.js';
+import { checkOutputFiles, readOutputContract } from './lib/output-contract.mjs';
+import { updateSlackNotificationToFailed } from './lib/slack-notifier.mjs';
+import { resolveModelProvider } from './lib/model-provider.mjs';
 
 const log = createLogger('opencode-harness');
 
@@ -68,19 +67,11 @@ const db: PostgRESTClient = createPostgRESTClient();
 type ServerHandle = { kill: () => Promise<void> };
 let serverHandleGlobal: ServerHandle | null = null;
 let heartbeatHandleGlobal: HeartbeatHandle | null = null;
-const opencodeRunPid: number | null = null;
 
 process.on('SIGTERM', () => {
   log.warn({ taskId: TASK_ID }, '[opencode-harness] SIGTERM received — marking task Failed');
   if (heartbeatHandleGlobal !== null) (heartbeatHandleGlobal as HeartbeatHandle).stop();
   if (serverHandleGlobal !== null) void (serverHandleGlobal as ServerHandle).kill();
-  if (opencodeRunPid !== null) {
-    try {
-      process.kill(opencodeRunPid, 'SIGTERM');
-    } catch {
-      // already gone
-    }
-  }
   void db
     .patch('tasks', `id=eq.${TASK_ID}`, {
       status: 'Failed',
@@ -133,54 +124,17 @@ async function markFailed(
   }
 
   // Update the Slack "Received" notification to show failure state (non-fatal)
-  const slackToken = process.env['SLACK_BOT_TOKEN'];
-  const slackChannel = process.env['NOTIFICATION_CHANNEL'];
-  const slackMsgTs = process.env['NOTIFY_MSG_TS'];
-  const roleName = process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee';
-  if (slackToken && slackChannel && slackMsgTs) {
-    try {
-      const failureText = `❌ ${roleName} — Failed`;
-      const slackBlocks = [
-        {
-          type: 'section',
-          text: { type: 'mrkdwn', text: `*${failureText}*${reason ? `\n${reason}` : ''}` },
-        },
-        {
-          type: 'context',
-          elements: [{ type: 'mrkdwn', text: `Task \`${TASK_ID}\`` }],
-        },
-      ];
-      const slackRes = await fetch('https://slack.com/api/chat.update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${slackToken}`,
-        },
-        body: JSON.stringify({
-          channel: slackChannel,
-          ts: slackMsgTs,
-          text: failureText,
-          blocks: slackBlocks,
-        }),
-      });
-      if (!slackRes.ok) {
-        log.warn(
-          { taskId: TASK_ID, status: slackRes.status },
-          '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
-        );
-      }
-    } catch (err) {
-      log.warn(
-        { err },
-        '[opencode-harness] Failed to update Slack notification on failure (non-fatal)',
-      );
-    }
-  }
+  await updateSlackNotificationToFailed(TASK_ID, reason, {
+    roleName: process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee',
+    slackToken: process.env['SLACK_BOT_TOKEN'],
+    slackChannel: process.env['NOTIFICATION_CHANNEL'],
+    slackMsgTs: process.env['NOTIFY_MSG_TS'],
+  });
 }
 
 async function fireCompletionEvent(taskId: string): Promise<void> {
-  const baseUrl = process.env.INNGEST_BASE_URL ?? 'http://localhost:8288';
-  const eventKey = process.env.INNGEST_EVENT_KEY ?? 'local';
+  const baseUrl = INNGEST_BASE_URL;
+  const eventKey = INNGEST_EVENT_KEY;
   const url = `${baseUrl}/e/${eventKey}`;
 
   const payload = {
@@ -370,9 +324,7 @@ async function runOpencodeSession(
   // Task ID is already embedded in the prompt by assembleTaskPrompt — use instructions as-is.
   const fullPrompt = instructions;
 
-  const cleanModel = model.startsWith('openrouter/') ? model.slice('openrouter/'.length) : model;
-  const goKeyPresent = Boolean(process.env.OPENCODE_GO_API_KEY);
-  const resolved = resolveProvider(cleanModel, goKeyPresent);
+  const { cleanModel, modelID, providerID, goKeyPresent } = resolveModelProvider(model);
 
   log.info(
     { taskId: TASK_ID, model: cleanModel },
@@ -395,19 +347,25 @@ async function runOpencodeSession(
   let transcript: unknown[] | null = null;
   let tokenUsage = { promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 };
 
+  // Build options once for all checkOutputFiles / readOutputContract calls in this session
+  const outputOptions = {
+    approvalRequired: process.env.APPROVAL_REQUIRED !== 'false',
+    onNeedsApproval: tryAutoPostApprovalCard,
+  };
+
   try {
-    process.env.OPENROUTER_MODEL = resolved.modelID;
-    process.env.OPENCODE_PROVIDER_ID = resolved.providerID;
+    process.env.OPENROUTER_MODEL = modelID;
+    process.env.OPENCODE_PROVIDER_ID = providerID;
 
     log.info(
       {
         component: 'opencode-harness',
-        provider: resolved.providerID,
-        model: resolved.modelID,
+        provider: providerID,
+        model: modelID,
         originalModel: cleanModel,
         goKeyPresent,
       },
-      `LLM provider resolved: ${resolved.providerID}/${resolved.modelID}`,
+      `LLM provider resolved: ${providerID}/${modelID}`,
     );
 
     const sessionManager = createSessionManager(serverHandle.url);
@@ -437,85 +395,12 @@ async function runOpencodeSession(
       serverHandle.onExit.then(() => serverExitedEarly as typeof serverExitedEarly),
     ]);
 
-    const { readFile } = await import('fs/promises');
-
-    const checkOutputFiles = async (): Promise<{
-      content: string;
-      extraMetadata: Record<string, unknown>;
-    }> => {
-      let content = 'completed';
-      let extraMetadata: Record<string, unknown> = {};
-      try {
-        const summaryText = await readFile('/tmp/summary.txt', 'utf8');
-        if (summaryText.trim()) {
-          content = summaryText.trim();
-          log.info({ taskId: TASK_ID }, '[opencode-harness] Read summary from /tmp/summary.txt');
-        }
-      } catch {
-        // not written
-      }
-      let approvalJsonExists = false;
-      try {
-        const approvalJson = await readFile('/tmp/approval-message.json', 'utf8');
-        const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
-        const PLACEHOLDER_PATTERN = /PLACEHOLDER/i;
-        const tsVal = String(approvalData.ts ?? '');
-        const channelVal = String(approvalData.channel ?? '');
-        if (
-          !tsVal ||
-          !channelVal ||
-          PLACEHOLDER_PATTERN.test(tsVal) ||
-          PLACEHOLDER_PATTERN.test(channelVal)
-        ) {
-          const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of a real Slack ts/channel. Failing task.`;
-          log.error({ taskId: TASK_ID }, msg);
-          throw new Error(msg);
-        }
-        extraMetadata = {
-          ...approvalData,
-          approval_message_ts: approvalData.ts,
-          target_channel: approvalData.channel,
-          ...(approvalData.conversationRef !== undefined && {
-            conversation_ref: approvalData.conversationRef,
-          }),
-        };
-        approvalJsonExists = true;
-        log.info(
-          { taskId: TASK_ID },
-          '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
-        );
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith('[opencode-harness] Invalid')) {
-          throw err; // re-throw validation errors
-        }
-        // not written — swallow file-not-found errors only
-      }
-      // Auto-post approval card if summary has NEEDS_APPROVAL but agent did not post a card
-      if (!approvalJsonExists && content !== 'completed') {
-        const parsedOutput = parseStandardOutput(content);
-        if (parsedOutput && isApprovalRequired(parsedOutput)) {
-          if (process.env.APPROVAL_REQUIRED === 'false') {
-            log.info(
-              { taskId: TASK_ID },
-              '[opencode-harness] Skipping auto-post approval card — approval not required',
-            );
-          } else {
-            const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
-            if (Object.keys(autoMeta).length > 0) {
-              extraMetadata = autoMeta;
-            }
-          }
-        }
-      }
-      return { content, extraMetadata };
-    };
-
     if (monitorRace === serverExitedEarly) {
       log.warn(
         { taskId: TASK_ID, sessionId },
         '[opencode-harness] opencode serve exited — checking output files',
       );
-      const { content, extraMetadata } = await checkOutputFiles();
+      const { content, extraMetadata } = await checkOutputFiles(TASK_ID, outputOptions);
       if (content !== 'completed' || Object.keys(extraMetadata).length > 0) {
         log.info(
           { taskId: TASK_ID },
@@ -542,7 +427,7 @@ async function runOpencodeSession(
         { taskId: TASK_ID, sessionId },
         '[opencode-harness] Session timed out — checking output files',
       );
-      const { content, extraMetadata } = await checkOutputFiles();
+      const { content, extraMetadata } = await checkOutputFiles(TASK_ID, outputOptions);
       if (content !== 'completed' || Object.keys(extraMetadata).length > 0) {
         log.info(
           { taskId: TASK_ID },
@@ -566,6 +451,7 @@ async function runOpencodeSession(
     // Recovery nudge: if session completed but submit-output was skipped
     const summaryExistsCheck = await (async () => {
       try {
+        const { readFile } = await import('fs/promises');
         await readFile('/tmp/summary.txt', 'utf8');
         return true;
       } catch {
@@ -584,7 +470,10 @@ async function runOpencodeSession(
         timeoutMs: 5 * 60 * 1000,
         minElapsedMs: 10_000,
       });
-      const { content: nudgeContent, extraMetadata: nudgeMeta } = await checkOutputFiles();
+      const { content: nudgeContent, extraMetadata: nudgeMeta } = await checkOutputFiles(
+        TASK_ID,
+        outputOptions,
+      );
       if (nudgeContent === 'completed' && Object.keys(nudgeMeta).length === 0) {
         throw new Error(
           '[opencode-harness] submit-output still not found after recovery nudge — task failed',
@@ -622,319 +511,217 @@ async function runOpencodeSession(
     log.info('[opencode-harness] OpenCode server stopped');
   }
 
-  const { readFile: readFileFinal } = await import('fs/promises');
-  let content = 'completed';
-  let extraMetadata: Record<string, unknown> = {};
-
-  try {
-    const summaryText = await readFileFinal('/tmp/summary.txt', 'utf8');
-    if (summaryText.trim()) {
-      content = summaryText.trim();
-      log.info({ taskId: TASK_ID }, '[opencode-harness] Read summary from /tmp/summary.txt');
-    }
-  } catch {
-    // not written
-  }
-
-  let approvalJsonExists = false;
-  try {
-    const approvalJson = await readFileFinal('/tmp/approval-message.json', 'utf8');
-    const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
-    const PLACEHOLDER_PATTERN = /PLACEHOLDER/i;
-    const tsVal = String(approvalData.ts ?? '');
-    const channelVal = String(approvalData.channel ?? '');
-    if (
-      !tsVal ||
-      !channelVal ||
-      PLACEHOLDER_PATTERN.test(tsVal) ||
-      PLACEHOLDER_PATTERN.test(channelVal)
-    ) {
-      const msg = `[opencode-harness] Invalid approval metadata detected — ts="${tsVal}", channel="${channelVal}". The model likely wrote placeholders instead of a real Slack ts/channel. Failing task.`;
-      log.error({ taskId: TASK_ID }, msg);
-      throw new Error(msg);
-    }
-    extraMetadata = {
-      ...approvalData,
-      approval_message_ts: approvalData.ts,
-      target_channel: approvalData.channel,
-      ...(approvalData.conversationRef !== undefined && {
-        conversation_ref: approvalData.conversationRef,
-      }),
-    };
-    approvalJsonExists = true;
-    log.info(
-      { taskId: TASK_ID },
-      '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
-    );
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('[opencode-harness] Invalid')) {
-      throw err; // re-throw validation errors
-    }
-    // not written — swallow file-not-found errors only
-  }
-
-  // Auto-post approval card if summary has NEEDS_APPROVAL but agent did not post a card
-  if (!approvalJsonExists && content !== 'completed') {
-    const parsedOutput = parseStandardOutput(content);
-    if (parsedOutput && isApprovalRequired(parsedOutput)) {
-      if (process.env.APPROVAL_REQUIRED === 'false') {
-        log.info(
-          { taskId: TASK_ID },
-          '[opencode-harness] Skipping auto-post approval card — approval not required',
-        );
-      } else {
-        const autoMeta = await tryAutoPostApprovalCard(parsedOutput);
-        if (Object.keys(autoMeta).length > 0) {
-          extraMetadata = autoMeta;
-        }
-      }
-    }
-  }
-
-  if (content === 'completed' && Object.keys(extraMetadata).length === 0) {
-    throw new Error(
-      '[opencode-harness] Model did not produce content — /tmp/summary.txt and /tmp/approval-message.json were not written. This is a model reliability issue; retry the task.',
-    );
-  }
-
+  // Normal completion path — read both output files; throw if neither was written
+  const { content, extraMetadata } = await readOutputContract(TASK_ID, outputOptions);
   return { content, metadata: { ...extraMetadata }, sessionId, transcript, tokenUsage };
 }
 
-async function main(): Promise<void> {
-  // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
-  // applyResourceCaps() respects already-set values (if (!env[key]) guard), so the DB value
-  // takes precedence and the hardcoded fallback in resource-caps.ts applies only when DB is unavailable.
+// ---------------------------------------------------------------------------
+// Delivery phase
+// ---------------------------------------------------------------------------
+
+async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow): Promise<void> {
+  // 1. Fetch the approved deliverable content from DB
+  const deliverableRows = await db.get(
+    'deliverables',
+    `external_ref=eq.${TASK_ID}&select=*&order=created_at.desc&limit=1`,
+  );
+  const deliverable = deliverableRows?.[0] as Record<string, unknown> | undefined;
+  if (!deliverable) {
+    log.error({ taskId: TASK_ID }, '[opencode-harness] No deliverable found for delivery phase');
+    await markFailed(
+      'No deliverable found for delivery phase',
+      null,
+      'Delivering',
+      classifyFailure('No deliverable found for delivery phase'),
+    );
+    return;
+  }
+  const deliverableContent = (deliverable.content as string) ?? '';
+
+  const deliveryExecutionId = crypto.randomUUID();
+  let deliveryExecId: string | null = null;
   try {
-    const bashTimeout = await getPlatformSetting('worker_bash_timeout_ms');
-    process.env['OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS'] = bashTimeout;
-  } catch {
+    const deliveryExecRecord = await db.post('executions', {
+      id: deliveryExecutionId,
+      task_id: TASK_ID,
+      runtime_type: 'opencode',
+      status: 'running',
+      phase: 'delivery',
+      updated_at: new Date().toISOString(),
+    });
+    deliveryExecId =
+      deliveryExecRecord && typeof (deliveryExecRecord as { id?: unknown }).id === 'string'
+        ? (deliveryExecRecord as { id: string }).id
+        : deliveryExecutionId;
+    log.info(
+      { taskId: TASK_ID, deliveryExecId },
+      '[opencode-harness] Delivery execution record created',
+    );
+  } catch (err) {
+    log.warn({ err }, '[opencode-harness] Failed to create delivery execution record — non-fatal');
+    deliveryExecId = null;
+  }
+
+  // 3. Build delivery prompt with injected deliverable content — use assembleTaskPrompt for
+  //    consistency with the execution phase (adds date/epoch prefix + Task ID suffix).
+  const deliveryPrompt = assembleTaskPrompt({
+    instructions: `Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n${deliverableContent}\n</approved-content>`,
+    taskId: TASK_ID,
+  });
+
+  // 4. Auth setup — required before OpenCode session
+  await writeOpencodeAuth(archetype.temperature ?? 1.0);
+
+  // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
+  try {
+    const { writeFile } = await import('node:fs/promises');
+    const compiledAgentsMd = compileAgentsMd({
+      identity: archetype.identity ?? '',
+      executionSteps: archetype.execution_steps ?? '',
+      deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
+      employeeRules: '',
+      employeeKnowledge: '',
+      platformRulesOverride: archetype.platform_rules_override ?? undefined,
+    });
+    await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
+    log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');
+  } catch (err) {
     log.warn(
-      {},
-      '[opencode-harness] worker_bash_timeout_ms not in platform_settings — applyResourceCaps will apply hardcoded fallback',
+      '[opencode-harness] Failed to compile delivery AGENTS.md, using static default: %s',
+      err,
     );
   }
-  applyResourceCaps();
 
-  log.info({ taskId: TASK_ID }, 'OpenCode harness starting');
-
-  const rows = await db.get('tasks', `id=eq.${TASK_ID}&select=*,archetypes(*)`);
-  if (!rows || rows.length === 0) {
-    log.error({ taskId: TASK_ID }, '[opencode-harness] Task not found — aborting');
-    process.exit(1);
-  }
-  const task = rows[0] as TaskWithArchetype;
-
-  const archetypeRaw = task.archetypes;
-  const archetype: ArchetypeRow | null = Array.isArray(archetypeRaw)
-    ? (archetypeRaw[0] ?? null)
-    : (archetypeRaw ?? null);
-
-  if (!archetype) {
-    log.error({ taskId: TASK_ID }, '[opencode-harness] Task has no archetype — aborting');
-    process.exit(1);
-  }
-
-  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === 'delivery';
-  if (isDeliveryPhase) {
-    // 1. Fetch the approved deliverable content from DB
-    const deliverableRows = await db.get(
-      'deliverables',
-      `external_ref=eq.${TASK_ID}&select=*&order=created_at.desc&limit=1`,
+  // 6. Run the OpenCode delivery session
+  if (!archetype.model) {
+    log.error(
+      { taskId: TASK_ID },
+      '[opencode-harness] Archetype has no model configured for delivery phase',
     );
-    const deliverable = deliverableRows?.[0] as Record<string, unknown> | undefined;
-    if (!deliverable) {
-      log.error({ taskId: TASK_ID }, '[opencode-harness] No deliverable found for delivery phase');
-      await markFailed(
-        'No deliverable found for delivery phase',
-        null,
-        'Delivering',
-        classifyFailure('No deliverable found for delivery phase'),
-      );
-      return;
+    if (deliveryExecId) {
+      await db
+        .patch('executions', `id=eq.${deliveryExecId}`, {
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        })
+        .catch(() => {});
     }
-    const deliverableContent = (deliverable.content as string) ?? '';
+    await markFailed('Archetype has no model configured', null, 'Delivering', 'missing_model');
+    return;
+  }
+  let deliveryResult: Awaited<ReturnType<typeof runOpencodeSession>> | null = null;
+  try {
+    deliveryResult = await runOpencodeSession(
+      deliveryPrompt,
+      archetype.model,
+      'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
+      { minElapsedMs: 30_000 },
+    );
+  } catch (err) {
+    log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
+    const deliveryErr = err instanceof Error ? err.message : String(err);
+    if (deliveryExecId) {
+      await db
+        .patch('executions', `id=eq.${deliveryExecId}`, {
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        })
+        .catch(() => {});
+    }
+    await markFailed(deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
+    return;
+  }
 
-    const deliveryExecutionId = crypto.randomUUID();
-    let deliveryExecId: string | null = null;
+  if (deliveryExecId && deliveryResult) {
     try {
-      const deliveryExecRecord = await db.post('executions', {
-        id: deliveryExecutionId,
-        task_id: TASK_ID,
-        runtime_type: 'opencode',
-        status: 'running',
-        phase: 'delivery',
+      const usage = deliveryResult.tokenUsage;
+      await db.patch('executions', `id=eq.${deliveryExecId}`, {
+        status: 'completed',
+        prompt_tokens: usage.promptTokens,
+        completion_tokens: usage.completionTokens,
+        estimated_cost_usd: usage.estimatedCostUsd,
         updated_at: new Date().toISOString(),
       });
-      deliveryExecId =
-        deliveryExecRecord && typeof (deliveryExecRecord as { id?: unknown }).id === 'string'
-          ? (deliveryExecRecord as { id: string }).id
-          : deliveryExecutionId;
       log.info(
-        { taskId: TASK_ID, deliveryExecId },
-        '[opencode-harness] Delivery execution record created',
+        { taskId: TASK_ID, deliveryExecId, ...usage },
+        '[opencode-harness] Delivery execution metrics persisted',
       );
     } catch (err) {
       log.warn(
         { err },
-        '[opencode-harness] Failed to create delivery execution record — non-fatal',
-      );
-      deliveryExecId = null;
-    }
-
-    // 3. Build delivery prompt with injected deliverable content — use assembleTaskPrompt for
-    //    consistency with the execution phase (adds date/epoch prefix + Task ID suffix).
-    const deliveryPrompt = assembleTaskPrompt({
-      instructions: `Follow the instructions in <delivery-instructions> within the AGENTS.md file\n\n<approved-content>\n${deliverableContent}\n</approved-content>`,
-      taskId: TASK_ID,
-    });
-
-    // 4. Auth setup — required before OpenCode session
-    await writeOpencodeAuth(archetype.temperature ?? 1.0);
-
-    // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
-    try {
-      const { writeFile } = await import('node:fs/promises');
-      const compiledAgentsMd = compileAgentsMd({
-        identity: archetype.identity ?? '',
-        executionSteps: archetype.execution_steps ?? '',
-        deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
-        employeeRules: '',
-        employeeKnowledge: '',
-        platformRulesOverride: archetype.platform_rules_override ?? undefined,
-      });
-      await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
-      log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');
-    } catch (err) {
-      log.warn(
-        '[opencode-harness] Failed to compile delivery AGENTS.md, using static default: %s',
-        err,
+        '[opencode-harness] Failed to persist delivery execution metrics — non-fatal',
       );
     }
-
-    // 6. Run the OpenCode delivery session
-    if (!archetype.model) {
-      log.error(
-        { taskId: TASK_ID },
-        '[opencode-harness] Archetype has no model configured for delivery phase',
-      );
-      if (deliveryExecId) {
-        await db
-          .patch('executions', `id=eq.${deliveryExecId}`, {
-            status: 'failed',
-            updated_at: new Date().toISOString(),
-          })
-          .catch(() => {});
-      }
-      await markFailed('Archetype has no model configured', null, 'Delivering', 'missing_model');
-      return;
-    }
-    let deliveryResult: Awaited<ReturnType<typeof runOpencodeSession>> | null = null;
-    try {
-      deliveryResult = await runOpencodeSession(
-        deliveryPrompt,
-        archetype.model,
-        'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
-        { minElapsedMs: 30_000 },
-      );
-    } catch (err) {
-      log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
-      const deliveryErr = err instanceof Error ? err.message : String(err);
-      if (deliveryExecId) {
-        await db
-          .patch('executions', `id=eq.${deliveryExecId}`, {
-            status: 'failed',
-            updated_at: new Date().toISOString(),
-          })
-          .catch(() => {});
-      }
-      await markFailed(deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
-      return;
-    }
-
-    if (deliveryExecId && deliveryResult) {
-      try {
-        const usage = deliveryResult.tokenUsage;
-        await db.patch('executions', `id=eq.${deliveryExecId}`, {
-          status: 'completed',
-          prompt_tokens: usage.promptTokens,
-          completion_tokens: usage.completionTokens,
-          estimated_cost_usd: usage.estimatedCostUsd,
-          updated_at: new Date().toISOString(),
-        });
-        log.info(
-          { taskId: TASK_ID, deliveryExecId, ...usage },
-          '[opencode-harness] Delivery execution metrics persisted',
-        );
-      } catch (err) {
-        log.warn(
-          { err },
-          '[opencode-harness] Failed to persist delivery execution metrics — non-fatal',
-        );
-      }
-    }
-
-    // 7. Verify delivery confirmation from /tmp/summary.txt
-    {
-      const { readFile: deliveryReadFile } = await import('fs/promises');
-      let summaryRaw: string;
-      try {
-        summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
-      } catch {
-        await markFailed(
-          'Delivery not confirmed — no summary.txt produced',
-          null,
-          'Delivering',
-          classifyFailure('Delivery not confirmed — no summary.txt produced'),
-        );
-        return;
-      }
-      let deliverySummary: Record<string, unknown>;
-      try {
-        deliverySummary = JSON.parse(summaryRaw) as Record<string, unknown>;
-      } catch {
-        await markFailed(
-          'Delivery not confirmed — summary.txt is not valid JSON',
-          null,
-          'Delivering',
-          classifyFailure('Delivery not confirmed — summary.txt is not valid JSON'),
-        );
-        return;
-      }
-      if (deliverySummary.delivered !== true && !deliverySummary.summary) {
-        await markFailed(
-          'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
-          null,
-          'Delivering',
-          classifyFailure(
-            'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
-          ),
-        );
-        return;
-      }
-      log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery confirmed via summary.txt');
-    }
-
-    // 8. Mark task Done
-    await db.patch('tasks', `id=eq.${TASK_ID}`, {
-      status: 'Done',
-      updated_at: new Date().toISOString(),
-    });
-    try {
-      await db.post('task_status_log', {
-        task_id: TASK_ID,
-        from_status: 'Delivering',
-        to_status: 'Done',
-        actor: 'machine',
-        updated_at: new Date().toISOString(),
-      });
-    } catch (err) {
-      log.warn({ err }, '[opencode-harness] Failed to log Delivering→Done transition (non-fatal)');
-    }
-    log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
-    await fireCompletionEvent(TASK_ID);
-    process.exit(0);
   }
 
+  // 7. Verify delivery confirmation from /tmp/summary.txt
+  {
+    const { readFile: deliveryReadFile } = await import('fs/promises');
+    let summaryRaw: string;
+    try {
+      summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
+    } catch {
+      await markFailed(
+        'Delivery not confirmed — no summary.txt produced',
+        null,
+        'Delivering',
+        classifyFailure('Delivery not confirmed — no summary.txt produced'),
+      );
+      return;
+    }
+    let deliverySummary: Record<string, unknown>;
+    try {
+      deliverySummary = JSON.parse(summaryRaw) as Record<string, unknown>;
+    } catch {
+      await markFailed(
+        'Delivery not confirmed — summary.txt is not valid JSON',
+        null,
+        'Delivering',
+        classifyFailure('Delivery not confirmed — summary.txt is not valid JSON'),
+      );
+      return;
+    }
+    if (deliverySummary.delivered !== true && !deliverySummary.summary) {
+      await markFailed(
+        'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
+        null,
+        'Delivering',
+        classifyFailure(
+          'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
+        ),
+      );
+      return;
+    }
+    log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery confirmed via summary.txt');
+  }
+
+  // 8. Mark task Done
+  await db.patch('tasks', `id=eq.${TASK_ID}`, {
+    status: 'Done',
+    updated_at: new Date().toISOString(),
+  });
+  try {
+    await db.post('task_status_log', {
+      task_id: TASK_ID,
+      from_status: 'Delivering',
+      to_status: 'Done',
+      actor: 'machine',
+      updated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.warn({ err }, '[opencode-harness] Failed to log Delivering→Done transition (non-fatal)');
+  }
+  log.info({ taskId: TASK_ID }, '[opencode-harness] Delivery phase complete — task Done');
+  await fireCompletionEvent(TASK_ID);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Execution phase
+// ---------------------------------------------------------------------------
+
+async function runExecutionPhase(task: TaskWithArchetype, archetype: ArchetypeRow): Promise<void> {
   const employeeRules = process.env.EMPLOYEE_RULES ?? '';
   const employeeKnowledge = process.env.EMPLOYEE_KNOWLEDGE ?? '';
   const overrideDirection = process.env.OVERRIDE_DIRECTION ?? '';
@@ -1154,6 +941,53 @@ async function main(): Promise<void> {
 
   log.info({ taskId: TASK_ID }, 'OpenCode harness complete');
   process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
+  // applyResourceCaps() respects already-set values (if (!env[key]) guard), so the DB value
+  // takes precedence and the hardcoded fallback in resource-caps.ts applies only when DB is unavailable.
+  try {
+    const bashTimeout = await getPlatformSetting('worker_bash_timeout_ms');
+    process.env['OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS'] = bashTimeout;
+  } catch {
+    log.warn(
+      {},
+      '[opencode-harness] worker_bash_timeout_ms not in platform_settings — applyResourceCaps will apply hardcoded fallback',
+    );
+  }
+  applyResourceCaps();
+
+  log.info({ taskId: TASK_ID }, 'OpenCode harness starting');
+
+  const rows = await db.get('tasks', `id=eq.${TASK_ID}&select=*,archetypes(*)`);
+  if (!rows || rows.length === 0) {
+    log.error({ taskId: TASK_ID }, '[opencode-harness] Task not found — aborting');
+    process.exit(1);
+  }
+  const task = rows[0] as TaskWithArchetype;
+
+  const archetypeRaw = task.archetypes;
+  const archetype: ArchetypeRow | null = Array.isArray(archetypeRaw)
+    ? (archetypeRaw[0] ?? null)
+    : (archetypeRaw ?? null);
+
+  if (!archetype) {
+    log.error({ taskId: TASK_ID }, '[opencode-harness] Task has no archetype — aborting');
+    process.exit(1);
+  }
+
+  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === 'delivery';
+  if (isDeliveryPhase) {
+    await runDeliveryPhase(task, archetype);
+    return;
+  }
+
+  await runExecutionPhase(task, archetype);
 }
 
 main().catch((err) => {

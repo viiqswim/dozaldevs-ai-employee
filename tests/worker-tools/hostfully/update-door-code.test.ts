@@ -89,7 +89,7 @@ describe('update-door-code tool', () => {
       if (key in savedEnv) {
         process.env[key] = savedEnv[key];
       } else {
-        delete process.env[key]; // eslint-disable-line @typescript-eslint/no-dynamic-delete
+        delete process.env[key];
       }
     }
   });
@@ -107,7 +107,7 @@ describe('update-door-code tool', () => {
 
     for (const [key, value] of Object.entries(envOverrides)) {
       if (value === undefined) {
-        delete process.env[key]; // eslint-disable-line @typescript-eslint/no-dynamic-delete
+        delete process.env[key];
       } else {
         process.env[key] = value;
       }

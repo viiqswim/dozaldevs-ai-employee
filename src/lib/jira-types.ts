@@ -1,11 +1,9 @@
-export type JiraAuthMode = 'oauth' | 'basic';
-
-export interface JiraOAuthConfig {
+interface JiraOAuthConfig {
   accessToken: string;
   cloudId: string;
 }
 
-export interface JiraBasicConfig {
+interface JiraBasicConfig {
   email: string;
   apiToken: string;
   baseUrl: string;
@@ -16,7 +14,7 @@ export interface JiraClientConfig {
   mock?: boolean;
 }
 
-export interface AdfNode {
+interface AdfNode {
   type: string;
   content?: AdfNode[];
   text?: string;
@@ -66,38 +64,5 @@ export const JIRA_AUTH_URL = 'https://auth.atlassian.com/authorize';
 export const JIRA_TOKEN_URL = 'https://auth.atlassian.com/oauth/token';
 export const JIRA_ACCESSIBLE_RESOURCES_URL =
   'https://api.atlassian.com/oauth/token/accessible-resources';
-export const JIRA_API_VERSION = '3';
 export const JIRA_REQUIRED_SCOPES =
   'read:jira-work write:jira-work read:jira-user manage:jira-webhook offline_access';
-
-export function plainTextToAdf(text: string): AdfDocument {
-  return {
-    type: 'doc',
-    version: 1,
-    content: [
-      {
-        type: 'paragraph',
-        content: [{ type: 'text', text }],
-      },
-    ],
-  };
-}
-
-export function adfToPlainText(adf: AdfDocument | null): string {
-  if (!adf) return '';
-
-  const texts: string[] = [];
-
-  const extractText = (nodes: AdfNode[] | undefined): void => {
-    if (!nodes) return;
-    for (const node of nodes) {
-      if (typeof node.text === 'string') {
-        texts.push(node.text);
-      }
-      extractText(node.content);
-    }
-  };
-
-  extractText(adf.content);
-  return texts.join('');
-}

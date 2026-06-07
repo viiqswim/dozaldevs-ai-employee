@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@prisma/client', () => ({
+  PrismaClient: vi.fn(),
+}));
+
 vi.mock('../platform-settings.js', () => ({
   getPlatformSetting: vi.fn(),
 }));
@@ -24,7 +28,7 @@ vi.mock('../retry.js', () => ({
 }));
 
 import { getPlatformSetting } from '../platform-settings.js';
-import { _resetGatewayModelCache, callLLM } from '../call-llm.js';
+import { _resetGatewayModelCache, _resetPrisma, callLLM } from '../call-llm.js';
 import { GO_OPENAI_ENDPOINT } from '../go-models.js';
 
 const mockGetPlatformSetting = vi.mocked(getPlatformSetting);
@@ -60,6 +64,7 @@ describe('callLLM', () => {
 
   beforeEach(() => {
     _resetGatewayModelCache();
+    _resetPrisma();
     fetchMock = vi.fn().mockResolvedValue(buildMockResponse());
     vi.stubGlobal('fetch', fetchMock);
 
@@ -258,7 +263,20 @@ describe('callLLM', () => {
   });
 
   describe('Flash pricing', () => {
-    it('calculates cost using deepseek-v4-flash pricing (0.14 prompt / 0.28 completion)', async () => {
+    it('calculates cost using deepseek-v4-flash pricing from model_catalog (0.14 prompt / 0.28 completion)', async () => {
+      const { PrismaClient } = await import('@prisma/client');
+      vi.mocked(PrismaClient).mockImplementation(
+        () =>
+          ({
+            modelCatalog: {
+              findFirst: vi.fn().mockResolvedValue({
+                input_cost_per_million: 0.14,
+                output_cost_per_million: 0.28,
+              }),
+            },
+          }) as unknown as InstanceType<typeof PrismaClient>,
+      );
+
       fetchMock.mockResolvedValue(
         buildMockResponse({
           data: {
@@ -276,6 +294,64 @@ describe('callLLM', () => {
       });
 
       expect(result.estimatedCostUsd).toBeCloseTo(0.14 + 0.28, 5);
+    });
+  });
+
+  describe('cost computation from model_catalog', () => {
+    it('returns cost > 0 for a non-minimax/non-deepseek model when pricing is found in DB', async () => {
+      const { PrismaClient } = await import('@prisma/client');
+      vi.mocked(PrismaClient).mockImplementation(
+        () =>
+          ({
+            modelCatalog: {
+              findFirst: vi.fn().mockResolvedValue({
+                input_cost_per_million: 0.5,
+                output_cost_per_million: 1.5,
+              }),
+            },
+          }) as unknown as InstanceType<typeof PrismaClient>,
+      );
+
+      fetchMock.mockResolvedValue(
+        buildMockResponse({
+          data: {
+            choices: [{ message: { content: 'response' } }],
+            model: 'alibaba/qwen3.7-max',
+            usage: { prompt_tokens: 100_000, completion_tokens: 50_000 },
+          },
+        }),
+      );
+
+      const result = await callLLM({
+        model: 'alibaba/qwen3.7-max',
+        messages: baseMessages,
+        taskType: 'review',
+      });
+
+      expect(result.estimatedCostUsd).toBeGreaterThan(0);
+      expect(result.estimatedCostUsd).toBeCloseTo(0.125, 5);
+    });
+
+    it('returns 0 when model is not found in catalog', async () => {
+      const { PrismaClient } = await import('@prisma/client');
+      vi.mocked(PrismaClient).mockImplementation(
+        () =>
+          ({
+            modelCatalog: {
+              findFirst: vi.fn().mockResolvedValue(null),
+            },
+          }) as unknown as InstanceType<typeof PrismaClient>,
+      );
+
+      fetchMock.mockResolvedValue(buildMockResponse());
+
+      const result = await callLLM({
+        model: 'unknown/model-xyz',
+        messages: baseMessages,
+        taskType: 'review',
+      });
+
+      expect(result.estimatedCostUsd).toBe(0);
     });
   });
 
@@ -310,6 +386,29 @@ describe('callLLM', () => {
         ([k]) => k === 'gateway_llm_model',
       );
       expect(modelCalls).toHaveLength(2);
+    });
+  });
+
+  describe('cost circuit breaker — decimal limit', () => {
+    it('parses "50.5" as 50.5, not 50 — spend of 50.1 does not trip the breaker', async () => {
+      process.env.DATABASE_URL = 'postgresql://test';
+
+      mockGetPlatformSetting.mockImplementation(async (key: string) => {
+        if (key === 'gateway_llm_model') return 'deepseek/deepseek-v4-flash';
+        if (key === 'cost_limit_usd_per_day') return '50.5';
+        if (key === 'cost_alert_slack_channel') return '#alerts';
+        throw new Error(`Unexpected setting: ${key}`);
+      });
+
+      const { PrismaClient } = await import('@prisma/client');
+      vi.mocked(PrismaClient).mockImplementation(
+        () =>
+          ({
+            $queryRaw: vi.fn().mockResolvedValue([{ total: '50.1' }]),
+          }) as unknown as InstanceType<typeof PrismaClient>,
+      );
+
+      await expect(callLLM({ messages: baseMessages, taskType: 'review' })).resolves.toBeDefined();
     });
   });
 });

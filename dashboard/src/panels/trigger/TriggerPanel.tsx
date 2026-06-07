@@ -158,7 +158,7 @@ export function TriggerPanel() {
   if (!archetypes || archetypes.length === 0) {
     return (
       <div className="flex items-center justify-center p-16 text-center">
-        <p className="text-muted-foreground">No employees found for this tenant</p>
+        <p className="text-muted-foreground">No employees found for this organization</p>
       </div>
     );
   }
@@ -169,9 +169,7 @@ export function TriggerPanel() {
         <Card>
           <CardHeader>
             <CardTitle>Trigger Employee</CardTitle>
-            <CardDescription>
-              Select an employee archetype and fire a task manually via the admin API.
-            </CardDescription>
+            <CardDescription>Pick an employee below and start a task manually.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">

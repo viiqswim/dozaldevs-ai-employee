@@ -19,7 +19,7 @@ export const GO_MODEL_MAP: Map<string, string> = new Map([
 // Anthropic-compatible models use /messages endpoint (NOT supported by call-llm.ts)
 export type GoEndpointType = 'openai' | 'anthropic';
 
-export const GO_ENDPOINT_TYPE: Map<string, GoEndpointType> = new Map([
+const GO_ENDPOINT_TYPE: Map<string, GoEndpointType> = new Map([
   // OpenAI-compatible — can be used by both worker harness AND gateway (call-llm.ts)
   ['deepseek-v4-flash', 'openai'],
   ['deepseek-v4-pro', 'openai'],

@@ -300,21 +300,21 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Approve & Send', emoji: true },
-          action_id: 'guest_approve',
+          text: { type: 'plain_text', text: '✅ Approve & Send', emoji: true },
+          action_id: 'approve',
           value: params.taskId,
           style: 'primary',
         },
         {
           type: 'button',
           text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
-          action_id: 'guest_edit',
+          action_id: 'edit_and_send',
           value: editValue,
         },
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Reject', emoji: true },
-          action_id: 'guest_reject',
+          text: { type: 'plain_text', text: '❌ Reject', emoji: true },
+          action_id: 'reject',
           value: params.taskId,
           style: 'danger',
         },
@@ -346,6 +346,7 @@ function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
   writeFileSync(draftTempPath, params.draftResponse, 'utf8');
 
   const metadata: Record<string, unknown> = {
+    recipient_name: params.guestName,
     guest_name: params.guestName,
     property_name: params.propertyName,
     thread_uid: params.threadUid,
@@ -511,6 +512,7 @@ export async function main(): Promise<void> {
     target_channel: result.channel,
     conversation_ref: resolvedConversationRef,
     task_id: params.taskId,
+    recipient_name: params.guestName,
     guest_name: params.guestName,
     property_name: params.propertyName,
     category: params.category,

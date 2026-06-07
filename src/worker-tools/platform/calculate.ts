@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   }
 
   // Safety check: only allow digits, spaces, and basic arithmetic operators
-  const safe = /^[\d\s\+\-\*\/\.\(\)]+$/.test(expression.trim());
+  const safe = /^[\d\s+\-*/.()+]+$/.test(expression.trim());
   if (!safe) {
     process.stderr.write(
       'Error: expression contains invalid characters. Only digits, spaces, +, -, *, /, (, ) are allowed.\n',
@@ -65,7 +65,6 @@ async function main(): Promise<void> {
 
   let result: number;
   try {
-    // eslint-disable-next-line no-new-func
     result = Function(`"use strict"; return (${expression.trim()})`)() as number;
   } catch {
     process.stderr.write('Error: could not evaluate expression\n');

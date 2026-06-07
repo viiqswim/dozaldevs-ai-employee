@@ -22,7 +22,7 @@ export function failureMessage(): string {
 
 // ── Watchdog copy (C) ─────────────────────────────────────────────────────────
 
-export function watchdogFailureMessage(roleName?: string): string {
+export function watchdogFailureMessage(): string {
   return `❌ This one timed out before it could finish — I didn't get what I needed in time. Mind kicking it off again?`;
 }
 

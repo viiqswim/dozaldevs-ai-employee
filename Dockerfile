@@ -74,8 +74,6 @@ COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./
 
-COPY src/workers/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
 COPY src/workers/config/opencode.json /app/opencode.json
 # Skills: baked into image for native OpenCode skill discovery
 COPY src/workers/skills/ /app/.opencode/skills/
@@ -92,4 +90,4 @@ ENV NODE_PATH=/tools/node_modules
 LABEL org.opencontainers.image.source="https://github.com/ai-employee/ai-employee"
 LABEL org.opencontainers.image.description="AI Employee worker container - runs OpenCode agent sessions"
 
-CMD ["bash", "entrypoint.sh"]
+CMD ["node", "dist/workers/opencode-harness.mjs"]

@@ -114,7 +114,6 @@ describe('createReviewingWatchdogTrigger', () => {
     delete process.env.SUPABASE_SECRET_KEY;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function invokeWatchdog(step: ReturnType<typeof makeStep>) {
     const fn = createReviewingWatchdogTrigger(inngest);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

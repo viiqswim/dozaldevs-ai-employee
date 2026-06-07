@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library.js';
 import type { InngestLike } from '../types.js';
 
 export interface DispatchEmployeeParams {
@@ -92,4 +93,83 @@ export async function dispatchEmployee(
   });
 
   return { kind: 'dispatched', taskId: task.id, archetypeId: archetype.id };
+}
+
+export interface DispatchEmployeeByIdParams {
+  archetypeId: string;
+  tenantId: string;
+  externalId: string;
+  sourceSystem: string;
+  prisma: PrismaClient;
+  inngest: InngestLike;
+  inputs?: Record<string, string>;
+}
+
+export type DispatchEmployeeByIdResult =
+  | { kind: 'dispatched'; taskId: string }
+  | { kind: 'idempotent'; taskId: string }
+  | { kind: 'error'; code: 'ARCHETYPE_NOT_FOUND'; message: string };
+
+/**
+ * Dispatch an employee task by archetype ID (rather than slug).
+ * Handles idempotent re-dispatch: if a task with the same external_id already
+ * exists (P2002), reuses it and re-sends the Inngest event (Inngest deduplicates
+ * by the event `id` field).
+ */
+export async function dispatchEmployeeById(
+  params: DispatchEmployeeByIdParams,
+): Promise<DispatchEmployeeByIdResult> {
+  const { archetypeId, tenantId, externalId, sourceSystem, prisma, inngest, inputs } = params;
+
+  const archetype = await prisma.archetype.findFirst({
+    where: { id: archetypeId, tenant_id: tenantId, status: 'active', deleted_at: null },
+    select: { id: true },
+  });
+
+  if (!archetype) {
+    return {
+      kind: 'error',
+      code: 'ARCHETYPE_NOT_FOUND',
+      message: `Archetype ${archetypeId} not found or inactive for tenant ${tenantId}`,
+    };
+  }
+
+  let taskId: string;
+  let kind: 'dispatched' | 'idempotent';
+
+  try {
+    const task = await prisma.task.create({
+      data: {
+        archetype_id: archetypeId,
+        external_id: externalId,
+        source_system: sourceSystem,
+        status: 'Ready',
+        tenant_id: tenantId,
+        ...(inputs ? { raw_event: { inputs } } : {}),
+      },
+    });
+    taskId = task.id;
+    kind = 'dispatched';
+  } catch (error) {
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Duplicate external_id — reuse existing task (idempotent re-trigger)
+      const existing = await prisma.task.findFirst({
+        where: { external_id: externalId, source_system: sourceSystem, tenant_id: tenantId },
+        select: { id: true },
+      });
+      if (!existing) throw error;
+      taskId = existing.id;
+      kind = 'idempotent';
+    } else {
+      throw error;
+    }
+  }
+
+  await inngest.send({
+    name: 'employee/task.dispatched',
+    data: { taskId, archetypeId },
+    id: `employee-dispatch-${externalId}`,
+  });
+
+  return { kind, taskId };
 }

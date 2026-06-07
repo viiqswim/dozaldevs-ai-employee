@@ -15,6 +15,8 @@
  * See AGENTS.md Section 4 for the mandatory reporting policy.
  */
 
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
 interface Args {
   taskId: string;
   toolName: string;
@@ -42,9 +44,9 @@ function parseArgs(argv: string[]): Args {
     } else if (args[i] === '--tool-name' && args[i + 1]) {
       toolName = args[++i];
     } else if (args[i] === '--description' && args[i + 1]) {
-      description = args[++i];
+      description = unescapeShellArg(args[++i]);
     } else if (args[i] === '--patch-diff' && args[i + 1]) {
-      patchDiff = args[++i];
+      patchDiff = unescapeShellArg(args[++i]);
     } else if (args[i] === '--help') {
       help = true;
     }

@@ -6,8 +6,8 @@ import {
 
 const makeThread = (overrides: Partial<ReminderThread> = {}): ReminderThread => ({
   threadUid: 'thread-1',
-  guestName: 'Alice Smith',
-  propertyName: 'Beach House',
+  recipientName: 'Alice Smith',
+  contextLabel: 'Beach House',
   elapsedMinutes: 45,
   permalink: 'https://slack.com/archives/C123/p1234567890',
   ...overrides,
@@ -23,8 +23,8 @@ describe('buildReminderBlocks', () => {
   it('uses plural "messages" in header for multiple threads', () => {
     const threads = [
       makeThread(),
-      makeThread({ threadUid: 't2', guestName: 'Bob' }),
-      makeThread({ threadUid: 't3', guestName: 'Carol' }),
+      makeThread({ threadUid: 't2', recipientName: 'Bob' }),
+      makeThread({ threadUid: 't3', recipientName: 'Carol' }),
     ];
     const blocks = buildReminderBlocks(threads);
     const header = blocks[0] as { type: string; text: { text: string } };

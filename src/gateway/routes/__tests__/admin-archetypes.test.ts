@@ -125,7 +125,8 @@ describe('Draft flow — PATCH /admin/tenants/:tenantId/archetypes/:archetypeId'
       .set('X-Admin-Key', ADMIN_KEY)
       .send({ status: 'active' });
     expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/role_name/);
+    expect(res.body.error).toBe('ROLE_NAME_CONFLICT');
+    expect(res.body.message).toMatch(/role_name/);
   });
 
   it('200 when activating a draft with no conflicting active archetype', async () => {

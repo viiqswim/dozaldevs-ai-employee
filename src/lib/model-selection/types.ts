@@ -18,7 +18,7 @@ export interface UserAnswers {
   speedPreference: 'fast' | 'relaxed';
 }
 
-export interface CostEstimate {
+interface CostEstimate {
   perTaskUsd: number;
   monthlyUsd: number | null;
 }
@@ -30,7 +30,7 @@ export interface ScoreBreakdown {
   toolReliability: number;
 }
 
-export interface ModelTiers {
+interface ModelTiers {
   cost: CostTier;
   quality: QualityTier;
   speed: SpeedGrade;

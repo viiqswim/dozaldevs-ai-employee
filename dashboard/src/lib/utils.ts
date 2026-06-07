@@ -48,3 +48,15 @@ export function formatCostUsd(usd: number | null | undefined): string {
   if (usd == null || usd === 0) return '—';
   return `$${usd.toFixed(4)}`;
 }
+
+export function computeCostTierLabel(
+  inputCost: number,
+  outputCost: number,
+  isFree: boolean,
+): 'free' | 'budget' | 'standard' | 'premium' {
+  if (isFree) return 'free';
+  const avg = (inputCost + outputCost) / 2;
+  if (avg < 0.5) return 'budget';
+  if (avg < 3.0) return 'standard';
+  return 'premium';
+}

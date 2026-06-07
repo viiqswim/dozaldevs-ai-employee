@@ -4,13 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { InputSchemaItem } from '@/lib/types';
 
 interface InputSchemaEditorProps {
@@ -36,6 +30,15 @@ const TYPE_LABELS: Record<InputSchemaItem['type'], string> = {
   url: 'url',
   select: 'select',
 };
+
+const TYPE_OPTIONS: { value: InputSchemaItem['type']; label: string }[] = [
+  { value: 'text', label: '📝 Text' },
+  { value: 'long_text', label: '📝 Long Text' },
+  { value: 'date', label: '📅 Date' },
+  { value: 'number', label: '🔢 Number' },
+  { value: 'url', label: '🔗 URL' },
+  { value: 'select', label: '📋 Select' },
+];
 
 const SNAKE_CASE_RE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
@@ -229,22 +232,12 @@ export function InputSchemaEditor({ value, onChange, readOnly = false }: InputSc
                     <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Type
                     </label>
-                    <Select
+                    <SearchableSelect
+                      options={TYPE_OPTIONS}
                       value={item.type}
                       onValueChange={(v) => updateItem(idx, { type: v as InputSchemaItem['type'] })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">📝 Text</SelectItem>
-                        <SelectItem value="long_text">📝 Long Text</SelectItem>
-                        <SelectItem value="date">📅 Date</SelectItem>
-                        <SelectItem value="number">🔢 Number</SelectItem>
-                        <SelectItem value="url">🔗 URL</SelectItem>
-                        <SelectItem value="select">📋 Select</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      searchPlaceholder="Search types..."
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantIdParamSchema } from '../validation/schemas.js';
+import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
@@ -18,10 +19,6 @@ interface EnvVarEntry {
   category: 'always' | 'conditional';
   is_set: boolean;
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const uuidField = () =>
-  z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
 
 const BrainPreviewParamSchema = TenantIdParamSchema.extend({
   archetypeId: uuidField(),
@@ -39,7 +36,7 @@ export interface AdminBrainPreviewRouteOptions {
 
 export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-brain-preview');
   const prisma = opts.prisma ?? new PrismaClient();
 
   router.post(
@@ -48,12 +45,12 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
       const bodyResult = CompilePreviewBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
       const { identity, execution_steps, delivery_steps } = bodyResult.data;
@@ -68,7 +65,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         res.status(200).json({ compiled_agents_md: compiledAgentsMd });
       } catch (err) {
         logger.error({ err }, 'Failed to compile AGENTS.md preview');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -79,7 +76,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
     async (req, res) => {
       const paramResult = BrainPreviewParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
 
@@ -90,7 +87,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           where: { id: archetypeId, tenant_id: tenantId },
         });
         if (!archetype) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
 
@@ -367,7 +364,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         });
       } catch (err) {
         logger.error({ err }, 'Failed to assemble brain preview');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );

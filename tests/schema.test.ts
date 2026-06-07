@@ -84,8 +84,8 @@ describe('CHECK constraints', () => {
       'Approved',
       'Delivering',
       'Done',
+      'Failed',
       'Cancelled',
-      'Stale',
     ];
     for (const status of validStatuses) {
       await expect(

@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantIdParamSchema, InputSchemaSchema } from '../validation/schemas.js';
+import { TenantIdParamSchema, InputSchemaSchema, uuidField } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 import { ArchetypeRepository, ActiveTasksError } from '../services/archetype-repository.js';
 import {
   analyzeArchetype,
@@ -20,10 +21,6 @@ function isPrismaError(err: unknown): err is { code: string } {
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const uuidField = () =>
-  z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
 
 const ArchetypeParamSchema = TenantIdParamSchema.extend({
   archetypeId: uuidField(),
@@ -161,7 +158,7 @@ const MODEL_QUESTIONS = [
 
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-archetypes');
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new ArchetypeRepository(prisma);
   const estimator = new TimeEstimator(callLLM);
@@ -169,13 +166,13 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   router.post('/admin/tenants/:tenantId/archetypes', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
       return;
     }
 
     const bodyResult = CreateArchetypeBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
       return;
     }
 
@@ -234,14 +231,16 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       res.status(201).json(resultArchetype);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
-        res.status(409).json({
-          error: 'ROLE_NAME_TAKEN',
-          message: 'An employee with this name already exists for this tenant',
-        });
+        sendError(
+          res,
+          409,
+          'ROLE_NAME_TAKEN',
+          'An employee with this name already exists for this tenant',
+        );
         return;
       }
       logger.error({ err }, 'Failed to create archetype');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
@@ -259,13 +258,13 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
 
       const bodyResult = RecommendModelBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
 
@@ -285,7 +284,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         res.status(200).json(recommendation);
       } catch (err) {
         logger.error({ err }, 'Failed to generate model recommendation');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -296,13 +295,13 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
 
       const bodyResult = PatchArchetypeBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
 
@@ -314,7 +313,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         });
 
         if (!existing) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
 
@@ -340,7 +339,12 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
             },
           });
           if (conflict) {
-            res.status(409).json({ error: 'role_name already taken by an active employee' });
+            sendError(
+              res,
+              409,
+              'ROLE_NAME_CONFLICT',
+              'role_name already taken by an active employee',
+            );
             return;
           }
         }
@@ -397,7 +401,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         res.status(200).json(resultArchetype);
       } catch (err) {
         logger.error({ err }, 'Failed to update archetype');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -408,7 +412,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
       const { tenantId, archetypeId } = paramResult.data;
@@ -417,19 +421,21 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         res.status(200).json({ id: deleted.id, deleted_at: deleted.deleted_at });
       } catch (err) {
         if (err instanceof ActiveTasksError) {
-          res.status(409).json({
-            error: 'ACTIVE_TASKS',
-            message: `Cannot delete: ${err.activeTaskCount} active task(s)`,
-            activeTaskCount: err.activeTaskCount,
-          });
+          sendError(
+            res,
+            409,
+            'ACTIVE_TASKS',
+            `Cannot delete: ${err.activeTaskCount} active task(s)`,
+            { activeTaskCount: err.activeTaskCount },
+          );
           return;
         }
         if (err instanceof Error && err.message.includes('not found')) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
         logger.error({ err }, 'Failed to soft-delete archetype');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -440,7 +446,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
       const { tenantId, archetypeId } = paramResult.data;
@@ -449,18 +455,20 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         res.status(200).json(restored);
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
         if (err instanceof Error && err.message.includes('role_name')) {
-          res.status(409).json({
-            error: 'CONFLICT',
-            message: 'An active archetype with the same role_name already exists',
-          });
+          sendError(
+            res,
+            409,
+            'CONFLICT',
+            'An active archetype with the same role_name already exists',
+          );
           return;
         }
         logger.error({ err }, 'Failed to restore archetype');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );

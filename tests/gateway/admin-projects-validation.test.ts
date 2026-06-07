@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   ToolingConfigSchema,
-  CreateProjectSchema,
-  UpdateProjectSchema,
   parseCreateProject,
   parseUpdateProject,
 } from '../../src/gateway/validation/schemas.js';

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantRepository } from '../services/tenant-repository.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
@@ -34,7 +34,7 @@ export interface GoogleOAuthRouteOptions {
 
 export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('google-oauth');
   const prisma = opts.prisma ?? new PrismaClient();
   const tenantRepo = new TenantRepository(prisma);
   const secretRepo = new TenantSecretRepository(prisma);

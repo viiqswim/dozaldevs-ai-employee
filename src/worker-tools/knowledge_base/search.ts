@@ -27,6 +27,8 @@
  *   1 — missing required arg, missing required env var, or PostgREST error
  */
 
+import { requireEnv } from '../lib/require-env.js';
+
 interface Args {
   entityType: string;
   entityId: string;
@@ -94,17 +96,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const supabaseUrl = process.env['SUPABASE_URL'];
-  if (!supabaseUrl) {
-    process.stderr.write('Error: SUPABASE_URL environment variable is required\n');
-    process.exit(1);
-  }
-
-  const supabaseKey = process.env['SUPABASE_SECRET_KEY'];
-  if (!supabaseKey) {
-    process.stderr.write('Error: SUPABASE_SECRET_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const supabaseUrl = requireEnv('SUPABASE_URL');
+  const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
   const tenantId = args.tenantId || process.env['TENANT_ID'];
   if (!tenantId) {

@@ -1,13 +1,7 @@
 import { Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useTenant } from '@/hooks/use-tenant';
 import { TENANTS } from '@/lib/constants';
 import type { PreflightStatus } from '@/hooks/use-preflight-status';
@@ -66,18 +60,14 @@ export function Header({ onOpenApiKey, preflightStatus }: HeaderProps) {
         <HealthChip status={preflightStatus} />
       </div>
       <div className="flex items-center gap-2">
-        <Select value={tenantId} onValueChange={setTenantId}>
-          <SelectTrigger className="w-36 h-8 text-xs">
-            <SelectValue placeholder="Select tenant" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(TENANTS).map(([id, name]) => (
-              <SelectItem key={id} value={id} className="text-xs">
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={Object.entries(TENANTS).map(([id, name]) => ({ value: id, label: name }))}
+          value={tenantId}
+          onValueChange={setTenantId}
+          placeholder="Select organization"
+          searchPlaceholder="Search organizations..."
+          className="w-36"
+        />
         <Button
           variant="ghost"
           size="icon"

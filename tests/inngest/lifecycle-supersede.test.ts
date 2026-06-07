@@ -184,6 +184,7 @@ afterEach(() => {
 describe('lifecycle — check-supersede step', () => {
   it('happy path: supersedes old task when conversation_ref present and old task is Reviewing', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-supersede-1' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     const sendSpy = vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: ['event-1'] });
 
     mockGetPendingApproval.mockResolvedValue({
@@ -249,6 +250,7 @@ describe('lifecycle — check-supersede step', () => {
 
   it('race condition: clears stale entry and does NOT supersede when old task is already Approved', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-supersede-2' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     const sendSpy = vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     mockGetPendingApproval.mockResolvedValue({
@@ -290,6 +292,7 @@ describe('lifecycle — check-supersede step', () => {
 
   it('skips superseding entirely when conversation_ref is absent from deliverable metadata', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-supersede-3' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     const sendSpy = vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     const fetchMock = vi.fn().mockImplementation(async (url: string, _init?: RequestInit) => {
@@ -312,6 +315,7 @@ describe('lifecycle — check-supersede step', () => {
 
   it('skips superseding when getPendingApproval returns null (no prior pending task)', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-supersede-4' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     const sendSpy = vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     mockGetPendingApproval.mockResolvedValue(null);
@@ -336,6 +340,7 @@ describe('lifecycle — check-supersede step', () => {
 
   it('self-reference guard: skips superseding when pending task ID equals current task ID', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-supersede-5' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     const sendSpy = vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     mockGetPendingApproval.mockResolvedValue({
@@ -370,6 +375,7 @@ describe('lifecycle — check-supersede step', () => {
 describe('lifecycle — track-pending-approval step', () => {
   it('calls trackPendingApproval with correct data when all metadata fields are present', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-track-1' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     mockGetPendingApproval.mockResolvedValue(null);
@@ -414,6 +420,7 @@ describe('lifecycle — track-pending-approval step', () => {
 
   it('does NOT call trackPendingApproval when conversation_ref is missing from metadata', async () => {
     const inngest = new Inngest({ id: 'ai-employee-test-track-2' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send is private; spy requires any cast
     vi.spyOn(inngest as any, 'send').mockResolvedValue({ ids: [] });
 
     const fetchMock = vi.fn().mockImplementation(async (url: string, _init?: RequestInit) => {

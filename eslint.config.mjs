@@ -5,7 +5,15 @@ import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/**', 'dist/**', 'supabase/**', 'prisma/migrations/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'dashboard/**',
+      '.sisyphus/**',
+      'supabase/**',
+      'prisma/migrations/**',
+      'src/worker-tools/notion/lib/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -19,8 +27,11 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+      '@typescript-eslint/no-explicit-any': 'error',
     },
   },
   prettierConfig,

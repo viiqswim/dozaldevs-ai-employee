@@ -99,3 +99,24 @@
 - CRITICAL REMINDER: local .env SLACK_* are now DEMO APP values (swapped earlier this session).
   NEVER copy local .env SLACK_* to prod. Prod must keep Papi Chulo / A09678HT90S values.
 - FINAL STATE: 21 keys, all values exact-verified. OPENCODE_GO_API_KEY added (sk-AEmXD...).
+
+## [2026-06-07] Prod Papi Chulo silent on @mention — missing CLIENT_ID/CLIENT_SECRET
+- SYMPTOM: @mention to Papi Chulo (prod) in VLRE got no response; only local REMI app answered.
+- DIAGNOSIS: probe of Papi Chulo app token (A09678HT90S) → num_connections=1 (ONLY the probe).
+  Prod gateway was NOT holding a Socket Mode connection.
+- ROOT CAUSE: server.ts line 110 gates Socket Mode init on
+  `if (signingSecret && clientId && clientSecret)`. Prod was MISSING SLACK_CLIENT_ID and
+  SLACK_CLIENT_SECRET → fell to else branch → logged "Slack not configured" → no socket.
+  (Likely dropped during the earlier env-var pagination churn; my "expected 21" baseline never
+  included CLIENT_ID/SECRET so they weren't restored.)
+- CORRECT PAPI CHULO VALUES (recovered from .sisyphus/evidence/task-6-final-suite.txt):
+  * SLACK_CLIENT_ID     = 6661458697890.9211289927026   (format: workspaceID.appID — has a DOT)
+  * SLACK_CLIENT_SECRET = 4ceface4997b43977d33003c4de62d7f
+  * SLACK_SIGNING_SECRET= f5932eb27cbbffdc244d86da81d6b903
+  NOTE: user mislabeled these when re-sending — Client ID is the dotted one; the plain-hex values
+  are Client Secret and Signing Secret respectively. Always disambiguate: Client ID has a dot.
+- FIX: PUT both keys to Render (now 23 keys) → redeploy → "Socket Mode connected" x2,
+  0 "Slack not configured", probe num_connections=2. Prod Papi Chulo now listening.
+- LESSON: the FULL prod Slack set is SIX keys: SLACK_APP_TOKEN, SLACK_BOT_TOKEN,
+  SLACK_SIGNING_SECRET, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_REDIRECT_BASE_URL.
+  Socket Mode needs SIGNING_SECRET + CLIENT_ID + CLIENT_SECRET all present.

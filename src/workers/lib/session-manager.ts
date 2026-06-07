@@ -196,7 +196,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
       const runStream = async (): Promise<void> => {
         try {
           await runStreamOnce();
-        } catch (sseError) {
+        } catch (_sseError) {
           if (settled) return;
 
           if (reconnect) {

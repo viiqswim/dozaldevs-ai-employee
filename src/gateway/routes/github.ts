@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('github-webhook');
 
 export interface GitHubWebhookRouteOptions {
   prisma?: PrismaClient;

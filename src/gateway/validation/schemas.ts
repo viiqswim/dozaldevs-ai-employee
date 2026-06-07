@@ -159,11 +159,8 @@ export function parseUpdateProject(body: unknown): UpdateProjectInput {
   return UpdateProjectSchema.parse(body);
 }
 
-// Loose UUID regex — accepts any 8-4-4-4-12 hex pattern including all-zero test UUIDs
-// (Zod's z.string().uuid() enforces strict RFC 4122 version/variant bits which rejects
-// all-zero UUIDs used in seed data and tests)
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const uuidField = () =>
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const uuidField = () =>
   z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
 
 // URL params for POST /admin/tenants/:tenantId/employees/:slug/trigger
@@ -330,22 +327,11 @@ export const CreatePropertyLockSchema = z.object({
   lock_metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-type CreatePropertyLock = z.infer<typeof CreatePropertyLockSchema>;
-
 export const UpdatePropertyLockSchema = CreatePropertyLockSchema.partial();
 
 export const TenantPropertyLockParamSchema = TenantIdParamSchema.extend({
   lockId: uuidField(),
 });
-
-function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
-  const result = CreatePropertyLockSchema.safeParse(body);
-  if (!result.success) {
-    const messages = result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
-    throw new Error(`Invalid property lock payload: ${messages}`);
-  }
-  return result.data;
-}
 
 // ─── Input Schema (dynamic employee inputs) ───────────────────────────────────
 

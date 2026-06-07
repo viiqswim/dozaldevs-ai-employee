@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantRepository } from '../services/tenant-repository.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
@@ -14,7 +14,7 @@ export interface SlackOAuthRouteOptions {
 
 export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('slack-oauth');
   const prisma = opts.prisma ?? new PrismaClient();
   const tenantRepo = new TenantRepository(prisma);
   const secretRepo = new TenantSecretRepository(prisma);

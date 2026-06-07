@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildSupersededBlocks,
-  buildEnrichedNotifyBlocks,
+  buildNotifyBlocksWithContext,
   buildNotifyStateBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
-  buildEnrichedTerminalBlocks,
+  buildTerminalBlocksWithContext,
   buildContextThreadBlocks,
   buildCompactNotifyBlocks,
   buildNotifyBlocks,
@@ -72,10 +72,10 @@ describe('buildSupersededBlocks', () => {
   });
 });
 
-describe('buildEnrichedNotifyBlocks', () => {
+describe('buildNotifyBlocksWithContext', () => {
   it('includes all fields when full data is provided', () => {
-    const blocks = buildEnrichedNotifyBlocks({
-      guestName: 'Alice',
+    const blocks = buildNotifyBlocksWithContext({
+      recipientName: 'Alice',
       propertyName: 'Beach House',
       bookingChannel: 'Airbnb',
       checkIn: '2026-06-01',
@@ -93,8 +93,8 @@ describe('buildEnrichedNotifyBlocks', () => {
     expect(allText).toContain('task-001');
   });
 
-  it('handles minimal data (only guestName + taskId) without subtitle or snippet', () => {
-    const blocks = buildEnrichedNotifyBlocks({ guestName: 'Bob', taskId: 'task-002' });
+  it('handles minimal data (only recipientName + taskId) without subtitle or snippet', () => {
+    const blocks = buildNotifyBlocksWithContext({ recipientName: 'Bob', taskId: 'task-002' });
     const sectionBlock = (blocks as Block[]).find((b) => b.type === 'section');
     expect(sectionBlock).toBeDefined();
     const text = sectionBlock!.text!.text;
@@ -105,8 +105,8 @@ describe('buildEnrichedNotifyBlocks', () => {
 
   it('truncates message snippet longer than 120 chars with "..."', () => {
     const longSnippet = 'A'.repeat(121);
-    const blocks = buildEnrichedNotifyBlocks({
-      guestName: 'Carol',
+    const blocks = buildNotifyBlocksWithContext({
+      recipientName: 'Carol',
       taskId: 'task-003',
       messageSnippet: longSnippet,
     });
@@ -117,8 +117,8 @@ describe('buildEnrichedNotifyBlocks', () => {
 
   it('does NOT truncate message snippet of exactly 120 chars', () => {
     const exactSnippet = 'B'.repeat(120);
-    const blocks = buildEnrichedNotifyBlocks({
-      guestName: 'Dave',
+    const blocks = buildNotifyBlocksWithContext({
+      recipientName: 'Dave',
       taskId: 'task-004',
       messageSnippet: exactSnippet,
     });
@@ -128,7 +128,7 @@ describe('buildEnrichedNotifyBlocks', () => {
   });
 
   it('context block contains taskId', () => {
-    const blocks = buildEnrichedNotifyBlocks({ guestName: 'Eve', taskId: 'task-005' });
+    const blocks = buildNotifyBlocksWithContext({ recipientName: 'Eve', taskId: 'task-005' });
     const contextBlock = (blocks as Block[]).find((b) => b.type === 'context');
     expect(contextBlock).toBeDefined();
     const contextText = JSON.stringify(contextBlock);
@@ -263,17 +263,17 @@ describe('buildHostfullyLink', () => {
   });
 });
 
-describe('buildEnrichedTerminalBlocks', () => {
+describe('buildTerminalBlocksWithContext', () => {
   const FIXED_EPOCH = 1746806400;
 
-  it('status done with all fields contains actor mention, guest name, property, hostfully link, date, task ID', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+  it('status done with all fields contains actor mention, recipient name, property, hostfully link, date, task ID', () => {
+    const blocks = buildTerminalBlocksWithContext({
       status: 'done',
       actorUserId: 'U123',
-      guestName: 'Tiffany White',
+      recipientName: 'Tiffany White',
       propertyName: 'Ocean View Suite',
-      threadUid: 'thread-123',
-      leadUid: 'lead-456',
+      contextUrl: buildHostfullyLink('thread-123', 'lead-456'),
+      contextLabel: '🔗 View in Hostfully',
       sentSnippet: 'Thank you for your inquiry!',
       taskId: 'test-task-id',
       timestamp: FIXED_EPOCH,
@@ -288,7 +288,7 @@ describe('buildEnrichedTerminalBlocks', () => {
   });
 
   it('status done with minimal fields does not throw and includes task ID context block', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+    const blocks = buildTerminalBlocksWithContext({
       status: 'done',
       taskId: 'minimal-task-id',
     });
@@ -297,7 +297,7 @@ describe('buildEnrichedTerminalBlocks', () => {
   });
 
   it('status rejected contains rejection indicator and actor mention', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+    const blocks = buildTerminalBlocksWithContext({
       status: 'rejected',
       actorUserId: 'U456',
       taskId: 'task-rej-001',
@@ -309,7 +309,7 @@ describe('buildEnrichedTerminalBlocks', () => {
   });
 
   it('status failed contains task failed text', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+    const blocks = buildTerminalBlocksWithContext({
       status: 'failed',
       taskId: 'task-fail-001',
     });
@@ -319,7 +319,7 @@ describe('buildEnrichedTerminalBlocks', () => {
   });
 
   it('status expired contains expired indicator', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+    const blocks = buildTerminalBlocksWithContext({
       status: 'expired',
       taskId: 'task-exp-001',
     });
@@ -329,7 +329,7 @@ describe('buildEnrichedTerminalBlocks', () => {
   });
 
   it('status delivery_failed contains delivery failed text', () => {
-    const blocks = buildEnrichedTerminalBlocks({
+    const blocks = buildTerminalBlocksWithContext({
       status: 'delivery_failed',
       taskId: 'task-df-001',
     });
@@ -348,7 +348,7 @@ describe('buildContextThreadBlocks', () => {
       taskId: 'task-ctx-001',
     });
     const allText = JSON.stringify(blocks);
-    expect(allText).toContain('📤 Response sent to guest');
+    expect(allText).toContain('📤 Response sent:');
     expect(allText).toContain('>Thank you for your inquiry!');
     expect(allText).toContain('>Is the pool heated?');
     expect(allText).toContain('task-ctx-001');
@@ -363,7 +363,7 @@ describe('buildContextThreadBlocks', () => {
     });
     const allText = JSON.stringify(blocks);
     expect(allText).toContain('🤖 Original AI draft');
-    expect(allText).toContain('✏️ Edited response');
+    expect(allText).toContain('✏️ Edited response (sent):');
     expect(allText).toContain('>AI draft here.');
     expect(allText).toContain('>Edited by PM.');
     expect(allText).toContain('task-ctx-002');
@@ -398,10 +398,9 @@ describe('buildCompactNotifyBlocks', () => {
   type Block = { type: string; text?: { type: string; text: string }; elements?: unknown[] };
 
   const FULL_PARAMS = {
-    guestName: 'Olivia',
+    recipientName: 'Olivia',
     propertyName: 'Beach House',
-    threadUid: 'thread-abc',
-    leadUid: 'lead-xyz',
+    contextUrl: buildHostfullyLink('thread-abc', 'lead-xyz'),
     taskId: 'task-compact-001',
   } as const;
 
@@ -505,11 +504,10 @@ describe('buildCompactNotifyBlocks', () => {
     expect(text).toContain('Superseded');
   });
 
-  it('includes Hostfully link when both threadUid and leadUid are provided', () => {
+  it('includes Hostfully link when contextUrl is provided', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'processing',
-      threadUid: 'thread-abc',
-      leadUid: 'lead-xyz',
+      contextUrl: buildHostfullyLink('thread-abc', 'lead-xyz'),
       taskId: 'task-c-link-01',
     });
     const text = (blocks as Block[])[0].text!.text;
@@ -517,30 +515,19 @@ describe('buildCompactNotifyBlocks', () => {
     expect(text).toContain('🔗 View');
   });
 
-  it('omits Hostfully link when threadUid is missing', () => {
+  it('omits link when contextUrl is missing', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'processing',
-      leadUid: 'lead-xyz',
       taskId: 'task-c-link-02',
     });
     const text = (blocks as Block[])[0].text!.text;
     expect(text).not.toContain('hostfully.com');
   });
 
-  it('omits Hostfully link when leadUid is missing', () => {
+  it('includes recipientName and propertyName in identity when both provided', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'processing',
-      threadUid: 'thread-abc',
-      taskId: 'task-c-link-03',
-    });
-    const text = (blocks as Block[])[0].text!.text;
-    expect(text).not.toContain('hostfully.com');
-  });
-
-  it('includes guestName and propertyName in identity when both provided', () => {
-    const blocks = buildCompactNotifyBlocks({
-      status: 'processing',
-      guestName: 'Olivia',
+      recipientName: 'Olivia',
       propertyName: 'Beach House',
       taskId: 'task-c-id-01',
     });
@@ -550,7 +537,7 @@ describe('buildCompactNotifyBlocks', () => {
     expect(text).toContain('Olivia · Beach House');
   });
 
-  it('gracefully handles missing guestName — only propertyName shown in identity', () => {
+  it('gracefully handles missing recipientName — only propertyName shown in identity', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'processing',
       propertyName: 'Beach House',
@@ -561,10 +548,10 @@ describe('buildCompactNotifyBlocks', () => {
     expect(text).not.toContain(' · Beach House');
   });
 
-  it('gracefully handles missing propertyName — only guestName shown in identity', () => {
+  it('gracefully handles missing propertyName — only recipientName shown in identity', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'processing',
-      guestName: 'Olivia',
+      recipientName: 'Olivia',
       taskId: 'task-c-id-03',
     });
     const text = (blocks as Block[])[0].text!.text;
@@ -586,11 +573,10 @@ describe('buildCompactNotifyBlocks', () => {
   it('full params produce correct combined text with identity, status, and link', () => {
     const blocks = buildCompactNotifyBlocks({
       status: 'done',
-      guestName: 'Olivia',
+      recipientName: 'Olivia',
       propertyName: 'Beach House',
       actorUserId: 'U123',
-      threadUid: 'thread-abc',
-      leadUid: 'lead-xyz',
+      contextUrl: buildHostfullyLink('thread-abc', 'lead-xyz'),
       taskId: 'task-c-full-01',
     });
     const text = (blocks as Block[])[0].text!.text;

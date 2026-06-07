@@ -1,10 +1,7 @@
 export const SLACK_ACTION_ID = {
   APPROVE: 'approve',
+  EDIT_AND_SEND: 'edit_and_send',
   REJECT: 'reject',
-  GUEST_APPROVE: 'guest_approve',
-  GUEST_EDIT: 'guest_edit',
-  GUEST_REJECT: 'guest_reject',
-  EDITED_DRAFT: 'edited_draft',
   OVERRIDE_TAKE_ACTION: 'override_take_action',
   OVERRIDE_DISMISS: 'override_dismiss',
   RULE_CONFIRM: 'rule_confirm',
@@ -13,5 +10,3 @@ export const SLACK_ACTION_ID = {
   TRIGGER_CONFIRM: 'trigger_confirm',
   TRIGGER_CANCEL: 'trigger_cancel',
 } as const;
-
-export type SlackActionId = (typeof SLACK_ACTION_ID)[keyof typeof SLACK_ACTION_ID];

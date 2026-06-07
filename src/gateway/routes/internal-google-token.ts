@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import {
   getGoogleAccessToken,
   GoogleNotConnectedError,
@@ -8,7 +8,7 @@ import {
   GoogleWorkspaceSessionExpiredError,
 } from '../services/google-token-manager.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('internal-google-token');
 
 export interface InternalGoogleTokenRouteOptions {
   prisma?: PrismaClient;

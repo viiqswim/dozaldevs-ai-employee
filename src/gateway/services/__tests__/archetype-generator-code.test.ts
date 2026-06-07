@@ -17,17 +17,6 @@ function makeLLMResult(json: object): ReturnType<typeof vi.fn> {
   });
 }
 
-function makeLLMResultRaw(content: string): ReturnType<typeof vi.fn> {
-  return vi.fn().mockResolvedValue({
-    content,
-    model: 'deepseek/deepseek-v4-flash',
-    promptTokens: 10,
-    completionTokens: 50,
-    estimatedCostUsd: 0.0001,
-    latencyMs: 50,
-  });
-}
-
 const BASE_RESPONSE = {
   role_name: 'test-employee',
   model: 'minimax/minimax-m2.7',

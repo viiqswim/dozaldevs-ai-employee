@@ -6,9 +6,26 @@ import {
   _clearPendingInputCollections,
 } from '../../../src/gateway/slack/handlers.js';
 
-const { mockCallLLM, mockExtractInputsFromText } = vi.hoisted(() => ({
-  mockCallLLM: vi.fn(),
-  mockExtractInputsFromText: vi.fn(),
+const { mockCallLLM, mockExtractInputsFromText, mockPrismaInstance } = vi.hoisted(() => {
+  const instance = {
+    archetype: {
+      findFirst: vi.fn(),
+    },
+    task: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    $disconnect: vi.fn().mockResolvedValue(undefined),
+  };
+  return {
+    mockCallLLM: vi.fn(),
+    mockExtractInputsFromText: vi.fn(),
+    mockPrismaInstance: instance,
+  };
+});
+
+vi.mock('@prisma/client', () => ({
+  PrismaClient: vi.fn(() => mockPrismaInstance),
 }));
 
 vi.mock('../../../src/lib/call-llm.js', () => ({
@@ -71,24 +88,11 @@ interface InputSchemaItem {
   options?: string[];
 }
 
-function makeArchetypeResponse(inputSchema: InputSchemaItem[]) {
+function makeArchetypeRow(inputSchema: InputSchemaItem[]) {
   return {
-    ok: true,
-    json: () =>
-      Promise.resolve([
-        {
-          id: 'arch-1',
-          role_name: 'Cleaning Schedule',
-          input_schema: inputSchema,
-        },
-      ]),
-  };
-}
-
-function makeTaskCreationResponse() {
-  return {
-    ok: true,
-    json: () => Promise.resolve([{ id: 'task-123' }]),
+    id: 'arch-1',
+    role_name: 'Cleaning Schedule',
+    input_schema: inputSchema,
   };
 }
 
@@ -120,29 +124,16 @@ function makeActionBody(
   };
 }
 
-let mockFetch: ReturnType<typeof vi.fn>;
-
 beforeEach(() => {
   vi.clearAllMocks();
   _clearPendingInputCollections();
 
-  process.env.SUPABASE_URL = 'http://localhost:54321';
-  process.env.SUPABASE_SECRET_KEY = 'test-key';
-
-  mockFetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
-    if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-      return Promise.resolve(
-        makeArchetypeResponse([
-          { key: 'date', label: 'Checkout Date', type: 'date', required: true },
-        ]),
-      );
-    }
-    if (typeof url === 'string' && url.includes('/rest/v1/tasks') && opts?.method === 'POST') {
-      return Promise.resolve(makeTaskCreationResponse());
-    }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-  });
-  vi.stubGlobal('fetch', mockFetch);
+  mockPrismaInstance.archetype.findFirst.mockResolvedValue(
+    makeArchetypeRow([{ key: 'date', label: 'Checkout Date', type: 'date', required: true }]),
+  );
+  mockPrismaInstance.task.create.mockResolvedValue({ id: 'task-123' });
+  mockPrismaInstance.task.findFirst.mockResolvedValue(null);
+  mockPrismaInstance.$disconnect.mockResolvedValue(undefined);
 
   mockCallLLM.mockResolvedValue({
     content: 'Just to confirm, you want me to run Cleaning Schedule for June 5th. Working on it!',
@@ -157,9 +148,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
-  delete process.env.SUPABASE_URL;
-  delete process.env.SUPABASE_SECRET_KEY;
+  vi.clearAllMocks();
 });
 
 describe('TRIGGER_CONFIRM handler — extraction paths', () => {
@@ -196,17 +185,12 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   });
 
   it('partial extraction → asks only for missing inputs, does not dispatch', async () => {
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-        return Promise.resolve(
-          makeArchetypeResponse([
-            { key: 'date', label: 'Checkout Date', type: 'date', required: true },
-            { key: 'time', label: 'Checkout Time', type: 'time', required: true },
-          ]),
-        );
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-    });
+    mockPrismaInstance.archetype.findFirst.mockResolvedValue(
+      makeArchetypeRow([
+        { key: 'date', label: 'Checkout Date', type: 'date', required: true },
+        { key: 'time', label: 'Checkout Time', type: 'time', required: true },
+      ]),
+    );
 
     mockExtractInputsFromText.mockResolvedValue({ date: '2026-06-05' });
 
@@ -227,17 +211,12 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   });
 
   it('no inputs extracted → asks for all required inputs, does not dispatch', async () => {
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-        return Promise.resolve(
-          makeArchetypeResponse([
-            { key: 'date', label: 'Checkout Date', type: 'date', required: true },
-            { key: 'time', label: 'Checkout Time', type: 'time', required: true },
-          ]),
-        );
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-    });
+    mockPrismaInstance.archetype.findFirst.mockResolvedValue(
+      makeArchetypeRow([
+        { key: 'date', label: 'Checkout Date', type: 'date', required: true },
+        { key: 'time', label: 'Checkout Time', type: 'time', required: true },
+      ]),
+    );
 
     mockExtractInputsFromText.mockResolvedValue({});
 
@@ -280,15 +259,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   });
 
   it('no required inputs → dispatches immediately without asking for inputs', async () => {
-    mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
-      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-        return Promise.resolve(makeArchetypeResponse([]));
-      }
-      if (typeof url === 'string' && url.includes('/rest/v1/tasks') && opts?.method === 'POST') {
-        return Promise.resolve(makeTaskCreationResponse());
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-    });
+    mockPrismaInstance.archetype.findFirst.mockResolvedValue(makeArchetypeRow([]));
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -316,8 +287,6 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   });
 
   it('allFound path — dispatches exactly once, no double-dispatch', async () => {
-    // Default mocks: archetype with required `date` input, extractedInputs returns { date: '2026-06-05' }
-    // This is the regression guard: pre-fix, inngest.send would be called twice (fall-through)
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
@@ -328,11 +297,8 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     await handler({ ack: makeAck(), body: makeActionBody(), respond, client });
 
-    // Primary assertion: inngest.send called exactly once (not twice due to fall-through)
     expect(inngest.send).toHaveBeenCalledTimes(1);
-    // Secondary: chat.postMessage called exactly once (the confirmation message)
     expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
-    // No failure message in any respond call
     const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
     expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
       false,
@@ -340,13 +306,11 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   });
 
   it('allFound path — respond throws after dispatch → no failure message shown', async () => {
-    // Default mocks: allFound path (date extracted)
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
     const handler = boltApp._getAction('trigger_confirm');
-    // First call (⏳ Triggering employee...) resolves; second call (✅ success) rejects
     const respond = vi
       .fn()
       .mockResolvedValueOnce(undefined)
@@ -357,9 +321,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
       handler({ ack: makeAck(), body: makeActionBody(), respond, client }),
     ).resolves.not.toThrow();
 
-    // Task was dispatched
     expect(inngest.send).toHaveBeenCalledTimes(1);
-    // No failure message in any respond call
     const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
     expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
       false,
@@ -385,11 +347,9 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
 
-    // chat.postMessage must be called with non-empty text (fallback was used)
     expect(client.chat.postMessage).toHaveBeenCalledOnce();
     const postMessageCall = client.chat.postMessage.mock.calls[0][0] as { text: string };
     expect(postMessageCall.text.length).toBeGreaterThan(0);
-    // Dispatch still happened
     expect(inngest.send).toHaveBeenCalledTimes(1);
   });
 
@@ -410,37 +370,24 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
 
-    // Must not throw TypeError from undefined.trim()
     await expect(
       handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client }),
     ).resolves.not.toThrow();
 
-    // Fallback text was used — postMessage called with non-empty text
     expect(client.chat.postMessage).toHaveBeenCalledOnce();
     const postMessageCall = client.chat.postMessage.mock.calls[0][0] as { text: string };
     expect(postMessageCall.text.length).toBeGreaterThan(0);
-    // Dispatch still happened
     expect(inngest.send).toHaveBeenCalledTimes(1);
   });
 
   it('default path (no required inputs) — respond throws after dispatch → no failure message', async () => {
-    // Override fetch to return archetype with empty input_schema
-    mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
-      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-        return Promise.resolve(makeArchetypeResponse([]));
-      }
-      if (typeof url === 'string' && url.includes('/rest/v1/tasks') && opts?.method === 'POST') {
-        return Promise.resolve(makeTaskCreationResponse());
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-    });
+    mockPrismaInstance.archetype.findFirst.mockResolvedValue(makeArchetypeRow([]));
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
     const handler = boltApp._getAction('trigger_confirm');
-    // First call (⏳ Triggering employee...) resolves; second call (✅ success) rejects
     const respond = vi
       .fn()
       .mockResolvedValueOnce(undefined)
@@ -450,19 +397,14 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
       handler({ ack: makeAck(), body: makeActionBody(), respond, client: makeClient() }),
     ).resolves.not.toThrow();
 
-    // Task was dispatched
     expect(inngest.send).toHaveBeenCalledTimes(1);
-    // No failure message in any respond call
     const respondTexts = respond.mock.calls.map((call) => (call[0] as { text: string }).text);
     expect(respondTexts.some((t) => t.includes('Failed to trigger') || t.includes('⚠️'))).toBe(
       false,
     );
   });
 
-  // ── New tests (Task 4) ────────────────────────────────────────────────────
-
   it('pre-extracted inputs present → zero LLM on click, dispatches immediately', async () => {
-    // value includes extractedInputs: { date: '2026-06-10' } — handler must skip extractInputsFromText
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
@@ -478,20 +420,14 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
       client,
     });
 
-    // extractInputsFromText must NOT be called — inputs were pre-extracted
     expect(mockExtractInputsFromText).not.toHaveBeenCalled();
-    // callLLM must NOT be called — cosmetic LLM was removed
     expect(mockCallLLM).not.toHaveBeenCalled();
-    // Task dispatched exactly once
     expect(inngest.send).toHaveBeenCalledTimes(1);
-    // First respond call (loading) contains "One moment"
     const firstRespondText = (respond.mock.calls[0][0] as { text: string }).text;
     expect(firstRespondText).toContain('One moment');
   });
 
   it('allFound path — zero callLLM (cosmetic removal verified)', async () => {
-    // Standard allFound path: archetype has required `date`, extractInputsFromText returns { date }
-    // Verifies that callLLM is never invoked anywhere in the handler
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
@@ -501,14 +437,11 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
 
-    // callLLM must never be invoked — cosmetic LLM was removed from the handler
     expect(mockCallLLM).not.toHaveBeenCalled();
-    // Dispatch still happened
     expect(inngest.send).toHaveBeenCalledTimes(1);
   });
 
   it('backward-compat fallback — no extractedInputs in value → extractInputsFromText IS called', async () => {
-    // value has NO extractedInputs field → handler falls back to calling extractInputsFromText
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
@@ -516,17 +449,13 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
 
-    // makeActionBody() with no extractedInputs → value JSON has no extractedInputs key
     await handler({ ack: makeAck(), body: makeActionBody(), respond: makeRespond(), client });
 
-    // extractInputsFromText MUST be called (backward-compat path)
     expect(mockExtractInputsFromText).toHaveBeenCalledOnce();
-    // Dispatch still happened
     expect(inngest.send).toHaveBeenCalledTimes(1);
   });
 
   it('loading respond has no actions block (buttons removed on click)', async () => {
-    // The first respond call (loading state) must have replace_original: true and no actions block
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
@@ -537,33 +466,23 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     await handler({ ack: makeAck(), body: makeActionBody(), respond, client });
 
-    // First respond call is the loading message
     expect(respond).toHaveBeenCalled();
     const firstRespondPayload = respond.mock.calls[0][0] as {
       replace_original?: boolean;
       blocks?: Array<{ type: string }>;
     };
-    // Must replace original (removes the confirm/cancel buttons)
     expect(firstRespondPayload.replace_original).toBe(true);
-    // Must NOT contain an actions block (buttons are gone)
     const hasActionsBlock = (firstRespondPayload.blocks ?? []).some((b) => b.type === 'actions');
     expect(hasActionsBlock).toBe(false);
   });
 
   it('someFound with pre-extracted partial → missing-info path without calling extractInputsFromText', async () => {
-    // Archetype requires both `date` and `location`; pre-extracted only has `date`
-    // Handler should detect someFound (date present, location missing) WITHOUT calling extractInputsFromText
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === 'string' && url.includes('/rest/v1/archetypes')) {
-        return Promise.resolve(
-          makeArchetypeResponse([
-            { key: 'date', label: 'Checkout Date', type: 'date', required: true },
-            { key: 'location', label: 'Property Location', type: 'text', required: true },
-          ]),
-        );
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-    });
+    mockPrismaInstance.archetype.findFirst.mockResolvedValue(
+      makeArchetypeRow([
+        { key: 'date', label: 'Checkout Date', type: 'date', required: true },
+        { key: 'location', label: 'Property Location', type: 'text', required: true },
+      ]),
+    );
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -579,11 +498,8 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
       client,
     });
 
-    // extractInputsFromText must NOT be called — pre-extracted inputs were provided
     expect(mockExtractInputsFromText).not.toHaveBeenCalled();
-    // Task must NOT be dispatched (missing `location`)
     expect(inngest.send).not.toHaveBeenCalled();
-    // Missing-info message must mention the missing field
     expect(client.chat.postMessage).toHaveBeenCalledOnce();
     const postBody = client.chat.postMessage.mock.calls[0][0] as { text: string };
     expect(postBody.text).toContain('Property Location');

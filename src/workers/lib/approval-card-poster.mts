@@ -3,7 +3,7 @@ import { WebClient } from '@slack/web-api';
 import type { StandardOutput } from './output-schema.mjs';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 
-export interface ApprovalBlockData {
+interface ApprovalBlockData {
   summary: string;
   draft?: string;
   classification: string;
@@ -29,7 +29,7 @@ export interface PostApprovalCardResult {
  * Build Slack Block Kit blocks for a generic employee approval card.
  * Employee-agnostic — no guest, property, or domain-specific language.
  */
-export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
+function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
   const headerPrefix = data.urgency ? '⚠️ ' : '📝 ';
   const headerText = `${headerPrefix}${data.summary.slice(0, 150)}`;
 
@@ -90,8 +90,17 @@ export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
       {
         type: 'button',
         text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
-        action_id: SLACK_ACTION_ID.GUEST_EDIT,
-        value: data.taskId,
+        action_id: SLACK_ACTION_ID.EDIT_AND_SEND,
+        value: (() => {
+          const raw = JSON.stringify({ taskId: data.taskId, draftResponse: data.draft ?? '' });
+          if (raw.length <= 1900) return raw;
+          const baseLen = JSON.stringify({ taskId: data.taskId, draftResponse: '' }).length;
+          const maxDraft = 1900 - baseLen - 3;
+          return JSON.stringify({
+            taskId: data.taskId,
+            draftResponse: (data.draft ?? '').substring(0, Math.max(0, maxDraft)) + '...',
+          });
+        })(),
       },
     ],
   } as KnownBlock);
