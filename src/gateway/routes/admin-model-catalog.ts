@@ -4,14 +4,12 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GO_MODEL_MAP } from '../../lib/go-models.js';
+import { uuidField } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 
 function isPrismaError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && 'code' in err;
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const uuidField = () =>
-  z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');
 
 const ModelCatalogParamSchema = z.object({
   id: uuidField(),
@@ -96,7 +94,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
   router.get('/admin/model-catalog', requireAdminKey, async (req, res) => {
     const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: queryResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: queryResult.error.issues });
       return;
     }
 
@@ -117,14 +115,14 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         );
     } catch (err) {
       logger.error({ err }, 'Failed to list model catalog');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.get('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
       return;
     }
 
@@ -136,7 +134,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       });
 
       if (!model) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
 
@@ -145,14 +143,14 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         .json({ ...model, supported_gateways: computeSupportedGateways(model.model_id) });
     } catch (err) {
       logger.error({ err }, 'Failed to get model catalog entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.post('/admin/model-catalog', requireAdminKey, async (req, res) => {
     const bodyResult = CreateModelCatalogBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
       return;
     }
 
@@ -163,27 +161,24 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       res.status(201).json(created);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
-        res.status(409).json({
-          error: 'MODEL_ID_TAKEN',
-          message: 'A model with this model_id already exists',
-        });
+        sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
         return;
       }
       logger.error({ err }, 'Failed to create model catalog entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.patch('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
       return;
     }
 
     const bodyResult = PatchModelCatalogBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
       return;
     }
 
@@ -195,7 +190,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       });
 
       if (!existing) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
 
@@ -207,21 +202,18 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       res.status(200).json(updated);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
-        res.status(409).json({
-          error: 'MODEL_ID_TAKEN',
-          message: 'A model with this model_id already exists',
-        });
+        sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
         return;
       }
       logger.error({ err }, 'Failed to update model catalog entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.delete('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
     const paramResult = ModelCatalogParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
       return;
     }
 
@@ -233,7 +225,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       });
 
       if (!existing) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
 
@@ -245,7 +237,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       res.status(200).json({ success: true });
     } catch (err) {
       logger.error({ err }, 'Failed to soft-delete model catalog entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
