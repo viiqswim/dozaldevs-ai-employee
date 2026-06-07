@@ -20,8 +20,6 @@ import {
   buildSupersededBlocks,
   buildNoActionThreadBlocks,
   buildOverrideCardBlocks,
-  buildEnrichedTerminalBlocks,
-  buildContextThreadBlocks,
   createTaskNotifyBuilders,
 } from '../lib/slack-blocks.js';
 import {
@@ -145,7 +143,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           let enrichment: NotificationEnrichment | null = null;
           if (archetype.enrichment_adapter) {
             try {
-              await import('../lib/enrichment-adapters/hostfully.js');
+              await import('../lib/enrichment-adapters/all.js');
               const adapter = getAdapter(archetype.enrichment_adapter as string);
               if (adapter) {
                 enrichment = await adapter(
@@ -1590,10 +1588,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           const reviewingDelivRows = (await reviewingDelivRes.json()) as Array<{
             metadata: Record<string, unknown> | null;
           }>;
-          const reviewingGuestName = reviewingDelivRows[0]?.metadata?.['guest_name'] as
+          const reviewingRecipientName = reviewingDelivRows[0]?.metadata?.['recipient_name'] as
             | string
             | undefined;
-          const reviewingText = reviewingDraftedMessage(reviewingGuestName);
+          const reviewingText = reviewingDraftedMessage(reviewingRecipientName);
           const reviewingBlocks = notifyBlocks({
             state: 'Reviewing',
             archetypeName: (archetype.role_name as string) ?? 'unknown',
@@ -1637,8 +1635,6 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           return;
         }
 
-        // For guest-messaging employees, use the Hostfully thread_uid for supersede detection.
-        // For all other employees, fall back to taskId as a stable unique identifier.
         const threadUid = threadUidForTracking ?? taskId;
 
         await trackPendingApproval(supabaseUrl, supabaseKey, {
@@ -1647,7 +1643,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           taskId,
           slackTs: approvalMsgTs,
           channelId: targetChannel,
-          recipientName: delivMeta.guest_name as string | undefined,
+          recipientName: delivMeta.recipient_name as string | undefined,
           contextLabel: delivMeta.property_name as string | undefined,
           urgency: delivMeta.urgency as boolean | undefined,
         });
@@ -1683,11 +1679,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                 return;
               }
 
-              const nudgeGuestName = delivMeta.guest_name as string | undefined;
+              const nudgeRecipientName = delivMeta.recipient_name as string | undefined;
               const nudgePropertyName = delivMeta.property_name as string | undefined;
               const nudgeText = needsReviewMessage(
-                nudgeGuestName
-                  ? `${nudgeGuestName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
+                nudgeRecipientName
+                  ? `${nudgeRecipientName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
                   : undefined,
               );
 

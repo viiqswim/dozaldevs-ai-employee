@@ -60,8 +60,8 @@ export async function loadTenantEnv(
   }
 
   const sourceChannels = config['source_channels'];
-  const summary = config['summary'] as Record<string, unknown> | undefined;
-  const legacyChannelIds = summary?.['channel_ids'];
+  const legacyNotifConfig = config['summary'] as Record<string, unknown> | undefined;
+  const legacyChannelIds = legacyNotifConfig?.['channel_ids'];
   const channelList = Array.isArray(sourceChannels)
     ? sourceChannels
     : Array.isArray(legacyChannelIds)
@@ -71,8 +71,7 @@ export async function loadTenantEnv(
     env['SOURCE_CHANNELS'] = (channelList as string[]).join(',');
   }
 
-  // PUBLISH_CHANNEL — for delivery phase (may differ from notification channel)
-  const publishChannel = summary?.['publish_channel'];
+  const publishChannel = legacyNotifConfig?.['publish_channel'];
   if (typeof publishChannel === 'string' && publishChannel) {
     env['PUBLISH_CHANNEL'] = publishChannel;
   }

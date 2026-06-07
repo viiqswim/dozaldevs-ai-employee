@@ -1,7 +1,7 @@
 export interface ReminderThread {
   threadUid: string;
-  guestName: string;
-  propertyName: string;
+  recipientName: string;
+  contextLabel: string;
   elapsedMinutes: number;
   permalink: string;
 }
@@ -26,16 +26,14 @@ export function buildReminderBlocks(threads: ReminderThread[]): unknown[] {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*${thread.guestName}* — ${thread.propertyName}\n⏱️ Waiting ${thread.elapsedMinutes} min · <${thread.permalink}|View message>`,
+        text: `*${thread.recipientName}* — ${thread.contextLabel}\n⏱️ Waiting ${thread.elapsedMinutes} min · <${thread.permalink}|View message>`,
       },
     });
   });
 
   blocks.push({
     type: 'context',
-    elements: [
-      { type: 'mrkdwn', text: '⚡ These guests are still waiting on a reply' },
-    ],
+    elements: [{ type: 'mrkdwn', text: '⚡ These items are still waiting on a reply' }],
   });
 
   return blocks;

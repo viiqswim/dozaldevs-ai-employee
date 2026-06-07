@@ -4,9 +4,10 @@ import { createSlackClient } from '../../../lib/slack-client.js';
 import { createLogger } from '../../../lib/logger.js';
 import {
   buildSupersededBlocks,
-  buildEnrichedTerminalBlocks,
+  buildTerminalBlocksWithContext,
   buildContextThreadBlocks,
 } from '../../../lib/slack-blocks.js';
+import { buildHostfullyLink } from '../../../lib/enrichment-adapters/hostfully.js';
 import { supersededMessage, expiredMessage } from '../../../lib/slack-copy.js';
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
@@ -60,14 +61,21 @@ export async function handleExpiry(
   if (approvalMsgTs && targetChannel) {
     try {
       const expiryText = expiredMessage();
-      const expiryGuestName = metadata['guest_name'] as string | undefined;
-      const expiryCardBlocks = expiryGuestName
-        ? buildEnrichedTerminalBlocks({
+      const expiryRecipientName = (metadata['recipient_name'] ?? metadata['guest_name']) as
+        | string
+        | undefined;
+      const expiryThreadUid = metadata['thread_uid'] as string | undefined;
+      const expiryLeadUid = metadata['lead_uid'] as string | undefined;
+      const expiryContextUrl =
+        expiryThreadUid && expiryLeadUid
+          ? buildHostfullyLink(expiryThreadUid, expiryLeadUid)
+          : undefined;
+      const expiryCardBlocks = expiryRecipientName
+        ? buildTerminalBlocksWithContext({
             status: 'expired',
-            guestName: expiryGuestName,
+            recipientName: expiryRecipientName,
             propertyName: metadata['property_name'] as string | undefined,
-            threadUid: metadata['thread_uid'] as string | undefined,
-            leadUid: metadata['lead_uid'] as string | undefined,
+            contextUrl: expiryContextUrl,
             taskId,
           })
         : [
@@ -292,13 +300,15 @@ export async function handleReject(
   if (approvalMsgTs && targetChannel) {
     const rejectedText = `❌ Rejected by <@${actorUserId}>.`;
     try {
-      const rejectedBlocks = buildEnrichedTerminalBlocks({
+      const rejThreadUid = metadata['thread_uid'] as string | undefined;
+      const rejLeadUid = metadata['lead_uid'] as string | undefined;
+      const rejectedBlocks = buildTerminalBlocksWithContext({
         status: 'rejected',
         actorUserId,
-        guestName: metadata['guest_name'] as string | undefined,
+        recipientName: (metadata['recipient_name'] ?? metadata['guest_name']) as string | undefined,
         propertyName: metadata['property_name'] as string | undefined,
-        threadUid: metadata['thread_uid'] as string | undefined,
-        leadUid: metadata['lead_uid'] as string | undefined,
+        contextUrl:
+          rejThreadUid && rejLeadUid ? buildHostfullyLink(rejThreadUid, rejLeadUid) : undefined,
         taskId,
       });
       await slackClient.updateMessage(
@@ -316,10 +326,12 @@ export async function handleReject(
   }
   if (metadata['original_message'] && approvalMsgTs && targetChannel) {
     try {
+      const rejCtxThreadUid = metadata['thread_uid'] as string | undefined;
+      const rejCtxLeadUid = metadata['lead_uid'] as string | undefined;
       const contextBlocks = buildContextThreadBlocks({
         action: 'reject',
         actorUserId,
-        guestName: metadata['guest_name'] as string | undefined,
+        recipientName: (metadata['recipient_name'] ?? metadata['guest_name']) as string | undefined,
         propertyName: metadata['property_name'] as string | undefined,
         checkIn: metadata['check_in'] as string | undefined,
         checkOut: metadata['check_out'] as string | undefined,
@@ -328,8 +340,10 @@ export async function handleReject(
         draftResponse: metadata['draft_response'] as string | undefined,
         confidence: typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
         category: metadata['category'] as string | undefined,
-        threadUid: metadata['thread_uid'] as string | undefined,
-        leadUid: metadata['lead_uid'] as string | undefined,
+        contextUrl:
+          rejCtxThreadUid && rejCtxLeadUid
+            ? buildHostfullyLink(rejCtxThreadUid, rejCtxLeadUid)
+            : undefined,
         taskId,
       });
       await slackClient.postMessage({
@@ -705,10 +719,12 @@ export async function handleApprove(
 
   if (metadata['original_message'] && approvalMsgTs && targetChannel) {
     try {
+      const appCtxThreadUid = metadata['thread_uid'] as string | undefined;
+      const appCtxLeadUid = metadata['lead_uid'] as string | undefined;
       const contextBlocks = buildContextThreadBlocks({
         action: editedContent ? 'edit' : 'approve',
         actorUserId,
-        guestName: metadata['guest_name'] as string | undefined,
+        recipientName: (metadata['recipient_name'] ?? metadata['guest_name']) as string | undefined,
         propertyName: metadata['property_name'] as string | undefined,
         checkIn: metadata['check_in'] as string | undefined,
         checkOut: metadata['check_out'] as string | undefined,
@@ -719,8 +735,10 @@ export async function handleApprove(
         editedResponse: editedContent,
         confidence: typeof metadata['confidence'] === 'number' ? metadata['confidence'] : undefined,
         category: metadata['category'] as string | undefined,
-        threadUid: metadata['thread_uid'] as string | undefined,
-        leadUid: metadata['lead_uid'] as string | undefined,
+        contextUrl:
+          appCtxThreadUid && appCtxLeadUid
+            ? buildHostfullyLink(appCtxThreadUid, appCtxLeadUid)
+            : undefined,
         taskId,
       });
       await slackClient.postMessage({
@@ -785,13 +803,15 @@ export async function handleApprove(
     const sentText = `✅ Delivered <!date^${epoch}^{date_short_pretty} at {time}|${isoFallback}>`;
     log.info({ taskId }, 'State: Done');
     try {
-      const doneBlocks = buildEnrichedTerminalBlocks({
+      const doneThreadUid = metadata['thread_uid'] as string | undefined;
+      const doneLeadUid = metadata['lead_uid'] as string | undefined;
+      const doneBlocks = buildTerminalBlocksWithContext({
         status: 'done',
         actorUserId,
-        guestName: metadata['guest_name'] as string | undefined,
+        recipientName: (metadata['recipient_name'] ?? metadata['guest_name']) as string | undefined,
         propertyName: metadata['property_name'] as string | undefined,
-        threadUid: metadata['thread_uid'] as string | undefined,
-        leadUid: metadata['lead_uid'] as string | undefined,
+        contextUrl:
+          doneThreadUid && doneLeadUid ? buildHostfullyLink(doneThreadUid, doneLeadUid) : undefined,
         sentSnippet: (editedContent ?? (metadata['draft_response'] as string | undefined))?.slice(
           0,
           150,
@@ -812,7 +832,9 @@ export async function handleApprove(
     }
     if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
       try {
-        const terminalRecipientName = metadata['guest_name'] as string | undefined;
+        const terminalRecipientName = (metadata['recipient_name'] ?? metadata['guest_name']) as
+          | string
+          | undefined;
         const sentNotifyText = terminalRecipientName
           ? `Reply sent to ${terminalRecipientName}`
           : 'Reply sent';

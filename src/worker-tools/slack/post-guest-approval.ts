@@ -346,6 +346,7 @@ function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
   writeFileSync(draftTempPath, params.draftResponse, 'utf8');
 
   const metadata: Record<string, unknown> = {
+    recipient_name: params.guestName,
     guest_name: params.guestName,
     property_name: params.propertyName,
     thread_uid: params.threadUid,
@@ -511,6 +512,7 @@ export async function main(): Promise<void> {
     target_channel: result.channel,
     conversation_ref: resolvedConversationRef,
     task_id: params.taskId,
+    recipient_name: params.guestName,
     guest_name: params.guestName,
     property_name: params.propertyName,
     category: params.category,
