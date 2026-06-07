@@ -81,3 +81,21 @@
 - HOWEVER: the app token (xapp-) is read once at boot (server.ts:108). That's already Demo App, unchanged.
 - Confirm button: now that the SAME app (Demo App) both posts the card AND owns the socket, block_actions
   will route to the local Demo App socket → Confirm should work on next attempt.
+
+## [2026-06-07] Render env-var API — pagination + single-PUT gotchas (prod incident, resolved)
+- GOAL: add OPENCODE_GO_API_KEY to prod Render without wiping other vars.
+- TRAP 1 (verification false alarm): GET /v1/services/:id/env-vars DEFAULTS to ~20-item page.
+  Prod has 21 vars → reads showed "20, SLACK_BOT_TOKEN missing" = PAGINATION, not data loss.
+  FIX: always query with ?limit=100 when counting/verifying env vars.
+- TRAP 2 (real, but recoverable): single-key PUT /env-vars/:key responses + paginated reads made it
+  LOOK like each PUT evicted a different key. Caused whack-a-mole restores. Root cause was the
+  pagination artifact above, compounded by reading mid-write.
+- CORRECT APPROACH: build COMPLETE array from a ?limit=100 read + known-good overrides, do ONE
+  bulk PUT /env-vars, then verify with ?limit=100. 
+- KNOWN-GOOD PROD SLACK VALUES (recovered from .sisyphus/evidence/task-6-final-suite.txt this session):
+  * SLACK_APP_TOKEN  = xapp-1-A09678HT90S-... (prod Papi Chulo app — NOT the local Demo App A0B8X8QL1HA)
+  * SLACK_BOT_TOKEN  = xoxb-6661458697890-9224761438049-... (VLRE Papi Chulo)
+  * SLACK_SIGNING_SECRET = f5932eb27cbbffdc244d86da81d6b903 (Papi Chulo)
+- CRITICAL REMINDER: local .env SLACK_* are now DEMO APP values (swapped earlier this session).
+  NEVER copy local .env SLACK_* to prod. Prod must keep Papi Chulo / A09678HT90S values.
+- FINAL STATE: 21 keys, all values exact-verified. OPENCODE_GO_API_KEY added (sk-AEmXD...).

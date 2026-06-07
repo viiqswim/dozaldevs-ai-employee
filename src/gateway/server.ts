@@ -50,6 +50,15 @@ import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
+function validateProductionEnv(): void {
+  if (process.env.NODE_ENV === 'production' && !process.env.OPENCODE_GO_API_KEY) {
+    throw new Error(
+      'OPENCODE_GO_API_KEY is required in production (set it in Render). ' +
+        'It is optional locally and in CI where calls fall back to OpenRouter.',
+    );
+  }
+}
+
 export type { InngestLike } from './types.js';
 import type { InngestLike } from './types.js';
 
@@ -314,6 +323,7 @@ if (calledFile && (currentFile === calledFile || currentFile.endsWith(calledFile
       boltApp = bolt;
 
       try {
+        validateProductionEnv();
         await validateRequiredPlatformSettings();
         logger.info('Platform settings validated');
       } catch (error) {

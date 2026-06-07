@@ -510,7 +510,7 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
 - `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
-**OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
+**OpenCode Go**: `OPENCODE_GO_API_KEY` — optional in local dev and CI (calls fall back to OpenRouter when unset); **required in production** (the gateway throws at boot if `NODE_ENV=production` and the key is missing — enforced by `validateProductionEnv()` in `src/gateway/server.ts`). When set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var locally to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
 
 ## Long-Running Commands
 
