@@ -1,3 +1,5 @@
+import { getArg } from '../lib/get-arg.js';
+
 function adfToPlainText(adf: unknown): string {
   if (!adf || typeof adf !== 'object') return '';
   const texts: string[] = [];
@@ -34,18 +36,10 @@ type IssueOutput = {
 
 function parseArgs(argv: string[]): { issueKey: string; help: boolean } {
   const args = argv.slice(2);
-  let issueKey = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--issue-key' && args[i + 1]) {
-      issueKey = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { issueKey, help };
+  return {
+    issueKey: getArg(args, '--issue-key') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

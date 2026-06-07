@@ -1,5 +1,7 @@
 import { WebClient } from '@slack/web-api';
 
+import { requireEnv } from '../lib/require-env.js';
+
 interface SlackMessage {
   ts: string;
   user?: string;
@@ -126,11 +128,7 @@ async function fetchChannel(
 async function main(): Promise<void> {
   const { channels, lookbackHours } = parseArgs(process.argv);
 
-  const token = process.env.SLACK_BOT_TOKEN;
-  if (!token) {
-    process.stderr.write('Error: SLACK_BOT_TOKEN environment variable is required\n');
-    process.exit(1);
-  }
+  const token = requireEnv('SLACK_BOT_TOKEN');
 
   if (channels.length === 0) {
     process.stderr.write('Error: --channels argument is required\n');
