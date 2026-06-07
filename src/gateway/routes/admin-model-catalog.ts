@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
@@ -91,7 +91,7 @@ function computeSupportedGateways(modelId: string): string[] {
 
 export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-model-catalog');
 
   router.get('/admin/model-catalog', requireAdminKey, async (req, res) => {
     const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);

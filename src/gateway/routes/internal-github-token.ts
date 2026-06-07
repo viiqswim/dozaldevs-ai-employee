@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { generateInstallationToken } from '../services/github-token-manager.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('internal-github-token');
 
 export interface InternalGithubTokenRouteOptions {
   prisma?: PrismaClient;

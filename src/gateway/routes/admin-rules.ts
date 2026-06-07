@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import {
   RuleArchetypeParamsSchema,
@@ -9,7 +9,7 @@ import {
   UpdateRuleBodySchema,
 } from '../validation/schemas.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('admin-rules');
 
 export interface AdminRulesRouteOptions {
   prisma?: PrismaClient;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import type { callLLM } from '../../lib/call-llm.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
@@ -20,7 +20,7 @@ const GenerateBodySchema = z.object({
 
 export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOptions): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-archetype-generate');
   const prisma = opts.prisma ?? new PrismaClient();
   const generator = new ArchetypeGenerator(opts.callLLM);
 

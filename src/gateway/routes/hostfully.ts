@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { ZodError } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
@@ -8,7 +8,7 @@ import { parseHostfullyWebhook } from '../validation/schemas.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { checkLastMessageSender } from '../../lib/hostfully-precheck.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('hostfully');
 
 export interface HostfullyRouteOptions {
   inngestClient?: InngestLike;

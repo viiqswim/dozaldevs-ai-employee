@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import path from 'path';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import {
   discoverTools,
@@ -11,7 +11,7 @@ import {
 
 export function adminToolsRoutes(): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-tools');
 
   const basePath = path.join(process.cwd(), 'src/worker-tools');
   const skillPath = path.join(process.cwd(), 'src/workers/skills/tool-usage-reference/SKILL.md');

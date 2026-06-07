@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
@@ -39,7 +39,7 @@ export interface AdminBrainPreviewRouteOptions {
 
 export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-brain-preview');
   const prisma = opts.prisma ?? new PrismaClient();
 
   router.post(

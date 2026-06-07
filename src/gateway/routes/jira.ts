@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { ZodError } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
@@ -9,7 +9,7 @@ import { parseJiraWebhook, parseJiraIssueDeletion } from '../validation/schemas.
 import { createTaskFromJiraWebhook, cancelTaskByExternalId } from '../services/task-creation.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('jira-webhook');
 
 export interface JiraRouteOptions {
   inngestClient?: InngestLike;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
@@ -161,7 +161,7 @@ const MODEL_QUESTIONS = [
 
 export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-archetypes');
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new ArchetypeRepository(prisma);
   const estimator = new TimeEstimator(callLLM);

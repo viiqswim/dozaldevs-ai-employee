@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
@@ -116,7 +116,7 @@ function parseNextLink(linkHeader: string | null): string | null {
 
 export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-github');
   const prisma = opts.prisma ?? new PrismaClient();
   const secretRepo = new TenantSecretRepository(prisma);
   const integrationRepo = new TenantIntegrationRepository(prisma);

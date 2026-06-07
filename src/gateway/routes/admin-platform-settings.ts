@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
@@ -10,7 +10,7 @@ const PatchPlatformSettingBodySchema = z.object({
 
 export function adminPlatformSettingsRoutes({ prisma }: { prisma: PrismaClient }): Router {
   const router = Router();
-  const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+  const logger = createLogger('admin-platform-settings');
 
   router.get('/admin/platform-settings', requireAdminKey, async (_req, res) => {
     try {

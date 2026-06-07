@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import pino from 'pino';
+import { createLogger } from '../../lib/logger.js';
 import { createReadStream, existsSync, statSync, watchFile, unwatchFile } from 'fs';
 import { createInterface } from 'readline';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GetTaskParamsSchema } from '../validation/schemas.js';
 import { LOG_STREAM_TERMINAL_STATUSES } from '../../lib/task-status.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('admin-tasks');
 
 export interface AdminTasksRouteOptions {
   prisma?: PrismaClient;
