@@ -506,23 +506,23 @@ Track A (Task 2) is independent — can complete anytime.
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed. Never check F1-F4 before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Verify each "Must Have": SPIKE gated Track B; sandbox-teamId→tenant registration delivered; 20-trial proof present (not single-shot); prod fix via dashboard (not PUT /env-vars) and gated on re-verification. Verify each "Must NOT Have": no PUT /env-vars for Inngest keys; prod app not CLI-migrated; socket-mode-lock/single-instance-guard/Step-0-reaper untouched (or reaper extended only per SPIKE); tenant_secrets schema + InstallationStore intact; CI Slack-less; no committed tokens; .env precedence verified; classifier/lifecycle/channel-resolution untouched.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality + Build + Tests** — `unspecified-high`
+- [x] F2. **Code Quality + Build + Tests** — `unspecified-high`
       `pnpm build` + `pnpm exec eslint` on changed files + `pnpm exec vitest run` (new helper tests + full suite). Confirm no NEW failures vs baseline (checkout-baseline method). Confirm CI runs WITHOUT a real Slack token. Review for `as any`/`@ts-ignore`, swallowed errors, token leakage in code/logs.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | CI-Slack-less [Y/N] | VERDICT`
 
-- [ ] F3. **Live Proofs — round-robin eliminated** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Live Proofs — round-robin eliminated** — `unspecified-high` (+ `e2e-testing` skill)
       (a) Start exactly one `pnpm dev` (per-dev app). (b) Socket Mode probe → assert `num_connections == 1`; paste raw `hello`. (c) Send 20 uuid-tagged @mentions ~2s apart in the dev sandbox → assert 20/20 "On it…" acks + 20/20 task rows; record task IDs. (d) With prod live, grep prod logs for the 20 unique strings → assert ZERO matches (cross-machine isolation). (e) Ctrl+C → assert `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` == 0. (f) Prod fix: snapshot full prod env-var key set before/after (post ⊇ pre); trigger a prod-workspace @mention → assert `tasks.status=Done` + no Inngest error in prod logs. Evidence → `.sisyphus/evidence/slack-per-dev-app/`.
       Output: `num_connections==1 [Y/N] | 20/20 acks [Y/N] | 20/20 tasks [Y/N] | prod isolation [Y/N] | clean shutdown [Y/N] | prod @mention Done [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       `git diff --name-only` — confirm only in-scope files. Confirm socket-mode-lock.ts, dev.ts single-instance guard + Step-0 reaper (unless SPIKE-justified extension), tenant_secrets schema, TenantInstallationStore, classifier, lifecycle, channel→employee resolution all untouched. No `xapp-`/`xoxb-`/`xoxp-` tokens in diffs; no `.slack/apps*.json` committed; `git check-ignore .slack/apps.dev.json` passes; no `LOG_LEVEL=debug` committed.
       Output: `Files [N/N in scope] | Protected components intact [Y/N] | No tokens leaked [Y/N] | .slack gitignored [Y/N] | VERDICT`
 
-- [ ] F5. **Cleanup + docs freshness + notify** — kill all `ai-*` tmux sessions and any stray Socket Mode probe processes; remove temp/scratch (`/tmp/sm-probe*.mjs`) + `.playwright-mcp/` artifacts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md / README / `.env.example` updates landed. Commit plan + notepads per git cleanup rules. Send Telegram: plan complete, come back to review.
+- [x] F5. **Cleanup + docs freshness + notify** — kill all `ai-*` tmux sessions and any stray Socket Mode probe processes; remove temp/scratch (`/tmp/sm-probe*.mjs`) + `.playwright-mcp/` artifacts; `git status` clean (only intended files + plan/notepads). Confirm AGENTS.md / README / `.env.example` updates landed. Commit plan + notepads per git cleanup rules. Send Telegram: plan complete, come back to review.
 
 ---
 
