@@ -575,7 +575,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA**: BOTH `real-estate-motivation-bot-2` (no-approval) AND Slack UX Scenario A (approval) pass. Evidence: `.sisyphus/evidence/task-24-no-approval.txt`, `task-24-scenarioA.txt`
         **Commit**: YES (per-step sub-commits ok) — `refactor(lifecycle): extract step modules; split approval handler`
 
-- [ ] 25. **Extract `archetype-generator.ts` prompts + dedup post-processing**
+- [x] 25. **Extract `archetype-generator.ts` prompts + dedup post-processing**
 
   **What to do** ([SIZE-6]): Move `SYSTEM_PROMPT_PRE/POST` + `REFINE_SYSTEM_PROMPT` to `src/gateway/services/prompts/` (importable strings). Extract the duplicated model-recommendation + time-estimation block from `generate()`/`refine()` into `applyModelAndEstimate()`.
   **Must NOT do**: Change prompt text/wording (verbatim move) or generation output schema.
@@ -587,7 +587,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm test -- --run` (archetype generator tests) green
         **Commit**: YES — `refactor(gateway): extract archetype-generator prompts and shared post-processing`
 
-- [ ] 26. **Decompose dashboard `TaskDetail.tsx` (870 lines)**
+- [x] 26. **Decompose dashboard `TaskDetail.tsx` (870 lines)**
 
   **What to do** ([DASH-1]): Extract `useTaskData` hook (the 6 fetches) and pull inline sub-components (`RawEventViewer`, `CollapsibleJsonViewer`, `CompiledAgentsMdViewer`, `CommandRow`) into `panels/tasks/components/`. Extract `ApprovalSection`, `RerunDialog`. Add type guards for the two unsafe casts (404, 804). NO UI behavior change.
   **Must NOT do**: Change rendered UI/URL-state behavior; no styling changes.
@@ -600,7 +600,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA (Playwright)**: open `/dashboard/tasks/<id>?tenant=<VLRE>`; assert task fields + transcript render, no console errors. Evidence: `.sisyphus/evidence/task-26-taskdetail.png`
         **Commit**: YES — `refactor(dashboard): decompose TaskDetail into hook + sub-components`
 
-- [ ] 27. **Decompose dashboard `RulesPanel.tsx` (852 lines)**
+- [x] 27. **Decompose dashboard `RulesPanel.tsx` (852 lines)**
 
   **What to do** ([DASH-1]): Extract `MultiSelectDropdown` → `components/ui/multi-select-dropdown.tsx` (generic), `EmployeeMultiSelect` → own file (uses the generic one, removes duplicate checkbox SVG), `RulesTab` + `FeedbackEventsTab` → own files. `RulesPanel` becomes tab orchestration. NO behavior change.
   **Must NOT do**: Change filter/URL-state behavior or data queries.

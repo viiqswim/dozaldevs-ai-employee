@@ -452,3 +452,106 @@ Keeping `handlers.ts` as a thin re-export shim (vs moving logic to `handlers/ind
 ### Commit
 
 bb9c1e34 — `refactor(lifecycle): extract helpers and tenant-env into lib modules (Part 1)`
+
+## [Task 25] Extract archetype-generator prompts + dedup post-processing (2026-06-07)
+
+### Files changed
+
+- NEW: `src/gateway/services/prompts/archetype-generator-prompts.ts`
+  - Exports `SYSTEM_PROMPT_PRE`, `SYSTEM_PROMPT_POST`, `REFINE_SYSTEM_PROMPT`
+  - `INJECTION_BOUNDARY` is local const in that file (used as template interpolation in both prompts)
+- MODIFIED: `src/gateway/services/archetype-generator.ts`
+  - Imports 3 prompt constants from prompts file
+  - New private method `applyModelAndEstimate(result, catalog?)` de-duplicates the
+    model-recommendation + time-estimation block that was verbatim in both `generate()` and `refine()`
+  - Shrinks from 638 to ~280 lines
+
+### Key decisions
+
+- `INJECTION_BOUNDARY` kept as module-private in prompts file (not exported) — it's only used
+  as an interpolated string inside the two prompts; callers never reference it directly
+- `applyModelAndEstimate()` mutates `result` in-place (same as the original inline blocks)
+  and returns `Promise<void>` — clean, no type gymnastics
+- Extract-only: zero logic changes verified by all 27 archetype-generator-code tests passing
+
+### Commit
+
+6b608526 — `refactor(gateway): extract archetype-generator prompts and shared post-processing`
+
+## [Task 26] TaskDetail.tsx decomposition (2026-06-07)
+
+### Final structure (239 lines, target < 250 ✅)
+
+- `hooks/useTaskData.ts` — all 7 data fetches (fetchTask, fetchLogs, fetchApprovals, useExecution, useDeliverable, useFeedbackEvents, useExecutionTranscript)
+- `components/task-detail-helpers.tsx` — constants (EXECUTION_STATUS_COLORS, DELIVERABLE_STATUSES, EVENT_TYPE_COLORS), formatDuration, Skeleton, TaskDetailSkeleton, isStringRecord, asRecordUnknown
+- `components/RawEventViewer.tsx`, `CollapsibleJsonViewer.tsx`, `CompiledAgentsMdViewer.tsx`, `CommandRow.tsx` — leaf display components
+- `components/ApprovalSection.tsx`, `RerunDialog.tsx` — action components
+- `components/ExecutionMetricsSection.tsx`, `FeedbackEventsSection.tsx`, `TranscriptSection.tsx`, `DeliverableSection.tsx` — section components
+- `components/TaskHeaderCard.tsx` — header card (title, status badge, re-run button, failure reason)
+- `components/ContainerCommandsSection.tsx` — container commands + log link
+
+### Line count progression
+
+- Original: 870 lines
+- After first 12 extractions: 289 lines
+- After TaskHeaderCard wired: 255 lines
+- After ContainerCommandsSection extracted: 239 lines ✅
+
+### Formatter expansion effect
+
+Prettier (via TypeScript LSP) expands compact code on write — multi-value destructuring on one line becomes individual lines, try/catch one-liners become blocks. Budget ~50% expansion when estimating formatted line counts from compact source.
+
+### Unused import cleanup
+
+After each extraction, check for now-unused imports in TaskDetail.tsx:
+
+- `StatusBadge` → moved to TaskHeaderCard (remove from TaskDetail)
+- `AlertTriangle` → moved to TaskHeaderCard (remove from TaskDetail)
+- `RefreshCw` → still used in error block (keep)
+- `Link`, `Terminal`, `CommandRow` → moved to ContainerCommandsSection (remove from TaskDetail)
+
+### Commit
+
+3c2a1bc2 — `refactor(dashboard): decompose TaskDetail into hook + sub-components`
+
+## [Task 27] RulesPanel.tsx decomposition (2026-06-07)
+
+### Final structure (115 lines, target < 300 ✅)
+
+- `dashboard/src/components/ui/multi-select-dropdown.tsx` — generic reusable multi-select (exported `MultiSelectOption`, `MultiSelectDropdown`)
+  - New optional props added to support `EmployeeMultiSelect` delegation: `headerContent`, `searchPlaceholder`, `emptyMessage`, `selectionCountLabel`, `listMaxHeight`, `dropdownMinWidth`
+  - All optional with backward-compatible defaults — existing usages unchanged
+- `dashboard/src/panels/rules/components/rules-helpers.tsx` — shared utilities: `SkeletonRow`, `ErrorState`, `PermissionWarning`, `is403`, `truncate`, `buildArchetypeFilter`, `RuleStatusBadge`, `RULE_STATUS_CLASSES`, `EventTypeBadge`, `EVENT_TYPE_CLASSES`
+- `dashboard/src/panels/rules/components/EmployeeMultiSelect.tsx` — wraps `MultiSelectDropdown` (eliminates duplicate checkbox SVG). Maps archetypes to `MultiSelectOption[]`; passes "Show all employees" button as `headerContent` render prop (receives `close` callback so dropdown closes on click)
+- `dashboard/src/panels/rules/components/RulesTab.tsx` — all rules tab logic + `RULE_STATUS_OPTIONS`
+- `dashboard/src/panels/rules/components/FeedbackEventsTab.tsx` — all feedback events tab logic + `EVENT_TYPE_OPTIONS`
+- `dashboard/src/panels/rules/RulesPanel.tsx` — 115 lines; tab orchestration + archetype fetching + employee filter state only
+
+### Key pattern: headerContent render prop for shared dropdown
+
+`EmployeeMultiSelect` needs a "Show all employees" button inside the dropdown (between search input and options list), AND that button needs to close the dropdown when clicked. Solved with:
+
+```tsx
+headerContent?: (close: () => void) => React.ReactNode
+```
+
+The `close` function (`setOpen(false); setSearch('')`) is passed from `MultiSelectDropdown`'s internal state. Zero behavior change — the rendered output is identical to the original inline implementation.
+
+### Duplicate SVG eliminated
+
+The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `MultiSelectDropdown` AND `EmployeeMultiSelect`. By making `EmployeeMultiSelect` a wrapper around `MultiSelectDropdown`, the SVG now lives in one place only.
+
+### pnpm build gotcha
+
+- LSP can't run in `dashboard/` (`.tool-versions` requires nodejs 20.19.0 — same known issue as Task 26)
+- `pnpm build` (tsc -b + vite) is the authoritative TypeScript check — EXIT_CODE:0 confirmed
+
+### Playwright verification
+
+- Rules tab: 73 rules rendered, filter `?q=confirmed` showed `1 of 73 rules`, URL updated
+- Tab switch: `?tab=feedback` URL correctly set when switching to Feedback Events
+- Screenshot: `.sisyphus/evidence/task-27-rules.png`
+
+### Commit
+
+9887ac95 — `refactor(dashboard): decompose RulesPanel into tabs and shared dropdown`
