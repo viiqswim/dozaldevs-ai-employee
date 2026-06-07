@@ -687,7 +687,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **VERIFY [Tier B] — exercise the merged flow on TWO different employees**: (a) guest-messaging — real Airbnb message → card shows Approve/Edit/Reject → click **Edit**, change the draft, send → confirm edited reply delivered to Airbnb; (b) a non-guest draft employee (e.g. daily-summarizer or google-assistant) → same card → **Approve** → delivered. Both use the identical generic handler. Evidence: `.sisyphus/evidence/task-32-tierB-guest-edit-*`, `task-32-tierB-other-employee-*`
         **Commit**: YES — `refactor(slack): unify guest and generic approval into one flow`
 
-- [ ] 33. **Final Verification Wave + docs freshness + notify**
+- [x] 33. **Final Verification Wave + docs freshness + notify**
 
   **What to do**: Run the **Final Verification Wave** (F1–F4 below), present consolidated results, get explicit user okay. Update AGENTS.md/README per Documentation Freshness (new `task-status.ts`, `config.ts`, `http-client.ts`, deleted components, CONTRIBUTING.md, removed deprecated code, and the unified approval flow). **AGENTS.md coordination**: the Slack sections grew (Known Issues #4 and #5 were rewritten by the singleton fix; "Slack Interactive Buttons — Socket Mode" at `:163`). If the separate `community-skill-library` plan runs and extracts Slack sections into a skill, update THAT skill instead of AGENTS.md for the approval-flow change — confirm which is the source of truth at execution time. Run Git Cleanup (`git status --short` clean). **Send Telegram completion notification** (`pnpm exec tsx scripts/telegram-notify.ts "✅ Maintainability remediation complete — all tasks done. Come back to review."`).
   **Must NOT do**: Mark F1–F4 checked before user okay.
@@ -708,16 +708,16 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 > Runs as Tasks F1–F4 inside Task 33's wave. 4 review agents in PARALLEL; ALL must APPROVE; present to user; wait for explicit okay before marking complete.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Verify every "Must Have" implemented and every "Must NOT Have" absent (grep for logic changes in decomposition diffs, all-289-sites config sprawl, any surviving `GUEST_*` or second guest-only approval path). Confirm evidence files exist. Output: `Must Have [N/N] | Must NOT [N/N] | VERDICT`.
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       `pnpm build && pnpm lint && pnpm test -- --run`. Review changed files for `as any`, dead code, console.\*, AI slop. Output: `Build/Lint/Tests + VERDICT`.
 
-- [ ] F3. **Real E2E QA** — `unspecified-high` (+ `e2e-testing`, `playwright` skills)
+- [x] F3. **Real E2E QA** — `unspecified-high` (+ `e2e-testing`, `playwright` skills)
       Trigger `real-estate-motivation-bot-2` → `Done` + metrics row (psql AND PostgREST). Run Slack UX Scenario A (approve happy path). Verify dashboard pages render with real data. Output: `Scenarios [N/N] | VERDICT`.
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Per task: diff vs spec, confirm extract-only (no logic drift), no cross-task contamination, GUEST\_\* two-step honored. Output: `Tasks [N/N compliant] | VERDICT`.
 
 → Present consolidated results → get explicit user okay → THEN mark complete.
