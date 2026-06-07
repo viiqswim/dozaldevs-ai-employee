@@ -1523,6 +1523,98 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `docs: document worker-tools local install requirement`
 
+### WAVE 5 — Documentation + logger convention
+
+- [ ] 27. Document log vs logger convention in CONTRIBUTING.md
+
+  **What to do**:
+  - Add a "Logger Variable Naming" section: `src/inngest/` and `src/gateway/slack/handlers/` use `const log = createLogger(...)`; `src/gateway/routes/` uses `const logger = createLogger(...)`; historical split, both correct; new files follow their parent directory's convention. Document, do NOT rename.
+
+  **Must NOT do**: Do NOT rename any existing variables; do NOT pick one over the other.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 5. Blocks: none. Blocked By: none.
+
+  **References**: `src/inngest/employee-lifecycle.ts` (`log`); `src/gateway/routes/admin-archetypes.ts` (`logger`); `CONTRIBUTING.md`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] CONTRIBUTING.md has "Logger Variable Naming"
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Convention documented
+    Tool: Bash
+    Steps:
+      1. grep "Logger Variable" CONTRIBUTING.md
+    Expected Result: Section exists
+    Evidence: .sisyphus/evidence/task-27-logger-doc.txt
+  ```
+
+  **Commit**: YES — `docs: document log vs logger naming convention`
+
+- [ ] 28. Update AGENTS.md with new components + conventions
+
+  **What to do**:
+  - Add new components: `src/inngest/events.ts`, `src/workers/lib/postgrest-types.ts`, `src/gateway/lib/prisma-helpers.ts`, `tests/helpers/lifecycle-mocks.ts`, the new lifecycle steps, `tests/unit/` + `tests/integration/` split.
+  - Add `docs/architecture/CURRENT-ARCHITECTURE.md` to the Reference Documents table.
+  - Update Key Conventions: "Use `sendError()` for ALL route error responses"; "Use `requireEnv()`/`optionalEnv()` in worker tools, never raw `process.env`"; "`pnpm test` = fast unit suite, `pnpm test:integration` = DB suite".
+  - Update the "Commands" table + "Pre-existing Test Failures" + any `pnpm test -- --run` references to reflect the split (overlaps Task 0.8 — finalize the full doc pass here). Remove stale refs to deleted/archived files.
+
+  **Must NOT do**: Do NOT add employee-specific content; do NOT duplicate CONTRIBUTING.md.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 5. Blocks: none. Blocked By: none.
+
+  **References**: `AGENTS.md`; all new files.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] AGENTS.md references new modules + `CURRENT-ARCHITECTURE.md` + the unit/integration split + sendError/requireEnv conventions
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: AGENTS.md current
+    Tool: Bash
+    Steps:
+      1. grep "postgrest-types\|prisma-helpers\|CURRENT-ARCHITECTURE\|test:integration" AGENTS.md
+    Expected Result: All referenced
+    Evidence: .sisyphus/evidence/task-28-agents-md.txt
+  ```
+
+  **Commit**: YES — `docs: update AGENTS.md with new modules, conventions, test split`
+
+- [ ] 29. Send Telegram notification
+
+  **What to do**:
+  - After all tasks complete and the final wave passes + user approves, send: `pnpm exec tsx scripts/telegram-notify.ts "✅ Onboarding readiness plan complete — all tasks done, baseline green. Come back to review."` (use `pnpm exec tsx`, NOT bare `tsx`).
+
+  **Must NOT do**: Do NOT send before all tasks verified.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 5 (last). Blocks: none. Blocked By: all.
+
+  **References**: `scripts/telegram-notify.ts`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] Notification sent (exit 0)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Notification sent
+    Tool: Bash
+    Steps:
+      1. pnpm exec tsx scripts/telegram-notify.ts "..." (exit 0)
+    Expected Result: Delivered
+    Evidence: .sisyphus/evidence/task-29-telegram.txt
+  ```
+
+  **Commit**: NO
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
