@@ -1102,6 +1102,202 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(lint): escalate no-explicit-any and no-unused-vars to error`
 
+### WAVE 3 — Pattern unification
+
+- [ ] 14. Lifecycle decomposition — extract state handlers
+
+  **What to do**:
+  - **VERIFIED**: `src/inngest/employee-lifecycle.ts` is 1,886 lines with 28 inline `fetch()` PostgREST calls. `src/inngest/lifecycle/steps/` already has `approval-handler.ts` + `delivery-retry.ts` (do not touch).
+  - Extract major state handlers into new files under `src/inngest/lifecycle/steps/`: `triage-and-ready.ts` (Received→Triaging→AwaitingInput→Ready), `execute.ts` (Ready→Executing), `validate-and-submit.ts` (Executing→Validating→Submitting), `notify-and-track.ts` (Slack notify, metrics, status updates). Keep `employee-lifecycle.ts` as the orchestrator (table of contents).
+  - Replace all 28 inline fetches with the typed client (Task 8). Use typed events (Task 9). Target <500 lines. Preserve all step IDs (Inngest state tracking).
+
+  **Must NOT do**: Do NOT change public API or step IDs; do NOT touch `delivery-retry.ts`/`approval-handler.ts`; do NOT change runtime behavior.
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`].
+
+  **Parallelization**: Wave 3. Blocks: none. Blocked By: 8, 9.
+
+  **References**: `src/inngest/employee-lifecycle.ts`; `src/inngest/lifecycle/steps/delivery-retry.ts` (pattern); `src/workers/lib/postgrest-client.ts` (Task 8); `src/inngest/events.ts` (Task 9).
+
+  **Acceptance Criteria** (Tier B):
+  - [ ] `wc -l src/inngest/employee-lifecycle.ts` < 500; 4 new step files; zero inline `fetch(` in lifecycle; all step IDs preserved; `pnpm build` + `pnpm test` + `pnpm test:integration` green
+  - [ ] Tier B: full approval loop → delivery
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Lifecycle decomposed and functional
+    Tool: Bash
+    Steps:
+      1. wc -l src/inngest/employee-lifecycle.ts (<500)
+      2. grep -c "fetch(" src/inngest/employee-lifecycle.ts (0 or near-0)
+      3. ls src/inngest/lifecycle/steps/*.ts (6+ files)
+      4. pnpm build && pnpm test -- --run && pnpm test:integration
+      5. Tier B full approval loop
+    Expected Result: <500 lines, steps extracted, full loop works
+    Evidence: .sisyphus/evidence/task-14-tierB-*.txt
+  ```
+
+  **Commit**: YES — `refactor(lifecycle): extract state handlers to step files, use typed PostgREST`
+
+- [ ] 15. sendError adoption — route group 1 (11 admin files, ~137 calls)
+
+  **What to do**:
+  - **VERIFIED**: 29 route files, 279 total `res.status()` calls; `sendError` adopted only in `admin-archetypes.ts`, `admin-brain-preview.ts`, `admin-model-catalog.ts`. (The names `admin-integrations.ts`/`admin-inngest.ts`/`auth-*-oauth.ts`/`github-webhook.ts` DO NOT EXIST — ignore.)
+  - Migrate **group 1** to `sendError` (re-grep counts; they drift): `admin-archetype-generate.ts`(5), `admin-archetypes.ts`(6, finish), `admin-brain-preview.ts`(2, verify), `admin-employee-trigger.ts`(11), `admin-github.ts`(21), `admin-google.ts`(2), `admin-kb.ts`(22), `admin-model-catalog.ts`(3, finish), `admin-platform-settings.ts`(6), `admin-projects.ts`(23), `admin-property-locks.ts`(20). Use error-code constants from Task 1.
+
+  **Must NOT do**: Do NOT change success responses, status codes, or validation logic.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [].
+
+  **Parallelization**: Wave 3. Blocks: 17. Blocked By: 1.
+
+  **References**: `src/gateway/lib/http-response.ts:3`; `admin-archetypes.ts` (example); the 11 files above.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] Each group-1 file: 0 `res.status(`; `pnpm build` + `pnpm test`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Group-1 routes use sendError
+    Tool: Bash
+    Steps:
+      1. for f in <group-1>; do grep -c "res.status(" src/gateway/routes/$f.ts; done (all 0)
+      2. pnpm test -- --run; Tier A trigger → Done
+    Expected Result: Group 1 converted, green, employee runs
+    Evidence: .sisyphus/evidence/task-15-tierA-{grep,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(gateway): adopt sendError in admin route group 1`
+
+- [ ] 16. sendError adoption — route group 2 (17 oauth/internal files, ~142 calls)
+
+  **What to do**:
+  - Migrate **group 2** (re-grep counts): `admin-rules.ts`(13), `admin-slack-channels.ts`(5), `admin-tasks.ts`(8), `admin-tenant-config.ts`(9), `admin-tenant-secrets.ts`(14), `admin-tenants.ts`(24), `admin-tools.ts`(5), `github-oauth.ts`(7), `github.ts`(2), `google-oauth.ts`(11), `hostfully.ts`(2), `internal-github-token.ts`(6), `internal-google-token.ts`(8), `jira-oauth.ts`(10), `jira.ts`(13), `notion-oauth.ts`(10), `slack-oauth.ts`(11). `health.ts` has 0 — skip.
+  - **NOTE**: OAuth/webhook routes (`*-oauth.ts`, `github.ts`, `hostfully.ts`, `jira.ts`) sometimes return HTML/redirects on success — convert ONLY JSON error responses; leave redirects/HTML untouched.
+
+  **Must NOT do**: Same as Task 15; do NOT convert non-JSON responses.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [].
+
+  **Parallelization**: Wave 3. Blocks: 17. Blocked By: 1.
+
+  **References**: `src/gateway/lib/http-response.ts:3`; the 17 files above.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `grep -rl "res\.status(" src/gateway/routes/*.ts | grep -v ".test.ts"` empty (combined with Task 15, ALL routes done); `pnpm build` + `pnpm test`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: All routes use sendError
+    Tool: Bash
+    Steps:
+      1. grep -rl "res\.status(" src/gateway/routes/*.ts | grep -v .test (empty)
+      2. pnpm test -- --run; Tier A trigger → Done
+    Expected Result: Zero raw res.status in any non-test route, green
+    Evidence: .sisyphus/evidence/task-16-tierA-{grep,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(gateway): adopt sendError in route group 2 (oauth/webhook/internal)`
+
+- [ ] 17. Standardize error body format + route factory signatures
+
+  **What to do**:
+  - After 15/16, verify all error responses use `{ error, message?, issues? }`. Fix `src/gateway/routes/admin-platform-settings.ts` factory signature from required `{ prisma }` to the standard `opts: { prisma?: PrismaClient } = {}` (matches all other route factories). Document the standard error format in CONTRIBUTING.md "API Error Responses". Validation errors include `issues`; non-validation omit it.
+
+  **Must NOT do**: Do NOT change status codes; do NOT add new error-handling logic.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 3 (after 15, 16). Blocks: none. Blocked By: 15, 16.
+
+  **References**: `src/gateway/routes/admin-platform-settings.ts` (non-standard factory); `src/gateway/lib/http-response.ts`; `CONTRIBUTING.md`.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `admin-platform-settings.ts` uses optional prisma; CONTRIBUTING.md documents the format; `pnpm build`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Error format standardized
+    Tool: Bash
+    Steps:
+      1. grep "prisma?" src/gateway/routes/admin-platform-settings.ts
+      2. grep "API Error Responses" CONTRIBUTING.md
+      3. pnpm build; Tier A → Done
+    Expected Result: Signature fixed, documented, green
+    Evidence: .sisyphus/evidence/task-17-tierA.txt
+  ```
+
+  **Commit**: YES — `refactor(gateway): standardize error format and route factory signatures`
+
+- [ ] 18. Centralize process.env reads in 7 inngest files
+
+  **What to do**:
+  - **VERIFIED 7 files** (`grep -rln "process.env.SUPABASE" src/inngest/`): `interaction-handler.ts`, `rule-extractor.ts`, `rule-synthesizer.ts`, `slack-trigger-handler.ts`, `triggers/reviewing-watchdog.ts`, `triggers/guest-message-poll.ts`, `lib/create-task-and-dispatch.ts`. Re-grep line numbers before editing.
+  - Replace inline `process.env.SUPABASE_URL`/`SUPABASE_SECRET_KEY` reads inside closures with module-level `requireEnv(...)` constants.
+  - `guest-message-poll.ts`: replace inline AES-256-GCM decryption with `decrypt` from `src/lib/encryption.ts` (verify export name).
+  - `create-task-and-dispatch.ts`: replace `process.env.SUPABASE_URL!` non-null assertion with `requireEnv(...)`.
+  - Check `src/gateway/slack/handlers/shared.ts` — if it still defines `SUPABASE_URL()`/`SUPABASE_KEY()` helpers and re-reads `process.env` directly, route through the helpers; else skip.
+
+  **Must NOT do**: Do NOT extract to `src/lib/config.ts` (inngest-layer specific); do NOT change PostgREST URL construction.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [].
+
+  **Parallelization**: Wave 3. Blocks: none. Blocked By: 9.
+
+  **References**: the 7 files above; `src/lib/encryption.ts` (`decrypt`).
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] No `process.env.SUPABASE` inside closures (module-level only); `guest-message-poll.ts` imports `decrypt`; `grep -c "SUPABASE_URL!" create-task-and-dispatch.ts` → 0; `pnpm build` + `pnpm test`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Env centralized, lifecycle runs
+    Tool: Bash
+    Steps:
+      1. grep "process.env.SUPABASE" in the 7 files — module scope only
+      2. grep -c "createDecipheriv" src/inngest/triggers/guest-message-poll.ts (0)
+      3. pnpm build && pnpm test -- --run; Tier A → Done
+    Expected Result: Centralized, no inline crypto/assertion, employee runs
+    Evidence: .sisyphus/evidence/task-18-tierA-{grep,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(inngest): centralize process.env reads, remove inline AES decryption`
+
+- [ ] 19. Fix Knip unused exports
+
+  **What to do**:
+  - Run `pnpm lint:unused` (knip). Remove or justify: `src/gateway/slack/handlers/shared.ts` (`supabaseHeaders`, `TRANSIENT_PRE_REVIEWING` if unused); KEEP `UUID_REGEX` in `schemas.ts` (referenced by AGENTS.md — add `// used by docs` comment); `approval-handler.ts` `ApprovalEventData` (un-export if internal); `go-models.ts` `GoEndpointType` (un-export if internal). Remove `@vitest/coverage-v8` from devDeps ONLY if truly unused (it's referenced by the coverage config — likely keep). Verify each with `lsp_find_references` before removing.
+
+  **Must NOT do**: Do NOT remove exports that ARE used; do NOT remove `UUID_REGEX`.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 3. Blocks: none. Blocked By: 9, 13.
+
+  **References**: `knip.json`; the files above.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `pnpm lint:unused` reports fewer issues; no truly-unused exports remain; `pnpm build`
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Knip cleaner
+    Tool: Bash
+    Steps:
+      1. pnpm lint:unused
+      2. pnpm build
+    Expected Result: Fewer warnings, build green
+    Evidence: .sisyphus/evidence/task-19-knip.txt
+  ```
+
+  **Commit**: YES — `chore: remove unused exports identified by knip`
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
