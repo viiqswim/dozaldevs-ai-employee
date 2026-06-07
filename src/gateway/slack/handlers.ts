@@ -6,6 +6,10 @@ import { TenantIntegrationRepository } from '../services/tenant-integration-repo
 import { resolveArchetypeFromChannel } from '../services/interaction-classifier.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
+import {
+  TERMINAL_STATUSES,
+  APPROVAL_IDEMPOTENCY_TERMINAL_STATUSES,
+} from '../../lib/task-status.js';
 import { extractInputsFromText } from '../../lib/extract-inputs.js';
 import { callLLM } from '../../lib/call-llm.js';
 import {
@@ -62,7 +66,6 @@ interface ActionBody {
 }
 
 const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
-const TERMINAL_STATUSES = new Set(['Done', 'Cancelled', 'Failed', 'Delivering']);
 
 // ─── Pending input collection (in-memory, per process) ────────────────────────
 interface PendingInputCollection {
@@ -126,7 +129,7 @@ async function isTaskAwaitingApproval(
       }
       const status = rows[0].status;
       if (status === 'Reviewing') return true;
-      if (TERMINAL_STATUSES.has(status)) return false;
+      if (APPROVAL_IDEMPOTENCY_TERMINAL_STATUSES.has(status)) return false;
       if (TRANSIENT_PRE_REVIEWING.has(status) && attempt < maxRetries) {
         log.info({ taskId, status, attempt }, 'Task in transient state — waiting for Reviewing');
         continue;
@@ -160,8 +163,7 @@ async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
       log.warn({ taskId }, 'Task not found during override idempotency check');
       return false;
     }
-    const terminalStates = ['Done', 'Failed', 'Cancelled'];
-    return !terminalStates.includes(rows[0].status);
+    return !TERMINAL_STATUSES.has(rows[0].status);
   } catch (err) {
     log.error(
       { taskId, err },

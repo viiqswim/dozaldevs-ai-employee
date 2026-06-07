@@ -1,6 +1,7 @@
 import type { PrismaClient, Task, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library.js';
 import type { JiraWebhookPayload } from '../validation/schemas.js';
+import { CANCELLATION_GUARD_STATUSES } from '../../lib/task-status.js';
 
 export interface CreateTaskResult {
   task: Task;
@@ -111,9 +112,7 @@ export async function cancelTaskByExternalId(params: {
 
   if (!task) return false;
 
-  // Terminal states — can't cancel
-  const terminalStates = ['Done', 'Cancelled'];
-  if (terminalStates.includes(task.status)) return false;
+  if (CANCELLATION_GUARD_STATUSES.has(task.status)) return false;
 
   await prisma.$transaction(async (tx) => {
     await tx.task.update({
