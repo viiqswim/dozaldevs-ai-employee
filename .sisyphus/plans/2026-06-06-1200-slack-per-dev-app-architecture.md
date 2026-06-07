@@ -398,7 +398,7 @@ Track A (Task 2) is independent — can complete anytime.
 
   **Commit**: YES — `feat(slack): register dev-sandbox team as dev tenant for Socket Mode auth` (commit 5) — Pre-commit: `pnpm build` + any new helper tests.
 
-- [ ] 6. New-engineer onboarding runbook
+- [x] 6. New-engineer onboarding runbook
 
   **What to do**:
   - Write a step-by-step runbook (`docs/guides/{timestamp}-slack-per-dev-app-onboarding.md`) covering the EXACT sequence a new engineer follows: install Slack CLI v3 → `slack login` → create/join a Developer Sandbox workspace → create their dev app from `manifest.json` → obtain `xapp-`/`xoxb-` tokens → register their sandbox `teamId` as a dev tenant (Task 5 path) → `pnpm dev` (which drives `slack run`) → verify with the Socket Mode probe (`num_connections == 1`) and one @mention.
@@ -432,7 +432,7 @@ Track A (Task 2) is independent — can complete anytime.
 
   **Commit**: YES — folded into commit 7 (`docs(agents): ...`) or its own `docs(slack): per-dev app onboarding runbook` — Pre-commit: none.
 
-- [ ] 7. Unit tests — token precedence + dev-tenant registration helper
+- [x] 7. Unit tests — token precedence + dev-tenant registration helper
 
   **What to do**:
   - Test the `.env` precedence logic from Task 3: given a stale shared `SLACK_APP_TOKEN` + a per-dev token, the per-dev token wins (or the guard warns/aborts). Inject env, no real process spawn.
@@ -465,7 +465,7 @@ Track A (Task 2) is independent — can complete anytime.
 
   **Commit**: YES — `test(slack): cover token precedence and dev-tenant registration` (commit 6) — Pre-commit: the new tests.
 
-- [ ] 8. AGENTS.md Known Issue #5 + README + `.env.example` updates
+- [x] 8. AGENTS.md Known Issue #5 + README + `.env.example` updates
 
   **What to do**:
   - **AGENTS.md Known Issue #5**: add the now-confirmed dev/prod shared-token round-robin as the PRIMARY trigger (prod + local share `SLACK_APP_TOKEN`; Slack round-robins per-app; prod drops its share due to missing Inngest key). Document the resolution: per-dev Slack apps via `slack run`, Developer Sandbox, sandbox-teamId→tenant registration, prod Inngest key fixed. Keep the prior phantom/grace-wait content; this is the architectural superset.

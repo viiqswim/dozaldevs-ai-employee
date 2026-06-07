@@ -626,11 +626,15 @@ Additionally, `src/gateway/lib/socket-mode-lock.ts` now prevents a second gatewa
 
 **Prevention**: Always stop `pnpm dev` with Ctrl+C (SIGINT) — never kill the tmux session directly. If you must kill the session, run the manual kill commands above first.
 
-### 5. Phantom Socket Mode connections (intermittent @mention silence)
+### 5. Phantom Socket Mode connections + dev/prod shared token (intermittent @mention silence)
 
 **Symptom**: `@mention` of the bot produces no response intermittently (roughly 1-in-N of the time), even with a single local gateway process running. No gateway log entry for the missed event.
 
-**Root cause**: An unclean gateway death (`kill -9`, tmux session killed without Ctrl+C) leaves a WebSocket registered with Slack that Slack still routes events to. Slack Socket Mode **round-robins** each event across ALL registered sockets, including dead phantoms. Events delivered to the phantom vanish silently. The local singleton lock (Known Issue #4) prevents duplicate local processes but cannot reclaim a WebSocket that Slack holds server-side.
+**Two distinct root causes** (both cause the same symptom):
+
+**Root cause A — dev/prod shared `SLACK_APP_TOKEN`** (empirically confirmed 2026-06-06): Production (Render) and local `pnpm dev` share the same `SLACK_APP_TOKEN`. Slack round-robins each event per-APP across ALL open sockets (max 10). ~50% of @mentions land on prod; prod silently drops them (missing Inngest key, now fixed). The other ~50% land on local and work. **Resolution**: each developer creates their own Slack app at `api.slack.com`, gets a personal `xapp-` token, sets `SLACK_APP_TOKEN=xapp-<personal>` in local `.env`, and registers their sandbox workspace via `pnpm register-dev-slack`. See `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`.
+
+**Root cause B — phantom socket** (Slack-side stranded WebSocket): An unclean gateway death (`kill -9`, tmux session killed without Ctrl+C) leaves a WebSocket registered with Slack that Slack still routes events to. Events delivered to the phantom vanish silently. The local singleton lock (Known Issue #4) prevents duplicate local processes but cannot reclaim a WebSocket that Slack holds server-side.
 
 **How it differs from Known Issue #4**: Known Issue #4 is a local zombie process (still running on your machine). A phantom is a Slack-side stranded WebSocket pointing at a dead process. The local process count check (`pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l`) returns `1` even when a phantom is present.
 
@@ -955,6 +959,7 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/cleaning-schedule.md`                                            | Working on cleaning-schedule employee — archetype ID, trigger command, Notion page IDs, Slack channel, gotchas                                                                                                                                           |
 | `docs/employees/2026-06-02-1230-engineer.md`                                     | Working on engineer employee — archetype IDs, GitHub App setup, trigger command, what it does, known gotchas                                                                                                                                             |
 | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`                        | Slack OAuth or per-tenant token issues — TenantInstallationStore, loadTenantEnv, re-connecting after DB reset                                                                                                                                            |
+| `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`                    | Per-developer Slack app setup — create dev app, enable Socket Mode, register sandbox teamId, set personal xapp- token in .env. Required for every new engineer to avoid round-robin event drops with prod.                                               |
 | `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`                     | Full E2E test guide for AI employee creation → execution → approval → delivery. Covers wizard flow, field quality checks (AC1–AC8), lifecycle verification, Slack delivery confirmation, manual approval fallback, and all known gotchas.                |
 | `docs/infrastructure/2026-05-28-1900-cloud-deployment-guide.md`                  | Deploying to production — Supabase Cloud, Render, Inngest Cloud, Fly.io. Step-by-step provisioning, full env var reference, database migration, CI/CD pipeline, cost breakdown, and troubleshooting.                                                     |
 | `docs/guides/2026-06-01-2246-production-debugging-guide.md`                      | Debugging production issues — topology overview, cloud DB queries (port 5432 only), Fly.io machine inspection via REST API, Render env var gotchas, Inngest retry loop diagnosis, known production bugs and fixes, re-trigger instructions.              |
