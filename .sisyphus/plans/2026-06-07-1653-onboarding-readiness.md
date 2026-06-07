@@ -1298,6 +1298,231 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `chore: remove unused exports identified by knip`
 
+### WAVE 4 — Worker tools migration (54 files; SKIP 5 already done)
+
+- [ ] 20. Migrate hostfully/ (10 files)
+
+  **What to do**:
+  - **VERIFIED list** — migrate to `requireEnv`/`optionalEnv`/`getArg`: `get-checkouts.ts`, `get-door-code.ts`, `get-messages.ts`, `get-properties.ts`, `get-reservations.ts`, `get-reviews.ts`, `register-webhook.ts`, `send-message.ts`, `update-door-code.ts`, `validate-env.ts`. **SKIP `get-property.ts`** (already migrated). **SKIP `hostfully/lib/`**.
+  - Edge cases: `get-messages.ts` boolean `--unresponded-only` → `args.includes(...)`; integer `--limit` → `parseInt(getArg(...) ?? '30', 10)`. `register-webhook.ts` has ~20 legit `console.*` (CLI script) — leave them; only migrate env/arg parsing.
+
+  **Must NOT do**: Do NOT use `getArg` for boolean flags; do NOT change output JSON; do NOT touch `lib/`; do NOT use `requireEnv` for optional vars.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/hostfully/get-property.ts` (reference); `src/worker-tools/lib/require-env.ts`+`get-arg.ts`.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `grep -rn "process.env\[" src/worker-tools/hostfully/*.ts` (excl. lib/) → 0; `pnpm exec tsx src/worker-tools/hostfully/get-messages.ts --help` exit 0; `pnpm build`; `pnpm test:integration tests/integration/.../hostfully` (or `tests/worker-tools`) green; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Hostfully tools migrated
+    Tool: Bash
+    Steps:
+      1. grep "process.env[" hostfully/*.ts (excl lib) → 0
+      2. pnpm exec tsx src/worker-tools/hostfully/get-messages.ts --help (exit 0)
+      3. pnpm build; worker-tools hostfully tests green; Tier A → Done
+    Expected Result: 10 tools migrated, --help works, tests green
+    Evidence: .sisyphus/evidence/task-20-tierA-{help,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate hostfully tools to shared helpers`
+
+- [ ] 21. Migrate google/ (19 files)
+
+  **What to do**:
+  - **VERIFIED list** — migrate all EXCEPT `google-fetch.ts` (the requireEnv source — SKIP/re-export only): `create-document.ts`, `create-event.ts`, `delete-file.ts`, `get-document.ts`, `get-email.ts`, `get-file.ts`, `get-presentation.ts`, `get-sheet-data.ts`, `list-documents.ts`, `list-emails.ts`, `list-events.ts`, `list-files.ts`, `list-presentations.ts`, `list-spreadsheets.ts`, `send-email.ts`, `update-event.ts`, `update-sheet-data.ts`, `upload-file.ts`, `validate-env.ts`.
+  - Edge cases: `create-event.ts`/`update-event.ts` comma-split `--attendees` → `(getArg(...) ?? '').split(',').map(s=>s.trim()).filter(Boolean)`. Optional Google env (refresh tokens/scopes) → `optionalEnv`, required → `requireEnv`.
+
+  **Must NOT do**: Do NOT use `requireEnv` for optional vars; do NOT change output; do NOT break `google-fetch.ts`.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/google/google-fetch.ts`; `src/worker-tools/lib/require-env.ts`+`get-arg.ts`.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `grep -rn "process.env\[" src/worker-tools/google/*.ts` (excl. google-fetch.ts) → 0; comma-split handled; `pnpm exec tsx src/worker-tools/google/list-files.ts --help` exit 0; `pnpm build`; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Google tools migrated
+    Tool: Bash
+    Steps:
+      1. grep "process.env[" google/*.ts (excl google-fetch) → 0
+      2. pnpm exec tsx src/worker-tools/google/list-files.ts --help (exit 0)
+      3. pnpm build; Tier A → Done
+    Expected Result: 19 tools migrated, --help works, green
+    Evidence: .sisyphus/evidence/task-21-tierA-{help,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate google tools to shared helpers`
+
+- [ ] 22. Migrate sifely (9) + jira (5) + notion (5) = 19 files
+
+  **What to do**:
+  - **sifely/ (9)**: re-grep dir for exact names; `generate-code.ts` has comma-split `--exclude-codes`. `rotate-property-code.ts` — only env/arg parsing; do NOT touch its (already-fixed) shell-injection logic.
+  - **jira/ (5, SKIP `get-issue.ts` already migrated)**: re-grep dir.
+  - **notion/ (5)**: `append-blocks.ts`, `get-page.ts`, `update-block.ts` + 2. **LEAVE `import.meta.url` entrypoint guards untouched** (module-entry checks, not arg parsing).
+  - Re-grep each dir for exact files + actual usage before editing.
+
+  **Must NOT do**: Do NOT modify `import.meta.url` guards; do NOT re-migrate `jira/get-issue.ts`; do NOT use `requireEnv` for optional vars; do NOT change output.
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/sifely/generate-code.ts`; `src/worker-tools/notion/append-blocks.ts` (guard); `src/worker-tools/jira/get-issue.ts` (reference); `lib/require-env.ts`+`get-arg.ts`.
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] `grep -rn "process.env\[" src/worker-tools/{sifely,jira,notion}/*.ts` → 0; `import.meta.url` guards still present in notion; one tool per dir `--help` exit 0; `pnpm build`; worker-tools tests green; Tier A → Done
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: sifely/jira/notion migrated, guards preserved
+    Tool: Bash
+    Steps:
+      1. grep "process.env[" across the 3 dirs → 0
+      2. grep "import.meta.url" notion/*.ts (still present)
+      3. pnpm build; worker-tools tests green; Tier A → Done
+    Expected Result: 19 migrated, guards intact, green
+    Evidence: .sisyphus/evidence/task-22-tierA-{help,db}.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate sifely, jira, notion tools to shared helpers`
+
+- [ ] 23. Migrate platform (3) + github (1) = 4 files
+
+  **What to do**:
+  - **platform/ (3)**: `calculate.ts`, `report-issue.ts`, `submit-output.ts`. **github/ (1)**: `get-token.ts`.
+  - **SKIP `knowledge_base/search.ts`** (already migrated).
+  - **CRITICAL — `submit-output.ts`** writes `/tmp/summary.txt` + `/tmp/approval-message.json` (output contract); has `unescapeShellArg` wrappers. Only change env/arg PARSING; never the file-writing/contract logic or the wrappers. `report-issue.ts` has `unescapeShellArg` on `--description`/`--patch-diff` — preserve; route lookup through `getArg`.
+
+  **Must NOT do**: Do NOT touch `knowledge_base/search.ts`; do NOT change `submit-output.ts` contract logic; do NOT remove `unescapeShellArg`.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/platform/submit-output.ts`/`report-issue.ts`/`calculate.ts`; `src/worker-tools/github/get-token.ts`; `lib/require-env.ts`+`get-arg.ts`+`unescape-args.ts`.
+
+  **Acceptance Criteria** (Tier A — submit-output is on the delivery path):
+  - [ ] `grep -rn "process.env\[" src/worker-tools/{platform,github}/*.ts` → 0; `submit-output.ts` still writes both `/tmp/` files + has `unescapeShellArg`; `pnpm exec tsx src/worker-tools/platform/submit-output.ts --help` exit 0; `pnpm build`; **Tier A MANDATORY** → Done + delivery message posted
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: platform/github migrated, contract intact
+    Tool: Bash
+    Steps:
+      1. grep "process.env[" platform/*.ts github/*.ts → 0
+      2. grep "unescapeShellArg\|summary.txt\|approval-message.json" submit-output.ts (present)
+      3. pnpm build; Tier A → Done + delivery posted
+    Expected Result: 4 migrated, contract preserved, employee delivers
+    Evidence: .sisyphus/evidence/task-23-tierA-{help,db,slack}.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate platform and github tools to shared helpers`
+
+- [ ] 24. Migrate slack/post-message.ts (high-risk, 226 lines)
+
+  **What to do**:
+  - **VERIFIED 226 lines, mixed required/optional env**. REQUIRED: `SLACK_BOT_TOKEN`, `SLACK_CHANNEL` → `requireEnv`. OPTIONAL: `NOTIFY_MSG_TS`, `INNGEST_RUN_ID`, `TASK_ID`, `EMPLOYEE_PHASE`, `APPROVAL_REQUIRED`, `THREAD_TS` → `optionalEnv`. Args → `getArg`. Verify behavior with and without optional vars. (Re-grep actual env var names before editing.)
+
+  **Must NOT do**: Do NOT use `requireEnv` for any optional var (would crash the tool); do NOT change message/posting/thread logic.
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/slack/post-message.ts`; `src/worker-tools/lib/require-env.ts` (`optionalEnv` from Task 7).
+
+  **Acceptance Criteria** (Tier A):
+  - [ ] Required vars use `requireEnv`, optional use `optionalEnv`; zero `process.env` in file; `pnpm build`; worker-tools tests green; Tier A → Done (Slack post via this tool)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: post-message.ts migrated
+    Tool: Bash
+    Steps:
+      1. grep -c "process.env" post-message.ts (0)
+      2. grep "optionalEnv" post-message.ts (NOTIFY_MSG_TS etc.)
+      3. pnpm build; Tier A → Done
+    Expected Result: Correct required/optional split, green
+    Evidence: .sisyphus/evidence/task-24-tierA.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate slack/post-message.ts with optionalEnv`
+
+- [ ] 25. Migrate slack/post-guest-approval.ts (highest-risk, 540 lines)
+
+  **What to do**:
+  - **VERIFIED 540 lines** — most complex tool: idempotency guard (double argv parse), mixed env, Block Kit construction, multiple paths. Migrate env → `requireEnv`/`optionalEnv`, args → `getArg`. DO NOT refactor the idempotency guard or Block Kit logic — only change env/arg ACCESS. Test extensively.
+
+  **Must NOT do**: Do NOT refactor idempotency guard or message construction; do NOT change Block Kit output; do NOT simplify control flow.
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`adding-shell-tools`].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: 7.
+
+  **References**: `src/worker-tools/slack/post-guest-approval.ts`; `src/worker-tools/lib/require-env.ts`.
+
+  **Acceptance Criteria** (Tier B — approval card construction):
+  - [ ] Zero `process.env` in file; idempotency + Block Kit logic unchanged; `pnpm build`; worker-tools tests green; **Tier B** full approval loop → card posts correctly → approve → delivery
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: post-guest-approval.ts safely migrated
+    Tool: Bash
+    Steps:
+      1. grep -c "process.env" post-guest-approval.ts (0)
+      2. pnpm build; worker-tools tests green
+      3. Tier B: full approval loop, card renders + approves correctly
+    Expected Result: Clean migration, approval card works end-to-end
+    Evidence: .sisyphus/evidence/task-25-tierB-*.txt
+  ```
+
+  **Commit**: YES — `refactor(worker-tools): migrate slack/post-guest-approval.ts (preserve idempotency)`
+
+- [ ] 26. Document worker-tools local install requirement in CONTRIBUTING.md
+
+  **What to do**:
+  - Add a "Worker Tools Development" section: `src/worker-tools/` has its own `package.json`/`node_modules`; local tool dev needs `cd src/worker-tools && pnpm install`; Docker handles it in containers; tools are bind-mounted locally (no rebuild for tool-only changes).
+
+  **Must NOT do**: Do NOT restructure the worker-tools package.
+
+  **Recommended Agent Profile**: Category `quick`; Skills: [].
+
+  **Parallelization**: Wave 4. Blocks: none. Blocked By: none.
+
+  **References**: `src/worker-tools/package.json`; `CONTRIBUTING.md`.
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] CONTRIBUTING.md has "Worker Tools Development" with `cd src/worker-tools && pnpm install`
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Doc added
+    Tool: Bash
+    Steps:
+      1. grep "Worker Tools Development" CONTRIBUTING.md
+      2. grep "cd src/worker-tools" CONTRIBUTING.md
+    Expected Result: Section present
+    Evidence: .sisyphus/evidence/task-26-doc.txt
+  ```
+
+  **Commit**: YES — `docs: document worker-tools local install requirement`
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
