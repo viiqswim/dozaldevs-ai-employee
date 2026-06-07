@@ -86,3 +86,18 @@ Full-suite run after fix: 37 failures remain, NONE are Slack copy-string asserti
 - `lifecycle-enriched-notify.test.ts`: renamed `buildReviewingFetchMock` opts param + metadata key `guest_name` → `recipient_name`, updated 2 test titles. Assertions unchanged.
 
 ### Result: 14/14 passing across both target files
+
+## Task 0.3 — call-llm cost-from-catalog test mocks (2026-06-07)
+
+**Root cause**: `vi.mock('@prisma/client', ...)` only mocked `$queryRaw` but not `modelCatalog.findFirst`. After PR #7 moved pricing to `model_catalog` DB table, `getCostForModel()` calls `getPrisma().modelCatalog.findFirst(...)` which returned `undefined` → cost was 0.
+
+**Fix pattern**:
+1. Add `mockModelCatalogFindFirst = vi.hoisted(() => vi.fn().mockImplementation(...))` with a `CATALOG_PRICING` map
+2. Add `modelCatalog: { findFirst: mockModelCatalogFindFirst }` to the `PrismaClient` mock implementation
+3. Re-set `mockModelCatalogFindFirst.mockImplementation(...)` in `beforeEach` AFTER `vi.clearAllMocks()` (clearAllMocks wipes implementations)
+4. Do NOT call `_resetPrisma()` in `beforeEach` — it forces a new `PrismaClient()` call, but after `vi.clearAllMocks()` the constructor mock has no implementation and returns `undefined`
+
+**Pricing values for minimax/minimax-m2.7**: `input_cost_per_million: 0.3`, `output_cost_per_million: 1.1`
+- Math: `(100 × 0.3 + 50 × 1.1) / 1_000_000 = 0.000085`
+
+**Key gotcha**: `vi.clearAllMocks()` clears both call history AND mock implementations. Always re-set implementations after calling it in `beforeEach`.

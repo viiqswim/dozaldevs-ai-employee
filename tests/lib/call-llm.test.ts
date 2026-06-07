@@ -10,9 +10,26 @@ import {
 
 const mockQueryRaw = vi.hoisted(() => vi.fn().mockResolvedValue([{ total: 0 }]));
 
+const CATALOG_PRICING: Record<
+  string,
+  { input_cost_per_million: number; output_cost_per_million: number }
+> = {
+  'minimax/minimax-m2.7': { input_cost_per_million: 0.3, output_cost_per_million: 1.1 },
+};
+
+const mockModelCatalogFindFirst = vi.hoisted(() =>
+  vi.fn().mockImplementation(({ where }: { where: { model_id: string } }) => {
+    const entry = CATALOG_PRICING[where.model_id] ?? null;
+    return Promise.resolve(entry);
+  }),
+);
+
 vi.mock('@prisma/client', () => ({
   PrismaClient: vi.fn().mockImplementation(() => ({
     $queryRaw: mockQueryRaw,
+    modelCatalog: {
+      findFirst: mockModelCatalogFindFirst,
+    },
   })),
 }));
 
@@ -67,6 +84,10 @@ describe('callLLM', () => {
     _resetAlertState();
     vi.clearAllMocks();
     mockQueryRaw.mockResolvedValue([{ total: 0 }]);
+    mockModelCatalogFindFirst.mockImplementation(({ where }: { where: { model_id: string } }) => {
+      const entry = CATALOG_PRICING[where.model_id] ?? null;
+      return Promise.resolve(entry);
+    });
     vi.mocked(getPlatformSetting).mockImplementation(async (key: string) => {
       const defaults: Record<string, string> = {
         cost_limit_usd_per_day: '999999',
