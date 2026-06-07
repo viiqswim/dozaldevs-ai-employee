@@ -32,6 +32,7 @@ function makeMockBoltApp() {
     event: vi.fn((id: string, handler: EventHandler) => {
       handlers.set(`event:${id}`, handler);
     }),
+    use: vi.fn(),
     _getAction: (id: string) => handlers.get(`action:${id}`) as ActionHandler,
     _getView: (id: string) => handlers.get(`view:${id}`) as ViewHandler,
   };
@@ -82,7 +83,7 @@ beforeEach(() => {
   process.env.SUPABASE_SECRET_KEY = 'test-key';
 });
 
-describe('guest_approve handler', () => {
+describe('approve handler', () => {
   it('fires employee/approval.received with action: approve when task is Reviewing', async () => {
     vi.stubGlobal('fetch', makeTaskFetchReviewing());
 
@@ -90,7 +91,7 @@ describe('guest_approve handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getAction('guest_approve');
+    const handler = boltApp._getAction('approve');
     expect(handler).toBeDefined();
 
     const ack = makeAck();
@@ -122,7 +123,7 @@ describe('guest_approve handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getAction('guest_approve');
+    const handler = boltApp._getAction('approve');
     const ack = makeAck();
     const respond = makeRespond();
 
@@ -145,13 +146,13 @@ describe('guest_approve handler', () => {
   });
 });
 
-describe('guest_edit handler', () => {
-  it('calls client.views.open with guest_edit_modal callback_id', async () => {
+describe('edit_and_send handler', () => {
+  it('calls client.views.open with edit_and_send_modal callback_id', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getAction('guest_edit');
+    const handler = boltApp._getAction('edit_and_send');
     expect(handler).toBeDefined();
 
     const ack = makeAck();
@@ -176,7 +177,7 @@ describe('guest_edit handler', () => {
       expect.objectContaining({
         trigger_id: 'trigger-abc',
         view: expect.objectContaining({
-          callback_id: 'guest_edit_modal',
+          callback_id: 'edit_and_send_modal',
         }),
       }),
     );
@@ -187,7 +188,7 @@ describe('guest_edit handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getAction('guest_edit');
+    const handler = boltApp._getAction('edit_and_send');
     const client = makeClient();
     const editValue = JSON.stringify({
       taskId: 'task-parse-test',
@@ -215,7 +216,7 @@ describe('guest_edit handler', () => {
   });
 });
 
-describe('guest_edit_modal view handler', () => {
+describe('edit_and_send_modal view handler', () => {
   it('fires approval event with editedContent when text is valid', async () => {
     vi.stubGlobal('fetch', makeTaskFetchReviewing());
 
@@ -223,7 +224,7 @@ describe('guest_edit_modal view handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getView('guest_edit_modal') as ViewHandler;
+    const handler = boltApp._getView('edit_and_send_modal') as ViewHandler;
     expect(handler).toBeDefined();
 
     const ack = makeAck();
@@ -240,7 +241,7 @@ describe('guest_edit_modal view handler', () => {
         state: {
           values: {
             draft_input: {
-              edited_draft: { value: 'Edited response text.' },
+              edit_and_send: { value: 'Edited response text.' },
             },
           },
         },
@@ -270,7 +271,7 @@ describe('guest_edit_modal view handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getView('guest_edit_modal') as ViewHandler;
+    const handler = boltApp._getView('edit_and_send_modal') as ViewHandler;
     const ack = makeAck();
 
     await handler({
@@ -279,7 +280,7 @@ describe('guest_edit_modal view handler', () => {
         state: {
           values: {
             draft_input: {
-              edited_draft: { value: '   ' },
+              edit_and_send: { value: '   ' },
             },
           },
         },
@@ -302,13 +303,13 @@ describe('guest_edit_modal view handler', () => {
   });
 });
 
-describe('guest_reject handler', () => {
-  it('calls client.views.open with guest_reject_modal callback_id', async () => {
+describe('reject handler', () => {
+  it('calls client.views.open with reject_modal callback_id', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getAction('guest_reject');
+    const handler = boltApp._getAction('reject');
     expect(handler).toBeDefined();
 
     const client = makeClient();
@@ -330,14 +331,14 @@ describe('guest_reject handler', () => {
       expect.objectContaining({
         trigger_id: 'trigger-reject',
         view: expect.objectContaining({
-          callback_id: 'guest_reject_modal',
+          callback_id: 'reject_modal',
         }),
       }),
     );
   });
 });
 
-describe('guest_reject_modal view handler', () => {
+describe('reject_modal view handler', () => {
   it('fires rejection event with rejectionReason when reason is provided', async () => {
     vi.stubGlobal('fetch', makeTaskFetchReviewing());
 
@@ -345,7 +346,7 @@ describe('guest_reject_modal view handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getView('guest_reject_modal') as ViewHandler;
+    const handler = boltApp._getView('reject_modal') as ViewHandler;
     expect(handler).toBeDefined();
 
     const privateMeta = JSON.stringify({
@@ -391,7 +392,7 @@ describe('guest_reject_modal view handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getView('guest_reject_modal') as ViewHandler;
+    const handler = boltApp._getView('reject_modal') as ViewHandler;
     const privateMeta = JSON.stringify({
       taskId: 'task-reject-no-reason',
       channelId: 'C-REJECT2',
@@ -428,7 +429,7 @@ describe('guest_reject_modal view handler', () => {
     const inngest = makeMockInngest();
     registerSlackHandlers(boltApp as unknown as App, inngest);
 
-    const handler = boltApp._getView('guest_reject_modal') as ViewHandler;
+    const handler = boltApp._getView('reject_modal') as ViewHandler;
 
     await handler({
       ack: makeAck(),

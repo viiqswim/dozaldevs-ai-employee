@@ -28,44 +28,22 @@ export interface ActionBody {
 export const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
 
 // ─── Button block builders ────────────────────────────────────────────────────
-export const GUEST_BUTTON_BLOCKS = (taskId: string) => [
-  {
-    type: 'actions',
-    elements: [
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '✅ Approve & Send', emoji: true },
-        action_id: SLACK_ACTION_ID.GUEST_APPROVE,
-        value: taskId,
-        style: 'primary',
-      },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
-        action_id: SLACK_ACTION_ID.GUEST_EDIT,
-        value: taskId,
-      },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '❌ Reject', emoji: true },
-        action_id: SLACK_ACTION_ID.GUEST_REJECT,
-        value: taskId,
-        style: 'danger',
-      },
-    ],
-  },
-];
-
 export const BUTTON_BLOCKS = (taskId: string) => [
   {
     type: 'actions',
     elements: [
       {
         type: 'button',
-        text: { type: 'plain_text', text: '✅ Approve & Post', emoji: true },
+        text: { type: 'plain_text', text: '✅ Approve', emoji: true },
         action_id: SLACK_ACTION_ID.APPROVE,
         value: taskId,
         style: 'primary',
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: '✏️ Edit & Send', emoji: true },
+        action_id: SLACK_ACTION_ID.EDIT_AND_SEND,
+        value: taskId,
       },
       {
         type: 'button',
