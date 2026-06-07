@@ -221,6 +221,51 @@ UPDATE archetypes SET vm_size = 'performance-1x' WHERE role_name = 'cleaning-sch
 
 ---
 
+### Bug 5: Prisma 42P05 "prepared statement already exists" — pooler without pgbouncer=true (FIXED 2026-06-07)
+
+**Symptom**: Gateway crash-loops at boot with:
+
+```
+PrismaClientUnknownRequestError
+Invalid `prisma.platformSetting.findMany()` invocation:
+ConnectorError ... PostgresError { code: "42P05", message: "prepared statement \"s0\" already exists" }
+  at validateRequiredPlatformSettings (dist/lib/platform-settings.js)
+  at dist/gateway/server.js
+==> Exited with status 1
+```
+
+This is **intermittent** — a previous deploy running the exact same query at boot may succeed if it happens to get a fresh backend connection. That makes it a latent infra bug, not a code bug. It can appear after any deploy that touches gateway startup.
+
+**Cause**: `DATABASE_URL` pointed at the Supabase transaction pooler (port 6543) without the `?pgbouncer=true` query param. Prisma uses prepared statements by default. PgBouncer in transaction-pooling mode reuses backend connections across clients, so a connection that already has prepared statement `s0` registered collides with the next client that tries to create it, producing `42P05`.
+
+**Fix**: Append `?pgbouncer=true` to `DATABASE_URL` in Render. Leave `DATABASE_URL_DIRECT` (port 5432, direct connection) unchanged — it's used for migrations and must NOT have the param.
+
+```bash
+# Update DATABASE_URL via single-var PUT (does NOT wipe other vars)
+curl -s -X PUT "https://api.render.com/v1/services/srv-d8f1b2gg4nts738dj7jg/env-vars/DATABASE_URL" \
+  -H "Authorization: Bearer $RENDER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value":"postgresql://postgres.gjqrysxpvktmibpkwrvy:***@aws-1-us-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true"}'
+
+# Verify the change landed — ALWAYS use ?limit=100 (default page is ~20 and hides keys)
+curl -s "https://api.render.com/v1/services/srv-d8f1b2gg4nts738dj7jg/env-vars?limit=100" \
+  -H "Authorization: Bearer $RENDER_API_KEY" | jq '[.[] | {key: .envVar.key}]'
+
+# Trigger a redeploy
+curl -s -X POST "https://api.render.com/v1/services/srv-d8f1b2gg4nts738dj7jg/deploys" \
+  -H "Authorization: Bearer $RENDER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"clearCache":"do_not_clear"}' | jq '{id: .id, status: .status}'
+```
+
+**Verification**: After the redeploy, `/health` returns `{"status":"ok"}`, no FATAL lines in logs, and both `/admin/model-catalog` and `/admin/platform-settings` return 200.
+
+**Pagination gotcha**: The `GET /env-vars` endpoint returns ~20 vars by default. Without `?limit=100`, keys like `DATABASE_URL` can appear missing even when they're set. Always use `?limit=100` when verifying env vars via the API.
+
+**Note on autoDeploy**: Render has `autoDeploy=yes` — merging to `main` triggers a deploy automatically. After fixing the env var, a manual redeploy (above) is still needed to pick up the change without waiting for the next merge.
+
+---
+
 ### Bug 4: Render API doesn't return dashboard-set env vars (KNOWN)
 
 **Symptom**: `GET /env-vars` returns only ~20 vars. SUPABASE_URL, SUPABASE_SECRET_KEY, INNGEST_EVENT_KEY etc. appear missing.

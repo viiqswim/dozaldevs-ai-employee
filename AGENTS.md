@@ -430,6 +430,8 @@ curl -sN -H "Authorization: Bearer $RENDER_API_KEY" \
 - `PATCH /services/{id}` with `serviceDetails.dockerfilePath` does NOT work — must nest under `serviceDetails.envSpecificDetails.dockerfilePath`
 - Runtime logs endpoint: `GET /v1/services/{id}/logs` — returns SSE stream; use `curl -sN` and pipe to `head`
 - Deploy logs (build output) are only visible in the Render dashboard, not via API
+- `GET /env-vars` paginates at ~20 by default — always append `?limit=100` when listing or verifying env vars, or keys will appear missing even when set
+- Prod `DATABASE_URL` MUST include `?pgbouncer=true` (it uses the 6543 transaction pooler) — without it Prisma intermittently crashes at boot with `42P05 prepared statement "s0" already exists`. `DATABASE_URL_DIRECT` (port 5432, used for migrations) must NOT have the param.
 
 ## Infrastructure
 
@@ -510,7 +512,7 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret from Google Cloud Console
 - `GOOGLE_REDIRECT_BASE_URL` — Base URL for OAuth callback (default: `http://localhost:7700`)
 
-**OpenCode Go**: `OPENCODE_GO_API_KEY` — optional in local dev and CI (calls fall back to OpenRouter when unset); **required in production** (the gateway throws at boot if `NODE_ENV=production` and the key is missing — enforced by `validateProductionEnv()` in `src/gateway/server.ts`). When set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var locally to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
+**OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts` (14 models).
 
 ## Long-Running Commands
 
