@@ -403,7 +403,7 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function sanitizeAgentsMd(input: string): string {
+function sanitizeAgentsMd(input: string): string {
   const SECTION_HEADER_RE = /^(##\s+\S|[A-Z][A-Z\s]+:?\s*$)/m;
 
   function stripSection(text: string, headerPattern: RegExp): string {

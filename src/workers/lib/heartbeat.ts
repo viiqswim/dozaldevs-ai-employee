@@ -77,7 +77,7 @@ export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle {
  * Updates task status, logs the transition, and posts to Slack.
  * All steps log errors but never throw — escalation must succeed even if one step fails.
  */
-export async function escalate(options: EscalateOptions): Promise<void> {
+async function escalate(options: EscalateOptions): Promise<void> {
   const { taskId, reason, failedStage, postgrestClient } = options;
 
   // Step 1: Log escalation to stdout

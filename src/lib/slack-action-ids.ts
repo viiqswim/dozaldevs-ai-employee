@@ -14,4 +14,4 @@ export const SLACK_ACTION_ID = {
   TRIGGER_CANCEL: 'trigger_cancel',
 } as const;
 
-export type SlackActionId = (typeof SLACK_ACTION_ID)[keyof typeof SLACK_ACTION_ID];
+type SlackActionId = (typeof SLACK_ACTION_ID)[keyof typeof SLACK_ACTION_ID];

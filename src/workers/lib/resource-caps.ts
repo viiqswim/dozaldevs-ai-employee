@@ -5,7 +5,7 @@
  *
  * Source: nexus-stack/tools/fly-worker/entrypoint.sh:463-473
  */
-export const RESOURCE_CAPS = {
+const RESOURCE_CAPS = {
   /** Turbo build concurrency limit (prevents CPU thrash on Fly machines) */
   TURBO_CONCURRENCY: '2',
   /** Vitest worker count limit (prevents OOM on 2-core Fly machines) */
@@ -16,7 +16,7 @@ export const RESOURCE_CAPS = {
   NODE_OPTIONS: '--max-old-space-size=4096',
 } as const;
 
-export type ResourceCapKey = keyof typeof RESOURCE_CAPS;
+type ResourceCapKey = keyof typeof RESOURCE_CAPS;
 
 /**
  * Apply resource caps to process.env, respecting any already-set values.
@@ -38,7 +38,7 @@ export function applyResourceCaps(env: NodeJS.ProcessEnv = process.env): void {
  *   TURBO_CONCURRENCY=2
  *   NEXUS_VITEST_MAX_WORKERS=2
  */
-export function resourceCapsForShell(env: NodeJS.ProcessEnv = process.env): string {
+function resourceCapsForShell(env: NodeJS.ProcessEnv = process.env): string {
   const lines: string[] = [];
   for (const [key, value] of Object.entries(RESOURCE_CAPS)) {
     if (!env[key]) {

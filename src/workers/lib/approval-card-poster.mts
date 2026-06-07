@@ -3,7 +3,7 @@ import { WebClient } from '@slack/web-api';
 import type { StandardOutput } from './output-schema.mjs';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 
-export interface ApprovalBlockData {
+interface ApprovalBlockData {
   summary: string;
   draft?: string;
   classification: string;
@@ -29,7 +29,7 @@ export interface PostApprovalCardResult {
  * Build Slack Block Kit blocks for a generic employee approval card.
  * Employee-agnostic — no guest, property, or domain-specific language.
  */
-export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
+function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
   const headerPrefix = data.urgency ? '⚠️ ' : '📝 ';
   const headerText = `${headerPrefix}${data.summary.slice(0, 150)}`;
 

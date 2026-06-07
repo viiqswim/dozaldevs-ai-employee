@@ -12,4 +12,4 @@ export const NOTION_API_VERSION = '2022-06-28';
 
 // Notion OAuth does not use scopes — access is controlled by the page picker.
 // This constant is kept for structural parity with other OAuth integrations.
-export const NOTION_REQUIRED_SCOPES = '';
+const NOTION_REQUIRED_SCOPES = '';
