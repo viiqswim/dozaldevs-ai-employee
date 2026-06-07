@@ -39,7 +39,6 @@ import {
 } from '../lib/config.js';
 import {
   supersededMessage,
-  expiredMessage,
   needsReviewMessage,
   reviewingDraftedMessage,
   completedNoApprovalMessage,

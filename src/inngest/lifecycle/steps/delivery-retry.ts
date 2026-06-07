@@ -13,7 +13,6 @@ import {
 } from '../../../lib/config.js';
 import { getTunnelUrl } from '../../../lib/tunnel-client.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
-import type { NotificationEnrichment } from '../../../lib/types/notification-enrichment.js';
 import type { KnownBlock } from '@slack/web-api';
 
 const log = createLogger('lifecycle-delivery-retry');
@@ -43,7 +42,6 @@ export async function runDeliveryWithRetry(
 ): Promise<DeliveryRetryResult> {
   const {
     taskId,
-    tenantId,
     supabaseUrl,
     supabaseKey,
     headers,

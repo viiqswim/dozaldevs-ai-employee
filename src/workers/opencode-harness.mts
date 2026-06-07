@@ -5,11 +5,7 @@ import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager, extractUsage } from './lib/session-manager.js';
 import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
 import { classifyFailure } from './lib/failure-codes.js';
-import {
-  parseStandardOutput,
-  isApprovalRequired,
-  type StandardOutput,
-} from './lib/output-schema.mjs';
+import { type StandardOutput } from './lib/output-schema.mjs';
 import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
