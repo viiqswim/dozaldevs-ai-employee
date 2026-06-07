@@ -20,4 +20,18 @@ export default defineConfig({
     },
     testTimeout: 30000,
   },
+  coverage: {
+    provider: 'v8',
+    reporter: ['text', 'html'],
+    all: true,
+    include: ['src/**/*.ts', 'src/**/*.mts'],
+    exclude: [
+      'src/**/__tests__/**',
+      'src/**/*.test.ts',
+      'src/**/*.test.mts',
+      'src/worker-tools/lib/**',
+      'src/worker-tools/*/lib/**',
+      'src/worker-tools/notion/lib/**',
+    ],
+  },
 });
