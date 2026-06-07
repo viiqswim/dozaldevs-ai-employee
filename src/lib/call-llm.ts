@@ -30,15 +30,38 @@ export interface CallLLMResult {
   latencyMs: number;
 }
 
-const PRICING_PER_1M_TOKENS: Record<string, { prompt: number; completion: number }> = {
-  'minimax/minimax-m2.7': { prompt: 0.3, completion: 1.1 },
-  'deepseek/deepseek-v4-flash': { prompt: 0.14, completion: 0.28 },
-};
-
 let _prisma: PrismaClient | null = null;
 function getPrisma(): PrismaClient {
   if (!_prisma) _prisma = new PrismaClient();
   return _prisma;
+}
+
+export function _resetPrisma(): void {
+  _prisma = null;
+}
+
+async function getCostForModel(
+  model: string,
+  promptTokens: number,
+  completionTokens: number,
+): Promise<number> {
+  try {
+    const entry = await getPrisma().modelCatalog.findFirst({
+      where: { model_id: model, deleted_at: null },
+    });
+    if (entry) {
+      return (
+        (promptTokens * entry.input_cost_per_million +
+          completionTokens * entry.output_cost_per_million) /
+        1_000_000
+      );
+    }
+    createLogger('call-llm').warn({ model }, 'Model not found in catalog, recording $0 cost');
+    return 0;
+  } catch {
+    createLogger('call-llm').warn({ model }, 'Model not found in catalog, recording $0 cost');
+    return 0;
+  }
 }
 
 const COST_CACHE: { value: number; refreshedAt: Date | null } = {
@@ -262,10 +285,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   const promptTokens = data.usage.prompt_tokens;
   const completionTokens = data.usage.completion_tokens;
 
-  const pricing = PRICING_PER_1M_TOKENS[effectiveModel];
-  const estimatedCostUsd = pricing
-    ? (promptTokens * pricing.prompt + completionTokens * pricing.completion) / 1_000_000
-    : 0;
+  const estimatedCostUsd = await getCostForModel(effectiveModel, promptTokens, completionTokens);
 
   return {
     content,
