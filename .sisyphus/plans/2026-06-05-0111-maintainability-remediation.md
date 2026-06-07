@@ -617,7 +617,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 ### WAVE 4 — Conventions, Docs & Approval-Flow Unification (ship last)
 
-- [ ] 28. **Dashboard: `SearchableSelect` + non-technical end-user copy**
+- [x] 28. **Dashboard: `SearchableSelect` + non-technical end-user copy**
 
   **What to do** ([DASH-2]): Replace Radix `<Select>` with `<SearchableSelect>` in `components/layout/Header.tsx` (tenant switcher) and `components/InputSchemaEditor.tsx`. Rewrite technical end-user strings: "Select tenant"→"Select organization" (Header:71), "No archetypes found for this tenant" (RulesPanel:828), "employee archetype…admin API" (TriggerPanel:173), "...for this tenant" (CreateEmployeePage:540, CompactSettingsGrid:243).
   **Must NOT do**: Change internal field names (only user-visible copy); don't swap programmatic 2-option toggles.
@@ -630,7 +630,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA (Playwright)**: tenant switcher is searchable; copy reads "organization". Evidence: `.sisyphus/evidence/task-28-ux.png`
         **Commit**: YES — `fix(dashboard): use SearchableSelect; non-technical end-user copy`
 
-- [ ] 29. **Dashboard: shared components + dedup**
+- [x] 29. **Dashboard: shared components + dedup**
 
   **What to do** ([DASH-3]+[DASH-4]): Move `WEBHOOK_FIXTURES` → `lib/constants.ts`; dedup `computeCostTierLabel` → `lib/utils.ts`; extract shared `DeleteEmployeeDialog`, `ErrorBox`, `Textarea`, `FormField`; route `deleteRule` through `gatewayFetch`; convert `CompactSettingsGrid` 7-useState cluster → `useReducer`.
   **Must NOT do**: Change behavior/styling of the deduped UI.
@@ -642,7 +642,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `cd dashboard && pnpm build` + `pnpm test` green
         **Commit**: YES — `refactor(dashboard): extract shared components and dedup constants`
 
-- [ ] 30. **Docs: worker-tools skill + CONTRIBUTING.md + archive one-shot scripts**
+- [x] 30. **Docs: worker-tools skill + CONTRIBUTING.md + archive one-shot scripts**
 
   **What to do** ([TOOLS-3]+[DOC-1]+[DOC-2]+[BUILD-6]): Update the `adding-shell-tools` skill with the canonical tool structure (--help placement, mock-mode rule, `node:` prefix, `requireEnv`/`getArg`). Create `CONTRIBUTING.md` (active-vs-deprecated map, the task-creation paths + which to use, dual Prisma/PostgREST pattern note, how to add a tool/employee, how to run E2E, link into AGENTS.md). Move executed one-shots (`migrate-archetypes-to-template.ts`, `migrate-feedback-data.ts`, `migrate-vlre-kb.ts`, `resolve-hostfully-uids.ts`, `setup-two-tenants.ts`) → `scripts/archive/`.
   **Must NOT do**: Duplicate AGENTS.md wholesale into CONTRIBUTING (link, don't copy).

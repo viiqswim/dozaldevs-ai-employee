@@ -555,3 +555,80 @@ The checkbox checkmark SVG (`viewBox="0 0 12 12"`) existed verbatim in both `Mul
 ### Commit
 
 9887ac95 — `refactor(dashboard): decompose RulesPanel into tabs and shared dropdown`
+
+## Task 28: SearchableSelect + Non-Technical Copy (2026-06-07)
+
+### SearchableSelect migration pattern
+- Props: `options: {value, label}[]`, `value`, `onValueChange`, `placeholder?`, `searchPlaceholder?`, `className?`, `disabled?`
+- In Header.tsx: `Object.entries(TENANTS).map(([id, name]) => ({ value: id, label: name }))` — note the tuple destructure
+- In InputSchemaEditor.tsx: define a `TYPE_OPTIONS` constant above the component with `{value, label}[]` shape
+- For emoji labels in options, put the emoji directly in the label string — SearchableSelect renders it as plain text (works fine)
+- The `className` prop replaces the full `className` on the container, including `w-full` default — pass `"w-36"` to size the header trigger
+
+### Files changed
+- `dashboard/src/components/layout/Header.tsx` — replaced Radix Select with SearchableSelect; "Select organization" placeholder
+- `dashboard/src/components/InputSchemaEditor.tsx` — replaced Radix Select for type picker with SearchableSelect + TYPE_OPTIONS constant
+- `dashboard/src/panels/rules/RulesPanel.tsx` — "No archetypes found for this tenant" → "No employees found for this organization"
+- `dashboard/src/panels/trigger/TriggerPanel.tsx` — both "for this tenant" strings replaced; description dewired from admin API jargon
+- `dashboard/src/panels/employees/sections/CompactSettingsGrid.tsx` — Slack copy plain-languaged
+- `dashboard/src/panels/employees/CreateEmployeePage.tsx` — Slack copy plain-languaged
+
+### Verification
+- `grep -rl "from '@/components/ui/select'" dashboard/src` → empty (zero unjustified imports remain)
+- `pnpm build` in dashboard → EXIT_CODE:0
+- Playwright: tenant switcher shows "Search organizations..." search input + DozalDevs/VLRE options with checkmark — confirmed functional
+- Screenshot: `.sisyphus/evidence/task-28-ux.png`
+
+### Copy replacements reference
+| Before | After |
+|--------|-------|
+| "Select tenant" | "Select organization" |
+| "No archetypes found for this tenant" | "No employees found for this organization" |
+| "No employees found for this tenant" | "No employees found for this organization" |
+| "Select an employee archetype and fire a task manually via the admin API." | "Pick an employee below and start a task manually." |
+| "Slack not configured for this tenant. Enter a channel ID manually." | "Slack isn't connected yet — enter a channel ID manually." |
+
+## Task 29 — Dashboard shared components + dedup
+
+### What was done
+- `WEBHOOK_FIXTURES` moved from `EmployeeList.tsx` + `EmployeeDetail.tsx` → `constants.ts` export
+- `computeCostTierLabel` moved from `EmployeeDetail.tsx` + `ModelCatalogPage.tsx` → `utils.ts` (lowercase return type; `EmployeeDetail` now capitalizes on use)
+- `deleteRule` in `gateway.ts` converted from raw `fetch` to `gatewayFetch<unknown>` matching pattern from `deleteModelCatalogEntry`
+- `CompactSettingsGrid` form state (6 fields + saveError) converted from 7 individual `useState` calls to `useReducer` with typed `FormState`/`FormAction`
+- `ErrorBox` extracted to `dashboard/src/components/ui/error-box.tsx` (was identical in `IntegrationsPage.tsx` and `TenantOverview.tsx`)
+- `InputSchemaFormField` extracted to `dashboard/src/components/ui/input-schema-form-field.tsx` (was near-identical `FormField` in `TriggerEmployeePage.tsx` and `RerunDialog.tsx`)
+
+### Key decisions
+- `computeCostTierLabel` returns lowercase (`'free'|'budget'|'standard'|'premium'`) since `ModelCatalogPage.tsx` uses it as a lookup key; `EmployeeDetail.tsx` capitalizes with `.charAt(0).toUpperCase() + tier.slice(1)`
+- `deleteRule` uses `gatewayFetch<unknown>` (not `<void>`) to match established `deleteModelCatalogEntry` pattern; assumes endpoint returns JSON (not 204)
+- `DeleteEmployeeDialog` not extracted — delete dialogs in `EmployeeList.tsx` and `EmployeeDetail.tsx` have different logic (name lookup vs static) and are not identical enough to dedup cleanly
+- `Textarea` not extracted — no locally-defined `Textarea` component existed; just raw `<textarea>` HTML elements
+
+### Build / test result
+- `pnpm build`: 0 TS errors ✓
+- `pnpm test`: 27/27 passed ✓
+- Commit: `df0d33e2` on `victor/feat/refactor-codebase`
+
+## [Task 30] CONTRIBUTING.md + skill update + archive one-shot scripts (2026-06-07)
+
+### What was done
+
+- Created `CONTRIBUTING.md` at repo root — links to AGENTS.md rather than duplicating it. Covers: active/deprecated map, task-creation paths (Prisma vs PostgREST), shell tool guide, employee wizard path, E2E test links, key conventions, git rules.
+- Updated `.opencode/skills/adding-shell-tools/SKILL.md` with:
+  - `requireEnv()` from `../lib/require-env.js` — replaces manual `if (!process.env['X'])` blocks
+  - `getArg()` from `../lib/get-arg.js` — replaces manual `for` loops
+  - `node:` prefix convention for Node.js built-in imports
+  - `--help` placement rule: FIRST check in `main()`, before mock mode
+  - Mock mode rule: SECOND check, before arg/env validation
+  - `pnpm exec tsx` not bare `tsx` in test commands
+  - Gitignore gotcha for `src/worker-tools/*/lib/` (needs `git add -f`)
+- Moved 5 one-shot scripts to `scripts/archive/`: `migrate-archetypes-to-template.ts`, `migrate-feedback-data.ts`, `migrate-vlre-kb.ts`, `resolve-hostfully-uids.ts`, `setup-two-tenants.ts`
+- Updated README.md: added CONTRIBUTING.md to Documentation table; updated `setup-two-tenants.ts` row to note it's archived
+- `pnpm build` → EXIT_CODE:0 (clean)
+- Commit: `6476c7c0`
+
+### Key decisions
+
+- CONTRIBUTING.md links to AGENTS.md sections rather than duplicating content — keeps it maintainable
+- Skill file updated in-place (not a new file) — same path, same name, just richer content
+- `setup-two-tenants.ts` row kept in README Scripts table (marked archived) so people know it exists and where to find it
