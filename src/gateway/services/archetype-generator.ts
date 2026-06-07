@@ -403,65 +403,6 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function sanitizeAgentsMd(input: string): string {
-  const SECTION_HEADER_RE = /^(##\s+\S|[A-Z][A-Z\s]+:?\s*$)/m;
-
-  function stripSection(text: string, headerPattern: RegExp): string {
-    const lines = text.split('\n');
-    const result: string[] = [];
-    let inForbiddenSection = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      const isSectionHeader = SECTION_HEADER_RE.test(trimmed) || /^##\s+\S/i.test(trimmed);
-
-      if (isSectionHeader) {
-        if (headerPattern.test(trimmed)) {
-          inForbiddenSection = true;
-          continue;
-        } else {
-          inForbiddenSection = false;
-        }
-      }
-
-      if (!inForbiddenSection) {
-        result.push(line);
-      }
-    }
-
-    return result.join('\n');
-  }
-
-  let sanitized = input;
-
-  sanitized = stripSection(sanitized, /^(##\s+)?classification\s+rules\s*:?\s*$/i);
-  sanitized = stripSection(sanitized, /^(##\s+)?(tools\s+available|available\s+tools)\b/i);
-
-  sanitized = sanitized
-    .split('\n')
-    .filter((line) => {
-      const trimmed = line.trim();
-      if (/^\s*-\s.*\bAPPROVED\b/i.test(line) && !/do not/i.test(line)) return false;
-      if (/^\s*(Write|Use)\s+APPROVED\b/i.test(trimmed)) return false;
-      return true;
-    })
-    .join('\n');
-
-  sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
-
-  const trimmedResult = sanitized.trim();
-
-  if (!trimmedResult) {
-    log.warn(
-      { originalLength: input.length },
-      'sanitizeAgentsMd: sanitization produced empty string — returning original',
-    );
-    return input;
-  }
-
-  return trimmedResult;
-}
-
 function postProcess(raw: unknown, description: string): GenerateArchetypeResponse {
   const result = raw as Record<string, unknown>;
 

@@ -117,6 +117,7 @@ async function main() {
 
   mkdirSync(join('scripts', 'migration-output'), { recursive: true });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma.archetype not in generated client; migration script accesses via raw cast
   const archetypes: ArchetypeRow[] = await (prisma.archetype as any).findMany({
     where: {
       role_name: { in: TARGET_ROLES },
@@ -212,6 +213,7 @@ async function main() {
     console.log('');
 
     if (!isDryRun) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma.archetype not in generated client; migration script accesses via raw cast
       await (prisma.archetype as any).update({
         where: { id: archetype.id },
         data: {

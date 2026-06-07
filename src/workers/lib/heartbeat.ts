@@ -15,15 +15,6 @@ export interface HeartbeatHandle {
   updateStage: (stage: string) => void;
 }
 
-interface EscalateOptions {
-  executionId: string | null;
-  taskId: string;
-  reason: string;
-  failedStage?: string;
-  errorOutput?: string;
-  postgrestClient: PostgRESTClient;
-}
-
 /**
  * Start a 60-second heartbeat timer that periodically updates execution status.
  * Returns a handle to stop the timer and update the current stage.
@@ -70,68 +61,4 @@ export function startHeartbeat(options: HeartbeatOptions): HeartbeatHandle {
       currentStage = stage;
     },
   };
-}
-
-/**
- * Escalate a task to human review.
- * Updates task status, logs the transition, and posts to Slack.
- * All steps log errors but never throw — escalation must succeed even if one step fails.
- */
-async function escalate(options: EscalateOptions): Promise<void> {
-  const { taskId, reason, failedStage, postgrestClient } = options;
-
-  // Step 1: Log escalation to stdout
-  log.warn(`[escalate] Task ${taskId}: ${reason}`);
-
-  // Step 2: PATCH task status to AwaitingInput
-  try {
-    await postgrestClient.patch('tasks', `id=eq.${taskId}`, {
-      status: 'AwaitingInput',
-      failure_reason: reason,
-      updated_at: new Date().toISOString(),
-    });
-  } catch (error) {
-    log.warn(
-      `[escalate] Failed to update task status for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  // Step 3: Write task_status_log entry
-  try {
-    await postgrestClient.post('task_status_log', {
-      task_id: taskId,
-      from_status: 'Executing',
-      to_status: 'AwaitingInput',
-      actor: 'machine',
-    });
-  } catch (error) {
-    log.warn(
-      `[escalate] Failed to write task_status_log for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  // Step 4: Post to Slack
-  const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
-  if (slackWebhookUrl) {
-    try {
-      const slackMessage = `*[AI Employee]* Task escalated to human review\n*Task ID:* ${taskId}\n*Reason:* ${reason}${failedStage ? `\n*Failed Stage:* ${failedStage}` : ''}`;
-      const body = {
-        text: slackMessage,
-      };
-
-      const response = await fetch(slackWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        log.warn(`[escalate] Slack webhook returned HTTP ${response.status} for task ${taskId}`);
-      }
-    } catch (error) {
-      log.warn(
-        `[escalate] Failed to post to Slack for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
 }

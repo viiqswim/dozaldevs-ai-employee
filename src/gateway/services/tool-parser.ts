@@ -206,7 +206,7 @@ export async function parseSkillMd(skillPath: string): Promise<Map<string, Skill
     // Extract flag descriptions from lines like: - `--flag-name` — description
     // or: - `--flag-name <type>` — description
     const flagDescriptions: Record<string, string> = {};
-    const flagLineRegex = /^- `(--[a-z][a-z0-9-]*)[^`]*`[^—\-]*[—\-]+\s*(.+)$/gm;
+    const flagLineRegex = /^- `(--[a-z][a-z0-9-]*)[^`]*`[^—-]*[—-]+\s*(.+)$/gm;
     let flagMatch: RegExpExecArray | null;
     while ((flagMatch = flagLineRegex.exec(section)) !== null) {
       const flagName = flagMatch[1];

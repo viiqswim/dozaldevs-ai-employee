@@ -84,7 +84,6 @@ function writeLock(): void {
 export async function acquireSocketModeLock(): Promise<AcquireResult> {
   const deadline = Date.now() + ACQUIRE_TIMEOUT_MS;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const storedPid = readLockPid();
 

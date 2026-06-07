@@ -16,34 +16,10 @@ const RESOURCE_CAPS = {
   NODE_OPTIONS: '--max-old-space-size=4096',
 } as const;
 
-type ResourceCapKey = keyof typeof RESOURCE_CAPS;
-
-/**
- * Apply resource caps to process.env, respecting any already-set values.
- * MUST NOT override vars that are already set — allows dev overrides.
- */
 export function applyResourceCaps(env: NodeJS.ProcessEnv = process.env): void {
   for (const [key, value] of Object.entries(RESOURCE_CAPS)) {
     if (!env[key]) {
       env[key] = value;
     }
   }
-}
-
-/**
- * Returns resource caps as KEY=VALUE lines suitable for shell `export` or `eval`.
- * Only emits caps that are NOT already set in process.env (respects overrides).
- *
- * Example output:
- *   TURBO_CONCURRENCY=2
- *   NEXUS_VITEST_MAX_WORKERS=2
- */
-function resourceCapsForShell(env: NodeJS.ProcessEnv = process.env): string {
-  const lines: string[] = [];
-  for (const [key, value] of Object.entries(RESOURCE_CAPS)) {
-    if (!env[key]) {
-      lines.push(`${key}=${value}`);
-    }
-  }
-  return lines.join('\n');
 }

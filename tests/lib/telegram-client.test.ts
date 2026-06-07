@@ -45,6 +45,7 @@ describe('Telegram Client', () => {
       }),
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.fn() mock; .mock not on global.fetch type
     const callArgs = (global.fetch as any).mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
     expect(body).toMatchObject({ chat_id: '123456789', text: 'Hello, Telegram!' });

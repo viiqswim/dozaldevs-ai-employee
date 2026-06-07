@@ -268,7 +268,7 @@ describe('listProjects', () => {
 
   it('respects offset parameter', async () => {
     // Create 3 projects
-    const p1 = await createProject({
+    await createProject({
       input: {
         name: 'Offset Test 1',
         repo_url: 'https://github.com/test/offset1',
@@ -278,7 +278,7 @@ describe('listProjects', () => {
       prisma,
     });
 
-    const p2 = await createProject({
+    await createProject({
       input: {
         name: 'Offset Test 2',
         repo_url: 'https://github.com/test/offset2',
@@ -288,7 +288,7 @@ describe('listProjects', () => {
       prisma,
     });
 
-    const p3 = await createProject({
+    await createProject({
       input: {
         name: 'Offset Test 3',
         repo_url: 'https://github.com/test/offset3',

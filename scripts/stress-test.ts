@@ -51,9 +51,6 @@ function ok(msg: string, detail?: string) {
 function info(msg: string) {
   console.log(`${C.blue}→${C.reset} ${msg}`);
 }
-function warn(msg: string) {
-  console.log(`${C.yellow}⚠${C.reset} ${msg}`);
-}
 function fail(msg: string) {
   console.error(`${C.red}✗${C.reset} ${msg}`);
 }
@@ -389,7 +386,7 @@ async function main(): Promise<void> {
     const resp = await fetch(`${GATEWAY_BASE}/health`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     ok('Gateway healthy');
-  } catch (err) {
+  } catch {
     fail(`Gateway not reachable at ${GATEWAY_BASE}`);
     fail('Start it with: pnpm dev');
     process.exit(1);
@@ -428,7 +425,6 @@ async function main(): Promise<void> {
   } else {
     for (let batchStart = 0; batchStart < COUNT; batchStart += CONCURRENCY) {
       const batchEnd = Math.min(batchStart + CONCURRENCY, COUNT);
-      const batchSize = batchEnd - batchStart;
       console.log(
         `\n  ${C.dim}Batch ${Math.floor(batchStart / CONCURRENCY) + 1}: tasks ${batchStart + 1}–${batchEnd}${C.reset}`,
       );

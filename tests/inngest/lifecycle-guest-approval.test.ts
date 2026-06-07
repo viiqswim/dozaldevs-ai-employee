@@ -155,9 +155,13 @@ function makeEngine(approvalEvent: unknown) {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
     transformCtx: (ctx: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- InngestTestEngine ctx has no typed mock helpers
       const mocked = mockCtx(ctx as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- step mock methods not on InngestTestEngine ctx type
       (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue(approvalEvent);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- step mock methods not on InngestTestEngine ctx type
       (mocked as any).step.sendEvent = vi.fn().mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- step mock methods not on InngestTestEngine ctx type
       (mocked as any).step.run = vi
         .fn()
         .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
@@ -176,6 +180,7 @@ function makeEngine(approvalEvent: unknown) {
               return undefined;
           }
         });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- InngestTestEngine ctx has no typed mock helpers
       return mocked as any;
     },
   });
@@ -207,6 +212,7 @@ beforeEach(() => {
     SLACK_BOT_TOKEN: 'xoxb-test-bot-token',
     SUMMARY_TARGET_CHANNEL: 'C-FALLBACK',
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send return type requires IDs array; undefined satisfies test needs
   vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any);
 
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {

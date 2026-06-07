@@ -145,13 +145,6 @@ function filterFetchCalls(
   });
 }
 
-function waitForFetch(mockFetch: ReturnType<typeof vi.fn>, urlSubstr: string, method: string) {
-  return vi.waitFor(() => expect(findFetchCall(mockFetch, urlSubstr, method)).toBeDefined(), {
-    timeout: 12000,
-    interval: 50,
-  });
-}
-
 function waitForPatchWithBody(
   mockFetch: ReturnType<typeof vi.fn>,
   urlSubstr: string,

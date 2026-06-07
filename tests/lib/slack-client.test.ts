@@ -63,6 +63,7 @@ describe('Slack Client', () => {
       text: 'Hello, Slack!',
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.fn() mock; .mock not on global.fetch type
     const callArgs = (global.fetch as any).mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
     expect(body.channel).toBe('C0123456789');
@@ -183,6 +184,7 @@ describe('Slack Client', () => {
       blocks,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.fn() mock; .mock not on global.fetch type
     const callArgs = (global.fetch as any).mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
     expect(body.blocks).toEqual(blocks);

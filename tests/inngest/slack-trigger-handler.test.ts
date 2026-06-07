@@ -78,7 +78,6 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function invokeHandler(
   fn: ReturnType<typeof createSlackTriggerHandlerFunction>,
   event: ReturnType<typeof makeEvent>,

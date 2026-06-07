@@ -90,6 +90,7 @@ describe('agent-version', () => {
   });
 
   describe('ensureAgentVersion', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Prisma mock; only agentVersion methods needed
     let mockPrisma: any;
 
     beforeEach(() => {
@@ -103,7 +104,7 @@ describe('agent-version', () => {
 
     it('returns existing record ID when found', async () => {
       const existingId = '00000000-0000-0000-0000-000000000002';
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue({
+      mockPrisma.agentVersion.findFirst.mockResolvedValue({
         id: existingId,
         prompt_hash: 'abc123',
         model_id: 'minimax-m2.7',
@@ -122,8 +123,8 @@ describe('agent-version', () => {
 
     it('creates new record when not found', async () => {
       const newId = '00000000-0000-0000-0000-000000000002';
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue(null);
-      (mockPrisma.agentVersion!.create as any).mockResolvedValue({
+      mockPrisma.agentVersion.findFirst.mockResolvedValue(null);
+      mockPrisma.agentVersion.create.mockResolvedValue({
         id: newId,
         prompt_hash: 'abc123',
         model_id: 'minimax-m2.7',
@@ -151,8 +152,8 @@ describe('agent-version', () => {
 
     it('includes changelogNote when provided', async () => {
       const newId = '00000000-0000-0000-0000-000000000002';
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue(null);
-      (mockPrisma.agentVersion!.create as any).mockResolvedValue({
+      mockPrisma.agentVersion.findFirst.mockResolvedValue(null);
+      mockPrisma.agentVersion.create.mockResolvedValue({
         id: newId,
         prompt_hash: 'abc123',
         model_id: 'minimax-m2.7',
@@ -183,8 +184,8 @@ describe('agent-version', () => {
       const existingId = '00000000-0000-0000-0000-000000000002';
 
       // First call: not found, creates new
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValueOnce(null);
-      (mockPrisma.agentVersion!.create as any).mockResolvedValueOnce({
+      mockPrisma.agentVersion.findFirst.mockResolvedValueOnce(null);
+      mockPrisma.agentVersion.create.mockResolvedValueOnce({
         id: existingId,
         prompt_hash: 'abc123',
         model_id: 'minimax-m2.7',
@@ -198,7 +199,7 @@ describe('agent-version', () => {
       });
 
       // Second call: found existing
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValueOnce({
+      mockPrisma.agentVersion.findFirst.mockResolvedValueOnce({
         id: existingId,
         prompt_hash: 'abc123',
         model_id: 'minimax-m2.7',
@@ -217,8 +218,8 @@ describe('agent-version', () => {
     });
 
     it('queries with correct where clause', async () => {
-      (mockPrisma.agentVersion!.findFirst as any).mockResolvedValue(null);
-      (mockPrisma.agentVersion!.create as any).mockResolvedValue({
+      mockPrisma.agentVersion.findFirst.mockResolvedValue(null);
+      mockPrisma.agentVersion.create.mockResolvedValue({
         id: '00000000-0000-0000-0000-000000000002',
       });
 

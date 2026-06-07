@@ -40,9 +40,3 @@ export function validateEncryptionKey(): void {
     throw new Error('ENCRYPTION_KEY missing or malformed (must be 64-char hex string)');
   }
 }
-
-function assertNoPlaintextLogged(plaintext: string, logOutput: string): void {
-  if (logOutput.includes(plaintext)) {
-    throw new Error('Plaintext secret found in log output — encryption guardrail violated');
-  }
-}

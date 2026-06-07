@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
-import { GO_OPENAI_ENDPOINT, GoEndpointType, resolveProvider } from './go-models.js';
+import { GO_OPENAI_ENDPOINT, resolveProvider } from './go-models.js';
 import { createLogger } from './logger.js';
 import { getPlatformSetting } from './platform-settings.js';
 import { withRetry } from './retry.js';

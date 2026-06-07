@@ -262,6 +262,7 @@ beforeEach(() => {
 
   // Make setTimeout resolve immediately so the 15-second delivery polling
   // loop does not block tests
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- inngest.send return type requires IDs array; undefined satisfies test needs
   vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any);
 
   vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {

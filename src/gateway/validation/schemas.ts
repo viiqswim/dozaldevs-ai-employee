@@ -330,22 +330,11 @@ export const CreatePropertyLockSchema = z.object({
   lock_metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-type CreatePropertyLock = z.infer<typeof CreatePropertyLockSchema>;
-
 export const UpdatePropertyLockSchema = CreatePropertyLockSchema.partial();
 
 export const TenantPropertyLockParamSchema = TenantIdParamSchema.extend({
   lockId: uuidField(),
 });
-
-function parseCreatePropertyLock(body: unknown): CreatePropertyLock {
-  const result = CreatePropertyLockSchema.safeParse(body);
-  if (!result.success) {
-    const messages = result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
-    throw new Error(`Invalid property lock payload: ${messages}`);
-  }
-  return result.data;
-}
 
 // ─── Input Schema (dynamic employee inputs) ───────────────────────────────────
 

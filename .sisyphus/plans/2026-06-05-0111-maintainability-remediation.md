@@ -20,6 +20,19 @@
 
 ---
 
+## ⚠️ RE-BASELINE NOTE (2026-06-05, post-Slack-overhaul)
+
+> This plan was authored against an earlier tree. Since then, a large Slack @mention/UX overhaul + the Socket-Mode singleton fix landed (commits through `aa2319cf`). **All references below have been re-verified against the current tree** and updated where they drifted. Executors MUST still re-grep before editing (line numbers move), but the following baseline shifts are now reflected:
+>
+> - **File growth**: `slack/handlers.ts` 1,869 → **2,183**; `employee-lifecycle.ts` 3,082 → **3,090**; `server.ts` → **371** (singleton lock added); `dev.ts` → **935**; `AGENTS.md` → **972**; `slack-blocks.ts` → **746**.
+> - **Already fixed upstream (scope reduced)**: `google/create-event.ts` and `google/update-event.ts` now call `unescapeShellArg` → **Task 5 drops to just `report-issue.ts`**.
+> - **New shared module**: `src/lib/slack-copy.ts` (73 lines, confirmed employee-agnostic) — Tasks 31/32 must BUILD ON it, not duplicate it.
+> - **Singleton lock wiring**: `server.ts` now imports `acquireSocketModeLock`/`releaseSocketModeLock` and calls them around `boltApp.start()` (lines ~49,136) + `boltApp.stop()` on shutdown. **Task 21 (decompose handlers) and any server.ts touch MUST preserve this wiring.**
+> - **Current `GUEST_*` anchors** (Tasks 31/32): `slack-action-ids.ts:4-6`; `handlers.ts` — `GUEST_BUTTON_BLOCKS` def `:195`, button blocks `:202/209/215`, generic blocks `:230/237`, handlers `APPROVE:481 REJECT:565 GUEST_APPROVE:646 GUEST_EDIT:736 GUEST_REJECT:935`, `GUEST_BUTTON_BLOCKS` used at `:724,1321`; `slack-blocks.ts` guest builders `buildEnrichedNotifyBlocks:23`, `buildEnrichedTerminalBlocks:225`, `buildHostfullyLink` import `:2` + uses `:254,397,726`, `enrichment.contextUrl` already partially generic `:566`.
+> - **Still-valid bugs (confirmed present)**: TERMINAL_STATUSES 4-way split (`handlers.ts:65` & `:163`, `admin-tasks.ts:123`, `task-creation.ts:115`); `call-llm.ts` `parseInt` `:88` + 2-model `PRICING_PER_1M_TOKENS` `:33,258`; CI has no postgres service (`deploy.yml:19`); ESLint `warn` (`eslint.config.mjs:22,23`); `rotate-property-code.ts` `execSync:51` + spin-wait `:77`; all dead-code files still present.
+
+---
+
 ## Context
 
 ### Original Request
@@ -238,7 +251,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 ### WAVE 1 — Stabilize & Stop the Bleeding
 
-- [ ] 0. **Publish findings doc + scaffold evidence dir**
+- [x] 0. **Publish findings doc + scaffold evidence dir**
 
   **What to do**: Copy `.sisyphus/drafts/2026-06-05-0111-maintainability-audit.md` to `docs/guides/2026-06-05-0111-maintainability-audit.md` (run `date "+%Y-%m-%d-%H%M"` is unnecessary — keep the existing timestamp). Add a row to README.md's Documentation table and AGENTS.md Reference Documents table pointing to it. Create `.sisyphus/evidence/`.
   **Must NOT do**: Alter the findings content.
@@ -250,7 +263,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `grep -c maintainability-audit README.md AGENTS.md` → ≥1 each
         **Commit**: YES — `docs: publish maintainability audit findings for team onboarding`
 
-- [ ] 1. **Fix the CI test gate so it actually runs the suite** `[BLOCKS ALL]`
+- [x] 1. **Fix the CI test gate so it actually runs the suite** `[BLOCKS ALL]`
 
   **What to do** ([BUILD-3]): The `test` job in `.github/workflows/deploy.yml` runs `pnpm test -- --run`, but `tests/helpers/global-setup.ts` needs Postgres at `localhost:54322` (it runs `prisma migrate deploy` + `db:seed` via `psql`). CI has no Postgres service. Add a `postgres:16` service container to the `test` job (env `POSTGRES_PASSWORD=postgres`, `POSTGRES_DB=ai_employee_test`, port `54322:5432`, health-check), add a `pnpm test:db:setup` step, and ensure `DATABASE_URL` points at it. Confirm the suite runs green (not skipped).
   **Must NOT do**: Weaken `global-setup.ts`'s `ai_employee_test` safety guard. Don't add `continue-on-error`.
@@ -263,7 +276,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - **Evidence**: `.sisyphus/evidence/task-1-ci-green.txt`, `task-1-ci-deliberate-fail.txt`
     **Commit**: YES — `ci: add postgres service so the test gate actually runs`
 
-- [ ] 2.  **Fix shell-injection + event-loop spin-wait in rotate-property-code** `[security]`
+- [x] 2.  **Fix shell-injection + event-loop spin-wait in rotate-property-code** `[security]`
 
            **What to do** ([SMELL-3]): In `src/worker-tools/sifely/rotate-property-code.ts`: (a) replace every `execSync(\`...--lock-id ${lockId}...\`)`(lines ~254/290/311/346/367) with`execFileSync('pnpm', ['exec','tsx', toolPath, '--lock-id', lockId, ...], {...})`so values are passed as argv, not shell string; (b) replace the busy`while (Date.now()-start<3000){}`(lines ~77–79) with`await new Promise(r => setTimeout(r, 3000))`(make the enclosing fn async if needed).
 
@@ -278,7 +291,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA (mock)**: run with a lock-id containing a space/`;` → no shell error, value passed literally. Evidence: `.sisyphus/evidence/task-2-injection-safe.txt`
         **Commit**: YES — `fix(sifely): use execFileSync and async sleep in code rotation`
 
-- [ ] 3. **Fix the silently-broken cost circuit breaker**
+- [x] 3. **Fix the silently-broken cost circuit breaker**
 
   **What to do** ([SMELL-4]): `src/lib/call-llm.ts:33-36` `PRICING_PER_1M_TOKENS` only covers 2 of 14 models → others record `$0`, so the $50/day breaker never fires. Replace the hardcoded map with a lookup of `input_cost_per_million`/`output_cost_per_million` from the `model_catalog` table at cost-compute time (fall back to 0 only with a `log.warn` when a model is truly absent).
   **Must NOT do**: Change the breaker threshold logic or `gateway_llm_model` routing.
@@ -290,7 +303,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA**: trigger a task on a catalog model NOT in the old map (e.g. `zhipu/glm-5.1`); `psql ... -c "SELECT estimated_cost_usd FROM executions WHERE task_id='<id>'"` → `> 0`. Evidence: `.sisyphus/evidence/task-3-cost-nonzero.txt`
         **Commit**: YES — `fix(call-llm): compute cost from model_catalog so breaker covers all models`
 
-- [ ] 4. **Fix decimal cost-limit truncation**
+- [x] 4. **Fix decimal cost-limit truncation**
 
   **What to do** ([SMELL-5]): `src/lib/call-llm.ts:88` uses `parseInt(costLimitStr,10)` → `"50.5"` becomes `50`. Replace with `parseFloat` + an `isNaN` guard that logs and falls back to a sane default.
   **Must NOT do**: Change the default limit value.
@@ -302,32 +315,32 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] Unit test asserts `"50.5"` → `50.5`. `pnpm test` green.
         **Commit**: YES — `fix(call-llm): parse cost limit as float, not int`
 
-- [ ] 5. **Add `unescapeShellArg` to 3 tools missing it**
+- [x] 5. **Add `unescapeShellArg` to `report-issue.ts`** (was 3 tools — 2 already fixed upstream)
 
-  **What to do** ([SMELL-2]): Wrap free-text args with `unescapeShellArg` so multi-line LLM text isn't corrupted: `platform/report-issue.ts` (`--description`, `--patch-diff`), `google/create-event.ts` (`--summary`), `google/update-event.ts` (`--summary`).
-  **Must NOT do**: Wrap non-free-text args (IDs, enums).
+  **What to do** ([SMELL-2]): Wrap the free-text args with `unescapeShellArg` so multi-line LLM text isn't corrupted: `platform/report-issue.ts` `--description` (line ~45) and `--patch-diff` (line ~47). **NOTE (re-baseline)**: `google/create-event.ts` and `google/update-event.ts` already call `unescapeShellArg` (2 uses each) — they were fixed by the recent Slack/UX work, so they are OUT of scope now. Verify with `grep -c unescapeShellArg <file>` before touching.
+  **Must NOT do**: Wrap non-free-text args (IDs, enums). Don't re-touch the two already-fixed google tools.
   **Recommended Agent Profile**: Category `quick`; Skills: [`adding-shell-tools`].
   **Parallelization**: Parallel w/ 2,3,4. Blocked By: none.
-  **References**: `src/worker-tools/lib/unescape-args.ts`; `src/worker-tools/platform/report-issue.ts:44,47`; `src/worker-tools/google/create-event.ts:30`; `src/worker-tools/google/update-event.ts:32`; a correct example: `src/worker-tools/slack/post-message.ts` (`--text`).
+  **References**: `src/worker-tools/lib/unescape-args.ts`; `src/worker-tools/platform/report-issue.ts:45,47` (parse sites `args[++i]`); a correct example: `src/worker-tools/slack/post-message.ts` (`--text`).
   **Acceptance Criteria**:
-  - [ ] Each `--description/--patch-diff/--summary` parse site calls `unescapeShellArg(...)`
+  - [ ] `grep -c unescapeShellArg src/worker-tools/platform/report-issue.ts` → ≥2 (description + patch-diff wrapped)
   - [ ] **QA (mock)**: run `report-issue` with `--description "line1\nline2"`; output contains a REAL newline. Evidence: `.sisyphus/evidence/task-5-newline.txt`
-        **Commit**: YES — `fix(tools): unescape multi-line args in report-issue and calendar tools`
+        **Commit**: YES — `fix(tools): unescape multi-line args in report-issue`
 
-- [ ] 6. **Unify `TERMINAL_STATUSES` into one source of truth** `[blocks 14, 21]`
+- [x] 6. **Unify `TERMINAL_STATUSES` into one source of truth** `[blocks 14, 21]`
 
-  **What to do** ([ARCH-3]): Create `src/lib/task-status.ts` exporting `TERMINAL_STATUSES: ReadonlySet<string>` (decide the canonical members — likely `Done, Cancelled, Failed`; treat `Delivering`/`Stale` deliberately per their current call-site intent and DOCUMENT the choice in a comment). Replace the 4 divergent definitions with imports: `handlers.ts:57`, `handlers.ts:155`, `admin-tasks.ts:123`, `task-creation.ts:115`.
+  **What to do** ([ARCH-3]): Create `src/lib/task-status.ts` exporting `TERMINAL_STATUSES: ReadonlySet<string>` (decide the canonical members — likely `Done, Cancelled, Failed`; treat `Delivering`/`Stale` deliberately per their current call-site intent and DOCUMENT the choice in a comment). Replace the 4 divergent definitions with imports. **Current anchors (re-verified)**: `handlers.ts:65` (`new Set(['Done','Cancelled','Failed','Delivering'])`) and `handlers.ts:163` (`['Done','Failed','Cancelled']`), `admin-tasks.ts:123` (`['Done','Failed','Cancelled','Stale']`), `task-creation.ts:115` (`['Done','Cancelled']`). Note the four still genuinely disagree.
   **Must NOT do**: Silently change idempotency behavior — if a call site needs `Delivering`/`Stale`, derive a named subset (e.g. `IDEMPOTENCY_TERMINAL`) rather than forcing one set.
   **Recommended Agent Profile**: Category `deep` (semantics matter); Skills: [].
   **Parallelization**: After 1. Blocks: 14, 21. Blocked By: 1.
-  **References**: `src/gateway/slack/handlers.ts:57,155`; `src/gateway/routes/admin-tasks.ts:123`; `src/gateway/services/task-creation.ts:115`; AGENTS.md lifecycle states list.
+  **References**: `src/gateway/slack/handlers.ts:65,163`; `src/gateway/routes/admin-tasks.ts:123`; `src/gateway/services/task-creation.ts:115`; AGENTS.md lifecycle states list.
   **Acceptance Criteria**:
   - [ ] `grep -rl "TERMINAL_STATUSES\|terminalState" src/ | grep -v task-status.ts | grep -v __tests__` → only import lines
   - [ ] `pnpm test` green
   - [ ] **QA**: trigger `real-estate-motivation-bot-2` → `Done`; then POST a duplicate `employee/approval.received` for it → idempotency guard returns already-processed (not a crash). Evidence: `.sisyphus/evidence/task-6-idempotent.txt`
         **Commit**: YES — `refactor: single TERMINAL_STATUSES source in src/lib/task-status.ts`
 
-- [ ] 7. **Delete deprecated engineering-employee code** `[blocks 22, 23, 24]`
+- [x] 7. **Delete deprecated engineering-employee code** `[blocks 22, 23, 24]`
 
   **What to do** ([BUILD-1]): Delete (git rm) the verified-dead files: `src/workers/orchestrate.mts`, `src/workers/entrypoint.sh`, `src/workers/config/long-running.ts`, the 25 deprecated `src/workers/lib/*` files (wave-executor, pr-manager, plan-judge, plan-parser, plan-sync, planning-orchestrator, fix-loop, fallback-pr, branch-manager, cache-validator, ci-classifier, completion, completion-detector, continuation-dispatcher, cost-breaker, cost-tracker-v2, disk-check, install-runner, project-config, prompt-builder, task-context, token-tracker, validation-pipeline, between-wave-push, agents-md-reader), `src/workers/experimental/`, and the deprecated inngest files `src/inngest/lifecycle.ts`, `src/inngest/redispatch.ts`, `src/inngest/watchdog.ts` (Metis verified these are commented out of `src/gateway/inngest/serve.ts`; the ACTIVE watchdog is `src/inngest/triggers/reviewing-watchdog.ts` — DO NOT touch it). Run `pnpm build && pnpm test -- --run` in this same task.
   **Must NOT do**: Delete `reviewing-watchdog.ts`, `resource-caps.ts`, `heartbeat.ts`, `agents-md-compiler.mts`, `postgrest-client.ts`, or any harness-imported lib. Don't delete deprecated Prisma MODELS (separate concern, ARCH-14).
@@ -340,7 +353,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA**: trigger `real-estate-motivation-bot-2` → `Done` (harness path intact). Evidence: `.sisyphus/evidence/task-7-e2e.txt`
         **Commit**: YES — `chore: delete deprecated engineering-employee worker and inngest code`
 
-- [ ] 8. **knip cleanup + fix false-positives**
+- [x] 8. **knip cleanup + fix false-positives**
 
   **What to do** ([BUILD-7]): Remove the ~27 now-deleted entries from `knip.json` ignore. Remove `resource-caps.ts` and `heartbeat.ts` from the ignore list (they ARE imported by the harness — false negatives). Run `pnpm lint:unused` and resolve any newly-surfaced genuine unused exports (or re-ignore with justification).
   **Must NOT do**: Blanket-ignore to silence knip; investigate each.
@@ -423,7 +436,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   **Must NOT do**: Attempt full raw-fetch→Prisma unification across handlers (ARCH-1 deferred). Don't change the dispatched event name/shape.
   **Recommended Agent Profile**: Category `deep`; Skills: [].
   **Parallelization**: After 6. Blocked By: 6.
-  **References**: `src/gateway/services/employee-dispatcher.ts:36-86`; `src/gateway/slack/handlers.ts:1554-1800` (trigger_confirm); `src/gateway/services/task-creation.ts`; AGENTS.md Slack @mention triggering flow.
+  **References (re-verified)**: `src/gateway/services/employee-dispatcher.ts:31` (`dispatchEmployee`); `src/gateway/slack/handlers.ts:1790-2110` (the `trigger_confirm` handler — grew with the recent overhaul; it now has idempotency + LLM-extraction logic that must be preserved when routing through `dispatchEmployee`); `src/gateway/services/task-creation.ts`; AGENTS.md Slack @mention triggering flow. **Re-grep `TRIGGER_CONFIRM` before editing.**
   **Acceptance Criteria**:
   - [ ] `git ls-files src/gateway/services/task-creation.ts` → empty (renamed)
   - [ ] **QA**: Slack @mention → confirm card → Confirm → task dispatched and reaches a terminal state (Slack UX Scenario A or the trigger-confirm path). Evidence: `.sisyphus/evidence/task-14-slack-trigger.txt`
@@ -509,17 +522,17 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 > **Universal guardrail for Wave 3**: Extract only. If you find a bug, record it as a NEW finding — do NOT fix inline. Run the relevant E2E after EACH task. Keep all existing tests green.
 
-- [ ] 21. **Decompose `slack/handlers.ts` (1,869 lines)**
+- [ ] 21. **Decompose `slack/handlers.ts` (now 2,183 lines)**
 
-  **What to do** ([SIZE-5]): Split `registerSlackHandlers` into `slack/handlers/{approval,rule,trigger,event}-handlers.ts` + `slack/supabase-client.ts` (the 4 fetch helpers) + `slack/block-kit.ts` + `slack/pending-state.ts`, with a thin `slack/handlers/index.ts` orchestrator. Start with `rule-handlers.ts` (lines 1138–1499, zero deps). Inject the `prisma` singleton instead of `new PrismaClient()` in the `app_mention` handler. Optionally introduce `ackWithResponse(ack, payload)` to isolate the Bolt casts.
-  **Must NOT do**: Change handler behavior, action IDs, or event wiring (the approval-flow merge that deletes `GUEST_*` is Task 32).
+  **What to do** ([SIZE-5]): Split `registerSlackHandlers` into `slack/handlers/{approval,rule,trigger,event}-handlers.ts` + `slack/supabase-client.ts` (the fetch helpers) + `slack/block-kit.ts` + `slack/pending-state.ts`, with a thin `slack/handlers/index.ts` orchestrator. **Re-grep before splitting — line numbers moved with the recent Slack overhaul.** Good first extraction: the rule handlers (search `boltApp.action(SLACK_ACTION_ID.RULE_` — formerly ~1138–1499, now shifted). Inject the `prisma` singleton instead of `new PrismaClient()` in the `app_mention` handler. The recent work already added an immediate-ack + button-removal-before-heavy-work pattern and the shared `src/lib/slack-copy.ts` — PRESERVE both; extract around them, don't revert them. Optionally introduce `ackWithResponse(ack, payload)` to isolate the Bolt casts.
+  **Must NOT do**: Change handler behavior, the instant-ack/button-removal ordering, action IDs, or event wiring (the approval-flow merge that deletes `GUEST_*` is Task 32). Don't touch `server.ts`'s `acquireSocketModeLock`/`boltApp.stop()` wiring (singleton fix) — it's outside handlers.ts but verify nothing in the split disturbs registration order.
   **Recommended Agent Profile**: Category `deep`; Skills: [].
-  **Parallelization**: After 6 & ideally 14. Parallel w/ 22,25,26,27. Blocked By: 6.
-  **References**: audit [SIZE-5]/gateway-F1 line ranges; `src/gateway/slack/handlers.ts`; existing tests `tests/gateway/slack/_` (must stay green).
+  **Parallelization**: After 6 & ideally 14. Parallel w/ 22,25,26,27. Blocked By: 6. **Strongly prefer doing 21 BEFORE 32** (the approval merge is far easier in the already-split files).
+  **References**: `src/gateway/slack/handlers.ts` (2,183 lines — re-grep for current ranges); `src/lib/slack-copy.ts` (preserve); existing tests `tests/gateway/slack/*` (must stay green).
   **Acceptance Criteria**:
   - [ ] `wc -l src/gateway/slack/handlers*/*.ts` — no single file >600 lines
   - [ ] `pnpm test -- --run tests/gateway/slack` green (all existing handler tests pass unchanged)
-  - [ ] **QA**: Slack UX Scenario A (approve happy path). Evidence: `.sisyphus/evidence/task-21-scenarioA.txt`
+  - [ ] **VERIFY [Tier B]**: Slack approval happy-path (real Airbnb→card→approve→reply). Evidence: `.sisyphus/evidence/task-21-tierB-*`
         **Commit**: YES (may group sub-extractions) — `refactor(slack): decompose handlers.ts into focused modules`
 
 - [ ] 22. **Decompose `opencode-harness.mts` (1,162 lines)**
@@ -644,11 +657,11 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 - [ ] 31. **Remove employee-specific language from shared files (data + blocks)**
 
-  **What to do** ([ARCH-8]+[ARCH-13]): Make shared files employee-agnostic — generalize the DATA and BLOCK layers (the approval-flow MERGE is Task 32). `inngest/employee-lifecycle.ts`: `guest_name`→`recipient_name`, `SUMMARY_TARGET_CHANNEL` fallback→`NOTIFICATION_CHANNEL`, remove the employee-naming comments. `inngest/lib/reminder-blocks.ts`: `guestName/propertyName`→`recipientName/contextLabel`. `gateway/services/tenant-env-loader.ts`: `summary` key→generic. `src/lib/slack-blocks.ts`: replace the hardcoded Hostfully link/"View in Hostfully" coupling with generic `contextUrl`/`contextLabel` params, and rename the guest-specific block builders (`buildEnrichedNotifyBlocks` etc.) to generic names so ANY employee can use them. Update seed/config keys accordingly. (Leave the `GUEST_*` action-ID constants themselves in place — Task 32 deletes them as part of the handler merge.)
+  **What to do** ([ARCH-8]+[ARCH-13]): Make shared files employee-agnostic — generalize the DATA and BLOCK layers (the approval-flow MERGE is Task 32). `inngest/employee-lifecycle.ts`: `guest_name`→`recipient_name`, `SUMMARY_TARGET_CHANNEL` fallback→`NOTIFICATION_CHANNEL`, remove the employee-naming comments. `inngest/lib/reminder-blocks.ts`: `guestName/propertyName`→`recipientName/contextLabel`. `gateway/services/tenant-env-loader.ts`: `summary` key→generic. `src/lib/slack-blocks.ts`: replace the hardcoded Hostfully coupling with generic `contextUrl`/`contextLabel` — NOTE a generic `enrichment.contextUrl` param ALREADY exists (line `:566`) but the label is still hardcoded "🔗 View in Hostfully" at `:254,:397,:569,:726` and `buildHostfullyLink` is imported at `:2`; finish the job (generic label, drop the direct import where possible) and rename the guest-specific builders `buildEnrichedNotifyBlocks` (`:23`) / `buildEnrichedTerminalBlocks` (`:225`) to generic names so ANY employee can use them. Lean on the existing employee-agnostic `src/lib/slack-copy.ts` as the tone/copy source. Update seed/config keys accordingly. (Leave the `GUEST_*` action-ID constants in place — Task 32 deletes them as part of the handler merge.)
   **Must NOT do**: Touch `docs/employees/guest-messaging.md` or the guest-messaging archetype's own fields (those are correctly employee-specific). Don't merge the approval handlers yet (Task 32).
   **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`].
   **Parallelization**: After 24. Blocks: 32. Blocked By: 24.
-  **References**: audit [ARCH-8]/[ARCH-13] cited file:lines; AGENTS.md "Shared files must stay employee-agnostic"; `tests/inngest/*`, `tests/lib/slack-blocks*`.
+  **References (re-verified)**: `src/lib/slack-blocks.ts:2,23,225,254,397,566,569,726`; `src/lib/slack-copy.ts` (agnostic copy to reuse); `src/inngest/employee-lifecycle.ts` (grep `guest_name`/`SUMMARY_TARGET_CHANNEL`); `src/inngest/lib/reminder-blocks.ts`; AGENTS.md "Shared files must stay employee-agnostic"; `tests/inngest/*`, `tests/lib/slack-blocks*`.
   **Acceptance Criteria**:
   - [ ] `grep -rni "guest\|summary\|hostfully" src/inngest/employee-lifecycle.ts src/inngest/lib/reminder-blocks.ts src/lib/slack-blocks.ts` → 0 (excluding the `GUEST_*` action-ID constants, removed in Task 32)
   - [ ] `pnpm test` green
@@ -657,7 +670,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 - [ ] 32. **Merge the two approval flows into ONE generic flow (every employee)**
 
-  **What to do** ([ARCH-8]): Today there are TWO parallel approval-button systems in `src/gateway/slack/handlers.ts`: generic `APPROVE`/`REJECT` (handlers ~410, 488) and guest-specific `GUEST_APPROVE`/`GUEST_EDIT`/`GUEST_REJECT` (handlers ~566, 650, 808). The only real difference is the guest flow's "Edit the draft, then send" step — which is NOT guest-specific (any employee with an editable text deliverable wants it). **Merge them into a single generic flow that EVERY employee uses, always showing Approve / Edit / Reject** (user decision):
+  **What to do** ([ARCH-8]): Today there are TWO parallel approval-button systems in `src/gateway/slack/handlers.ts`: generic `APPROVE`/`REJECT` (handlers `:481`, `:565`) and guest-specific `GUEST_APPROVE`/`GUEST_EDIT`/`GUEST_REJECT` (handlers `:646`, `:736`, `:935`). The only real difference is the guest flow's "Edit the draft, then send" step — which is NOT guest-specific (any employee with an editable text deliverable wants it). **Re-grep before editing — these moved with the recent overhaul and will move again if Task 21 runs first.** **Merge them into a single generic flow that EVERY employee uses, always showing Approve / Edit / Reject** (user decision):
   - In `src/lib/slack-action-ids.ts`: collapse to ONE set — `APPROVE`, `EDIT_AND_SEND` (absorbs `GUEST_EDIT`+`EDITED_DRAFT`), `REJECT`. DELETE `GUEST_APPROVE`/`GUEST_EDIT`/`GUEST_REJECT`.
   - In `handlers.ts`: keep ONE handler per action. Fold the (richer) guest handler bodies into the generic `APPROVE`/`REJECT` handlers and add the generic `EDIT_AND_SEND` handler from the old `GUEST_EDIT` logic. Delete the three `GUEST_*` handlers. Any genuinely employee-specific step (e.g. enrichment context) must be driven by task/archetype data passed through, NOT by which button was clicked.
   - In the emitters — worker `approval-card-poster.mts` and the gateway block builders — every approval card now emits the SAME three generic buttons (Approve / Edit / Reject). Remove the separate `GUEST_BUTTON_BLOCKS` path so there is ONE card builder.
@@ -665,7 +678,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
     **Must NOT do**: Leave any emitter/handler on a removed ID (would silently break buttons). Don't keep a second card-builder path "just for guests". Don't change the visual card layout beyond unifying to 3 buttons.
     **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`, `e2e-testing`].
     **Parallelization**: After 31. Blocks: 33. Blocked By: 31. (Note: pairs naturally with the handlers decomposition in Task 21 — do 21 first if both are queued.)
-    **References**: `src/lib/slack-action-ids.ts:4-7`; `src/gateway/slack/handlers.ts:193-228` (dual button blocks), `:410,488` (generic handlers), `:566,650,808` (guest handlers), `:691` (`EDITED_DRAFT`); `src/workers/lib/approval-card-poster.mts:93`; audit [ARCH-8].
+    **References (re-verified 2026-06-05)**: `src/lib/slack-action-ids.ts:4-6` (`GUEST_*` constants); `src/gateway/slack/handlers.ts` — `GUEST_BUTTON_BLOCKS` def `:195`, dual button blocks `:202/209/215` (guest) + `:230/237` (generic), generic handlers `:481,565`, guest handlers `:646,736,935`, `GUEST_BUTTON_BLOCKS` used at `:724,1321`, `EDITED_DRAFT` action; `src/workers/lib/approval-card-poster.mts`; `src/lib/slack-blocks.ts` guest builders (`:23,225`) + `buildHostfullyLink` (`:2,254,397,726`); audit [ARCH-8]. NOTE: if Task 21 ran first, these live in the new split files — grep by symbol, not line.
     **Acceptance Criteria**:
   - [ ] `grep -ri "GUEST_APPROVE\|GUEST_EDIT\|GUEST_REJECT\|GUEST_BUTTON" src/` → 0 (constants, handlers, emitters, card builder all merged)
   - [ ] Exactly ONE handler registered per approval action (`grep -c "boltApp.action(SLACK_ACTION_ID.APPROVE" handlers.ts` → 1; same for REJECT, EDIT_AND_SEND)
@@ -676,7 +689,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 - [ ] 33. **Final Verification Wave + docs freshness + notify**
 
-  **What to do**: Run the **Final Verification Wave** (F1–F4 below), present consolidated results, get explicit user okay. Update AGENTS.md/README per Documentation Freshness (new `task-status.ts`, `config.ts`, `http-client.ts`, deleted components, CONTRIBUTING.md, removed deprecated code). Run Git Cleanup (`git status --short` clean). **Send Telegram completion notification** (`pnpm exec tsx scripts/telegram-notify.ts "✅ Maintainability remediation complete — all tasks done. Come back to review."`).
+  **What to do**: Run the **Final Verification Wave** (F1–F4 below), present consolidated results, get explicit user okay. Update AGENTS.md/README per Documentation Freshness (new `task-status.ts`, `config.ts`, `http-client.ts`, deleted components, CONTRIBUTING.md, removed deprecated code, and the unified approval flow). **AGENTS.md coordination**: the Slack sections grew (Known Issues #4 and #5 were rewritten by the singleton fix; "Slack Interactive Buttons — Socket Mode" at `:163`). If the separate `community-skill-library` plan runs and extracts Slack sections into a skill, update THAT skill instead of AGENTS.md for the approval-flow change — confirm which is the source of truth at execution time. Run Git Cleanup (`git status --short` clean). **Send Telegram completion notification** (`pnpm exec tsx scripts/telegram-notify.ts "✅ Maintainability remediation complete — all tasks done. Come back to review."`).
   **Must NOT do**: Mark F1–F4 checked before user okay.
   **Recommended Agent Profile**: Category `deep`; Skills: [`e2e-testing`, `debugging-lifecycle`].
   **Parallelization**: LAST. Blocked By: 32.
