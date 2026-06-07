@@ -348,6 +348,19 @@ for (const v of REQUIRED_VARS) {
   }
 }
 
+// Slack round-robins each event per-app across all open sockets, so prod and local dev
+// sharing one xapp- token silently drops ~50% of @mentions (AGENTS.md Known Issue #5).
+// Informational only — never blocks startup.
+const slackAppToken = process.env.SLACK_APP_TOKEN;
+if (slackAppToken?.startsWith('xapp-')) {
+  info(
+    `Using SLACK_APP_TOKEN from .env (…${slackAppToken.slice(-6)}) — make sure this is YOUR personal dev app token, not the shared prod token.`,
+  );
+  info(
+    '  Sharing the prod token drops ~50% of @mentions. See docs/guides/*-slack-per-dev-app-onboarding.md',
+  );
+}
+
 // cloudflared binary
 try {
   await $`which cloudflared`;

@@ -44,6 +44,10 @@ dashboard/.env
 dashboard/vite.config.d.ts
 dashboard/vite.config.js
 
+# Slack CLI per-developer app state (contains personal xapp-/xoxb- tokens — never commit)
+.slack/
+.slack/apps*.json
+
 # Database backups (contain production data + encrypted secrets)
 database-backups/
 
