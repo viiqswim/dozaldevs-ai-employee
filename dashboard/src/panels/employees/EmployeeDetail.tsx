@@ -13,7 +13,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
 import { triggerEmployee, deleteArchetype, patchArchetype, listModelCatalog } from '@/lib/gateway';
-import { GATEWAY_URL } from '@/lib/constants';
+import { GATEWAY_URL, WEBHOOK_FIXTURES } from '@/lib/constants';
+import { computeCostTierLabel } from '@/lib/utils';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype, Tenant, ModelCatalogEntry } from '@/lib/types';
@@ -25,22 +26,7 @@ import { TrainingTab } from './TrainingTab';
 import type { ProfileMode } from '@/lib/profile-constants';
 import { DebugTab } from './DebugTab';
 
-function computeCostTierLabel(inputCost: number, outputCost: number, isFree: boolean): string {
-  if (isFree) return 'Free';
-  const avg = (inputCost + outputCost) / 2;
-  if (avg < 0.5) return 'Budget';
-  if (avg < 3.0) return 'Standard';
-  return 'Premium';
-}
-
 const KEBAB_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-
-const WEBHOOK_FIXTURES = {
-  agency_uid: '942d08d9-82bb-4fd3-9091-ca0c6b50b578',
-  thread_uid: '2f18249a-9523-4acd-a512-20ff06d5c3fa',
-  lead_uid: '37f5f58f-d308-42bf-8ed3-f0c2d70f16fb',
-  property_uid: 'c960c8d2-9a51-49d8-bb48-355a7bfbe7e2',
-} as const;
 
 export function EmployeeDetail() {
   const { archetypeId } = useParams<{ archetypeId: string }>();
@@ -489,7 +475,14 @@ export function EmployeeDetail() {
                       options={(() => {
                         const opts = catalogModels.map((m) => ({
                           value: m.model_id,
-                          label: `${m.display_name} (${m.provider}) — ${computeCostTierLabel(m.input_cost_per_million, m.output_cost_per_million, m.is_free)}`,
+                          label: (() => {
+                            const tier = computeCostTierLabel(
+                              m.input_cost_per_million,
+                              m.output_cost_per_million,
+                              m.is_free,
+                            );
+                            return `${m.display_name} (${m.provider}) — ${tier.charAt(0).toUpperCase() + tier.slice(1)}`;
+                          })(),
                         }));
                         const current = archetype.model;
                         if (current && !opts.find((o) => o.value === current)) {

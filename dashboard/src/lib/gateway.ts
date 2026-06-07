@@ -284,26 +284,10 @@ export async function deleteRule(
   archetypeId: string,
   ruleId: string,
 ): Promise<void> {
-  const key = getAdminApiKey();
-  if (!key) {
-    throw new Error('Admin API key not set. Please configure it in the dashboard.');
-  }
-
-  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}`;
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Key': key,
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(
-      `Gateway error ${response.status} on /admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}: ${text}`,
-    );
-  }
+  await gatewayFetch<unknown>(
+    `/admin/tenants/${tenantId}/employees/${archetypeId}/rules/${ruleId}`,
+    { method: 'DELETE' },
+  );
 }
 
 export async function recommendModel(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,64 @@ interface CompactSettingsGridProps {
   tenantId: string;
 }
 
+type FormState = {
+  approvalRequired: boolean;
+  timeoutHours: number;
+  notificationChannel: string;
+  concurrencyLimit: number;
+  manualMinutesOverride: number | null;
+  temperature: string;
+  saveError: string | null;
+};
+
+type FormAction =
+  | { type: 'SET_APPROVAL_REQUIRED'; value: boolean }
+  | { type: 'SET_TIMEOUT_HOURS'; value: number }
+  | { type: 'SET_NOTIFICATION_CHANNEL'; value: string }
+  | { type: 'SET_CONCURRENCY_LIMIT'; value: number }
+  | { type: 'SET_MANUAL_MINUTES_OVERRIDE'; value: number | null }
+  | { type: 'SET_TEMPERATURE'; value: string }
+  | { type: 'SET_SAVE_ERROR'; value: string | null }
+  | { type: 'RESET'; archetype: Archetype };
+
+function initForm(archetype: Archetype): FormState {
+  return {
+    approvalRequired: archetype.risk_model?.approval_required ?? false,
+    timeoutHours: archetype.risk_model?.timeout_hours ?? 0,
+    notificationChannel: archetype.notification_channel ?? '',
+    concurrencyLimit: archetype.concurrency_limit,
+    manualMinutesOverride: archetype.estimated_manual_minutes_override ?? null,
+    temperature:
+      archetype.temperature !== null && archetype.temperature !== undefined
+        ? String(archetype.temperature)
+        : '1.0',
+    saveError: null,
+  };
+}
+
+function formReducer(state: FormState, action: FormAction): FormState {
+  switch (action.type) {
+    case 'SET_APPROVAL_REQUIRED':
+      return { ...state, approvalRequired: action.value };
+    case 'SET_TIMEOUT_HOURS':
+      return { ...state, timeoutHours: action.value };
+    case 'SET_NOTIFICATION_CHANNEL':
+      return { ...state, notificationChannel: action.value };
+    case 'SET_CONCURRENCY_LIMIT':
+      return { ...state, concurrencyLimit: action.value };
+    case 'SET_MANUAL_MINUTES_OVERRIDE':
+      return { ...state, manualMinutesOverride: action.value };
+    case 'SET_TEMPERATURE':
+      return { ...state, temperature: action.value };
+    case 'SET_SAVE_ERROR':
+      return { ...state, saveError: action.value };
+    case 'RESET':
+      return initForm(action.archetype);
+    default:
+      return state;
+  }
+}
+
 export function CompactSettingsGrid({
   archetype,
   mode,
@@ -25,28 +83,11 @@ export function CompactSettingsGrid({
 }: CompactSettingsGridProps) {
   const [editing, setEditing] = useState(mode === 'edit' || mode === 'create');
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [form, dispatch] = useReducer(formReducer, archetype, initForm);
 
   const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
   const [slackLoading, setSlackLoading] = useState(true);
   const [slackError, setSlackError] = useState<string | undefined>();
-
-  const [approvalRequired, setApprovalRequired] = useState(
-    archetype.risk_model?.approval_required ?? false,
-  );
-  const [timeoutHours, setTimeoutHours] = useState(archetype.risk_model?.timeout_hours ?? 0);
-  const [notificationChannel, setNotificationChannel] = useState(
-    archetype.notification_channel ?? '',
-  );
-  const [concurrencyLimit, setConcurrencyLimit] = useState(archetype.concurrency_limit);
-  const [manualMinutesOverride, setManualMinutesOverride] = useState<number | null>(
-    archetype.estimated_manual_minutes_override ?? null,
-  );
-  const [temperature, setTemperature] = useState<string>(
-    archetype.temperature !== null && archetype.temperature !== undefined
-      ? String(archetype.temperature)
-      : '1.0',
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -71,16 +112,7 @@ export function CompactSettingsGrid({
 
   useEffect(() => {
     if (!editing) {
-      setApprovalRequired(archetype.risk_model?.approval_required ?? false);
-      setTimeoutHours(archetype.risk_model?.timeout_hours ?? 0);
-      setNotificationChannel(archetype.notification_channel ?? '');
-      setConcurrencyLimit(archetype.concurrency_limit);
-      setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
-      setTemperature(
-        archetype.temperature !== null && archetype.temperature !== undefined
-          ? String(archetype.temperature)
-          : '1.0',
-      );
+      dispatch({ type: 'RESET', archetype });
     }
   }, [archetype, editing]);
 
@@ -92,25 +124,28 @@ export function CompactSettingsGrid({
 
   const handleSave = async () => {
     setSaving(true);
-    setSaveError(null);
+    dispatch({ type: 'SET_SAVE_ERROR', value: null });
     const changes: Partial<Archetype & { risk_model?: Record<string, unknown> }> = {};
 
-    if (notificationChannel !== (archetype.notification_channel ?? ''))
-      changes.notification_channel = notificationChannel || null;
-    if (concurrencyLimit !== archetype.concurrency_limit)
-      changes.concurrency_limit = concurrencyLimit;
+    if (form.notificationChannel !== (archetype.notification_channel ?? ''))
+      changes.notification_channel = form.notificationChannel || null;
+    if (form.concurrencyLimit !== archetype.concurrency_limit)
+      changes.concurrency_limit = form.concurrencyLimit;
 
     const existingApproval = archetype.risk_model?.approval_required ?? false;
     const existingTimeout = archetype.risk_model?.timeout_hours ?? 0;
-    if (approvalRequired !== existingApproval || timeoutHours !== existingTimeout)
-      changes.risk_model = { approval_required: approvalRequired, timeout_hours: timeoutHours };
+    if (form.approvalRequired !== existingApproval || form.timeoutHours !== existingTimeout)
+      changes.risk_model = {
+        approval_required: form.approvalRequired,
+        timeout_hours: form.timeoutHours,
+      };
 
-    if (manualMinutesOverride !== (archetype.estimated_manual_minutes_override ?? null))
-      changes.estimated_manual_minutes_override = manualMinutesOverride;
+    if (form.manualMinutesOverride !== (archetype.estimated_manual_minutes_override ?? null))
+      changes.estimated_manual_minutes_override = form.manualMinutesOverride;
 
-    const parsedTemp = parseFloat(temperature);
+    const parsedTemp = parseFloat(form.temperature);
     if (isNaN(parsedTemp) || parsedTemp < 0 || parsedTemp > 2) {
-      setSaveError('Temperature must be between 0.0 and 2.0');
+      dispatch({ type: 'SET_SAVE_ERROR', value: 'Temperature must be between 0.0 and 2.0' });
       setSaving(false);
       return;
     }
@@ -132,24 +167,17 @@ export function CompactSettingsGrid({
       setEditing(false);
       onSaved();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : String(err));
+      dispatch({
+        type: 'SET_SAVE_ERROR',
+        value: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setApprovalRequired(archetype.risk_model?.approval_required ?? false);
-    setTimeoutHours(archetype.risk_model?.timeout_hours ?? 0);
-    setNotificationChannel(archetype.notification_channel ?? '');
-    setConcurrencyLimit(archetype.concurrency_limit);
-    setManualMinutesOverride(archetype.estimated_manual_minutes_override ?? null);
-    setTemperature(
-      archetype.temperature !== null && archetype.temperature !== undefined
-        ? String(archetype.temperature)
-        : '1.0',
-    );
-    setSaveError(null);
+    dispatch({ type: 'RESET', archetype });
     setEditing(false);
   };
 
@@ -176,12 +204,12 @@ export function CompactSettingsGrid({
             {editing ? (
               <div className="flex items-center gap-2 pt-1">
                 <Switch
-                  checked={approvalRequired}
-                  onCheckedChange={setApprovalRequired}
+                  checked={form.approvalRequired}
+                  onCheckedChange={(v) => dispatch({ type: 'SET_APPROVAL_REQUIRED', value: v })}
                   aria-label="Approval required"
                 />
                 <span className="text-xs text-muted-foreground">
-                  {approvalRequired ? 'Required' : 'Auto-approved'}
+                  {form.approvalRequired ? 'Required' : 'Auto-approved'}
                 </span>
               </div>
             ) : (
@@ -220,15 +248,17 @@ export function CompactSettingsGrid({
               ) : slackChannels.length > 0 ? (
                 <SearchableSelect
                   options={slackChannels.map((ch) => ({ value: ch.id, label: `#${ch.name}` }))}
-                  value={notificationChannel}
-                  onValueChange={setNotificationChannel}
+                  value={form.notificationChannel}
+                  onValueChange={(v) => dispatch({ type: 'SET_NOTIFICATION_CHANNEL', value: v })}
                   placeholder="Select a channel..."
                   searchPlaceholder="Search channels..."
                 />
               ) : (
                 <Input
-                  value={notificationChannel}
-                  onChange={(e) => setNotificationChannel(e.target.value)}
+                  value={form.notificationChannel}
+                  onChange={(e) =>
+                    dispatch({ type: 'SET_NOTIFICATION_CHANNEL', value: e.target.value })
+                  }
                   className="font-mono text-xs"
                   placeholder="#channel-name or channel ID"
                 />
@@ -258,8 +288,10 @@ export function CompactSettingsGrid({
               <Input
                 type="number"
                 min={0}
-                value={timeoutHours}
-                onChange={(e) => setTimeoutHours(parseFloat(e.target.value) || 0)}
+                value={form.timeoutHours}
+                onChange={(e) =>
+                  dispatch({ type: 'SET_TIMEOUT_HOURS', value: parseFloat(e.target.value) || 0 })
+                }
               />
             ) : (
               <p className="pt-1 text-sm">
@@ -278,8 +310,13 @@ export function CompactSettingsGrid({
               <Input
                 type="number"
                 min={1}
-                value={concurrencyLimit}
-                onChange={(e) => setConcurrencyLimit(parseInt(e.target.value, 10) || 1)}
+                value={form.concurrencyLimit}
+                onChange={(e) =>
+                  dispatch({
+                    type: 'SET_CONCURRENCY_LIMIT',
+                    value: parseInt(e.target.value, 10) || 1,
+                  })
+                }
               />
             ) : (
               <p className="pt-1 text-sm">{archetype.concurrency_limit}</p>
@@ -296,10 +333,10 @@ export function CompactSettingsGrid({
                   type="number"
                   min={1}
                   max={1440}
-                  value={manualMinutesOverride ?? ''}
+                  value={form.manualMinutesOverride ?? ''}
                   onChange={(e) => {
                     const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
-                    setManualMinutesOverride(val);
+                    dispatch({ type: 'SET_MANUAL_MINUTES_OVERRIDE', value: val });
                   }}
                   placeholder={
                     archetype.estimated_manual_minutes
@@ -332,10 +369,10 @@ export function CompactSettingsGrid({
                   min={0}
                   max={2}
                   step={0.1}
-                  value={temperature}
+                  value={form.temperature}
                   onChange={(e) => {
-                    setTemperature(e.target.value);
-                    setSaveError(null);
+                    dispatch({ type: 'SET_TEMPERATURE', value: e.target.value });
+                    dispatch({ type: 'SET_SAVE_ERROR', value: null });
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -352,7 +389,9 @@ export function CompactSettingsGrid({
 
         {editing && (
           <div className="flex items-center justify-between pt-2">
-            <div>{saveError && <p className="text-xs text-destructive">{saveError}</p>}</div>
+            <div>
+              {form.saveError && <p className="text-xs text-destructive">{form.saveError}</p>}
+            </div>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
                 Cancel

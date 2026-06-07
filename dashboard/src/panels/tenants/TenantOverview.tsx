@@ -12,6 +12,7 @@ import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
 import type { Tenant, TenantSecret } from '@/lib/types';
+import { ErrorBox } from '@/components/ui/error-box';
 
 function SkeletonField() {
   return (
@@ -30,25 +31,6 @@ function SkeletonRow() {
         <div className="h-5 w-16 animate-pulse rounded bg-muted" />
       </div>
       <div className="h-8 w-20 animate-pulse rounded bg-muted" />
-    </div>
-  );
-}
-
-function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  return (
-    <div className="rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
-      <p className="font-semibold">Failed to load</p>
-      <p className="mt-1 text-destructive/80">{message}</p>
-      {onRetry && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3 border-destructive text-destructive hover:bg-destructive/10"
-          onClick={onRetry}
-        >
-          Retry
-        </Button>
-      )}
     </div>
   );
 }
