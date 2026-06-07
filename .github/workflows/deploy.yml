@@ -7,6 +7,19 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_employee_test
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -16,7 +29,11 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - run: pnpm test:db:setup
       - run: pnpm test -- --run
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:54322/ai_employee_test
+          DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:54322/ai_employee_test
       - run: pnpm lint
 
   deploy-gateway:
