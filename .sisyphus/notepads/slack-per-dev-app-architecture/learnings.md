@@ -147,3 +147,16 @@ These are injected by slack run in SDK-managed-connection mode ONLY IF NOT alrea
 - manifest.json validated as parseable JSON via node JSON.parse.
 - Onboarding doc referenced as `docs/guides/*-slack-per-dev-app-onboarding.md` (created by Task 6, glob pattern
   used so the reference survives the eventual timestamped filename).
+
+## [2026-06-07] Task 5 — dev-tenant registration script
+- scripts/register-dev-slack-tenant.ts created
+- Uses PrismaClient directly + encrypt() for bot token
+- Upserts slack_integrations(provider='slack', external_id=teamId) + tenant_secrets(slack_bot_token)
+- Idempotent (safe to re-run)
+- package.json: added "register-dev-slack" script
+- Unique upsert key for TenantIntegration: tenant_id_provider (compound: tenant_id + provider)
+- Unique upsert key for TenantSecret: tenant_id_key (compound: tenant_id + key)
+- .env vars must be injected into process.env manually before PrismaClient init (encrypt() reads ENCRYPTION_KEY from process.env)
+- Script defaults to DozalDevs tenant (00000000-0000-0000-0000-000000000002) if --tenant-id omitted
+- Validates teamId starts with 'T', botToken starts with 'xoxb-', tenantId is valid UUID
+- Verifies upsert by reading back the integration row (findFirst with deleted_at: null check)

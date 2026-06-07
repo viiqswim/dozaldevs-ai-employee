@@ -358,7 +358,7 @@ Track A (Task 2) is independent — can complete anytime.
 
   **Commit**: YES — `feat(dev): orchestrate slack run as managed child; inject per-dev Slack token` (commit 4) — Pre-commit: `pnpm build`.
 
-- [ ] 5. Sandbox-`teamId` → dev-tenant registration path (the Metis-confirmed blocker)
+- [x] 5. Sandbox-`teamId` → dev-tenant registration path (the Metis-confirmed blocker)
 
   **What to do**:
   - Provide a way for each engineer to register their Developer Sandbox workspace's `teamId` as a dev tenant so `fetchInstallation` resolves. `installation-store.ts:24-27` looks up `slack_integrations.external_id == teamId` then `tenant_secrets.slack_bot_token`. Without a matching row, every @mention throws `"No installation for team: <teamId>"` and the bot is silent.
