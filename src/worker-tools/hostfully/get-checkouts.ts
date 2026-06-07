@@ -1,3 +1,7 @@
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
+import { formatGuestName } from './lib/format.js';
+
 type RawProperty = {
   uid: string;
   name?: string;
@@ -118,106 +122,10 @@ function formatCheckOutTime(
   return '11:00';
 }
 
-function formatGuestName(
-  gi: { firstName?: string | null; lastName?: string | null } | undefined,
-): string | null {
-  if (!gi) return null;
-  const parts = [gi.firstName, gi.lastName].filter(
-    (p): p is string => typeof p === 'string' && p !== '',
-  );
-  return parts.length > 0 ? parts.join(' ').trim() : null;
-}
-
 function shiftDate(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
-}
-
-async function fetchAllProperties(
-  baseUrl: string,
-  headers: Record<string, string>,
-  agencyUid: string,
-): Promise<RawProperty[]> {
-  const seenUids = new Set<string>();
-  const all: RawProperty[] = [];
-  let cursor: string | undefined = undefined;
-
-  for (;;) {
-    const url = cursor
-      ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&_cursor=${encodeURIComponent(cursor)}`
-      : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch properties: ${res.status}`);
-    }
-
-    const json = (await res.json()) as {
-      properties?: RawProperty[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.properties ?? [];
-    let hasNew = false;
-    for (const p of page) {
-      if (p.uid && !seenUids.has(p.uid)) {
-        seenUids.add(p.uid);
-        all.push(p);
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
-  }
-
-  return all;
-}
-
-async function fetchLeadsForProperty(
-  baseUrl: string,
-  headers: Record<string, string>,
-  propertyUid: string,
-  fromDate: string,
-  toDate: string,
-): Promise<RawLead[]> {
-  const seenUids = new Set<string>();
-  const all: RawLead[] = [];
-  let cursor: string | undefined = undefined;
-
-  const queryBase =
-    `${baseUrl}/leads?propertyUid=${encodeURIComponent(propertyUid)}` +
-    `&checkInFrom=${encodeURIComponent(fromDate)}&checkInTo=${encodeURIComponent(toDate)}`;
-
-  for (;;) {
-    const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch leads for property ${propertyUid}: ${res.status}`);
-    }
-
-    const json = (await res.json()) as {
-      leads?: RawLead[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.leads ?? [];
-    let hasNew = false;
-    for (const lead of page) {
-      if (lead.uid && !seenUids.has(lead.uid)) {
-        seenUids.add(lead.uid);
-        all.push(lead);
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
-  }
-
-  return all;
 }
 
 async function fetchPropertyDetail(
@@ -313,23 +221,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
-
   const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
   if (!agencyUid) {
     process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
     process.exit(1);
   }
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
-  const headers: Record<string, string> = {
-    'X-HOSTFULLY-APIKEY': apiKey,
-    Accept: 'application/json',
-  };
+  const { headers, baseUrl } = resolveHostfullyClient();
 
   // --from/--to filters by check-IN date; broad range captures all reservations that could check out on targetDate
   const fromDate = shiftDate(targetDate, -60);
@@ -337,7 +235,14 @@ async function main(): Promise<void> {
 
   let properties: RawProperty[];
   try {
-    properties = await fetchAllProperties(baseUrl, headers, agencyUid);
+    properties = await paginateCursor<RawProperty>(
+      `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`,
+      headers,
+      (json) => {
+        const j = json as { properties?: RawProperty[]; _paging?: { _nextCursor?: string } };
+        return { items: j.properties ?? [], nextCursor: j._paging?._nextCursor };
+      },
+    );
   } catch (err) {
     process.stderr.write(`Error: ${String(err)}\n`);
     process.exit(1);
@@ -349,7 +254,13 @@ async function main(): Promise<void> {
   for (const property of properties) {
     let leads: RawLead[];
     try {
-      leads = await fetchLeadsForProperty(baseUrl, headers, property.uid, fromDate, toDate);
+      const queryBase =
+        `${baseUrl}/leads?propertyUid=${encodeURIComponent(property.uid)}` +
+        `&checkInFrom=${encodeURIComponent(fromDate)}&checkInTo=${encodeURIComponent(toDate)}`;
+      leads = await paginateCursor<RawLead>(queryBase, headers, (json) => {
+        const j = json as { leads?: RawLead[]; _paging?: { _nextCursor?: string } };
+        return { items: j.leads ?? [], nextCursor: j._paging?._nextCursor };
+      });
     } catch (err) {
       process.stderr.write(
         `Warning: ${String(err)} — skipping property ${property.name ?? property.uid}\n`,

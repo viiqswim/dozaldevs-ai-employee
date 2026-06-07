@@ -27,6 +27,10 @@
  *   - senderType values: "GUEST" or "AGENCY" (agency = host side)
  *   - API returns messages newest-first; we sort to chronological (oldest-first)
  */
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
+import { formatGuestName } from './lib/format.js';
+
 type RawLead = {
   uid: string;
   propertyUid?: string;
@@ -109,16 +113,6 @@ function parseArgs(argv: string[]): {
   }
 
   return { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid };
-}
-
-function formatGuestName(
-  gi: { firstName?: string | null; lastName?: string | null } | undefined,
-): string | null {
-  if (!gi) return null;
-  const parts = [gi.firstName, gi.lastName].filter(
-    (p): p is string => typeof p === 'string' && p !== '',
-  );
-  return parts.length > 0 ? parts.join(' ').trim() : null;
 }
 
 async function main(): Promise<void> {
@@ -222,15 +216,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
-
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
-
-  const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
+  const { headers, baseUrl } = resolveHostfullyClient();
 
   // --- Single-lead path (--lead-id or LEAD_UID fallback) ---
   if (leadId) {
@@ -307,37 +293,10 @@ async function main(): Promise<void> {
     : `${baseUrl}/leads?agencyUid=${encodeURIComponent(agencyUid)}&checkInFrom=${thirtyDaysAgo}`;
 
   // Cursor-dedup pagination loop (same pattern as get-reservations.ts)
-  const seenUids = new Set<string>();
-  const allLeads: RawLead[] = [];
-  let cursor: string | undefined = undefined;
-
-  for (;;) {
-    const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      process.stderr.write(`Error: Failed to fetch leads: ${res.status}\n`);
-      process.exit(1);
-    }
-
-    const json = (await res.json()) as {
-      leads?: RawLead[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.leads ?? [];
-    let hasNew = false;
-    for (const lead of page) {
-      if (lead.uid && !seenUids.has(lead.uid)) {
-        seenUids.add(lead.uid);
-        allLeads.push(lead);
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
-  }
+  const allLeads = await paginateCursor<RawLead>(queryBase, headers, (json) => {
+    const j = json as { leads?: RawLead[]; _paging?: { _nextCursor?: string } };
+    return { items: j.leads ?? [], nextCursor: j._paging?._nextCursor };
+  });
 
   // Exclude calendar blocks only — include BOOKING, INQUIRY, BOOKING_REQUEST, etc.
   // Airbnb and other OTAs may surface real stays as INQUIRY type, not just BOOKING.
