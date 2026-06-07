@@ -1,0 +1,102 @@
+   × callLLM > returns content, model, tokens, estimatedCostUsd and latencyMs on success 4ms
+   × callLLM > calculates estimatedCostUsd correctly for minimax-m2.7 2ms
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: valid webhook → 200 with task_created
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: task has correct status Ready and source_system jira
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: status_log entry created
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > invalid signature → 401, no DB writes
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > invalid payload (missing required fields) → 400, no DB writes
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > unknown project → 404, no task
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > duplicate webhook → 200 duplicate, no extra task or log
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_updated → 200 ignored (per §4.2)
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_deleted: cancels existing task → 200 cancelled
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_deleted: non-existent task → 200 not_found
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > triage_result has all required fields
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > raw_event contains full payload
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > Inngest send failure → 202, task still in DB
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: valid webhook → 200 with task_created
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: task has correct status Ready and source_system jira
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > happy path: status_log entry created
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > invalid signature → 401, no DB writes
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > invalid payload (missing required fields) → 400, no DB writes
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > unknown project → 404, no task
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > duplicate webhook → 200 duplicate, no extra task or log
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_updated → 200 ignored (per §4.2)
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_deleted: cancels existing task → 200 cancelled
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > issue_deleted: non-existent task → 200 not_found
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > triage_result has all required fields
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > raw_event contains full payload
+ FAIL  tests/gateway/jira-webhook.test.ts > POST /webhooks/jira > Inngest send failure → 202, task still in DB
+ FAIL  tests/inngest/lifecycle-enriched-notify.test.ts > employee-lifecycle — enriched notify-received and threaded override card > Test 5: update-notify-reviewing calls updateMessage with guest name when available
+ FAIL  tests/inngest/lifecycle-feedback-context-rejection.test.ts > confirmed employee_rules — EMPLOYEE_RULES injection > EMPLOYEE_RULES string includes confirmed rule text when dispatch-machine runs
+ FAIL  tests/inngest/lifecycle-notify-msg-ts.test.ts > employee-lifecycle — NOTIFY_MSG_TS injection into executing machine env > Test A: notify-received ts present → NOTIFY_MSG_TS injected with correct value
+ FAIL  tests/inngest/lifecycle-notify-msg-ts.test.ts > employee-lifecycle — NOTIFY_MSG_TS injection into executing machine env > Test B: notify-received ts is null → NOTIFY_MSG_TS injected as empty string
+ FAIL  tests/inngest/slack-input-collector.test.ts > createSlackInputCollectorFunction > single input — assigns text directly without calling extractInputsFromText
+ FAIL  tests/inngest/slack-trigger-handler.test.ts > createSlackTriggerHandlerFunction > posts confirmation card with prettified employee name when archetype found
+ FAIL  tests/lib/call-llm.test.ts > callLLM > returns content, model, tokens, estimatedCostUsd and latencyMs on success
+    105|     expect(result.estimatedCostUsd).toBeGreaterThan(0);
+ FAIL  tests/lib/call-llm.test.ts > callLLM > calculates estimatedCostUsd correctly for minimax-m2.7
+    266|     expect(result.estimatedCostUsd).toBeCloseTo(0.000085, 8);
+ FAIL  tests/lib/conversation-history-context.test.ts > GUEST_MESSAGING_AGENTS_MD — conversation history context > includes language matching instruction
+ FAIL  tests/lib/conversation-history-context.test.ts > GUEST_MESSAGING_AGENTS_MD — conversation history context > references tool-usage-reference skill for CLI syntax
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > dry-run: no API calls made, [DRY-RUN] in stderr
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > creates new entry when GET returns empty array
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > updates entry when GET returns existing with different content
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > skips entry when GET returns existing with same content
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > skips content exceeding 100k chars with warning, exits 0
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > handles API 500 error: logs [ERROR], continues, exits 1
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > lowercases UIDs in API calls
+ FAIL  tests/scripts/migrate-vlre-kb.test.ts > migrate-vlre-kb > missing --admin-key exits 1 with error mentioning --admin-key
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action handler > opens override_take_action_modal when task is non-terminal
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action handler > calls plain ack and skips modal when taskId is missing
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_dismiss handler > sends employee/override.requested with direction null
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_dismiss handler > ack includes replace_original with dismissed message
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_dismiss handler > calls plain ack and skips event when taskId is missing
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action_modal view handler > sends employee/override.requested with direction when valid input submitted
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action_modal view handler > returns validation error when direction is empty
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action_modal view handler > does not send event when task is already resolved (terminal state)
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action_modal view handler > does not send event when task is not found
+ FAIL  tests/gateway/slack/override-handler.test.ts > override_take_action_modal view handler > updates message to processing state after sending event
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_confirm handler > ack called with replace_original ✅ message (including rule text) and PATCH status: confirmed + confirmed_at
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_confirm handler > confirm message falls back to name-only when rule_text is absent
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_confirm handler > missing ruleId → plain ack called, no PATCH to DB
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_reject handler > ack called with replace_original ❌ message (including rule text) and PATCH status: rejected
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_reject handler > reject message falls back to name-only when rule_text is absent
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_rephrase handler > fetches current rule_text and opens modal with rule_rephrase_modal callback_id
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_rephrase_modal view handler > PATCHes rule_text and calls chat.update with fresh 3-button block kit
+ FAIL  tests/gateway/slack/rule-handlers.test.ts > rule_rephrase_modal view handler > empty rule_text → validation error ack, no PATCH
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > create: creates a tenant and returns it
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > create: creates a tenant and returns it
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findById: returns tenant by id
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findById: returns null for non-existent id
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findById: excludes soft-deleted tenants
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findBySlug: returns tenant by slug
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > update: updates allowed fields
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > softDelete: sets deleted_at
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > softDelete: is idempotent (re-deleting returns existing row)
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > restore: clears deleted_at
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > restore: throws on slug collision with active tenant
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > list: excludes soft-deleted by default
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > list: includes soft-deleted when includeDeleted=true
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > no hardDelete method exists
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findById: returns tenant by id
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > findBySlug: returns tenant by slug
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > update: updates allowed fields
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > restore: clears deleted_at
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > restore: throws on slug collision with active tenant
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > list: excludes soft-deleted by default
+PrismaClientKnownRequestError: 
+ FAIL  tests/gateway/services/tenant-repository.test.ts > TenantRepository > list: includes soft-deleted when includeDeleted=true
+PrismaClientKnownRequestError: 
+ FAIL  tests/inngest/lib/reminder-blocks.test.ts > buildReminderBlocks > section text contains guest name, property name, and elapsed minutes
+ FAIL  tests/inngest/lib/reminder-blocks.test.ts > buildReminderBlocks > all guest names are present in blocks for multiple threads
+ FAIL  tests/inngest/lib/reminder-blocks.test.ts > buildReminderBlocks > context block is always the last block
+ Test Files  13 failed | 157 passed | 1 skipped (171)
+      Tests  65 failed | 1763 passed | 35 skipped (1863)
