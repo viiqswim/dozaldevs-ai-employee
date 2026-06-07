@@ -101,3 +101,18 @@ Full-suite run after fix: 37 failures remain, NONE are Slack copy-string asserti
 - Math: `(100 × 0.3 + 50 × 1.1) / 1_000_000 = 0.000085`
 
 **Key gotcha**: `vi.clearAllMocks()` clears both call history AND mock implementations. Always re-set implementations after calling it in `beforeEach`.
+
+## Task 0.4 — conversation-history-context test fix (2026-06-07)
+
+**Root cause**: `GUEST_MESSAGING_AGENTS_MD` const was removed from `prisma/seed.ts` by PR #7. Only `PLATFORM_AGENTS_MD` and `VLRE_GUEST_MESSAGING_INSTRUCTIONS` remain as named consts.
+
+**Where content moved**:
+- "match the guest's language" → archetype `identity` field (seed.ts line ~3221, inline string)
+- "tool-usage-reference" / "CLI syntax" → `src/workers/skills/tool-usage-reference/SKILL.md`
+- Tenant-level language context → `config.default_agents_md` in tenant seed (seed.ts line ~80)
+
+**Fix applied**: Replaced `getGuestMessagingAgentsMd()` (which regex-matched the removed const) with:
+1. `getGuestMessagingIdentity()` — regex-matches `role_name: 'guest-messaging'` then captures `identity:` string
+2. `getToolUsageReferenceSkill()` — reads SKILL.md directly from `src/workers/skills/tool-usage-reference/SKILL.md`
+
+**Pattern**: When seed.ts consts are removed, check if content moved to archetype `identity`/`execution_steps` fields (inline strings) or to skill files. Don't re-add removed consts.

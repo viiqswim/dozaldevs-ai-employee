@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-function getGuestMessagingAgentsMd(): string {
+function getGuestMessagingIdentity(): string {
   const seedContent = readFileSync(resolve(__dirname, '../../prisma/seed.ts'), 'utf8');
-  const match = seedContent.match(/const GUEST_MESSAGING_AGENTS_MD = `([\s\S]*?)`;/);
-  if (!match) throw new Error('GUEST_MESSAGING_AGENTS_MD not found in seed.ts');
+  const match = seedContent.match(/role_name:\s*'guest-messaging'[\s\S]*?identity:\s*"([^"]+)"/);
+  if (!match) throw new Error('guest-messaging identity not found in seed.ts');
   return match[1];
 }
 
@@ -16,13 +16,20 @@ function getGuestMessagingInstructions(): string {
   return match[1];
 }
 
+function getToolUsageReferenceSkill(): string {
+  return readFileSync(
+    resolve(__dirname, '../../src/workers/skills/tool-usage-reference/SKILL.md'),
+    'utf8',
+  );
+}
+
 describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
   it('reads the full conversation thread as first workflow step', () => {
     expect(getGuestMessagingInstructions()).toContain('Read the full conversation thread');
   });
 
   it('includes language matching instruction', () => {
-    expect(getGuestMessagingAgentsMd()).toContain("match the guest's language");
+    expect(getGuestMessagingIdentity()).toContain("match the guest's language");
   });
 
   it('includes NEEDS_APPROVAL classification rule', () => {
@@ -34,8 +41,8 @@ describe('GUEST_MESSAGING_AGENTS_MD — conversation history context', () => {
   });
 
   it('references tool-usage-reference skill for CLI syntax', () => {
-    const agentsMd = getGuestMessagingAgentsMd();
-    expect(agentsMd).toContain('tool-usage-reference');
-    expect(agentsMd).toContain('CLI syntax');
+    const skillMd = getToolUsageReferenceSkill();
+    expect(skillMd).toContain('tool-usage-reference');
+    expect(skillMd).toContain('CLI syntax');
   });
 });
