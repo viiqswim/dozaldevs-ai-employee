@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import {
   createTaskFromJiraWebhook,
   cancelTaskByExternalId,
-} from '../../src/gateway/services/task-creation.js';
+} from '../../src/gateway/services/jira-task-creation.js';
 import { getPrisma, cleanupTestData, disconnectPrisma } from '../setup.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';

@@ -19,7 +19,7 @@ import {
   missingInfoMessage,
   ruleProposedMessage,
 } from '../../lib/slack-copy.js';
-import { randomUUID } from 'node:crypto';
+import { dispatchEmployeeById } from '../services/employee-dispatcher.js';
 
 const log = createLogger('slack-handlers');
 
@@ -1840,25 +1840,24 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
     }
 
     let dispatched = false;
+    const prisma = new PrismaClient();
 
     try {
-      const supabaseUrl = SUPABASE_URL();
-      const headers = supabaseHeaders();
+      const archetype = await prisma.archetype.findFirst({
+        where: {
+          id: ctx.archetypeId,
+          tenant_id: ctx.tenantId,
+          status: 'active',
+          deleted_at: null,
+        },
+        select: { id: true, role_name: true, input_schema: true },
+      });
 
-      const archetypeRes = await fetch(
-        `${supabaseUrl}/rest/v1/archetypes?id=eq.${ctx.archetypeId}&tenant_id=eq.${ctx.tenantId}&status=eq.active&deleted_at=is.null&select=id,role_name,input_schema`,
-        { headers },
-      );
-      const archetypes = (await archetypeRes.json()) as Array<{
-        id: string;
-        role_name: string;
-        input_schema: unknown;
-      }>;
-      if (!archetypes.length) {
+      if (!archetype) {
         throw new Error(`Archetype not found or inactive: ${ctx.archetypeId}`);
       }
-      const archetype = archetypes[0];
 
+      const roleName = archetype.role_name ?? archetype.id;
       const externalId = `slack-trigger-${ctx.threadTs}-${ctx.archetypeId}`;
 
       const requiredInputs = Array.isArray(archetype.input_schema)
@@ -1900,7 +1899,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
       const someFound = Object.keys(extractedInputs).length > 0 && missingInputs.length > 0;
 
       if (allFound) {
-        const confirmText = loadingMessage(archetype.role_name);
+        const confirmText = loadingMessage(roleName);
 
         await client.chat.postMessage({
           channel: ctx.channelId,
@@ -1909,52 +1908,34 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           blocks: [{ type: 'section', text: { type: 'mrkdwn', text: confirmText } }],
         });
 
-        const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            id: randomUUID(),
-            archetype_id: archetype.id,
-            external_id: externalId,
-            source_system: 'slack',
-            status: 'Ready',
-            tenant_id: ctx.tenantId,
-            updated_at: new Date().toISOString(),
-            raw_event: { inputs: { prompt: ctx.text, ...extractedInputs } },
-          }),
+        const dispatchResult = await dispatchEmployeeById({
+          archetypeId: archetype.id,
+          tenantId: ctx.tenantId,
+          externalId,
+          sourceSystem: 'slack',
+          prisma,
+          inngest,
+          inputs: { prompt: ctx.text, ...extractedInputs },
         });
-        const tasks = (await createRes.json()) as Array<{ id: string }>;
-        let taskId: string;
-        if (!tasks.length) {
-          // PostgREST returns [] on duplicate unique constraint — check if task already exists
-          const existingRes = await fetch(
-            `${supabaseUrl}/rest/v1/tasks?external_id=eq.${encodeURIComponent(externalId)}&select=id`,
-            { headers },
-          );
-          const existing = (await existingRes.json()) as Array<{ id: string }>;
-          if (!existing.length) throw new Error('Task creation returned empty response');
-          taskId = existing[0].id;
+
+        if (dispatchResult.kind === 'error') throw new Error(dispatchResult.message);
+
+        const { taskId } = dispatchResult;
+        dispatched = true;
+
+        if (dispatchResult.kind === 'idempotent') {
           log.info(
             { taskId, externalId, tenantId: ctx.tenantId },
             'Reusing existing task for duplicate trigger_confirm (idempotent)',
           );
-        } else {
-          taskId = tasks[0].id;
         }
-
-        await inngest.send({
-          name: 'employee/task.dispatched',
-          data: { taskId, archetypeId: archetype.id },
-          id: `employee-dispatch-${externalId}`,
-        });
-        dispatched = true;
 
         log.info(
           { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, extractedInputs },
           'Task dispatched from trigger_confirm with extracted inputs',
         );
 
-        const successText = successMessage(archetype.role_name, user.id);
+        const successText = successMessage(roleName, user.id);
         try {
           await respond({
             replace_original: true,
@@ -1992,7 +1973,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           userId: user.id,
           channelId: ctx.channelId,
           text: ctx.text,
-          roleName: archetype.role_name,
+          roleName,
           requiredInputs,
           extractedInputs: someFound ? extractedInputs : undefined,
         };
@@ -2001,7 +1982,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           pendingInputCollections.set(ctx.threadTs, pendingData);
         }
 
-        const missingInfoText = missingInfoMessage(archetype.role_name, inputList);
+        const missingInfoText = missingInfoMessage(roleName, inputList);
         const inputMsgResult = await client.chat.postMessage({
           channel: ctx.channelId,
           ...(ctx.threadTs ? { thread_ts: ctx.threadTs } : {}),
@@ -2020,7 +2001,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           pendingInputCollections.set(pendingKey, pendingData);
         }
 
-        const waitingText = loadingMessage(archetype.role_name);
+        const waitingText = loadingMessage(roleName);
         await respond({
           replace_original: true,
           text: waitingText,
@@ -2049,31 +2030,19 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         return;
       }
 
-      const createRes = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          id: randomUUID(),
-          archetype_id: archetype.id,
-          external_id: externalId,
-          source_system: 'slack',
-          status: 'Ready',
-          tenant_id: ctx.tenantId,
-          updated_at: new Date().toISOString(),
-          raw_event: { inputs: { prompt: ctx.text } },
-        }),
+      const dispatchResult = await dispatchEmployeeById({
+        archetypeId: archetype.id,
+        tenantId: ctx.tenantId,
+        externalId,
+        sourceSystem: 'slack',
+        prisma,
+        inngest,
+        inputs: { prompt: ctx.text },
       });
-      const tasks = (await createRes.json()) as Array<{ id: string }>;
-      if (!tasks.length) {
-        throw new Error('Task creation returned empty response');
-      }
-      const taskId = tasks[0].id;
 
-      await inngest.send({
-        name: 'employee/task.dispatched',
-        data: { taskId, archetypeId: archetype.id },
-        id: `employee-dispatch-${externalId}`,
-      });
+      if (dispatchResult.kind === 'error') throw new Error(dispatchResult.message);
+
+      const { taskId } = dispatchResult;
       dispatched = true;
 
       log.info(
@@ -2081,7 +2050,7 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
         'Task dispatched from Slack trigger confirmation',
       );
 
-      const successText = successMessage(archetype.role_name, user.id);
+      const successText = successMessage(roleName, user.id);
       try {
         await respond({
           replace_original: true,
@@ -2134,6 +2103,8 @@ export function registerSlackHandlers(boltApp: App, inngest: InngestLike): void 
           'trigger_confirm: post-dispatch error after successful dispatch (suppressed false-failure message)',
         );
       }
+    } finally {
+      await prisma.$disconnect();
     }
   });
 

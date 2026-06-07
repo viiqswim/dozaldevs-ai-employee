@@ -6,7 +6,10 @@ import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
 import { verifyJiraSignature } from '../validation/signature.js';
 import { parseJiraWebhook, parseJiraIssueDeletion } from '../validation/schemas.js';
-import { createTaskFromJiraWebhook, cancelTaskByExternalId } from '../services/task-creation.js';
+import {
+  createTaskFromJiraWebhook,
+  cancelTaskByExternalId,
+} from '../services/jira-task-creation.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 
 const logger = createLogger('jira-webhook');

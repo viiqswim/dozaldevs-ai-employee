@@ -63,6 +63,6 @@ export const LOG_STREAM_TERMINAL_STATUSES: ReadonlySet<string> = new Set([
  * Cancelled (no-op). Failed tasks are intentionally omitted — the cancellation
  * path can still operate on Failed tasks if called explicitly.
  *
- * Used by: `src/gateway/services/task-creation.ts` — `cancelTask()`
+ * Used by: `src/gateway/services/jira-task-creation.ts` — `cancelTaskByExternalId()`
  */
 export const CANCELLATION_GUARD_STATUSES: ReadonlySet<string> = new Set(['Done', 'Cancelled']);
