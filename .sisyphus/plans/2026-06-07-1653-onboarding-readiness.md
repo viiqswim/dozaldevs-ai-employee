@@ -310,6 +310,366 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ## TODOs
 
+### WAVE 0 — Stabilize Baseline (MUST reach 100% green before any other wave)
+
+> **Guardrail for ALL of Wave 0**: fix tests to match the SHIPPED production behavior. If a failing test reveals a genuine production BUG (not just drifted text/mocks), STOP and record it as a new finding — do NOT edit the test to hide a real defect. Re-grep line numbers before editing; PR #7 moved things.
+
+- [ ] 0.1. Fix Slack mock `.use()` regression (~18 failures)
+
+  **What to do**:
+  - **ROOT CAUSE (verified)**: `src/gateway/slack/handlers/event-handlers.ts:17` calls `boltApp.use(async ({ body, next }) => {...})` (a global middleware registered during `registerSlackHandlers`). The test mock `boltApp` objects do NOT implement `.use`, so every test that calls `registerSlackHandlers(mockBoltApp, ...)` throws `TypeError: boltApp.use is not a function`.
+  - Add a `use: vi.fn()` (capturing the middleware if a test needs it, else a no-op) to the mock `boltApp` factory in each affected test file:
+    - `tests/gateway/slack/override-handler.test.ts` (mock at ~line 25, `makeMockBoltApp`)
+    - `tests/gateway/slack/rule-handlers.test.ts`
+    - `tests/inngest/slack-trigger-handler.test.ts`
+    - `tests/inngest/slack-input-collector.test.ts`
+  - Re-grep for ALL `boltApp.use is not a function` occurrences (`grep -rln "_getAction\|makeMockBoltApp\|registerSlackHandlers" tests/`) — fix every mock factory, not just these 4.
+
+  **Must NOT do**:
+  - Do NOT change `event-handlers.ts` — the `.use()` middleware is shipped, correct production behavior; the TESTS are stale
+  - Do NOT remove the global middleware to make tests pass
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [] (mock infra knowledge)
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `src/gateway/slack/handlers/event-handlers.ts:17` — the `boltApp.use(...)` call
+  - `tests/gateway/slack/override-handler.test.ts:25` — `makeMockBoltApp` factory (add `use`)
+  - existing mock pattern: the same files' `action`/`view`/`command` mock fns
+
+  **Acceptance Criteria** (Tier S + integration):
+  - [ ] `grep -rl "boltApp.use is not a function" /tmp/*.log` after re-run → none
+  - [ ] `pnpm test tests/gateway/slack/override-handler.test.ts tests/gateway/slack/rule-handlers.test.ts` → green
+  - [ ] `pnpm build` clean
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Slack handler tests no longer crash on .use
+    Tool: Bash
+    Steps:
+      1. grep mock factories for "use:" — present in all 4 files
+      2. pnpm test -- --run tests/gateway/slack tests/inngest/slack-trigger-handler.test.ts tests/inngest/slack-input-collector.test.ts
+      3. Confirm 0 "is not a function" errors
+    Expected Result: All Slack-handler tests pass
+    Evidence: .sisyphus/evidence/task-0.1-slack-mock.txt
+  ```
+
+  **Commit**: YES — `test(slack): add use() to mock boltApp factories to match shipped middleware`
+
+- [ ] 0.2. Fix drifted Slack copy assertions (~12 failures)
+
+  **What to do**:
+  - **ROOT CAUSE (verified)**: PR #7's copy-unification changed user-facing Slack strings, but assertions still expect the old text. Update each assertion to the CURRENT shipped copy (read the production source of truth — `src/lib/slack-copy.ts`, `src/lib/slack-blocks.ts`, `src/inngest/lib/reminder-blocks.ts` — and match exactly):
+    - `tests/inngest/lib/reminder-blocks.test.ts` — expects `'Jane Doe'`/`'Bob'`; actual enriched output uses different names/format
+    - `tests/inngest/lifecycle-enriched-notify.test.ts` — expects `'Jane Smith'` in the drafted-notify text
+    - `tests/inngest/slack-trigger-handler.test.ts` — expects `'Trigger Guest Messaging?'`; actual is `'Want me to get *Guest Messaging* started?'`
+    - any other "expected ... to contain/to be" copy mismatches in the log
+  - For each: open the PRODUCTION builder, copy the real current string/shape, update the test expectation. Confirm the test data (names like "Alice Smith — Beach House") matches what the builder is actually given.
+
+  **Must NOT do**:
+  - Do NOT change production copy to satisfy old tests — the new copy is intentional (Slack Voice & Tone work)
+  - Do NOT weaken assertions to `expect.anything()` — assert the real current text
+
+  **Recommended Agent Profile**: Category `unspecified-high`; Skills: []
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `src/lib/slack-copy.ts` — centralized trigger/confirm copy (source of truth)
+  - `src/inngest/lib/reminder-blocks.ts` — reminder block builder
+  - `src/lib/slack-blocks.ts` — enriched notify/terminal builders
+  - failing files listed above
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `pnpm test -- --run tests/inngest/lib/reminder-blocks.test.ts tests/inngest/lifecycle-enriched-notify.test.ts tests/inngest/slack-trigger-handler.test.ts` → green
+  - [ ] Each updated assertion matches a string actually produced by the current builder (spot-verify)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Copy assertions match shipped strings
+    Tool: Bash
+    Steps:
+      1. pnpm test -- --run tests/inngest/lib/reminder-blocks.test.ts tests/inngest/lifecycle-enriched-notify.test.ts tests/inngest/slack-trigger-handler.test.ts
+      2. Confirm 0 "Object.is equality" / "to contain" copy failures
+    Expected Result: All copy assertions pass against current production text
+    Evidence: .sisyphus/evidence/task-0.2-slack-copy.txt
+  ```
+
+  **Commit**: YES — `test(slack): update copy assertions to match unified Slack voice strings`
+
+- [ ] 0.3. Fix call-llm cost-from-catalog test mocks (~4 failures)
+
+  **What to do**:
+  - **ROOT CAUSE (verified)**: PR #7 (SMELL-4) changed `src/lib/call-llm.ts` to compute cost from the `model_catalog` DB table instead of a hardcoded map. The unit tests (`tests/lib/call-llm.test.ts:105,266`) don't provide catalog pricing, so `estimatedCostUsd` is 0 (`expected 0 to be greater than 0`; `expected +0 to be close to 0.000085`).
+  - Read how `call-llm.ts` now looks up pricing (which function/table column) and mock it in the test: stub the catalog lookup to return `input_cost_per_million`/`output_cost_per_million` for the tested models (`minimax/minimax-m2.7` etc.), so the cost math produces the expected `0.000085`.
+  - If this test needs DB access to the catalog, it becomes an INTEGRATION test (moves to `tests/integration/` in Task 0.7) — decide based on whether `call-llm.ts` reads the catalog via Prisma/PostgREST or via an injectable function. Prefer mocking the lookup to keep it a fast unit test.
+
+  **Must NOT do**:
+  - Do NOT revert the catalog-based pricing (it's the correct SMELL-4 fix)
+  - Do NOT hardcode `estimatedCostUsd` in the assertion — mock the inputs and let the real math run
+
+  **Recommended Agent Profile**: Category `quick`; Skills: []
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `src/lib/call-llm.ts:33-36,88,258` — pricing lookup (re-grep; the hardcoded `PRICING_PER_1M_TOKENS` was replaced)
+  - `tests/lib/call-llm.test.ts:105,266` — failing assertions
+  - `prisma/schema.prisma` `ModelCatalog` — `input_cost_per_million`/`output_cost_per_million` columns
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `pnpm test -- --run tests/lib/call-llm.test.ts` → green
+  - [ ] The cost assertion passes via mocked catalog pricing, not a weakened expectation
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: call-llm cost computed from mocked catalog
+    Tool: Bash
+    Steps:
+      1. pnpm test -- --run tests/lib/call-llm.test.ts
+      2. Confirm estimatedCostUsd assertions pass (0.000085 close-to)
+    Expected Result: call-llm tests green
+    Evidence: .sisyphus/evidence/task-0.3-call-llm.txt
+  ```
+
+  **Commit**: YES — `test(call-llm): mock model_catalog pricing so cost assertions pass`
+
+- [ ] 0.4. Fix seed.ts `GUEST_MESSAGING_AGENTS_MD` reference (2 failures)
+
+  **What to do**:
+  - **ROOT CAUSE (verified)**: `tests/lib/conversation-history-context.test.ts:6-9` reads `prisma/seed.ts` and regex-matches `const GUEST_MESSAGING_AGENTS_MD = \`...\``. PR #7 removed that const (seed.ts now only has `const PLATFORM_AGENTS_MD`). The test throws `GUEST_MESSAGING_AGENTS_MD not found in seed.ts`.
+  - Determine where the guest-messaging AGENTS.md content lives NOW (it likely moved to an archetype `identity`/`execution_steps` field, the archetype generator, or a fixture). Update the test to read the CURRENT source of truth.
+  - If guest-messaging AGENTS.md content is no longer a static seed const at all (now DB/archetype-driven), this test's premise is obsolete — convert it to read the actual current artifact, or if the behavior it guards (conversation-history context instructions) is now covered elsewhere, mark it obsolete and remove with a one-line justification. Prefer repointing over deletion if the guarded behavior still exists.
+
+  **Must NOT do**:
+  - Do NOT re-add `GUEST_MESSAGING_AGENTS_MD` to seed.ts just to satisfy the test
+  - Do NOT delete the test without confirming the guarded behavior is covered or obsolete
+
+  **Recommended Agent Profile**: Category `quick`; Skills: []
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `tests/lib/conversation-history-context.test.ts:6-9` — the broken seed grep
+  - `prisma/seed.ts` — now has `PLATFORM_AGENTS_MD` only (verify with `grep "AGENTS_MD" prisma/seed.ts`)
+  - guest-messaging archetype source (DB seed row / `src/gateway/services/archetype-generator.ts`) — where the content moved
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `pnpm test -- --run tests/lib/conversation-history-context.test.ts` → green
+  - [ ] Test reads a real current source (or is justified-removed if obsolete)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: conversation-history-context test repointed
+    Tool: Bash
+    Steps:
+      1. grep "AGENTS_MD" prisma/seed.ts (confirm what exists now)
+      2. pnpm test -- --run tests/lib/conversation-history-context.test.ts
+    Expected Result: Test green against current source of truth
+    Evidence: .sisyphus/evidence/task-0.4-seed-const.txt
+  ```
+
+  **Commit**: YES — `test(conversation-history): repoint at current guest-messaging AGENTS.md source`
+
+- [ ] 0.5. Fix lifecycle spy / feedback-injection regressions (~17 failures)
+
+  **What to do**:
+  - **ROOT CAUSE**: handler wiring changed in PR #7; mocks/expectations are stale. Failures are `expected "spy" to be called once, but got 0 times` (and one `to not be called ... called 1 times`). Affected files:
+    - `tests/inngest/feedback-injection.test.ts`
+    - `tests/inngest/lifecycle-feedback-context-rejection.test.ts`
+    - `tests/inngest/lifecycle-notify-msg-ts.test.ts`
+    - `tests/inngest/employee-lifecycle-delivery.test.ts` (5 failures — also one of the SLOWEST at 3,556ms)
+    - `tests/inngest/slack-input-collector.test.ts` (the "not be called" case)
+  - For each: trace what the spy targets (which function/step the production code now calls or no longer calls). Update the mock setup / expectation to match the CURRENT call graph. Where a step was renamed or moved (e.g. into `lifecycle/steps/`), point the spy at the new location.
+  - These touch the live lifecycle — several are real-DB or heavy. Note which are integration (move to `tests/integration/` in Task 0.7) vs unit.
+
+  **Must NOT do**:
+  - Do NOT change lifecycle production code to satisfy a stale spy — match tests to shipped wiring
+  - Do NOT delete assertions; re-point them
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`]
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `src/inngest/employee-lifecycle.ts` + `src/inngest/lifecycle/steps/` — current call graph
+  - `src/inngest/interaction-handler.ts` / feedback pipeline — for feedback-injection spies
+  - the 5 failing test files listed above
+
+  **Acceptance Criteria** (Tier S + integration):
+  - [ ] `pnpm test -- --run tests/inngest/feedback-injection.test.ts tests/inngest/lifecycle-feedback-context-rejection.test.ts tests/inngest/lifecycle-notify-msg-ts.test.ts tests/inngest/employee-lifecycle-delivery.test.ts tests/inngest/slack-input-collector.test.ts` → green
+  - [ ] Each spy targets a function the production code actually calls now
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: lifecycle spies match current wiring
+    Tool: Bash
+    Steps:
+      1. pnpm test -- --run tests/inngest/feedback-injection.test.ts tests/inngest/lifecycle-feedback-context-rejection.test.ts tests/inngest/lifecycle-notify-msg-ts.test.ts tests/inngest/employee-lifecycle-delivery.test.ts tests/inngest/slack-input-collector.test.ts
+      2. Confirm 0 "spy ... 0 times" failures
+    Expected Result: All lifecycle spy tests pass
+    Evidence: .sisyphus/evidence/task-0.5-lifecycle-spies.txt
+  ```
+
+  **Commit**: YES — `test(lifecycle): repoint feedback/notify spies at current handler wiring`
+
+- [ ] 0.6. Remove archived `migrate-vlre-kb` test + fix `process.exit` leaks
+
+  **What to do**:
+  - **migrate-vlre-kb**: `tests/scripts/migrate-vlre-kb.test.ts:8` points at `scripts/migrate-vlre-kb.ts`, which PR #7 moved to `scripts/archive/migrate-vlre-kb.ts`. Per user decision, **remove the test** (the script is a one-shot already archived; the test adds 0 ongoing value and spawns slow `npx tsx` subprocesses). `git rm tests/scripts/migrate-vlre-kb.test.ts`. Check if `tests/scripts/` has other archived-script tests with the same problem (re-grep `scripts/archive` references in `tests/`) and remove those too.
+  - **process.exit leaks (2 errors)**: `Error: process.exit unexpectedly called with "1"` originates from `src/workers/opencode-harness.mts:995` and `scripts/trigger-task.ts:703` top-level `main().catch(() => process.exit(1))`. These modules get imported during test collection and their top-level `main()` runs. Fix by guarding the entrypoint so `main()` only runs when the module is executed directly, e.g. `if (import.meta.url === \`file://${process.argv[1]}\`) main().catch(...)`. This prevents the harness/script from auto-running (and exiting) when imported by a test.
+  - Verify which test files import these modules (`hostfully/get-messages-lead-id.test.ts`, `schema.test.ts` per the log) and confirm the guard stops the leak.
+
+  **Must NOT do**:
+  - Do NOT change harness/script runtime behavior when run directly (the guard only affects import-time)
+  - Do NOT keep the archived-script test "just in case"
+
+  **Recommended Agent Profile**: Category `quick`; Skills: []
+
+  **Parallelization**: Wave 0. Blocks: 0.7. Blocked By: none.
+
+  **References**:
+  - `tests/scripts/migrate-vlre-kb.test.ts` — to remove
+  - `scripts/archive/migrate-vlre-kb.ts` — where the script now lives
+  - `src/workers/opencode-harness.mts:995` + `scripts/trigger-task.ts:703` — `main().catch(process.exit)` entrypoints to guard
+  - existing `import.meta.url` entrypoint-guard pattern in `src/worker-tools/notion/*.ts`
+
+  **Acceptance Criteria** (Tier S):
+  - [ ] `test ! -f tests/scripts/migrate-vlre-kb.test.ts`
+  - [ ] `grep -c "process.exit unexpectedly" /tmp/ai-test.log` after re-run → 0
+  - [ ] `pnpm test` shows 0 unhandled-rejection errors
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: No process.exit leaks, archived test gone
+    Tool: Bash
+    Steps:
+      1. test ! -f tests/scripts/migrate-vlre-kb.test.ts && echo GONE
+      2. pnpm test -- --run 2>&1 | grep -c "process.exit unexpectedly" (expect 0)
+    Expected Result: Archived test removed, no exit leaks
+    Evidence: .sisyphus/evidence/task-0.6-exits-archived.txt
+  ```
+
+  **Commit**: YES — `test: remove archived migrate-vlre-kb test and guard script entrypoints against import-time exit`
+
+- [ ] 0.7. Split suites into `tests/unit/` + `tests/integration/` (directory move)
+
+  **What to do** (do this ONLY after 0.1–0.6 make the suite green — never split a red suite):
+  - **Classify all 171 test files** as unit (no DB) or integration (DB-backed). Decision rule: a file is **integration** if it imports `../setup.js`/`getPrisma`/`createTestApp`/`cleanupTestData`, OR imports `@prisma/client` to hit a real DB, OR otherwise depends on `tests/helpers/global-setup.ts`. Everything else is **unit**. (Verified baseline: ~122 unit, ~49 integration.) Generate the list with:
+    ```bash
+    # integration candidates:
+    grep -rl "PrismaClient\|getPrisma\|createTestApp\|cleanupTestData\|setup.js" tests/ src --include="*.test.ts" --include="*.test.mts"
+    ```
+  - **Move files** preserving git history (`git mv`):
+    - Unit tests in `tests/` → `tests/unit/...` (mirror existing subfolder structure)
+    - Integration tests in `tests/` → `tests/integration/...`
+    - `src/**/__tests__/*.test.ts` — leave co-located OR move per the same rule; prefer leaving pure-unit co-located tests in place and have the unit config include them (decide and document). Simplest: keep `src/**/__tests__` in the UNIT set (they're overwhelmingly pure unit) and only move `tests/` files.
+  - **Fix relative imports** after moving (the `../setup.js` / `../../helpers` depths change). `pnpm build` + a test run will surface broken paths.
+  - **Two vitest configs**:
+    - `vitest.config.ts` (unit): `include: ['tests/unit/**/*.test.ts', 'src/**/__tests__/**/*.test.{ts,mts}']`, **NO `globalSetup`**, `pool: 'forks'` with **`singleFork: false`** (or `'threads'`) for parallelism, keep the `env` block. This is the fast suite.
+    - `vitest.integration.config.ts`: `include: ['tests/integration/**/*.test.ts']`, KEEP `globalSetup: './tests/helpers/global-setup.ts'`, keep `singleFork: true` (DB safety) — or add per-file DB isolation later (out of scope).
+  - **CRITICAL — fix the pre-existing `vitest.config.ts` coverage type error**: the current file has an LSP error (`'coverage' does not exist in type 'UserConfigExport'` — the `coverage` key must be nested under `test:`, not at the root). Move `coverage` inside `test:` in the new unit config. This is a latent config bug; fixing it is part of this task.
+  - **Move any heavy/subprocess tests into integration** even if they don't touch the DB (e.g. `get-messages.test.ts` at 5,950ms spawns subprocesses) so the unit suite stays fast. Document the heuristic: unit = pure, fast, in-process; integration = DB/subprocess/slow.
+
+  **Must NOT do**:
+  - Do NOT split while the suite is red (0.1–0.6 must be green first)
+  - Do NOT lose git history — use `git mv`
+  - Do NOT delete `tests/helpers/global-setup.ts` — the integration config still needs it
+  - Do NOT change test ASSERTIONS during the move — pure relocation + config
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`]
+
+  **Parallelization**: Wave 0. Blocks: 0.8. Blocked By: 0.1–0.6 (green suite).
+
+  **References**:
+  - `vitest.config.ts` — current single config (also has the latent coverage-key type bug)
+  - `tests/helpers/global-setup.ts` — DB migrate+seed (integration only)
+  - `tests/setup.ts` — `createTestApp`/`getPrisma`/`cleanupTestData` (integration marker)
+  - baseline classification: ~122 unit / ~49 integration
+
+  **Acceptance Criteria** (Tier S + integration):
+  - [ ] `tests/unit/` and `tests/integration/` exist with files moved via `git mv` (history preserved)
+  - [ ] `vitest.config.ts` has NO `globalSetup`, parallel pool, and `coverage` nested under `test:` (LSP error gone)
+  - [ ] `vitest.integration.config.ts` exists with `globalSetup` + integration include
+  - [ ] `pnpm vitest run --config vitest.config.ts` → green, runs in SECONDS (parallel)
+  - [ ] `pnpm vitest run --config vitest.integration.config.ts` → green
+  - [ ] `pnpm build` clean (no broken import paths)
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Suites split, unit fast, both green
+    Tool: Bash
+    Steps:
+      1. ls tests/unit tests/integration (both populated)
+      2. git log --follow on a moved file shows history preserved
+      3. time pnpm vitest run --config vitest.config.ts (green, << 117s, ideally <20s)
+      4. pnpm vitest run --config vitest.integration.config.ts (green)
+    Expected Result: Two green suites; unit suite dramatically faster
+    Evidence: .sisyphus/evidence/task-0.7-split-{unit,integration,timing}.txt
+  ```
+
+  **Commit**: YES — `test: split into fast unit suite and isolated integration suite`
+
+- [ ] 0.8. Wire `pnpm test` (unit) + `test:integration` + update CI/husky
+
+  **What to do**:
+  - **package.json scripts**:
+    - `"test": "vitest --config vitest.config.ts"` (unit; watch by default like before)
+    - `"test:unit": "vitest run --config vitest.config.ts"` (explicit one-shot)
+    - `"test:integration": "vitest run --config vitest.integration.config.ts"`
+    - keep `"test:coverage"` but point it at the unit config (or a combined coverage config — document the choice)
+    - `"test:all": "pnpm test:unit && pnpm test:integration"` (convenience)
+    - Preserve the existing `pnpm test -- --run` invocation used across docs/AGENTS.md — `vitest --config ... ` + `-- --run` still works (run-once). Verify `pnpm test -- --run` runs the UNIT suite one-shot.
+  - **CI (`.github/workflows/deploy.yml`)**: the `test` job currently runs `pnpm test -- --run` against the test DB. Update it to run BOTH: `pnpm test:unit` (fast, no DB needed — can drop the postgres service for a unit-only job OR keep one job) then `pnpm test:integration` (needs the postgres service + `pnpm test:db:setup`). Keep `pnpm lint`. Ensure `DATABASE_URL` is set for the integration step. Document whether unit runs without the DB service (faster CI).
+  - **husky pre-commit (added in Wave 1 Task 3)**: ensure `lint-staged` runs ESLint only (fast). Do NOT run integration tests on pre-commit. (Optionally run `pnpm test:unit` on pre-push — note it but Task 3 owns husky.)
+  - **Docs**: update AGENTS.md + CONTRIBUTING.md references from "`pnpm test` runs everything" to the new split (the `pnpm test -- --run` smoke instruction now = unit suite; integration is separate). This overlaps Task 28 — do the minimal correction here, full doc pass in Task 28.
+
+  **Must NOT do**:
+  - Do NOT make `pnpm test` (the husky/CI default) run the slow integration suite
+  - Do NOT drop integration tests from CI — they must run, just in a separate step/job
+  - Do NOT break the `pnpm test -- --run` invocation referenced throughout docs
+
+  **Recommended Agent Profile**: Category `deep`; Skills: [`debugging-lifecycle`]
+
+  **Parallelization**: Wave 0 (final task). Blocks: ALL Wave 1+. Blocked By: 0.7.
+
+  **References**:
+  - `package.json:19-20,33` — current `test`, `test:coverage`, `test:db:setup`
+  - `.github/workflows/deploy.yml` — `test` job (`pnpm test -- --run`, `pnpm test:db:setup`, postgres service)
+  - AGENTS.md "Commands" table + "Pre-existing Test Failures" + the `pnpm test -- --run` smoke references
+
+  **Acceptance Criteria** (Tier S + integration):
+  - [ ] `pnpm test:unit` and `pnpm test:integration` both exist and pass
+  - [ ] `pnpm test -- --run` runs the UNIT suite one-shot (green, fast)
+  - [ ] CI `deploy.yml` runs unit + integration + lint (all green); integration step has the postgres service + `test:db:setup`
+  - [ ] `pnpm build` clean
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: Split scripts + CI wired
+    Tool: Bash
+    Steps:
+      1. pnpm test:unit (green, seconds)
+      2. pnpm test:integration (green)
+      3. pnpm test -- --run (runs unit one-shot, green)
+      4. grep "test:integration\|test:unit" .github/workflows/deploy.yml
+    Expected Result: Both suites green, CI runs both, default is fast unit
+    Evidence: .sisyphus/evidence/task-0.8-scripts-ci.txt
+  ```
+
+  > **CHECKPOINT W0 (MANDATORY GATE)**: `pnpm build` + `pnpm lint` + `pnpm test` (unit) + `pnpm test:integration` ALL green, **0 failures**, unit suite in seconds. Capture evidence. **No Wave 1 task may begin until this checkpoint is green.**
+
+  **Commit**: YES — `ci: run split unit/integration suites; default pnpm test = fast unit`
+
 ---
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
