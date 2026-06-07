@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@prisma/client', () => ({
+  PrismaClient: vi.fn(),
+}));
+
 vi.mock('../platform-settings.js', () => ({
   getPlatformSetting: vi.fn(),
 }));
@@ -310,6 +314,29 @@ describe('callLLM', () => {
         ([k]) => k === 'gateway_llm_model',
       );
       expect(modelCalls).toHaveLength(2);
+    });
+  });
+
+  describe('cost circuit breaker — decimal limit', () => {
+    it('parses "50.5" as 50.5, not 50 — spend of 50.1 does not trip the breaker', async () => {
+      process.env.DATABASE_URL = 'postgresql://test';
+
+      mockGetPlatformSetting.mockImplementation(async (key: string) => {
+        if (key === 'gateway_llm_model') return 'deepseek/deepseek-v4-flash';
+        if (key === 'cost_limit_usd_per_day') return '50.5';
+        if (key === 'cost_alert_slack_channel') return '#alerts';
+        throw new Error(`Unexpected setting: ${key}`);
+      });
+
+      const { PrismaClient } = await import('@prisma/client');
+      vi.mocked(PrismaClient).mockImplementation(
+        () =>
+          ({
+            $queryRaw: vi.fn().mockResolvedValue([{ total: '50.1' }]),
+          }) as unknown as InstanceType<typeof PrismaClient>,
+      );
+
+      await expect(callLLM({ messages: baseMessages, taskType: 'review' })).resolves.toBeDefined();
     });
   });
 });

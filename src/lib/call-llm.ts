@@ -85,7 +85,14 @@ async function checkCostCircuitBreaker(): Promise<void> {
   if (!process.env.DATABASE_URL) return;
 
   const costLimitStr = await getPlatformSetting('cost_limit_usd_per_day');
-  const limitUsd = parseInt(costLimitStr, 10);
+  const parsedLimit = parseFloat(costLimitStr);
+  const limitUsd = isNaN(parsedLimit) ? 50 : parsedLimit;
+  if (isNaN(parsedLimit)) {
+    createLogger('call-llm').warn(
+      { costLimitStr },
+      'cost_limit_usd_per_day is not a valid number, defaulting to 50',
+    );
+  }
 
   const now = new Date();
   const cacheExpired =
