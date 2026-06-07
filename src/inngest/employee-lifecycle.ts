@@ -31,6 +31,14 @@ import {
 } from './lib/pending-approvals.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 import {
+  requireEnv,
+  INNGEST_EVENT_KEY,
+  INNGEST_BASE_URL,
+  GATEWAY_URL,
+  WORKER_RUNTIME,
+  FLY_WORKER_IMAGE,
+} from '../lib/config.js';
+import {
   supersededMessage,
   expiredMessage,
   needsReviewMessage,
@@ -179,8 +187,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
       const { notifyBlocks, notifyStateBlocks } = createTaskNotifyBuilders({ taskId, runId });
       log.info({ taskId, runId, archetypeId }, 'Lifecycle started');
 
-      const supabaseUrl = process.env.SUPABASE_URL!;
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
+      const supabaseUrl = requireEnv('SUPABASE_URL');
+      const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
       const headers: Record<string, string> = {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -409,13 +417,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const issuesSlackChannel = await getPlatformSetting('issues_slack_channel');
 
         const vmSize = (archetype.vm_size as string | null) ?? defaultVmSize;
-        const image = process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+        const image = FLY_WORKER_IMAGE;
         const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
 
         const effectiveSupabaseUrl =
-          process.env.WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL
-            ? await getTunnelUrl()
-            : supabaseUrl;
+          WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL ? await getTunnelUrl() : supabaseUrl;
 
         const prismaClient = new PrismaClient();
         const tenantEnv = await loadTenantEnv(
@@ -535,7 +541,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         const workerEnvVars = (archetype.worker_env as Record<string, string> | null) ?? {};
 
-        if (process.env.WORKER_RUNTIME !== 'fly') {
+        if (WORKER_RUNTIME !== 'fly') {
           const localWorkerEnv: Record<string, string> = {
             ...tenantEnv,
             ...workerEnvVars,
@@ -547,7 +553,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             SUPABASE_SECRET_KEY: supabaseKey,
             INNGEST_BASE_URL: 'http://host.docker.internal:8288',
             GATEWAY_URL: 'http://host.docker.internal:7700',
-            INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+            INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
             INNGEST_DEV: '1',
             NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
             INNGEST_RUN_ID: runId,
@@ -599,9 +605,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           ...(issuesSlackChannel ? { ISSUES_SLACK_CHANNEL: issuesSlackChannel } : {}),
           SUPABASE_URL: effectiveSupabaseUrl,
           SUPABASE_SECRET_KEY: supabaseKey,
-          INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-          GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-          INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
+          INNGEST_BASE_URL: INNGEST_BASE_URL,
+          GATEWAY_URL: GATEWAY_URL,
+          INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
           INNGEST_RUN_ID: runId,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
@@ -812,7 +818,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
         const classificationCheckNoApproval = await step.run(
           'check-classification-no-approval',
           async () => {
-            const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+            const supabaseUrlInner = requireEnv('SUPABASE_URL');
             for (let attempt = 1; attempt <= 3; attempt++) {
               const res = await fetch(
                 `${supabaseUrlInner}/rest/v1/deliverables?external_ref=eq.${taskId}&select=content&order=created_at.desc&limit=1`,
@@ -1092,11 +1098,10 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
           const defaultDeliveryVmSize = await getPlatformSetting('default_worker_vm_size');
           const deliveryVmSize = (archetype.vm_size as string | null) ?? defaultDeliveryVmSize;
-          const deliveryImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const deliveryImage = FLY_WORKER_IMAGE;
           const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
-            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+            WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
           const taskRawEventForDelivery =
             (taskData.raw_event as Record<string, string> | null) ?? {};
@@ -1106,13 +1111,13 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
           for (let attempt = 0; attempt < 3; attempt++) {
             const deliveryContainerName =
               attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
-            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
+            if (attempt > 0 && WORKER_RUNTIME !== 'fly') {
               const prevName =
                 attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
               stopLocalDockerContainer(prevName);
             }
             let deliveryMachine: { id: string };
-            if (process.env.WORKER_RUNTIME !== 'fly') {
+            if (WORKER_RUNTIME !== 'fly') {
               deliveryMachine = runLocalDockerContainer({
                 taskId,
                 name: deliveryContainerName,
@@ -1130,7 +1135,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                   GATEWAY_URL: 'http://host.docker.internal:7700',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+                  INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
                   INNGEST_DEV: '1',
                   ...(taskRawEventForDelivery['lead_uid']
                     ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
@@ -1160,9 +1165,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
+                  INNGEST_BASE_URL: INNGEST_BASE_URL,
+                  GATEWAY_URL: GATEWAY_URL,
+                  INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
                   ...(taskRawEventForDelivery['lead_uid']
                     ? { LEAD_UID: taskRawEventForDelivery['lead_uid'] }
                     : {}),
@@ -1195,7 +1200,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             deliveryFinalStatus = finalStatus;
 
-            if (process.env.WORKER_RUNTIME === 'fly') {
+            if (WORKER_RUNTIME === 'fly') {
               try {
                 await destroyMachine(deliveryFlyApp, deliveryMachine.id);
               } catch (err) {
@@ -1372,7 +1377,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       // ── Classification check: auto-complete NO_ACTION_NEEDED ─────────────────
       const classificationCheck = await step.run('check-classification', async () => {
-        const supabaseUrlInner = process.env.SUPABASE_URL ?? '';
+        const supabaseUrlInner = requireEnv('SUPABASE_URL');
 
         // Retry up to 3 times with 1s delay — deliverable may not be committed yet
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -2450,24 +2455,23 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             await getPlatformSetting('default_worker_vm_size');
           const deliveryVmSize =
             (archetype.vm_size as string | null) ?? defaultDeliveryVmSizeForApproval;
-          const deliveryImage =
-            process.env.FLY_WORKER_IMAGE ?? 'registry.fly.io/ai-employee-workers:latest';
+          const deliveryImage = FLY_WORKER_IMAGE;
           const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
           const effectiveSupabaseUrlForDelivery =
-            process.env.WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+            WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
 
           let deliveryFinalStatus = '';
           const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
           for (let attempt = 0; attempt < 3; attempt++) {
             const deliveryContainerName =
               attempt === 0 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt}`;
-            if (attempt > 0 && process.env.WORKER_RUNTIME !== 'fly') {
+            if (attempt > 0 && WORKER_RUNTIME !== 'fly') {
               const prevName =
                 attempt === 1 ? deliveryBaseName : `${deliveryBaseName}-retry${attempt - 1}`;
               stopLocalDockerContainer(prevName);
             }
             let deliveryMachine: { id: string };
-            if (process.env.WORKER_RUNTIME !== 'fly') {
+            if (WORKER_RUNTIME !== 'fly') {
               deliveryMachine = runLocalDockerContainer({
                 taskId,
                 name: deliveryContainerName,
@@ -2485,7 +2489,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   SUPABASE_SECRET_KEY: supabaseKey,
                   INNGEST_BASE_URL: 'http://host.docker.internal:8288',
                   GATEWAY_URL: 'http://host.docker.internal:7700',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? 'local',
+                  INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
                   INNGEST_DEV: '1',
                   ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
                   ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
@@ -2511,9 +2515,9 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                   NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
                   SUPABASE_URL: effectiveSupabaseUrlForDelivery,
                   SUPABASE_SECRET_KEY: supabaseKey,
-                  INNGEST_BASE_URL: process.env.INNGEST_BASE_URL ?? '',
-                  GATEWAY_URL: process.env.GATEWAY_URL ?? '',
-                  INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY ?? '',
+                  INNGEST_BASE_URL: INNGEST_BASE_URL,
+                  GATEWAY_URL: GATEWAY_URL,
+                  INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
                   ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
                   ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
                   ...(taskRawEvent['property_uid']
@@ -2542,7 +2546,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             }
             deliveryFinalStatus = finalStatus;
 
-            if (process.env.WORKER_RUNTIME === 'fly') {
+            if (WORKER_RUNTIME === 'fly') {
               try {
                 await destroyMachine(deliveryFlyApp, deliveryMachine.id);
               } catch (err) {

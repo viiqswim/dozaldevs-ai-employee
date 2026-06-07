@@ -17,6 +17,7 @@ import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
 import { resolveProvider } from '../lib/go-models.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
+import { INNGEST_EVENT_KEY, INNGEST_BASE_URL } from '../lib/config.js';
 
 const log = createLogger('opencode-harness');
 
@@ -179,8 +180,8 @@ async function markFailed(
 }
 
 async function fireCompletionEvent(taskId: string): Promise<void> {
-  const baseUrl = process.env.INNGEST_BASE_URL ?? 'http://localhost:8288';
-  const eventKey = process.env.INNGEST_EVENT_KEY ?? 'local';
+  const baseUrl = INNGEST_BASE_URL;
+  const eventKey = INNGEST_EVENT_KEY;
   const url = `${baseUrl}/e/${eventKey}`;
 
   const payload = {

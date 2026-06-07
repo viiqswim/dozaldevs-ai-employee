@@ -46,6 +46,7 @@ import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
 import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
+import { requireEnv } from '../lib/config.js';
 import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -74,9 +75,7 @@ export interface BuildAppResult {
 export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppResult> {
   validateEncryptionKey();
 
-  if (!process.env.ADMIN_API_KEY) {
-    throw new Error('Missing required environment variable: ADMIN_API_KEY');
-  }
+  requireEnv('ADMIN_API_KEY');
 
   if (!process.env.JIRA_WEBHOOK_SECRET) {
     logger.warn(
