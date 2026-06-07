@@ -240,7 +240,7 @@ export function CompactSettingsGrid({
             )}
             {editing && slackError === 'SLACK_NOT_CONFIGURED' && (
               <p className="text-xs text-muted-foreground">
-                Slack not configured for this tenant. Enter a channel ID manually.
+                Slack isn't connected yet — enter a channel ID manually.
               </p>
             )}
             {editing && slackError && slackError !== 'SLACK_NOT_CONFIGURED' && (

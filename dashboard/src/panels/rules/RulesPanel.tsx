@@ -88,7 +88,9 @@ export function RulesPanel() {
             onClearAll={clearAllEmployees}
           />
         ) : (
-          <span className="text-sm text-muted-foreground">No archetypes found for this tenant</span>
+          <span className="text-sm text-muted-foreground">
+            No employees found for this organization
+          </span>
         )}
         {selectedIds.size > 0 && (
           <Button variant="ghost" size="sm" onClick={clearAllEmployees} className="h-9 text-xs">
