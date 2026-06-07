@@ -23,6 +23,7 @@ function makeMockBoltApp() {
   const handlers = new Map<string, ActionHandler | ViewHandler | EventHandler>();
 
   const boltApp = {
+    use: vi.fn(),
     action: vi.fn((id: string, handler: ActionHandler) => {
       handlers.set(`action:${id}`, handler);
     }),
@@ -388,7 +389,7 @@ describe('override_take_action_modal view handler', () => {
       expect.objectContaining({
         channel: 'C-CHAN',
         ts: 'ts-msg',
-        text: expect.stringContaining('Processing override'),
+        text: expect.stringContaining('On it — working on your direction'),
       }),
     );
   });

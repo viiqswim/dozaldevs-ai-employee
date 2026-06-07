@@ -23,6 +23,7 @@ function makeMockBoltApp() {
   const handlers = new Map<string, ActionHandler | ViewHandler | EventHandler>();
 
   const boltApp = {
+    use: vi.fn(),
     action: vi.fn((id: string, handler: ActionHandler) => {
       handlers.set(`action:${id}`, handler);
     }),
@@ -104,8 +105,8 @@ describe('rule_confirm handler', () => {
     expect(ack).toHaveBeenCalledOnce();
     expect(ack).toHaveBeenCalledWith();
 
-    expect(client.chat.update).toHaveBeenCalledOnce();
-    const updateCall = client.chat.update.mock.calls[0][0] as {
+    expect(client.chat.update).toHaveBeenCalledTimes(2);
+    const updateCall = client.chat.update.mock.calls[1][0] as {
       channel: string;
       ts: string;
       blocks: Array<{ type: string; text?: { text: string }; elements?: unknown[] }>;
@@ -152,8 +153,8 @@ describe('rule_confirm handler', () => {
     });
 
     expect(ack).toHaveBeenCalledOnce();
-    expect(client.chat.update).toHaveBeenCalledOnce();
-    const updateCall = client.chat.update.mock.calls[0][0] as {
+    expect(client.chat.update).toHaveBeenCalledTimes(2);
+    const updateCall = client.chat.update.mock.calls[1][0] as {
       blocks: Array<{ type: string; text?: { text: string } }>;
     };
     const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');
@@ -226,8 +227,8 @@ describe('rule_reject handler', () => {
     expect(ack).toHaveBeenCalledOnce();
     expect(ack).toHaveBeenCalledWith();
 
-    expect(client.chat.update).toHaveBeenCalledOnce();
-    const updateCall = client.chat.update.mock.calls[0][0] as {
+    expect(client.chat.update).toHaveBeenCalledTimes(2);
+    const updateCall = client.chat.update.mock.calls[1][0] as {
       channel: string;
       ts: string;
       blocks: Array<{ type: string; text?: { text: string } }>;
@@ -274,8 +275,8 @@ describe('rule_reject handler', () => {
     });
 
     expect(ack).toHaveBeenCalledOnce();
-    expect(client.chat.update).toHaveBeenCalledOnce();
-    const updateCall = client.chat.update.mock.calls[0][0] as {
+    expect(client.chat.update).toHaveBeenCalledTimes(2);
+    const updateCall = client.chat.update.mock.calls[1][0] as {
       blocks: Array<{ type: string; text?: { text: string } }>;
     };
     const sectionBlock = updateCall.blocks.find((b) => b.type === 'section');

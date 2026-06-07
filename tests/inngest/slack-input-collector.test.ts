@@ -108,14 +108,14 @@ describe('createSlackInputCollectorFunction', () => {
     inngest = new Inngest({ id: 'test-app' });
   });
 
-  it('single input — assigns text directly without calling extractInputsFromText', async () => {
+  it('single input — uses LLM extraction and falls back to raw text when empty', async () => {
     const fn = createSlackInputCollectorFunction(inngest);
     const step = makeStep();
     const event = makeEvent({ text: 'June 15th' });
 
     await invokeCollector(fn, event, step);
 
-    expect(mockExtractInputsFromText).not.toHaveBeenCalled();
+    expect(mockExtractInputsFromText).toHaveBeenCalled();
 
     const body = getTaskCreationBody(mockFetch);
     expect(body?.raw_event.inputs['date']).toBe('June 15th');

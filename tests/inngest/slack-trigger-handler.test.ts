@@ -164,7 +164,7 @@ describe('createSlackTriggerHandlerFunction', () => {
     );
     expect(slackCalls.length).toBeGreaterThan(0);
     const body = JSON.parse(slackCalls[0][1].body as string);
-    expect(body.text).toBe('Trigger Guest Messaging?');
+    expect(body.text).toBe('Want me to get *Guest Messaging* started?');
   });
 
   it('makes no fetch calls when no bot token is available for the tenant', async () => {
