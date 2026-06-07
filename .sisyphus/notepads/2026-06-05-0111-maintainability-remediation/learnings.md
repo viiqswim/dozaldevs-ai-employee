@@ -280,3 +280,175 @@ Committed as f39d621d.
 
 - `refactor(tools): add shared hostfully client and paginator (2 tools)`
 - 5 files: 3 new lib files (client.ts, paginate.ts, format.ts), 2 migrated tools (get-messages.ts, get-checkouts.ts)
+
+## [Task 19] requireEnv + getArg shared helpers
+
+### Helpers created
+
+- `src/worker-tools/lib/require-env.ts` — `requireEnv(name): string`
+  - Writes `Error: ${name} environment variable is required\n` to stderr + exits 1 when missing/empty
+  - Identical behavior to the local definition in `google/google-fetch.ts`
+  - `google-fetch.ts` updated to import+re-export from shared lib (removes the local definition)
+
+- `src/worker-tools/lib/get-arg.ts` — `getArg(args, flag): string | undefined`
+  - `args.indexOf(flag)` → returns `args[idx+1]` if it exists and is non-empty, else `undefined`
+  - Replaces `for` loop pattern: `if (args[i] === '--flag' && args[i+1]) { val = args[++i]; }`
+  - Returns `undefined` for empty string values (matches truthy check behavior of original pattern)
+
+### Gitignore gotcha (same as Task 18)
+
+- `src/worker-tools/lib/` is gitignored via line `src/worker-tools/lib/` in .gitignore
+- Must use `git add -f src/worker-tools/lib/require-env.ts src/worker-tools/lib/get-arg.ts`
+- Existing `unescape-args.ts` in that dir was already force-tracked — new files need same treatment
+
+### PoC adoption (4 tools)
+
+- `hostfully/get-property.ts` — requireEnv (HOSTFULLY_API_KEY) + getArg (--property-id), simplified parseArgs to 3 lines
+- `knowledge_base/search.ts` — requireEnv (SUPABASE_URL + SUPABASE_SECRET_KEY), replaced 8 lines with 2
+- `slack/read-channels.ts` — requireEnv (SLACK_BOT_TOKEN), replaced 4 lines with 1
+- `jira/get-issue.ts` — getArg (--issue-key), simplified parseArgs to 3 lines
+
+### Unit tests
+
+- `tests/worker-tools/lib/require-env.test.ts` — 3 tests: happy path, missing var, empty string
+  - `vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('...') })` — throw pattern prevents test process from actually exiting; catch with `expect(() => requireEnv(...)).toThrow(...)`
+  - Also spy `process.stderr.write` to verify error message content
+- `tests/worker-tools/lib/get-arg.test.ts` — 7 tests: value found, flag absent, no value after flag, empty string, empty args, multiple flags, duplicate flag
+
+### Import placement pitfall
+
+- Adding an `import` statement in the middle of a TypeScript file (replacing only `function parseArgs`) creates a mid-file import — TypeScript allows it (hoisted) but ESLint may reject it
+- Best practice: always add imports at the TOP of the file by splitting edits (first insert import at top, then update the function body)
+
+### Test infra note
+
+- `src/worker-tools/` has its own `.tool-versions` requiring specific Node.js — LSP (`typescript-language-server`) cannot run there without that version set
+- Use `pnpm build` (root tsconfig.build.json) to catch type errors instead
+
+### Commit
+
+- `refactor(tools): add shared require-env and get-arg helpers`
+- 9 files: 2 new lib files, 2 new test files, 1 lib export update (google-fetch.ts), 4 tool adoptions
+
+## [Task 20] status CHECK constraints + slack-blocks KnownBlock[] types (2026-06-07)
+
+### DB Constraints
+
+- `tasks.status` already had a CHECK constraint from prior migrations, but it included legacy values `Stale` and `AwaitingApproval` that are no longer real lifecycle states. The migration replaced it with exactly the 13 current lifecycle states: `Received`, `Triaging`, `AwaitingInput`, `Ready`, `Executing`, `Validating`, `Submitting`, `Reviewing`, `Approved`, `Delivering`, `Done`, `Failed`, `Cancelled`.
+- `executions.status` had NO CHECK constraint before this task. Values used in code: `pending` (schema default), `running`, `completed`, `failed`.
+- Migration name: `20260607095800_add_status_check_constraints`
+- Pattern: `DROP CONSTRAINT IF EXISTS` then `ADD CONSTRAINT ... CHECK (status IN (...))` — safe for re-runs.
+
+### slack-blocks.ts KnownBlock[] typing
+
+- All 8 builders that returned `unknown[]` now return `KnownBlock[]`.
+- All internal `const blocks: unknown[]` changed to `const blocks: KnownBlock[]`.
+- All `as KnownBlock` casts removed from `buildNotifyBlocks`.
+- Three TypeScript widening traps when removing `as KnownBlock` casts:
+  1. **Conditional spreads**: `...(runId ? [{ type: 'mrkdwn', text: '...' }] : [])` — fix: add `as const` to the `type` field
+  2. **Untyped variable**: `contextBlock` variable declared without explicit type — fix: annotate as `KnownBlock`
+  3. **`.map()` callback**: `footerParts.map((text) => ({ type: 'mrkdwn', text }))` — fix: use `type: 'mrkdwn' as const`
+- `footerElements` internal array in `buildContextThreadBlocks` should be typed as `{ type: 'mrkdwn'; text: string }[]`, NOT `KnownBlock[]` — it holds context block _elements_, not top-level blocks.
+
+### Test fix
+
+- `tests/schema.test.ts` had `'Stale'` in its "accepts all 13 valid task statuses" list but was missing `'Failed'` — updated to match the new constraint (Stale→Failed).
+
+### Commit
+
+- `feat(db): CHECK constraint on status; type slack-blocks as KnownBlock[]` (SHA: `7c9cc565`)
+
+## [Task 21] handlers.ts decomposition (2026-06-07)
+
+### Split structure
+
+- `src/gateway/slack/handlers.ts` → 5-line re-export shim (preserves all import paths)
+- `src/gateway/slack/handlers/shared.ts` — supabase helpers, types, button blocks, in-memory state (235 lines)
+- `src/gateway/slack/handlers/event-handlers.ts` — middleware, message, app_mention (251 lines)
+- `src/gateway/slack/handlers/approval-handlers.ts` — APPROVE/REJECT/OVERRIDE\_\* (381 lines)
+- `src/gateway/slack/handlers/guest-handlers.ts` — GUEST\_\* handlers and modals (501 lines)
+- `src/gateway/slack/handlers/rule-handlers.ts` — RULE\_\* handlers and modals (467 lines)
+- `src/gateway/slack/handlers/trigger-handlers.ts` — TRIGGER_CONFIRM/CANCEL (384 lines)
+- `src/gateway/slack/handlers/index.ts` — thin orchestrator (18 lines)
+
+### Key decision: re-export shim pattern
+
+Keeping `handlers.ts` as a thin re-export shim (vs moving logic to `handlers/index.ts` directly) avoids breaking any external imports of `'./slack/handlers.js'`. Both server.ts and all test files import via this path.
+
+### Pre-existing test failures discovered (BUG — do not fix inline)
+
+`guest-handlers.test.ts`, `rule-handlers.test.ts`, and `override-handler.test.ts` all fail with `boltApp.use is not a function`. Their `makeMockBoltApp()` mocks don't include `.use()`, but `registerSlackHandlers` calls it. The original `handlers.ts` also called `boltApp.use()`, so these were already failing before this task. The tests that do work (trigger-confirm, mention-dedup) do include `use: vi.fn()` in their mocks.
+
+### Shared state (pendingInputCollections)
+
+`pendingInputCollections` and `recentMentions` are in-memory Maps shared between modules. They live in `shared.ts` so both `event-handlers.ts` (reads/deletes) and `trigger-handlers.ts` (writes) can import from the same source. This preserves the cross-module singleton behavior.
+
+## [Task 22] opencode-harness.mts decomposition (2026-06-07)
+
+### Structure produced
+
+- `src/workers/lib/output-contract.mts` — single `checkOutputFiles()` + `readOutputContract()`
+  - De-duplicates the verbatim-repeated block that existed twice in runOpencodeSession()
+  - Uses callback injection `onNeedsApproval` to avoid circular deps with tryAutoPostApprovalCard
+  - Keeps `[opencode-harness]` prefix in error messages verbatim (matching existing monitoring/tests)
+- `src/workers/lib/slack-notifier.mts` — `updateSlackNotificationToFailed()`
+- `src/workers/lib/model-provider.mts` — `resolveModelProvider(model)` returns `{ cleanModel, modelID, providerID, goKeyPresent }`
+- `opencode-harness.mts` — trimmed to ~490 lines; `main()` split into `runDeliveryPhase()` + `runExecutionPhase()`
+
+### Dead code removed
+
+- `const opencodeRunPid: number | null = null;` (always null) + its SIGTERM branch removed
+- Dockerfile `entrypoint.sh` references (deleted in Task 7) replaced with `CMD ["node", "dist/workers/opencode-harness.mjs"]`
+
+### Test impact
+
+- `harness-placeholder-validation.test.ts` updated to read `output-contract.mts` instead of `opencode-harness.mts`
+- All 8 worker test files pass (63 tests: 4+8+51 passing, 10 skipped)
+
+### Bug found (not fixed — per task rules)
+
+- `runOpencodeSession()` has a parameter `submitOutputCmd: string` that is NEVER used inside the function body. It's passed from callers but never referenced. Dead parameter. Record for future cleanup.
+
+### Dockerfile fix (side-effect of Task 7 cleanup)
+
+- `src/workers/entrypoint.sh` was deleted in Task 7 but Dockerfile still copied it → build failure
+- Fixed by removing those 2 lines and replacing `CMD ["bash", "entrypoint.sh"]` with `CMD ["node", "dist/workers/opencode-harness.mjs"]`
+- Docker build: EXIT_CODE:0 confirmed
+
+### Commit
+
+382a68f6 — `refactor(worker): decompose opencode-harness; de-duplicate output-contract check`
+
+## [Task 23] employee-lifecycle.ts Part 1 — helpers + tenant-env extraction
+
+### Extraction outcome
+
+- `loadTenantEnv` was already in `src/gateway/services/tenant-env-loader.ts` (not defined in lifecycle.ts)
+- Extracted 5 top-level pure utility functions from `employee-lifecycle.ts` to `src/inngest/lib/lifecycle-helpers.ts`:
+  - `patchTask()` — PostgREST task PATCH
+  - `logStatusTransition()` — PostgREST task_status_log POST
+  - `recordWorkMetric()` — PostgREST task_metrics POST
+  - `runLocalDockerContainer()` — Docker container spawn
+  - `stopLocalDockerContainer()` — Docker container stop
+- Created `src/inngest/lib/tenant-env.ts` as re-export shim for 3 gateway service imports:
+  - `loadTenantEnv` from `../../gateway/services/tenant-env-loader.js`
+  - `TenantRepository` from `../../gateway/services/tenant-repository.js`
+  - `TenantSecretRepository` from `../../gateway/services/tenant-secret-repository.js`
+- `employee-lifecycle.ts` shrank by 126 lines (3094 → ~2968, minus the 5 helper functions)
+
+### Path fix required when moving Docker helpers
+
+- `runLocalDockerContainer` used `import.meta.url` with `resolve(..., '../../src/worker-tools')`
+- From `src/inngest/` that resolves correctly to `src/worker-tools`
+- From `src/inngest/lib/` it must be `resolve(..., '../../../src/worker-tools')` — one extra `../`
+- This is not a logic change — just a path depth adjustment due to file relocation
+
+### Test baseline confirmed: 15 pre-existing failures
+
+- The 15 failed test files in the current run match the pre-existing baseline from earlier tasks
+- Includes: jira-webhook, hostfully-webhook, Slack handlers, lifecycle-delivery, feedback-injection, etc.
+- Key confirmation: failure mode for lifecycle tests is `createMachine called 0 times` — a `WORKER_RUNTIME` timing issue where env var is set in beforeEach but the constant is read at module import time. Not caused by my extraction.
+
+### Commit
+
+bb9c1e34 — `refactor(lifecycle): extract helpers and tenant-env into lib modules (Part 1)`

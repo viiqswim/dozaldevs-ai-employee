@@ -365,7 +365,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm lint:unused` runs clean (or remaining items justified inline)
         **Commit**: YES — `chore(knip): prune ignore list after dead-code deletion`
 
-- [ ] 9. **Escalate ESLint `any`/`unused-vars` to `error`**
+- [x] 9. **Escalate ESLint `any`/`unused-vars` to `error`**
 
   **What to do** ([TYPE-1]): In `eslint.config.mjs` set `@typescript-eslint/no-explicit-any` and `@typescript-eslint/no-unused-vars` to `error`. Sweep the legit exceptions with targeted `// eslint-disable-next-line` + a one-line reason (the Bolt `(ack as any)` casts — note task 13/21 may later replace these with a typed helper). Ensure `pnpm lint` passes.
   **Must NOT do**: Add file-level blanket disables; don't introduce new `any` to dodge errors.
@@ -377,7 +377,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm lint` exits 0
         **Commit**: YES — `chore(eslint): promote no-explicit-any and no-unused-vars to error`
 
-- [ ] 10. **Add coverage tooling (report-only)**
+- [x] 10. **Add coverage tooling (report-only)**
 
   **What to do** ([BUILD-5]): Add `@vitest/coverage-v8` devDep, a `coverage` block in `vitest.config.ts` (provider v8, reporters text+html, `all: true` over `src/**`), and a `test:coverage` script. NO CI threshold (user decision). Generate one report so the giant files' coverage is visible.
   **Must NOT do**: Add a CI coverage gate.
@@ -393,7 +393,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 ### WAVE 2 — Shared Foundations
 
-- [ ] 11. **Central config module (top-3 files only)**
+- [x] 11. **Central config module (top-3 files only)**
 
   **What to do** ([ARCH-11]): Create `src/lib/config.ts` exporting typed, validated env constants via a `requireEnv(name)` helper, validated at module load (throw a clear `Missing required environment variable: X` at boot). Migrate ONLY the 3 highest-frequency files: `src/inngest/employee-lifecycle.ts`, `src/workers/opencode-harness.mts`, `src/gateway/server.ts`. Wire `server.ts` startup validation to include `SUPABASE_URL`/`SUPABASE_SECRET_KEY`.
   **Must NOT do**: Touch the other ~230 `process.env` sites (scope-creep trap). Don't move `platform_settings` DB lookups into config.
@@ -406,7 +406,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] The 3 target files import from `config.ts` (spot-grep)
         **Commit**: YES — `refactor(config): add typed config module with boot validation (top-3 files)`
 
-- [ ] 12. **Shared `createLogger` across 30 route files**
+- [x] 12. **Shared `createLogger` across 30 route files**
 
   **What to do** ([ARCH-5]): Replace the per-file `const logger = pino({ level: ... })` in ~30 `src/gateway/routes/*` with `createLogger('route-name')` from `src/lib/logger.ts`. Mechanical.
   **Must NOT do**: Change log call sites/levels beyond the instantiation.
@@ -418,7 +418,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm build && pnpm test -- --run` green
         **Commit**: YES — `refactor(gateway): use shared createLogger across route modules`
 
-- [ ] 13. **`sendError` helper + export `uuidField`/`UUID_REGEX`**
+- [x] 13. **`sendError` helper + export `uuidField`/`UUID_REGEX`**
 
   **What to do** ([ARCH-6] + gateway F12): Add `src/gateway/lib/http-response.ts` `sendError(res, status, code, message?, extra?)`; adopt in a representative set of routes (don't force all). Export `UUID_REGEX`/`uuidField` from `src/gateway/validation/schemas.ts` and delete the 3 duplicate local copies (`admin-archetypes.ts`, `admin-brain-preview.ts`, `admin-model-catalog.ts`).
   **Must NOT do**: Rewrite every error response in the codebase (adopt incrementally).
@@ -430,7 +430,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `sendError` exists and used in ≥3 routes; `pnpm test` green
         **Commit**: YES — `refactor(gateway): add sendError helper and centralize uuid validation`
 
-- [ ] 14. **Consolidate task-creation paths (ARCH-2) + rename file**
+- [x] 14. **Consolidate task-creation paths (ARCH-2) + rename file**
 
   **What to do** ([ARCH-2]): Make `dispatchEmployee()` (`employee-dispatcher.ts`) the single task-creation entry. Replace the ~200 inlined PostgREST-fetch lines in the `slack/handlers.ts` `trigger_confirm` handler with a call into the dispatcher (add a Slack-friendly entry if needed). Rename `gateway/services/task-creation.ts` → `jira-task-creation.ts` and update imports. Document the (still-dual) Prisma/PostgREST pattern in CONTRIBUTING.md (created in Task 30) — note ARCH-1 full unification is deferred.
   **Must NOT do**: Attempt full raw-fetch→Prisma unification across handlers (ARCH-1 deferred). Don't change the dispatched event name/shape.
@@ -443,7 +443,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm test` green incl. `handlers-trigger-confirm.test.ts`
         **Commit**: YES — `refactor: route Slack trigger through dispatchEmployee; rename jira-task-creation`
 
-- [ ] 15. **DB migration: indexes on hot-path FK columns**
+- [x] 15. **DB migration: indexes on hot-path FK columns**
 
   **What to do** ([ARCH-9]): Add Prisma `@@index` for `tasks.archetype_id`, `tasks.tenant_id`, `executions.task_id`, `task_status_log.task_id`, `deliverables.execution_id`, `validation_runs.execution_id` (skip validation_runs if dropped). Create + run migration. Reload PostgREST schema cache.
   **Must NOT do**: Alter columns/types; don't index deprecated-only tables being removed.
@@ -456,7 +456,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] After `NOTIFY pgrst,'reload schema'`: `curl localhost:54331/rest/v1/tasks?limit=1 -H "apikey:$SUPABASE_ANON_KEY"` → `[]` (not schema error). Evidence: `.sisyphus/evidence/task-15-postgrest.txt`
         **Commit**: YES — `perf(db): add indexes on hot-path foreign-key columns`
 
-- [ ] 16. **DB migration: `deleted_at` on 6 active tables** `[blocks 23,24]`
+- [x] 16. **DB migration: `deleted_at` on 6 active tables** `[blocks 23,24]`
 
   **What to do** ([ARCH-10]): Add nullable `deleted_at DateTime?` to `Task`, `Execution`, `PendingApproval`, `EmployeeRule`, `FeedbackEvent`, `TaskMetric`. Migrate; reload PostgREST cache. (Code paths to actually filter on it are future work — this enables soft-delete-aware helpers extracted in Task 23.)
   **Must NOT do**: Backfill/delete rows; don't add to deprecated tables; don't change existing queries to filter yet.
@@ -468,7 +468,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA (zero-rows-is-never-expected)**: trigger `real-estate-motivation-bot-2` → `Done`; `curl localhost:54331/rest/v1/tasks?id=eq.<id>&select=deleted_at` returns the row with `deleted_at: null` (column visible via PostgREST). Evidence: `.sisyphus/evidence/task-16-deleted-at.txt`
         **Commit**: YES — `feat(db): add deleted_at to active tables for soft-delete compliance`
 
-- [ ] 17. **Shared HTTP-client factory + adopt in slack-client only**
+- [x] 17. **Shared HTTP-client factory + adopt in slack-client only**
 
   **What to do** ([ARCH-12]): Create `src/lib/http-client.ts` `createHttpClient(baseUrl, defaultHeaders)` encapsulating fetch + 429/`Retry-After` detection + `withRetry`. Refactor `src/lib/slack-client.ts` to use it (it has the most duplication). Leave github/jira/telegram clients for later.
   **Must NOT do**: Rewrite github/jira/telegram clients (scope-creep trap). Don't change `slack-client` public API.
@@ -480,7 +480,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm test` green incl. `slack-client.test.ts`
         **Commit**: YES — `refactor(lib): add shared http-client factory; adopt in slack-client`
 
-- [ ] 18. **Hostfully shared tool client + paginator (PoC: 2 tools)**
+- [x] 18. **Hostfully shared tool client + paginator (PoC: 2 tools)**
 
   **What to do** ([TOOLS-1]): Create `src/worker-tools/hostfully/lib/client.ts` (`resolveHostfullyClient(): {headers, baseUrl}`) and `paginate.ts` (`paginateCursor<T>()`), mirroring `sifely/lib/api.ts`. Migrate 2 tools as proof-of-concept: `get-messages.ts` + `get-checkouts.ts`. Also move duplicated `formatGuestName()` → `hostfully/lib/format.ts`.
   **Must NOT do**: Migrate all 8 hostfully tools now (do 2). Don't change tool output JSON shapes.
@@ -492,7 +492,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] `pnpm test -- --run tests/worker-tools/hostfully` green (output shapes unchanged)
         **Commit**: YES — `refactor(tools): add shared hostfully client and paginator (2 tools)`
 
-- [ ] 19. **worker-tools `requireEnv`/`getArg` shared helpers**
+- [x] 19. **worker-tools `requireEnv`/`getArg` shared helpers**
 
   **What to do** ([TOOLS-2]): Promote `requireEnv()` from `google/google-fetch.ts` to `src/worker-tools/lib/require-env.ts`. Add a minimal `getArg(args, '--flag')` to `worker-tools/lib/`. Adopt in 3-4 representative tools as PoC.
   **Must NOT do**: Refactor all 50 tools' parseArgs now (scope-creep trap).
@@ -504,7 +504,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] ≥3 tools import them; their `--help` still exits 0
         **Commit**: YES — `refactor(tools): add shared require-env and get-arg helpers`
 
-- [ ] 20. **status CHECK constraint + slack-blocks return types**
+- [x] 20. **status CHECK constraint + slack-blocks return types**
 
   **What to do** ([TYPE-3] + [TYPE-4]): (a) Add a PG `CHECK` constraint on `tasks.status`/`executions.status` via a raw migration mirroring the existing `task_status_log` pattern. (b) Type all builders in `src/lib/slack-blocks.ts` as `KnownBlock[]` (remove internal `as KnownBlock` casts).
   **Must NOT do**: Constrain values that aren't real lifecycle states; don't change block content.
@@ -522,7 +522,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
 
 > **Universal guardrail for Wave 3**: Extract only. If you find a bug, record it as a NEW finding — do NOT fix inline. Run the relevant E2E after EACH task. Keep all existing tests green.
 
-- [ ] 21. **Decompose `slack/handlers.ts` (now 2,183 lines)**
+- [x] 21. **Decompose `slack/handlers.ts` (now 2,183 lines)**
 
   **What to do** ([SIZE-5]): Split `registerSlackHandlers` into `slack/handlers/{approval,rule,trigger,event}-handlers.ts` + `slack/supabase-client.ts` (the fetch helpers) + `slack/block-kit.ts` + `slack/pending-state.ts`, with a thin `slack/handlers/index.ts` orchestrator. **Re-grep before splitting — line numbers moved with the recent Slack overhaul.** Good first extraction: the rule handlers (search `boltApp.action(SLACK_ACTION_ID.RULE_` — formerly ~1138–1499, now shifted). Inject the `prisma` singleton instead of `new PrismaClient()` in the `app_mention` handler. The recent work already added an immediate-ack + button-removal-before-heavy-work pattern and the shared `src/lib/slack-copy.ts` — PRESERVE both; extract around them, don't revert them. Optionally introduce `ackWithResponse(ack, payload)` to isolate the Bolt casts.
   **Must NOT do**: Change handler behavior, the instant-ack/button-removal ordering, action IDs, or event wiring (the approval-flow merge that deletes `GUEST_*` is Task 32). Don't touch `server.ts`'s `acquireSocketModeLock`/`boltApp.stop()` wiring (singleton fix) — it's outside handlers.ts but verify nothing in the split disturbs registration order.
@@ -535,7 +535,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **VERIFY [Tier B]**: Slack approval happy-path (real Airbnb→card→approve→reply). Evidence: `.sisyphus/evidence/task-21-tierB-*`
         **Commit**: YES (may group sub-extractions) — `refactor(slack): decompose handlers.ts into focused modules`
 
-- [ ] 22. **Decompose `opencode-harness.mts` (1,162 lines)**
+- [x] 22. **Decompose `opencode-harness.mts` (1,162 lines)**
 
   **What to do** ([SIZE-3]): FIRST extract the verbatim-duplicated `checkOutputFiles` (lines 442–511 ≈ 625–698) into one module-scope fn. Then split `main()` → `runDeliveryPhase()` + `runExecutionPhase()`; split `runOpencodeSession()` → `resolveModelProvider()` + session-mgmt + `readOutputContract()`; extract `updateSlackNotificationToFailed()` from `markFailed()`. Remove dead `opencodeRunPid` branch. **Rebuild Docker image** after (worker change).
   **Must NOT do**: Change the output-contract semantics, provider routing, or monitoring timing. No logic changes.
@@ -549,7 +549,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA**: trigger `real-estate-motivation-bot-2` → `Done` + summary delivered. Evidence: `.sisyphus/evidence/task-22-e2e.txt`
         **Commit**: YES — `refactor(worker): decompose opencode-harness; de-duplicate output-contract check`
 
-- [ ] 23. **Decompose `employee-lifecycle.ts` — helpers + tenant-env (Part 1)**
+- [x] 23. **Decompose `employee-lifecycle.ts` — helpers + tenant-env (Part 1)**
 
   **What to do** ([SIZE-4] part 1): Extract (zero behavior change) `lifecycle/db-helpers.ts` (`patchTask`, `logStatusTransition`, `recordWorkMetric`), `lifecycle/tenant-env.ts` (`loadTenantSlackToken` — collapse the 19× boilerplate), `lifecycle/machine-runner.ts` (run/stop Docker, `destroyWorkerMachine` for the 6× dup, the 2× env-manifest merge). Make extracted DB helpers soft-delete-aware where they write the tables migrated in Task 16. `employee-lifecycle.ts` imports them.
   **Must NOT do**: Touch step logic/branches yet (that's Task 24). No behavior change.
@@ -562,7 +562,7 @@ Critical Path: 1 → 6 → 7 → 16 → 23 → 24 → 31 → 32 → 33
   - [ ] **QA**: `real-estate-motivation-bot-2` → `Done`. Evidence: `.sisyphus/evidence/task-23-e2e.txt`
         **Commit**: YES — `refactor(lifecycle): extract db-helpers, tenant-env, machine-runner`
 
-- [ ] 24. **Decompose `employee-lifecycle.ts` — steps (Part 2)**
+- [x] 24. **Decompose `employee-lifecycle.ts` — steps (Part 2)**
 
   **What to do** ([SIZE-4] part 2): Extract step bodies into `lifecycle/steps/{notify,execute,delivery,approval,supersede,classification,override}.ts`. Collapse the verbatim-duplicated delivery retry loop (1098–1245 ≈ 2453–2598) into `runDeliveryWithRetry()`. Split the 978-line `handle-approval-result` into `handleApprove/Reject/Supersede/Expiry`. The Inngest `step.run` callbacks become thin dispatchers. **Do ONE step extraction at a time, E2E after each.**
   **Must NOT do**: Change approval/supersede/reject behavior or Slack message sequencing. Break Inngest step isolation (no shared mutable state across steps). No logic changes.
