@@ -200,17 +200,17 @@ function buildNoActionFetchMock() {
 
 /**
  * Fetch mock for NEEDS_APPROVAL path tests.
- * Returns deliverable metadata with optional guest_name for update-notify-reviewing.
+ * Returns deliverable metadata with optional recipient_name for update-notify-reviewing.
  */
-function buildReviewingFetchMock(opts: { guestName?: string } = {}) {
-  const { guestName } = opts;
+function buildReviewingFetchMock(opts: { recipientName?: string } = {}) {
+  const { recipientName } = opts;
   const delivMeta: Record<string, unknown> = {
     approval_message_ts: 'approval-ts-123',
     target_channel: 'C-NOTIFY',
     conversation_ref: 'thread-abc',
   };
-  if (guestName) {
-    delivMeta['guest_name'] = guestName;
+  if (recipientName) {
+    delivMeta['recipient_name'] = recipientName;
   }
 
   return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
@@ -541,9 +541,9 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
     expect(threadedCalls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Test 5: update-notify-reviewing calls updateMessage with guest name when available', async () => {
+  it('Test 5: update-notify-reviewing calls updateMessage with recipient name when available', async () => {
     const NOTIFY_TS = 'notify-ts-123';
-    const fetchMock = buildReviewingFetchMock({ guestName: 'Jane Smith' });
+    const fetchMock = buildReviewingFetchMock({ recipientName: 'Jane Smith' });
     vi.stubGlobal('fetch', fetchMock);
 
     const stepRunMock = vi
@@ -607,7 +607,7 @@ describe('employee-lifecycle — enriched notify-received and threaded override 
     expect(reviewingCall![2]).toContain('Jane Smith');
   });
 
-  it('Test 6: update-notify-reviewing uses generic text when deliverable has no guest_name', async () => {
+  it('Test 6: update-notify-reviewing uses generic text when deliverable has no recipient_name', async () => {
     const NOTIFY_TS = 'notify-ts-123';
     // No guestName in deliverable metadata
     const fetchMock = buildReviewingFetchMock({});

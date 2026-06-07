@@ -57,3 +57,32 @@ After adding `use: vi.fn()`, 5 additional failures were revealed in the gateway/
 - `slack-input-collector.test.ts`: Updated single-input test description and assertion to reflect current behavior (LLM extraction always runs).
 
 ### Result: 37/37 passing across all 4 files
+
+## [2026-06-07] Task 0.2 — drifted Slack copy assertions
+
+### Scope clarification (important)
+
+Root cause #2 lumped `slack-trigger-handler.test.ts` into the copy-drift bucket, but that file was already fixed in Task 0.1. Task 0.2's actual copy-drift surface was only TWO files: `reminder-blocks.test.ts` (3 failures) and `lifecycle-enriched-notify.test.ts` (1 failure) = 4 failures, not ~12.
+
+### What was actually broken (two distinct drift mechanisms)
+
+1. **`reminder-blocks.test.ts` — renamed `ReminderThread` fields (silent test rot).** `src/inngest/lib/reminder-blocks.ts` renamed interface fields `guestName` → `recipientName` and `propertyName` → `contextLabel`. The test's `makeThread()` overrides still passed `guestName:`/`propertyName:`, which TypeScript's excess-property check rejects (`'guestName' does not exist in type 'Partial<ReminderThread>'`) AND at runtime the unknown props were ignored, so the builder fell back to the default `recipientName: 'Alice Smith'` / `contextLabel: 'Beach House'`. That's why the failure showed "expected 'Jane Doe' received '_Alice Smith_ — Beach House'".
+2. **`reminder-blocks.test.ts:94` — stale context-block copy.** Asserted `'AI Employee Platform'`; current builder emits `'⚡ These items are still waiting on a reply'`. Updated assertion to `toContain('These items are still waiting on a reply')`.
+3. **`lifecycle-enriched-notify.test.ts` Test 5 — metadata key rename.** Production `update-notify-reviewing` step (`employee-lifecycle.ts:1590`) reads `metadata['recipient_name']`, but the test helper `buildReviewingFetchMock` wrote `metadata['guest_name']`. So `reviewingDraftedMessage(undefined)` produced the generic "I've drafted something…" instead of "…a reply for Jane Smith". Fix was in the MOCK (rename the key + the opts param `guestName` → `recipientName`), not in the assertion — the assertion `toContain('Jane Smith')` was correct all along.
+
+### Source-of-truth strings confirmed (current production)
+
+- `reviewingDraftedMessage(name)` → ``👀 I've drafted${name ? ` a reply for ${name}` : ' something'} and sent it your way for a quick look.`` (`src/lib/slack-copy.ts:43`)
+- reminder context block → `'⚡ These items are still waiting on a reply'` (`src/inngest/lib/reminder-blocks.ts:36`)
+- reminder section → `*${recipientName}* — ${contextLabel}\n⏱️ Waiting ${elapsedMinutes} min · <permalink|View message>`
+
+### Out-of-scope failures left untouched (different category, NOT copy)
+
+Full-suite run after fix: 37 failures remain, NONE are Slack copy-string assertions. They are: `expected "spy" to be called once, but got 0 times` (machine-dispatch / delivery mocks — feedback-injection, lifecycle-notify-msg-ts, employee-lifecycle-delivery, lifecycle-feedback-context-rejection), numeric equality (`expected 1 to be +0`), and CLI tests (`--admin-key`, `[ERROR]`). These belong to other Task 0.x buckets (lifecycle spy regressions, call-llm cost=0, process.exit leaks).
+
+### Fix applied
+
+- `reminder-blocks.test.ts`: renamed all `guestName:`/`propertyName:` overrides to `recipientName:`/`contextLabel:` (5 sites), updated 2 test titles ("guest"→"recipient"), updated context assertion.
+- `lifecycle-enriched-notify.test.ts`: renamed `buildReviewingFetchMock` opts param + metadata key `guest_name` → `recipient_name`, updated 2 test titles. Assertions unchanged.
+
+### Result: 14/14 passing across both target files

@@ -31,10 +31,10 @@ describe('buildReminderBlocks', () => {
     expect(header.text.text).toBe('⏰ 3 unresponded messages awaiting action');
   });
 
-  it('section text contains guest name, property name, and elapsed minutes', () => {
+  it('section text contains recipient name, context label, and elapsed minutes', () => {
     const thread = makeThread({
-      guestName: 'Jane Doe',
-      propertyName: 'Mountain Cabin',
+      recipientName: 'Jane Doe',
+      contextLabel: 'Mountain Cabin',
       elapsedMinutes: 90,
     });
     const blocks = buildReminderBlocks([thread]);
@@ -51,11 +51,11 @@ describe('buildReminderBlocks', () => {
     expect(section.text.text).toContain(`<${permalink}|View message>`);
   });
 
-  it('all guest names are present in blocks for multiple threads', () => {
+  it('all recipient names are present in blocks for multiple threads', () => {
     const threads = [
-      makeThread({ threadUid: 't1', guestName: 'Alice' }),
-      makeThread({ threadUid: 't2', guestName: 'Bob' }),
-      makeThread({ threadUid: 't3', guestName: 'Carol' }),
+      makeThread({ threadUid: 't1', recipientName: 'Alice' }),
+      makeThread({ threadUid: 't2', recipientName: 'Bob' }),
+      makeThread({ threadUid: 't3', recipientName: 'Carol' }),
     ];
     const blocks = buildReminderBlocks(threads);
     const allText = JSON.stringify(blocks);
@@ -67,8 +67,8 @@ describe('buildReminderBlocks', () => {
   it('dividers appear between sections but not before first or after last section', () => {
     const threads = [
       makeThread({ threadUid: 't1' }),
-      makeThread({ threadUid: 't2', guestName: 'Bob' }),
-      makeThread({ threadUid: 't3', guestName: 'Carol' }),
+      makeThread({ threadUid: 't2', recipientName: 'Bob' }),
+      makeThread({ threadUid: 't3', recipientName: 'Carol' }),
     ];
     const blocks = buildReminderBlocks(threads);
     const dividers = blocks.filter((b) => (b as { type: string }).type === 'divider');
@@ -91,7 +91,7 @@ describe('buildReminderBlocks', () => {
       elements: Array<{ type: string; text: string }>;
     };
     expect(last.type).toBe('context');
-    expect(last.elements[0].text).toContain('AI Employee Platform');
+    expect(last.elements[0].text).toContain('These items are still waiting on a reply');
   });
 
   it('empty threads array returns header + context block without crashing', () => {
