@@ -42,6 +42,7 @@ model Task {
   compiled_agents_md String?  @db.Text
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
+  deleted_at         DateTime?
 
   // Relations
   tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -81,6 +82,7 @@ model Execution {
   session_transcript Json?
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
 
   // Relations
   task           Task            @relation(fields: [task_id], references: [id])
@@ -469,6 +471,7 @@ model PendingApproval {
   urgency           Boolean   @default(false) @map("urgency")
   recipient_name    String?   @map("recipient_name")
   context_label     String?   @map("context_label")
+  deleted_at        DateTime?
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
 
@@ -513,6 +516,7 @@ model FeedbackEvent {
   original_content   String?
   metadata           Json?
   created_at         DateTime @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime?
 
   // Relations
   tenant    Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
@@ -536,6 +540,7 @@ model EmployeeRule {
   slack_channel   String?
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   confirmed_at    DateTime? @db.Timestamptz(6)
+  deleted_at      DateTime?
 
   // Relations
   tenant    Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
@@ -608,6 +613,7 @@ model TaskMetric {
   tenant_id     String   @db.Uuid
   work_minutes  Int
   created_at    DateTime @default(now())
+  deleted_at    DateTime?
 
   task      Task      @relation(fields: [task_id], references: [id])
   archetype Archetype @relation(fields: [archetype_id], references: [id])

@@ -1,0 +1,6 @@
+ALTER TABLE "tasks" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
+ALTER TABLE "executions" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
+ALTER TABLE "pending_approvals" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
+ALTER TABLE "employee_rules" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
+ALTER TABLE "feedback_events" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
+ALTER TABLE "task_metrics" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
