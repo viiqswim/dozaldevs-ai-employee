@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -46,9 +46,9 @@ interface ToolResult {
   error?: string;
 }
 
-function runTool(cmd: string): ToolResult {
+async function runTool(args: string[]): Promise<ToolResult> {
   try {
-    const stdout = execSync(cmd, {
+    const stdout = execFileSync(args[0]!, args.slice(1), {
       encoding: 'utf-8',
       env: { ...process.env },
       timeout: 30000,
@@ -65,18 +65,15 @@ function runTool(cmd: string): ToolResult {
   }
 }
 
-function runToolWithRetry(cmd: string, maxAttempts = 3): ToolResult {
+async function runToolWithRetry(args: string[], maxAttempts = 3): Promise<ToolResult> {
   let lastResult: ToolResult = { stdout: '', success: false, exitCode: 1 };
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    lastResult = runTool(cmd);
+    lastResult = await runTool(args);
     if (lastResult.success) return lastResult;
     const isRetryable = /\b5\d{2}\b/.test(lastResult.error ?? lastResult.stdout);
     if (!isRetryable || attempt === maxAttempts) return lastResult;
     // 3s delay between retries
-    const start = Date.now();
-    while (Date.now() - start < 3000) {
-      /* spin wait */
-    }
+    await new Promise((r) => setTimeout(r, 3000));
   }
   return lastResult;
 }
@@ -222,9 +219,14 @@ async function main(): Promise<void> {
   const allCurrentCodes: string[] = [];
 
   for (const lockId of uniqueLockIds) {
-    const listResult = runTool(
-      `pnpm exec tsx ${toolPath('list-passcodes.ts')} --lock-id ${lockId}`,
-    );
+    const listResult = await runTool([
+      'pnpm',
+      'exec',
+      'tsx',
+      toolPath('list-passcodes.ts'),
+      '--lock-id',
+      lockId,
+    ]);
     if (listResult.success && listResult.stdout.trim()) {
       try {
         const passcodes = JSON.parse(listResult.stdout.trim()) as SifelyPasscode[];
@@ -250,11 +252,13 @@ async function main(): Promise<void> {
   if (overrideCode) {
     newCode = overrideCode;
   } else {
-    const excludeArg =
-      allCurrentCodes.length > 0 ? `--exclude-codes "${allCurrentCodes.join(',')}"` : '';
-    const generateResult = runTool(
-      `pnpm exec tsx ${toolPath('generate-code.ts')} ${excludeArg}`.trim(),
-    );
+    const generateResult = await runTool([
+      'pnpm',
+      'exec',
+      'tsx',
+      toolPath('generate-code.ts'),
+      ...(allCurrentCodes.length > 0 ? ['--exclude-codes', allCurrentCodes.join(',')] : []),
+    ]);
 
     if (!generateResult.success || !generateResult.stdout.trim()) {
       process.stdout.write(
@@ -286,9 +290,16 @@ async function main(): Promise<void> {
   let hostfullyUpdated = false;
   let hostfullyError: string | null = null;
 
-  const hostfullyResult = runTool(
-    `pnpm exec tsx ${hostfullyToolPath('update-door-code.ts')} --property-id ${propertyId} --code ${newCode}`,
-  );
+  const hostfullyResult = await runTool([
+    'pnpm',
+    'exec',
+    'tsx',
+    hostfullyToolPath('update-door-code.ts'),
+    '--property-id',
+    propertyId,
+    '--code',
+    newCode,
+  ]);
 
   if (hostfullyResult.success) {
     hostfullyUpdated = true;
@@ -307,9 +318,14 @@ async function main(): Promise<void> {
     const lockRow = rows.find((r) => r.lock_external_id === lockId);
     const lockName = lockRow?.lock_name ?? lockId;
 
-    const listResult = runTool(
-      `pnpm exec tsx ${toolPath('list-passcodes.ts')} --lock-id ${lockId}`,
-    );
+    const listResult = await runTool([
+      'pnpm',
+      'exec',
+      'tsx',
+      toolPath('list-passcodes.ts'),
+      '--lock-id',
+      lockId,
+    ]);
 
     let passcodes: SifelyPasscode[] = [];
     if (listResult.success && listResult.stdout.trim()) {
@@ -342,9 +358,18 @@ async function main(): Promise<void> {
     );
 
     if (match) {
-      const updateResult = runToolWithRetry(
-        `pnpm exec tsx ${toolPath('update-passcode.ts')} --lock-id ${lockId} --passcode-id ${String(match.keyboardPwdId)} --code ${newCode}`,
-      );
+      const updateResult = await runToolWithRetry([
+        'pnpm',
+        'exec',
+        'tsx',
+        toolPath('update-passcode.ts'),
+        '--lock-id',
+        lockId,
+        '--passcode-id',
+        String(match.keyboardPwdId),
+        '--code',
+        newCode,
+      ]);
 
       if (updateResult.success) {
         lockResults.push({
@@ -363,9 +388,18 @@ async function main(): Promise<void> {
         });
       }
     } else {
-      const createResult = runToolWithRetry(
-        `pnpm exec tsx ${toolPath('create-passcode.ts')} --lock-id ${lockId} --name "${expectedPasscodeName}" --code ${newCode}`,
-      );
+      const createResult = await runToolWithRetry([
+        'pnpm',
+        'exec',
+        'tsx',
+        toolPath('create-passcode.ts'),
+        '--lock-id',
+        lockId,
+        '--name',
+        expectedPasscodeName,
+        '--code',
+        newCode,
+      ]);
 
       if (createResult.success && createResult.stdout.trim()) {
         let createdId: number | undefined;
