@@ -314,7 +314,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 > **Guardrail for ALL of Wave 0**: fix tests to match the SHIPPED production behavior. If a failing test reveals a genuine production BUG (not just drifted text/mocks), STOP and record it as a new finding — do NOT edit the test to hide a real defect. Re-grep line numbers before editing; PR #7 moved things.
 
-- [ ] 0.1. Fix Slack mock `.use()` regression (~18 failures)
+- [x] 0.1. Fix Slack mock `.use()` regression (~18 failures)
 
   **What to do**:
   - **ROOT CAUSE (verified)**: `src/gateway/slack/handlers/event-handlers.ts:17` calls `boltApp.use(async ({ body, next }) => {...})` (a global middleware registered during `registerSlackHandlers`). The test mock `boltApp` objects do NOT implement `.use`, so every test that calls `registerSlackHandlers(mockBoltApp, ...)` throws `TypeError: boltApp.use is not a function`.
@@ -358,7 +358,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test(slack): add use() to mock boltApp factories to match shipped middleware`
 
-- [ ] 0.2. Fix drifted Slack copy assertions (~12 failures)
+- [x] 0.2. Fix drifted Slack copy assertions (~12 failures)
 
   **What to do**:
   - **ROOT CAUSE (verified)**: PR #7's copy-unification changed user-facing Slack strings, but assertions still expect the old text. Update each assertion to the CURRENT shipped copy (read the production source of truth — `src/lib/slack-copy.ts`, `src/lib/slack-blocks.ts`, `src/inngest/lib/reminder-blocks.ts` — and match exactly):
@@ -400,7 +400,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test(slack): update copy assertions to match unified Slack voice strings`
 
-- [ ] 0.3. Fix call-llm cost-from-catalog test mocks (~4 failures)
+- [x] 0.3. Fix call-llm cost-from-catalog test mocks (~4 failures)
 
   **What to do**:
   - **ROOT CAUSE (verified)**: PR #7 (SMELL-4) changed `src/lib/call-llm.ts` to compute cost from the `model_catalog` DB table instead of a hardcoded map. The unit tests (`tests/lib/call-llm.test.ts:105,266`) don't provide catalog pricing, so `estimatedCostUsd` is 0 (`expected 0 to be greater than 0`; `expected +0 to be close to 0.000085`).
@@ -438,7 +438,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test(call-llm): mock model_catalog pricing so cost assertions pass`
 
-- [ ] 0.4. Fix seed.ts `GUEST_MESSAGING_AGENTS_MD` reference (2 failures)
+- [x] 0.4. Fix seed.ts `GUEST_MESSAGING_AGENTS_MD` reference (2 failures)
 
   **What to do**:
   - **ROOT CAUSE (verified)**: `tests/lib/conversation-history-context.test.ts:6-9` reads `prisma/seed.ts` and regex-matches `const GUEST_MESSAGING_AGENTS_MD = \`...\``. PR #7 removed that const (seed.ts now only has `const PLATFORM_AGENTS_MD`). The test throws `GUEST_MESSAGING_AGENTS_MD not found in seed.ts`.
@@ -476,7 +476,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test(conversation-history): repoint at current guest-messaging AGENTS.md source`
 
-- [ ] 0.5. Fix lifecycle spy / feedback-injection regressions (~17 failures)
+- [x] 0.5. Fix lifecycle spy / feedback-injection regressions (~17 failures)
 
   **What to do**:
   - **ROOT CAUSE**: handler wiring changed in PR #7; mocks/expectations are stale. Failures are `expected "spy" to be called once, but got 0 times` (and one `to not be called ... called 1 times`). Affected files:
@@ -519,7 +519,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test(lifecycle): repoint feedback/notify spies at current handler wiring`
 
-- [ ] 0.6. Remove archived `migrate-vlre-kb` test + fix `process.exit` leaks
+- [x] 0.6. Remove archived `migrate-vlre-kb` test + fix `process.exit` leaks
 
   **What to do**:
   - **migrate-vlre-kb**: `tests/scripts/migrate-vlre-kb.test.ts:8` points at `scripts/migrate-vlre-kb.ts`, which PR #7 moved to `scripts/archive/migrate-vlre-kb.ts`. Per user decision, **remove the test** (the script is a one-shot already archived; the test adds 0 ongoing value and spawns slow `npx tsx` subprocesses). `git rm tests/scripts/migrate-vlre-kb.test.ts`. Check if `tests/scripts/` has other archived-script tests with the same problem (re-grep `scripts/archive` references in `tests/`) and remove those too.

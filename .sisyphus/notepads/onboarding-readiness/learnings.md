@@ -130,3 +130,29 @@ Full-suite run after fix: 37 failures remain, NONE are Slack copy-string asserti
 **Key pattern**: When `vi.mock` factory returns module-level constants, those values are frozen at mock-factory evaluation time. For constants that tests need to control, either (a) mock the entire module with a fixed value, or (b) export a getter function instead of a bare constant.
 
 **Result**: 23/23 passing across all 5 target files. Build clean.
+
+## [2026-06-08] Task 0.6 — Archived test + process.exit guards
+
+### Pattern: import.meta.url guard for script entrypoints
+When a script file (`.ts` or `.mts`) has a top-level `main().catch(process.exit)` call, it fires during vitest test collection (import phase), causing "process.exit unexpectedly called" errors.
+
+**Fix pattern** (from `src/worker-tools/notion/get-page.ts`):
+```ts
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    // error handling
+    process.exit(1);
+  });
+}
+```
+
+This guard ensures `main()` only runs when the file is the direct entry point, not when imported.
+
+### Files fixed
+- `src/workers/opencode-harness.mts` — line 993
+- `scripts/trigger-task.ts` — line 698
+
+### Archived test removal
+- `tests/scripts/migrate-vlre-kb.test.ts` pointed at `scripts/migrate-vlre-kb.ts` which was moved to `scripts/archive/` in PR #7
+- Use `git rm` to remove test files for archived scripts
+- Evidence: `.sisyphus/evidence/task-0.6-exits-archived.txt`
