@@ -47,8 +47,11 @@ type ReservationSummary = {
   status: string | null;
 };
 
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
+import { formatGuestName } from './lib/format.js';
 import { getArg } from '../lib/get-arg.js';
-import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 function parseArgs(argv: string[]): {
   propertyId: string;
@@ -65,16 +68,6 @@ function parseArgs(argv: string[]): {
     to: getArg(args, '--to') ?? '',
     help: args.includes('--help'),
   };
-}
-
-function formatGuestName(
-  gi: { firstName?: string | null; lastName?: string | null } | undefined,
-): string | null {
-  if (!gi) return null;
-  const parts = [gi.firstName, gi.lastName].filter(
-    (p): p is string => typeof p === 'string' && p !== '',
-  );
-  return parts.length > 0 ? parts.join(' ').trim() : null;
 }
 
 async function main(): Promise<void> {
@@ -122,11 +115,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = requireEnv('HOSTFULLY_API_KEY');
-
-  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
-
-  const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
+  const { headers, baseUrl } = resolveHostfullyClient();
 
   let queryBase = `${baseUrl}/leads?propertyUid=${encodeURIComponent(propertyId)}`;
 
@@ -146,36 +135,15 @@ async function main(): Promise<void> {
     queryBase += `&checkInFrom=${thirtyDaysAgo}`;
   }
 
-  const seenUids = new Set<string>();
-  const allLeads: RawLead[] = [];
-  let cursor: string | undefined = undefined;
-
-  for (;;) {
-    const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      process.stderr.write(`Error: Failed to fetch reservations: ${res.status}\n`);
-      process.exit(1);
-    }
-
-    const json = (await res.json()) as {
-      leads?: RawLead[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.leads ?? [];
-    let hasNew = false;
-    for (const lead of page) {
-      if (lead.uid && !seenUids.has(lead.uid)) {
-        seenUids.add(lead.uid);
-        allLeads.push(lead);
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
+  let allLeads: RawLead[];
+  try {
+    allLeads = await paginateCursor<RawLead>(queryBase, headers, (json) => {
+      const j = json as { leads?: RawLead[]; _paging?: { _nextCursor?: string } };
+      return { items: j.leads ?? [], nextCursor: j._paging?._nextCursor };
+    });
+  } catch (err) {
+    process.stderr.write(`Error: Failed to fetch reservations: ${String(err)}\n`);
+    process.exit(1);
   }
 
   // CONFIRMED_STATUSES: active/upcoming bookings a guest will actually show up for.

@@ -47,6 +47,8 @@ type ReviewSummary = {
   responseDateTimeUTC: string | null;
 };
 
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
 import { getArg } from '../lib/get-arg.js';
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
 
@@ -90,11 +92,9 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = requireEnv('HOSTFULLY_API_KEY');
+  const { headers } = resolveHostfullyClient();
 
   const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.3';
-
-  const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
 
   if (propertyId) {
     let queryBase = `${baseUrl}/reviews?propertyUid=${encodeURIComponent(propertyId)}&sort=SORT_BY_DATE&sortDirection=DESC`;
@@ -102,36 +102,15 @@ async function main(): Promise<void> {
       queryBase += `&updatedSince=${encodeURIComponent(since)}`;
     }
 
-    const seenUids = new Set<string>();
-    const allReviews: RawReview[] = [];
-    let cursor: string | undefined = undefined;
-
-    for (;;) {
-      const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        process.stderr.write(`Error: Failed to fetch reviews: ${res.status}\n`);
-        process.exit(1);
-      }
-
-      const json = (await res.json()) as {
-        reviews?: RawReview[];
-        _paging?: { _nextCursor?: string };
-      };
-
-      const page = json.reviews ?? [];
-      let hasNew = false;
-      for (const review of page) {
-        if (review.uid && !seenUids.has(review.uid)) {
-          seenUids.add(review.uid);
-          allReviews.push(review);
-          hasNew = true;
-        }
-      }
-
-      cursor = json._paging?._nextCursor;
-      if (!hasNew || !cursor) break;
+    let allReviews: RawReview[];
+    try {
+      allReviews = await paginateCursor<RawReview>(queryBase, headers, (json) => {
+        const j = json as { reviews?: RawReview[]; _paging?: { _nextCursor?: string } };
+        return { items: j.reviews ?? [], nextCursor: j._paging?._nextCursor };
+      });
+    } catch (err) {
+      process.stderr.write(`Error: Failed to fetch reviews: ${String(err)}\n`);
+      process.exit(1);
     }
 
     let results: ReviewSummary[] = allReviews.map((r) => ({
@@ -155,39 +134,24 @@ async function main(): Promise<void> {
   } else {
     const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
-    const seenPropertyUids = new Set<string>();
-    const propertyUids: string[] = [];
-    let propCursor: string | undefined = undefined;
-
-    for (;;) {
-      const url = propCursor
-        ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&cursor=${encodeURIComponent(propCursor)}`
-        : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
-
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        process.stderr.write(`Error: Failed to fetch properties: ${res.status}\n`);
-        process.exit(1);
-      }
-
-      const json = (await res.json()) as {
-        properties?: Array<{ uid: string }>;
-        _paging?: { _nextCursor?: string };
-      };
-
-      const page = json.properties ?? [];
-      let hasNew = false;
-      for (const p of page) {
-        if (p.uid && !seenPropertyUids.has(p.uid)) {
-          seenPropertyUids.add(p.uid);
-          propertyUids.push(p.uid);
-          hasNew = true;
-        }
-      }
-
-      propCursor = json._paging?._nextCursor;
-      if (!hasNew || !propCursor) break;
+    let properties: Array<{ uid: string }>;
+    try {
+      properties = await paginateCursor<{ uid: string }>(
+        `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`,
+        headers,
+        (json) => {
+          const j = json as {
+            properties?: Array<{ uid: string }>;
+            _paging?: { _nextCursor?: string };
+          };
+          return { items: j.properties ?? [], nextCursor: j._paging?._nextCursor };
+        },
+      );
+    } catch (err) {
+      process.stderr.write(`Error: Failed to fetch properties: ${String(err)}\n`);
+      process.exit(1);
     }
+    const propertyUids = properties.map((p) => p.uid);
 
     const allReviews: ReviewSummary[] = [];
 
@@ -197,57 +161,32 @@ async function main(): Promise<void> {
         queryBase += `&updatedSince=${encodeURIComponent(since)}`;
       }
 
-      const seenUids = new Set<string>();
-      const propReviews: RawReview[] = [];
-      let cursor: string | undefined = undefined;
-      let fetchError = false;
-
-      for (;;) {
-        const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-        const res = await fetch(url, { headers });
-        if (!res.ok) {
-          process.stderr.write(
-            `Warning: Failed to fetch reviews for property ${uid}: ${res.status}\n`,
-          );
-          fetchError = true;
-          break;
-        }
-
-        const json = (await res.json()) as {
-          reviews?: RawReview[];
-          _paging?: { _nextCursor?: string };
-        };
-
-        const page = json.reviews ?? [];
-        let hasNew = false;
-        for (const review of page) {
-          if (review.uid && !seenUids.has(review.uid)) {
-            seenUids.add(review.uid);
-            propReviews.push(review);
-            hasNew = true;
-          }
-        }
-
-        cursor = json._paging?._nextCursor;
-        if (!hasNew || !cursor) break;
+      let propReviews: RawReview[];
+      try {
+        propReviews = await paginateCursor<RawReview>(queryBase, headers, (json) => {
+          const j = json as { reviews?: RawReview[]; _paging?: { _nextCursor?: string } };
+          return { items: j.reviews ?? [], nextCursor: j._paging?._nextCursor };
+        });
+      } catch (err) {
+        process.stderr.write(
+          `Warning: Failed to fetch reviews for property ${uid}: ${String(err)}\n`,
+        );
+        continue;
       }
 
-      if (!fetchError) {
-        for (const r of propReviews) {
-          allReviews.push({
-            uid: r.uid,
-            propertyUid: r.propertyUid ?? null,
-            guestName: r.author ?? null,
-            title: r.title ?? null,
-            content: r.content ?? null,
-            rating: r.rating ?? null,
-            date: r.date ?? null,
-            source: r.source ?? null,
-            hasResponse: r.responseDateTimeUTC != null,
-            responseDateTimeUTC: r.responseDateTimeUTC ?? null,
-          });
-        }
+      for (const r of propReviews) {
+        allReviews.push({
+          uid: r.uid,
+          propertyUid: r.propertyUid ?? null,
+          guestName: r.author ?? null,
+          title: r.title ?? null,
+          content: r.content ?? null,
+          rating: r.rating ?? null,
+          date: r.date ?? null,
+          source: r.source ?? null,
+          hasResponse: r.responseDateTimeUTC != null,
+          responseDateTimeUTC: r.responseDateTimeUTC ?? null,
+        });
       }
     }
 
