@@ -3,6 +3,8 @@ import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
+import { sendError } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 
 const PatchPlatformSettingBodySchema = z.object({
   value: z.string(),
@@ -21,14 +23,16 @@ export function adminPlatformSettingsRoutes({ prisma }: { prisma: PrismaClient }
       res.status(200).json(settings);
     } catch (err) {
       logger.error({ err }, 'Failed to list platform settings');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.patch('/admin/platform-settings/:key', requireAdminKey, async (req, res) => {
     const bodyResult = PatchPlatformSettingBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: bodyResult.error.issues,
+      });
       return;
     }
 
@@ -40,7 +44,7 @@ export function adminPlatformSettingsRoutes({ prisma }: { prisma: PrismaClient }
       });
 
       if (!existing) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, ERROR_CODES.NOT_FOUND);
         return;
       }
 
@@ -52,7 +56,7 @@ export function adminPlatformSettingsRoutes({ prisma }: { prisma: PrismaClient }
       res.status(200).json(updated);
     } catch (err) {
       logger.error({ err }, 'Failed to update platform setting');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 

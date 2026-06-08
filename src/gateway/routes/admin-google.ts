@@ -6,6 +6,7 @@ import { TenantSecretRepository } from '../services/tenant-secret-repository.js'
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { clearTokenCache } from '../services/google-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 
 export interface AdminGoogleRouteOptions {
   prisma?: PrismaClient;
@@ -24,7 +25,7 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
     async (req, res) => {
       const parsed = TenantIdParamSchema.safeParse(req.params);
       if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid tenantId' });
+        sendError(res, 400, 'Invalid tenantId');
         return;
       }
       const { tenantId } = parsed.data;

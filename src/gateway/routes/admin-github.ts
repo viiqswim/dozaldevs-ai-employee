@@ -6,6 +6,8 @@ import { TenantSecretRepository } from '../services/tenant-secret-repository.js'
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { generateInstallationToken, generateAppJwt } from '../services/github-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 
 export interface AdminGithubRouteOptions {
   prisma?: PrismaClient;
@@ -99,7 +101,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
   router.get('/admin/tenants/:tenantId/github/repos', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -110,12 +112,12 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       installationId = await secretRepo.get(tenantId, 'github_installation_id');
     } catch (err) {
       logger.error({ err, tenantId }, 'Failed to read github_installation_id from tenant secrets');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       return;
     }
 
     if (!installationId) {
-      res.status(404).json({ error: 'GitHub not connected' });
+      sendError(res, 404, 'GitHub not connected');
       return;
     }
 
@@ -125,7 +127,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       token = installationToken.token;
     } catch (err) {
       logger.error({ err, tenantId }, 'Failed to generate GitHub installation token');
-      res.status(502).json({ error: 'Failed to authenticate with GitHub' });
+      sendError(res, 502, 'Failed to authenticate with GitHub');
       return;
     }
 
@@ -134,7 +136,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       repos = await fetchAllRepos(token);
     } catch (err) {
       logger.error({ err, tenantId }, 'Failed to fetch repositories from GitHub');
-      res.status(502).json({ error: 'Failed to fetch repositories from GitHub' });
+      sendError(res, 502, 'Failed to fetch repositories from GitHub');
       return;
     }
 
@@ -147,7 +149,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
@@ -156,7 +158,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       const appId = process.env.GITHUB_APP_ID;
       const rawPrivateKey = process.env.GITHUB_PRIVATE_KEY;
       if (!appId || !rawPrivateKey) {
-        res.status(503).json({ error: 'GitHub App not configured' });
+        sendError(res, 503, 'GitHub App not configured');
         return;
       }
       const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
@@ -166,7 +168,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         jwt = generateAppJwt(appId, privateKey);
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to generate GitHub App JWT');
-        res.status(503).json({ error: 'Failed to generate GitHub App JWT' });
+        sendError(res, 503, 'Failed to generate GitHub App JWT');
         return;
       }
 
@@ -196,7 +198,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         }
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to fetch GitHub App installations');
-        res.status(502).json({ error: 'Failed to fetch GitHub App installations' });
+        sendError(res, 502, 'Failed to fetch GitHub App installations');
         return;
       }
 
@@ -205,7 +207,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         currentIntegration = await integrationRepo.findByTenantAndProvider(tenantId, 'github');
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to read tenant GitHub integration');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
         return;
       }
 
@@ -229,7 +231,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
@@ -237,14 +239,14 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
 
       const { installation_id } = req.body as { installation_id?: string };
       if (!installation_id || typeof installation_id !== 'string') {
-        res.status(400).json({ error: 'installation_id is required' });
+        sendError(res, 400, 'installation_id is required');
         return;
       }
 
       const appId = process.env.GITHUB_APP_ID;
       const rawPrivateKey = process.env.GITHUB_PRIVATE_KEY;
       if (!appId || !rawPrivateKey) {
-        res.status(503).json({ error: 'GitHub App not configured' });
+        sendError(res, 503, 'GitHub App not configured');
         return;
       }
       const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
@@ -254,7 +256,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         jwt = generateAppJwt(appId, privateKey);
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to generate GitHub App JWT');
-        res.status(503).json({ error: 'Failed to generate GitHub App JWT' });
+        sendError(res, 503, 'Failed to generate GitHub App JWT');
         return;
       }
 
@@ -276,14 +278,12 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
             { tenantId, installation_id, status: verifyResponse.status },
             'GitHub installation not found',
           );
-          res
-            .status(502)
-            .json({ error: `GitHub installation not found: ${verifyResponse.status} ${body}` });
+          sendError(res, 502, `GitHub installation not found: ${verifyResponse.status} ${body}`);
           return;
         }
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to verify GitHub installation');
-        res.status(502).json({ error: 'Failed to verify GitHub installation' });
+        sendError(res, 502, 'Failed to verify GitHub installation');
         return;
       }
 
@@ -292,7 +292,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         await integrationRepo.upsert(tenantId, 'github', { external_id: installation_id });
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to store GitHub installation');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
         return;
       }
 
@@ -306,7 +306,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
     async (req, res) => {
       const parsed = TenantIdParamSchema.safeParse(req.params);
       if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid tenantId' });
+        sendError(res, 400, 'Invalid tenantId');
         return;
       }
       const { tenantId } = parsed.data;

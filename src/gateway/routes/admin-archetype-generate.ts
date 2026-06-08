@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import type { callLLM } from '../../lib/call-llm.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ArchetypeGenerator } from '../services/archetype-generator.js';
 
 export interface AdminArchetypeGenerateRouteOptions {
@@ -27,13 +29,15 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
   router.post('/admin/tenants/:tenantId/archetypes/generate', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, { issues: paramResult.error.issues });
       return;
     }
 
     const bodyResult = GenerateBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: bodyResult.error.issues,
+      });
       return;
     }
 
@@ -61,12 +65,12 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
       const message = err instanceof Error ? err.message : String(err);
 
       if (message.includes('GENERATION_FAILED')) {
-        res.status(422).json({ error: 'GENERATION_FAILED', details: message });
+        sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
         return;
       }
 
       logger.error({ err }, 'Archetype generation failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 

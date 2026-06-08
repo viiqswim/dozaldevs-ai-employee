@@ -16,6 +16,8 @@ import {
   KbEntryIdParamSchema,
   KbEntryTenantParamSchema,
 } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
 const logger = createLogger('admin-kb');
@@ -32,13 +34,15 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
   router.post('/admin/tenants/:tenantId/kb/entries', requireAdminKey, async (req, res) => {
     const paramResult = KbEntryTenantParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
     const result = CreateKbEntrySchema.safeParse(req.body);
     if (!result.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: result.error.issues,
+      });
       return;
     }
 
@@ -53,11 +57,11 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
       res.status(201).json(entry);
     } catch (err) {
       if (err instanceof KbEntryConflictError) {
-        res.status(409).json({ error: 'CONFLICT', message: (err as Error).message });
+        sendError(res, 409, 'CONFLICT', (err as Error).message);
         return;
       }
       logger.error({ err }, 'Failed to create KB entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
@@ -65,13 +69,15 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
   router.get('/admin/tenants/:tenantId/kb/entries', requireAdminKey, async (req, res) => {
     const paramResult = KbEntryTenantParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
     const queryResult = ListKbEntriesQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: queryResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: queryResult.error.issues,
+      });
       return;
     }
 
@@ -85,7 +91,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
       res.status(200).json({ entries });
     } catch (err) {
       logger.error({ err }, 'Failed to list KB entries');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
@@ -93,7 +99,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
   router.get('/admin/tenants/:tenantId/kb/entries/:entryId', requireAdminKey, async (req, res) => {
     const paramResult = KbEntryIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -105,14 +111,14 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
       });
 
       if (!entry) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, ERROR_CODES.NOT_FOUND);
         return;
       }
 
       res.status(200).json(entry);
     } catch (err) {
       logger.error({ err }, 'Failed to get KB entry');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
@@ -123,13 +129,15 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
     async (req, res) => {
       const paramResult = KbEntryIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
       const result = UpdateKbEntrySchema.safeParse(req.body);
       if (!result.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: result.error.issues,
+        });
         return;
       }
 
@@ -142,14 +150,14 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
         });
 
         if (count === 0 || !entry) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
           return;
         }
 
         res.status(200).json(entry);
       } catch (err) {
         logger.error({ err }, 'Failed to update KB entry');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );
@@ -161,7 +169,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
     async (req, res) => {
       const paramResult = KbEntryIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
@@ -173,14 +181,14 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
         });
 
         if (count === 0) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
           return;
         }
 
         res.status(204).send();
       } catch (err) {
         logger.error({ err }, 'Failed to delete KB entry');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );
