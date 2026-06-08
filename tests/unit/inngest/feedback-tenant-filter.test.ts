@@ -6,7 +6,7 @@ describe('feedback queries — tenant_id filter', () => {
   it('employee-lifecycle.ts employee_rules query includes archetype_id=eq.${archetypeId} filter', () => {
     const src = readFileSync(join(process.cwd(), 'src/inngest/employee-lifecycle.ts'), 'utf-8');
     expect(src).toContain('archetype_id=eq.${archetypeId}');
-    expect(src).toContain('/rest/v1/employee_rules');
+    expect(src).toContain("'employee_rules'");
   });
 
   it('rule-synthesizer.ts employee_rules query includes tenant_id=eq.${tenantId} filter', () => {
