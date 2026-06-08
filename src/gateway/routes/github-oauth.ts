@@ -6,6 +6,7 @@ import { TenantRepository } from '../services/tenant-repository.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
+import { sendError } from '../lib/http-response.js';
 
 export interface GitHubOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -35,21 +36,21 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
   router.get('/github/install', async (req, res) => {
     const tenantSlug = req.query['tenant'];
     if (!tenantSlug || typeof tenantSlug !== 'string') {
-      res.status(400).json({ error: 'MISSING_TENANT' });
+      sendError(res, 400, 'MISSING_TENANT');
       return;
     }
 
     try {
       const tenant = await tenantRepo.findBySlug(tenantSlug);
       if (!tenant) {
-        res.status(400).json({ error: 'TENANT_NOT_FOUND' });
+        sendError(res, 400, 'TENANT_NOT_FOUND');
         return;
       }
 
       const appName = process.env.GITHUB_APP_NAME;
       if (!appName) {
         logger.error('GITHUB_APP_NAME not configured — GitHub App install unavailable');
-        res.status(503).json({ error: 'GITHUB_APP_NAME not configured' });
+        sendError(res, 503, 'GITHUB_APP_NAME not configured');
         return;
       }
 
@@ -65,7 +66,7 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
       res.redirect(302, url);
     } catch (err) {
       logger.error({ err }, 'Failed to generate GitHub App install link');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
@@ -83,7 +84,7 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
     };
 
     if (!installation_id || !state) {
-      res.status(400).json({ error: 'MISSING_PARAMS' });
+      sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
 
@@ -95,7 +96,7 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
       parsed = null;
     }
     if (!parsed) {
-      res.status(400).json({ error: 'INVALID_STATE' });
+      sendError(res, 400, 'INVALID_STATE');
       return;
     }
 
@@ -113,7 +114,7 @@ export function githubOAuthRoutes(opts: GitHubOAuthRouteOptions = {}): Router {
       res.redirect(302, `/dashboard/integrations?tenant=${tenantId}&connected=github`);
     } catch (err) {
       logger.error({ err }, 'GitHub App callback failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 

@@ -8,6 +8,7 @@ import {
   CreateRuleBodySchema,
   UpdateRuleBodySchema,
 } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('admin-rules');
 
@@ -25,13 +26,13 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
     async (req, res) => {
       const paramsResult = RuleArchetypeParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: paramsResult.error.issues });
         return;
       }
 
       const bodyResult = CreateRuleBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
 
@@ -44,9 +45,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         });
 
         if (!archetype) {
-          res
-            .status(404)
-            .json({ error: 'NOT_FOUND', message: 'Archetype not found for this tenant' });
+          sendError(res, 404, 'NOT_FOUND', 'Archetype not found for this tenant');
           return;
         }
 
@@ -64,7 +63,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         res.status(201).json(rule);
       } catch (err) {
         logger.error({ err }, 'Failed to create employee rule');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -75,13 +74,13 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
     async (req, res) => {
       const paramsResult = RuleIdParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: paramsResult.error.issues });
         return;
       }
 
       const bodyResult = UpdateRuleBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
 
@@ -94,9 +93,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         });
 
         if (!archetype) {
-          res
-            .status(404)
-            .json({ error: 'NOT_FOUND', message: 'Archetype not found for this tenant' });
+          sendError(res, 404, 'NOT_FOUND', 'Archetype not found for this tenant');
           return;
         }
 
@@ -110,7 +107,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         });
 
         if (result.count === 0) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
 
@@ -121,7 +118,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         res.status(200).json(updated);
       } catch (err) {
         logger.error({ err }, 'Failed to update employee rule');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );
@@ -132,7 +129,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
     async (req, res) => {
       const paramsResult = RuleIdParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: paramsResult.error.issues });
         return;
       }
 
@@ -145,9 +142,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         });
 
         if (!archetype) {
-          res
-            .status(404)
-            .json({ error: 'NOT_FOUND', message: 'Archetype not found for this tenant' });
+          sendError(res, 404, 'NOT_FOUND', 'Archetype not found for this tenant');
           return;
         }
 
@@ -156,14 +151,14 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
         });
 
         if (result.count === 0) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, 'NOT_FOUND');
           return;
         }
 
         res.status(204).send();
       } catch (err) {
         logger.error({ err }, 'Failed to delete employee rule');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     },
   );

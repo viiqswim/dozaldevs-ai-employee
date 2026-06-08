@@ -5,6 +5,7 @@ import type { Prisma } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantRepository } from '../services/tenant-repository.js';
 import { TenantIdParamSchema, TenantConfigBodySchema } from '../validation/schemas.js';
+import { sendError } from '../lib/http-response.js';
 
 export interface AdminTenantConfigRouteOptions {
   prisma?: PrismaClient;
@@ -43,37 +44,37 @@ export function adminTenantConfigRoutes(opts: AdminTenantConfigRouteOptions = {}
   router.get('/admin/tenants/:tenantId/config', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, 'INVALID_ID');
       return;
     }
     try {
       const tenant = await repo.findById(paramResult.data.tenantId);
       if (!tenant) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
       res.status(200).json(tenant.config ?? {});
     } catch (err) {
       logger.error({ err }, 'Failed to get config');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.patch('/admin/tenants/:tenantId/config', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, 'INVALID_ID');
       return;
     }
     const bodyResult = TenantConfigBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
       return;
     }
     try {
       const tenant = await repo.findById(paramResult.data.tenantId);
       if (!tenant) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
       const existing =
@@ -87,7 +88,7 @@ export function adminTenantConfigRoutes(opts: AdminTenantConfigRouteOptions = {}
       res.status(200).json(updated.config ?? {});
     } catch (err) {
       logger.error({ err }, 'Failed to update config');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 

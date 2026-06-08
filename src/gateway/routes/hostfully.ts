@@ -7,6 +7,7 @@ import type { InngestLike } from '../types.js';
 import { parseHostfullyWebhook } from '../validation/schemas.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { checkLastMessageSender } from '../../lib/hostfully-precheck.js';
+import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('hostfully');
 
@@ -27,7 +28,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
     } catch (error) {
       if (error instanceof ZodError) {
         logger.warn({ issues: error.issues }, 'Invalid Hostfully webhook payload');
-        res.status(400).json({ error: 'Invalid payload', details: error.issues });
+        sendError(res, 400, 'Invalid payload', undefined, { details: error.issues });
         return;
       }
       throw error;
@@ -44,7 +45,7 @@ export function hostfullyRoutes(opts: HostfullyRouteOptions = {}): Router {
 
     if (!lead_uid) {
       logger.warn({ message_uid }, 'NEW_INBOX_MESSAGE webhook missing lead_uid');
-      res.status(400).json({ error: 'lead_uid is required for NEW_INBOX_MESSAGE events' });
+      sendError(res, 400, 'lead_uid is required for NEW_INBOX_MESSAGE events');
       return;
     }
 

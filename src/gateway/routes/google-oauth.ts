@@ -6,6 +6,7 @@ import { TenantRepository } from '../services/tenant-repository.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
+import { sendError } from '../lib/http-response.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -43,20 +44,20 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
   router.get('/google/install', async (req, res) => {
     const tenantSlug = req.query['tenant'];
     if (!tenantSlug || typeof tenantSlug !== 'string') {
-      res.status(400).json({ error: 'MISSING_TENANT' });
+      sendError(res, 400, 'MISSING_TENANT');
       return;
     }
 
     try {
       const tenant = await tenantRepo.findBySlug(tenantSlug);
       if (!tenant) {
-        res.status(400).json({ error: 'TENANT_NOT_FOUND' });
+        sendError(res, 400, 'TENANT_NOT_FOUND');
         return;
       }
 
       const clientId = process.env.GOOGLE_CLIENT_ID;
       if (!clientId) {
-        res.status(400).json({ error: 'GOOGLE_CLIENT_ID not configured' });
+        sendError(res, 400, 'GOOGLE_CLIENT_ID not configured');
         return;
       }
 
@@ -83,7 +84,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
       res.redirect(302, url);
     } catch (err) {
       logger.error({ err }, 'Failed to generate Google install link');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
@@ -104,14 +105,14 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
     }
 
     if (!code || !state) {
-      res.status(400).json({ error: 'MISSING_PARAMS' });
+      sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
 
     const signingKey = process.env.ENCRYPTION_KEY ?? '';
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
-      res.status(400).json({ error: 'INVALID_STATE' });
+      sendError(res, 400, 'INVALID_STATE');
       return;
     }
 
@@ -121,7 +122,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
       const clientId = process.env.GOOGLE_CLIENT_ID;
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
       if (!clientId || !clientSecret) {
-        res.status(503).json({ error: 'Google OAuth not configured' });
+        sendError(res, 503, 'Google OAuth not configured');
         return;
       }
 
@@ -152,7 +153,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
 
       if (!tokenData.access_token) {
         logger.error({ error: tokenData.error }, 'Google OAuth token exchange failed');
-        res.status(400).json({ error: 'GOOGLE_OAUTH_FAILED', detail: tokenData.error });
+        sendError(res, 400, 'GOOGLE_OAUTH_FAILED', undefined, { detail: tokenData.error });
         return;
       }
 
@@ -169,7 +170,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
 
       if (!userinfo.sub) {
         logger.error({ userinfo }, 'Google userinfo missing sub field');
-        res.status(400).json({ error: 'GOOGLE_USERINFO_FAILED' });
+        sendError(res, 400, 'GOOGLE_USERINFO_FAILED');
         return;
       }
 
@@ -177,10 +178,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
 
       const existingIntegration = await integrationRepo.findByExternalId('google', sub);
       if (existingIntegration && existingIntegration.tenant_id !== tenantId) {
-        res.status(409).json({
-          error: 'CONFLICT',
-          message: 'Google account already attached to a different tenant',
-        });
+        sendError(res, 409, 'CONFLICT', 'Google account already attached to a different tenant');
         return;
       }
 
@@ -213,7 +211,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
       );
     } catch (err) {
       logger.error({ err }, 'Google OAuth callback failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 

@@ -7,6 +7,7 @@ import {
   GoogleReauthRequiredError,
   GoogleWorkspaceSessionExpiredError,
 } from '../services/google-token-manager.js';
+import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('internal-google-token');
 
@@ -23,19 +24,19 @@ export function internalGoogleTokenRoutes(opts: InternalGoogleTokenRouteOptions 
     const headerTaskId = req.headers['x-task-id'];
 
     if (!headerTaskId || headerTaskId !== taskId) {
-      res.status(400).json({ error: 'X-Task-ID header missing or does not match task ID' });
+      sendError(res, 400, 'X-Task-ID header missing or does not match task ID');
       return;
     }
 
     try {
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
-        res.status(404).json({ error: 'Task not found' });
+        sendError(res, 404, 'Task not found');
         return;
       }
 
       if (task.status !== 'Executing' && task.status !== 'Delivering') {
-        res.status(403).json({ error: 'Task is not in Executing or Delivering state' });
+        sendError(res, 403, 'Task is not in Executing or Delivering state');
         return;
       }
 
@@ -50,30 +51,34 @@ export function internalGoogleTokenRoutes(opts: InternalGoogleTokenRouteOptions 
       });
     } catch (err) {
       if (err instanceof GoogleNotConnectedError) {
-        res.status(404).json({
-          error: 'google_not_connected',
-          message:
-            'Google is not connected for this tenant. Ask the admin to connect Google in the dashboard.',
-        });
+        sendError(
+          res,
+          404,
+          'google_not_connected',
+          'Google is not connected for this tenant. Ask the admin to connect Google in the dashboard.',
+        );
         return;
       }
       if (err instanceof GoogleReauthRequiredError) {
-        res.status(401).json({
-          error: 'google_reauth_required',
-          message:
-            'Google authorization has expired or been revoked. Ask the admin to reconnect Google.',
-        });
+        sendError(
+          res,
+          401,
+          'google_reauth_required',
+          'Google authorization has expired or been revoked. Ask the admin to reconnect Google.',
+        );
         return;
       }
       if (err instanceof GoogleWorkspaceSessionExpiredError) {
-        res.status(401).json({
-          error: 'google_workspace_session_expired',
-          message: 'Google Workspace session policy requires re-authentication.',
-        });
+        sendError(
+          res,
+          401,
+          'google_workspace_session_expired',
+          'Google Workspace session policy requires re-authentication.',
+        );
         return;
       }
       logger.error({ err, taskId }, 'Failed to get Google access token');
-      res.status(500).json({ error: 'Failed to get Google token' });
+      sendError(res, 500, 'Failed to get Google token');
     }
   });
 

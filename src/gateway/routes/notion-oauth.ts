@@ -7,6 +7,7 @@ import { TenantSecretRepository } from '../services/tenant-secret-repository.js'
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { NOTION_AUTH_URL, NOTION_TOKEN_URL } from '../../lib/notion-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
+import { sendError } from '../lib/http-response.js';
 
 export interface NotionOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -23,20 +24,20 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
   router.get('/notion/install', async (req, res) => {
     const tenantSlug = req.query['tenant'];
     if (!tenantSlug || typeof tenantSlug !== 'string') {
-      res.status(400).json({ error: 'MISSING_TENANT' });
+      sendError(res, 400, 'MISSING_TENANT');
       return;
     }
 
     try {
       const tenant = await tenantRepo.findBySlug(tenantSlug);
       if (!tenant) {
-        res.status(400).json({ error: 'TENANT_NOT_FOUND' });
+        sendError(res, 400, 'TENANT_NOT_FOUND');
         return;
       }
 
       const clientId = process.env.NOTION_CLIENT_ID;
       if (!clientId) {
-        res.status(400).json({ error: 'NOTION_CLIENT_ID not configured' });
+        sendError(res, 400, 'NOTION_CLIENT_ID not configured');
         return;
       }
 
@@ -60,21 +61,21 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
       res.redirect(302, url);
     } catch (err) {
       logger.error({ err }, 'Failed to generate Notion install link');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.get('/notion/callback', async (req, res) => {
     const { code, state } = req.query as { code?: string; state?: string };
     if (!code || !state) {
-      res.status(400).json({ error: 'MISSING_PARAMS' });
+      sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
 
     const signingKey = process.env.ENCRYPTION_KEY ?? '';
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
-      res.status(400).json({ error: 'INVALID_STATE' });
+      sendError(res, 400, 'INVALID_STATE');
       return;
     }
 
@@ -84,7 +85,7 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
       const clientId = process.env.NOTION_CLIENT_ID;
       const clientSecret = process.env.NOTION_CLIENT_SECRET;
       if (!clientId || !clientSecret) {
-        res.status(503).json({ error: 'Notion OAuth not configured' });
+        sendError(res, 503, 'Notion OAuth not configured');
         return;
       }
 
@@ -121,7 +122,7 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
 
       if (!tokenData.access_token || !tokenData.workspace_id) {
         logger.error({ error: tokenData.error }, 'Notion OAuth token exchange failed');
-        res.status(400).json({ error: 'NOTION_OAUTH_FAILED', detail: tokenData.error });
+        sendError(res, 400, 'NOTION_OAUTH_FAILED', undefined, { detail: tokenData.error });
         return;
       }
 
@@ -129,10 +130,7 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
 
       const existingIntegration = await integrationRepo.findByExternalId('notion', workspaceId);
       if (existingIntegration && existingIntegration.tenant_id !== tenantId) {
-        res.status(409).json({
-          error: 'CONFLICT',
-          message: 'Notion workspace already attached to a different tenant',
-        });
+        sendError(res, 409, 'CONFLICT', 'Notion workspace already attached to a different tenant');
         return;
       }
 
@@ -156,7 +154,7 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
       res.redirect(302, dashboardUrl);
     } catch (err) {
       logger.error({ err }, 'Notion OAuth callback failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
