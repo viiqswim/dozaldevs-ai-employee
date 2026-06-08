@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 
+import { createHttpClient } from '../../lib/http-client.js';
+
 interface CachedToken {
   token: string;
   expires_at: string;
@@ -71,17 +73,18 @@ export async function generateInstallationToken(
 
   const jwt = generateAppJwt(appId, normalizedKey);
 
-  const response = await fetch(
-    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+  const http = createHttpClient(
+    'https://api.github.com',
     {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
+      Authorization: `Bearer ${jwt}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
     },
+    { service: 'github' },
   );
+
+  const response = await http.post(`/app/installations/${installationId}/access_tokens`, {});
 
   if (!response.ok) {
     const body = await response.text();
