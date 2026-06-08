@@ -10,7 +10,7 @@ import {
   createTaskFromJiraWebhook,
   cancelTaskByExternalId,
 } from '../services/jira-task-creation.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('jira-webhook');

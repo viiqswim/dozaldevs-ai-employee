@@ -1,3 +1,10 @@
+/**
+ * Assembles a worker-env record from tenant config + encrypted secrets.
+ *
+ * Location rationale: Depends on TenantRepository and TenantSecretRepository
+ * (both Prisma-backed). Lives in `src/repositories/` alongside them so that
+ * `src/inngest/` can import without crossing into the Gateway layer.
+ */
 import { resolveNotificationChannel } from './notification-channel.js';
 import type { TenantRepository } from './tenant-repository.js';
 import type { TenantSecretRepository } from './tenant-secret-repository.js';
@@ -76,7 +83,6 @@ export async function loadTenantEnv(
     env['PUBLISH_CHANNEL'] = publishChannel;
   }
 
-  // Manifest of business env vars available to the worker (excludes platform infrastructure)
   const manifestKeys = Object.keys(env).filter(
     (k) => !PLATFORM_ENV_WHITELIST.includes(k) && k !== 'PLATFORM_ENV_MANIFEST',
   );

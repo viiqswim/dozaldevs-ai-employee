@@ -33,15 +33,15 @@ vi.mock('@prisma/client', () => ({
   })),
 }));
 
-vi.mock('../../../src/gateway/services/tenant-env-loader.js', () => ({
+vi.mock('../../../src/repositories/tenant-env-loader.js', () => ({
   loadTenantEnv: vi.fn().mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test' }),
 }));
 
-vi.mock('../../../src/gateway/services/tenant-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-repository.js', () => ({
   TenantRepository: vi.fn().mockImplementation(() => ({})),
 }));
 
-vi.mock('../../../src/gateway/services/tenant-secret-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn().mockImplementation(() => ({})),
 }));
 

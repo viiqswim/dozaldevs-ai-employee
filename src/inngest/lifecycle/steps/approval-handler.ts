@@ -11,9 +11,9 @@ import { buildHostfullyLink } from '../../../lib/enrichment-adapters/hostfully.j
 import { supersededMessage, expiredMessage } from '../../../lib/slack-copy.js';
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
-import { loadTenantEnv } from '../../../gateway/services/tenant-env-loader.js';
-import { TenantRepository } from '../../../gateway/services/tenant-repository.js';
-import { TenantSecretRepository } from '../../../gateway/services/tenant-secret-repository.js';
+import { loadTenantEnv } from '../../../repositories/tenant-env-loader.js';
+import { TenantRepository } from '../../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../../repositories/tenant-secret-repository.js';
 import type { KnownBlock } from '@slack/web-api';
 import type { NotificationEnrichment } from '../../../lib/types/notification-enrichment.js';
 import type { runDeliveryWithRetry } from './delivery-retry.js';

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../../setup.js';
-import { TenantRepository } from '../../../../src/gateway/services/tenant-repository.js';
+import { TenantRepository } from '../../../../src/repositories/tenant-repository.js';
 
 const DOZALDEVS_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const VLRE_TENANT_ID = '00000000-0000-0000-0000-000000000003';

@@ -23,13 +23,13 @@ vi.mock('../../../src/lib/extract-inputs.js', () => ({
   extractInputsFromText: mockExtractInputsFromText,
   stripFences: (s: string) => s,
 }));
-vi.mock('../../../src/gateway/services/tenant-env-loader.js', () => ({
+vi.mock('../../../src/repositories/tenant-env-loader.js', () => ({
   loadTenantEnv: mockLoadTenantEnv,
 }));
-vi.mock('../../../src/gateway/services/tenant-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-repository.js', () => ({
   TenantRepository: vi.fn(() => ({})),
 }));
-vi.mock('../../../src/gateway/services/tenant-secret-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn(() => ({})),
 }));
 vi.mock('../../../src/gateway/services/interaction-classifier.js', () => ({

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { WebClient } from '@slack/web-api';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { sendError } from '../lib/http-response.js';
 
 export interface AdminSlackChannelsRouteOptions {

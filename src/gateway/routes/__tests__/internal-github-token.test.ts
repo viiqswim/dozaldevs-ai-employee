@@ -8,7 +8,7 @@ const { mockTaskFindUnique, mockSecretGet, mockGenerateInstallationToken } = vi.
   mockGenerateInstallationToken: vi.fn(),
 }));
 
-vi.mock('../../services/tenant-secret-repository.js', () => ({
+vi.mock('../../../repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn(() => ({
     get: mockSecretGet,
   })),

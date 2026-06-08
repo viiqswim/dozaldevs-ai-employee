@@ -7,7 +7,7 @@ import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
 import { sendError } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
 import { buildEnvManifestFromVars } from '../../workers/lib/env-manifest-builder.mjs';

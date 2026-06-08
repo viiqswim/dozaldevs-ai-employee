@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../../setup.js';
 import { TenantIntegrationRepository } from '../../../../src/gateway/services/tenant-integration-repository.js';
-import { TenantRepository } from '../../../../src/gateway/services/tenant-repository.js';
+import { TenantRepository } from '../../../../src/repositories/tenant-repository.js';
 
 let repo: TenantIntegrationRepository;
 let tenantRepo: TenantRepository;

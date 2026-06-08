@@ -19,7 +19,7 @@ vi.mock('../../services/tenant-integration-repository.js', () => ({
   })),
 }));
 
-vi.mock('../../services/tenant-secret-repository.js', () => ({
+vi.mock('../../../repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn(() => ({
     delete: mockSecretDelete,
   })),

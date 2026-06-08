@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import { hostfullyRoutes } from '../../../src/gateway/routes/hostfully.js';
 
-vi.mock('../../../src/gateway/services/tenant-secret-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn().mockImplementation(() => ({
     get: vi.fn().mockResolvedValue(null),
   })),

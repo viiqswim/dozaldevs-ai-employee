@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveNotificationChannel } from '../../../../src/gateway/services/notification-channel.js';
+import { resolveNotificationChannel } from '../../../../src/repositories/notification-channel.js';
 
 describe('resolveNotificationChannel', () => {
   it('returns archetype value when archetype has a notification_channel', () => {

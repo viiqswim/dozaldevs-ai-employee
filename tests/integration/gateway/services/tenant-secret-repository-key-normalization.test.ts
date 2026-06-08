@@ -6,7 +6,7 @@ vi.mock('../../../../src/lib/encryption.js', () => ({
   decrypt: vi.fn(() => 'decrypted'),
 }));
 
-import { TenantSecretRepository } from '../../../../src/gateway/services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../../../src/repositories/tenant-secret-repository.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000003';
 

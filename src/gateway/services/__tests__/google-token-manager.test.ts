@@ -10,7 +10,7 @@ import {
 const mockGet = vi.fn();
 const mockSet = vi.fn();
 
-vi.mock('../tenant-secret-repository.js', () => ({
+vi.mock('../../../repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn().mockImplementation(() => ({
     get: mockGet,
     set: mockSet,

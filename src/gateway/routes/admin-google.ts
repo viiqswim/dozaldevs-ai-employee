@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { clearTokenCache } from '../services/google-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';

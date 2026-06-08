@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantRepository } from '../services/tenant-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
 import {
   CreateTenantBodySchema,
   UpdateTenantBodySchema,

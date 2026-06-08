@@ -1,5 +1,13 @@
+/**
+ * Tenant secrets data-access repository.
+ *
+ * Location rationale: Uses Prisma; consumed by both `src/inngest/` and
+ * `src/gateway/`. Lives in `src/repositories/` so Inngest can import it
+ * without crossing into the Gateway layer. Worker containers MUST NOT
+ * import this module — they read secrets via PostgREST + loadTenantEnv.
+ */
 import type { PrismaClient } from '@prisma/client';
-import { encrypt, decrypt } from '../../lib/encryption.js';
+import { encrypt, decrypt } from '../lib/encryption.js';
 
 export type SecretMeta = {
   key: string;

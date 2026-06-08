@@ -6,9 +6,9 @@ import {
   resolveArchetypeFromChannel,
 } from '../gateway/services/interaction-classifier.js';
 import { callLLM } from '../lib/call-llm.js';
-import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
-import { TenantRepository } from '../gateway/services/tenant-repository.js';
-import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
+import { loadTenantEnv } from '../repositories/tenant-env-loader.js';
+import { TenantRepository } from '../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../repositories/tenant-secret-repository.js';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';

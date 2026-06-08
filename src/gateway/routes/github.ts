@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('github-webhook');

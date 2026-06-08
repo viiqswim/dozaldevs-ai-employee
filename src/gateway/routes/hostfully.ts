@@ -5,7 +5,7 @@ import { ZodError } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../types.js';
 import { parseHostfullyWebhook } from '../validation/schemas.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { checkLastMessageSender } from '../../lib/hostfully-precheck.js';
 import { sendError } from '../lib/http-response.js';
 

@@ -3,7 +3,7 @@ import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantRepository } from '../services/tenant-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
 import { TenantIdParamSchema, TenantConfigBodySchema } from '../validation/schemas.js';
 import { sendError } from '../lib/http-response.js';
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { vi } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../../setup.js';
-import { TenantSecretRepository } from '../../../../src/gateway/services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../../../src/repositories/tenant-secret-repository.js';
 
 const VALID_KEY = 'a'.repeat(64);
 // Use test-only UUIDs to avoid colliding with production-seeded tenants

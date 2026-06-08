@@ -1,3 +1,13 @@
+/**
+ * Tenant data-access repository.
+ *
+ * Location rationale: This module uses Prisma and is consumed by both
+ * `src/inngest/` and `src/gateway/`. Placing it in `src/repositories/`
+ * (rather than `src/gateway/services/`) keeps the layer boundary clean —
+ * Inngest functions should never import from the Gateway layer.
+ *
+ * Worker containers MUST NOT import from this module (they use PostgREST).
+ */
 import type { PrismaClient, Tenant, Prisma } from '@prisma/client';
 
 export type TenantPatch = {

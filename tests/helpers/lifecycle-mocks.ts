@@ -15,11 +15,11 @@ import type { Mock } from 'vitest';
  * ```ts
  * import { it, expect, vi } from 'vitest';
  * import * as flyClient from '../../../src/lib/fly-client.js';
- * import { loadTenantEnv } from '../../../src/gateway/services/tenant-env-loader.js';
+ * import { loadTenantEnv } from '../../../src/repositories/tenant-env-loader.js';
  * import { createLifecycleMocks } from '../../helpers/lifecycle-mocks.js';
  *
  * vi.mock('../../../src/lib/fly-client.js', () => createLifecycleMocks().flyClient);
- * vi.mock('../../../src/gateway/services/tenant-env-loader.js', () =>
+ * vi.mock('../../../src/repositories/tenant-env-loader.js', () =>
  *   createLifecycleMocks().tenantEnvLoader,
  * );
  *
@@ -41,7 +41,7 @@ import type { Mock } from 'vitest';
  *
  * ```ts
  * const mocks = createLifecycleMocks();
- * vi.mock('../../../src/gateway/services/tenant-repository.js', () => mocks.tenantRepository);
+ * vi.mock('../../../src/repositories/tenant-repository.js', () => mocks.tenantRepository);
  * mocks.instances.tenantRepository.findById.mockResolvedValue({ id: 't1', slug: 'vlre' });
  * ```
  *

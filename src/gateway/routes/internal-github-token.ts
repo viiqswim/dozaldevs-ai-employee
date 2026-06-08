@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { generateInstallationToken } from '../services/github-token-manager.js';
 import { sendError } from '../lib/http-response.js';
 

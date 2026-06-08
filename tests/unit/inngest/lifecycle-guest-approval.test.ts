@@ -43,15 +43,15 @@ vi.mock('../../../src/lib/slack-client.js', () => ({
   createSlackClient: mockCreateSlackClient,
 }));
 
-vi.mock('../../../src/gateway/services/tenant-env-loader.js', () => ({
+vi.mock('../../../src/repositories/tenant-env-loader.js', () => ({
   loadTenantEnv: mockLoadTenantEnv,
 }));
 
-vi.mock('../../../src/gateway/services/tenant-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-repository.js', () => ({
   TenantRepository: vi.fn().mockImplementation(() => ({})),
 }));
 
-vi.mock('../../../src/gateway/services/tenant-secret-repository.js', () => ({
+vi.mock('../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn().mockImplementation(() => ({})),
 }));
 

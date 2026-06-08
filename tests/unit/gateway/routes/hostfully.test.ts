@@ -8,7 +8,7 @@ const { mockSecretGet, mockCheckLastMessageSender } = vi.hoisted(() => ({
   mockCheckLastMessageSender: vi.fn().mockResolvedValue({ lastSenderIsHost: false }),
 }));
 
-vi.mock('../../../../src/gateway/services/tenant-secret-repository.js', () => ({
+vi.mock('../../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn().mockImplementation(() => ({ get: mockSecretGet })),
 }));
 

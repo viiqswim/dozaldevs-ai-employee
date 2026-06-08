@@ -37,6 +37,31 @@ Full deprecated component details: [AGENTS.md](AGENTS.md) — "Deprecated Compon
 
 ---
 
+## Code Layer Boundaries
+
+The codebase enforces strict import direction rules. Never cross these boundaries:
+
+| Layer               | Path                                     | May import from                                              |
+| ------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| `src/gateway/`      | HTTP server, routes, Slack Bolt handlers | `src/lib/`, `src/repositories/`                              |
+| `src/inngest/`      | Durable workflow functions               | `src/lib/`, `src/repositories/`                              |
+| `src/repositories/` | Prisma-backed data-access objects        | `src/lib/`                                                   |
+| `src/lib/`          | Shared utilities                         | external packages only                                       |
+| `src/workers/`      | Worker container harness                 | `src/workers/lib/`, NOT `src/repositories/` (uses PostgREST) |
+
+**`src/repositories/`** is the neutral shared layer for Prisma-backed repositories that are consumed by both `src/inngest/` and `src/gateway/`. Files here:
+
+- `tenant-repository.ts` — CRUD for the `tenants` table
+- `tenant-secret-repository.ts` — encrypted secrets CRUD for the `tenant_secrets` table
+- `tenant-env-loader.ts` — assembles the worker env-var map from tenant config + secrets
+- `notification-channel.ts` — pure helper used by `tenant-env-loader.ts`
+
+**Rule**: `src/inngest/` must NEVER import from `src/gateway/` (one-way dependency). If you need shared data-access logic in both, add it to `src/repositories/` — NOT `src/gateway/services/`.
+
+**Worker containers** (everything under `src/workers/` and `src/worker-tools/`) MUST NOT import from `src/repositories/` — they use PostgREST via `src/workers/lib/postgrest-client.ts` to avoid Prisma in the worker bundle.
+
+---
+
 ## Task-Creation Paths
 
 Two patterns exist for creating tasks. Use the right one for your context.

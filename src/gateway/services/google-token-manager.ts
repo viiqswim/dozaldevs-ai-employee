@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import type { PrismaClient } from '@prisma/client';
-import { TenantSecretRepository } from './tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 
 export class GoogleNotConnectedError extends Error {
   readonly code = 'google_not_connected';

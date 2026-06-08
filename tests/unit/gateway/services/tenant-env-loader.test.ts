@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { loadTenantEnv } from '../../../../src/gateway/services/tenant-env-loader.js';
+import { loadTenantEnv } from '../../../../src/repositories/tenant-env-loader.js';
 
 const TENANT_A_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 const TENANT_B_ID = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6';
