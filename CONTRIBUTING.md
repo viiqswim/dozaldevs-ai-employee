@@ -250,7 +250,7 @@ Reference: `tests/helpers/lifecycle-mocks.ts` (JSDoc usage example at the top) a
 
 ## API Error Responses
 
-All gateway routes use a standard error body format. Use `sendError` from `src/gateway/lib/http-response.ts` — never call `res.status(...).json(...)` directly for errors.
+All gateway routes use a standard response format. Use `sendError` from `src/gateway/lib/http-response.ts` for all error responses and `sendSuccess` for all 2xx responses — never call `res.status(...).json(...)` directly. `sendSuccess(res, status, body?)` sends `res.status(status).json(body)` when body is present, `res.status(status).end()` when absent — no envelope wrapping.
 
 ### Standard error body
 
@@ -311,6 +311,7 @@ A few rules that catch most mistakes:
 - **URL-encode all navigatable state** — tabs, filters, and modals must reflect state in the URL via query params
 - **End-user language is non-technical** — "Organization" not "Tenant", "Employee setup" not "Archetype configuration"
 - **`pnpm exec tsx`** not bare `tsx` — tsx is not on PATH in this project
+- **`src/worker-tools/knowledge_base/` uses snake_case intentionally** — All other tool directories use kebab-case (e.g. `slack/`, `hostfully/`). `knowledge_base/` is the lone exception: it matches the Docker image path `/tools/knowledge_base/` exactly. Do not rename it to `knowledge-base/`.
 
 Full conventions: [AGENTS.md](AGENTS.md) — "Key Conventions" section.
 

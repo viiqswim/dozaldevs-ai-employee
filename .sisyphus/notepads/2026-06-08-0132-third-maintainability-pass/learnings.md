@@ -731,3 +731,10 @@ Decomposed `dashboard/src/panels/employees/EmployeeDetail.tsx` from 635 lines �
 - Build: `pnpm dashboard:build` → EXIT_CODE:0, 2200 modules, no new warnings
 - Playwright: `/dashboard/settings?tenant=00000000-0000-0000-0000-000000000003` — clicked Edit on `cost_alert_slack_channel`, textbox + Save + Cancel buttons rendered correctly
 - Evidence: `.sisyphus/evidence/task-28-settings.png`
+
+## Task 31 — sendSuccess doc rot + knowledge_base naming exception
+
+- **AGENTS.md line 500** had an incomplete `sendError` convention entry that only mentioned `sendSuccess` in passing ("Paired with `sendSuccess()` for 2xx responses"). Updated to a full dual-helper entry covering both `sendError()` and `sendSuccess()` with exact signatures and behavior.
+- **`knowledge_base` snake_case exception** was already documented in AGENTS.md Key Conventions (line ~501 after edit) but was NOT in CONTRIBUTING.md. Added to both files.
+- CONTRIBUTING.md "API Error Responses" section only mentioned `sendError` — updated to also document `sendSuccess` for 2xx responses.
+- CONTRIBUTING.md "Key Conventions" section now has the `knowledge_base` snake_case exception bullet.
