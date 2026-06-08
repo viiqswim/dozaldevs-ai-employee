@@ -469,6 +469,46 @@ During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id
 
 ### Commit: bee00b5d
 
+## [Task 22] reviewing-path and no-approval-path unit tests (2026-06-08)
+
+### Test approach
+
+- Both modules tested via **direct invocation** (not InngestTestEngine): `runReviewingPath(ctx, step)` / `runNoApprovalPath(ctx, step)`
+- `step` mock pattern: `{ run: vi.fn().mockImplementation(async (_id, fn) => fn()), waitForEvent: vi.fn() }` — executes all step fns immediately
+- `inngest.send` mock: `vi.spyOn(inngest, 'send').mockResolvedValue(undefined as any)` — overloaded return type requires `as any`
+
+### reviewing-path.test.ts (16 tests)
+
+- handle-approval-result routing: approve/supersede/reject/expiry branches
+- waitForEvent called with correct event name, match, timeout
+- set-reviewing step: patches task to Reviewing, logs transition
+- record-work-metric-approval: only records when status=Done, skips when Cancelled
+- cleanup step: calls stopLocalDockerContainer for docker\_ machineId
+- check-supersede: no supersede when no thread_uid/conversation_ref, same-task skips, different-task Reviewing sends supersede event, stale Done task clears pending approval
+- track-pending-approval: tracks when approval_message_ts present, skips when missing
+- update-notify-reviewing: step invoked even when notifyMsgRef is null
+
+### no-approval-path.test.ts (12 tests)
+
+- NO_ACTION_NEEDED + no delivery_instructions: patches Done, skips delivery, cleans up, records metric
+- NEEDS_APPROVAL deliverable: patches Delivering, runs delivery with approvalRequired=false, records metric
+- delivery status=done: complete-after-delivery step runs; non-done: step is skipped
+- No deliverable_type: patches Done, skips delivery, cleans up, records metric
+- No deliverable found: falls through to delivery (safe fallback)
+- NO_ACTION_NEEDED + delivery_instructions set: proceeds to delivery
+
+### Import path gotchas
+
+- `no-approval-path.ts` imports `cleanupExecutionMachine` and `safeRecordWorkMetric` from `src/inngest/lifecycle/steps/lifecycle-helpers.js` (step-level), NOT `src/inngest/lib/lifecycle-helpers.js`
+- `loadTenantSlack` imported from `src/inngest/lifecycle/steps/notify-and-track.js` — mock at that path
+- `reviewing-path.ts` private helpers (`checkSupersede`, `trackPendingApprovalStep`) are NOT exported — tested through `runReviewingPath`
+
+### Results
+
+- 129 test files, 1485 passed, 9 skipped, 0 failures (unit suite)
+- 48 integration test files, 436 passed, 17 skipped, 0 failures (integration suite)
+- Commit: c7958bce
+
 ## [Task 22] orphan test recovery
 
 - `tests/gateway/inngest-send.test.ts` was orphaned outside the vitest include glob (`tests/unit/**`)
@@ -523,3 +563,39 @@ During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id
 ### Commit scope discipline
 
 - Concurrent Wave 5 tasks (21 cleanupTestData, 23 config consolidation) left `tests/setup.ts` + `tests/unit/lib/config.test.ts` modified — staged ONLY my 14 files, never `git add -A`.
+
+## [Task 27] triage / validate-submit / notify-track unit tests (2026-06-08)
+
+### Test approach
+
+- Same direct-invocation pattern as Task 22 (reviewing-path / no-approval-path): call the exported fn with a hand-rolled `step` mock whose `run` executes each step body immediately and returns its value.
+- `createLifecycleMocks()` does NOT fit these three — they mock `createSlackClient` (from `src/lib/slack-client.js`) and the step-level + lib-level helpers directly, none of which the factory covers. The factory targets the dependency layer (WebClient, fly-client, repos) used by the top-level employee-lifecycle, not these decomposed step modules.
+
+### triage-and-ready.test.ts (12 tests)
+
+- load-task guard: NonRetriableError on empty rows, throw on missing tenant_id
+- approval/timeout derivation: approval_required true→true + custom timeout_hours; false→false + default 24h; risk_model absent entirely→false + 24h
+- state transitions: Triaging→AwaitingInput→Ready patches + matching status-log fromStatus args
+- notify-received: null ref when loadTenantSlack returns null; happy-path postMessage + mergeTaskMetadata; superseded path updates in place via createSlackClient and skips postMessage; superseded update failure falls back to postMessage; enrichment adapter invoked + passed into notifyBlocks; loadTenantSlack throw is swallowed (returns { ts:null, channel:null } WITHOUT enrichment key)
+
+### validate-and-submit.test.ts (8 tests)
+
+- validating→submitting transitions + ordering (stepIds.indexOf assertion)
+- routing: approvalRequired=false → runNoApprovalPath only; approvalRequired=true + override returns false → runReviewingPath; override returns true → short-circuits, reviewing skipped
+- context-forwarding assertions (tenantId, machineId, timeoutHours, inngest) into each sub-path
+
+### notify-track.test.ts (10 tests)
+
+- loadTenantSlack: token-present → populated ctx + createSlackClient args; empty NOTIFICATION_CHANNEL → channel ''; archetype channel forwarded to loadTenantEnv; missing token → null; empty-string token → null; prisma.$disconnect on success AND on loadTenantEnv throw (finally block)
+- loadTenantEnvFull: returns full env map + forwards channel arg; $disconnect on throw
+
+### Gotchas
+
+- **TaskRowOpts destructuring trap**: passing `riskModel: undefined` triggers the JS default value (`{ approval_required: true }`) instead of omitting the key. To test the "risk_model absent" branch, the test-helper needed an explicit `omitRiskModel: boolean` flag, not `riskModel: undefined`. This is a test-helper bug, not a source bug — caught it on first suite run.
+- **Asymmetric return shape (current behavior, NOT a bug)**: triage notify-received early-return (no Slack ctx) yields `{ ts:null, channel:null, enrichment:null }` but the catch-block fallback yields `{ ts:null, channel:null }` (no enrichment key). Tests assert both shapes exactly as-is per "assert current behavior" rule.
+- **Comment hook**: the comment-detection hook flagged 6 explanatory comments in my first triage test draft; removed all (self-documenting code). Keep test files comment-free to avoid the hook.
+
+### Results
+
+- Unit suite: 132 test files, 1515 passed, 9 skipped, 0 failures
+- Integration suite: 48 files, 436 passed, 17 skipped (unit files NOT loaded by integration glob `tests/integration/**`). The sole exit-1 is a PRE-EXISTING flaky post-test async leak from `src/workers/lib/execution-phase.mts:251` (`process.exit(1)` in a detached sifely harness subprocess surfacing as an unhandled rejection AFTER the test completes) — passes 11/11 in isolation; unrelated to and untouched by this task.
