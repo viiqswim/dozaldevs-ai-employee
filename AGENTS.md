@@ -68,7 +68,7 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
-- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, compiles AGENTS.md via `src/workers/lib/agents-md-compiler.mts`, starts OpenCode session, monitors until completion. The compiled AGENTS.md is saved to `tasks.compiled_agents_md` for debugging.
+- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, compiles AGENTS.md via `src/workers/lib/agents-md-compiler.mts`, starts OpenCode session, monitors until completion. The compiled AGENTS.md is saved to `tasks.compiled_agents_md` for debugging. Shared utilities (container naming, log helpers) extracted to `src/workers/lib/harness-helpers.mts`.
 - **AGENTS.md compilation**: `agents-md-compiler.mts` assembles the per-task AGENTS.md from archetype fields (`identity`, `execution_steps`, `delivery_steps`), learned rules, knowledge base entries, and the platform base config (`src/workers/config/agents.md`). The `execution_instructions` field is the platform constant prompt injected as the initial OpenCode message — it is not user-editable.
   **Shell tools** at `/tools/` in Docker image — one directory per service:
 
@@ -453,7 +453,7 @@ docker build -t ai-employee-worker:latest . && pnpm trigger-task
 src/
 ├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
 │   ├── routes/       # All HTTP route handlers
-│   ├── slack/        # Bolt event/action handlers + OAuth installation store
+│   ├── slack/        # Bolt event/action handlers + OAuth installation store; `handlers/override-handlers.ts` (extracted override card handlers)
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
 │   ├── services/     # Business logic services: archetype generator (`archetype-generator.ts` — wizard LLM prompt for employee creation), dispatcher, task creation, tenant/secret management, interaction classification, and more. Browse `src/gateway/services/` for the full list.
@@ -462,11 +462,12 @@ src/
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   ├── lifecycle/    # Extracted lifecycle step modules
-│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers), `triage-and-ready.ts`, `execute.ts`, `validate-and-submit.ts`, `notify-and-track.ts`
-│   ├── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
+│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers), `approval-handler-reject.ts` (extracted `handleReject`), `triage-and-ready.ts`, `execute.ts`, `validate-and-submit.ts`, `no-approval-path.ts`, `override-card.ts`, `reviewing-path.ts`, `notify-and-track.ts`, `lifecycle-helpers.ts` (`cleanupExecutionMachine`, `safeRecordWorkMetric`)
+│   ├── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks, `interaction-helpers.ts` (extracted from `interaction-handler.ts`)
 │   └── events.ts     # Typed Inngest event schemas (`EventPayload`, `InngestStep`) — import from here, never inline event types
 ├── workers/      # Docker container code — runs inside the worker machine
-│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (8 typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes)
+│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (8 typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes), `harness-helpers.mts` (extracted harness utilities: container naming, log helpers)
+├── repositories/ # Tenant-scoped data access layer (relocated from `src/gateway/services/`)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed

@@ -738,3 +738,17 @@ Decomposed `dashboard/src/panels/employees/EmployeeDetail.tsx` from 635 lines �
 - **`knowledge_base` snake_case exception** was already documented in AGENTS.md Key Conventions (line ~501 after edit) but was NOT in CONTRIBUTING.md. Added to both files.
 - CONTRIBUTING.md "API Error Responses" section only mentioned `sendError` — updated to also document `sendSuccess` for 2xx responses.
 - CONTRIBUTING.md "Key Conventions" section now has the `knowledge_base` snake_case exception bullet.
+
+## Task 32 — AGENTS.md/README.md documentation update (2026-06-08)
+
+### Findings
+
+- **No stale table refs** in AGENTS.md or README.md — the 5 dropped tables (validation_runs, reviews, audit_log, cross_dept_triggers, clarifications) had zero references. The only "reviews" match was the Hostfully tool description (legitimate).
+- **sendSuccess already documented** at lines 460 and 500 (from Task 31 parallel work) — no duplication needed.
+- **slack-input-collector already documented** at line 97 in the Inngest functions list.
+- **New modules added to Project Structure section**:
+  - `harness-helpers.mts` added to `src/workers/lib/` entry (line 469) and to the Harness bullet (line 71)
+  - `approval-handler-reject.ts`, `no-approval-path.ts`, `override-card.ts`, `reviewing-path.ts`, `lifecycle-helpers.ts` added to `src/inngest/lifecycle/steps/` entry
+  - `interaction-helpers.ts` added to `src/inngest/lib/` entry
+  - `override-handlers.ts` added to `src/gateway/slack/` entry
+  - `src/repositories/` added as a top-level directory entry
