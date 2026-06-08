@@ -156,6 +156,52 @@ Pre-existing skips: `container-boot.test.ts` skips 4 tests when Docker is unavai
 
 ---
 
+## Writing Lifecycle Tests
+
+Unit tests for the universal lifecycle (`src/inngest/employee-lifecycle.ts`) and its approval handler (`src/inngest/lifecycle/steps/approval-handler.ts`) all need the same modules mocked: the Fly.io machine client, the tunnel-URL resolver, the tenant env loader, the two tenant repositories, the Slack `WebClient`, and the worker PostgREST client. Rather than hand-rolling those `vi.fn()` stubs in every file, use the shared factory at `tests/helpers/lifecycle-mocks.ts`.
+
+`createLifecycleMocks()` returns plain objects of `vi.fn()` stubs — one per module, each shaped like that module's exports with sensible overridable defaults. It does **not** call `vi.mock()` itself; you hand each key to a `vi.mock()` factory:
+
+```ts
+import { it, expect, vi } from 'vitest';
+import * as flyClient from '../../../src/lib/fly-client.js';
+import { loadTenantEnv } from '../../../src/gateway/services/tenant-env-loader.js';
+import { createLifecycleMocks } from '../../helpers/lifecycle-mocks.js';
+
+vi.mock('../../../src/lib/fly-client.js', () => createLifecycleMocks().flyClient);
+vi.mock('../../../src/lib/tunnel-client.js', () => createLifecycleMocks().tunnelClient);
+vi.mock(
+  '../../../src/gateway/services/tenant-env-loader.js',
+  () => createLifecycleMocks().tenantEnvLoader,
+);
+
+it('runs the executing step', async () => {
+  vi.mocked(flyClient.createMachine).mockResolvedValueOnce({ id: 'm1', state: 'started' });
+  // ...drive the lifecycle...
+  expect(flyClient.createMachine).toHaveBeenCalledOnce();
+  expect(vi.mocked(loadTenantEnv)).toHaveBeenCalled();
+});
+```
+
+Each `vi.mock()` factory runs `createLifecycleMocks()` independently, so assert on the **imported (now-mocked) binding** (`flyClient.createMachine`, `vi.mocked(loadTenantEnv)`) — that binding _is_ the stub the lifecycle calls.
+
+For the constructor-based modules (`TenantRepository`, `TenantSecretRepository`, `WebClient` — built via `new X(...)` inside the lifecycle), build the factory once and reuse it so you can override and assert on the shared instance:
+
+```ts
+const mocks = createLifecycleMocks();
+vi.mock('../../../src/gateway/services/tenant-repository.js', () => mocks.tenantRepository);
+vi.mock('@slack/web-api', () => mocks.slackWebApi);
+
+mocks.instances.tenantRepository.findById.mockResolvedValue({ id: 't1', slug: 'vlre' });
+expect(mocks.instances.slackWebClient.chat.postMessage).toHaveBeenCalled();
+```
+
+Defaults: `createMachine`/`getMachine` resolve a `started` machine, `loadTenantEnv` resolves a tenant env with `SLACK_BOT_TOKEN` + `SUPABASE_URL`, repositories resolve a mock tenant row, and `postgrest-client.query` resolves `[]`. Override any of them per test with `.mockResolvedValue(...)`, `.mockResolvedValueOnce(...)`, or `.mockImplementation(...)`.
+
+Reference: `tests/helpers/lifecycle-mocks.ts` (JSDoc usage example at the top) and the sample test `tests/unit/helpers/lifecycle-mocks.test.ts`. This factory is additive — existing lifecycle tests keep their inline mocks; adopt it for new tests.
+
+---
+
 ## Key Conventions
 
 A few rules that catch most mistakes:
