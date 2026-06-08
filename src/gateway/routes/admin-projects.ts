@@ -16,7 +16,7 @@ import {
   TenantProjectParamSchema,
 } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
@@ -49,7 +49,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         tenantId: paramResult.data.tenantId,
         prisma,
       });
-      res.status(201).json(project);
+      sendSuccess(res, 201, project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
         sendError(res, 409, 'CONFLICT', (err as Error).message);
@@ -72,7 +72,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         tenantId: paramResult.data.tenantId,
         prisma,
       });
-      res.status(200).json({ projects });
+      sendSuccess(res, 200, { projects });
     } catch (err) {
       logger.error({ err }, 'Failed to list projects');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -98,7 +98,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         return;
       }
 
-      res.status(200).json(project);
+      sendSuccess(res, 200, project);
     } catch (err) {
       logger.error({ err }, 'Failed to get project');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -131,7 +131,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         return;
       }
 
-      res.status(200).json(project);
+      sendSuccess(res, 200, project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
         sendError(res, 409, 'CONFLICT', (err as Error).message);
@@ -157,7 +157,7 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
       });
 
       if (result.deleted) {
-        res.status(204).send();
+        sendSuccess(res, 204);
         return;
       }
 

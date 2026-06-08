@@ -3,7 +3,7 @@ import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 
 const PatchPlatformSettingBodySchema = z.object({
@@ -21,7 +21,7 @@ export function adminPlatformSettingsRoutes(opts: { prisma?: PrismaClient } = {}
         where: { deleted_at: null },
         orderBy: { key: 'asc' },
       });
-      res.status(200).json(settings);
+      sendSuccess(res, 200, settings);
     } catch (err) {
       logger.error({ err }, 'Failed to list platform settings');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -54,7 +54,7 @@ export function adminPlatformSettingsRoutes(opts: { prisma?: PrismaClient } = {}
         data: { value: bodyResult.data.value },
       });
 
-      res.status(200).json(updated);
+      sendSuccess(res, 200, updated);
     } catch (err) {
       logger.error({ err }, 'Failed to update platform setting');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);

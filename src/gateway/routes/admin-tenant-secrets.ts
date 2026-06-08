@@ -9,7 +9,7 @@ import {
   SecretKeyParamSchema,
   SetSecretBodySchema,
 } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminTenantSecretsRouteOptions {
   prisma?: PrismaClient;
@@ -35,7 +35,7 @@ export function adminTenantSecretsRoutes(opts: AdminTenantSecretsRouteOptions = 
         return;
       }
       const secrets = await secretRepo.listKeys(paramResult.data.tenantId);
-      res.status(200).json({ secrets });
+      sendSuccess(res, 200, { secrets });
     } catch (err) {
       logger.error({ err }, 'Failed to list secrets');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -64,7 +64,7 @@ export function adminTenantSecretsRoutes(opts: AdminTenantSecretsRouteOptions = 
         paramResult.data.key,
         bodyResult.data.value,
       );
-      res.status(200).json(meta);
+      sendSuccess(res, 200, meta);
     } catch (err) {
       logger.error({ err }, 'Failed to set secret');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -88,7 +88,7 @@ export function adminTenantSecretsRoutes(opts: AdminTenantSecretsRouteOptions = 
         sendError(res, 404, 'SECRET_NOT_FOUND');
         return;
       }
-      res.status(204).send();
+      sendSuccess(res, 204);
     } catch (err) {
       logger.error({ err }, 'Failed to delete secret');
       sendError(res, 500, 'INTERNAL_ERROR');

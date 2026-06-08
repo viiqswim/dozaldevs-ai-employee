@@ -8,7 +8,7 @@ import {
   parseSkillMd,
   enrichTools,
 } from '../services/tool-parser.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export function adminToolsRoutes(): Router {
   const router = Router();
@@ -22,7 +22,7 @@ export function adminToolsRoutes(): Router {
       const tools = await discoverTools(basePath);
       const enrichments = await parseSkillMd(skillPath);
       const enriched = enrichTools(tools, enrichments);
-      res.status(200).json({ tools: enriched });
+      sendSuccess(res, 200, { tools: enriched });
     } catch (err) {
       logger.error({ err }, 'Failed to list tools');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -40,7 +40,7 @@ export function adminToolsRoutes(): Router {
       }
       const enrichments = await parseSkillMd(skillPath);
       const [enriched] = enrichTools([tool], enrichments);
-      res.status(200).json(enriched);
+      sendSuccess(res, 200, enriched);
     } catch (err) {
       logger.error({ err }, 'Failed to get tool');
       sendError(res, 500, 'INTERNAL_ERROR');

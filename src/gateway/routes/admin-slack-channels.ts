@@ -5,7 +5,7 @@ import { WebClient } from '@slack/web-api';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminSlackChannelsRouteOptions {
   prisma?: PrismaClient;
@@ -36,7 +36,7 @@ export function adminSlackChannelsRoutes(opts: AdminSlackChannelsRouteOptions = 
     }
 
     if (!token) {
-      res.status(200).json({ channels: [], error: 'SLACK_NOT_CONFIGURED' });
+      sendSuccess(res, 200, { channels: [], error: 'SLACK_NOT_CONFIGURED' });
       return;
     }
 
@@ -54,7 +54,7 @@ export function adminSlackChannelsRoutes(opts: AdminSlackChannelsRouteOptions = 
         is_private: ch.is_private ?? false,
       }));
 
-      res.status(200).json({ channels });
+      sendSuccess(res, 200, { channels });
     } catch (err) {
       logger.error({ err, tenantId }, 'Failed to list Slack channels');
       sendError(res, 500, 'INTERNAL_ERROR');

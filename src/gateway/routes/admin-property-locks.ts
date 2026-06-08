@@ -7,7 +7,7 @@ import {
   TenantIdParamSchema,
   TenantPropertyLockParamSchema,
 } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
@@ -44,7 +44,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           tenant_id: paramResult.data.tenantId,
         },
       });
-      res.status(201).json(propertyLock);
+      sendSuccess(res, 201, propertyLock);
     } catch (err) {
       logger.error({ err }, 'Failed to create property lock');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -68,7 +68,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         },
         orderBy: { created_at: 'asc' },
       });
-      res.status(200).json({ propertyLocks });
+      sendSuccess(res, 200, { propertyLocks });
     } catch (err) {
       logger.error({ err }, 'Failed to list property locks');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -98,7 +98,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           return;
         }
 
-        res.status(200).json(propertyLock);
+        sendSuccess(res, 200, propertyLock);
       } catch (err) {
         logger.error({ err }, 'Failed to get property lock');
         sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -145,7 +145,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           },
         });
 
-        res.status(200).json(propertyLock);
+        sendSuccess(res, 200, propertyLock);
       } catch (err) {
         logger.error({ err }, 'Failed to update property lock');
         sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -180,7 +180,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           where: { id: paramResult.data.lockId, tenant_id: paramResult.data.tenantId },
         });
 
-        res.status(204).send();
+        sendSuccess(res, 204);
       } catch (err) {
         logger.error({ err }, 'Failed to delete property lock');
         sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);

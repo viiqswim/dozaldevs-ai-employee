@@ -5,7 +5,7 @@ import type { Prisma } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantRepository } from '../../repositories/tenant-repository.js';
 import { TenantIdParamSchema, TenantConfigBodySchema } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminTenantConfigRouteOptions {
   prisma?: PrismaClient;
@@ -53,7 +53,7 @@ export function adminTenantConfigRoutes(opts: AdminTenantConfigRouteOptions = {}
         sendError(res, 404, 'NOT_FOUND');
         return;
       }
-      res.status(200).json(tenant.config ?? {});
+      sendSuccess(res, 200, tenant.config ?? {});
     } catch (err) {
       logger.error({ err }, 'Failed to get config');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -85,7 +85,7 @@ export function adminTenantConfigRoutes(opts: AdminTenantConfigRouteOptions = {}
       const updated = await repo.update(paramResult.data.tenantId, {
         config: merged as Prisma.InputJsonValue,
       });
-      res.status(200).json(updated.config ?? {});
+      sendSuccess(res, 200, updated.config ?? {});
     } catch (err) {
       logger.error({ err }, 'Failed to update config');
       sendError(res, 500, 'INTERNAL_ERROR');

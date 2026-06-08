@@ -10,7 +10,7 @@ import {
 } from '../validation/schemas.js';
 import { dispatchEmployee } from '../services/employee-dispatcher.js';
 import { createInngestClient } from '../inngest/client.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import type { InngestLike } from '../types.js';
 
@@ -95,7 +95,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         const result = await dispatchEmployee({ tenantId, slug, dryRun, prisma, inngest, inputs });
 
         if (result.kind === 'dispatched') {
-          res.status(202).json({
+          sendSuccess(res, 202, {
             task_id: result.taskId,
             status_url: `/admin/tenants/${tenantId}/tasks/${result.taskId}`,
           });
@@ -103,7 +103,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         }
 
         if (result.kind === 'dry_run') {
-          res.status(200).json({
+          sendSuccess(res, 200, {
             valid: true,
             would_fire: {
               event_name: result.wouldFire.eventName,

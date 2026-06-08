@@ -6,7 +6,7 @@ import { TenantSecretRepository } from '../../repositories/tenant-secret-reposit
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { clearTokenCache } from '../services/google-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminGoogleRouteOptions {
   prisma?: PrismaClient;
@@ -55,7 +55,7 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
       clearTokenCache(tenantId);
 
       logger.info({ tenantId }, 'Google integration disconnected');
-      res.status(200).json({ disconnected: true, tenant_id: tenantId });
+      sendSuccess(res, 200, { disconnected: true, tenant_id: tenantId });
     },
   );
 

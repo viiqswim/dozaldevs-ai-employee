@@ -8,7 +8,7 @@ import {
   CreateRuleBodySchema,
   UpdateRuleBodySchema,
 } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('admin-rules');
 
@@ -60,7 +60,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
           },
         });
 
-        res.status(201).json(rule);
+        sendSuccess(res, 201, rule);
       } catch (err) {
         logger.error({ err }, 'Failed to create employee rule');
         sendError(res, 500, 'INTERNAL_ERROR');
@@ -115,7 +115,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
           where: { id: ruleId, tenant_id: tenantId },
         });
 
-        res.status(200).json(updated);
+        sendSuccess(res, 200, updated);
       } catch (err) {
         logger.error({ err }, 'Failed to update employee rule');
         sendError(res, 500, 'INTERNAL_ERROR');
@@ -155,7 +155,7 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
           return;
         }
 
-        res.status(204).send();
+        sendSuccess(res, 204);
       } catch (err) {
         logger.error({ err }, 'Failed to delete employee rule');
         sendError(res, 500, 'INTERNAL_ERROR');

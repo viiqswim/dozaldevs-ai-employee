@@ -10,7 +10,7 @@ import {
   UpdateTenantBodySchema,
   TenantIdParamSchema,
 } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminTenantsRouteOptions {
   prisma?: PrismaClient;
@@ -34,7 +34,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
         slug: parsed.data.slug,
         config: parsed.data.config as Prisma.InputJsonValue | undefined,
       });
-      res.status(201).json({
+      sendSuccess(res, 201, {
         id: tenant.id,
         slug: tenant.slug,
         name: tenant.name,
@@ -56,7 +56,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
     const includeDeleted = req.query['include_deleted'] === 'true';
     try {
       const tenants = await repo.list({ includeDeleted });
-      res.status(200).json({ tenants });
+      sendSuccess(res, 200, { tenants });
     } catch (err) {
       logger.error({ err }, 'Failed to list tenants');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -78,7 +78,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
         sendError(res, 404, 'NOT_FOUND');
         return;
       }
-      res.status(200).json(tenant);
+      sendSuccess(res, 200, tenant);
     } catch (err) {
       logger.error({ err }, 'Failed to get tenant');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -107,7 +107,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
         status: bodyResult.data.status,
         config: bodyResult.data.config as Prisma.InputJsonValue | undefined,
       });
-      res.status(200).json(updated);
+      sendSuccess(res, 200, updated);
     } catch (err) {
       logger.error({ err }, 'Failed to update tenant');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -127,7 +127,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
         return;
       }
       const deleted = await repo.softDelete(paramResult.data.tenantId);
-      res.status(200).json({ id: deleted.id, deleted_at: deleted.deleted_at });
+      sendSuccess(res, 200, { id: deleted.id, deleted_at: deleted.deleted_at });
     } catch (err) {
       logger.error({ err }, 'Failed to soft-delete tenant');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -142,7 +142,7 @@ export function adminTenantsRoutes(opts: AdminTenantsRouteOptions = {}): Router 
     }
     try {
       const restored = await repo.restore(paramResult.data.tenantId);
-      res.status(200).json(restored);
+      sendSuccess(res, 200, restored);
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
         sendError(res, 404, 'NOT_FOUND');

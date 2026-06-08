@@ -6,7 +6,7 @@ import { createInterface } from 'readline';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GetTaskParamsSchema } from '../validation/schemas.js';
 import { LOG_STREAM_TERMINAL_STATUSES } from '../../lib/task-status.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('admin-tasks');
 
@@ -50,7 +50,7 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
         return;
       }
 
-      res.status(200).json(task);
+      sendSuccess(res, 200, task);
     } catch (err) {
       logger.error({ err }, 'Failed to get task');
       sendError(res, 500, 'INTERNAL_ERROR');

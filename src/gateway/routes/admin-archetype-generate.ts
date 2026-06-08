@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import type { callLLM } from '../../lib/call-llm.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ArchetypeGenerator } from '../services/archetype-generator.js';
 
@@ -60,7 +60,7 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
         result = await generator.generate(description, catalog);
       }
 
-      res.status(200).json(result);
+      sendSuccess(res, 200, result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 

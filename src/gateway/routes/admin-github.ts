@@ -6,7 +6,7 @@ import { TenantSecretRepository } from '../../repositories/tenant-secret-reposit
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { generateInstallationToken, generateAppJwt } from '../services/github-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 
 export interface AdminGithubRouteOptions {
@@ -140,7 +140,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       return;
     }
 
-    res.status(200).json({ repos });
+    sendSuccess(res, 200, { repos });
   });
 
   router.get(
@@ -221,7 +221,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         already_linked: currentIntegration?.external_id === String(inst.id),
       }));
 
-      res.status(200).json({ installations: result });
+      sendSuccess(res, 200, { installations: result });
     },
   );
 
@@ -296,7 +296,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         return;
       }
 
-      res.status(200).json({ linked: true, installation_id });
+      sendSuccess(res, 200, { linked: true, installation_id });
     },
   );
 
@@ -324,7 +324,7 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       }
 
       logger.info({ tenantId }, 'GitHub integration disconnected');
-      res.status(200).json({ disconnected: true, tenant_id: tenantId });
+      sendSuccess(res, 200, { disconnected: true, tenant_id: tenantId });
     },
   );
 

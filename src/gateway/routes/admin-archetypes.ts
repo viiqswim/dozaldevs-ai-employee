@@ -4,7 +4,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, InputSchemaSchema, uuidField } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { isPrismaError } from '../lib/prisma-helpers.js';
 import { ArchetypeRepository, ActiveTasksError } from '../services/archetype-repository.js';
 import {
@@ -225,7 +225,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         );
       }
 
-      res.status(201).json(resultArchetype);
+      sendSuccess(res, 201, resultArchetype);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
         sendError(
@@ -245,7 +245,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
     '/admin/tenants/:tenantId/archetypes/model-questions',
     requireAdminKey,
     (_req, res) => {
-      res.status(200).json(MODEL_QUESTIONS);
+      sendSuccess(res, 200, MODEL_QUESTIONS);
     },
   );
 
@@ -278,7 +278,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         });
 
         const recommendation = recommendModels(profile, catalog);
-        res.status(200).json(recommendation);
+        sendSuccess(res, 200, recommendation);
       } catch (err) {
         logger.error({ err }, 'Failed to generate model recommendation');
         sendError(res, 500, 'INTERNAL_ERROR');
@@ -395,7 +395,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           }
         }
 
-        res.status(200).json(resultArchetype);
+        sendSuccess(res, 200, resultArchetype);
       } catch (err) {
         logger.error({ err }, 'Failed to update archetype');
         sendError(res, 500, 'INTERNAL_ERROR');
@@ -415,7 +415,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       const { tenantId, archetypeId } = paramResult.data;
       try {
         const deleted = await repo.softDelete(archetypeId, tenantId);
-        res.status(200).json({ id: deleted.id, deleted_at: deleted.deleted_at });
+        sendSuccess(res, 200, { id: deleted.id, deleted_at: deleted.deleted_at });
       } catch (err) {
         if (err instanceof ActiveTasksError) {
           sendError(
@@ -449,7 +449,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       const { tenantId, archetypeId } = paramResult.data;
       try {
         const restored = await repo.restore(archetypeId, tenantId);
-        res.status(200).json(restored);
+        sendSuccess(res, 200, restored);
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
           sendError(res, 404, 'NOT_FOUND');

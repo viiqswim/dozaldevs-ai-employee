@@ -16,7 +16,7 @@ import {
   KbEntryIdParamSchema,
   KbEntryTenantParamSchema,
 } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
@@ -54,7 +54,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
         content: result.data.content,
         prisma,
       });
-      res.status(201).json(entry);
+      sendSuccess(res, 201, entry);
     } catch (err) {
       if (err instanceof KbEntryConflictError) {
         sendError(res, 409, 'CONFLICT', (err as Error).message);
@@ -88,7 +88,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
         entityId: queryResult.data.entity_id,
         prisma,
       });
-      res.status(200).json({ entries });
+      sendSuccess(res, 200, { entries });
     } catch (err) {
       logger.error({ err }, 'Failed to list KB entries');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -115,7 +115,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
         return;
       }
 
-      res.status(200).json(entry);
+      sendSuccess(res, 200, entry);
     } catch (err) {
       logger.error({ err }, 'Failed to get KB entry');
       sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -154,7 +154,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
           return;
         }
 
-        res.status(200).json(entry);
+        sendSuccess(res, 200, entry);
       } catch (err) {
         logger.error({ err }, 'Failed to update KB entry');
         sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
@@ -185,7 +185,7 @@ export function adminKbRoutes(opts: AdminKbRouteOptions = {}): Router {
           return;
         }
 
-        res.status(204).send();
+        sendSuccess(res, 204);
       } catch (err) {
         logger.error({ err }, 'Failed to delete KB entry');
         sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
