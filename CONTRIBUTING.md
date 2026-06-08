@@ -289,6 +289,15 @@ A few rules that catch most mistakes:
 
 Full conventions: [AGENTS.md](AGENTS.md) — "Key Conventions" section.
 
+### Logger Variable Naming
+
+Two variable names are used for the logger — both are correct. The split is historical, not intentional:
+
+- `src/inngest/` and `src/gateway/slack/handlers/` use `const log = createLogger(...)`
+- `src/gateway/routes/` uses `const logger = createLogger(...)`
+
+**When adding a new file**, follow the convention of its parent directory. **Do not rename existing variables** — the split is documented, not a bug to fix.
+
 ---
 
 ## Git Rules
