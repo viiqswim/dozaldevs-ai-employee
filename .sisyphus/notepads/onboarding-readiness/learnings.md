@@ -570,3 +570,27 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 - Migrated: `const threadTs = getArg(args, '--thread-ts') ?? optionalEnv('NOTIFY_MSG_TS')` — cleaner nullish coalescing
 
 **Verification:** `pnpm build` exits 0, `CI=true pnpm test:unit` → 122 files, 1404 passed, 9 skipped, 0 failures.
+
+## [2026-06-08] Task 25 — Migrate slack/post-guest-approval.ts
+
+**File:** `src/worker-tools/slack/post-guest-approval.ts` (540 lines, HIGHEST-RISK)
+
+**Strategy: minimal-touch approach** — kept `parseArgs` for-loop intact (control flow unchanged); only changed env ACCESS patterns.
+
+**Env changes (3 occurrences → 0):**
+- `process.env.NOTIFICATION_CHANNEL` + manual exit block → `requireEnv('NOTIFICATION_CHANNEL')`
+- `process.env.NOTIFY_MSG_TS` → `optionalEnv('NOTIFY_MSG_TS')`
+- `process.env.SLACK_BOT_TOKEN` + manual exit block → `requireEnv('SLACK_BOT_TOKEN')`
+
+**argv changes:**
+- Added `const args = process.argv.slice(2)` at top of `main()` 
+- Changed `process.argv.includes('--help')` → `args.includes('--help')` (boolean flag pattern)
+- Kept `parseArgs(process.argv)` calls unchanged — `parseArgs` does `.slice(2)` internally; touching these would break idempotency guard logic
+
+**Idempotency guard preserved:** Lines 397-420 untouched. Guard calls `parseArgs(process.argv)` internally — that's fine since parseArgs handles slicing.
+
+**Key lesson:** When a file has a `parseArgs` helper that handles all arg parsing internally (with complex custom for-loop including edge cases like `--reply-broadcast` that takes optional value OR boolean), don't try to replace with `getArg`. "Control flow UNCHANGED" takes precedence. Only migrate `process.env` references.
+
+**Imports added:** `import { optionalEnv, requireEnv } from '../lib/require-env.js'`
+
+**Verification:** `pnpm build` exits 0, `CI=true pnpm test:unit` → 122 files, 1404 passed, 9 skipped, 0 failures.

@@ -1462,7 +1462,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate slack/post-message.ts with optionalEnv`
 
-- [ ] 25. Migrate slack/post-guest-approval.ts (highest-risk, 540 lines)
+- [x] 25. Migrate slack/post-guest-approval.ts (highest-risk, 540 lines)
 
   **What to do**:
   - **VERIFIED 540 lines** — most complex tool: idempotency guard (double argv parse), mixed env, Block Kit construction, multiple paths. Migrate env → `requireEnv`/`optionalEnv`, args → `getArg`. DO NOT refactor the idempotency guard or Block Kit logic — only change env/arg ACCESS. Test extensively.
