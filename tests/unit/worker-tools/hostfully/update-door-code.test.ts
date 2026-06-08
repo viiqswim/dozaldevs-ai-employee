@@ -42,6 +42,7 @@ describe('update-door-code tool', () => {
   let stderrChunks: string[];
   let savedArgv: string[];
   let savedEnv: NodeJS.ProcessEnv;
+  let swallowExitError: (reason: unknown) => void;
 
   beforeEach(() => {
     vi.resetModules();
@@ -50,6 +51,15 @@ describe('update-door-code tool', () => {
     stderrChunks = [];
     savedArgv = process.argv;
     savedEnv = { ...process.env };
+
+    // Harness artifact: the mocked process.exit throws ExitError, which surfaces
+    // as an unhandled rejection when the first exit fires inside main().catch().
+    // Real process.exit terminates the process, so this never happens in prod.
+    swallowExitError = (reason: unknown) => {
+      if (reason instanceof Error && reason.message.startsWith('ExitError:')) return;
+      throw reason;
+    };
+    process.on('unhandledRejection', swallowExitError);
 
     // process.exit fires twice per error path: once from main() and once from the .catch() handler.
     // Second call must be a no-op to prevent re-throw into an unhandled promise rejection.
@@ -82,6 +92,7 @@ describe('update-door-code tool', () => {
   });
 
   afterEach(() => {
+    process.off('unhandledRejection', swallowExitError);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     process.argv = savedArgv;

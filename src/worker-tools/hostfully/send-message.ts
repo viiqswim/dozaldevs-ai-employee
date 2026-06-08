@@ -31,7 +31,8 @@
 
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
-import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { optionalEnv } from '../lib/require-env.js';
+import { resolveHostfullyClient } from './lib/client.js';
 
 type RawCreatedMessage = {
   uid?: string;
@@ -123,13 +124,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = requireEnv('HOSTFULLY_API_KEY');
+  const { headers: clientHeaders } = resolveHostfullyClient();
 
   const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
 
   const headers = {
-    'X-HOSTFULLY-APIKEY': apiKey,
-    Accept: 'application/json',
+    ...clientHeaders,
     'Content-Type': 'application/json',
   };
 

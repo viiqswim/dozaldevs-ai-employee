@@ -1,5 +1,6 @@
 import { getArg } from '../lib/get-arg.js';
-import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { optionalEnv } from '../lib/require-env.js';
+import { resolveHostfullyClient } from './lib/client.js';
 
 function parseArgs(argv: string[]): { propertyId: string; help: boolean } {
   const args = argv.slice(2);
@@ -44,17 +45,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = requireEnv('HOSTFULLY_API_KEY');
+  const { headers } = resolveHostfullyClient();
 
   const baseUrl = (optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com').replace(
     /\/$/,
     '',
   );
-
-  const headers = {
-    'X-HOSTFULLY-APIKEY': apiKey,
-    Accept: 'application/json',
-  };
 
   const url = `${baseUrl}/api/v3.2/custom-data?propertyUid=${encodeURIComponent(propertyId)}`;
 

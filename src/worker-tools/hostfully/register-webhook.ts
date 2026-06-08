@@ -15,6 +15,7 @@ interface WebhookRecord {
 }
 
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { resolveHostfullyClient } from './lib/client.js';
 
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
@@ -23,14 +24,14 @@ function parseArgs(argv: string[]): { help: boolean } {
 
 async function listWebhooks(
   baseUrl: string,
-  apiKey: string,
+  headers: Record<string, string>,
   agencyUid: string,
 ): Promise<WebhookRecord[]> {
   const url = `${baseUrl}/webhooks?agencyUid=${encodeURIComponent(agencyUid)}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: {
-      'X-HOSTFULLY-APIKEY': apiKey,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -46,7 +47,7 @@ async function listWebhooks(
 
 async function registerWebhook(
   baseUrl: string,
-  apiKey: string,
+  headers: Record<string, string>,
   agencyUid: string,
   callbackUrl: string,
 ): Promise<WebhookRecord> {
@@ -61,7 +62,7 @@ async function registerWebhook(
   const res = await fetch(`${baseUrl}/webhooks`, {
     method: 'POST',
     headers: {
-      'X-HOSTFULLY-APIKEY': apiKey,
+      ...headers,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -94,7 +95,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = requireEnv('HOSTFULLY_API_KEY');
+  const { headers } = resolveHostfullyClient();
 
   const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
 
   let existing: WebhookRecord[] = [];
   try {
-    existing = await listWebhooks(baseUrl, apiKey, agencyUid);
+    existing = await listWebhooks(baseUrl, headers, agencyUid);
 
     const duplicate = existing.find(
       (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl === callbackUrl,
@@ -136,7 +137,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const result = await registerWebhook(baseUrl, apiKey, agencyUid, callbackUrl);
+    const result = await registerWebhook(baseUrl, headers, agencyUid, callbackUrl);
 
     console.log('✅ Webhook registered successfully!');
     console.log('  UID:', result.uid);
