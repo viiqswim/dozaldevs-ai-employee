@@ -39,6 +39,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:54322/ai_employee_test
           DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:54322/ai_employee_test
       - run: pnpm lint
+      - name: Install dashboard dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: dashboard
+      - name: Run dashboard tests
+        run: pnpm test:dashboard
 
   deploy-gateway:
     needs: test
