@@ -1586,7 +1586,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `docs: update AGENTS.md with new modules, conventions, test split`
 
-- [ ] 29. Send Telegram notification
+- [x] 29. Send Telegram notification
 
   **What to do**:
   - After all tasks complete and the final wave passes + user approves, send: `pnpm exec tsx scripts/telegram-notify.ts "✅ Onboarding readiness plan complete — all tasks done, baseline green. Come back to review."` (use `pnpm exec tsx`, NOT bare `tsx`).
