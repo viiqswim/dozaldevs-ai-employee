@@ -139,4 +139,134 @@ describe('createHttpClient', () => {
 
     expect(response.status).toBe(400);
   });
+
+  describe('get()', () => {
+    it('makes GET request to baseUrl + path with default headers and no body', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test' });
+      await http.get('/api/resource');
+
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/api/resource', {
+        method: 'GET',
+        headers: defaultHeaders,
+      });
+    });
+
+    it('returns the Response on success', async () => {
+      const payload = { id: 1 };
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test' });
+      const response = await http.get('/api/resource');
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(payload);
+    });
+
+    it('merges opts.headers with default headers', async () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test' });
+      await http.get('/api/resource', { headers: { 'X-Custom': 'yes' } });
+
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/api/resource', {
+        method: 'GET',
+        headers: { ...defaultHeaders, 'X-Custom': 'yes' },
+      });
+    });
+
+    it('throws RateLimitExceededError on 429', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response('', { status: 429, statusText: 'Too Many Requests' }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test', maxAttempts: 1 });
+      await expect(http.get('/api/resource')).rejects.toBeInstanceOf(RateLimitExceededError);
+    });
+
+    it('retries on 429 and succeeds on second attempt', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('', { status: 429, statusText: 'Too Many Requests' }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, {
+        service: 'test',
+        maxAttempts: 3,
+        baseDelayMs: 1000,
+      });
+
+      const resultPromise = http.get('/api/resource');
+      await vi.advanceTimersByTimeAsync(2000);
+      const response = await resultPromise;
+
+      expect(response.status).toBe(200);
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe('delete()', () => {
+    it('makes DELETE request to baseUrl + path with default headers and no body', async () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test' });
+      await http.delete('/api/resource/123');
+
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/api/resource/123', {
+        method: 'DELETE',
+        headers: defaultHeaders,
+      });
+    });
+
+    it('returns the Response on success', async () => {
+      global.fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test' });
+      const response = await http.delete('/api/resource/123');
+
+      expect(response.status).toBe(200);
+    });
+
+    it('throws RateLimitExceededError on 429', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response('', { status: 429, statusText: 'Too Many Requests' }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, { service: 'test', maxAttempts: 1 });
+      await expect(http.delete('/api/resource/123')).rejects.toBeInstanceOf(RateLimitExceededError);
+    });
+
+    it('retries on 429 and succeeds on second attempt', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('', { status: 429, statusText: 'Too Many Requests' }))
+        .mockResolvedValueOnce(new Response('', { status: 200 }));
+
+      const http = createHttpClient(baseUrl, defaultHeaders, {
+        service: 'test',
+        maxAttempts: 3,
+        baseDelayMs: 1000,
+      });
+
+      const resultPromise = http.delete('/api/resource/123');
+      await vi.advanceTimersByTimeAsync(2000);
+      const response = await resultPromise;
+
+      expect(response.status).toBe(200);
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+  });
 });
