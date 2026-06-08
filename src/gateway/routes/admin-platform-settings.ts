@@ -10,7 +10,8 @@ const PatchPlatformSettingBodySchema = z.object({
   value: z.string(),
 });
 
-export function adminPlatformSettingsRoutes({ prisma }: { prisma: PrismaClient }): Router {
+export function adminPlatformSettingsRoutes(opts: { prisma?: PrismaClient } = {}): Router {
+  const { prisma = new PrismaClient() } = opts;
   const router = Router();
   const logger = createLogger('admin-platform-settings');
 

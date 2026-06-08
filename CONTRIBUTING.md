@@ -202,6 +202,58 @@ Reference: `tests/helpers/lifecycle-mocks.ts` (JSDoc usage example at the top) a
 
 ---
 
+## API Error Responses
+
+All gateway routes use a standard error body format. Use `sendError` from `src/gateway/lib/http-response.ts` — never call `res.status(...).json(...)` directly for errors.
+
+### Standard error body
+
+```json
+{ "error": "ERROR_CODE", "message": "Optional human-readable description" }
+```
+
+Validation errors include an `issues` array:
+
+```json
+{ "error": "INVALID_REQUEST", "issues": [{ "code": "invalid_type", "path": ["value"], ... }] }
+```
+
+### `sendError` signature
+
+```typescript
+sendError(res: Response, status: number, error: string, message?: string, extra?: Record<string, unknown>): void
+```
+
+- `error` — machine-readable code; use constants from `ERROR_CODES` in `src/gateway/lib/prisma-helpers.ts`
+- `message` — optional human-readable description (omit for standard codes)
+- `extra` — optional additional fields merged into the body (e.g. `{ issues: zodError.issues }`)
+
+### Examples
+
+```typescript
+// 404 — no message needed
+sendError(res, 404, ERROR_CODES.NOT_FOUND);
+
+// 400 with Zod validation issues
+sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, { issues: result.error.issues });
+
+// 500 with a message
+sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, 'Failed to update setting');
+```
+
+### Route factory signature
+
+All route factory functions use the optional-prisma pattern so they can be called with or without an injected client:
+
+```typescript
+export function myRoutes(opts: { prisma?: PrismaClient } = {}): Router {
+  const { prisma = new PrismaClient() } = opts;
+  // ...
+}
+```
+
+---
+
 ## Key Conventions
 
 A few rules that catch most mistakes:
