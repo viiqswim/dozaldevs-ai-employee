@@ -221,3 +221,15 @@ export async function getTaskStatusMessage(taskId: string): Promise<string> {
     return 'Looks like this one has already been handled.';
   }
 }
+
+export async function handleAlreadyProcessed(
+  taskId: string,
+  updateFn: (statusMsg: string) => Promise<unknown>,
+): Promise<void> {
+  try {
+    const statusMsg = await getTaskStatusMessage(taskId);
+    await updateFn(statusMsg);
+  } catch (err) {
+    log.warn({ taskId, err }, 'Failed to update already-processed message');
+  }
+}
