@@ -564,6 +564,35 @@ During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id
 
 - Concurrent Wave 5 tasks (21 cleanupTestData, 23 config consolidation) left `tests/setup.ts` + `tests/unit/lib/config.test.ts` modified — staged ONLY my 14 files, never `git add -A`.
 
+## [Task 28/29/30] delivery-retry, approval-handler-reject, lifecycle-helpers unit tests (2026-06-08)
+
+### delivery-retry.test.ts
+
+- `delivery-retry.ts` uses real `setTimeout` in the poll loop (`await new Promise<void>((resolve) => setTimeout(resolve, 15_000))`) with `maxDeliveryPolls = 20` per attempt × 3 attempts = 900 seconds of real wait time. Tests MUST use `vi.useFakeTimers()` + `vi.runAllTimersAsync()` or they time out.
+- Local helper pattern: `async function runWithFakeTimers<T>(fn: () => Promise<T>): Promise<T> { const promise = fn(); await vi.runAllTimersAsync(); return promise; }` — kicks off the SUT, advances all timers, then awaits the result.
+- Config-fail path tests (missing delivery_instructions, empty row) do NOT need fake timers — they exit before the poll loop starts.
+- 17 tests total: 4 config-fail, 4 happy-path, 7 retry-loop, 2 notify-received Slack update.
+
+### approval-handler-reject.test.ts
+
+- 21 tests total: 2 terminal-state, 5 rejection-reason, 4 no-reason, 7 Slack-message, 1 metadata-flags, 2 Hostfully-link.
+- `handleReject` is the exported function — takes `ApprovalHandlerContext` (same as `handleApprove`).
+- Rejection feedback solicitation only fires when `rejectionReason` is ABSENT — when reason is present, no solicitation message is sent.
+- `writeFeedbackEvent` is called for both the rejection event AND the awaiting_input employee_rule event (two separate calls in the no-reason path).
+
+### lifecycle-helpers.test.ts (extension — NOT duplicating mergeTaskMetadata)
+
+- `makePostgrestHeaders` (3 tests): returns correct 4-field object, uses SUPABASE_KEY as apikey, uses SUPABASE_KEY in Bearer token.
+- `patchTask` (5 tests): calls fetch with correct URL/method/headers/body; throws on non-ok response; returns parsed JSON on success; uses `Prefer: return=representation`; URL includes taskId.
+- `writeFeedbackEvent` (8 tests): calls fetch with correct URL; uses `Prefer: return=minimal` (overrides base `return=representation`); includes all required fields; handles missing optional fields; throws on non-ok.
+- `importOriginal` required: `patchTask` is in the same module that's partially mocked for `writeFeedbackEvent` tests. Use `vi.mock(..., async (importOriginal) => { const actual = await importOriginal(); return { ...actual, recordWorkMetric: vi.fn(), stopLocalDockerContainer: vi.fn() }; })` to preserve real implementations while mocking only the side-effectful helpers.
+
+### Results
+
+- Unit suite: 135 files, 1568 tests, 9 skipped, 0 failures
+- Integration suite: EXIT_CODE:0 (all passing)
+- Commit: 255b50a7
+
 ## [Task 27] triage / validate-submit / notify-track unit tests (2026-06-08)
 
 ### Test approach
@@ -599,3 +628,129 @@ During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id
 
 - Unit suite: 132 test files, 1515 passed, 9 skipped, 0 failures
 - Integration suite: 48 files, 436 passed, 17 skipped (unit files NOT loaded by integration glob `tests/integration/**`). The sole exit-1 is a PRE-EXISTING flaky post-test async leak from `src/workers/lib/execution-phase.mts:251` (`process.exit(1)` in a detached sifely harness subprocess surfacing as an unhandled rejection AFTER the test completes) — passes 11/11 in isolation; unrelated to and untouched by this task.
+
+## [2026-06-08] Task 29: event-handlers + trigger-handlers test coverage [GAP-02]
+
+- New files: `tests/unit/gateway/slack/event-handlers.test.ts` (15 tests), `tests/unit/gateway/slack/trigger-handlers.test.ts` (8 tests)
+- The plan said "extend handlers-trigger-confirm.test.ts" but that file lives in `tests/integration/gateway/slack/` (NOT unit). It already covers TRIGGER_CONFIRM extraction paths thoroughly. Added a NEW `trigger-handlers.test.ts` in unit/ for TRIGGER_CANCEL + the input-collection (awaiting-reply) registration path instead.
+- **Mock wiring gotcha**: `src/gateway/slack/handlers/shared.ts` creates a module-level `new PrismaClient()` consumed by `findTaskIdByThreadTs` (via TaskRepository → `task.findFirst` / `deliverable.findFirst`). To control it you MUST `vi.mock('@prisma/client', ...)` with a hoisted instance that ALSO doubles as the injected `registerSlackHandlers(..., prisma)` param. One mock instance serves both.
+- `registerSlackHandlers` signature is `(boltApp, inngest, prisma)` — 3 args. The pre-existing `approval-handlers.test.ts` and `rule-handlers.test.ts` pass only 2 in some calls; works at runtime because esbuild strips types and the constructor is mocked. (Pre-existing LSP `Expected 3 arguments, but got 2` errors in approval-handlers.test.ts are NOT mine — left untouched.)
+- **Test-helper trap**: an override builder using `overrides.team ?? 'T-TEAM'` silently coerces an explicitly-passed `undefined` back to the default. To test the "no team" branch use `'team' in overrides ? overrides.team : 'T-TEAM'`.
+- `resolveArchetypeFromChannel` is imported by event-handlers from `src/lib/interaction-classifier.js` — mock it at that path, NOT at the handler.
+- app_mention routing branches covered: bot_id skip, DM-channel skip, dedup (already in handlers-mention-dedup.test.ts — not duplicated), pending-input thread reply via @mention, tenant-resolved+archetype → ack+interaction, tenant-resolved+no-archetype → decline via chat.update, no-team → tenantId null, ack postMessage failure non-fatal.
+- message-event branches covered: pending-collection consume, task-found thread_reply, no-pending/no-task no-op, top-level skip, parent-msg skip, bot skip, no-text skip, inngest.send rejection swallowed.
+- No bugs found in handlers — all tests assert current behavior and pass.
+
+## Task 30 — Approval Idempotency + Soft-Delete Filtering Tests (2026-06-08)
+
+### Test patterns discovered
+
+**Approval handler direct testing** (`approval-handler-idempotency.test.ts`):
+- `handleApprove` takes `ctx.runDelivery` as a parameter → trivial to inject a `vi.fn()` spy
+- Must mock: `@prisma/client`, `tenant-env-loader`, `tenant-repository`, `tenant-secret-repository` because `handleApprove` instantiates `PrismaClient` + repos to call `loadTenantEnv` internally
+- `slackClient` is injected as a function param → no need to mock `createSlackClient` or `loadTenantSlack`
+- `vi.stubGlobal('fetch', ...)` is the right way to control PostgREST fetch calls in step tests
+
+**Idempotency finding (BUG)**:
+- `handleApprove` has NO in-function idempotency guard. A second call re-patches state and re-triggers delivery.
+- Production safety comes entirely from Inngest's `step.waitForEvent` one-time-listener semantics.
+- Filed as `// BUG:` comment inside the test per task spec.
+
+**Soft-delete filtering tests** (`soft-delete-filtering.test.ts`):
+- `ArchetypeRepository.softDelete` uses `$transaction` — mock pattern: `prisma.$transaction = vi.fn().mockImplementation(async (fn) => fn(tx))` where `tx` has the relevant model methods
+- `TenantIntegrationRepository` uses direct `prisma.tenantIntegration.*` calls without transactions
+- `ModelCatalog` has no repository class — filter contract tested by driving the mock Prisma directly
+- All three pass `deleted_at: null` in their WHERE clauses — confirmed by `expect.objectContaining({ deleted_at: null })`
+- The `ArchetypeRepository.softDelete` idempotency guard (`if existing.deleted_at !== null → return early`) tested explicitly
+
+### Test counts (post-task)
+- Unit suite: 138 files, 1595 tests, 0 failures
+- Integration suite: 49 passed, 1 skipped (50 total), 0 test failures (1 unhandled rejection from pre-existing `diagnose-access.test.ts` / `execution-phase.mts`)
+
+### Pre-existing integration error (NOT caused by this task)
+`tests/integration/worker-tools/sifely/diagnose-access.test.ts` — triggers an unhandled rejection from `src/workers/lib/execution-phase.mts:251 process.exit(1)`. This was present before task 30 and is unrelated to soft-delete or approval changes.
+
+## [Task Wave 7] Shell tool template + CONTRIBUTING.md templates (2026-06-08)
+
+### Files created/modified
+
+- `src/worker-tools/_template/example-tool.ts` — runnable shell tool template (148 lines)
+- `src/worker-tools/_template/fixtures/example-tool.json` — mock fixture for template
+- `CONTRIBUTING.md` — appended "Adding a Gateway Route" + three test skeletons
+
+### Template design decisions
+
+- Used `import.meta.url === \`file://${process.argv[1]}\`` as the ESM main-guard (not `require.main === module` which is CJS-only)
+- Mock mode uses `new URL('./fixtures/example-tool.json', import.meta.url)` + `fileURLToPath` for ESM-safe relative path resolution
+- Fixture loaded via `readFileSync` + `JSON.parse` (not dynamic `import()`) — synchronous, simpler, no assertion needed
+- Comments in the template are NECESSARY (the template IS documentation for new engineers)
+- `_template/` directory name starts with underscore to signal "not a real service" — won't be confused with actual tool directories
+
+### CONTRIBUTING.md gateway route section
+
+- Annotated example mirrors `admin-employee-trigger.ts` exactly (Router factory, Zod safeParse, sendError/sendSuccess, requireAdminKey, optional Prisma injection)
+- Key rules listed inline: soft-delete, tenant scoping, ERROR_CODES constants, logger naming convention
+
+### CONTRIBUTING.md test skeletons
+
+- Unit skeleton: shows `createLifecycleMocks()` + `applyStepMocks()` usage with correct import paths
+- Integration skeleton: shows supertest + injected Prisma + soft-delete cleanup pattern
+- Dashboard skeleton: shows @testing-library/react + vi.mock for hooks + role-based queries
+- Each skeleton includes "when to use" guidance and key facts
+
+### Verification
+
+- `pnpm exec tsx src/worker-tools/_template/example-tool.ts --help` → exits 0, prints usage
+- `EXAMPLE_MOCK=true pnpm exec tsx src/worker-tools/_template/example-tool.ts` → exits 0, prints fixture JSON
+- `pnpm build` → clean (tsconfig.build.json excludes worker-tools, so template TS not type-checked by root build)
+- Commit: 207386f8
+
+## [Task 31-followup] CONTRIBUTING.md additions (2026-06-08)
+
+### Sections added
+
+- **Your First PR**: shell-tool addition as lowest-risk first change; pre-PR commands (`pnpm lint`, `pnpm build`, `pnpm test:unit`); smoke-test curl for real-estate-motivation-bot-2
+- **Where to Put Your Test**: decision table — `tests/unit/` (no DB), `tests/integration/` (needs DB), `dashboard/src/**/*.test.tsx` (React), `tests/gateway/` (NEVER — orphan dir not picked up by vitest)
+- **Writing Gateway Route Tests**: full pattern from `admin-tasks.test.ts` — inject mock Prisma via `opts.prisma as never`, assert auth middleware runs first, assert tenant_id in WHERE clause
+- **Writing Shell Tool Tests**: mirror-logic pattern from `get-messages-sender.test.ts` — copy pure expressions into test file, no imports needed; mock-mode alternative for CLI output shape tests
+- **Logger Naming and vi.stubGlobal('setTimeout')**: `log` (inngest/) vs `logger` (routes/); `vi.stubGlobal` for synchronous setTimeout; `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync` for deadline loops; `pnpm test:unit` vs `pnpm test -- --run` warning
+
+### Key decisions
+
+- Did NOT duplicate the "Test Skeletons" section (already added by Task 31) — new sections are additive
+- Gateway route test section uses `tests/unit/` path (not `tests/integration/`) because the mock-Prisma pattern avoids DB
+- Shell tool test section explicitly distinguishes "mirror logic" vs "mock mode" approaches
+- `tests/gateway/` orphan warning is prominent — this was a real bug discovered in Task 22
+
+### Commit: cadbbec0
+
+## [README fixes] Port table, lifecycle states, deprecated section, testing (2026-06-08)
+
+### Changes made (commit b3d71bf9)
+
+- **Port table**: README had Kong at 54331 (wrong). Corrected to Kong=54321, PostgREST/Pooler=54331. Also added Studio (54323) which was missing. Source of truth: `docker/.env.example` (`KONG_HTTP_PORT_HOST=54321`, `POOLER_PORT_HOST=54331`).
+- **Lifecycle states**: README showed only 5 states (`Received → Ready → Executing → Submitting → Reviewing`). Expanded to all 13: `Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done` (terminal: `Failed`, `Cancelled`). Also noted the short-circuit path when `approval_required: false`.
+- **Deprecated "Registering Projects" section**: Wrapped in `<details>` / `<summary>` HTML block so it's collapsed by default on GitHub. Content preserved in full — not deleted.
+- **Testing section**: Added `pnpm test:unit` as the one-shot command. Added a callout note explaining `pnpm test` stays in watch mode.
+
+### Key facts
+
+- `docker/.env.example` is the canonical port truth — always check it before updating port docs
+- `<details>` / `<summary>` renders as a collapsible block on GitHub and most Markdown renderers
+- `pnpm test:unit` = `vitest run` (exits cleanly); `pnpm test` = `vitest` (watch mode, stays running)
+
+## [2026-06-08] Task: docker/.env + Supabase keys + task-stuck troubleshooting docs
+
+### Changes made
+- `.env.example` Supabase section: added inline comments explaining `SUPABASE_SECRET_KEY` = `SERVICE_ROLE_KEY` from `docker/.env` and `SUPABASE_ANON_KEY` = `ANON_KEY` from `docker/.env`; noted that `pnpm setup` auto-creates `docker/.env` with demo values
+- `.env.example` OPENROUTER_MODEL: added two-line note that for local E2E, override to `deepseek/deepseek-v4-flash` (confirmed reliable for tool calling; some catalog models fail bash tool calling)
+- `docs/guides/2026-06-07-2022-new-contributor-setup.md` Section 2: expanded `pnpm setup` step list to include "copies docker/.env.example to docker/.env"; added a "What is docker/.env?" paragraph explaining the key mapping
+- New-contributor guide Section 5 (env checklist): added `SUPABASE_SECRET_KEY` and `SUPABASE_ANON_KEY` rows to the Shared table with copy instructions
+- New-contributor guide Section 7 (troubleshooting): added "Task is stuck or failed" entry with 4-step diagnostic (psql status + lifecycle trace, docker logs, harness grep, debugging-lifecycle skill)
+
+### Key facts confirmed
+- `docker/.env` is auto-created by `pnpm setup` from `docker/.env.example` — contributors don't need to create it manually
+- `SUPABASE_SECRET_KEY` in `.env` = `SERVICE_ROLE_KEY` in `docker/.env`
+- `SUPABASE_ANON_KEY` in `.env` = `ANON_KEY` in `docker/.env`
+- Default demo JWT values in `docker/.env.example` are safe for local dev (HS256 signed with the demo JWT_SECRET)
+- Commit: `docs: explain docker/.env + supabase keys; add task-stuck troubleshooting`
