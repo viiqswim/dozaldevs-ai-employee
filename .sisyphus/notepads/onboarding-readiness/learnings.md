@@ -544,3 +544,29 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 - `pnpm build` EXIT 0 ✅
 - `eslint --max-warnings 0` on all 18 files EXIT 0 ✅
 - `CI=true pnpm test:unit` → 122 files / 1404 passed / 9 skipped / 0 fail ✅
+
+## [2026-06-08] Task 26 — Worker tools doc
+
+- Added "Worker Tools Development" section to CONTRIBUTING.md after "Adding a New Shell Tool"
+- Section covers: `cd src/worker-tools && pnpm install` command, separate package.json, bind-mount (no rebuild for tool changes), tsconfig.build.json exclusion, git add -f for lib/ artifacts
+- pnpm build: EXIT 0; commit b333c1e4
+
+## [2026-06-08] Task 24 — Migrate slack/post-message.ts
+
+### File: `src/worker-tools/slack/post-message.ts` (226 → 186 lines, -40 insertions, -87 deletions)
+
+**Env var classification:**
+- REQUIRED: `SLACK_BOT_TOKEN` → `requireEnv('SLACK_BOT_TOKEN')`
+- OPTIONAL: `NOTIFY_MSG_TS`, `INNGEST_RUN_ID`, `TASK_ID`, `EMPLOYEE_PHASE`, `APPROVAL_REQUIRED` → all `optionalEnv(...)`
+
+**Arg migration pattern:**
+- Removed manual `parseArgs` for-loop entirely — inlined into `main()` using `getArg(args, '--flag')`
+- Boolean flags: `args.includes('--help')` (only boolean flags were `--help` and `--no-thread` which is a deprecated no-op)
+- `--text` value needed `unescapeShellArg()` wrapping: `const rawText = getArg(args, '--text'); let text = rawText ? unescapeShellArg(rawText) : ''`
+- `--blocks` value needed `JSON.parse()`: `const parsedBlocks = rawBlocks ? JSON.parse(rawBlocks) as unknown[] : undefined`
+
+**Key pattern for NOTIFY_MSG_TS fallback:**
+- Original: `if (threadTs === undefined) { const envTs = process.env.NOTIFY_MSG_TS; if (envTs) threadTs = envTs; }`
+- Migrated: `const threadTs = getArg(args, '--thread-ts') ?? optionalEnv('NOTIFY_MSG_TS')` — cleaner nullish coalescing
+
+**Verification:** `pnpm build` exits 0, `CI=true pnpm test:unit` → 122 files, 1404 passed, 9 skipped, 0 failures.

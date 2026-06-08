@@ -1431,7 +1431,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate platform and github tools to shared helpers`
 
-- [ ] 24. Migrate slack/post-message.ts (high-risk, 226 lines)
+- [x] 24. Migrate slack/post-message.ts (high-risk, 226 lines)
 
   **What to do**:
   - **VERIFIED 226 lines, mixed required/optional env**. REQUIRED: `SLACK_BOT_TOKEN`, `SLACK_CHANNEL` → `requireEnv`. OPTIONAL: `NOTIFY_MSG_TS`, `INNGEST_RUN_ID`, `TASK_ID`, `EMPLOYEE_PHASE`, `APPROVAL_REQUIRED`, `THREAD_TS` → `optionalEnv`. Args → `getArg`. Verify behavior with and without optional vars. (Re-grep actual env var names before editing.)
@@ -1493,7 +1493,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate slack/post-guest-approval.ts (preserve idempotency)`
 
-- [ ] 26. Document worker-tools local install requirement in CONTRIBUTING.md
+- [x] 26. Document worker-tools local install requirement in CONTRIBUTING.md
 
   **What to do**:
   - Add a "Worker Tools Development" section: `src/worker-tools/` has its own `package.json`/`node_modules`; local tool dev needs `cd src/worker-tools && pnpm install`; Docker handles it in containers; tools are bind-mounted locally (no rebuild for tool-only changes).
