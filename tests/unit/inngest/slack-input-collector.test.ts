@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { createSlackInputCollectorFunction } from '../../../src/inngest/slack-trigger-handler.js';
+import { createSlackInputCollectorFunction } from '../../../src/inngest/slack-input-collector.js';
 
 const { mockLoadTenantEnv, mockExtractInputsFromText } = vi.hoisted(() => ({
   mockLoadTenantEnv: vi.fn().mockResolvedValue({ SLACK_BOT_TOKEN: 'xoxb-test' }),

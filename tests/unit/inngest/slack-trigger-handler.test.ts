@@ -3,8 +3,8 @@ import { Inngest } from 'inngest';
 import {
   prettifyRoleName,
   createSlackTriggerHandlerFunction,
-  createSlackInputCollectorFunction,
 } from '../../../src/inngest/slack-trigger-handler.js';
+import { createSlackInputCollectorFunction } from '../../../src/inngest/slack-input-collector.js';
 
 const { mockLoadTenantEnv, mockResolveArchetypeFromChannel, mockExtractInputsFromText } =
   vi.hoisted(() => ({

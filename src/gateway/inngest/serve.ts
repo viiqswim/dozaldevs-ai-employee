@@ -11,10 +11,8 @@ import { createInteractionHandlerFunction } from '../../inngest/interaction-hand
 import { createRuleExtractorFunction } from '../../inngest/rule-extractor.js';
 import { createRuleSynthesizerFunction } from '../../inngest/rule-synthesizer.js';
 import { createReviewingWatchdogTrigger } from '../../inngest/triggers/reviewing-watchdog.js';
-import {
-  createSlackTriggerHandlerFunction,
-  createSlackInputCollectorFunction,
-} from '../../inngest/slack-trigger-handler.js';
+import { createSlackTriggerHandlerFunction } from '../../inngest/slack-trigger-handler.js';
+import { createSlackInputCollectorFunction } from '../../inngest/slack-input-collector.js';
 // import { createLearnedRulesExpiryTrigger } from '../../inngest/triggers/learned-rules-expiry.js'; // Deregistered: manual cleanup if needed
 // import { createGuestMessagePollTrigger } from '../../inngest/triggers/guest-message-poll.js';
 // import { createSlackClient } from '../../lib/slack-client.js'; // Dead code: only used by engineering fns (deregistered)

@@ -451,3 +451,23 @@ write / end, lines 98-206) is not JSON — left as-is.
 - Triggered via the MIGRATED admin-employee-trigger.ts route — directly exercises sendSuccess(res, 202, {...}). Response body identical to old: { task_id, status_url }.
 - Trace: Received→Triaging→AwaitingInput→Ready→Executing→Submitting→Validating→Submitting→Delivering→Done
 - Evidence: .sisyphus/evidence/task-14-tierA.txt
+
+## Task 18 — slack-input-collector + interaction early-exits
+
+### Files created
+- `src/inngest/slack-input-collector.ts` — `createSlackInputCollectorFunction` extracted from `slack-trigger-handler.ts` (lines 342-489 → new file)
+- `src/inngest/lib/interaction-helpers.ts` — `runPreClassificationShortCircuits()` containing all 4 pre-classification steps extracted from `interaction-handler.ts` (lines 70-287 → new file)
+
+### Key findings
+1. **Two test files needed updating**: `slack-input-collector.test.ts` imported from `slack-trigger-handler.js` (old location); `slack-trigger-handler.test.ts` had `createSlackInputCollectorFunction` bundled in the same import. Both fixed to point to new locations.
+2. **`prettifyRoleName` import**: `slack-input-collector.ts` imports `prettifyRoleName` from `slack-trigger-handler.ts` (pure function, no side effects). Circular-looking but fine — handler depends on collector, not the other way round.
+3. **`interaction-helpers.ts` design**: Single `runPreClassificationShortCircuits(step, params)` function returning `'handled' | 'continue'`. Same logger name `'interaction-handler'` preserved for operational continuity. `supabaseUrl`/`supabaseKey` declared at module level via `requireEnv` (same pattern as the original file).
+4. **`capture-rejection-feedback` calls `step.sendEvent` inside `step.run`**: This is existing behavior — Inngest treats it as regular code within the step. Preserved exactly.
+5. **Resulting line counts**: `interaction-handler.ts` = 361 lines (was 570; −209). Both new files ≈165-215 lines.
+
+### Verification
+- pnpm build: EXIT_CODE 0
+- pnpm test:unit: 125 files, 1425 passed, 9 skipped, 0 failures
+- pnpm test:integration: 47 files passed, 1 pre-existing failure (opencode-harness-metrics)
+- Tier A: e192cdeb-7146-4080-ba8f-0ac12e86c2fa → Done
+  Trace: Received→Triaging→AwaitingInput→Ready→Executing→Submitting→Validating→Submitting→Delivering→Done
