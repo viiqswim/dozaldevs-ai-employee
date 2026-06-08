@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from 'react';
+import { useSlackChannels } from '@/hooks/use-slack-channels';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { fetchSlackChannels, patchArchetype } from '@/lib/gateway';
-import type { Archetype, SlackChannel } from '@/lib/types';
+import { patchArchetype } from '@/lib/gateway';
+import type { Archetype } from '@/lib/types';
 import type { ProfileMode } from '@/lib/profile-constants';
 
 interface CompactSettingsGridProps {
@@ -85,30 +86,11 @@ export function CompactSettingsGrid({
   const [saving, setSaving] = useState(false);
   const [form, dispatch] = useReducer(formReducer, archetype, initForm);
 
-  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
-  const [slackLoading, setSlackLoading] = useState(true);
-  const [slackError, setSlackError] = useState<string | undefined>();
-
-  useEffect(() => {
-    let cancelled = false;
-    setSlackLoading(true);
-    fetchSlackChannels(tenantId)
-      .then((result) => {
-        if (cancelled) return;
-        setSlackChannels(result.channels ?? []);
-        if (result.error) setSlackError(result.error);
-        setSlackLoading(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSlackChannels([]);
-        setSlackError('SLACK_NOT_CONFIGURED');
-        setSlackLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId]);
+  const {
+    channels: slackChannels,
+    loading: slackLoading,
+    error: slackError,
+  } = useSlackChannels(tenantId);
 
   useEffect(() => {
     if (!editing) {
