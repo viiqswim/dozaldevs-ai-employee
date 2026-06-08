@@ -13,6 +13,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('tool-parser');
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -89,10 +92,9 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
       const metadata = await parseToolFile(filePath);
       results.push(metadata);
     } catch (err) {
-      console.warn(
+      logger.warn(
+        { filePath, err: err instanceof Error ? err.message : String(err) },
         'tool-parser: failed to parse',
-        filePath,
-        err instanceof Error ? err.message : String(err),
       );
     }
   }

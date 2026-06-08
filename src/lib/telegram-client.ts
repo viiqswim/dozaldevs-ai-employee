@@ -1,6 +1,9 @@
 /** Telegram Bot API client — plain text push notifications. */
 import { ExternalApiError, RateLimitExceededError } from './errors.js';
+import { createLogger } from './logger.js';
 import { withRetry } from './retry.js';
+
+const logger = createLogger('telegram-client');
 
 export interface TelegramClientConfig {
   botToken: string;
@@ -79,9 +82,7 @@ export async function sendTelegramNotification(text: string): Promise<void> {
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!botToken || !chatId) {
-    console.warn(
-      '[telegram] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping notification',
-    );
+    logger.warn('TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping notification');
     return;
   }
 
