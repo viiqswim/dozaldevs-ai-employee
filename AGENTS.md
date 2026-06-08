@@ -294,23 +294,27 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 ## Commands
 
-| Action           | Command                            |
-| ---------------- | ---------------------------------- |
-| First-time setup | `pnpm setup`                       |
-| Start services   | `pnpm dev`                         |
-| Run tests        | `pnpm test -- --run`               |
-| Setup test DB    | `pnpm test:db:setup`               |
-| Lint             | `pnpm lint`                        |
-| Build            | `pnpm build`                       |
-| Trigger E2E task | `pnpm trigger-task`                |
-| Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
-| Stress test      | `pnpm stress-test`                 |
-| Docker start     | `pnpm docker:start`                |
-| Docker stop      | `pnpm docker:stop`                 |
-| Docker reset     | `pnpm docker:reset`                |
-| Docker status    | `pnpm docker:status`               |
-| Dashboard build  | `pnpm dashboard:build`             |
-| Full E2E run     | `pnpm dev:e2e`                     |
+| Action                     | Command                            |
+| -------------------------- | ---------------------------------- |
+| First-time setup           | `pnpm setup`                       |
+| Start services             | `pnpm dev`                         |
+| Run unit tests (watch)     | `pnpm test`                        |
+| Run unit tests (one-shot)  | `pnpm test -- --run`               |
+| Run unit tests (explicit)  | `pnpm test:unit`                   |
+| Run integration tests (DB) | `pnpm test:integration`            |
+| Run all tests (unit + DB)  | `pnpm test:all`                    |
+| Setup test DB              | `pnpm test:db:setup`               |
+| Lint                       | `pnpm lint`                        |
+| Build                      | `pnpm build`                       |
+| Trigger E2E task           | `pnpm trigger-task`                |
+| Verify E2E                 | `pnpm verify:e2e --task-id <uuid>` |
+| Stress test                | `pnpm stress-test`                 |
+| Docker start               | `pnpm docker:start`                |
+| Docker stop                | `pnpm docker:stop`                 |
+| Docker reset               | `pnpm docker:reset`                |
+| Docker status              | `pnpm docker:status`               |
+| Dashboard build            | `pnpm dashboard:build`             |
+| Full E2E run               | `pnpm dev:e2e`                     |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 

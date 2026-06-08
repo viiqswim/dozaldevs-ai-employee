@@ -156,3 +156,22 @@ This guard ensures `main()` only runs when the file is the direct entry point, n
 - `tests/scripts/migrate-vlre-kb.test.ts` pointed at `scripts/migrate-vlre-kb.ts` which was moved to `scripts/archive/` in PR #7
 - Use `git rm` to remove test files for archived scripts
 - Evidence: `.sisyphus/evidence/task-0.6-exits-archived.txt`
+
+## Task 0.8 — Split test scripts + CI wiring (2026-06-07)
+
+### package.json script split
+- `"test"` → `vitest --config vitest.config.ts` (unit, watch mode default)
+- `"test:unit"` → `vitest run --config vitest.config.ts` (explicit one-shot)
+- `"test:integration"` → `vitest run --config vitest.integration.config.ts`
+- `"test:all"` → `pnpm test:unit && pnpm test:integration` (convenience)
+- `"test:coverage"` → `vitest run --coverage --config vitest.config.ts` (unit only)
+- `pnpm test -- --run` still works as before because vitest passes `--run` flag through
+
+### CI strategy (deploy.yml)
+- Single `test` job with postgres service running for all steps (harmless for unit tests)
+- Step order: install → build → `pnpm test:unit` (fast, no DB) → `pnpm test:db:setup` → `pnpm test:integration` (DB env vars set) → lint
+- DATABASE_URL env only on the integration step to make intent clear
+
+### Verification
+- `pnpm test:unit`: 120 files, 1386 passed, 9 skipped, EXIT_CODE:0, ~9.2s
+- `pnpm build`: tsc clean, EXIT_CODE:0
