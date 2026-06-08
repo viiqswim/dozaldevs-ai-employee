@@ -25,6 +25,16 @@ export interface ActionBody {
   message?: { ts: string };
 }
 
+// Bolt types block-action `ack` as AckFn<void> and does not model the legacy
+// message-replacement body, so handlers cast through LegacyMessageAck instead of `any`.
+export interface LegacyMessageAckBody {
+  replace_original?: boolean;
+  text?: string;
+  blocks?: unknown[];
+}
+
+export type LegacyMessageAck = (body: LegacyMessageAckBody) => Promise<void>;
+
 export const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
 
 // ─── Button block builders ────────────────────────────────────────────────────

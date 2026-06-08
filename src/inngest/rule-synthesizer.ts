@@ -1,11 +1,13 @@
 import { randomUUID } from 'crypto';
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
+import type { InngestStep } from '../gateway/inngest/client.js';
+import type { RuleSynthesizeRequestedData } from './events.js';
 
 const log = createLogger('rule-synthesizer');
 
@@ -23,9 +25,14 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
       id: 'employee/rule-synthesizer',
       triggers: [{ event: 'employee/rule.synthesize-requested' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const { tenantId, archetypeId } = event.data as { tenantId: string; archetypeId: string };
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<RuleSynthesizeRequestedData>;
+      step: InngestStep;
+    }) => {
+      const { tenantId, archetypeId } = event.data!;
 
       const supabaseUrl = process.env.SUPABASE_URL ?? '';
       const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';

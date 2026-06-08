@@ -1,9 +1,10 @@
-import type { App } from '@slack/bolt';
+import type { App, ViewSubmitAction } from '@slack/bolt';
 import type { InngestLike } from '../../types.js';
 import { createLogger } from '../../../lib/logger.js';
 import { SLACK_ACTION_ID } from '../../../lib/slack-action-ids.js';
 import {
   type ActionBody,
+  type LegacyMessageAck,
   BUTTON_BLOCKS,
   isTaskAwaitingApproval,
   isTaskAwaitingOverride,
@@ -27,8 +28,7 @@ export function registerApprovalHandlers(boltApp: App, inngest: InngestLike): vo
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
+    await (ack as unknown as LegacyMessageAck)({
       replace_original: true,
       text: '⏳ Got it — sending this for approval…',
       blocks: [
@@ -173,12 +173,11 @@ export function registerApprovalHandlers(boltApp: App, inngest: InngestLike): vo
     }
   });
 
-  boltApp.view('edit_and_send_modal', async ({ ack, view, body, client }) => {
+  boltApp.view<ViewSubmitAction>('edit_and_send_modal', async ({ ack, view, body, client }) => {
     const editedText = view.state.values?.draft_input?.edit_and_send?.value ?? '';
 
     if (!editedText || !editedText.trim()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ack as any)({
+      await ack({
         response_action: 'errors',
         errors: { draft_input: 'Response cannot be empty.' },
       });
@@ -572,8 +571,7 @@ export function registerApprovalHandlers(boltApp: App, inngest: InngestLike): vo
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (ack as any)({
+    await (ack as unknown as LegacyMessageAck)({
       replace_original: true,
       text: `✅ Dismissed by <@${user.id}>`,
       blocks: [
@@ -595,79 +593,42 @@ export function registerApprovalHandlers(boltApp: App, inngest: InngestLike): vo
   });
 
   // ─── Override: Take Action Modal ───────────────────────────────────────────
-  boltApp.view('override_take_action_modal', async ({ ack, view, body, client }) => {
-    const direction = view.state.values?.direction_input?.direction_text?.value ?? '';
+  boltApp.view<ViewSubmitAction>(
+    'override_take_action_modal',
+    async ({ ack, view, body, client }) => {
+      const direction = view.state.values?.direction_input?.direction_text?.value ?? '';
 
-    if (!direction || !direction.trim()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ack as any)({
-        response_action: 'errors',
-        errors: { direction_input: 'Direction cannot be empty.' },
-      });
-      return;
-    }
-
-    await ack();
-
-    let taskId = '';
-    let channelId = '';
-    let messageTs = '';
-    try {
-      const meta = JSON.parse(view.private_metadata ?? '{}') as {
-        taskId?: string;
-        channelId?: string;
-        messageTs?: string;
-      };
-      taskId = meta.taskId ?? '';
-      channelId = meta.channelId ?? '';
-      messageTs = meta.messageTs ?? '';
-    } catch {
-      log.error('Failed to parse override_take_action_modal private_metadata');
-      return;
-    }
-
-    if (!taskId) {
-      log.error('override_take_action_modal submitted without taskId in private_metadata');
-      return;
-    }
-
-    if (channelId && messageTs) {
-      try {
-        await client.chat.update({
-          channel: channelId,
-          ts: messageTs,
-          text: '⏳ On it — working on your direction…',
-          blocks: [
-            {
-              type: 'section',
-              text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
-            },
-            { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
-          ],
+      if (!direction || !direction.trim()) {
+        await ack({
+          response_action: 'errors',
+          errors: { direction_input: 'Direction cannot be empty.' },
         });
-      } catch (updateErr) {
-        log.warn(
-          { taskId, updateErr },
-          'Failed to remove buttons before override_take_action_modal work (non-fatal)',
-        );
+        return;
       }
-    }
 
-    const stillAwaiting = await isTaskAwaitingOverride(taskId);
-    if (!stillAwaiting) {
-      log.warn({ taskId }, 'Task already resolved — ignoring duplicate override submission');
-      return;
-    }
+      await ack();
 
-    const user = body.user;
+      let taskId = '';
+      let channelId = '';
+      let messageTs = '';
+      try {
+        const meta = JSON.parse(view.private_metadata ?? '{}') as {
+          taskId?: string;
+          channelId?: string;
+          messageTs?: string;
+        };
+        taskId = meta.taskId ?? '';
+        channelId = meta.channelId ?? '';
+        messageTs = meta.messageTs ?? '';
+      } catch {
+        log.error('Failed to parse override_take_action_modal private_metadata');
+        return;
+      }
 
-    try {
-      await inngest.send({
-        name: 'employee/override.requested',
-        data: { taskId, direction: direction.trim(), userId: user.id, userName: user.name },
-        id: `employee-override-${taskId}`,
-      });
-      log.info({ taskId, userId: user.id }, 'Override take-action event sent');
+      if (!taskId) {
+        log.error('override_take_action_modal submitted without taskId in private_metadata');
+        return;
+      }
 
       if (channelId && messageTs) {
         try {
@@ -686,12 +647,51 @@ export function registerApprovalHandlers(boltApp: App, inngest: InngestLike): vo
         } catch (updateErr) {
           log.warn(
             { taskId, updateErr },
-            'Failed to update message after override submit (non-fatal)',
+            'Failed to remove buttons before override_take_action_modal work (non-fatal)',
           );
         }
       }
-    } catch (err) {
-      log.error({ taskId, err }, 'Failed to process override_take_action_modal submission');
-    }
-  });
+
+      const stillAwaiting = await isTaskAwaitingOverride(taskId);
+      if (!stillAwaiting) {
+        log.warn({ taskId }, 'Task already resolved — ignoring duplicate override submission');
+        return;
+      }
+
+      const user = body.user;
+
+      try {
+        await inngest.send({
+          name: 'employee/override.requested',
+          data: { taskId, direction: direction.trim(), userId: user.id, userName: user.name },
+          id: `employee-override-${taskId}`,
+        });
+        log.info({ taskId, userId: user.id }, 'Override take-action event sent');
+
+        if (channelId && messageTs) {
+          try {
+            await client.chat.update({
+              channel: channelId,
+              ts: messageTs,
+              text: '⏳ On it — working on your direction…',
+              blocks: [
+                {
+                  type: 'section',
+                  text: { type: 'mrkdwn', text: '⏳ On it — working on your direction…' },
+                },
+                { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+              ],
+            });
+          } catch (updateErr) {
+            log.warn(
+              { taskId, updateErr },
+              'Failed to update message after override submit (non-fatal)',
+            );
+          }
+        }
+      } catch (err) {
+        log.error({ taskId, err }, 'Failed to process override_take_action_modal submission');
+      }
+    },
+  );
 }

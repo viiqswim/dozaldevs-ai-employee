@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
+import type { InngestStep } from '../../gateway/inngest/client.js';
 
 export interface CreateTaskAndDispatchParams {
   inngest: Inngest;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  step: any;
+  step: InngestStep;
   tenantId: string;
   archetypeSlug: string;
   externalId: string;

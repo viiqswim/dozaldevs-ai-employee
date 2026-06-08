@@ -2,6 +2,7 @@ import { Inngest } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { createDecipheriv } from 'crypto';
 import { createLogger } from '../../lib/logger.js';
+import type { InngestStep } from '../../gateway/inngest/client.js';
 
 const log = createLogger('guest-message-poll');
 
@@ -45,8 +46,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
       id: 'trigger/guest-message-poll',
       triggers: [{ cron: '*/15 * * * *' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ step }: { step: any }) => {
+    async ({ step }: { step: InngestStep }) => {
       const today = new Date().toISOString().slice(0, 10);
 
       const archetypes = await step.run('discover-archetypes', async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import { resolveArchetypeFromChannel } from '../gateway/services/interaction-classifier.js';
 import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
@@ -11,23 +11,8 @@ import { createLogger } from '../lib/logger.js';
 import { callLLM } from '../lib/call-llm.js';
 import { extractInputsFromText } from '../lib/extract-inputs.js';
 import { triggerCardPrompt } from '../lib/slack-copy.js';
-
-interface PendingInputContext {
-  archetypeId: string;
-  tenantId: string;
-  userId: string;
-  channelId: string;
-  text: string;
-  roleName: string;
-  requiredInputs: Array<{
-    key: string;
-    label: string;
-    description?: string;
-    type?: string;
-    options?: string[];
-  }>;
-  extractedInputs?: Record<string, string>;
-}
+import type { InngestStep } from '../gateway/inngest/client.js';
+import type { TaskRequestedData, TriggerInputReceivedData } from './events.js';
 
 const log = createLogger('slack-trigger-handler');
 
@@ -114,19 +99,9 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
       id: 'employee/slack-trigger-handler',
       triggers: [{ event: 'employee/task.requested' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
+    async ({ event, step }: { event: EventPayload<TaskRequestedData>; step: InngestStep }) => {
       const { tenantId, text, userId, channelId, archetypeId, threadTs, messageTs, taskId } =
-        event.data as {
-          tenantId: string | null;
-          text: string;
-          userId: string;
-          channelId: string;
-          archetypeId: string | null;
-          threadTs?: string;
-          messageTs?: string;
-          taskId?: string;
-        };
+        event.data!;
 
       const context = await step.run('validate-context', async () => {
         if (!tenantId) {
@@ -368,14 +343,14 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
       id: 'employee/slack-input-collector',
       triggers: [{ event: 'employee/trigger.input-received' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const { threadTs, text, tenantId, pending } = event.data as {
-        threadTs: string;
-        text: string;
-        tenantId: string;
-        pending: PendingInputContext;
-      };
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<TriggerInputReceivedData>;
+      step: InngestStep;
+    }) => {
+      const { threadTs, text, tenantId, pending } = event.data!;
 
       const botToken = await step.run('load-tenant-env', async () => {
         const prisma = new PrismaClient();

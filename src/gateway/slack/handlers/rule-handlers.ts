@@ -1,4 +1,4 @@
-import type { App } from '@slack/bolt';
+import type { App, ViewSubmitAction } from '@slack/bolt';
 import type { InngestLike } from '../../types.js';
 import { createLogger } from '../../../lib/logger.js';
 import { SLACK_ACTION_ID } from '../../../lib/slack-action-ids.js';
@@ -326,12 +326,11 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
     }
   });
 
-  boltApp.view('rule_rephrase_modal', async ({ ack, view, client }) => {
+  boltApp.view<ViewSubmitAction>('rule_rephrase_modal', async ({ ack, view, client }) => {
     const newText = view.state.values?.rule_input?.rule_text?.value ?? '';
 
     if (!newText || !newText.trim()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ack as any)({
+      await ack({
         response_action: 'errors',
         errors: { rule_input: 'Rule text cannot be empty.' },
       });
