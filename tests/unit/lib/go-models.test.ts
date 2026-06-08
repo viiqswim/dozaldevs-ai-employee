@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GO_MODEL_MAP, resolveProvider } from '../go-models.js';
+import { GO_MODEL_MAP, resolveProvider } from '../../../src/lib/go-models.js';
 
 describe('GO_MODEL_MAP', () => {
   it('contains all 14 expected Go model entries', () => {

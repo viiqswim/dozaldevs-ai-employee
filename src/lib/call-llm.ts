@@ -76,6 +76,11 @@ const COST_CACHE: { value: number; refreshedAt: Date | null } = {
 };
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export function _resetCostCache(): void {
+  COST_CACHE.value = 0;
+  COST_CACHE.refreshedAt = null;
+}
+
 const GATEWAY_MODEL_CACHE: { value: string | null; refreshedAt: Date | null } = {
   value: null,
   refreshedAt: null,
