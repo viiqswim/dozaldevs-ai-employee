@@ -49,6 +49,296 @@ export interface ReviewingPathContext {
   inngest: Inngest;
 }
 
+async function checkSupersede(ctx: ReviewingPathContext): Promise<void> {
+  const { taskId, tenantId, supabaseUrl, supabaseKey, headers, taskData, inngest } = ctx;
+
+  const rawEventData = (taskData.raw_event as Record<string, string> | null) ?? {};
+  const authoritativeThreadUid = rawEventData['thread_uid'];
+
+  const delivRes = await fetch(
+    `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+    { headers },
+  );
+  const delivRows = (await delivRes.json()) as Array<{
+    metadata: Record<string, unknown> | null;
+  }>;
+  const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
+  const conversationRef = delivMeta.conversation_ref as string | undefined;
+
+  if (!conversationRef && !authoritativeThreadUid) return;
+
+  const lookupKey = authoritativeThreadUid ?? conversationRef!;
+  const pending = await getPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
+
+  let oldTaskId: string | null = null;
+  let oldApprovalMsgTs: string | null = null;
+  let oldApprovalChannel: string | null = null;
+
+  if (pending && pending.taskId !== taskId) {
+    const oldTaskRes = await fetch(
+      `${supabaseUrl}/rest/v1/tasks?id=eq.${pending.taskId}&select=status`,
+      { headers },
+    );
+    const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
+    const oldTaskStatus = oldTaskRows[0]?.status;
+
+    if (!['Reviewing', 'Cancelled'].includes(oldTaskStatus)) {
+      log.info(
+        { taskId, oldTaskId: pending.taskId, oldTaskStatus },
+        'Stale pending approval found (PM already acted on old task) — clearing without supersede',
+      );
+      await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
+      return;
+    }
+
+    oldTaskId = pending.taskId;
+    oldApprovalMsgTs = pending.slackTs;
+    oldApprovalChannel = pending.channelId;
+  } else if (!pending || pending.taskId === taskId) {
+    const fallbackRes = await fetch(
+      `${supabaseUrl}/rest/v1/tasks?tenant_id=eq.${tenantId}&status=in.(Reviewing,Cancelled)&id=neq.${taskId}&select=id,status&order=created_at.desc&limit=5`,
+      { headers },
+    );
+    const fallbackRows = (await fallbackRes.json()) as Array<{
+      id: string;
+      status: string;
+    }>;
+
+    for (const candidate of fallbackRows) {
+      const candEventRes = await fetch(
+        `${supabaseUrl}/rest/v1/tasks?id=eq.${candidate.id}&select=raw_event`,
+        { headers },
+      );
+      const candEventRows = (await candEventRes.json()) as Array<{
+        raw_event: Record<string, unknown> | null;
+      }>;
+      const candThreadUid = candEventRows[0]?.raw_event?.['thread_uid'] as string | undefined;
+      if (candThreadUid === lookupKey) {
+        oldTaskId = candidate.id;
+        break;
+      }
+    }
+
+    if (!oldTaskId) return;
+
+    const oldDelivRes = await fetch(
+      `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
+      { headers },
+    );
+    const oldDelivRows = (await oldDelivRes.json()) as Array<{
+      metadata: Record<string, unknown> | null;
+    }>;
+    const oldDelivMeta = (oldDelivRows[0]?.metadata as Record<string, unknown>) ?? {};
+    oldApprovalMsgTs = (oldDelivMeta.approval_message_ts as string | undefined) ?? null;
+    oldApprovalChannel = (oldDelivMeta.target_channel as string | undefined) ?? null;
+
+    log.info(
+      { taskId, oldTaskId, conversationRef, source: 'fallback-task-lookup' },
+      'Superseding old task via fallback lookup (no pending_approvals record)',
+    );
+  }
+
+  if (!oldTaskId) return;
+
+  log.info({ taskId, oldTaskId, conversationRef }, 'Superseding old task for same conversation');
+
+  if (oldApprovalMsgTs && oldApprovalChannel) {
+    try {
+      const slackCtx = await loadTenantSlack(tenantId, null);
+      if (slackCtx) {
+        await slackCtx.slackClient.updateMessage(
+          oldApprovalChannel,
+          oldApprovalMsgTs,
+          supersededMessage(),
+          buildSupersededBlocks(oldTaskId),
+        );
+      }
+    } catch (err) {
+      log.warn({ taskId, oldTaskId, err }, 'Failed to update superseded Slack card (non-fatal)');
+    }
+  }
+
+  try {
+    const oldNudgeFetchRes = await fetch(
+      `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
+      { headers },
+    );
+    const oldNudgeFetchRows = (await oldNudgeFetchRes.json()) as Array<{
+      metadata: Record<string, unknown> | null;
+    }>;
+    const oldNudgeMeta = (oldNudgeFetchRows[0]?.metadata as Record<string, unknown>) ?? {};
+    const supersededNudgeTs = oldNudgeMeta.nudge_ts as string | undefined;
+    const supersededNudgeChannel = oldNudgeMeta.nudge_channel as string | undefined;
+    if (supersededNudgeTs && supersededNudgeChannel) {
+      const slackCtx = await loadTenantSlack(tenantId, null);
+      if (slackCtx) {
+        const { WebClient } = await import('@slack/web-api');
+        const web = new WebClient(slackCtx.botToken);
+        await web.chat.delete({ channel: supersededNudgeChannel, ts: supersededNudgeTs });
+        log.info({ taskId, supersededNudgeTs }, 'Superseded nudge broadcast deleted');
+      }
+    }
+  } catch (err) {
+    log.warn({ taskId, err }, 'Failed to delete superseded nudge broadcast (non-fatal)');
+  }
+
+  await inngest.send({
+    name: 'employee/approval.received',
+    data: {
+      taskId: oldTaskId,
+      action: 'superseded',
+      userId: 'system',
+      userName: 'System (superseded)',
+    },
+  });
+}
+
+async function trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void> {
+  const {
+    taskId,
+    tenantId,
+    supabaseUrl,
+    supabaseKey,
+    headers,
+    taskData,
+    archetype,
+    notifyMsgRef,
+    notifyBlocks,
+  } = ctx;
+
+  const rawEventForTracking = (taskData.raw_event as Record<string, string> | null) ?? {};
+  const authoritativeThreadUid = rawEventForTracking['thread_uid'];
+
+  const delivRes = await fetch(
+    `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
+    { headers },
+  );
+  const delivRows = (await delivRes.json()) as Array<{
+    metadata: Record<string, unknown> | null;
+  }>;
+  const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
+  const conversationRef = delivMeta.conversation_ref as string | undefined;
+  const approvalMsgTs = delivMeta.approval_message_ts as string | undefined;
+  const targetChannel = delivMeta.target_channel as string | undefined;
+
+  const threadUidForTracking = authoritativeThreadUid ?? conversationRef;
+
+  if (!approvalMsgTs || !targetChannel) {
+    log.warn(
+      { taskId, approvalMsgTs, targetChannel },
+      'track-pending-approval: Missing approval_message_ts or target_channel — approval card was not posted. Task will proceed to wait-for-approval but may timeout.',
+    );
+    return;
+  }
+
+  const threadUid = threadUidForTracking ?? taskId;
+
+  await trackPendingApproval(supabaseUrl, supabaseKey, {
+    tenantId,
+    threadUid,
+    taskId,
+    slackTs: approvalMsgTs,
+    channelId: targetChannel,
+    recipientName: delivMeta.recipient_name as string | undefined,
+    contextLabel: delivMeta.property_name as string | undefined,
+    urgency: delivMeta.urgency as boolean | undefined,
+  });
+  log.info({ taskId, threadUid }, 'Pending approval tracked');
+
+  if (archetype.enrichment_adapter && notifyMsgRef?.ts && notifyMsgRef?.channel) {
+    try {
+      const slackCtx = await loadTenantSlack(
+        tenantId,
+        (archetype.notification_channel as string | null) ?? null,
+      );
+      if (slackCtx) {
+        const preNudgeStatusRes = await fetch(
+          `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+          { headers },
+        );
+        const preNudgeStatusRows = (await preNudgeStatusRes.json()) as Array<{
+          status: string;
+        }>;
+        const preNudgeStatus = preNudgeStatusRows[0]?.status;
+        if (preNudgeStatus !== 'Reviewing') {
+          log.info(
+            { taskId, preNudgeStatus },
+            'Task no longer Reviewing before nudge — skipping nudge broadcast',
+          );
+          return;
+        }
+
+        const nudgeRecipientName = delivMeta.recipient_name as string | undefined;
+        const nudgePropertyName = delivMeta.property_name as string | undefined;
+        const nudgeText = needsReviewMessage(
+          nudgeRecipientName
+            ? `${nudgeRecipientName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
+            : undefined,
+        );
+
+        const { WebClient } = await import('@slack/web-api');
+        const web = new WebClient(slackCtx.botToken);
+        const nudgeResult = await web.chat.postMessage({
+          channel: notifyMsgRef.channel,
+          text: nudgeText,
+          blocks: notifyBlocks({
+            state: 'Reviewing',
+            archetypeName: (archetype.role_name as string) ?? 'unknown',
+            enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+            emoji: '⏳',
+          }) as import('@slack/web-api').Block[],
+          thread_ts: notifyMsgRef.ts,
+          reply_broadcast: true,
+          unfurl_links: false,
+        });
+
+        if (nudgeResult.ts) {
+          const updatedMeta = {
+            ...delivMeta,
+            nudge_ts: nudgeResult.ts,
+            nudge_channel: notifyMsgRef.channel,
+          };
+          await fetch(`${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}`, {
+            method: 'PATCH',
+            headers: { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' },
+            body: JSON.stringify({ metadata: updatedMeta }),
+          });
+          log.info({ taskId, nudgeTs: nudgeResult.ts }, 'Nudge broadcast posted');
+
+          const postNudgeStatusRes = await fetch(
+            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
+            { headers },
+          );
+          const postNudgeStatusRows = (await postNudgeStatusRes.json()) as Array<{
+            status: string;
+          }>;
+          const postNudgeStatus = postNudgeStatusRows[0]?.status;
+          if (postNudgeStatus !== 'Reviewing') {
+            log.warn(
+              { taskId, postNudgeStatus, nudgeTs: nudgeResult.ts },
+              'Task superseded during nudge posting — deleting nudge immediately',
+            );
+            try {
+              await web.chat.delete({
+                channel: notifyMsgRef.channel,
+                ts: nudgeResult.ts,
+              });
+              log.info(
+                { taskId, nudgeTs: nudgeResult.ts },
+                'Orphaned nudge deleted after post-check',
+              );
+            } catch (delErr) {
+              log.warn({ taskId, delErr }, 'Failed to delete orphaned nudge (non-fatal)');
+            }
+          }
+        }
+      }
+    } catch (err) {
+      log.warn({ taskId, err }, 'Failed to post nudge broadcast (non-fatal)');
+    }
+  }
+}
+
 export async function runReviewingPath(
   ctx: ReviewingPathContext,
   step: InngestStep,
@@ -61,7 +351,6 @@ export async function runReviewingPath(
     supabaseUrl,
     supabaseKey,
     headers,
-    taskData,
     archetype,
     machineId,
     timeoutHours,
@@ -71,147 +360,7 @@ export async function runReviewingPath(
     inngest,
   } = ctx;
 
-  await step.run('check-supersede', async () => {
-    const rawEventData = (taskData.raw_event as Record<string, string> | null) ?? {};
-    const authoritativeThreadUid = rawEventData['thread_uid'];
-
-    const delivRes = await fetch(
-      `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
-      { headers },
-    );
-    const delivRows = (await delivRes.json()) as Array<{
-      metadata: Record<string, unknown> | null;
-    }>;
-    const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
-    const conversationRef = delivMeta.conversation_ref as string | undefined;
-
-    if (!conversationRef && !authoritativeThreadUid) return;
-
-    const lookupKey = authoritativeThreadUid ?? conversationRef!;
-    const pending = await getPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
-
-    let oldTaskId: string | null = null;
-    let oldApprovalMsgTs: string | null = null;
-    let oldApprovalChannel: string | null = null;
-
-    if (pending && pending.taskId !== taskId) {
-      const oldTaskRes = await fetch(
-        `${supabaseUrl}/rest/v1/tasks?id=eq.${pending.taskId}&select=status`,
-        { headers },
-      );
-      const oldTaskRows = (await oldTaskRes.json()) as Array<{ status: string }>;
-      const oldTaskStatus = oldTaskRows[0]?.status;
-
-      if (!['Reviewing', 'Cancelled'].includes(oldTaskStatus)) {
-        log.info(
-          { taskId, oldTaskId: pending.taskId, oldTaskStatus },
-          'Stale pending approval found (PM already acted on old task) — clearing without supersede',
-        );
-        await clearPendingApproval(supabaseUrl, supabaseKey, tenantId, lookupKey);
-        return;
-      }
-
-      oldTaskId = pending.taskId;
-      oldApprovalMsgTs = pending.slackTs;
-      oldApprovalChannel = pending.channelId;
-    } else if (!pending || pending.taskId === taskId) {
-      const fallbackRes = await fetch(
-        `${supabaseUrl}/rest/v1/tasks?tenant_id=eq.${tenantId}&status=in.(Reviewing,Cancelled)&id=neq.${taskId}&select=id,status&order=created_at.desc&limit=5`,
-        { headers },
-      );
-      const fallbackRows = (await fallbackRes.json()) as Array<{
-        id: string;
-        status: string;
-      }>;
-
-      for (const candidate of fallbackRows) {
-        const candEventRes = await fetch(
-          `${supabaseUrl}/rest/v1/tasks?id=eq.${candidate.id}&select=raw_event`,
-          { headers },
-        );
-        const candEventRows = (await candEventRes.json()) as Array<{
-          raw_event: Record<string, unknown> | null;
-        }>;
-        const candThreadUid = candEventRows[0]?.raw_event?.['thread_uid'] as string | undefined;
-        if (candThreadUid === lookupKey) {
-          oldTaskId = candidate.id;
-          break;
-        }
-      }
-
-      if (!oldTaskId) return;
-
-      const oldDelivRes = await fetch(
-        `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
-        { headers },
-      );
-      const oldDelivRows = (await oldDelivRes.json()) as Array<{
-        metadata: Record<string, unknown> | null;
-      }>;
-      const oldDelivMeta = (oldDelivRows[0]?.metadata as Record<string, unknown>) ?? {};
-      oldApprovalMsgTs = (oldDelivMeta.approval_message_ts as string | undefined) ?? null;
-      oldApprovalChannel = (oldDelivMeta.target_channel as string | undefined) ?? null;
-
-      log.info(
-        { taskId, oldTaskId, conversationRef, source: 'fallback-task-lookup' },
-        'Superseding old task via fallback lookup (no pending_approvals record)',
-      );
-    }
-
-    if (!oldTaskId) return;
-
-    log.info({ taskId, oldTaskId, conversationRef }, 'Superseding old task for same conversation');
-
-    if (oldApprovalMsgTs && oldApprovalChannel) {
-      try {
-        const slackCtx = await loadTenantSlack(tenantId, null);
-        if (slackCtx) {
-          await slackCtx.slackClient.updateMessage(
-            oldApprovalChannel,
-            oldApprovalMsgTs,
-            supersededMessage(),
-            buildSupersededBlocks(oldTaskId),
-          );
-        }
-      } catch (err) {
-        log.warn({ taskId, oldTaskId, err }, 'Failed to update superseded Slack card (non-fatal)');
-      }
-    }
-
-    try {
-      const oldNudgeFetchRes = await fetch(
-        `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${oldTaskId}&select=metadata&order=created_at.desc&limit=1`,
-        { headers },
-      );
-      const oldNudgeFetchRows = (await oldNudgeFetchRes.json()) as Array<{
-        metadata: Record<string, unknown> | null;
-      }>;
-      const oldNudgeMeta = (oldNudgeFetchRows[0]?.metadata as Record<string, unknown>) ?? {};
-      const supersededNudgeTs = oldNudgeMeta.nudge_ts as string | undefined;
-      const supersededNudgeChannel = oldNudgeMeta.nudge_channel as string | undefined;
-      if (supersededNudgeTs && supersededNudgeChannel) {
-        const slackCtx = await loadTenantSlack(tenantId, null);
-        if (slackCtx) {
-          const { WebClient } = await import('@slack/web-api');
-          const web = new WebClient(slackCtx.botToken);
-          await web.chat.delete({ channel: supersededNudgeChannel, ts: supersededNudgeTs });
-          log.info({ taskId, supersededNudgeTs }, 'Superseded nudge broadcast deleted');
-        }
-      }
-    } catch (err) {
-      log.warn({ taskId, err }, 'Failed to delete superseded nudge broadcast (non-fatal)');
-    }
-
-    await inngest.send({
-      name: 'employee/approval.received',
-      data: {
-        taskId: oldTaskId,
-        action: 'superseded',
-        userId: 'system',
-        userName: 'System (superseded)',
-      },
-    });
-  });
+  await step.run('check-supersede', () => checkSupersede(ctx));
 
   await step.run('set-reviewing', async () => {
     await patchTask(supabaseUrl, headers, taskId, { status: 'Reviewing' });
@@ -255,139 +404,7 @@ export async function runReviewingPath(
     }
   });
 
-  await step.run('track-pending-approval', async () => {
-    const rawEventForTracking = (taskData.raw_event as Record<string, string> | null) ?? {};
-    const authoritativeThreadUid = rawEventForTracking['thread_uid'];
-
-    const delivRes = await fetch(
-      `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&select=metadata&order=created_at.desc&limit=1`,
-      { headers },
-    );
-    const delivRows = (await delivRes.json()) as Array<{
-      metadata: Record<string, unknown> | null;
-    }>;
-    const delivMeta = (delivRows[0]?.metadata as Record<string, unknown>) ?? {};
-    const conversationRef = delivMeta.conversation_ref as string | undefined;
-    const approvalMsgTs = delivMeta.approval_message_ts as string | undefined;
-    const targetChannel = delivMeta.target_channel as string | undefined;
-
-    const threadUidForTracking = authoritativeThreadUid ?? conversationRef;
-
-    if (!approvalMsgTs || !targetChannel) {
-      log.warn(
-        { taskId, approvalMsgTs, targetChannel },
-        'track-pending-approval: Missing approval_message_ts or target_channel — approval card was not posted. Task will proceed to wait-for-approval but may timeout.',
-      );
-      return;
-    }
-
-    const threadUid = threadUidForTracking ?? taskId;
-
-    await trackPendingApproval(supabaseUrl, supabaseKey, {
-      tenantId,
-      threadUid,
-      taskId,
-      slackTs: approvalMsgTs,
-      channelId: targetChannel,
-      recipientName: delivMeta.recipient_name as string | undefined,
-      contextLabel: delivMeta.property_name as string | undefined,
-      urgency: delivMeta.urgency as boolean | undefined,
-    });
-    log.info({ taskId, threadUid }, 'Pending approval tracked');
-
-    if (archetype.enrichment_adapter && notifyMsgRef?.ts && notifyMsgRef?.channel) {
-      try {
-        const slackCtx = await loadTenantSlack(
-          tenantId,
-          (archetype.notification_channel as string | null) ?? null,
-        );
-        if (slackCtx) {
-          const preNudgeStatusRes = await fetch(
-            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
-            { headers },
-          );
-          const preNudgeStatusRows = (await preNudgeStatusRes.json()) as Array<{
-            status: string;
-          }>;
-          const preNudgeStatus = preNudgeStatusRows[0]?.status;
-          if (preNudgeStatus !== 'Reviewing') {
-            log.info(
-              { taskId, preNudgeStatus },
-              'Task no longer Reviewing before nudge — skipping nudge broadcast',
-            );
-            return;
-          }
-
-          const nudgeRecipientName = delivMeta.recipient_name as string | undefined;
-          const nudgePropertyName = delivMeta.property_name as string | undefined;
-          const nudgeText = needsReviewMessage(
-            nudgeRecipientName
-              ? `${nudgeRecipientName}${nudgePropertyName ? ` · ${nudgePropertyName}` : ''}`
-              : undefined,
-          );
-
-          const { WebClient } = await import('@slack/web-api');
-          const web = new WebClient(slackCtx.botToken);
-          const nudgeResult = await web.chat.postMessage({
-            channel: notifyMsgRef.channel,
-            text: nudgeText,
-            blocks: notifyBlocks({
-              state: 'Reviewing',
-              archetypeName: (archetype.role_name as string) ?? 'unknown',
-              enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-              emoji: '⏳',
-            }) as import('@slack/web-api').Block[],
-            thread_ts: notifyMsgRef.ts,
-            reply_broadcast: true,
-            unfurl_links: false,
-          });
-
-          if (nudgeResult.ts) {
-            const updatedMeta = {
-              ...delivMeta,
-              nudge_ts: nudgeResult.ts,
-              nudge_channel: notifyMsgRef.channel,
-            };
-            await fetch(`${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}`, {
-              method: 'PATCH',
-              headers: { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' },
-              body: JSON.stringify({ metadata: updatedMeta }),
-            });
-            log.info({ taskId, nudgeTs: nudgeResult.ts }, 'Nudge broadcast posted');
-
-            const postNudgeStatusRes = await fetch(
-              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`,
-              { headers },
-            );
-            const postNudgeStatusRows = (await postNudgeStatusRes.json()) as Array<{
-              status: string;
-            }>;
-            const postNudgeStatus = postNudgeStatusRows[0]?.status;
-            if (postNudgeStatus !== 'Reviewing') {
-              log.warn(
-                { taskId, postNudgeStatus, nudgeTs: nudgeResult.ts },
-                'Task superseded during nudge posting — deleting nudge immediately',
-              );
-              try {
-                await web.chat.delete({
-                  channel: notifyMsgRef.channel,
-                  ts: nudgeResult.ts,
-                });
-                log.info(
-                  { taskId, nudgeTs: nudgeResult.ts },
-                  'Orphaned nudge deleted after post-check',
-                );
-              } catch (delErr) {
-                log.warn({ taskId, delErr }, 'Failed to delete orphaned nudge (non-fatal)');
-              }
-            }
-          }
-        }
-      } catch (err) {
-        log.warn({ taskId, err }, 'Failed to post nudge broadcast (non-fatal)');
-      }
-    }
-  });
+  await step.run('track-pending-approval', () => trackPendingApprovalStep(ctx));
 
   const approvalEvent = await step.waitForEvent('wait-for-approval', {
     event: 'employee/approval.received',
