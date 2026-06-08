@@ -47,6 +47,9 @@ type ReviewSummary = {
   responseDateTimeUTC: string | null;
 };
 
+import { getArg } from '../lib/get-arg.js';
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): {
   propertyId: string;
   since: string;
@@ -54,24 +57,12 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let since = '';
-  let unrespondedOnly = false;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i];
-    } else if (args[i] === '--since' && args[i + 1]) {
-      since = args[++i];
-    } else if (args[i] === '--unresponded-only') {
-      unrespondedOnly = true;
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { propertyId, since, unrespondedOnly, help };
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    since: getArg(args, '--since') ?? '',
+    unrespondedOnly: args.includes('--unresponded-only'),
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -99,13 +90,9 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const apiKey = requireEnv('HOSTFULLY_API_KEY');
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.3';
+  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.3';
 
   const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
 
@@ -166,11 +153,7 @@ async function main(): Promise<void> {
 
     process.stdout.write(JSON.stringify(results) + '\n');
   } else {
-    const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-    if (!agencyUid) {
-      process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-      process.exit(1);
-    }
+    const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
     const seenPropertyUids = new Set<string>();
     const propertyUids: string[] = [];

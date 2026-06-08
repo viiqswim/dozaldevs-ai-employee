@@ -14,13 +14,11 @@ interface WebhookRecord {
   objectUid?: string;
 }
 
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-  for (const arg of args) {
-    if (arg === '--help') help = true;
-  }
-  return { help };
+  return { help: args.includes('--help') };
 }
 
 async function listWebhooks(
@@ -96,25 +94,13 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const apiKey = requireEnv('HOSTFULLY_API_KEY');
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
+  const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
-  const webhookPublicUrl = process.env['WEBHOOK_PUBLIC_URL'];
-  if (!webhookPublicUrl) {
-    process.stderr.write('Error: WEBHOOK_PUBLIC_URL environment variable is required\n');
-    process.exit(1);
-  }
+  const webhookPublicUrl = requireEnv('WEBHOOK_PUBLIC_URL');
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
+  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
   const callbackUrl = `${webhookPublicUrl}/webhooks/hostfully`;
 
   console.log('Registering Hostfully webhook...');

@@ -30,6 +30,8 @@
  */
 
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import { getArg } from '../lib/get-arg.js';
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
 
 type RawCreatedMessage = {
   uid?: string;
@@ -53,24 +55,13 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let leadId = '';
-  let threadId = '';
-  let message = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--lead-id' && args[i + 1]) {
-      leadId = args[++i];
-    } else if (args[i] === '--thread-id' && args[i + 1]) {
-      threadId = args[++i];
-    } else if (args[i] === '--message' && args[i + 1]) {
-      message = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { leadId, threadId, message, help };
+  const rawMessage = getArg(args, '--message');
+  return {
+    leadId: getArg(args, '--lead-id') ?? '',
+    threadId: getArg(args, '--thread-id') ?? '',
+    message: rawMessage !== undefined ? unescapeShellArg(rawMessage) : '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -111,7 +102,7 @@ async function main(): Promise<void> {
 
   // HOSTFULLY_MOCK: return fixture data instead of calling the real API.
   // Set HOSTFULLY_MOCK=true in .env for local E2E testing without real Hostfully credentials.
-  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+  if (optionalEnv('HOSTFULLY_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -132,13 +123,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const apiKey = requireEnv('HOSTFULLY_API_KEY');
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
+  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
 
   const headers = {
     'X-HOSTFULLY-APIKEY': apiKey,

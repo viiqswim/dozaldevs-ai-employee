@@ -387,3 +387,32 @@ Moved all `process.env.SUPABASE_URL`/`SUPABASE_SECRET_KEY` reads out of closures
 - pnpm build → EXIT 0
 - CI=true pnpm test:unit → 122 files / 1404 passed / 9 skipped / 0 fail / 9.14s
 - Evidence: .sisyphus/evidence/task-18-tierA-grep.txt (gitignored)
+
+## [2026-06-08] Task 20 — Migrate hostfully/ to shared helpers
+
+### Scope
+Migrated 10 files in `src/worker-tools/hostfully/` from raw `process.env[...]` and hand-rolled `process.argv` for-loops to shared helpers `requireEnv`/`optionalEnv`/`getArg`. Skipped `get-property.ts` (reference impl — already migrated) and `hostfully/lib/`.
+
+Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, get-reservations.ts, get-reviews.ts, register-webhook.ts, send-message.ts, update-door-code.ts, validate-env.ts
+
+### Patterns applied
+- REQUIRED env (HOSTFULLY_API_KEY, HOSTFULLY_AGENCY_UID, WEBHOOK_PUBLIC_URL): `requireEnv(name)` — replaces `const x = process.env['X']; if (!x) { stderr.write(...); exit(1); }` (collapses ~4 lines to 1)
+- OPTIONAL env (HOSTFULLY_MOCK, HOSTFULLY_API_URL, LEAD_UID, THREAD_UID): `optionalEnv('X') ?? default` — note get-property.ts (reference) still uses raw `process.env` for these because it predates optionalEnv; migrating them is what gets the target files to grep=0.
+- String args: `getArg(args, '--flag') ?? ''`
+- Boolean flags (`--unresponded-only`, `--help`): `args.includes('--flag')` — NOT getArg
+- Integer args (`--limit`): `parseInt(getArg(args, '--limit') ?? '30', 10)`
+- `--message` (needs unescapeShellArg): `const raw = getArg(args, '--message'); message: raw !== undefined ? unescapeShellArg(raw) : ''` — preserves prior behavior where unescape only ran when the flag was present.
+
+### Gotchas
+- `getArg` returns `undefined` for both missing flag AND empty-string value (`val !== '' ? val : undefined`). For `--message`, guarded with `!== undefined` before calling unescapeShellArg to avoid passing undefined. Old for-loop used `args[i+1]` truthiness — same net effect (empty string ignored).
+- get-messages.ts `leadId` is reassigned later (LEAD_UID fallback), so it's read via `parsed.leadId` into a `let`, not destructured as const — left that structure intact, only swapped the env read to `optionalEnv('LEAD_UID')` captured once in a local to avoid double-read in the warning string.
+- register-webhook.ts has ~20 legit `console.*` calls (it's a human-run CLI registration script) — left ALL untouched; only migrated env/arg parsing.
+- parseArgs now imports helpers at top of each file (after existing imports). Files with no prior imports (get-door-code, get-properties, update-door-code, validate-env, register-webhook) got the import line prepended above parseArgs.
+
+### Verification
+- grep 'process.env[' hostfully/*.ts → 2 matches, BOTH in get-property.ts (skipped reference impl). All 10 target files clean. ✅
+- grep 'process.argv' → 11 matches, all `parseArgs(process.argv)` call sites (correct — matches reference impl line 28). ✅
+- --help exits 0 on get-messages/get-checkouts/validate-env/register-webhook/send-message ✅
+- HOSTFULLY_MOCK=true get-messages.ts → correct fixture JSON, exit 0 ✅
+- validate-env.ts with no env → 'Error: HOSTFULLY_API_KEY environment variable is required', exit 1 ✅
+- pnpm build → EXIT 0 ✅

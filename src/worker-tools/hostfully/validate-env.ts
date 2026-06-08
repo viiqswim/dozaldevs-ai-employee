@@ -1,14 +1,10 @@
+import { requireEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
+  return {
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -21,17 +17,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
-
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
+  requireEnv('HOSTFULLY_API_KEY');
+  requireEnv('HOSTFULLY_AGENCY_UID');
 
   process.stdout.write(JSON.stringify({ ok: true, apiKeySet: true, agencyUidSet: true }) + '\n');
 }

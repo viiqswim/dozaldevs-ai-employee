@@ -19,17 +19,13 @@ type PropertySummary = {
   isActive: boolean | null;
 };
 
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
+  return {
+    help: args.includes('--help'),
+  };
 }
 
 function curateProperty(p: RawProperty): PropertySummary {
@@ -55,19 +51,11 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const apiKey = requireEnv('HOSTFULLY_API_KEY');
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
+  const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
+  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
 
   const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
   const seenUids = new Set<string>();

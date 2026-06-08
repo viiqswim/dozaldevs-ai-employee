@@ -1,6 +1,8 @@
 import { resolveHostfullyClient } from './lib/client.js';
 import { paginateCursor } from './lib/paginate.js';
 import { formatGuestName } from './lib/format.js';
+import { getArg } from '../lib/get-arg.js';
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
 
 type RawProperty = {
   uid: string;
@@ -58,18 +60,10 @@ const ZIP_CITY: Record<string, string> = {
 
 function parseArgs(argv: string[]): { date: string; help: boolean } {
   const args = argv.slice(2);
-  let date = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--date' && args[i + 1]) {
-      date = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { date, help };
+  return {
+    date: getArg(args, '--date') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 function normalizeAddress(rawAddress: string | null | undefined): string | null {
@@ -200,7 +194,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+  if (optionalEnv('HOSTFULLY_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -221,11 +215,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
+  const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
   const { headers, baseUrl } = resolveHostfullyClient();
 
