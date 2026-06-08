@@ -572,7 +572,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 
 ### WAVE 6 — Conventions, docs & final wave (ship last)
 
-- [ ] 29. **Name the magic numbers (no value changes)**
+- [x] 29. **Name the magic numbers (no value changes)**
 
   **What to do**: Extract hardcoded literals into named `const`s with explanatory comments — VALUE-IDENTICAL: `src/inngest/lifecycle/steps/execute.ts` (`kill_timeout: 1800`, `maxPolls: 120`, `intervalMs: 15_000` → e.g. `EXECUTION_KILL_TIMEOUT_S`, `MAX_EXECUTION_POLLS`, `POLL_INTERVAL_MS` with a comment: `120 × 15s = 30min max execution`); `src/workers/lib/opencode-server.ts` (port `4096`, healthTimeout `30000`, idle `300000`, reconnect `50/100`, force-kill `5000`); `src/workers/lib/session-manager.ts` (`10_000`, `60*60*1000`, `30_000`, `4000`); `src/inngest/lifecycle/steps/validate-and-submit.ts` (`setTimeout(...,1000)` ×2).
   **Must NOT do**: Change ANY numeric value (Metis trap — naming only, not tuning); don't relocate the constants into config.ts.
@@ -583,7 +583,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Named constants present with comments; `git diff` shows ONLY literal→named substitution, zero value change; `pnpm build && pnpm test -- --run` green
         **Commit**: YES — `refactor: name magic numbers in lifecycle/worker timeouts (no value change)`
 
-- [ ] 30. **Document barrel-file policy + catch-handler + `as unknown as` exceptions**
+- [x] 30. **Document barrel-file policy + catch-handler + `as unknown as` exceptions**
 
   **What to do**: Add to CONTRIBUTING.md: (a) **Barrel-file policy** — "We do NOT use `index.ts` barrels except the 3 existing intentional ones (`slack/handlers`, `enrichment-adapters`, `model-selection`); import modules directly. Do not add new barrels." (b) **Intentional swallowed catches** — explain that Slack/Bolt action handlers MUST NOT throw (Bolt swallows + breaks the socket), so their `catch` blocks log-and-return by design; reference `socket-mode-lock.ts`'s intentional bare catches. (c) **`as unknown as` policy** — list the legitimate uses (Bolt ack types, Prisma `InputJsonValue`, Node `dirent` compat) and instruct to prefer fixing the type, using `as unknown as` only at documented external-boundary points. **DOCUMENT ONLY — change zero code.**
   **Must NOT do**: Change any catch handler or cast (Metis: document-only); don't add new barrels.
@@ -594,7 +594,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] CONTRIBUTING.md has "Barrel Files", "Swallowed Errors in Bolt Handlers", "Type Assertions (`as unknown as`)" sections; zero code changed
         **Commit**: YES — `docs(contributing): document barrel, catch-handler, and type-assertion conventions`
 
-- [ ] 31. **Fix AGENTS.md `sendSuccess` doc rot + document `knowledge_base` naming exception**
+- [x] 31. **Fix AGENTS.md `sendSuccess` doc rot + document `knowledge_base` naming exception**
 
   **What to do**: AGENTS.md currently claims `sendSuccess()` is "paired with `sendError()`" — now TRUE after Task 1, so update the wording to reflect that `sendSuccess` exists and is used for 2xx (point to `http-response.ts`). Also add a one-line note (AGENTS.md + CONTRIBUTING) that `src/worker-tools/knowledge_base/` uses snake_case INTENTIONALLY to match the Docker `/tools/knowledge_base/` path (the lone exception to kebab-case tool dirs).
   **Must NOT do**: Rename the `knowledge_base` directory (it must match the Docker path); don't restate the whole http-response convention.
@@ -605,7 +605,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] AGENTS.md `sendSuccess` wording matches reality; `knowledge_base` snake_case exception documented in both files
         **Commit**: YES — `docs: correct sendSuccess reference; document knowledge_base naming exception`
 
-- [ ] 32. **Update AGENTS.md / README / CONTRIBUTING for new modules + dropped tables + relocated repos**
+- [x] 32. **Update AGENTS.md / README / CONTRIBUTING for new modules + dropped tables + relocated repos**
 
   **What to do**: Per Documentation Freshness — document: new `sendSuccess` + extended `createHttpClient`; the relocated tenant repositories (new path); `harness-helpers.mts`, `lifecycle-helpers.ts`, the new lifecycle path files, `override-handlers.ts`, `slack-input-collector.ts`, `interaction-helpers.ts`; dashboard `input-schema-shared.ts`, `useSlackChannels`, `use-wizard-data`, `fireHostfullyWebhook`. Remove the 5 dropped models from any AGENTS.md schema references. Update the "Project Structure" notes where module homes changed.
   **Must NOT do**: Duplicate CONTRIBUTING into AGENTS (link); don't add employee-specific content to shared docs.
