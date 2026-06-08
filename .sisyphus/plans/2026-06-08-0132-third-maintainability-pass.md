@@ -275,7 +275,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 
 ### WAVE 2 — Finish foundation adoption
 
-- [ ] 6. **Adopt `createHttpClient` in `fly-client.ts`** (depends 2)
+- [x] 6. **Adopt `createHttpClient` in `fly-client.ts`** (depends 2)
 
   **What to do**: Replace `fly-client.ts`'s private `makeRequest()` + `makeRequestWithRetry()` (its own fetch + 429 + retry) with `createHttpClient(baseUrl, headers)` using the new `.get()/.post()/.delete()`. Keep the public `fly-client` API (function names, return shapes) IDENTICAL. This is the most-copied "wrong" pattern, so it's first.
   **Must NOT do**: Change any exported fly-client function signature or behavior; don't alter retry counts/backoff.
@@ -287,7 +287,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `pnpm build && pnpm test -- --run` green; Tier A → `Done` (machine create/destroy path intact). Evidence: `.sisyphus/evidence/task-6-tierA.txt`
         **Commit**: YES — `refactor(lib): adopt shared http-client in fly-client`
 
-- [ ] 7. **Adopt `createHttpClient` in `telegram-client.ts` + `github-token-manager.ts`** (depends 2)
+- [x] 7. **Adopt `createHttpClient` in `telegram-client.ts` + `github-token-manager.ts`** (depends 2)
 
   **What to do**: `telegram-client.ts` (inline fetch + manual 429/`Retry-After`) → `createHttpClient`. `github-token-manager.ts` (raw fetch, NO retry) → `createHttpClient` so the installation-token call gains 429 handling. Preserve both public APIs and the GitHub token 55-min cache logic.
   **Must NOT do**: Change the token cache TTL or JWT-signing logic; don't change telegram message formatting.
@@ -298,7 +298,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Neither file inlines its own 429 parsing; `pnpm build && pnpm test -- --run` green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-7-tierA.txt`
         **Commit**: YES — `refactor(lib): adopt shared http-client in telegram + github-token clients`
 
-- [ ] 8. **Migrate 4 OAuth routes + `shared.ts` to central config** (depends 3)
+- [x] 8. **Migrate 4 OAuth routes + `shared.ts` to central config** (depends 3)
 
   **What to do**: In `slack-oauth.ts`, `google-oauth.ts`, `jira-oauth.ts`, `notion-oauth.ts`, replace inline `process.env.{X}_CLIENT_ID/SECRET`, `ENCRYPTION_KEY`, `{X}_REDIRECT_BASE_URL`, `PORT` reads with imports from `config.ts` (Task 3). In `src/gateway/slack/handlers/shared.ts`, collapse the 4× repeated `SUPABASE_URL`/`SUPABASE_SECRET_KEY` reads to config imports. Re-grep line numbers first.
   **Must NOT do**: Touch `server.ts`'s 14 startup reads (out of scope, Metis RISK 3); don't change the OAuth redirect/HTML responses; don't change PostgREST URL construction in `shared.ts`.
@@ -310,7 +310,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `pnpm build && pnpm test -- --run` green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-8-tierA.txt`
         **Commit**: YES — `refactor(gateway): read OAuth + supabase env via central config`
 
-- [ ] 9. **Migrate 3 Hostfully LIST tools → shared client + paginator**
+- [x] 9. **Migrate 3 Hostfully LIST tools → shared client + paginator**
 
   **What to do**: Migrate `get-properties.ts`, `get-reservations.ts`, `get-reviews.ts` to `resolveHostfullyClient()` + `paginateCursor()` from `src/worker-tools/hostfully/lib/`. Replace their inline `apiKey`/`headers`/manual `for(;;)` cursor loops. **NOTE**: `get-reviews.ts` reads the Hostfully reviews API — unrelated to the Prisma `reviews` table (Wave 4); do not conflate.
   **Must NOT do**: Change any tool's output JSON shape; don't touch `hostfully/lib/`; keep `--help`/mock-mode behavior.
@@ -322,7 +322,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `pnpm exec tsx src/worker-tools/hostfully/get-properties.ts --help` exit 0; worker-tools hostfully tests green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-9-tierA.txt`
         **Commit**: YES — `refactor(tools): migrate hostfully list tools to shared client + paginator`
 
-- [ ] 10. **Migrate 5 Hostfully single/write tools → shared client** (+ get-property optionalEnv fix)
+- [x] 10. **Migrate 5 Hostfully single/write tools → shared client** (+ get-property optionalEnv fix)
 
   **What to do**: Migrate `get-property.ts`, `get-door-code.ts`, `update-door-code.ts`, `send-message.ts`, `register-webhook.ts` to `resolveHostfullyClient()` (single-item / write — no paginator). ALSO fix `get-property.ts`'s raw `process.env['HOSTFULLY_API_URL']` → `optionalEnv('HOSTFULLY_API_URL')`. `register-webhook.ts` keeps its ~20 legit CLI `console.*`.
   **Must NOT do**: Change output shapes or the write payloads; don't use `requireEnv` for the optional base-URL var.
@@ -334,7 +334,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] One tool `--help` exit 0; `pnpm build`; worker-tools tests green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-10-tierA.txt`
         **Commit**: YES — `refactor(tools): migrate remaining hostfully tools to shared client`
 
-- [ ] 11. **Extract tenant repos + loader → neutral shared layer** (removes inngest→gateway smell)
+- [x] 11. **Extract tenant repos + loader → neutral shared layer** (removes inngest→gateway smell)
 
   **What to do**: `src/inngest/lifecycle/steps/approval-handler.ts` (and other inngest files) import `TenantRepository`/`TenantSecretRepository`/`loadTenantEnv` from `../../../gateway/services/` — an inngest→gateway relative import. Move these three modules to a NEUTRAL location both layers import cleanly. **FIRST verify the target doesn't pull gateway-only deps (Prisma) into the worker bundle** (Metis Q6): if these repos use Prisma, place them where the worker bundle won't load them — prefer `src/gateway/services/` staying the home but having inngest import via a re-export in `src/lib/` ONLY if dependency-clean; otherwise relocate to `src/repositories/`. Decide based on the dep graph and DOCUMENT the choice. Update all import sites via `lsp_rename`/grep.
   **Must NOT do**: Redesign the repo API (move-as-is); don't pull Prisma into a module the worker container loads; don't add a barrel that creates a circular dep.
@@ -352,7 +352,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 
 > **Universal Wave-3 guardrail**: extract only. Before extracting any "verbatim" block, `ast_grep_search` / diff each occurrence to confirm it's truly identical (Metis: the 6× blocks may differ in surrounding context). A bug found mid-extraction = a NEW finding, never an inline fix.
 
-- [ ] 12. **Decompose `validate-and-submit.ts` (1109 → ~150) + dedup cleanup/metric blocks**
+- [x] 12. **Decompose `validate-and-submit.ts` (1109 → ~150) + dedup cleanup/metric blocks**
 
   **What to do** (re-grep — lines drift): First extract the repeated blocks into `src/inngest/lifecycle/steps/lifecycle-helpers.ts`: `cleanupExecutionMachine(machineId, taskId)` (the `destroyMachine`/`stopLocalDockerContainer` try/catch repeated ~6× at ≈131,255,270,411,1103) and `safeRecordWorkMetric(...)` (the `recordWorkMetric` try/catch repeated ~6× at ≈196,244,374,559,604,1090) — only after diffing each to confirm identical. Then split the orchestrator into `no-approval-path.ts` (≈97-380), `override-card.ts` (≈382-659), `reviewing-path.ts` (≈662-983). `runValidateAndSubmit()` becomes a thin sequencer (~150 lines). Preserve ALL Inngest step IDs.
   **Must NOT do**: Change any step ID, branch behavior, Slack sequencing, or `waitForEvent` names. No logic changes.
@@ -365,7 +365,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] **Tier B** full approval loop (verified in the wave's single Tier B run). Evidence: `.sisyphus/evidence/task-12-tierB-*`
         **Commit**: YES — `refactor(lifecycle): decompose validate-and-submit; dedup cleanup/metric helpers`
 
-- [ ] 13. **Decompose `approval-handler.ts` (extract `handleReject`) + dedup `writeFeedbackEvent`**
+- [x] 13. **Decompose `approval-handler.ts` (extract `handleReject`) + dedup `writeFeedbackEvent`**
 
   **What to do** (re-grep): Extract `handleReject` (≈189-508) into `src/inngest/lifecycle/steps/approval-handler-reject.ts`. Extract the duplicated `feedback_events` POST (≈242-270 and ≈607-637) into `writeFeedbackEvent(...)` in `lifecycle-helpers.ts` (shared w/ Task 12). `handleExpiry`, `handleSupersede`, `handleApprove`, and the context interface stay in the trimmed file.
   **Must NOT do**: Change approval/reject/supersede/expiry behavior, the rule-extraction firing, or Slack card update sequencing.
@@ -377,7 +377,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] **Tier B** rejection path exercised in the wave Tier B run. Evidence: `.sisyphus/evidence/task-13-tierB-*`
         **Commit**: YES — `refactor(lifecycle): extract handleReject and shared writeFeedbackEvent`
 
-- [ ] 14. **Adopt `sendSuccess` — route group 1** (depends 1, 5)
+- [x] 14. **Adopt `sendSuccess` — route group 1** (depends 1, 5)
 
   **What to do**: Using the Task-5 inventory, migrate the **SUCCESS (2xx)** `res.status().json()` calls to `sendSuccess()` in the first ~half of route files (the admin group: `admin-*` routes). Leave error responses (already `sendError`) and non-JSON redirects untouched.
   **Must NOT do**: Change response bodies/status codes; don't convert redirects/HTML; don't touch error paths.
@@ -388,7 +388,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Group-1 files: 0 raw `res.status(2xx).json(`; `pnpm build && pnpm test -- --run` green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-14-tierA.txt`
         **Commit**: YES — `refactor(gateway): adopt sendSuccess in admin route group 1`
 
-- [ ] 15. **Adopt `sendSuccess` — route group 2** (depends 1, 5)
+- [x] 15. **Adopt `sendSuccess` — route group 2** (depends 1, 5)
 
   **What to do**: Migrate the remaining **SUCCESS (2xx)** calls (oauth/internal/webhook route group) per the Task-5 inventory. OAuth/webhook routes return redirects/HTML on success — convert ONLY JSON 2xx responses; leave redirects/HTML.
   **Must NOT do**: Convert non-JSON responses; change status codes.
@@ -399,7 +399,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Combined with Task 14: `grep -rl "res\.status([0-9]*)\.json" src/gateway/routes/*.ts | grep -v ".test.ts"` returns only confirmed error/redirect paths (or empty); `pnpm test -- --run` green; Tier A → `Done`. Evidence: `.sisyphus/evidence/task-15-tierA.txt`
         **Commit**: YES — `refactor(gateway): adopt sendSuccess in oauth/internal route group 2`
 
-- [ ] 16. **Extract gateway `override-handlers.ts` + `handleAlreadyProcessed` guard**
+- [x] 16. **Extract gateway `override-handlers.ts` + `handleAlreadyProcessed` guard**
 
   **What to do** (re-grep): From `src/gateway/slack/handlers/approval-handlers.ts` (697 lines), extract `OVERRIDE_TAKE_ACTION`, `OVERRIDE_DISMISS`, `override_take_action_modal` (≈493-696) into `src/gateway/slack/handlers/override-handlers.ts` (register them from the same `index.ts` orchestrator). Extract the 3× duplicated "task no longer awaiting" guard (≈49-69,236-262,423-449) into `handleAlreadyProcessed(...)` in `shared.ts`. Preserve the singleton/registration order.
   **Must NOT do**: Change handler behavior, action IDs, ack/button-removal ordering, or the approval-flow merge (already done in a prior plan). Don't disturb `server.ts` socket-mode-lock wiring.
@@ -411,7 +411,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] **Tier B** approval card happy-path in the wave Tier B run. Evidence: `.sisyphus/evidence/task-16-tierB-*`
         **Commit**: YES — `refactor(slack): extract override handlers and shared already-processed guard`
 
-- [ ] 17. **Extract `opencode-harness.mts` helpers + remove dead `opencodeRunPid` branch** (+ rebuild)
+- [x] 17. **Extract `opencode-harness.mts` helpers + remove dead `opencodeRunPid` branch** (+ rebuild)
 
   **What to do** (re-grep): Extract `markFailed`, `fireCompletionEvent`, `tryAutoPostApprovalCard`, `writeOpencodeAuth` (≈87-310) into `src/workers/lib/harness-helpers.mts`. Remove the dead `opencodeRunPid` branch — **`lsp_find_references` FIRST to confirm zero references** before deletion. Harness trims to ~700 lines. **Rebuild the Docker image** after.
   **Must NOT do**: Change output-contract semantics, provider routing, monitoring timing, or delivery/execution phase logic. No logic changes.
@@ -423,7 +423,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `docker build -t ai-employee-worker:latest .` succeeds; trigger `real-estate-motivation-bot-2` → `Done` + `task_metrics` row. Evidence: `.sisyphus/evidence/task-17-rebuild-run.txt`
         **Commit**: YES — `refactor(worker): extract harness helpers; remove dead opencodeRunPid branch`
 
-- [ ] 18. **Extract `slack-input-collector.ts` + interaction-handler early-exits**
+- [x] 18. **Extract `slack-input-collector.ts` + interaction-handler early-exits**
 
   **What to do** (re-grep): Extract `createSlackInputCollectorFunction` (≈342-489 of `slack-trigger-handler.ts`) into `src/inngest/slack-input-collector.ts` (zero shared state — clean split). Extract `interaction-handler.ts`'s pre-classification short-circuits (`detect-awaiting-input-rule`, `detect-rejection-feedback-request`, `capture-rejection-feedback`, `capture-awaiting-input-reply`, ≈70-288) into `src/inngest/lib/interaction-helpers.ts` (keep the Inngest function structure/step IDs intact). Update serve.ts registration if function exports move.
   **Must NOT do**: Change Inngest function names, step IDs, event wiring, or classification behavior.
@@ -441,7 +441,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 > **Confirmed DROP set (5 dead forward-compat leaves)**: `ValidationRun` (`validation_runs`), `Review` (`reviews`), `AuditLog` (table **`audit_log`** — singular, per `@@map:379`), `CrossDeptTrigger` (`cross_dept_triggers`), `Clarification` (`clarifications`). These are the schema's "9 Forward-Compatibility Tables (empty but schema-ready)" block (schema.prisma:172-175) that only the deleted `orchestrate.mts` ever wrote.
 > **NOT in the drop set** (referenced by ACTIVE models): `Deliverable` (← `Execution.deliverables[]`, active), `AgentVersion` (← `Archetype.agent_version_id`, `Execution.agent_version_id`, active), `RiskModel`/`Department`/`Project`/`KnowledgeBase` (FK targets / route-referenced). Leave them; add `// forward-compat, no active writers` comments only.
 
-- [ ] 19. **Backup DB + per-table row audit + worker-tool table-name disambiguation**
+- [x] 19. **Backup DB + per-table row audit + worker-tool table-name disambiguation**
 
   **What to do**: (a) Back up per AGENTS.md "Database Backup (MANDATORY)" — full `pg_dump` + data-only dumps of the 5 target tables (`validation_runs`, `reviews`, `audit_log`, `cross_dept_triggers`, `clarifications`). (b) Row-audit: `SELECT count(*)` for each — capture to evidence. If any is NON-ZERO, **STOP and surface to user** (dropping data tied to the deprecated engineering employee may destroy audit history). (c) Disambiguate worker-tool grep hits: confirm `src/worker-tools/hostfully/get-reviews.ts` reads the **Hostfully API** (not the `reviews` table) and that NO `/tools/` script reads any of the 5 snake_case table names via PostgREST. (d) `lsp_find_references` on each of the 5 Prisma models + their back-relation fields to confirm no active code path.
   **Must NOT do**: Drop anything in this task (audit + backup only); don't proceed to Task 20 if any table has rows without user confirmation.
@@ -453,7 +453,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] LSP confirms zero active references; worker-tool disambiguation documented. Evidence: `.sisyphus/evidence/task-19-backup-audit.txt`
         **Commit**: NO (backup artifacts gitignored; audit notes committed with Task 20)
 
-- [ ] 20. **Drop 5 dead tables via dependency-ordered migration + PostgREST verify** (depends 19)
+- [x] 20. **Drop 5 dead tables via dependency-ordered migration + PostgREST verify** (depends 19)
 
   **What to do**: Remove the 5 models from `prisma/schema.prisma` AND every back-relation field pointing at them (`AgentVersion.reviews[]`, `AgentVersion.auditLogs[]`, `Deliverable.reviews[]`, `Execution.validationRuns[]`, `Task.crossDeptTriggers`/`auditLogs`/`clarifications` back-relations). Generate the migration via `prisma migrate dev` (NEVER hand-write). **Inspect the emitted SQL**: if it contains `DROP ... CASCADE`, a dependent was missed — STOP and fix. Drop order leaf→root so each is a plain `DROP TABLE`. Apply, then `NOTIFY pgrst, 'reload schema'` and curl-verify.
   **Must NOT do**: Hand-write the migration; drop `Deliverable`/`AgentVersion`/`Execution`; leave dangling back-relation fields (build will fail). NOTE: dropping empty forward-compat TABLES (DDL) is schema cleanup, not a soft-delete-policy violation (which governs row deletes) — note this for reviewers.
@@ -472,7 +472,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 
 > **Universal Wave-5 guardrail**: extract-only, no UI/URL-state/styling change. Prove parity with Playwright over CDP (real Chrome — `localhost:7700/dashboard/...`), NOT unit tests, NOT net-new component tests. Per decomposed page: before screenshot → extract → after screenshot, zero console errors, one named primary interaction. `pnpm dashboard:build` after every task.
 
-- [ ] 21. **Delete dead `InputSchemaEditor.tsx` + extract `input-schema-shared.ts`**
+- [x] 21. **Delete dead `InputSchemaEditor.tsx` + extract `input-schema-shared.ts`**
 
   **What to do**: `lsp_find_references` on `dashboard/src/components/InputSchemaEditor.tsx` (360 lines) to CONFIRM zero imports (grep can miss dynamic imports), then delete it. Extract the primitives shared by the two LIVE editors (`dashboard/src/panels/employees/components/InputSchemaEditor.tsx` and `panels/employees/sections/InputSchemaSection.tsx`) — `TYPE_LABELS`, `FREQUENCY_LABELS`, `TYPE_OPTIONS`, `FREQUENCY_OPTIONS`, `KEY_REGEX`, `deriveKey`, `FormState`, `DEFAULT_FORM`, `itemToForm`, `formToItem`, `validate`, `InlineForm`, `ItemRow` — into `dashboard/src/panels/employees/components/input-schema-shared.ts(x)`. Both live files import from there; `InputSchemaSection` keeps its extra delete-dialog + `patchArchetype` save.
   **Must NOT do**: Change either live editor's rendered UI or behavior; don't merge the two live editors (they have legit differences).
@@ -484,7 +484,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `pnpm dashboard:build` green; Playwright: open Create-Employee wizard input-schema step + Employee advanced tab → both render, 0 console errors, add-a-field interaction works. Evidence: `.sisyphus/evidence/task-21-{create,detail}.png`
         **Commit**: YES — `refactor(dashboard): delete dead InputSchemaEditor; extract shared primitives`
 
-- [ ] 22. **Add `fireHostfullyWebhook` to `gateway.ts`; remove 3 raw-fetch copies**
+- [x] 22. **Add `fireHostfullyWebhook` to `gateway.ts`; remove 3 raw-fetch copies**
 
   **What to do**: Add `fireHostfullyWebhook(messageUid: string): Promise<void>` to `dashboard/src/lib/gateway.ts`, then replace the 3 verbatim raw-`fetch('/webhooks/hostfully')` copies in `EmployeeDetail.tsx` (≈166), `EmployeeList.tsx` (≈240), `TriggerPanel.tsx` (≈110). In `TriggerPanel.tsx`, also import `WEBHOOK_FIXTURES` from `@/lib/constants` instead of its local redefinition.
   **Must NOT do**: Change the webhook payload shape or the endpoint; don't alter the fixtures' contents.
@@ -496,7 +496,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] `pnpm dashboard:build` green; Playwright network capture: firing a webhook from the dashboard issues the identical request. Evidence: `.sisyphus/evidence/task-22-network.txt`
         **Commit**: YES — `refactor(dashboard): centralize fireHostfullyWebhook in gateway client`
 
-- [ ] 23. **Extract `useSlackChannels` hook**
+- [x] 23. **Extract `useSlackChannels` hook**
 
   **What to do**: Extract the duplicated Slack-channel fetch + loading/error pattern (`CreateEmployeePage.tsx:69-88` and `CompactSettingsGrid.tsx:92-111`) into `dashboard/src/hooks/use-slack-channels.ts` returning `{ channels, loading, error }`. Both consumers adopt it. Preserve the distinct error handling (`SLACK_NOT_CONFIGURED` vs generic).
   **Must NOT do**: Change either component's rendered behavior or the error-branch handling.
@@ -508,7 +508,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Playwright: both pages still render the channel dropdown with options + correct empty/error state. Evidence: `.sisyphus/evidence/task-23-{create,settings}.png`
         **Commit**: YES — `refactor(dashboard): extract useSlackChannels hook`
 
-- [ ] 24. **Decompose `ModelCatalogPage.tsx` (910 → ~200)**
+- [x] 24. **Decompose `ModelCatalogPage.tsx` (910 → ~200)**
 
   **What to do**: Extract badge maps + `computeQualityTierLabel` → `dashboard/src/lib/model-badge-utils.ts`; form data layer (`ModelForm`, `EMPTY_FORM`, `entryToForm`, `parseOptionalFloat`, `formToPayload`) → `model-catalog-form.ts`; `FormField`/`SwitchField`/`ModelFormDialog` → `ModelFormDialog.tsx`. Page keeps data fetch + filter state + table render.
   **Must NOT do**: Change the form behavior, validation, URL-state params (`q/provider/modal/editing/removing`), or table rendering.
@@ -520,7 +520,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Playwright: open page (data renders, 0 console errors), open the add-model dialog (form renders). Evidence: `.sisyphus/evidence/task-24-modelcatalog.png`
         **Commit**: YES — `refactor(dashboard): decompose ModelCatalogPage into form + dialog + utils`
 
-- [ ] 25. **Decompose `EmployeeDetail.tsx` (641 → ~200)**
+- [x] 25. **Decompose `EmployeeDetail.tsx` (641 → ~200)**
 
   **What to do**: Extract the name-edit inline input → `EmployeeNameEditor.tsx`; action button bar → `EmployeeActionBar.tsx`; advanced-tab content → `AdvancedTab.tsx` (mirrors existing `DebugTab`/`TrainingTab`); trigger dialog → `TriggerDialog.tsx`. (Webhook handler already centralized in Task 22.)
   **Must NOT do**: Change tab URL-state (`?tab=`), rendered UI, or handler behavior.
@@ -532,7 +532,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Playwright: open detail page, switch to advanced tab (URL updates, content renders), open trigger dialog. Evidence: `.sisyphus/evidence/task-25-employeedetail.png`
         **Commit**: YES — `refactor(dashboard): decompose EmployeeDetail into tab + dialog + bar components`
 
-- [ ] 26. **Decompose `EmployeeList.tsx` (606 → ~200)**
+- [x] 26. **Decompose `EmployeeList.tsx` (606 → ~200)**
 
   **What to do**: Extract `StatusBadge` → `dashboard/src/components/StatusBadge.tsx`; the two delete dialogs → `DeleteEmployeeDialog.tsx` + `BulkDeleteDialog.tsx`; the per-row action buttons → `EmployeeRowActions.tsx`. (Webhook handler centralized in Task 22.)
   **Must NOT do**: Change row rendering, filter URL-state (`search`/`statusFilter`), or delete/restore behavior.
@@ -544,7 +544,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Playwright: list renders rows, apply a status filter (URL updates), open a delete dialog. Evidence: `.sisyphus/evidence/task-26-employeelist.png`
         **Commit**: YES — `refactor(dashboard): decompose EmployeeList into row-actions + dialogs + badge`
 
-- [ ] 27. **Decompose `CreateEmployeePage.tsx` (612 → ~200)**
+- [x] 27. **Decompose `CreateEmployeePage.tsx` (612 → ~200)**
 
   **What to do**: Extract the large `edit` step JSX (≈292-562) → `WizardEditStep.tsx`; the 3 data-fetching effects + their state → `dashboard/src/hooks/use-wizard-data.ts`. Small steps (describe/preview) may stay inline. (Adopt `useSlackChannels` from Task 23 where applicable.)
   **Must NOT do**: Change wizard step flow, generated-field editing, or `?repo=` URL-state.
