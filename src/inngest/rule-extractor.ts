@@ -9,6 +9,7 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage } from '../lib/slack-copy.js';
 import type { InngestStep } from './events.js';
 import { requireEnv } from '../lib/config.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('rule-extractor');
 
@@ -49,11 +50,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         targetChannel: payloadTargetChannel,
       } = payload;
 
-      const headers: Record<string, string> = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const resolvedContent = await step.run('load-context', async () => {
         if (feedbackType === 'edit_diff') {

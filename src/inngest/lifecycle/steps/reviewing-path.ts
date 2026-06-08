@@ -13,6 +13,7 @@ import {
   trackPendingApproval,
 } from '../../lib/pending-approvals.js';
 import { WORKER_RUNTIME } from '../../../lib/config.js';
+import { makePostgrestHeaders } from '../../lib/postgrest-headers.js';
 import {
   supersededMessage,
   needsReviewMessage,
@@ -349,12 +350,7 @@ export async function runReviewingPath(
             };
             await fetch(`${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}`, {
               method: 'PATCH',
-              headers: {
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-                'Content-Type': 'application/json',
-                Prefer: 'return=minimal',
-              },
+              headers: { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' },
               body: JSON.stringify({ metadata: updatedMeta }),
             });
             log.info({ taskId, nudgeTs: nudgeResult.ts }, 'Nudge broadcast posted');

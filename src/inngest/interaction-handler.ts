@@ -16,6 +16,7 @@ import { questionNoAnswerFallback } from '../lib/slack-copy.js';
 import type { InngestStep, InteractionReceivedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 import { runPreClassificationShortCircuits } from './lib/interaction-helpers.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('interaction-handler');
 
@@ -84,12 +85,7 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       });
 
       const routeResult = await step.run('route-and-store', async () => {
-        const headers = {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        };
+        const headers = makePostgrestHeaders(supabaseKey);
 
         if (intent === 'feedback' || intent === 'teaching') {
           const feedbackType =

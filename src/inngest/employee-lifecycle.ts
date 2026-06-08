@@ -6,6 +6,7 @@ import { createTaskNotifyBuilders } from '../lib/slack-blocks.js';
 import { runTriageAndReady } from './lifecycle/steps/triage-and-ready.js';
 import { runExecutePhase } from './lifecycle/steps/execute.js';
 import { runValidateAndSubmit } from './lifecycle/steps/validate-and-submit.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -22,12 +23,7 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
       const supabaseUrl = requireEnv('SUPABASE_URL');
       const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
-      const headers: Record<string, string> = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       // ── Phase 1: Triage → Ready ──────────────────────────────────────────────
       const { taskData, archetype, approvalRequired, timeoutHours, tenantId, notifyMsgRef } =

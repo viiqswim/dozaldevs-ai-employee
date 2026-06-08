@@ -8,6 +8,7 @@ import { buildHostfullyLink } from '../../../lib/enrichment-adapters/hostfully.j
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
 import { writeFeedbackEvent } from './lifecycle-helpers.js';
+import { makePostgrestHeaders } from '../../lib/postgrest-headers.js';
 import type { KnownBlock } from '@slack/web-api';
 import type { ApprovalHandlerContext } from './approval-handler.js';
 
@@ -253,12 +254,7 @@ export async function handleReject(
     try {
       const empRuleRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules`, {
         method: 'POST',
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
+        headers: { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' },
         body: JSON.stringify({
           id: crypto.randomUUID(),
           tenant_id: tenantId,

@@ -8,6 +8,7 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
 import type { InngestStep, RuleSynthesizeRequestedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('rule-synthesizer');
 
@@ -37,11 +38,7 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
     }) => {
       const { tenantId, archetypeId } = event.data!;
 
-      const headers: Record<string, string> = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const rules = await step.run('load-confirmed-rules', async () => {
         const res = await fetch(

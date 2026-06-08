@@ -1,6 +1,7 @@
 import { createLogger } from '../../../lib/logger.js';
 import { destroyMachine } from '../../../lib/fly-client.js';
 import { recordWorkMetric, stopLocalDockerContainer } from '../../lib/lifecycle-helpers.js';
+import { makePostgrestHeaders } from '../../lib/postgrest-headers.js';
 
 const log = createLogger('lifecycle-helpers');
 
@@ -120,12 +121,7 @@ export async function writeFeedbackEvent(opts: {
 
     const res = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
       method: 'POST',
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
+      headers: { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' },
       body: JSON.stringify(body),
     });
     if (!res.ok) {

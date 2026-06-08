@@ -11,6 +11,7 @@ import { extractInputsFromText } from '../lib/extract-inputs.js';
 import type { InngestStep, TriggerInputReceivedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 import { prettifyRoleName } from './slack-trigger-handler.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('slack-input-collector');
 
@@ -52,12 +53,7 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
         return;
       }
 
-      const supabaseHeaders = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      };
+      const supabaseHeaders = makePostgrestHeaders(supabaseKey);
 
       const externalId = `slack-trigger-${threadTs}-${pending.archetypeId}`;
 

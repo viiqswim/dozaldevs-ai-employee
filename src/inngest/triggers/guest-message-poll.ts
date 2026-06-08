@@ -4,6 +4,7 @@ import { createLogger } from '../../lib/logger.js';
 import { decrypt } from '../../lib/encryption.js';
 import { requireEnv } from '../../lib/config.js';
 import type { InngestStep } from '../events.js';
+import { makePostgrestHeaders } from '../lib/postgrest-headers.js';
 
 const log = createLogger('guest-message-poll');
 
@@ -46,12 +47,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
       const archetypes = await step.run('discover-archetypes', async () => {
         const res = await fetch(
           `${supabaseUrl}/rest/v1/archetypes?role_name=eq.guest-messaging&status=eq.active&deleted_at=is.null&select=id,tenant_id`,
-          {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-          },
+          { headers: makePostgrestHeaders(supabaseKey) },
         );
         return (await res.json()) as ArchetypeRow[];
       });
@@ -73,10 +69,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
               return [] as string[];
             }
 
-            const pgHeaders = {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            };
+            const pgHeaders = makePostgrestHeaders(supabaseKey);
 
             const secretRes = await fetch(
               `${supabaseUrl}/rest/v1/tenant_secrets?tenant_id=eq.${archetype.tenant_id}&key=in.(hostfully_api_key,hostfully_agency_uid)`,
@@ -173,12 +166,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
           const externalId = `hostfully-poll-${leadUid}-${today}`;
 
           await step.run(`create-task-${archetype.tenant_id}-${i}`, async () => {
-            const headers = {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=representation',
-            };
+            const headers = makePostgrestHeaders(supabaseKey);
 
             const dupRes = await fetch(
               `${supabaseUrl}/rest/v1/tasks?external_id=eq.${externalId}&status=not.in.(Done,Failed,Cancelled)&tenant_id=eq.${archetype.tenant_id}&select=id`,

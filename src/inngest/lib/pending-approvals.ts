@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { makePostgrestHeaders } from './postgrest-headers.js';
 
 export interface PendingApproval {
   id: string;
@@ -24,14 +25,6 @@ export interface PendingApprovalData {
   urgency?: boolean;
 }
 
-function makeHeaders(supabaseKey: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-  };
-}
-
 export async function getPendingApproval(
   supabaseUrl: string,
   supabaseKey: string,
@@ -40,7 +33,7 @@ export async function getPendingApproval(
 ): Promise<PendingApproval | null> {
   const res = await fetch(
     `${supabaseUrl}/rest/v1/pending_approvals?tenant_id=eq.${tenantId}&thread_uid=eq.${threadUid}&limit=1`,
-    { headers: makeHeaders(supabaseKey) },
+    { headers: makePostgrestHeaders(supabaseKey) },
   );
   const rows = (await res.json()) as Array<Record<string, unknown>>;
   if (!rows.length) return null;
@@ -67,7 +60,7 @@ export async function trackPendingApproval(
   const res = await fetch(`${supabaseUrl}/rest/v1/pending_approvals`, {
     method: 'POST',
     headers: {
-      ...makeHeaders(supabaseKey),
+      ...makePostgrestHeaders(supabaseKey),
       Prefer: 'resolution=merge-duplicates',
     },
     body: JSON.stringify({
@@ -98,7 +91,7 @@ export async function clearPendingApproval(
     `${supabaseUrl}/rest/v1/pending_approvals?tenant_id=eq.${tenantId}&thread_uid=eq.${threadUid}`,
     {
       method: 'DELETE',
-      headers: makeHeaders(supabaseKey),
+      headers: makePostgrestHeaders(supabaseKey),
     },
   );
 }
@@ -110,7 +103,7 @@ export async function clearPendingApprovalByTaskId(
 ): Promise<void> {
   await fetch(`${supabaseUrl}/rest/v1/pending_approvals?task_id=eq.${taskId}`, {
     method: 'DELETE',
-    headers: makeHeaders(supabaseKey),
+    headers: makePostgrestHeaders(supabaseKey),
   });
 }
 
@@ -123,7 +116,7 @@ export async function getStaleApprovals(
   const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000).toISOString();
   const res = await fetch(
     `${supabaseUrl}/rest/v1/pending_approvals?tenant_id=eq.${tenantId}&reminder_sent_at=is.null&created_at=lt.${cutoff}&order=created_at.asc`,
-    { headers: makeHeaders(supabaseKey) },
+    { headers: makePostgrestHeaders(supabaseKey) },
   );
   const rows = (await res.json()) as Array<Record<string, unknown>>;
   return rows.map((row) => ({
@@ -148,7 +141,7 @@ export async function markReminderSent(
   if (ids.length === 0) return;
   await fetch(`${supabaseUrl}/rest/v1/pending_approvals?id=in.(${ids.join(',')})`, {
     method: 'PATCH',
-    headers: makeHeaders(supabaseKey),
+    headers: makePostgrestHeaders(supabaseKey),
     body: JSON.stringify({ reminder_sent_at: new Date().toISOString() }),
   });
 }

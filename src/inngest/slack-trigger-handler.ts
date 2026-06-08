@@ -12,6 +12,7 @@ import { extractInputsFromText } from '../lib/extract-inputs.js';
 import { triggerCardPrompt } from '../lib/slack-copy.js';
 import type { InngestStep, TaskRequestedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('slack-trigger-handler');
 
@@ -182,11 +183,7 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
         'pre-extract-inputs',
         async (): Promise<Record<string, string>> => {
           try {
-            const headers = {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-            };
+            const headers = makePostgrestHeaders(supabaseKey);
             const archId = routedArchetype.id;
             const archetypeRes = await fetch(
               `${supabaseUrl}/rest/v1/archetypes?id=eq.${archId}&tenant_id=eq.${tenantId!}&status=eq.active&deleted_at=is.null&select=input_schema`,

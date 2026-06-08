@@ -26,6 +26,7 @@ import { createSlackClient } from '../../lib/slack-client.js';
 import { watchdogFailureMessage } from '../../lib/slack-copy.js';
 import type { InngestStep } from '../events.js';
 import { requireEnv } from '../../lib/config.js';
+import { makePostgrestHeaders } from '../lib/postgrest-headers.js';
 
 const log = createLogger('reviewing-watchdog');
 
@@ -46,14 +47,6 @@ interface PendingApprovalRow {
   id: string;
 }
 
-function makeHeaders(supabaseKey: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-  };
-}
-
 export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     {
@@ -66,7 +59,7 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
         return { zombiesFound: 0, zombiesResolved: 0 };
       }
 
-      const headers = makeHeaders(supabaseKey);
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const cutoff = new Date(Date.now() - ZOMBIE_THRESHOLD_MINUTES * 60 * 1000).toISOString();
 

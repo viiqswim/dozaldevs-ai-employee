@@ -2,6 +2,7 @@ import { createLogger } from '../../lib/logger.js';
 import { ruleProposedMessage } from '../../lib/slack-copy.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { requireEnv } from '../../lib/config.js';
+import { makePostgrestHeaders } from './postgrest-headers.js';
 import type { InngestStep } from '../events.js';
 
 const log = createLogger('interaction-handler');
@@ -31,12 +32,7 @@ export async function runPreClassificationShortCircuits(
   const awaitingInputRule = await step.run('detect-awaiting-input-rule', async () => {
     if (!taskId) return null;
 
-    const headers = {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    };
+    const headers = makePostgrestHeaders(supabaseKey);
 
     const res = await fetch(
       `${supabaseUrl}/rest/v1/employee_rules?status=eq.awaiting_input&source_task_id=eq.${taskId}&select=id,tenant_id,source`,
@@ -53,10 +49,7 @@ export async function runPreClassificationShortCircuits(
   const rejectionFeedbackRequest = await step.run('detect-rejection-feedback-request', async () => {
     if (!taskId || awaitingInputRule) return null;
 
-    const headers = {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-    };
+    const headers = makePostgrestHeaders(supabaseKey);
 
     const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status,metadata`, {
       headers,
@@ -76,12 +69,7 @@ export async function runPreClassificationShortCircuits(
 
   if (rejectionFeedbackRequest) {
     await step.run('capture-rejection-feedback', async () => {
-      const headers = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const feedbackRes = await fetch(`${supabaseUrl}/rest/v1/feedback_events`, {
         method: 'POST',
@@ -100,7 +88,7 @@ export async function runPreClassificationShortCircuits(
       const newFeedbackId = feedbackRows[0]?.id ?? crypto.randomUUID();
 
       const metaRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
-        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+        headers: makePostgrestHeaders(supabaseKey),
       });
       const metaRows = (await metaRes.json()) as Array<{
         metadata: Record<string, unknown> | null;
@@ -133,12 +121,7 @@ export async function runPreClassificationShortCircuits(
 
   if (awaitingInputRule) {
     await step.run('capture-awaiting-input-reply', async () => {
-      const headers = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      };
+      const headers = { ...makePostgrestHeaders(supabaseKey), Prefer: 'return=minimal' };
 
       await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${awaitingInputRule.id}`, {
         method: 'PATCH',
@@ -148,7 +131,7 @@ export async function runPreClassificationShortCircuits(
 
       const tokenRes = await fetch(
         `${supabaseUrl}/rest/v1/tenant_secrets?tenant_id=eq.${awaitingInputRule.tenant_id}&key=eq.slack_bot_token&select=ciphertext,iv,auth_tag`,
-        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+        { headers: makePostgrestHeaders(supabaseKey) },
       );
       const tokenRows = (await tokenRes.json()) as Array<{
         ciphertext: string;
