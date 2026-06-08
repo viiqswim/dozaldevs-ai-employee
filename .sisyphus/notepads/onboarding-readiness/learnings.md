@@ -556,16 +556,19 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 ### File: `src/worker-tools/slack/post-message.ts` (226 → 186 lines, -40 insertions, -87 deletions)
 
 **Env var classification:**
+
 - REQUIRED: `SLACK_BOT_TOKEN` → `requireEnv('SLACK_BOT_TOKEN')`
 - OPTIONAL: `NOTIFY_MSG_TS`, `INNGEST_RUN_ID`, `TASK_ID`, `EMPLOYEE_PHASE`, `APPROVAL_REQUIRED` → all `optionalEnv(...)`
 
 **Arg migration pattern:**
+
 - Removed manual `parseArgs` for-loop entirely — inlined into `main()` using `getArg(args, '--flag')`
 - Boolean flags: `args.includes('--help')` (only boolean flags were `--help` and `--no-thread` which is a deprecated no-op)
 - `--text` value needed `unescapeShellArg()` wrapping: `const rawText = getArg(args, '--text'); let text = rawText ? unescapeShellArg(rawText) : ''`
 - `--blocks` value needed `JSON.parse()`: `const parsedBlocks = rawBlocks ? JSON.parse(rawBlocks) as unknown[] : undefined`
 
 **Key pattern for NOTIFY_MSG_TS fallback:**
+
 - Original: `if (threadTs === undefined) { const envTs = process.env.NOTIFY_MSG_TS; if (envTs) threadTs = envTs; }`
 - Migrated: `const threadTs = getArg(args, '--thread-ts') ?? optionalEnv('NOTIFY_MSG_TS')` — cleaner nullish coalescing
 
@@ -578,12 +581,14 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 **Strategy: minimal-touch approach** — kept `parseArgs` for-loop intact (control flow unchanged); only changed env ACCESS patterns.
 
 **Env changes (3 occurrences → 0):**
+
 - `process.env.NOTIFICATION_CHANNEL` + manual exit block → `requireEnv('NOTIFICATION_CHANNEL')`
 - `process.env.NOTIFY_MSG_TS` → `optionalEnv('NOTIFY_MSG_TS')`
 - `process.env.SLACK_BOT_TOKEN` + manual exit block → `requireEnv('SLACK_BOT_TOKEN')`
 
 **argv changes:**
-- Added `const args = process.argv.slice(2)` at top of `main()` 
+
+- Added `const args = process.argv.slice(2)` at top of `main()`
 - Changed `process.argv.includes('--help')` → `args.includes('--help')` (boolean flag pattern)
 - Kept `parseArgs(process.argv)` calls unchanged — `parseArgs` does `.slice(2)` internally; touching these would break idempotency guard logic
 
@@ -612,6 +617,7 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 - Build clean after edits. Committed as `docs: update AGENTS.md with new modules, conventions, test split`.
 
 ## F3 Manual QA (2026-06-08)
+
 - Lifecycle decomposition succeeded: `employee-lifecycle.ts` is 88 lines (was ~1200). 6 step files in `src/inngest/lifecycle/steps/`.
 - Gateway routes fully migrated: 0 raw `res.status(4xx/5xx)` matches.
 - Worker tool env migration: 38/59 tool files use requireEnv/optionalEnv; 0 raw `process.env[` in migrated tools (5 explicitly skipped).
@@ -620,3 +626,13 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
   - Only failing file = `opencode-harness-metrics.test.ts` (7 failures, `vi.waitFor.timeout` spy-not-called) — documented pre-existing flake, NOT a regression.
   - `tenant-repository.test.ts` (documented 13-failure flake from DB pollution) passed CLEAN this run.
 - VERDICT: APPROVE. Zero regressions from the plan.
+
+## [2026-06-08] ESM->CJS worker-tools boot crash — post-plan regression guard
+
+**Root cause**: `src/worker-tools/` has its own `package.json` with no `"type"` field, making it a CommonJS island. The root project is ESM (`"type": "module"`). When an ESM file in `src/` imports a named export from `src/worker-tools/`, Node's ESM→CJS interop exposes only a `default` export at runtime — named imports resolve to `undefined` and throw `SyntaxError` at module load, crashing the gateway on boot.
+
+**Why build/vitest missed it**: `tsx`/esbuild resolve `.ts` source directly and bypass Node's native CJS interop. The crash only manifests on a real Node boot (production). `pnpm build` and `pnpm test` both pass even with the bad imports present.
+
+**The fix (orchestrator)**: 7 inngest files were importing `requireEnv`/`optionalEnv` from `src/worker-tools/lib/require-env.js`. All 7 were repointed to `src/lib/config.js` (ESM-safe). The `worker-tools` subtree remains CJS-only for its own internal use.
+
+**New static guard**: `tests/unit/architecture/no-esm-into-cjs-worker-tools.test.ts` — greps all `.ts` files under `src/` (excluding `src/worker-tools/` itself) for any `from '...worker-tools/...'` import. Passes with 0 offenders. Runs in 25ms. Full suite: 123 files, 1405 passed, 9 skipped, 0 failures.
