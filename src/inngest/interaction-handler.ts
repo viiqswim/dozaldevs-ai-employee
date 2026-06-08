@@ -15,8 +15,12 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage, questionNoAnswerFallback } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
 import type { InteractionReceivedData } from './events.js';
+import { requireEnv } from '../worker-tools/lib/require-env.js';
 
 const log = createLogger('interaction-handler');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 export function createInteractionHandlerFunction(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
@@ -66,8 +70,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       const awaitingInputRule = await step.run('detect-awaiting-input-rule', async () => {
         if (!taskId) return null;
 
-        const supabaseUrl = process.env.SUPABASE_URL ?? '';
-        const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
         const headers = {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
@@ -92,8 +94,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
         async () => {
           if (!taskId || awaitingInputRule) return null;
 
-          const supabaseUrl = process.env.SUPABASE_URL ?? '';
-          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
           const headers = {
             apikey: supabaseKey,
             Authorization: `Bearer ${supabaseKey}`,
@@ -119,8 +119,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
 
       if (rejectionFeedbackRequest) {
         await step.run('capture-rejection-feedback', async () => {
-          const supabaseUrl = process.env.SUPABASE_URL ?? '';
-          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
           const headers = {
             apikey: supabaseKey,
             Authorization: `Bearer ${supabaseKey}`,
@@ -180,8 +178,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
 
       if (awaitingInputRule) {
         await step.run('capture-awaiting-input-reply', async () => {
-          const supabaseUrl = process.env.SUPABASE_URL ?? '';
-          const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
           const headers = {
             apikey: supabaseKey,
             Authorization: `Bearer ${supabaseKey}`,
@@ -298,8 +294,6 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       });
 
       const routeResult = await step.run('route-and-store', async () => {
-        const supabaseUrl = process.env.SUPABASE_URL ?? '';
-        const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
         const headers = {
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,

@@ -13,8 +13,12 @@ import { extractInputsFromText } from '../lib/extract-inputs.js';
 import { triggerCardPrompt } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
 import type { TaskRequestedData, TriggerInputReceivedData } from './events.js';
+import { requireEnv } from '../worker-tools/lib/require-env.js';
 
 const log = createLogger('slack-trigger-handler');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 export function prettifyRoleName(roleName: string): string {
   return roleName
@@ -180,8 +184,6 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
         'pre-extract-inputs',
         async (): Promise<Record<string, string>> => {
           try {
-            const supabaseUrl = process.env.SUPABASE_URL ?? '';
-            const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
             const headers = {
               apikey: supabaseKey,
               Authorization: `Bearer ${supabaseKey}`,
@@ -372,8 +374,6 @@ export function createSlackInputCollectorFunction(inngest: Inngest): InngestFunc
         return;
       }
 
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
       const supabaseHeaders = {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,

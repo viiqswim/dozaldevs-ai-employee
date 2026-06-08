@@ -8,8 +8,12 @@ import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
+import { requireEnv } from '../worker-tools/lib/require-env.js';
 
 const log = createLogger('rule-extractor');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const RULE_EXTRACTOR_SYSTEM_PROMPT =
   'You are a rule extractor. Analyze the correction and extract ONE concrete, actionable behavioral rule. ' +
@@ -44,9 +48,6 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         approvalMsgTs,
         targetChannel: payloadTargetChannel,
       } = payload;
-
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
       const headers: Record<string, string> = {
         apikey: supabaseKey,

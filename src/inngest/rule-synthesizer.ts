@@ -8,8 +8,12 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
 import type { RuleSynthesizeRequestedData } from './events.js';
+import { requireEnv } from '../worker-tools/lib/require-env.js';
 
 const log = createLogger('rule-synthesizer');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const RULE_SYNTHESIZER_SYSTEM_PROMPT =
   'You are analyzing behavioral rules for an AI employee. Find rules that overlap (address the same topic) or contradict each other. ' +
@@ -33,9 +37,6 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
       step: InngestStep;
     }) => {
       const { tenantId, archetypeId } = event.data!;
-
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 
       const headers: Record<string, string> = {
         apikey: supabaseKey,

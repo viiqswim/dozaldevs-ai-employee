@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
 import type { InngestStep } from '../../gateway/inngest/client.js';
+import { requireEnv } from '../../worker-tools/lib/require-env.js';
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 export interface CreateTaskAndDispatchParams {
   inngest: Inngest;
@@ -22,9 +26,6 @@ export async function createTaskAndDispatch(
   const { inngest, step, tenantId, archetypeSlug, externalId, sourceSystem } = params;
 
   return step.run('create-task-and-dispatch', async () => {
-    const supabaseUrl = process.env.SUPABASE_URL!;
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
-
     const headers = {
       apikey: supabaseKey,
       Authorization: `Bearer ${supabaseKey}`,

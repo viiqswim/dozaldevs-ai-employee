@@ -1,10 +1,14 @@
 import { Inngest } from 'inngest';
 import type { InngestFunction } from 'inngest';
-import { createDecipheriv } from 'crypto';
 import { createLogger } from '../../lib/logger.js';
+import { decrypt } from '../../lib/encryption.js';
+import { requireEnv } from '../../worker-tools/lib/require-env.js';
 import type { InngestStep } from '../../gateway/inngest/client.js';
 
 const log = createLogger('guest-message-poll');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const HOSTFULLY_BASE_URL = 'https://api.hostfully.com/api/v3.2';
 
@@ -30,16 +34,6 @@ interface RawMessage {
   createdUtcDateTime?: string;
 }
 
-function decryptSecret(row: SecretRow, encKey: string): string {
-  const key = Buffer.from(encKey, 'hex');
-  const iv = Buffer.from(row.iv, 'base64');
-  const authTag = Buffer.from(row.auth_tag, 'base64');
-  const ciphertext = Buffer.from(row.ciphertext, 'base64');
-  const decipher = createDecipheriv('aes-256-gcm', key, iv);
-  decipher.setAuthTag(authTag);
-  return decipher.update(ciphertext).toString('utf8') + decipher.final('utf8');
-}
-
 export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     {
@@ -50,9 +44,6 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
       const today = new Date().toISOString().slice(0, 10);
 
       const archetypes = await step.run('discover-archetypes', async () => {
-        const supabaseUrl = process.env.SUPABASE_URL ?? '';
-        const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
         const res = await fetch(
           `${supabaseUrl}/rest/v1/archetypes?role_name=eq.guest-messaging&status=eq.active&deleted_at=is.null&select=id,tenant_id`,
           {
@@ -74,10 +65,6 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
         const unrespondedLeadUids = await step.run(
           `fetch-unresponded-${archetype.tenant_id}`,
           async () => {
-            const supabaseUrl = process.env.SUPABASE_URL ?? '';
-            const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-            const encKey = process.env.ENCRYPTION_KEY ?? '';
-
             if (process.env.HOSTFULLY_MOCK === 'true') {
               log.info(
                 { tenantId: archetype.tenant_id },
@@ -100,7 +87,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
             const secrets: Record<string, string> = {};
             for (const row of secretRows) {
               try {
-                secrets[row.key] = decryptSecret(row, encKey);
+                secrets[row.key] = decrypt(row);
               } catch {
                 log.warn(
                   { tenantId: archetype.tenant_id, key: row.key },
@@ -186,9 +173,6 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
           const externalId = `hostfully-poll-${leadUid}-${today}`;
 
           await step.run(`create-task-${archetype.tenant_id}-${i}`, async () => {
-            const supabaseUrl = process.env.SUPABASE_URL ?? '';
-            const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
             const headers = {
               apikey: supabaseKey,
               Authorization: `Bearer ${supabaseKey}`,

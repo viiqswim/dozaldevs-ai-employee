@@ -25,8 +25,12 @@ import { TenantSecretRepository } from '../../gateway/services/tenant-secret-rep
 import { createSlackClient } from '../../lib/slack-client.js';
 import { watchdogFailureMessage } from '../../lib/slack-copy.js';
 import type { InngestStep } from '../../gateway/inngest/client.js';
+import { requireEnv } from '../../worker-tools/lib/require-env.js';
 
 const log = createLogger('reviewing-watchdog');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const ZOMBIE_THRESHOLD_MINUTES = 30;
 
@@ -57,9 +61,6 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
       triggers: [{ cron: '*/15 * * * *' }],
     },
     async ({ step }: { step: InngestStep }) => {
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
       if (!supabaseUrl || !supabaseKey) {
         log.warn('SUPABASE_URL or SUPABASE_SECRET_KEY not set — skipping reviewing watchdog');
         return { zombiesFound: 0, zombiesResolved: 0 };
