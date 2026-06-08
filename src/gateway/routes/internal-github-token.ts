@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { generateInstallationToken } from '../services/github-token-manager.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('internal-github-token');
 
@@ -50,7 +50,7 @@ export function internalGithubTokenRoutes(opts: InternalGithubTokenRouteOptions 
 
       logger.info({ taskId, tenantId }, 'GitHub installation token generated for task');
 
-      res.status(200).json({ token: tokenResult.token, expires_at: tokenResult.expires_at });
+      sendSuccess(res, 200, { token: tokenResult.token, expires_at: tokenResult.expires_at });
     } catch (err) {
       logger.error({ err, taskId }, 'Failed to generate GitHub installation token');
       sendError(res, 500, 'Failed to generate GitHub token');

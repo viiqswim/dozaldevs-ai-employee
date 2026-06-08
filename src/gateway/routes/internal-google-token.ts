@@ -7,7 +7,7 @@ import {
   GoogleReauthRequiredError,
   GoogleWorkspaceSessionExpiredError,
 } from '../services/google-token-manager.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('internal-google-token');
 
@@ -44,7 +44,7 @@ export function internalGoogleTokenRoutes(opts: InternalGoogleTokenRouteOptions 
 
       logger.info({ taskId, tenantId: task.tenant_id }, 'Google access token retrieved for task');
 
-      res.status(200).json({
+      sendSuccess(res, 200, {
         token: tokenResult.token,
         expires_at: tokenResult.expires_at,
         granted_scopes: tokenResult.granted_scopes,

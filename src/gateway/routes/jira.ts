@@ -11,7 +11,7 @@ import {
   cancelTaskByExternalId,
 } from '../services/jira-task-creation.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('jira-webhook');
 
@@ -124,7 +124,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
           { taskId: task.id, error },
           'Inngest send failed — task in Ready for manual recovery',
         );
-        res.status(202).json({ status: 'task_created', taskId: task.id });
+        sendSuccess(res, 202, { status: 'task_created', taskId: task.id });
         return;
       }
     }
@@ -308,7 +308,11 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
           { taskId: task.id, error },
           'Inngest send failed — task in Ready for manual recovery',
         );
-        res.status(202).json({ received: true, action: 'queued_without_inngest', taskId: task.id });
+        sendSuccess(res, 202, {
+          received: true,
+          action: 'queued_without_inngest',
+          taskId: task.id,
+        });
         return;
       }
     }
