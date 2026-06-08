@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { WebClient } from '@slack/web-api';
 
+import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
 interface GuestApprovalParams {
@@ -387,7 +388,9 @@ function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
 }
 
 export async function main(): Promise<void> {
-  if (process.argv.includes('--help')) {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--help')) {
     parseArgs(process.argv);
     return;
   }
@@ -419,16 +422,12 @@ export async function main(): Promise<void> {
     }
   }
 
-  const channel = process.env.NOTIFICATION_CHANNEL;
-  if (!channel) {
-    process.stderr.write('Error: NOTIFICATION_CHANNEL environment variable is required\n');
-    process.exit(1);
-  }
+  const channel = requireEnv('NOTIFICATION_CHANNEL');
 
   const params = parseArgs(process.argv);
 
   if (!params.threadTs) {
-    const envTs = process.env.NOTIFY_MSG_TS;
+    const envTs = optionalEnv('NOTIFY_MSG_TS');
     if (envTs) params.threadTs = envTs;
   }
 
@@ -475,11 +474,7 @@ export async function main(): Promise<void> {
     return;
   }
 
-  const token = process.env.SLACK_BOT_TOKEN;
-  if (!token) {
-    process.stderr.write('Error: SLACK_BOT_TOKEN environment variable is required\n');
-    process.exit(1);
-  }
+  const token = requireEnv('SLACK_BOT_TOKEN');
 
   const client = new WebClient(token);
 
