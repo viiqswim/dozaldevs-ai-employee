@@ -155,7 +155,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('all inputs extracted → posts confirmation, dispatches task immediately', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     expect(handler).toBeDefined();
@@ -196,7 +196,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -222,7 +222,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -242,7 +242,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = makeRespond();
@@ -263,7 +263,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -289,7 +289,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('allFound path — dispatches exactly once, no double-dispatch', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = makeRespond();
@@ -308,7 +308,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('allFound path — respond throws after dispatch → no failure message shown', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = vi
@@ -340,7 +340,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -365,7 +365,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -385,7 +385,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = vi
@@ -407,7 +407,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('pre-extracted inputs present → zero LLM on click, dispatches immediately', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = makeRespond();
@@ -430,7 +430,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('allFound path — zero callLLM (cosmetic removal verified)', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -444,7 +444,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('backward-compat fallback — no extractedInputs in value → extractInputsFromText IS called', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();
@@ -458,7 +458,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
   it('loading respond has no actions block (buttons removed on click)', async () => {
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const respond = makeRespond();
@@ -486,7 +486,7 @@ describe('TRIGGER_CONFIRM handler — extraction paths', () => {
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
-    registerSlackHandlers(boltApp as unknown as App, inngest);
+    registerSlackHandlers(boltApp as unknown as App, inngest, mockPrismaInstance as never);
 
     const handler = boltApp._getAction('trigger_confirm');
     const client = makeClient();

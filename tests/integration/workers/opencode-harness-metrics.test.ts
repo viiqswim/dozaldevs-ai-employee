@@ -7,6 +7,7 @@ const mockStartOpencodeServer = vi.hoisted(() => vi.fn());
 const mockCreateSessionManager = vi.hoisted(() => vi.fn());
 const mockExtractUsage = vi.hoisted(() => vi.fn());
 const mockStartHeartbeat = vi.hoisted(() => vi.fn());
+const mockRunOpencodeSession = vi.hoisted(() => vi.fn());
 
 vi.mock('child_process', () => ({ spawn: mockSpawn }));
 vi.mock('fs/promises', () => ({
@@ -176,6 +177,31 @@ function waitForProcessExit(exitSpy: ReturnType<typeof vi.fn>) {
 
 async function loadHarness(): Promise<void> {
   await import('../../../src/workers/opencode-harness.mts');
+  const { runExecutionPhase } = await import('../../../src/workers/lib/execution-phase.mjs');
+  const { createPostgRESTClient } = await import('../../../src/workers/lib/postgrest-client.js');
+  const db = createPostgRESTClient();
+  const task = {
+    id: process.env.TASK_ID!,
+    status: 'Ready',
+    tenant_id: null as string | null,
+    archetypes: {
+      id: 'arch-id',
+      role_name: null as string | null,
+      model: 'minimax/minimax-m2.7',
+      instructions: 'Complete the task.',
+      delivery_instructions: null as string | null,
+    },
+  };
+  const archetype = task.archetypes;
+  void runExecutionPhase(
+    task,
+    archetype,
+    task.id,
+    db,
+    mockRunOpencodeSession,
+    () => {},
+    () => {},
+  );
 }
 
 describe('opencode-harness — execution metrics', () => {
@@ -213,6 +239,14 @@ describe('opencode-harness — execution metrics', () => {
     });
 
     mockStartHeartbeat.mockReturnValue({ stop: vi.fn(), updateStage: vi.fn() });
+
+    mockRunOpencodeSession.mockResolvedValue({
+      content: 'task-done',
+      metadata: {},
+      sessionId: 'mock-session-id',
+      transcript: [{ role: 'assistant', content: 'Done' }],
+      tokenUsage: { promptTokens: 100, completionTokens: 200, estimatedCostUsd: 0.05 },
+    });
 
     mockSpawn.mockImplementation(() => makeChildProcess(0));
   });
@@ -344,7 +378,9 @@ describe('opencode-harness — execution metrics', () => {
   });
 
   it('on session failure: patches tasks with failure_code (not null)', async () => {
-    mockStartOpencodeServer.mockResolvedValue(null);
+    mockRunOpencodeSession.mockRejectedValue(
+      new Error('[opencode-harness] Failed to start OpenCode server'),
+    );
 
     const mockFetch = buildMetricsMockFetch();
     vi.stubGlobal('fetch', mockFetch);
