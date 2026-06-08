@@ -714,3 +714,20 @@ Decomposed `dashboard/src/panels/employees/EmployeeDetail.tsx` from 635 lines �
 - `pnpm dashboard:build` → EXIT_CODE:0
 - Playwright: list renders rows ✓, status filter URL updates ✓, delete dialog opens with correct employee name ✓, 0 new console errors ✓
 - Evidence: `.sisyphus/evidence/task-26-employeelist.png`
+
+## Task 28 — CompactSettingsGrid reducer extraction
+
+### What was extracted
+
+- `FormState` type, `FormAction` union type, `initForm(archetype)`, `formReducer(state, action)` → `dashboard/src/panels/employees/sections/compact-settings-form.ts` (new file, 57 lines)
+- `CompactSettingsGrid.tsx` trimmed from 390 → 333 lines (< 360 ✓)
+- Import added: `import { FormState, FormAction, initForm, formReducer } from './compact-settings-form';`
+- `useSlackChannels` was already at line 2 (Task 23 had landed it) — NOT re-added, NOT changed
+
+### Key details
+
+- `compact-settings-form.ts` is a plain TypeScript module (not TSX) — no React imports needed (pure types + functions)
+- Must import `Archetype` from `@/lib/types` for `initForm` parameter and `RESET` action shape
+- Build: `pnpm dashboard:build` → EXIT_CODE:0, 2200 modules, no new warnings
+- Playwright: `/dashboard/settings?tenant=00000000-0000-0000-0000-000000000003` — clicked Edit on `cost_alert_slack_channel`, textbox + Save + Cancel buttons rendered correctly
+- Evidence: `.sisyphus/evidence/task-28-settings.png`
