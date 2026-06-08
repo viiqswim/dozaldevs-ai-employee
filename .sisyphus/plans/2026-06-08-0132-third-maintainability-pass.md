@@ -616,7 +616,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Docs reference the new/moved modules; no stale reference to the 5 dropped tables; `grep -c "sendSuccess\|harness-helpers\|override-handlers" AGENTS.md` ≥ 1
         **Commit**: YES — `docs: update AGENTS/README/CONTRIBUTING for third maintainability pass`
 
-- [ ] 33. **Final Verification Wave + docs freshness + git cleanup + Telegram notify**
+- [x] 33. **Final Verification Wave + docs freshness + git cleanup + Telegram notify**
 
   **What to do**: Run the Final Verification Wave (F1-F4 below), present consolidated results, get explicit user okay. Confirm Documentation Freshness done (Task 32). Run Git Cleanup (`git status --short` must be clean — commit stray plan/notepad files, delete temp files). **Send Telegram completion notification** (`pnpm exec tsx scripts/telegram-notify.ts "✅ Third maintainability pass complete — all tasks done, baseline green. Come back to review."`).
   **Must NOT do**: Mark F1-F4 checked before the user's explicit okay.
@@ -624,8 +624,8 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   **Parallelization**: LAST. Blocked By: all (1-32).
   **References**: AGENTS.md "Documentation Freshness" + "Git Cleanup on Plan Completion" + "Telegram Notifications"; `scripts/telegram-notify.ts`.
   **Acceptance Criteria** (Tier B — full):
-  - [ ] F1-F4 all APPROVE; user gives explicit okay
-  - [ ] `git status --short` clean; Telegram completion sent (exit 0). Evidence: `.sisyphus/evidence/final-qa/`
+  - [x] F1-F4 all APPROVE; user gives explicit okay
+  - [x] `git status --short` clean; Telegram completion sent (exit 0). Evidence: `.sisyphus/evidence/final-qa/`
         **Commit**: YES — `docs: finalize third maintainability pass`
 
 > **CHECKPOINT W6** — full E2E green; docs current; F1-F4 APPROVE + user okay; git clean. **Plan complete.**
@@ -636,19 +636,19 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user; get explicit "okay" before completing. Never mark F1-F4 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read file, curl endpoint, run command). For each "Must NOT Have": search for forbidden patterns — reject with file:line if found (server.ts startup reads still raw? response shape changed? new barrels added? catch handlers behavior-changed? AgentVersion/Deliverable dropped?). Check evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test -- --run` + `pnpm test:integration` + `pnpm dashboard:build`. Review changed files for `as any`/new `@ts-ignore`, empty catches introduced, console.\* in prod, commented-out code, unused imports, AI slop. Confirm no decomposed file regressed.
       Output: `Build [P/F] | Lint [P/F] | Unit [N/N] | Integration [N/N] | Dashboard [P/F] | VERDICT`
 
-- [ ] F3. **Real Manual QA — Tier A + Tier B + Dashboard parity** — `unspecified-high` (+ `e2e-testing`, `playwright` skills)
+- [x] F3. **Real Manual QA — Tier A + Tier B + Dashboard parity** — `unspecified-high` (+ `e2e-testing`, `playwright` skills)
       Tier A: `real-estate-motivation-bot-2` → `Done` + metrics (psql AND PostgREST) + Slack. Tier B: full approval loop → delivery. Dashboard: load all 5 decomposed pages, zero console errors, one interaction each. Schema: dropped tables 404 via PostgREST, survivors resolve. Evidence → `.sisyphus/evidence/final-qa/`.
       Output: `Tier A [P/F] | Tier B [P/F] | Dashboard [N/N pages] | Schema [P/F] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything in spec built, nothing beyond spec (no behavior change in extractions, no shape change in sendSuccess, no value change in named magic numbers, no catch-handler behavior edits). Detect cross-task contamination. Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | Unaccounted [CLEAN/N] | VERDICT`
 
@@ -675,10 +675,10 @@ test ! -f dashboard/src/components/InputSchemaEditor.tsx                        
 
 ### Final Checklist
 
-- [ ] All "Must Have" present; all "Must NOT Have" absent
-- [ ] `sendSuccess` authored + adopted; `createHttpClient` extended + adopted
-- [ ] 8 Hostfully tools + 4 OAuth routes + shared.ts migrated; tenant repos relocated
-- [ ] Backend large files decomposed (extract-only); harness rebuilt + Tier B green
-- [ ] 5 dead tables dropped; PostgREST verified
-- [ ] Dashboard deduped + decomposed; Playwright parity per page
-- [ ] Conventions documented; AGENTS.md/README/CONTRIBUTING updated; F1-F4 APPROVE + user okay
+- [x] All "Must Have" present; all "Must NOT Have" absent
+- [x] `sendSuccess` authored + adopted; `createHttpClient` extended + adopted
+- [x] 8 Hostfully tools + 4 OAuth routes + shared.ts migrated; tenant repos relocated
+- [x] Backend large files decomposed (extract-only); harness rebuilt + Tier B green
+- [x] 5 dead tables dropped; PostgREST verified
+- [x] Dashboard deduped + decomposed; Playwright parity per page
+- [x] Conventions documented; AGENTS.md/README/CONTRIBUTING updated; F1-F4 APPROVE + user okay
