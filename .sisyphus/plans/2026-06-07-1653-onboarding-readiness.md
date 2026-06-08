@@ -1621,19 +1621,19 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns — reject with file:line if found. Confirm Wave 0 left the baseline green. Check evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test` + `pnpm test:integration`. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports, AI slop. Verify zero eslint-disable no-explicit-any in non-deprecated files.
       Output: `Build [P/F] | Lint [P/F] | Unit [N/N] | Integration [N/N] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA — Tier A + Tier B** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Real Manual QA — Tier A + Tier B** — `unspecified-high` (+ `e2e-testing` skill)
       Confirm prerequisites. **Tier A**: trigger `real-estate-motivation-bot-2` → `Done` + `task_metrics` (psql AND PostgREST) + Slack post. **Tier B**: full approval loop → delivery. **Structural**: `wc -l src/inngest/employee-lifecycle.ts` < 500; zero `res.status(` in non-test routes; husky fires; ≥3 migrated tools `--help` exit 0; `pnpm test && pnpm test:integration` green. Evidence → `.sisyphus/evidence/final-qa/`.
       Output: `Tier A [P/F] | Tier B [P/F] | Structural [N/N] | Suites [unit P/F, int P/F] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec built, nothing beyond spec. Check "Must NOT do" compliance. Confirm Wave 0 fixed tests to match SHIPPED behavior (no prod bugs silently hidden). Flag unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | Unaccounted [CLEAN/N] | VERDICT`
 

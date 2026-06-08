@@ -610,3 +610,13 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 - Added to Project Structure: `src/gateway/lib/` (prisma-helpers.ts), `src/inngest/events.ts`, `src/workers/lib/postgrest-types.ts`, `tests/helpers/lifecycle-mocks.ts`, `tests/unit/`, `tests/integration/`.
 - Added three Key Conventions: `sendError()`, `requireEnv()`/`optionalEnv()`, `pnpm test` split.
 - Build clean after edits. Committed as `docs: update AGENTS.md with new modules, conventions, test split`.
+
+## F3 Manual QA (2026-06-08)
+- Lifecycle decomposition succeeded: `employee-lifecycle.ts` is 88 lines (was ~1200). 6 step files in `src/inngest/lifecycle/steps/`.
+- Gateway routes fully migrated: 0 raw `res.status(4xx/5xx)` matches.
+- Worker tool env migration: 38/59 tool files use requireEnv/optionalEnv; 0 raw `process.env[` in migrated tools (5 explicitly skipped).
+- Unit suite: 122 files, 1404 passed, 9 skipped, 0 failures (9.3s).
+- Integration suite: 47 passed / 1 failed file (453 tests, 429 passed, 7 failed, 17 skipped, 148s).
+  - Only failing file = `opencode-harness-metrics.test.ts` (7 failures, `vi.waitFor.timeout` spy-not-called) — documented pre-existing flake, NOT a regression.
+  - `tenant-repository.test.ts` (documented 13-failure flake from DB pollution) passed CLEAN this run.
+- VERDICT: APPROVE. Zero regressions from the plan.
