@@ -1,7 +1,7 @@
 import type { App } from '@slack/bolt';
 import type { InngestLike } from '../../types.js';
 import { createLogger } from '../../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { SLACK_ACTION_ID } from '../../../lib/slack-action-ids.js';
 import { extractInputsFromText } from '../../../lib/extract-inputs.js';
 import { callLLM } from '../../../lib/call-llm.js';
@@ -16,7 +16,11 @@ import { type ActionBody, type PendingInputCollection, pendingInputCollections }
 
 const log = createLogger('slack-handlers');
 
-export function registerTriggerHandlers(boltApp: App, inngest: InngestLike): void {
+export function registerTriggerHandlers(
+  boltApp: App,
+  inngest: InngestLike,
+  prisma: PrismaClient,
+): void {
   boltApp.action(SLACK_ACTION_ID.TRIGGER_CONFIRM, async ({ ack, body, respond, client }) => {
     const actionBody = body as ActionBody;
     const valueStr = actionBody.actions[0]?.value;
@@ -68,7 +72,6 @@ export function registerTriggerHandlers(boltApp: App, inngest: InngestLike): voi
     }
 
     let dispatched = false;
-    const prisma = new PrismaClient();
 
     try {
       const archetype = await prisma.archetype.findFirst({
@@ -331,8 +334,6 @@ export function registerTriggerHandlers(boltApp: App, inngest: InngestLike): voi
           'trigger_confirm: post-dispatch error after successful dispatch (suppressed false-failure message)',
         );
       }
-    } finally {
-      await prisma.$disconnect();
     }
   });
 

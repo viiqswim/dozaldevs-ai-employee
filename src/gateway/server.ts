@@ -206,7 +206,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     }
 
     if (options.inngestClient && boltApp) {
-      registerSlackHandlers(boltApp, options.inngestClient);
+      registerSlackHandlers(boltApp, options.inngestClient, prisma);
     }
   } else {
     logger.warn(

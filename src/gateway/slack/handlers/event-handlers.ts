@@ -1,7 +1,7 @@
 import type { App } from '@slack/bolt';
 import type { InngestLike } from '../../types.js';
 import { createLogger } from '../../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../../services/tenant-integration-repository.js';
 import { resolveArchetypeFromChannel } from '../../../lib/interaction-classifier.js';
 import {
@@ -13,7 +13,11 @@ import {
 
 const log = createLogger('slack-handlers');
 
-export function registerEventHandlers(boltApp: App, inngest: InngestLike): void {
+export function registerEventHandlers(
+  boltApp: App,
+  inngest: InngestLike,
+  prisma: PrismaClient,
+): void {
   boltApp.use(async ({ body, next }) => {
     const eventType = (body as { event?: { type?: string } }).event?.type ?? body.type ?? 'unknown';
     log.debug({ eventType, bodyType: body.type }, 'Bolt middleware: raw payload received');
@@ -166,11 +170,9 @@ export function registerEventHandlers(boltApp: App, inngest: InngestLike): void 
     let tenantId: string | null = null;
     if (mention.team) {
       try {
-        const prisma = new PrismaClient();
         const integrationRepo = new TenantIntegrationRepository(prisma);
         const integration = await integrationRepo.findByExternalId('slack', mention.team);
         tenantId = integration?.tenant_id ?? null;
-        await prisma.$disconnect();
       } catch (err) {
         log.warn({ team: mention.team, err }, 'Failed to resolve tenant from Slack team ID');
       }
