@@ -416,3 +416,41 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 - HOSTFULLY_MOCK=true get-messages.ts → correct fixture JSON, exit 0 ✅
 - validate-env.ts with no env → 'Error: HOSTFULLY_API_KEY environment variable is required', exit 1 ✅
 - pnpm build → EXIT 0 ✅
+
+## [2026-06-08] Task 23 — Migrate platform/github tools to shared helpers
+
+**Files migrated**: `platform/calculate.ts`, `platform/report-issue.ts`, `platform/submit-output.ts`, `github/get-token.ts`
+
+**Patterns applied**:
+- `calculate.ts`: No env vars. Replaced custom `parseArgs` loop with `getArg(args, '--expression')` + `args.includes('--help')`. Removed the `parseArgs` function entirely.
+- `report-issue.ts`: 4 required + 2 optional env vars. Replaced all `process.env[...]` with `requireEnv()`/`optionalEnv()`. Replaced custom `parseArgs` loop with `getArg()` calls. `unescapeShellArg` preserved on `--description` and `--patch-diff`.
+- `submit-output.ts`: No env vars (pure file writer). Replaced custom `parseArgs` loop with `getArg()` calls. `unescapeShellArg` preserved on `--summary`, `--draft`, `--reasoning`. `/tmp/summary.txt` write contract UNCHANGED.
+- `github/get-token.ts`: 1 required (`TASK_ID`) + 1 optional (`GATEWAY_URL`). Replaced `process.env[...]` with `requireEnv()`/`optionalEnv()`. Removed custom `parseArgs` function (only had `--help` flag, replaced with `args.includes('--help')`).
+
+**Key gotcha**: `submit-output.ts` uses `unescapeShellArg` on args BEFORE validation — the pattern is `rawX = getArg(...)` then `x = rawX !== undefined ? unescapeShellArg(rawX) : ''`. This preserves the unescape behavior while using the shared helper.
+
+**Verification**: `grep -rn "process\.env\[" src/worker-tools/{platform,github}/*.ts` → 0 results. `pnpm build` → exit 0. `CI=true pnpm test:unit` → exit 0.
+
+## [2026-06-08] Task 21 — Migrate google/ tools to shared helpers
+
+**Files migrated (19)**: create-document, create-event, delete-file, get-document, get-email, get-file, get-presentation, get-sheet-data, list-documents, list-emails, list-events, list-files, list-presentations, list-spreadsheets, send-email, update-event, update-sheet-data, upload-file, validate-env. **Skipped**: google-fetch.ts (reference — re-exports requireEnv from ../lib/require-env.js).
+
+**Patterns applied**:
+- Every parseArgs custom `for (let i...)` loop → object literal with `getArg(args, '--flag') ?? '<default>'` + `args.includes('--help')` for booleans.
+- `--max-results` (numeric): `const maxResultsArg = getArg(args, '--max-results'); maxResults: maxResultsArg ? parseInt(maxResultsArg, 10) : <default>`. Captured once to avoid double getArg call. Preserves exact default (20 for drive lists, 10 for emails/events).
+- `--permanent` (delete-file) is a boolean → `args.includes('--permanent')` NOT getArg.
+- `unescapeShellArg` preserved on free-text args (`--content`, `--body`, `--description`) via `const xArg = getArg(...); x: xArg ? unescapeShellArg(xArg) : ''`.
+- Import source: files already importing `requireEnv` from `./google-fetch.js` (the re-export) kept that import and ADDED `import { getArg } from '../lib/get-arg.js'` separately. Did not reroute requireEnv.
+
+**Key gotchas**:
+- `validate-env.ts` was the ONLY google file with raw `process.env[...]` (google-fetch.ts aside). It had: (1) reads of GATEWAY_URL/TASK_ID → `optionalEnv`, (2) a DEAD write `process.env['GOOGLE_ACCESS_TOKEN'] = freshToken` followed immediately by `return` — removed it (no sibling tool process inherits a post-fork env mutation, so behavior-equivalent), (3) a byte-identical manual replica of requireEnv (lines 50-54) → replaced with `requireEnv('GOOGLE_ACCESS_TOKEN')`. Error message matches exactly: "Error: GOOGLE_ACCESS_TOKEN environment variable is required".
+- **Task-spec discrepancy**: spec listed `update-event.ts` under the comma-split `--attendees` rule, but `update-event.ts` has NO `--attendees` flag (only create-event does). Did NOT invent one — that would be a business-logic change. create-event keeps its existing in-`main()` split `attendees.split(',').map(e => ({email: e.trim()}))`; only the read was swapped to getArg (did not add `.filter(Boolean)` since main() already guards with `if (attendees)`, preserving exact output shape).
+
+**Verification**:
+- `grep "process.env[" google/*.ts` excl google-fetch.ts → 0 ✅
+- `grep "process.argv"` → 19 matches, all `parseArgs(process.argv)` call sites ✅
+- `grep "for (let i = 0; i < args.length"` → 0 ✅
+- `--help` exits 0 (list-files, validate-env, create-event) ✅
+- missing-arg → exit 1 with original message (get-document) ✅
+- missing-env → exit 1 with identical message (validate-env) ✅
+- `tsc --noEmit -p tsconfig.json` → no google worker-tools errors ✅ (NOTE: tsconfig.build.json EXCLUDES src/worker-tools/**, so `pnpm build` does NOT type-check these files — use root tsconfig.json for worker-tools type-checking).

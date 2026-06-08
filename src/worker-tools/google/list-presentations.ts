@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 interface DriveFile {
   id: string;
@@ -13,18 +14,11 @@ interface DriveFilesResponse {
 
 function parseArgs(argv: string[]): { maxResults: number; help: boolean } {
   const args = argv.slice(2);
-  let maxResults = 20;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { maxResults, help };
+  const maxResultsArg = getArg(args, '--max-results');
+  return {
+    maxResults: maxResultsArg ? parseInt(maxResultsArg, 10) : 20,
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

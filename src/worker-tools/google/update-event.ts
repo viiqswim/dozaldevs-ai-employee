@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
 interface ParsedArgs {
@@ -14,36 +15,17 @@ interface ParsedArgs {
 
 function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
-  let calendarId = 'primary';
-  let eventId = '';
-  let summary = '';
-  let start = '';
-  let end = '';
-  let description = '';
-  let location = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--calendar-id' && args[i + 1]) {
-      calendarId = args[++i];
-    } else if (args[i] === '--event-id' && args[i + 1]) {
-      eventId = args[++i];
-    } else if (args[i] === '--summary' && args[i + 1]) {
-      summary = args[++i];
-    } else if (args[i] === '--start' && args[i + 1]) {
-      start = args[++i];
-    } else if (args[i] === '--end' && args[i + 1]) {
-      end = args[++i];
-    } else if (args[i] === '--description' && args[i + 1]) {
-      description = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--location' && args[i + 1]) {
-      location = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { calendarId, eventId, summary, start, end, description, location, help };
+  const descriptionArg = getArg(args, '--description');
+  return {
+    calendarId: getArg(args, '--calendar-id') ?? 'primary',
+    eventId: getArg(args, '--event-id') ?? '',
+    summary: getArg(args, '--summary') ?? '',
+    start: getArg(args, '--start') ?? '',
+    end: getArg(args, '--end') ?? '',
+    description: descriptionArg ? unescapeShellArg(descriptionArg) : '',
+    location: getArg(args, '--location') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

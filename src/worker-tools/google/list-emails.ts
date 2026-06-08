@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 type MessageListItem = {
   id: string;
@@ -35,21 +36,12 @@ type EmailSummary = {
 
 function parseArgs(argv: string[]): { query: string; maxResults: number; help: boolean } {
   const args = argv.slice(2);
-  let query = 'is:unread';
-  let maxResults = 10;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--query' && args[i + 1]) {
-      query = args[++i];
-    } else if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { query, maxResults, help };
+  const maxResultsArg = getArg(args, '--max-results');
+  return {
+    query: getArg(args, '--query') ?? 'is:unread',
+    maxResults: maxResultsArg ? parseInt(maxResultsArg, 10) : 10,
+    help: args.includes('--help'),
+  };
 }
 
 function findHeader(headers: MessageHeader[], name: string): string | null {

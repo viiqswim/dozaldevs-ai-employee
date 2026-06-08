@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 type DriveFile = {
   id: string;
@@ -20,24 +21,13 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let query = '';
-  let maxResults = 20;
-  let mimeType = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--query' && args[i + 1]) {
-      query = args[++i];
-    } else if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--mime-type' && args[i + 1]) {
-      mimeType = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { query, maxResults, mimeType, help };
+  const maxResultsArg = getArg(args, '--max-results');
+  return {
+    query: getArg(args, '--query') ?? '',
+    maxResults: maxResultsArg ? parseInt(maxResultsArg, 10) : 20,
+    mimeType: getArg(args, '--mime-type') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

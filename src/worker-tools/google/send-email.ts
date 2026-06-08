@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
 type SendResponse = {
@@ -16,30 +17,15 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let to = '';
-  let subject = '';
-  let body = '';
-  let cc = '';
-  let bcc = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--to' && args[i + 1]) {
-      to = args[++i];
-    } else if (args[i] === '--subject' && args[i + 1]) {
-      subject = args[++i];
-    } else if (args[i] === '--body' && args[i + 1]) {
-      body = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--cc' && args[i + 1]) {
-      cc = args[++i];
-    } else if (args[i] === '--bcc' && args[i + 1]) {
-      bcc = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { to, subject, body, cc, bcc, help };
+  const bodyArg = getArg(args, '--body');
+  return {
+    to: getArg(args, '--to') ?? '',
+    subject: getArg(args, '--subject') ?? '',
+    body: bodyArg ? unescapeShellArg(bodyArg) : '',
+    cc: getArg(args, '--cc') ?? '',
+    bcc: getArg(args, '--bcc') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 function plainTextToHtml(text: string): string {

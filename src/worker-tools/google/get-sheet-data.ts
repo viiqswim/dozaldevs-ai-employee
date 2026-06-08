@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 function parseArgs(argv: string[]): {
   spreadsheetId: string;
@@ -6,21 +7,11 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let spreadsheetId = '';
-  let range = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--spreadsheet-id' && args[i + 1]) {
-      spreadsheetId = args[++i];
-    } else if (args[i] === '--range' && args[i + 1]) {
-      range = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { spreadsheetId, range, help };
+  return {
+    spreadsheetId: getArg(args, '--spreadsheet-id') ?? '',
+    range: getArg(args, '--range') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 interface SheetsValuesResponse {

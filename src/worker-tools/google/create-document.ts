@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
 type CreateDocumentApiResponse = {
@@ -8,21 +9,12 @@ type CreateDocumentApiResponse = {
 
 function parseArgs(argv: string[]): { title: string; content: string; help: boolean } {
   const args = argv.slice(2);
-  let title = '';
-  let content = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--title' && args[i + 1]) {
-      title = args[++i];
-    } else if (args[i] === '--content' && args[i + 1]) {
-      content = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { title, content, help };
+  const contentArg = getArg(args, '--content');
+  return {
+    title: getArg(args, '--title') ?? '',
+    content: contentArg ? unescapeShellArg(contentArg) : '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

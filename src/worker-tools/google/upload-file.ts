@@ -1,4 +1,5 @@
 import { requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 import { readFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 
@@ -30,24 +31,12 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let filePath = '';
-  let name = '';
-  let folderId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--file-path' && args[i + 1]) {
-      filePath = args[++i];
-    } else if (args[i] === '--name' && args[i + 1]) {
-      name = args[++i];
-    } else if (args[i] === '--folder-id' && args[i + 1]) {
-      folderId = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { filePath, name, folderId, help };
+  return {
+    filePath: getArg(args, '--file-path') ?? '',
+    name: getArg(args, '--name') ?? '',
+    folderId: getArg(args, '--folder-id') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
