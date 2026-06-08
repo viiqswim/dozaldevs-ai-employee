@@ -457,18 +457,24 @@ src/
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
 │   ├── services/     # Business logic services: archetype generator (`archetype-generator.ts` — wizard LLM prompt for employee creation), dispatcher, task creation, tenant/secret management, interaction classification, and more. Browse `src/gateway/services/` for the full list.
+│   ├── lib/          # Shared gateway utilities: `http-response.ts` (`sendError()` + `sendSuccess()`), `prisma-helpers.ts` (`isPrismaError` + `ERROR_CODES`), `socket-mode-lock.ts`
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   ├── lifecycle/    # Extracted lifecycle step modules
-│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers)
-│   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
+│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers), `triage-and-ready.ts`, `execute.ts`, `validate-and-submit.ts`, `notify-and-track.ts`
+│   ├── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
+│   └── events.ts     # Typed Inngest event schemas (`EventPayload`, `InngestStep`) — import from here, never inline event types
 ├── workers/      # Docker container code — runs inside the worker machine
-│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client)
+│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (8 typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
+tests/
+├── unit/         # Fast unit tests (no DB) — run with `pnpm test` or `pnpm test:unit`
+├── integration/  # DB-backed integration tests — run with `pnpm test:integration`
+└── helpers/      # Shared test utilities: `lifecycle-mocks.ts` (`createLifecycleMocks()` factory for Inngest step mocking)
 ```
 
 ## Key Conventions
@@ -491,6 +497,9 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 - **AI employee outputs should be concise** — Slack messages, summaries, and guest replies produced by AI employees should be short and to-the-point. Avoid verbose explanations or filler text in delivered content. If the user asks for more detail, provide it; otherwise, keep it brief.
 - **`/tmp/` contract files must be written via tools only** — `/tmp/summary.txt` and `/tmp/approval-message.json` are the harness output contract files. They MUST be written exclusively via TypeScript tools in `/tools/` (e.g., `submit-output.ts`). Never write to these files directly via `echo`, shell redirects, or any non-tool method. The harness reads these files after the OpenCode session completes — if written in the wrong format, the task will fail. This applies to both the execution phase and the delivery phase.
 - **Platform settings over env vars** — Platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels) are stored in the `platform_settings` DB table, not env vars. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Never add hardcoded fallback values — missing required settings throw errors at startup. Managed via `/dashboard/settings` or `PATCH /admin/platform-settings/:key`.
+- **`sendError()` for ALL route error responses** — Every gateway route handler MUST use `sendError()` from `src/gateway/lib/http-response.ts` for error responses (never `res.status(N).json({...})` inline). Paired with `sendSuccess()` for 2xx responses. This ensures consistent error shape and structured logging across all routes.
+- **`requireEnv()`/`optionalEnv()` in worker tools, never raw `process.env`** — All shell tools in `src/worker-tools/` must read environment variables via `requireEnv(name)` (throws if missing) or `optionalEnv(name, default)` (returns default). Never access `process.env.FOO` directly — missing vars fail silently and produce cryptic errors at runtime.
+- **`pnpm test` = fast unit suite; `pnpm test:integration` = DB suite** — `pnpm test` (alias: `pnpm test:unit`) runs the unit suite in `tests/unit/` — no DB required, completes in seconds. `pnpm test:integration` runs `tests/integration/` against the test DB (`ai_employee_test`). Run `pnpm test:db:setup` once before integration tests. `pnpm test:all` runs both suites sequentially.
 
 ### Documentation Freshness (MANDATORY)
 
