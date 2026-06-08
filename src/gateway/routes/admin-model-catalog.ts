@@ -6,10 +6,7 @@ import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GO_MODEL_MAP } from '../../lib/go-models.js';
 import { uuidField } from '../validation/schemas.js';
 import { sendError } from '../lib/http-response.js';
-
-function isPrismaError(err: unknown): err is { code: string } {
-  return typeof err === 'object' && err !== null && 'code' in err;
-}
+import { isPrismaError } from '../lib/prisma-helpers.js';
 
 const ModelCatalogParamSchema = z.object({
   id: uuidField(),

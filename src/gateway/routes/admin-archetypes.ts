@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, InputSchemaSchema, uuidField } from '../validation/schemas.js';
 import { sendError } from '../lib/http-response.js';
+import { isPrismaError } from '../lib/prisma-helpers.js';
 import { ArchetypeRepository, ActiveTasksError } from '../services/archetype-repository.js';
 import {
   analyzeArchetype,
@@ -13,10 +14,6 @@ import {
 import { recommendModels } from '../../lib/model-selection/matcher.js';
 import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
-
-function isPrismaError(err: unknown): err is { code: string } {
-  return typeof err === 'object' && err !== null && 'code' in err;
-}
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;

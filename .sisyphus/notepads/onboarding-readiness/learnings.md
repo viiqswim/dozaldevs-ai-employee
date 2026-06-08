@@ -175,3 +175,8 @@ This guard ensures `main()` only runs when the file is the direct entry point, n
 ### Verification
 - `pnpm test:unit`: 120 files, 1386 passed, 9 skipped, EXIT_CODE:0, ~9.2s
 - `pnpm build`: tsc clean, EXIT_CODE:0
+
+## [2026-06-07] Task 1 — Extract shared gateway helpers
+- isPrismaError extracted to src/gateway/lib/prisma-helpers.ts
+- ERROR_CODES constants added
+- sendError JSDoc added in http-response.ts
