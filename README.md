@@ -34,13 +34,14 @@ This runs `scripts/ensure-infra.sh` under the hood, which is 3-state idempotent:
 
 ### Port Assignments (ai-employee)
 
-| Service       | Port  | URL                      |
-| ------------- | ----- | ------------------------ |
-| Kong (API)    | 54331 | `http://localhost:54331` |
-| Auth (GoTrue) | 9002  | internal only            |
-| PostgreSQL    | 54322 | shared with all projects |
-| Mailpit SMTP  | 54324 | shared with all projects |
-| Mailpit UI    | 54325 | `http://localhost:54325` |
+| Service            | Port  | URL                      |
+| ------------------ | ----- | ------------------------ |
+| Kong (API gateway) | 54321 | `http://localhost:54321` |
+| PostgreSQL         | 54322 | shared with all projects |
+| Studio (dashboard) | 54323 | `http://localhost:54323` |
+| Mailpit SMTP       | 54324 | shared with all projects |
+| Mailpit UI         | 54325 | `http://localhost:54325` |
+| PostgREST / Pooler | 54331 | `http://localhost:54331` |
 
 Database name: `ai_employee`
 
@@ -52,7 +53,7 @@ The platform follows a single lifecycle pattern for all employees:
 
 1. **Trigger** — A webhook or cron fires an event (e.g. Hostfully `NEW_INBOX_MESSAGE`, daily schedule)
 2. **Task created** — Gateway creates a `tasks` row and emits `employee/task.dispatched` to Inngest
-3. **Universal lifecycle** — Inngest transitions through states: `Received → Ready → Executing → Submitting → Reviewing`
+3. **Universal lifecycle** — Inngest transitions through 13 states: `Received → Triaging → AwaitingInput → Ready → Executing → Validating → Submitting → Reviewing → Approved → Delivering → Done` (terminal: `Failed`, `Cancelled`). When `approval_required: false`, the path short-circuits from `Submitting` directly to `Delivering → Done`.
 4. **Worker container** — Fly.io or local Docker runs OpenCode with a compiled AGENTS.md (from archetype fields) and available shell tools
 5. **Approval gate** — Worker posts a Slack card; PM approves or rejects
 6. **Delivery** — On approval, the deliverable is sent (Slack publish, Hostfully reply, etc.)
@@ -71,9 +72,10 @@ The platform follows a single lifecycle pattern for all employees:
 
 Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](docs/architecture/2026-04-14-0104-full-system-vision.md)
 
-## Registering Projects
+<details>
+<summary><strong>Registering Projects</strong> (deprecated — engineering employee only, on hold)</summary>
 
-> **Engineering employee only (deprecated/on hold).** The active employees (Summarizer, Guest-Messaging) do not use project registration.
+> The active employees (Summarizer, Guest-Messaging, Code-Rotation, Engineer, Google Workspace Assistant) do not use project registration. This section applies only to the old orchestrator-based engineering employee (`src/workers/orchestrate.mts`), which is on hold.
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
 
@@ -116,6 +118,8 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 `GITHUB_TOKEN` must have push access to every registered repo. It's a single global token shared across all projects.
 
 `DELETE /admin/tenants/:tenantId/projects/:id` returns `409 Conflict` if the project has tasks in `Ready`, `Executing`, or `Submitting` state.
+
+</details>
 
 ## Scripts
 
@@ -229,10 +233,13 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 ## Testing
 
 ```bash
-pnpm test     # Run Vitest suite
-pnpm lint     # ESLint
-pnpm build    # TypeScript compile
+pnpm test:unit   # Run unit suite once and exit (one-shot, no watch)
+pnpm test        # Run unit suite in watch mode (stays running, re-runs on file change)
+pnpm lint        # ESLint
+pnpm build       # TypeScript compile
 ```
+
+> `pnpm test` stays in watch mode — use `pnpm test:unit` in scripts or CI where you need a clean exit.
 
 **Expected results**: All tests should pass with 0 failures. One pre-existing skip is expected and intentional: `container-boot.test.ts` skips all 4 tests when Docker is unavailable — not a failure.
 
