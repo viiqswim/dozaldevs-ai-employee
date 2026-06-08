@@ -367,3 +367,23 @@ The plan's verification step 1 says grep `res.status(` should be empty. This CON
 - 10/10 suppressions removed. `grep -rn "eslint-disable.*no-explicit-any" src/` → empty.
 - pnpm lint EXIT 0, pnpm build EXIT 0, pnpm test 122 files/1404 passed/9 skipped/0 fail.
 - Evidence: .sisyphus/evidence/task-13-eslint.txt
+
+## [2026-06-08] Task 18 — Centralize process.env.SUPABASE reads in 7 inngest files
+
+### What was done
+Moved all `process.env.SUPABASE_URL`/`SUPABASE_SECRET_KEY` reads out of closures to module-level `requireEnv(...)` consts in 7 files. Replaced inline AES-256-GCM block in guest-message-poll.ts with `decrypt()` from src/lib/encryption.ts. Replaced `process.env.SUPABASE_URL!` non-null assertion in create-task-and-dispatch.ts with `requireEnv('SUPABASE_URL')`.
+
+### Key decisions / gotchas
+- **Import path**: used `../worker-tools/lib/require-env.js` (and `../../worker-tools/...` from triggers/ and lib/) per task spec. NOTE: the sibling `employee-lifecycle.ts` imports `requireEnv` from `../lib/config.js` instead — TWO `requireEnv` impls exist: config.ts THROWS on missing, worker-tools/lib EXITS(1). Task explicitly required the worker-tools one + forbade touching config.ts, so used worker-tools path. Both are functionally equivalent for the happy path.
+- **Import-time safety**: module-level `requireEnv` runs at IMPORT time. Safe because `vitest.config.ts` (and `vitest.integration.config.ts`) set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` in the `env:` block — so test collection does not crash. Verified: 1404 tests pass, 0 fail.
+- **decrypt() drop-in**: `encryption.ts` `decrypt(payload: {ciphertext,iv,auth_tag})` is a structural superset match for guest-message-poll's `SecretRow`. ENCRYPTION_KEY is read internally by encryption.ts via getKeyBuffer() — so the local `encKey`/`decryptSecret(row, encKey)` helper + `from 'crypto'` import were both fully removed. `SecretRow` interface RETAINED (still used as the fetch response type — 2 refs).
+- **reviewing-watchdog.ts**: kept the existing `if (!supabaseUrl || !supabaseKey)` runtime guard intact after hoisting (now redundant since requireEnv guarantees non-empty, but preserves literal code path — no behavior change). Same for guest-message-poll's HOSTFULLY_MOCK early-return logic (untouched).
+- **shared.ts** (gateway, NOT a target file): already exposes `SUPABASE_URL()`/`SUPABASE_KEY()` getter helpers, but its `isTaskAwaitingApproval`/`isTaskAwaitingOverride`/`getTaskStatusMessage` read `process.env` directly for graceful-skip semantics (returns true/fallback on missing env, NOT a hard exit). Task said "route through helpers; else skip" — left untouched (out of scope, different failure semantics).
+
+### Verification
+- grep process.env.SUPABASE across 7 files → ZERO (all eliminated, not just hoisted)
+- grep -c createDecipheriv guest-message-poll.ts → 0
+- grep -c "SUPABASE_URL!" create-task-and-dispatch.ts → 0
+- pnpm build → EXIT 0
+- CI=true pnpm test:unit → 122 files / 1404 passed / 9 skipped / 0 fail / 9.14s
+- Evidence: .sisyphus/evidence/task-18-tierA-grep.txt (gitignored)

@@ -1104,7 +1104,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ### WAVE 3 — Pattern unification
 
-- [ ] 14. Lifecycle decomposition — extract state handlers
+- [x] 14. Lifecycle decomposition — extract state handlers
 
   **What to do**:
   - **VERIFIED**: `src/inngest/employee-lifecycle.ts` is 1,886 lines with 28 inline `fetch()` PostgREST calls. `src/inngest/lifecycle/steps/` already has `approval-handler.ts` + `delivery-retry.ts` (do not touch).
@@ -1202,7 +1202,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(gateway): adopt sendError in route group 2 (oauth/webhook/internal)`
 
-- [ ] 17. Standardize error body format + route factory signatures
+- [x] 17. Standardize error body format + route factory signatures
 
   **What to do**:
   - After 15/16, verify all error responses use `{ error, message?, issues? }`. Fix `src/gateway/routes/admin-platform-settings.ts` factory signature from required `{ prisma }` to the standard `opts: { prisma?: PrismaClient } = {}` (matches all other route factories). Document the standard error format in CONTRIBUTING.md "API Error Responses". Validation errors include `issues`; non-validation omit it.
@@ -1233,7 +1233,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(gateway): standardize error format and route factory signatures`
 
-- [ ] 18. Centralize process.env reads in 7 inngest files
+- [x] 18. Centralize process.env reads in 7 inngest files
 
   **What to do**:
   - **VERIFIED 7 files** (`grep -rln "process.env.SUPABASE" src/inngest/`): `interaction-handler.ts`, `rule-extractor.ts`, `rule-synthesizer.ts`, `slack-trigger-handler.ts`, `triggers/reviewing-watchdog.ts`, `triggers/guest-message-poll.ts`, `lib/create-task-and-dispatch.ts`. Re-grep line numbers before editing.
@@ -1268,7 +1268,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(inngest): centralize process.env reads, remove inline AES decryption`
 
-- [ ] 19. Fix Knip unused exports
+- [x] 19. Fix Knip unused exports
 
   **What to do**:
   - Run `pnpm lint:unused` (knip). Remove or justify: `src/gateway/slack/handlers/shared.ts` (`supabaseHeaders`, `TRANSIENT_PRE_REVIEWING` if unused); KEEP `UUID_REGEX` in `schemas.ts` (referenced by AGENTS.md — add `// used by docs` comment); `approval-handler.ts` `ApprovalEventData` (un-export if internal); `go-models.ts` `GoEndpointType` (un-export if internal). Remove `@vitest/coverage-v8` from devDeps ONLY if truly unused (it's referenced by the coverage config — likely keep). Verify each with `lsp_find_references` before removing.
