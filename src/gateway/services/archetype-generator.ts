@@ -1,4 +1,5 @@
 import path from 'path';
+import { z } from 'zod';
 import type { callLLM } from '../../lib/call-llm.js';
 import { createLogger } from '../../lib/logger.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
@@ -148,6 +149,17 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
+// Failure signals a normalization regression, not bad user input — warn, don't throw.
+const PostProcessedArchetypeSchema = z.object({
+  role_name: z.string(),
+  runtime: z.literal('opencode'),
+  identity: z.string(),
+  execution_steps: z.string(),
+  instructions: z.string(),
+  tool_registry: z.object({ tools: z.array(z.string()) }),
+  overview: z.object({}).passthrough(),
+});
+
 function postProcess(raw: unknown, description: string): GenerateArchetypeResponse {
   const result = raw as Record<string, unknown>;
 
@@ -219,6 +231,14 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
         registry.tools.push(githubTool);
       }
     }
+  }
+
+  const parsed = PostProcessedArchetypeSchema.safeParse(result);
+  if (!parsed.success) {
+    log.warn(
+      { issues: parsed.error.issues },
+      'post-processed archetype failed shape validation — returning anyway',
+    );
   }
 
   return result as unknown as GenerateArchetypeResponse;

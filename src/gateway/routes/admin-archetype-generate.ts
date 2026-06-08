@@ -20,6 +20,15 @@ const GenerateBodySchema = z.object({
   refinement_instruction: z.string().max(500).optional(),
 });
 
+// refine() only reads these fields directly; the rest is JSON-stringified as-is.
+const PreviousConfigSchema = z
+  .object({
+    role_name: z.string(),
+    identity: z.string(),
+    execution_steps: z.string(),
+  })
+  .passthrough();
+
 export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOptions): Router {
   const router = Router();
   const logger = createLogger('admin-archetype-generate');
@@ -51,6 +60,14 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
       let result;
 
       if (previous_config !== undefined && refinement_instruction !== undefined) {
+        const prevResult = PreviousConfigSchema.safeParse(previous_config);
+        if (!prevResult.success) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+            issues: prevResult.error.issues,
+          });
+          return;
+        }
+
         result = await generator.refine(
           previous_config as unknown as Parameters<typeof generator.refine>[0],
           refinement_instruction,

@@ -108,6 +108,8 @@ export async function runExecutePhase(
     if (rawEvent.message_uid) rawEventEnv['MESSAGE_UID'] = rawEvent.message_uid;
     if (rawEvent.direction) rawEventEnv['OVERRIDE_DIRECTION'] = rawEvent.direction;
 
+    // Safe: rawEvent is narrowed to Record<string,string> above, but 'inputs' is a
+    // nested object on the original JSON — re-widen to read it without index errors.
     const rawInputs = (rawEvent as unknown as Record<string, unknown>)['inputs'];
     if (rawInputs && typeof rawInputs === 'object') {
       for (const [key, value] of Object.entries(rawInputs as Record<string, string>)) {

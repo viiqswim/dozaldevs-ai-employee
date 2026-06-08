@@ -88,6 +88,8 @@ export function registerOverrideHandlers(boltApp: App, inngest: InngestLike): vo
       return;
     }
 
+    // Safe: Bolt types ack as AckFn<void>; at runtime it accepts the legacy
+    // message-replacement body that LegacyMessageAck models (see shared.ts).
     await (ack as unknown as LegacyMessageAck)({
       replace_original: true,
       text: `✅ Dismissed by <@${user.id}>`,

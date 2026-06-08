@@ -69,8 +69,8 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
   for (const dirent of entries) {
     if (!dirent.isFile()) continue;
 
-    // Build relative path within basePath
-    // dirent.parentPath or dirent.path (Node 20+)
+    // Safe: both properties exist at runtime on Node 20+ Dirent (parentPath is
+    // newer, path is the legacy alias); the @types/node Dirent lags the runtime.
     const parentDir =
       'parentPath' in dirent
         ? (dirent as unknown as { parentPath: string }).parentPath

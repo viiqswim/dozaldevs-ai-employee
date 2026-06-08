@@ -145,6 +145,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         .start()
         .then(() => {
           logger.info('Slack Bolt — Socket Mode connected');
+          // Safe: Bolt's App does not expose `receiver` in its public types, but at
+          // runtime it is the SocketModeReceiver we configured at construction.
           const smClient = (boltApp as unknown as { receiver: SocketModeReceiver }).receiver.client;
           smClient.on('disconnected', () => {
             logger.warn('Slack Bolt — Socket Mode disconnected');
