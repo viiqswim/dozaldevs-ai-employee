@@ -153,7 +153,9 @@ async function checkCostCircuitBreaker(): Promise<void> {
           .postMessage({
             text: `🚨 *Cost Circuit Breaker Triggered*\nDepartment: default\nCurrent spend: $${COST_CACHE.value.toFixed(2)}\nLimit: $${limitUsd.toFixed(2)}\nTimestamp: ${now.toISOString()}\nNew LLM calls are paused until the daily limit resets or the limit is increased.`,
           })
-          .catch(() => {});
+          .catch((err) => {
+            createLogger('call-llm').warn({ err }, 'Cost alert Slack post failed');
+          });
       }
     }
     throw new CostCircuitBreakerError(

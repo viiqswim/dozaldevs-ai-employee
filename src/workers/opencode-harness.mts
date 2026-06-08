@@ -21,6 +21,8 @@ import {
 
 const log = createLogger('opencode-harness');
 
+const MIN_DELIVERY_SESSION_MS = 30_000;
+
 const TASK_ID: string = (() => {
   const id = process.env.TASK_ID;
   if (!id) {
@@ -385,7 +387,9 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
           status: 'failed',
           updated_at: new Date().toISOString(),
         })
-        .catch(() => {});
+        .catch((err) => {
+          log.warn({ taskId: TASK_ID, err }, 'Failed to mark execution failed (non-fatal)');
+        });
     }
     await markFailed(
       TASK_ID,
@@ -403,7 +407,7 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
       deliveryPrompt,
       archetype.model,
       'tsx /tools/platform/submit-output.ts --summary "<one sentence describing what you accomplished>" --classification "NO_ACTION_NEEDED"',
-      { minElapsedMs: 30_000 },
+      { minElapsedMs: MIN_DELIVERY_SESSION_MS },
     );
   } catch (err) {
     log.error({ taskId: TASK_ID, err }, '[opencode-harness] Delivery OpenCode session failed');
@@ -414,7 +418,9 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
           status: 'failed',
           updated_at: new Date().toISOString(),
         })
-        .catch(() => {});
+        .catch((err) => {
+          log.warn({ taskId: TASK_ID, err }, 'Failed to mark execution failed (non-fatal)');
+        });
     }
     await markFailed(TASK_ID, db, deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
     return;

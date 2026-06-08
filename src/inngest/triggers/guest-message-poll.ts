@@ -13,6 +13,9 @@ const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const HOSTFULLY_BASE_URL = 'https://api.hostfully.com/api/v3.2';
 
+const LEAD_LOOKBACK_DAYS = 30;
+const LEAD_LOOKBACK_MS = LEAD_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
 interface ArchetypeRow {
   id: string;
   tenant_id: string;
@@ -102,7 +105,7 @@ export function createGuestMessagePollTrigger(inngest: Inngest): InngestFunction
 
             const hfHeaders = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
 
-            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+            const thirtyDaysAgo = new Date(Date.now() - LEAD_LOOKBACK_MS)
               .toISOString()
               .slice(0, 10);
 
