@@ -24,6 +24,7 @@ import { TenantRepository } from '../../gateway/services/tenant-repository.js';
 import { TenantSecretRepository } from '../../gateway/services/tenant-secret-repository.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { watchdogFailureMessage } from '../../lib/slack-copy.js';
+import type { InngestStep } from '../../gateway/inngest/client.js';
 
 const log = createLogger('reviewing-watchdog');
 
@@ -55,8 +56,7 @@ export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunctio
       id: 'trigger/reviewing-watchdog',
       triggers: [{ cron: '*/15 * * * *' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ step }: { step: any }) => {
+    async ({ step }: { step: InngestStep }) => {
       const supabaseUrl = process.env.SUPABASE_URL ?? '';
       const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
 

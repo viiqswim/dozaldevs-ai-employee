@@ -231,3 +231,31 @@ This guard ensures `main()` only runs when the file is the direct entry point, n
 - base64url and generateAppJwt exported from github-token-manager.ts
 - admin-github.ts imports them from the service (no local defs)
 - Test mock for github-token-manager.js updated to use importOriginal spread so generateAppJwt is available
+
+## [2026-06-08] Task 12 — Fix test fn leak + ClassifyResult restructure
+- google-token-manager.ts: added clearTokenCache(tenantId?) — production-named function for cache invalidation on disconnect
+- admin-google.ts: DELETE handler now calls clearTokenCache(tenantId) instead of _resetCacheForTest()
+- ClassifyResult: guest-specific fields (guestName, propertyName, checkIn, checkOut, bookingChannel, originalMessage, leadUid, threadUid, messageUid) removed from top-level interface
+- ClassifyResult: added context?: Record<string, unknown> — guest fields stored here by legacy JSON parser
+- LegacyParsed interface added inside parseClassifyResponse() to type the legacy JSON shape
+- classify-message tests: updated to access fields via result.context?.['fieldName']
+- No external consumers of guest fields on ClassifyResult (employee-lifecycle.ts only uses classification, reasoning, displayContext)
+- server-startup.test.ts failures are pre-existing flaky (Socket Mode lock contention) — not caused by these changes
+
+## [2026-06-07] Task 8 — Typed PostgREST client
+- Created src/workers/lib/postgrest-types.ts with 8 interfaces (snake_case): TaskRow, ArchetypeRow, ExecutionRow, TenantRow, PendingApprovalRow, TaskStatusLogRow, TaskMetricsRow, EmployeeRuleRow
+- postgrest-client.ts now exports generic: query<T>, insert<T>, update<T> as standalone functions (read env vars directly)
+- 3 callers in employee-lifecycle.ts typed: query<Pick<EmployeeRuleRow>>, query<Pick<TaskRow,'status'>>, query<PendingApprovalRow>
+- Key: PostgREST uses snake_case, NOT Prisma camelCase (e.g., plan_content not planContent)
+- Key: Decimal type in Prisma becomes string in PostgREST wire format (estimated_cost_usd: string)
+- Stash/unstash workflow can silently revert edits to non-stashed files — always verify all callers after any git stash operation
+- employee-lifecycle.ts does NOT use createPostgRESTClient() — it uses raw fetch. Added generic query<T> to bridge the gap
+
+## [2026-06-07] Task 9 — Inngest typed event schemas
+
+- Created src/inngest/events.ts with typed event data interfaces for all 9 platform events
+- Updated src/gateway/inngest/client.ts: exports `InngestStep = GetStepTools<Inngest>` (v4 pattern)
+- Removed eslint-disable from rule-extractor.ts, interaction-handler.ts, reviewing-watchdog.ts
+- Pattern: `EventPayload<TData>` from inngest for event param, `InngestStep` for step param
+- Inngest v4 (4.1.0) has NO `EventSchemas` — that was removed from v3. Use `GetStepTools<Inngest>` + `EventPayload<TData>` directly
+- `GetStepTools` and `EventPayload` ARE exported from inngest v4 index

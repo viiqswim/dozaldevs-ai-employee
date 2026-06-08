@@ -1,12 +1,13 @@
 import { randomUUID } from 'crypto';
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage } from '../lib/slack-copy.js';
+import type { InngestStep } from '../gateway/inngest/client.js';
 
 const log = createLogger('rule-extractor');
 
@@ -22,9 +23,14 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
       id: 'employee/rule-extractor',
       triggers: [{ event: 'employee/rule.extract-requested' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const payload = event.data as RuleExtractRequestedPayload;
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<RuleExtractRequestedPayload>;
+      step: InngestStep;
+    }) => {
+      const payload = event.data;
       const {
         tenantId,
         feedbackId,

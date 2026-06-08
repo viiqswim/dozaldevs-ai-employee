@@ -1,5 +1,5 @@
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import {
   InteractionClassifier,
   resolveArchetypeFromTask,
@@ -13,26 +13,22 @@ import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage, questionNoAnswerFallback } from '../lib/slack-copy.js';
+import type { InngestStep } from '../gateway/inngest/client.js';
+import type { InteractionReceivedData } from './events.js';
 
 const log = createLogger('interaction-handler');
 
 export function createInteractionHandlerFunction(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     { id: 'employee/interaction-handler', triggers: [{ event: 'employee/interaction.received' }] },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const { source, text, userId, channelId, threadTs, messageTs, taskId, tenantId } =
-        event.data as {
-          source: 'thread_reply' | 'mention';
-          text: string;
-          userId: string;
-          channelId: string;
-          threadTs?: string;
-          messageTs?: string;
-          taskId?: string;
-          tenantId?: string;
-          team?: string;
-        };
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<InteractionReceivedData>;
+      step: InngestStep;
+    }) => {
+      const { source, text, userId, channelId, threadTs, messageTs, taskId, tenantId } = event.data;
 
       const context = await step.run('resolve-context', async () => {
         if (source === 'thread_reply') {
