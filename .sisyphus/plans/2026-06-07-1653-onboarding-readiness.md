@@ -1300,7 +1300,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ### WAVE 4 — Worker tools migration (54 files; SKIP 5 already done)
 
-- [ ] 20. Migrate hostfully/ (10 files)
+- [x] 20. Migrate hostfully/ (10 files)
 
   **What to do**:
   - **VERIFIED list** — migrate to `requireEnv`/`optionalEnv`/`getArg`: `get-checkouts.ts`, `get-door-code.ts`, `get-messages.ts`, `get-properties.ts`, `get-reservations.ts`, `get-reviews.ts`, `register-webhook.ts`, `send-message.ts`, `update-door-code.ts`, `validate-env.ts`. **SKIP `get-property.ts`** (already migrated). **SKIP `hostfully/lib/`**.
@@ -1332,7 +1332,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate hostfully tools to shared helpers`
 
-- [ ] 21. Migrate google/ (19 files)
+- [x] 21. Migrate google/ (19 files)
 
   **What to do**:
   - **VERIFIED list** — migrate all EXCEPT `google-fetch.ts` (the requireEnv source — SKIP/re-export only): `create-document.ts`, `create-event.ts`, `delete-file.ts`, `get-document.ts`, `get-email.ts`, `get-file.ts`, `get-presentation.ts`, `get-sheet-data.ts`, `list-documents.ts`, `list-emails.ts`, `list-events.ts`, `list-files.ts`, `list-presentations.ts`, `list-spreadsheets.ts`, `send-email.ts`, `update-event.ts`, `update-sheet-data.ts`, `upload-file.ts`, `validate-env.ts`.
@@ -1364,7 +1364,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate google tools to shared helpers`
 
-- [ ] 22. Migrate sifely (9) + jira (5) + notion (5) = 19 files
+- [x] 22. Migrate sifely (9) + jira (5) + notion (5) = 19 files
 
   **What to do**:
   - **sifely/ (9)**: re-grep dir for exact names; `generate-code.ts` has comma-split `--exclude-codes`. `rotate-property-code.ts` — only env/arg parsing; do NOT touch its (already-fixed) shell-injection logic.
@@ -1398,7 +1398,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(worker-tools): migrate sifely, jira, notion tools to shared helpers`
 
-- [ ] 23. Migrate platform (3) + github (1) = 4 files
+- [x] 23. Migrate platform (3) + github (1) = 4 files
 
   **What to do**:
   - **platform/ (3)**: `calculate.ts`, `report-issue.ts`, `submit-output.ts`. **github/ (1)**: `get-token.ts`.
