@@ -53,6 +53,12 @@ import {
   handleSupersede,
   handleExpiry,
 } from './lifecycle/steps/approval-handler.js';
+import { query } from '../workers/lib/postgrest-client.js';
+import type {
+  TaskRow,
+  PendingApprovalRow,
+  EmployeeRuleRow,
+} from '../workers/lib/postgrest-types.js';
 
 const log = createLogger('employee-lifecycle');
 
@@ -339,14 +345,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         let employeeRules = '';
         try {
-          const rulesRes = await fetch(
-            `${supabaseUrl}/rest/v1/employee_rules?status=eq.confirmed&archetype_id=eq.${archetypeId}&select=rule_text,confirmed_at&order=confirmed_at.desc`,
-            { headers },
-          );
-          const rulesRows = (await rulesRes.json()) as Array<{
-            rule_text: string;
-            confirmed_at: string;
-          }>;
+          const rulesRows =
+            (await query<Pick<EmployeeRuleRow, 'rule_text' | 'confirmed_at'>>(
+              'employee_rules',
+              `status=eq.confirmed&archetype_id=eq.${archetypeId}&select=rule_text,confirmed_at&order=confirmed_at.desc`,
+            )) ?? [];
 
           if (rulesRows.length > 0) {
             const header = '## Behavioral Rules — follow these';
@@ -540,11 +543,11 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
 
         for (let i = 0; i < maxPolls; i++) {
           await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
-          const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
-            headers,
-          });
-          const rows = (await res.json()) as Array<{ status: string }>;
-          const status = rows[0]?.status;
+          const rows = await query<Pick<TaskRow, 'status'>>(
+            'tasks',
+            `id=eq.${taskId}&select=status`,
+          );
+          const status = rows?.[0]?.status;
           if (status === 'Submitting' || status === 'Failed' || status === 'Cancelled')
             return status;
         }
@@ -993,20 +996,12 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
             // Race condition guard: remove any approval card buttons the worker may have
             // posted before the lifecycle could suppress them (APPROVAL_REQUIRED env var)
             try {
-              const approvalCleanupRes = await fetch(
-                `${supabaseUrl}/rest/v1/pending_approvals?task_id=eq.${taskId}&limit=1`,
-                {
-                  headers: {
-                    apikey: supabaseKey,
-                    Authorization: `Bearer ${supabaseKey}`,
-                  },
-                },
+              const approvalCleanupRows = await query<PendingApprovalRow>(
+                'pending_approvals',
+                `task_id=eq.${taskId}&limit=1`,
               );
-              const approvalCleanupRows = (await approvalCleanupRes.json()) as Array<
-                Record<string, unknown>
-              >;
-              const approvalCardRow = approvalCleanupRows[0];
-              if (approvalCardRow?.['slack_ts'] && approvalCardRow?.['channel_id']) {
+              const approvalCardRow = approvalCleanupRows?.[0];
+              if (approvalCardRow?.slack_ts && approvalCardRow?.channel_id) {
                 const prismaForCleanup = new PrismaClient();
                 const tenantEnvForCleanup = await loadTenantEnv(
                   tenantId,
@@ -1024,8 +1019,8 @@ export function createEmployeeLifecycleFunction(inngest: Inngest): InngestFuncti
                     defaultChannel: '',
                   });
                   await slackForCleanup.updateMessage(
-                    approvalCardRow['channel_id'] as string,
-                    approvalCardRow['slack_ts'] as string,
+                    approvalCardRow.channel_id,
+                    approvalCardRow.slack_ts,
                     completedNoApprovalMessage(),
                     [
                       {

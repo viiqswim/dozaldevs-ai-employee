@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPostgRESTClient } from '../../../../src/workers/lib/postgrest-client.js';
+import {
+  createPostgRESTClient,
+  query,
+  insert,
+  update,
+} from '../../../../src/workers/lib/postgrest-client.js';
+import type {
+  TaskRow,
+  PendingApprovalRow,
+  TaskMetricsRow,
+} from '../../../../src/workers/lib/postgrest-types.js';
 
 const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
@@ -322,6 +332,211 @@ describe('createPostgRESTClient', () => {
       const [, options] = mockFetch.mock.calls[0];
       expect(options.method).toBe('PATCH');
       expect(options.body).toBe(JSON.stringify(body));
+    });
+  });
+});
+
+describe('generic typed functions', () => {
+  beforeEach(() => {
+    process.env.SUPABASE_URL = 'http://localhost:54321';
+    process.env.SUPABASE_SECRET_KEY = 'test-secret-key';
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
+  });
+
+  describe('query<T>()', () => {
+    it('returns typed array on success', async () => {
+      const mockData: Pick<TaskRow, 'id' | 'status'>[] = [
+        { id: 'task-1', status: 'Done' },
+        { id: 'task-2', status: 'Failed' },
+      ];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(mockData),
+        }),
+      );
+
+      const result = await query<Pick<TaskRow, 'id' | 'status'>>('tasks', 'select=id,status');
+
+      expect(result).toEqual(mockData);
+      expect(result?.[0].status).toBe('Done');
+    });
+
+    it('returns null when env vars are missing', async () => {
+      delete process.env.SUPABASE_URL;
+
+      const result = await query<TaskRow>('tasks', 'id=eq.1');
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] query: Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
+      );
+    });
+
+    it('returns null on HTTP error', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+        }),
+      );
+
+      const result = await query<TaskRow>('tasks', 'id=eq.1');
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] query tasks failed with HTTP 500',
+      );
+    });
+
+    it('returns null when response is not an array', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: '1' }),
+        }),
+      );
+
+      const result = await query<TaskRow>('tasks', 'id=eq.1');
+
+      expect(result).toBeNull();
+    });
+
+    it('types PendingApprovalRow correctly at compile time', async () => {
+      const mockData: PendingApprovalRow[] = [
+        {
+          id: 'pa-1',
+          tenant_id: 'tenant-1',
+          thread_uid: 'thread-1',
+          task_id: 'task-1',
+          slack_ts: '12345.67890',
+          channel_id: 'C123',
+          created_at: '2026-01-01T00:00:00Z',
+          reminder_sent_at: null,
+          urgency: false,
+          recipient_name: null,
+          context_label: null,
+          deleted_at: null,
+        },
+      ];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(mockData),
+        }),
+      );
+
+      const result = await query<PendingApprovalRow>('pending_approvals', 'task_id=eq.task-1');
+
+      expect(result?.[0].slack_ts).toBe('12345.67890');
+      expect(result?.[0].channel_id).toBe('C123');
+    });
+  });
+
+  describe('insert<T>()', () => {
+    it('returns typed record on success', async () => {
+      const mockRow: TaskMetricsRow = {
+        id: 'metric-1',
+        task_id: 'task-1',
+        archetype_id: 'arch-1',
+        tenant_id: 'tenant-1',
+        work_minutes: 15,
+        created_at: '2026-01-01T00:00:00Z',
+        deleted_at: null,
+      };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 201,
+          json: () => Promise.resolve([mockRow]),
+        }),
+      );
+
+      const result = await insert<TaskMetricsRow>('task_metrics', {
+        task_id: 'task-1',
+        archetype_id: 'arch-1',
+        tenant_id: 'tenant-1',
+        work_minutes: 15,
+      });
+
+      expect(result?.work_minutes).toBe(15);
+    });
+
+    it('returns null when env vars are missing', async () => {
+      delete process.env.SUPABASE_SECRET_KEY;
+
+      const result = await insert<TaskMetricsRow>('task_metrics', { task_id: 'task-1' });
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] insert: Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
+      );
+    });
+  });
+
+  describe('update<T>()', () => {
+    it('returns typed array on success', async () => {
+      const mockData: Pick<TaskRow, 'id' | 'status'>[] = [{ id: 'task-1', status: 'Done' }];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(mockData),
+        }),
+      );
+
+      const result = await update<Pick<TaskRow, 'id' | 'status'>>(
+        'tasks',
+        { status: 'Done' },
+        'id=eq.task-1',
+      );
+
+      expect(result?.[0].status).toBe('Done');
+    });
+
+    it('returns null when env vars are missing', async () => {
+      delete process.env.SUPABASE_URL;
+
+      const result = await update<TaskRow>('tasks', { status: 'Done' }, 'id=eq.task-1');
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] update: Missing SUPABASE_URL or SUPABASE_SECRET_KEY',
+      );
+    });
+
+    it('returns null on HTTP error', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 403,
+          json: () => Promise.resolve({}),
+        }),
+      );
+
+      const result = await update<TaskRow>('tasks', { status: 'Done' }, 'id=eq.task-1');
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[postgrest-client] update tasks failed with HTTP 403',
+      );
     });
   });
 });
