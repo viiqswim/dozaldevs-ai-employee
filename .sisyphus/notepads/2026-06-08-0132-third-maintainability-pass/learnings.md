@@ -556,3 +556,58 @@ Back-relations removed: Task.clarifications, Task.crossDeptTriggers, Task.auditL
 - Pre-existing error: `dashboard/src/components/InputSchemaEditor.tsx` (dead duplicate) — not introduced
 - Pre-existing console error: `/api/config.js 404` — not introduced
 - Screenshot: `.sisyphus/evidence/task-27-wizard.png` — wizard loads at describe step, 0 application errors
+
+## Task 24 — ModelCatalogPage decomposition
+
+### Files created
+
+- `dashboard/src/lib/model-badge-utils.ts` (40 lines) — `computeQualityTierLabel` + 4 badge class maps (`COST_TIER_CLASS`, `GATEWAY_LABEL`, `GATEWAY_CLASS`, `QUALITY_TIER_CLASS`)
+- `dashboard/src/pages/model-catalog-form.ts` (123 lines) — `ModelForm` interface + `EMPTY_FORM` + `entryToForm` + `parseOptionalFloat` + `formToPayload`
+- `dashboard/src/pages/ModelFormDialog.tsx` (349 lines) — `FormField`, `SwitchField`, `ModelFormDialog`
+- `dashboard/src/pages/model-catalog-params.ts` (76 lines) — `useModelCatalogParams` hook encapsulating all URL state (modal/editing/removing/q/provider params)
+- `dashboard/src/pages/ModelTableRow.tsx` (87 lines) — `ModelTableRow` component rendering a single catalog row
+
+### Key design decisions
+
+1. **3 specified extractions weren't enough for < 300 target** — badge utils + form layer + form dialog reduced page from 910 → 424 lines. Two additional extractions were needed: URL state hook + table row component → final 296 lines.
+2. **`useModelCatalogParams` hook** — natural boundary: all `useSearchParams` logic lives together; page just destructures the returned values. Same pattern used in Task 27 (`use-wizard-data` encapsulating URL-sync logic).
+3. **`ModelTableRow`** — props: `{ model, onEdit, onRemove, onToggleActive }`. The row owns all badge/tier computation; page only passes handlers. Removed Badge, Switch, Pencil, Trash2, computeCostTierLabel, all tier class maps from the page's imports.
+
+### Build state
+
+- Zero TS errors in my new files (confirmed via `grep "error TS" | grep -v EmployeeList|CreateEmployeePage|EmployeeDetail|TriggerPanel` → 0 results)
+- Build fails due to pre-existing errors in parallel-wave files (`EmployeeList.tsx` + `EmployeeDetail.tsx` modified by tasks 21/22/25/26) — NOT introduced by this task
+- `pnpm dashboard:build` was green in task 23 before parallel wave started modifying those files
+
+### Playwright verification
+
+- `http://localhost:7700/dashboard/models` — table renders with real data (14 catalog models), 0 application errors (only pre-existing `/api/config.js 404`)
+- `?modal=add` — `ModelFormDialog` renders all sections: Identity, Pricing, Capabilities, Performance metrics, Usage Guidance, Status
+- Screenshot: `.sisyphus/evidence/task-24-modelcatalog.png`
+
+## Task 22 — fireHostfullyWebhook centralization
+
+### Changes made
+- Added `fireHostfullyWebhook(messageUid: string): Promise<void>` to `dashboard/src/lib/gateway.ts` (line 414)
+  - Added `WEBHOOK_FIXTURES` to the `constants` import in gateway.ts
+  - Function POSTs to `/webhooks/hostfully` with `...WEBHOOK_FIXTURES, event_type: 'NEW_INBOX_MESSAGE', message_uid: messageUid`
+  - No auth required (endpoint is public) — uses raw `fetch` like `fireApprovalEvent` does for Inngest
+
+### Panel state at task completion
+
+Parallel Wave 5 tasks refactored EmployeeDetail and EmployeeList into sub-components CONCURRENTLY:
+- `EmployeeDetail.tsx` → refactored, webhook moved to `EmployeeActionBar.tsx` (which imports `fireHostfullyWebhook` from gateway)
+- `EmployeeList.tsx` → refactored, webhook moved to `EmployeeRowActions.tsx` (which imports `fireHostfullyWebhook` from gateway)
+- `TriggerPanel.tsx` → direct replacement: raw fetch replaced with `await fireHostfullyWebhook(messageUid)` ✅
+
+### Final state
+- `grep -rn "fetch.*webhooks/hostfully" dashboard/src/panels` → 0 results
+- `grep -rn "fireHostfullyWebhook" dashboard/src/` → 4 hits: gateway.ts (definition), TriggerPanel.tsx, EmployeeActionBar.tsx, EmployeeRowActions.tsx (all usages)
+- `TriggerPanel.tsx`: removed local `WEBHOOK_FIXTURES` const, imports from `@/lib/constants` instead
+- Build: EXIT_CODE:0 (verified twice — before and after parallel task modifications)
+
+### Key pattern learned
+When `GATEWAY_URL` is only used for the webhook endpoint, it can be fully removed from panel imports. When it's used for OTHER endpoints (e.g., jira webhook URL display), it stays.
+
+### Evidence
+- `.sisyphus/evidence/task-22-network.txt` — curl verification of endpoint + full code audit
