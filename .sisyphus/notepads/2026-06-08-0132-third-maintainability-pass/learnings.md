@@ -588,6 +588,7 @@ Back-relations removed: Task.clarifications, Task.crossDeptTriggers, Task.auditL
 ## Task 22 — fireHostfullyWebhook centralization
 
 ### Changes made
+
 - Added `fireHostfullyWebhook(messageUid: string): Promise<void>` to `dashboard/src/lib/gateway.ts` (line 414)
   - Added `WEBHOOK_FIXTURES` to the `constants` import in gateway.ts
   - Function POSTs to `/webhooks/hostfully` with `...WEBHOOK_FIXTURES, event_type: 'NEW_INBOX_MESSAGE', message_uid: messageUid`
@@ -596,48 +597,96 @@ Back-relations removed: Task.clarifications, Task.crossDeptTriggers, Task.auditL
 ### Panel state at task completion
 
 Parallel Wave 5 tasks refactored EmployeeDetail and EmployeeList into sub-components CONCURRENTLY:
+
 - `EmployeeDetail.tsx` → refactored, webhook moved to `EmployeeActionBar.tsx` (which imports `fireHostfullyWebhook` from gateway)
 - `EmployeeList.tsx` → refactored, webhook moved to `EmployeeRowActions.tsx` (which imports `fireHostfullyWebhook` from gateway)
 - `TriggerPanel.tsx` → direct replacement: raw fetch replaced with `await fireHostfullyWebhook(messageUid)` ✅
 
 ### Final state
+
 - `grep -rn "fetch.*webhooks/hostfully" dashboard/src/panels` → 0 results
 - `grep -rn "fireHostfullyWebhook" dashboard/src/` → 4 hits: gateway.ts (definition), TriggerPanel.tsx, EmployeeActionBar.tsx, EmployeeRowActions.tsx (all usages)
 - `TriggerPanel.tsx`: removed local `WEBHOOK_FIXTURES` const, imports from `@/lib/constants` instead
 - Build: EXIT_CODE:0 (verified twice — before and after parallel task modifications)
 
 ### Key pattern learned
+
 When `GATEWAY_URL` is only used for the webhook endpoint, it can be fully removed from panel imports. When it's used for OTHER endpoints (e.g., jira webhook URL display), it stays.
 
 ### Evidence
+
 - `.sisyphus/evidence/task-22-network.txt` — curl verification of endpoint + full code audit
 
 ## Task 21 — InputSchemaEditor cleanup
 
 ### Dead file confirmed
+
 - `dashboard/src/components/InputSchemaEditor.tsx` — zero imports (grep confirmed: only its own internal declarations referenced it)
 - Deleted safely
 
 ### Shared primitives extracted
+
 - Created `dashboard/src/panels/employees/components/input-schema-shared.tsx`
 - Exports: `TYPE_LABELS`, `FREQUENCY_LABELS`, `TYPE_OPTIONS`, `FREQUENCY_OPTIONS`, `KEY_REGEX`, `deriveKey`, `FormState`, `DEFAULT_FORM`, `itemToForm`, `formToItem`, `FormErrors`, `validate`, `InlineFormProps`, `InlineForm`, `ItemRowProps`, `ItemRow`
 - `InlineForm` and `ItemRow` unified with optional `saving?` / `deleting?` props (default `false`) — wizard editor gets no-op defaults, section editor passes real state
 - Removed ~460 lines of duplicate code across the two live editors
 
 ### Live editor changes
+
 - `components/InputSchemaEditor.tsx`: 416 → 91 lines. Imports from `./input-schema-shared`. Removed local formToItem, InlineForm, ItemRow, all type/freq maps, KEY_REGEX, deriveKey.
 - `sections/InputSchemaSection.tsx`: 571 → 233 lines. Imports from `../components/input-schema-shared`. Removed local formToItem method (was defined inside component body referencing now-removed `deriveKey`).
 
 ### Key gotcha
-`InputSchemaSection.tsx` had a local `formToItem` *method inside the component body* (not a top-level function). It called `deriveKey` locally. After removing the shared duplicates, the local method needed to be removed too — it shadows the imported `formToItem` and still referenced the now-deleted `deriveKey`.
+
+`InputSchemaSection.tsx` had a local `formToItem` _method inside the component body_ (not a top-level function). It called `deriveKey` locally. After removing the shared duplicates, the local method needed to be removed too — it shadows the imported `formToItem` and still referenced the now-deleted `deriveKey`.
 
 ### Build
+
 - `pnpm dashboard:build` → EXIT_CODE:0
 
 ### Runtime
+
 - Employee detail page (cleaning-schedule, advanced tab): InputSchemaSection renders, ItemRow shows "Checkout Date", "Add input" button opens InlineForm — both using shared components from `input-schema-shared.tsx`
 - Create Employee wizard: loads without JS errors (only pre-existing `/api/config.js 404`). Input-schema wizard step unreachable in this session due to LLM provider 500 errors.
 
 ### Evidence
+
 - `.sisyphus/evidence/task-21-create.png` — wizard describe step (0 new errors)
 - `.sisyphus/evidence/task-21-detail.png` — employee advanced tab with InlineForm open (shared component confirmed working)
+
+## Task 25 — EmployeeDetail decomposition
+
+### What was done
+
+Decomposed `dashboard/src/panels/employees/EmployeeDetail.tsx` from 635 lines → 299 lines by extracting 5 components:
+
+| File                                | Responsibility                                                                                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `components/EmployeeNameEditor.tsx` | Inline name editor with KEBAB_REGEX validation, `patchArchetype` call, internal isEditing/saving/error state                |
+| `components/EmployeeActionBar.tsx`  | Trigger / Dry Run / Fire Webhook / Delete buttons; internal `firingWebhook` state; uses `fireHostfullyWebhook` from gateway |
+| `components/TriggerDialog.tsx`      | Trigger dialog with internal `prompt` state; clears on close via `useEffect`                                                |
+| `components/DeleteDialog.tsx`       | Delete confirmation dialog (extra extraction needed to hit <300 line target)                                                |
+| `sections/AdvancedTab.tsx`          | Full advanced tab: catalog loading, model saving, jiraWebhookUrl computation, InputSchemaSection                            |
+
+### Key discoveries
+
+- Task 22 (parallel) had already modified EmployeeDetail.tsx before this task started — replaced raw `handleFireWebhook` fetch with `fireHostfullyWebhook(messageUid)` from `@/lib/gateway`. Starting line count was 635, not 641.
+- LSP unavailable for dashboard (typescript-language-server not in `.tool-versions`) — `pnpm dashboard:build` is the only type-check authority.
+- 5 components were needed (not 4) to get below 300 lines — `DeleteDialog` was the extra extraction.
+- `Tenant` type has a `slug` field — used in AdvancedTab for jiraWebhookUrl computation.
+- `archetype.instructions` is a valid field on `Archetype` type.
+
+### Build
+
+- `pnpm dashboard:build` → EXIT_CODE:0 (2199 modules transformed)
+
+### Runtime
+
+- Employee detail page (real-estate-motivation-bot-2): Profile tab renders correctly
+- Advanced tab click → URL updates to `?tab=advanced` ✓
+- Trigger dialog opens with prompt textarea and "Trigger without instructions" button ✓
+- Only pre-existing console error: `/api/config.js 404` (unrelated)
+
+### Evidence
+
+- `.sisyphus/evidence/task-25-employeedetail.png` — Advanced tab active + Trigger dialog open
