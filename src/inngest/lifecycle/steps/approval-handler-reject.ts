@@ -7,7 +7,7 @@ import {
 import { buildHostfullyLink } from '../../../lib/enrichment-adapters/hostfully.js';
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
-import { writeFeedbackEvent } from './lifecycle-helpers.js';
+import { writeFeedbackEvent, mergeTaskMetadata } from './lifecycle-helpers.js';
 import { makePostgrestHeaders } from '../../lib/postgrest-headers.js';
 import type { KnownBlock } from '@slack/web-api';
 import type { ApprovalHandlerContext } from './approval-handler.js';
@@ -39,27 +39,8 @@ export async function handleReject(
 
   if (rejectionReason) {
     try {
-      const currentMetadata =
-        (
-          (await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
-            headers,
-          }).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>
-        )[0]?.metadata ?? {};
-
-      const updatedMetadata = { ...currentMetadata, rejectionReason };
-      const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          metadata: updatedMetadata,
-          updated_at: new Date().toISOString(),
-        }),
-      });
-      if (!metaPatchRes.ok) {
-        log.warn({ taskId }, 'Failed to store rejectionReason in task metadata (non-fatal)');
-      } else {
-        log.info({ taskId }, 'Rejection reason stored in task metadata');
-      }
+      await mergeTaskMetadata(supabaseUrl, headers, taskId, { rejectionReason });
+      log.info({ taskId }, 'Rejection reason stored in task metadata');
     } catch (err) {
       log.warn({ taskId, err }, 'Error storing rejectionReason in task metadata (non-fatal)');
     }
@@ -195,28 +176,9 @@ export async function handleReject(
   }
 
   try {
-    const currentMetaRes = await fetch(
-      `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-      { headers },
-    );
-    const currentMetaRows = (await currentMetaRes.json()) as Array<{
-      metadata: Record<string, unknown> | null;
-    }>;
-    const currentMeta = (currentMetaRows[0]?.metadata as Record<string, unknown>) ?? {};
-
-    const updatedMeta = {
-      ...currentMeta,
+    await mergeTaskMetadata(supabaseUrl, headers, taskId, {
       rejection_feedback_requested: true,
       rejection_user_id: actorUserId,
-    };
-
-    await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        metadata: updatedMeta,
-        updated_at: new Date().toISOString(),
-      }),
     });
     log.info({ taskId }, 'Rejection feedback flag set in task metadata');
   } catch (err) {

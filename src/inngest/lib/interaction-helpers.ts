@@ -3,6 +3,7 @@ import { ruleProposedMessage } from '../../lib/slack-copy.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { requireEnv } from '../../lib/config.js';
 import { makePostgrestHeaders } from './postgrest-headers.js';
+import { mergeTaskMetadata } from '../lifecycle/steps/lifecycle-helpers.js';
 import type { InngestStep } from '../events.js';
 
 const log = createLogger('interaction-handler');
@@ -87,19 +88,8 @@ export async function runPreClassificationShortCircuits(
       const feedbackRows = (await feedbackRes.json()) as Array<{ id: string }>;
       const newFeedbackId = feedbackRows[0]?.id ?? crypto.randomUUID();
 
-      const metaRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
-        headers: makePostgrestHeaders(supabaseKey),
-      });
-      const metaRows = (await metaRes.json()) as Array<{
-        metadata: Record<string, unknown> | null;
-      }>;
-      const existingMeta = metaRows[0]?.metadata ?? {};
-      await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-        method: 'PATCH',
-        headers: { ...headers, Prefer: 'return=minimal' },
-        body: JSON.stringify({
-          metadata: { ...existingMeta, rejection_feedback_requested: false },
-        }),
+      await mergeTaskMetadata(supabaseUrl, makePostgrestHeaders(supabaseKey), taskId ?? '', {
+        rejection_feedback_requested: false,
       });
 
       await step.sendEvent('emit-rejection-rule-extract', {

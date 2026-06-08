@@ -11,7 +11,7 @@ import { buildHostfullyLink } from '../../../lib/enrichment-adapters/hostfully.j
 import { supersededMessage, expiredMessage } from '../../../lib/slack-copy.js';
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
-import { writeFeedbackEvent } from './lifecycle-helpers.js';
+import { writeFeedbackEvent, mergeTaskMetadata } from './lifecycle-helpers.js';
 import { loadTenantEnv } from '../../../repositories/tenant-env-loader.js';
 import { TenantRepository } from '../../../repositories/tenant-repository.js';
 import { TenantSecretRepository } from '../../../repositories/tenant-secret-repository.js';
@@ -266,19 +266,7 @@ export async function handleApprove(
       );
     }
     try {
-      const currentMetaRows = (await fetch(
-        `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-        { headers },
-      ).then((r) => r.json())) as Array<{ metadata: Record<string, unknown> | null }>;
-      const existingMeta = currentMetaRows[0]?.metadata ?? {};
-      await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          metadata: { ...existingMeta, draft_response: editedContent },
-          updated_at: new Date().toISOString(),
-        }),
-      });
+      await mergeTaskMetadata(supabaseUrl, headers, taskId, { draft_response: editedContent });
       log.info({ taskId }, 'Task metadata draft_response updated with editedContent');
     } catch (err) {
       log.warn({ taskId, err }, 'Failed to update task metadata draft_response (non-fatal)');

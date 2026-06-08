@@ -3,6 +3,7 @@ import type { InngestStep } from '../../events.js';
 import { createSlackClient } from '../../../lib/slack-client.js';
 import { createLogger } from '../../../lib/logger.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
+import { mergeTaskMetadata } from './lifecycle-helpers.js';
 import { getAdapter } from '../../../lib/enrichment-adapters/index.js';
 import type { NotificationEnrichment } from '../../../lib/types/notification-enrichment.js';
 import type { KnownBlock } from '@slack/web-api';
@@ -137,25 +138,9 @@ export async function runTriageAndReady(
             blocks,
           );
           try {
-            const currentMetadataRes = await fetch(
-              `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-              { headers },
-            );
-            const currentMetadataRows = (await currentMetadataRes.json()) as Array<{
-              metadata: Record<string, unknown> | null;
-            }>;
-            const currentMetadata = currentMetadataRows[0]?.metadata ?? {};
-            await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-              method: 'PATCH',
-              headers,
-              body: JSON.stringify({
-                metadata: {
-                  ...currentMetadata,
-                  notify_slack_ts: supersededNotifyTs,
-                  notify_slack_channel: supersededNotifyChannel,
-                },
-                updated_at: new Date().toISOString(),
-              }),
+            await mergeTaskMetadata(supabaseUrl, headers, taskId, {
+              notify_slack_ts: supersededNotifyTs,
+              notify_slack_channel: supersededNotifyChannel,
             });
           } catch (metaErr) {
             log.warn(
@@ -181,33 +166,12 @@ export async function runTriageAndReady(
 
       if (result.ts) {
         try {
-          const currentMetadataRes2 = await fetch(
-            `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`,
-            { headers },
-          );
-          const currentMetadataRows2 = (await currentMetadataRes2.json()) as Array<{
-            metadata: Record<string, unknown> | null;
-          }>;
-          const currentMetadata2 = currentMetadataRows2[0]?.metadata ?? {};
-          const updatedMetadata = {
-            ...currentMetadata2,
+          await mergeTaskMetadata(supabaseUrl, headers, taskId, {
             notify_slack_ts: result.ts,
             notify_slack_channel: channel,
             inngest_run_id: runId,
-          };
-          const metaPatchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({
-              metadata: updatedMetadata,
-              updated_at: new Date().toISOString(),
-            }),
           });
-          if (!metaPatchRes.ok) {
-            log.warn({ taskId }, 'Failed to store notify_slack_ts in task metadata (non-fatal)');
-          } else {
-            log.info({ taskId }, 'notify_slack_ts stored in task metadata');
-          }
+          log.info({ taskId }, 'notify_slack_ts stored in task metadata');
         } catch (err) {
           log.warn({ taskId, err }, 'Error storing notify_slack_ts in task metadata (non-fatal)');
         }
