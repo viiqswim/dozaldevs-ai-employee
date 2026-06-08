@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 
 const {
   mockCreateMachine,
@@ -231,16 +232,8 @@ describe('employee-lifecycle — generic override flow (NO_ACTION_NEEDED)', () =
 
     const engine = new InngestTestEngine({
       function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = stepRunMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = waitForEventMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
+      transformCtx: (ctx) =>
+        applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
     });
 
     const { error } = await engine.execute(triggerEvent());
@@ -296,16 +289,8 @@ describe('employee-lifecycle — generic override flow (NO_ACTION_NEEDED)', () =
 
     const engine = new InngestTestEngine({
       function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = stepRunMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = waitForEventMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
+      transformCtx: (ctx) =>
+        applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
     });
 
     const { error } = await engine.execute(triggerEvent());
@@ -368,16 +353,8 @@ describe('employee-lifecycle — generic override flow (NO_ACTION_NEEDED)', () =
 
     const engine = new InngestTestEngine({
       function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = stepRunMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = waitForEventMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
+      transformCtx: (ctx) =>
+        applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
     });
 
     const { error } = await engine.execute(triggerEvent());
@@ -436,16 +413,8 @@ describe('employee-lifecycle — generic override flow (NO_ACTION_NEEDED)', () =
 
     const engine = new InngestTestEngine({
       function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = stepRunMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = waitForEventMock;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
+      transformCtx: (ctx) =>
+        applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
     });
 
     await engine.execute(triggerEvent());

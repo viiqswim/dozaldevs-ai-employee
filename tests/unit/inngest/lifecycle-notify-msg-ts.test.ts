@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
 
 // vi.hoisted() is required so these references are available inside vi.mock()
@@ -152,16 +153,8 @@ function makeEngine(notifyMsgRef: { ts: string | null; channel: string | null })
 
   const engine = new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
-    transformCtx: (ctx: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mocked = mockCtx(ctx as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.run = stepRunMock;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.waitForEvent = waitForEventMock;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return mocked as any;
-    },
+    transformCtx: (ctx) =>
+      applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
   });
 
   return { engine, fetchMock, stepRunMock };

@@ -235,26 +235,31 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 ## [Task 9] Silent catch fix in call-llm.ts (2026-06-08)
 
 ### Files changed
+
 - `src/lib/call-llm.ts` line 156: `.catch(() => {})` → `.catch((err) => { createLogger('call-llm').warn({ err }, 'Cost alert Slack post failed'); })`
 - `src/inngest/triggers/guest-message-poll.ts`: already done by prior agent (LEAD_LOOKBACK_DAYS/MS constants)
 - `src/workers/opencode-harness.mts`: already done by prior agent (MIN_DELIVERY_SESSION_MS + 2 silent catch fixes)
 
 ### Pattern: call-llm.ts logger
+
 - No module-level `log` constant in this file — use `createLogger('call-llm')` inline at the call site
 - `createLogger` is imported at line 10 from `./logger.js`
 
 ### Verification
+
 - `grep -n "catch(() => {})" src/lib/call-llm.ts src/workers/opencode-harness.mts` → 0 matches
 - `pnpm build` clean
 - `pnpm test:unit` → 128 files, 1450 passed, 9 skipped, 0 failures
 - Docker build: EXIT_CODE:0
 
 ### Commit
+
 - `40b04a15` — `refactor: log previously-silent catches; name lookback/session magic numbers`
 
 ## [Task 10] Cast validation/docs + serve.ts cleanup + dashboard toast (2026-06-08)
 
 ### Files changed (8 source files)
+
 - `src/gateway/services/archetype-generator.ts`: added `import { z }`; added `PostProcessedArchetypeSchema` + `.safeParse()` before the `as unknown as GenerateArchetypeResponse` cast (warn-don't-throw — LLM/normalization failure must not crash the request)
 - `src/gateway/routes/admin-archetype-generate.ts`: added `PreviousConfigSchema` (3 core fields + `.passthrough()`); `.safeParse()` → `sendError(400)` before the `previous_config` cast. Used safeParse→400 (not `.parse()`) to match the route's existing validation pattern; `.parse()` would throw into the catch→500 instead of 400.
 - Comments on 8 `as unknown as` casts across 6 files (each prefixed `// Safe:`):
@@ -267,12 +272,14 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 - `dashboard/src/panels/integrations/IntegrationsPage.tsx`: added `import { toast } from 'sonner'`; both `console.error(msg, err)` → `toast.error(msg)`. Changed `catch (err)` → `catch` (err binding now unused; avoids no-unused-vars lint). `<Toaster />` already mounted in App.tsx.
 
 ### Gotchas
+
 - **tool-parser.ts is at `src/gateway/services/tool-parser.ts`**, NOT `src/workers/lib/tool-parser.ts` (the task's grep path was wrong — file was relocated).
 - **Vitest watch trap**: `pnpm test -- --run` does NOT pass `--run` cleanly here — vitest stayed in watch mode ("Waiting for file changes"), blocking the `&&` chain. Use `pnpm test:unit` (= `vitest run`) instead — guaranteed to exit.
 - **tee log contamination**: a concurrent `ai-dev` tmux session + vitest ANSI cursor codes can overwrite/pollute the tee'd log. Ground truth = `tmux capture-pane -t <s> -p -S -400`. Vitest summary was at scrollback: `Test Files 128 passed (128) / Tests 1450 passed | 9 skipped`.
 - **LSP unavailable**: typescript-language-server fails (asdf node version unset) — rely on `pnpm build` (tsc) for type verification.
 
 ### Verification
+
 - `pnpm build` (tsc): clean
 - `pnpm test:unit`: 128 files, 1450 passed, 9 skipped, 0 failures
 - `pnpm dashboard:build`: ✓ built in 436ms
@@ -289,6 +296,7 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 ## [Task 13] Externalize VLRE location config in get-checkouts (2026-06-08)
 
 ### What changed
+
 - `ZIP_CITY` constant removed from `get-checkouts.ts` — moved to `src/worker-tools/hostfully/config/vlre-location-config.json`
 - `deriveRoomId` patterns (digitSuffixPrefix, loftSuffix, unitLetterPrefix, roomFallback) externalized to same JSON
 - Street-suffix normalization table (lane→Lane, rd→Rd, etc.) externalized to same JSON
@@ -298,17 +306,20 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 - `CONFIRMED_STATUSES` was already extracted to `./lib/constants.ts` by another task (task 12 or similar)
 
 ### Fixture augmentation
+
 - Added 3 branch-coverage entries to `fixtures/get-checkouts.json` (was 6, now 9):
   - Loft branch: `4403B-HAY-LOFT` → roomId "Loft"
   - Casa branch: `BEACHFRONT-VILLA` with zipCode 78640 → city "Kyle, TX" (unambiguous ZIP HIT)
   - ZIP MISS branch: `UNKNOWN-PROP` with zipCode null → city "Austin, TX" (fallback)
 
 ### ESM-safe JSON loading pattern
+
 - `new URL('./config/vlre-location-config.json', import.meta.url)` — correct ESM-safe relative path
 - `readFileSync(configPath, 'utf8')` — synchronous, fine at module load time (before any async work)
 - Config loaded at module level (outside `main()`) so it's available to `normalizeAddress` and `deriveRoomId`
 
 ### Byte-identity proof
+
 - Golden: `.sisyphus/evidence/task-13-updated-golden.json` (9 entries)
 - Diff: `.sisyphus/evidence/task-13-golden-diff.txt` — empty (EXIT: 0)
 - Commit: 01cb1912
@@ -367,6 +378,7 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 **What was done**: Extracted `runExecutionPhase()` and `runDeliveryPhase()` from `opencode-harness.mts` into dedicated modules.
 
 **File sizes**:
+
 - Before: `opencode-harness.mts` = 806 lines (monolith)
 - After: `opencode-harness.mts` = 349 lines (thin dispatcher)
 - New: `src/workers/lib/execution-phase.mts` = 315 lines
@@ -387,15 +399,127 @@ The original inline blocks patched both `metadata` JSONB and `tasks.updated_at` 
 **Pattern followed**: Task 17 approval-handlers split (approve-action.ts, edit-action.ts, reject-action.ts)
 
 **Result**:
+
 - `rule-handlers.ts`: 380 → 16 lines (thin orchestrator)
 - `rule-confirm-action.ts`: 119 lines — RULE_CONFIRM action + inngest send + synthesis check + archive parents
 - `rule-reject-action.ts`: 82 lines — RULE_REJECT action only
 - `rule-rephrase-action.ts`: 197 lines — RULE_REPHRASE action (open modal) + rule_rephrase_modal view (submit)
 
 **Key decisions**:
+
 - `registerRuleRejectAction` does NOT take `inngest` (no inngest.send in reject path)
 - `registerRuleRephraseAction` does NOT take `inngest` (no inngest.send in rephrase path)
 - Both confirm and rephrase share the same file-scope `createLogger('slack-handlers')` logger name (matches original)
 - Tests import from `registerSlackHandlers` (index.ts) — no test file changes needed
 
 **Gotcha**: approval-handlers.test.ts already had 10 pre-existing LSP errors (Expected 3 args, got 2) — unrelated to this task. feedback-tenant-filter.test.ts also has a pre-existing failure. Both pre-date Task 20.
+
+## [Task 18] execute.ts decomposition (2026-06-08)
+
+### What was extracted
+
+- `src/inngest/lifecycle/lib/machine-provisioner.ts` created (281 lines) — contains all machine-provisioning + env-manifest assembly + local Docker / Fly.io launch logic
+- `src/inngest/lifecycle/lib/` directory created (was only `steps/` before)
+- `execute.ts` shrunk: 435 → 205 lines; `executing` step.run callback is now ~15 lines (thin orchestrator calling `provisionWorkerMachine(...)`)
+- Step ID `executing` preserved exactly — Inngest uses sha1(stepName) for deduplication
+
+### Relative import paths
+
+Both `steps/` and `lib/` are at the same depth under `src/inngest/lifecycle/`, so all `../../../lib/` paths are identical from both locations. Only `./triage-and-ready.js` and `./notify-and-track.js` needed adjustment to `../steps/triage-and-ready.js` and `../steps/notify-and-track.js`.
+
+### Test update required
+
+`tests/unit/inngest/feedback-tenant-filter.test.ts` was a source-inspection test reading `execute.ts` and asserting it contains `archetype_id=eq.${archetypeId}`. Updated to point at `machine-provisioner.ts` where that query now lives.
+
+### Evidence
+
+- `.sisyphus/evidence/task-18-tierA.txt` — line counts before/after + test results
+- `pnpm build`: CLEAN
+- `pnpm test:unit`: 128 files, 1450 passed, 9 skipped, 0 failures
+- Commit: `ddefe7d5`
+
+## [Task 19] reviewing-path decomposition (2026-06-08)
+
+### What was extracted
+
+- `checkSupersede(ctx: ReviewingPathContext): Promise<void>` — was inline in `step.run('check-supersede', ...)` (~141 lines)
+- `trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void>` — was inline in `step.run('track-pending-approval', ...)` (~133 lines)
+
+Both helpers live in the same file (`reviewing-path.ts`) — no `lifecycle/lib/` directory existed at task start (it was created by a parallel task during execution).
+
+### step.run wrappers are now thin orchestrators
+
+```typescript
+await step.run('check-supersede', () => checkSupersede(ctx));
+await step.run('track-pending-approval', () => trackPendingApprovalStep(ctx));
+```
+
+### File size
+
+- Before: 516 lines
+- After: 533 lines (slightly larger due to function signatures + blank lines, but step.run bodies are now 1-liners)
+
+### Parallel task interference
+
+During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id` query to `machine-provisioner.ts`) and created `src/inngest/lifecycle/lib/`. The `feedback-tenant-filter.test.ts` unit test checks `execute.ts` for `archetype_id=eq.${archetypeId}` — this test was intermittently failing due to the parallel task's changes, NOT my changes. Confirmed by: (1) my stash showed only `reviewing-path.ts` modified, (2) lifecycle tests all passed with my code.
+
+### Integration test failures
+
+15 integration test files failed — all pre-existing (admin-kb-crud, projects registry, harness-metrics, jira-webhook, schema, task-creation, etc.). None related to reviewing-path.ts.
+
+### Commit: bee00b5d
+
+## [Task 22] orphan test recovery
+
+- `tests/gateway/inngest-send.test.ts` was orphaned outside the vitest include glob (`tests/unit/**`)
+- The test's implementation (`src/gateway/inngest/send.ts`) had been deleted by knip as "unused" in commit `63e5313a`
+- Recovery required: (1) `git mv` to `tests/unit/gateway/`, (2) fix import depth `../../` → `../../../`, (3) restore `send.ts` from git history
+- `tests/gateway/` subdirs (`integration/`, `routes/`, `services/`, `slack/`, `validation/`) were all empty — only `inngest-send.test.ts` was the orphan
+- The function tests `engineering/task.received` event sending (deprecated engineering employee) — still valid as a unit test for the retry utility
+
+## [Task 24] dashboard vitest config
+
+- **Dashboard is a STANDALONE pnpm package** — NOT in a pnpm workspace. It has its own `dashboard/pnpm-lock.yaml`, own `node_modules`, and its own vitest **v4.1.6**. The repo root uses vitest **v2.1.9**. Never run the dashboard suite through the root vitest binary (major-version mismatch).
+- **`test:dashboard` pattern**: `cd dashboard && pnpm exec vitest run --config vitest.config.ts` — mirrors how `dashboard:build` does `cd dashboard && pnpm install && pnpm build`. Uses the dashboard's own vitest.
+- **Dashboard test config lived inline in `dashboard/vite.config.ts`** (`test:` block, jsdom + globals + setupFiles `./src/tests/setup.ts`). Task added a dedicated `dashboard/vitest.config.ts` so the suite is invocable from root/CI without booting the dev/build pipeline. Both configs coexist; the dedicated one uses `@vitejs/plugin-react-swc`, `@` alias, jsdom, globals, and `include: ['src/**/*.{test,spec}.{ts,tsx}']`.
+- **Dashboard testing deps were ALREADY present**: `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`, `vitest` — no install needed. `setup.ts` is just `import '@testing-library/jest-dom';`.
+- **CI gotcha**: because the dashboard is not a workspace member, root `pnpm install --frozen-lockfile` does NOT pull dashboard deps. The deploy.yml step must `pnpm install --frozen-lockfile` with `working-directory: dashboard` BEFORE `pnpm test:dashboard`. Verified the dashboard frozen lockfile is up to date (install exits 0).
+- **Smoke test targets that render cleanly in jsdom with zero mocks**: `ApprovalSection` (`src/panels/tasks/components/`) and `WizardEditStep` (`src/panels/employees/components/`). For `WizardEditStep`, pass `config={null}` + empty arrays for repos/slackChannels to avoid needing fixtures; assert on labels (`Employee Name`, `Identity`) and the nav buttons (`Back to Describe`, `Preview AGENTS.md`).
+- **Dashboard LSP unavailable** in this env (typescript-language-server tool-versions issue under `dashboard/`). Verify dashboard TS via `pnpm dashboard:build` (`tsc -b`) instead — it type-checks the new `.test.tsx` files.
+- **Pre-existing root-suite LSP errors** (`tests/unit/gateway/slack/approval-handlers.test.ts` "Expected 3 arguments, but got 2" ×10; `tests/gateway/inngest-send.test.ts` missing module) are UNRELATED to dashboard work — they live in the root vitest project.
+- **Unrelated uncommitted change present**: `tests/setup.ts` had a pre-existing Prisma cleanup FK-ordering modification from earlier Wave work — left untouched, not staged in the Task 24 commit.
+
+## [Task 25] legacy mock migration + fake-timer dev-preflight
+
+### The 4-vs-11 spec contradiction (resolved)
+
+- Task scope NAMED 4 files but the acceptance criterion is `grep -rln "(mocked as any).step" tests/` → **0**. The actual pattern was in **11** files. Migrating only 4 leaves 7 hits → grep ≠ 0 → FAIL.
+- Resolution: the 4 named files are the required floor; `grep → 0` forces cleaning all 11. Migrated all 11 (the 4 named + lifecycle-enriched-notify, lifecycle-notify-msg-ts, employee-lifecycle-classification, lifecycle-feedback-context-rejection, feedback-injection, employee-lifecycle-delivery, lifecycle-supersede).
+
+### `createLifecycleMocks()` ≠ what these tests needed
+
+- `createLifecycleMocks()` mocks DEPENDENCY MODULES (`WebClient`, fly-client, repos). These 11 tests mock `createSlackClient` from `src/lib/slack-client.js` (a different module the factory does NOT cover) and override the **Inngest step object** in `transformCtx`. The migration target was the `(mocked as any).step` ctx mutation, NOT the dependency layer.
+- Added a NEW helper `applyStepMocks(rawCtx, { run?, waitForEvent?, sendEvent? })` to `tests/helpers/lifecycle-mocks.ts` (the canonical helper home). It runs `mockCtx()` then assigns the provided step methods. The one unavoidable cast (`@inngest/test` `Context.Any` has no typed step-mock surface) is encapsulated there → all 11 call sites are now `any`-free (removed ~40 `eslint-disable no-explicit-any` lines).
+
+### Critical gotcha: docstring matched the grep
+
+- My first `applyStepMocks` docstring literally contained `` `(mocked as any).step.xxx = ...` `` → grep returned 1 (the helper file itself). Had to reword the docstring to describe the pattern WITHOUT the matched string. Lesson: when the acceptance gate is a `grep`, the helper's own docs must not contain the forbidden literal.
+
+### Return type matters
+
+- Helper must return `ReturnType<typeof mockCtx>` (= `Context.Any`), NOT `unknown` — `transformCtx` expects `Context.Any` and `unknown` isn't assignable. The original inline code used `as any` which masked this.
+
+### dev-preflight fake timers
+
+- Real waits live INSIDE the `killAndWait` SUT (`await new Promise((r) => setTimeout(r, 200))`), not the test bodies — can't edit the SUT. Fixed by scoping `vi.useFakeTimers()` (beforeEach) / `vi.useRealTimers()` (afterEach) to the `killAndWait` describe.
+- The 2 deadline-looping tests need `await vi.advanceTimersByTimeAsync(400)` — the **async** variant. Sync `advanceTimersByTime` hangs because the SUT `await`s the timer promise; microtasks must flush between fires. Pattern: kick off `const pending = killAndWait(...)` (don't await), advance timers async, then `await pending`.
+- The 2 immediate-return tests (`listPids → ''`) work under fake timers with no advance. Removed obsolete `, 10000` real-time timeout suffixes.
+- Result: killAndWait suite runs in 7ms (was ~400ms+).
+
+### tsc baseline
+
+- `npx tsc --noEmit` surfaces 10 PRE-EXISTING test errors (interaction-handler-injection.test.ts ×6, lib/create-task-and-dispatch.test.ts ×4) on clean HEAD — confirmed via `git stash`. My 11 files + helper = 0 errors. `pnpm build` excludes tests so these don't gate the build.
+
+### Commit scope discipline
+
+- Concurrent Wave 5 tasks (21 cleanupTestData, 23 config consolidation) left `tests/setup.ts` + `tests/unit/lib/config.test.ts` modified — staged ONLY my 14 files, never `git add -A`.

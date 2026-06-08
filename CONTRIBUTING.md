@@ -246,6 +246,35 @@ Defaults: `createMachine`/`getMachine` resolve a `started` machine, `loadTenantE
 
 Reference: `tests/helpers/lifecycle-mocks.ts` (JSDoc usage example at the top) and the sample test `tests/unit/helpers/lifecycle-mocks.test.ts`. This factory is additive — existing lifecycle tests keep their inline mocks; adopt it for new tests.
 
+### Mocking the Inngest step object
+
+Lifecycle tests drive the function through `InngestTestEngine` and override `ctx.step.run` / `ctx.step.waitForEvent` / `ctx.step.sendEvent` inside `transformCtx`. Use `applyStepMocks()` (also in `tests/helpers/lifecycle-mocks.ts`) instead of casting the context to `any` by hand:
+
+```typescript
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
+
+new InngestTestEngine({
+  function: createEmployeeLifecycleFunction(inngest),
+  transformCtx: (ctx) => applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
+});
+```
+
+`applyStepMocks` runs `@inngest/test`'s `mockCtx()` and assigns only the step methods you pass — the one unavoidable cast (the `Context.Any` type has no typed mock surface) is encapsulated in the helper, so call sites stay `any`-free.
+
+### Collapsing `setTimeout` in lifecycle tests
+
+The lifecycle inserts real delays (e.g. the post-delivery settle wait). To stop tests from waiting on wall-clock time, stub `setTimeout` so callbacks fire synchronously:
+
+```typescript
+vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
+  fn();
+  return 0 as unknown as NodeJS.Timeout;
+});
+// pair with vi.unstubAllGlobals() in afterEach
+```
+
+For code that loops on a deadline (e.g. `dev-preflight`'s `killAndWait`), prefer `vi.useFakeTimers()` + `await vi.advanceTimersByTimeAsync(ms)` (the async variant flushes the awaited microtasks between timer fires) and `vi.useRealTimers()` in `afterEach`.
+
 ---
 
 ## API Error Responses

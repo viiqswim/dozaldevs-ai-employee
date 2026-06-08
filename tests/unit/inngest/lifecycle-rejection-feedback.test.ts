@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 
 const {
   mockCreateMachine,
@@ -138,15 +139,10 @@ function buildFetchMock(
 function makeEngine(approvalEvent: unknown) {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
-    transformCtx: (ctx: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- InngestTestEngine ctx has no typed mock helpers
-      const mocked = mockCtx(ctx as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- step mock methods not on InngestTestEngine ctx type
-      (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue(approvalEvent);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- step mock methods not on InngestTestEngine ctx type
-      (mocked as any).step.run = vi
-        .fn()
-        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+    transformCtx: (ctx) =>
+      applyStepMocks(ctx, {
+        waitForEvent: vi.fn().mockResolvedValue(approvalEvent),
+        run: vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
           switch (id) {
             case 'load-task':
               return makeMockTaskData();
@@ -161,10 +157,8 @@ function makeEngine(approvalEvent: unknown) {
             default:
               return undefined;
           }
-        });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- InngestTestEngine ctx has no typed mock helpers
-      return mocked as any;
-    },
+        }),
+      }),
   });
 }
 

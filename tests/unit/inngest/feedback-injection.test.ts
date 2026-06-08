@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
 
 const MAX_EMPLOYEE_RULES_CHARS = 8000;
@@ -136,18 +137,13 @@ function makeEngine(fetchImpl: (url: string, init?: RequestInit) => Promise<unkn
 
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
-    transformCtx: (ctx: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mocked = mockCtx(ctx as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue({
-        name: 'employee/approval.received',
-        data: { taskId: TEST_TASK_ID, action: 'approve', userId: 'U123456' },
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.run = vi
-        .fn()
-        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+    transformCtx: (ctx) =>
+      applyStepMocks(ctx, {
+        waitForEvent: vi.fn().mockResolvedValue({
+          name: 'employee/approval.received',
+          data: { taskId: TEST_TASK_ID, action: 'approve', userId: 'U123456' },
+        }),
+        run: vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
           switch (id) {
             case 'load-task':
               return makeMockTaskData();
@@ -160,10 +156,8 @@ function makeEngine(fetchImpl: (url: string, init?: RequestInit) => Promise<unkn
             default:
               return undefined;
           }
-        });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return mocked as any;
-    },
+        }),
+      }),
   });
 }
 

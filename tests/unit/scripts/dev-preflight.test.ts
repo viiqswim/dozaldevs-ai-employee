@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 async function killAndWait(
   name: string,
@@ -75,6 +75,11 @@ describe('single-instance guard — detectOtherDevInstances', () => {
 describe('killAndWait', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('resolves gracefully without SIGKILL when PIDs clear before deadline', async () => {
@@ -85,24 +90,28 @@ describe('killAndWait', () => {
       return callCount >= 2 ? '' : '12345';
     });
 
-    await killAndWait('TestProcess', 'test-pattern', 500, listPids, sendSignal);
+    const pending = killAndWait('TestProcess', 'test-pattern', 500, listPids, sendSignal);
+    await vi.advanceTimersByTimeAsync(400);
+    await pending;
 
     expect(sendSignal).toHaveBeenCalledWith('TERM', 'test-pattern');
     expect(sendSignal).not.toHaveBeenCalledWith('KILL', 'test-pattern');
     expect(listPids.mock.calls.length).toBeGreaterThanOrEqual(2);
-  }, 10000);
+  });
 
   it('sends SIGKILL exactly once when PIDs never clear before deadline', async () => {
     const sendSignal = vi.fn();
     const listPids = vi.fn(() => '12345');
 
-    await killAndWait('TestProcess', 'test-pattern', 50, listPids, sendSignal);
+    const pending = killAndWait('TestProcess', 'test-pattern', 50, listPids, sendSignal);
+    await vi.advanceTimersByTimeAsync(400);
+    await pending;
 
     expect(sendSignal).toHaveBeenCalledWith('TERM', 'test-pattern');
     const killCalls = sendSignal.mock.calls.filter(([sig]) => sig === 'KILL');
     expect(killCalls).toHaveLength(1);
     expect(killCalls[0]).toEqual(['KILL', 'test-pattern']);
-  }, 10000);
+  });
 
   it('sends SIGTERM with the correct pattern argument', async () => {
     const sendSignal = vi.fn();
@@ -111,7 +120,7 @@ describe('killAndWait', () => {
     await killAndWait('MyService', 'my-unique-pattern', 500, listPids, sendSignal);
 
     expect(sendSignal).toHaveBeenCalledWith('TERM', 'my-unique-pattern');
-  }, 10000);
+  });
 
   it('polls listPids exactly once when process is already gone on first check', async () => {
     const sendSignal = vi.fn();
@@ -121,5 +130,5 @@ describe('killAndWait', () => {
 
     expect(listPids).toHaveBeenCalledTimes(1);
     expect(sendSignal).not.toHaveBeenCalledWith('KILL', 'test-pattern');
-  }, 10000);
+  });
 });

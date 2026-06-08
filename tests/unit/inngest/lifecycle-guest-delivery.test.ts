@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 
 // vi.hoisted() is required so these references are available inside vi.mock()
 // factories, which Vitest hoists above all import statements at transpile time.
@@ -158,17 +159,11 @@ function buildFetchMock(
 function makeEngine(approvalEvent: unknown) {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
-    transformCtx: (ctx: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mocked = mockCtx(ctx as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue(approvalEvent);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.sendEvent = vi.fn().mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mocked as any).step.run = vi
-        .fn()
-        .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+    transformCtx: (ctx) =>
+      applyStepMocks(ctx, {
+        waitForEvent: vi.fn().mockResolvedValue(approvalEvent),
+        sendEvent: vi.fn().mockResolvedValue(undefined),
+        run: vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
           switch (id) {
             case 'load-task':
               return makeMockTaskData();
@@ -183,10 +178,8 @@ function makeEngine(approvalEvent: unknown) {
             default:
               return undefined;
           }
-        });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return mocked as any;
-    },
+        }),
+      }),
   });
 }
 

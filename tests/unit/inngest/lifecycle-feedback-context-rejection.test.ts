@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Inngest } from 'inngest';
-import { InngestTestEngine, mockCtx } from '@inngest/test';
+import { InngestTestEngine } from '@inngest/test';
+import { applyStepMocks } from '../../helpers/lifecycle-mocks.js';
 import { createEmployeeLifecycleFunction } from '../../../src/inngest/employee-lifecycle.js';
 
 const {
@@ -201,18 +202,13 @@ describe('confirmed employee_rules — EMPLOYEE_RULES injection', () => {
 
     const engine = new InngestTestEngine({
       function: createEmployeeLifecycleFunction(inngest),
-      transformCtx: (ctx: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mocked = mockCtx(ctx as any);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.waitForEvent = vi.fn().mockResolvedValue({
-          name: 'employee/approval.received',
-          data: { taskId: TEST_TASK_ID, action: 'approve', userId: 'U123456' },
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mocked as any).step.run = vi
-          .fn()
-          .mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
+      transformCtx: (ctx) =>
+        applyStepMocks(ctx, {
+          waitForEvent: vi.fn().mockResolvedValue({
+            name: 'employee/approval.received',
+            data: { taskId: TEST_TASK_ID, action: 'approve', userId: 'U123456' },
+          }),
+          run: vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
             switch (id) {
               case 'load-task':
                 return makeMockTaskData();
@@ -225,10 +221,8 @@ describe('confirmed employee_rules — EMPLOYEE_RULES injection', () => {
               default:
                 return undefined;
             }
-          });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return mocked as any;
-      },
+          }),
+        }),
     });
 
     const { error } = await engine.execute(triggerEvent());

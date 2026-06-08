@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import type { Mock } from 'vitest';
+import { mockCtx } from '@inngest/test';
 
 /**
  * Reusable mock factory for Inngest lifecycle tests.
@@ -228,4 +229,34 @@ export function createLifecycleMocks(): LifecycleMocks {
       slackWebClient: slackWebClientInstance,
     },
   };
+}
+
+export interface StepMockOverrides {
+  run?: Mock;
+  waitForEvent?: Mock;
+  sendEvent?: Mock;
+}
+
+/**
+ * Canonical `transformCtx` helper for lifecycle tests: runs `@inngest/test`'s
+ * `mockCtx(rawCtx)`, assigns the supplied step-method mocks onto `ctx.step`,
+ * and returns the mocked context. Replaces the repeated inline mutation of the
+ * step object every lifecycle test used to do — the one unavoidable cast (the
+ * `@inngest/test` `Context.Any` type exposes no typed mock surface for
+ * `step.run`/`waitForEvent`/`sendEvent`) lives here, so callers stay `any`-free.
+ *
+ * ```ts
+ * transformCtx: (ctx) => applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
+ * ```
+ */
+export function applyStepMocks(
+  rawCtx: unknown,
+  overrides: StepMockOverrides,
+): ReturnType<typeof mockCtx> {
+  const ctx = mockCtx(rawCtx as Parameters<typeof mockCtx>[0]);
+  const step = (ctx as unknown as { step: Record<string, unknown> }).step;
+  if (overrides.run) step.run = overrides.run;
+  if (overrides.waitForEvent) step.waitForEvent = overrides.waitForEvent;
+  if (overrides.sendEvent) step.sendEvent = overrides.sendEvent;
+  return ctx;
 }
