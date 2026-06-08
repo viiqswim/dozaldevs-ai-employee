@@ -3,8 +3,11 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 describe('feedback queries — tenant_id filter', () => {
-  it('employee-lifecycle.ts employee_rules query includes archetype_id=eq.${archetypeId} filter', () => {
-    const src = readFileSync(join(process.cwd(), 'src/inngest/employee-lifecycle.ts'), 'utf-8');
+  it('lifecycle execute step employee_rules query includes archetype_id=eq.${archetypeId} filter', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/inngest/lifecycle/steps/execute.ts'),
+      'utf-8',
+    );
     expect(src).toContain('archetype_id=eq.${archetypeId}');
     expect(src).toContain("'employee_rules'");
   });
