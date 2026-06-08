@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { resolveHostfullyClient } from './lib/client.js';
 import { paginateCursor } from './lib/paginate.js';
 import { formatGuestName } from './lib/format.js';
+import { CONFIRMED_STATUSES } from './lib/constants.js';
 import { getArg } from '../lib/get-arg.js';
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
 
@@ -41,22 +43,28 @@ type CheckoutItem = {
   channel: string | null;
 };
 
-const CONFIRMED_STATUSES = new Set([
-  'BOOKED',
-  'BOOKED_BY_AGENT',
-  'BOOKED_BY_CUSTOMER',
-  'BOOKED_EXTERNALLY',
-  'STAY',
-]);
-
-const ZIP_CITY: Record<string, string> = {
-  '78640': 'Kyle, TX',
-  '78744': 'Austin, TX',
-  '78722': 'Austin, TX',
-  '78203': 'San Antonio, TX',
-  '78109': 'Converse, TX',
-  '80421': 'Bailey, CO',
+type LocationConfig = {
+  zipCity: Record<string, string>;
+  streetSuffixes: Record<string, string>;
+  cityFallback: string;
+  roomFallback: string;
+  roomNames: {
+    digitSuffixPrefix: string;
+    loftSuffix: string;
+    unitLetterPrefix: string;
+  };
 };
+
+function loadLocationConfig(): LocationConfig {
+  const envOverride = optionalEnv('HOSTFULLY_LOCATION_CONFIG_JSON');
+  if (envOverride) {
+    return JSON.parse(envOverride) as LocationConfig;
+  }
+  const configPath = new URL('./config/vlre-location-config.json', import.meta.url);
+  return JSON.parse(readFileSync(configPath, 'utf8')) as LocationConfig;
+}
+
+const locationConfig = loadLocationConfig();
 
 function parseArgs(argv: string[]): { date: string; help: boolean } {
   const args = argv.slice(2);
@@ -70,16 +78,9 @@ function normalizeAddress(rawAddress: string | null | undefined): string | null 
   if (!rawAddress) return null;
   // "4405 - A Hayride lane" → "4405 Hayride lane" (strip embedded unit letter from street address)
   let addr = rawAddress.replace(/^(\d+)\s*-\s*[A-Za-z]\s+/, '$1 ');
-  addr = addr
-    .replace(/\blane\b/gi, 'Lane')
-    .replace(/\brd\b/gi, 'Rd')
-    .replace(/\bdr\b/gi, 'Dr')
-    .replace(/\bst\b/gi, 'St')
-    .replace(/\bave\b/gi, 'Ave')
-    .replace(/\bblvd\b/gi, 'Blvd')
-    .replace(/\brun\b/gi, 'Run')
-    .replace(/\bct\b/gi, 'Ct')
-    .replace(/\bway\b/gi, 'Way');
+  for (const [suffix, replacement] of Object.entries(locationConfig.streetSuffixes)) {
+    addr = addr.replace(new RegExp(`\\b${suffix}\\b`, 'gi'), replacement);
+  }
   return addr.trim();
 }
 
@@ -87,12 +88,14 @@ function deriveRoomId(listingName: string): string {
   const name = listingName.trim();
   // "3505-BAN-1" → "Habitación 1", "7213-NUT-4" → "Habitación 4"
   const digitMatch = name.match(/-(\d+)$/);
-  if (digitMatch) return `Habitación ${digitMatch[1]}`;
-  if (name.toUpperCase().endsWith('-LOFT')) return 'Loft';
+  if (digitMatch) return `${locationConfig.roomNames.digitSuffixPrefix} ${digitMatch[1]}`;
+  if (name.toUpperCase().endsWith(`-${locationConfig.roomNames.loftSuffix.toUpperCase()}`))
+    return locationConfig.roomNames.loftSuffix;
   // "4403B-HAY-HOME" → "Unidad B", "4405A-HAY-HOME" → "Unidad A"
   const unitLetterMatch = name.match(/^\d+([A-Za-z])-/);
-  if (unitLetterMatch) return `Unidad ${unitLetterMatch[1].toUpperCase()}`;
-  return 'Casa';
+  if (unitLetterMatch)
+    return `${locationConfig.roomNames.unitLetterPrefix} ${unitLetterMatch[1].toUpperCase()}`;
+  return locationConfig.roomFallback;
 }
 
 function formatCheckOutTime(
@@ -185,17 +188,17 @@ async function main(): Promise<void> {
         '  --date <YYYY-MM-DD>  (required) Target checkout date\n' +
         '  --help               Show this help message\n\n' +
         'Environment variables:\n' +
-        '  HOSTFULLY_API_KEY      (required) Hostfully API key\n' +
-        '  HOSTFULLY_AGENCY_UID   (required) Hostfully agency UID\n' +
-        '  HOSTFULLY_API_URL      (optional) Base API URL (default: https://api.hostfully.com/api/v3.2)\n' +
-        '  HOSTFULLY_MOCK         (optional) Set to "true" to return fixture data\n\n' +
+        '  HOSTFULLY_API_KEY                (required) Hostfully API key\n' +
+        '  HOSTFULLY_AGENCY_UID             (required) Hostfully agency UID\n' +
+        '  HOSTFULLY_API_URL                (optional) Base API URL (default: https://api.hostfully.com/api/v3.2)\n' +
+        '  HOSTFULLY_MOCK                   (optional) Set to "true" to return fixture data\n' +
+        '  HOSTFULLY_LOCATION_CONFIG_JSON   (optional) JSON string overriding the default location config\n\n' +
         'Output: JSON array of CheckoutItem objects with normalized address, roomId, city, checkOutTime.\n',
     );
     process.exit(0);
   }
 
   if (optionalEnv('HOSTFULLY_MOCK') === 'true') {
-    const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');
     const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -304,7 +307,7 @@ async function main(): Promise<void> {
     const normalizedAddr = normalizeAddress(detail.address) ?? listingName;
     const roomId = deriveRoomId(listingName);
     const zipCode = detail.zipCode ?? null;
-    const city = (zipCode && ZIP_CITY[zipCode]) ?? 'Austin, TX';
+    const city = (zipCode && locationConfig.zipCity[zipCode]) ?? locationConfig.cityFallback;
     const checkOutTime = formatCheckOutTime(detail.checkOutTime, lead.checkOutLocalDateTime);
 
     return {

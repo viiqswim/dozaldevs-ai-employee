@@ -1,0 +1,28 @@
+{
+  "zipCity": {
+    "78640": "Kyle, TX",
+    "78744": "Austin, TX",
+    "78722": "Austin, TX",
+    "78203": "San Antonio, TX",
+    "78109": "Converse, TX",
+    "80421": "Bailey, CO"
+  },
+  "streetSuffixes": {
+    "lane": "Lane",
+    "rd": "Rd",
+    "dr": "Dr",
+    "st": "St",
+    "ave": "Ave",
+    "blvd": "Blvd",
+    "run": "Run",
+    "ct": "Ct",
+    "way": "Way"
+  },
+  "cityFallback": "Austin, TX",
+  "roomFallback": "Casa",
+  "roomNames": {
+    "digitSuffixPrefix": "Habitación",
+    "loftSuffix": "Loft",
+    "unitLetterPrefix": "Unidad"
+  }
+}
