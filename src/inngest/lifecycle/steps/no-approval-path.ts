@@ -16,6 +16,9 @@ import { cleanupExecutionMachine, safeRecordWorkMetric } from './lifecycle-helpe
 
 const log = createLogger('lifecycle-validate-and-submit');
 
+/** Delay in ms between deliverable-fetch retry attempts (1 second) */
+const DELIVERABLE_RETRY_DELAY_MS = 1_000;
+
 type InngestStep = GetStepTools<Inngest>;
 
 export interface NoApprovalPathContext {
@@ -71,7 +74,7 @@ export async function runNoApprovalPath(
           };
         }
         if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, DELIVERABLE_RETRY_DELAY_MS));
         }
       }
       return { skipDelivery: false, reasoning: '', displayContext: undefined };

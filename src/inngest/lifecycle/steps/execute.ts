@@ -26,6 +26,13 @@ import { loadTenantSlack } from './notify-and-track.js';
 
 const log = createLogger('lifecycle-execute');
 
+/** Maximum execution time for a Fly.io worker machine in seconds (30 minutes) */
+const FLY_KILL_TIMEOUT_S = 1800;
+/** Number of status polls before giving up — 120 × 15s = 30 min max execution window */
+const MAX_EXECUTION_POLLS = 120;
+/** Interval between task-status polls in milliseconds (15 seconds) */
+const POLL_INTERVAL_MS = 15_000;
+
 type InngestStep = GetStepTools<Inngest>;
 
 export interface ExecuteContext {
@@ -296,7 +303,7 @@ export async function runExecutePhase(
       image,
       vm_size: vmSize,
       auto_destroy: true,
-      kill_timeout: 1800,
+      kill_timeout: FLY_KILL_TIMEOUT_S,
       cmd,
       env: flyWorkerEnv,
     });
@@ -305,8 +312,8 @@ export async function runExecutePhase(
   log.info({ taskId, runId, step: 'executing' }, 'Step complete: executing');
 
   const finalStatus = await step.run('poll-completion', async () => {
-    const maxPolls = 120;
-    const intervalMs = 15_000;
+    const maxPolls = MAX_EXECUTION_POLLS;
+    const intervalMs = POLL_INTERVAL_MS;
 
     for (let i = 0; i < maxPolls; i++) {
       await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));

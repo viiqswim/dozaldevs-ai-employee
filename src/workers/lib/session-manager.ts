@@ -3,6 +3,15 @@ import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('session-manager');
 
+/** Polling interval in ms when SSE falls back to polling (10 seconds) */
+const SESSION_POLL_INTERVAL_MS = 10_000;
+/** Default session monitor timeout in ms (60 minutes) */
+const DEFAULT_SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+/** Minimum elapsed time in ms before an idle session is considered complete (30 seconds) */
+const DEFAULT_MIN_ELAPSED_MS = 30_000;
+/** Maximum characters of error output included in a fix prompt */
+const FIX_PROMPT_MAX_ERROR_CHARS = 4000;
+
 interface SessionMonitorResult {
   completed: boolean;
   reason?: 'idle' | 'timeout' | 'error';
@@ -247,7 +256,7 @@ export function createSessionManager(baseUrl: string): SessionManager {
               );
             }
           })();
-        }, 10_000);
+        }, SESSION_POLL_INTERVAL_MS);
       };
 
       void runStream();
@@ -314,8 +323,8 @@ export function createSessionManager(baseUrl: string): SessionManager {
       sessionId: string,
       options?: MonitorOptions,
     ): Promise<SessionMonitorResult> {
-      const timeoutMs = options?.timeoutMs ?? 60 * 60 * 1000;
-      const minElapsedMs = options?.minElapsedMs ?? 30_000;
+      const timeoutMs = options?.timeoutMs ?? DEFAULT_SESSION_TIMEOUT_MS;
+      const minElapsedMs = options?.minElapsedMs ?? DEFAULT_MIN_ELAPSED_MS;
       const startTime = Date.now();
 
       return monitorViaSSE(sessionId, startTime, minElapsedMs, timeoutMs, true);
@@ -351,7 +360,9 @@ export function createSessionManager(baseUrl: string): SessionManager {
       errorOutput: string,
     ): Promise<boolean> {
       const truncatedErrorOutput =
-        errorOutput.length > 4000 ? errorOutput.slice(0, 4000) : errorOutput;
+        errorOutput.length > FIX_PROMPT_MAX_ERROR_CHARS
+          ? errorOutput.slice(0, FIX_PROMPT_MAX_ERROR_CHARS)
+          : errorOutput;
 
       const fixPrompt = `The ${failedStage} validation stage failed with the following error:
 

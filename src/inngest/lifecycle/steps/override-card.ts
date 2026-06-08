@@ -12,6 +12,9 @@ import type { KnownBlock } from '@slack/web-api';
 
 const log = createLogger('lifecycle-validate-and-submit');
 
+/** Delay in ms between deliverable-fetch retry attempts (1 second) */
+const DELIVERABLE_RETRY_DELAY_MS = 1_000;
+
 type InngestStep = GetStepTools<Inngest>;
 
 export interface OverrideCardContext {
@@ -64,7 +67,7 @@ export async function runOverrideCardPath(
         };
       }
       if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, DELIVERABLE_RETRY_DELAY_MS));
       }
     }
     return { skipApproval: false, reasoning: '', displayContext: undefined };
