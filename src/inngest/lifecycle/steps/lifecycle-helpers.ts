@@ -2,7 +2,7 @@ import { createLogger } from '../../../lib/logger.js';
 import { destroyMachine } from '../../../lib/fly-client.js';
 import { recordWorkMetric, stopLocalDockerContainer } from '../../lib/lifecycle-helpers.js';
 
-const log = createLogger('lifecycle-validate-and-submit');
+const log = createLogger('lifecycle-helpers');
 
 /**
  * Destroys the execution machine (Fly.io or local Docker) after a task completes.
@@ -44,6 +44,39 @@ export async function safeRecordWorkMetric(
     await recordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
   } catch (err) {
     log.warn({ err, taskId }, 'Failed to record work metric — non-fatal');
+  }
+}
+
+/**
+ * Standardizes the previously-divergent 6 task-metadata-merge sites; always validates the PATCH response.
+ *
+ * Fetches the current `metadata` JSONB column for the task, shallow-spreads `updates` onto it,
+ * sets `updated_at` to a fresh ISO timestamp, then PATCHes back via PostgREST.
+ * Handles `metadata: null` → `{}`. Always checks `res.ok` and emits a structured `log.warn` on failure.
+ */
+export async function mergeTaskMetadata(
+  supabaseUrl: string,
+  headers: Record<string, string>,
+  taskId: string,
+  updates: Record<string, unknown>,
+): Promise<void> {
+  const getRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=metadata`, {
+    headers,
+  });
+  const rows = (await getRes.json()) as Array<{ metadata: Record<string, unknown> | null }>;
+  const currentMetadata = rows[0]?.metadata ?? {};
+  const newMetadata = {
+    ...currentMetadata,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+  const patchRes = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ metadata: newMetadata }),
+  });
+  if (!patchRes.ok) {
+    log.warn({ taskId, status: patchRes.status }, 'Failed to merge task metadata');
   }
 }
 
