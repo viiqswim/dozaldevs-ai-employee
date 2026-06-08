@@ -33,6 +33,7 @@ import type {
   SifelyPasscodeRaw,
   SifelyCreatePasscodeResponse,
 } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
 
 async function listPasscodes(
   baseUrl: string,
@@ -93,8 +94,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const lockIdIndex = args.indexOf('--lock-id');
-  if (lockIdIndex === -1 || !args[lockIdIndex + 1]) {
+  const lockId = getArg(args, '--lock-id') ?? '';
+  if (!lockId) {
     process.stderr.write('Error: --lock-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/create-passcode.ts --lock-id <id> --name <name> --code <code>\n',
@@ -102,8 +103,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const nameIndex = args.indexOf('--name');
-  if (nameIndex === -1 || !args[nameIndex + 1]) {
+  const name = getArg(args, '--name') ?? '';
+  if (!name) {
     process.stderr.write('Error: --name <name> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/create-passcode.ts --lock-id <id> --name <name> --code <code>\n',
@@ -111,18 +112,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const codeIndex = args.indexOf('--code');
-  if (codeIndex === -1 || !args[codeIndex + 1]) {
+  const code = getArg(args, '--code') ?? '';
+  if (!code) {
     process.stderr.write('Error: --code <code> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/create-passcode.ts --lock-id <id> --name <name> --code <code>\n',
     );
     process.exit(1);
   }
-
-  const lockId = args[lockIdIndex + 1] as string;
-  const name = args[nameIndex + 1] as string;
-  const code = args[codeIndex + 1] as string;
 
   if (!/^\d{4,9}$/.test(code)) {
     process.stderr.write(

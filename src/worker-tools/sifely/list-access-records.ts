@@ -22,6 +22,7 @@
 
 import { login, resolveConfig, withRetry, assertListSuccess } from './lib/api.js';
 import type { AccessRecord, SifelyListResponse, SifelyAccessRecordRaw } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
 
 const MAX_PAGES = 100;
 const PAGE_SIZE = 100;
@@ -71,8 +72,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const lockIdIndex = args.indexOf('--lock-id');
-  if (lockIdIndex === -1 || !args[lockIdIndex + 1]) {
+  const lockId = getArg(args, '--lock-id') ?? '';
+  if (!lockId) {
     process.stderr.write('Error: --lock-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/list-access-records.ts --lock-id <id> [--start-date <ms>] [--end-date <ms>] [--human]\n',
@@ -80,12 +81,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const lockId = args[lockIdIndex + 1];
-
-  const startDateIndex = args.indexOf('--start-date');
+  const startDateRaw = getArg(args, '--start-date');
   let startMs: number;
-  if (startDateIndex !== -1 && args[startDateIndex + 1]) {
-    const startDateRaw = args[startDateIndex + 1];
+  if (startDateRaw) {
     if (isNaN(Number(startDateRaw))) {
       process.stderr.write(
         `Error: --start-date must be a numeric epoch milliseconds value, got: ${startDateRaw}\n`,
@@ -97,10 +95,9 @@ async function main(): Promise<void> {
     startMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
   }
 
-  const endDateIndex = args.indexOf('--end-date');
+  const endDateRaw = getArg(args, '--end-date');
   let endMs: number;
-  if (endDateIndex !== -1 && args[endDateIndex + 1]) {
-    const endDateRaw = args[endDateIndex + 1];
+  if (endDateRaw) {
     if (isNaN(Number(endDateRaw))) {
       process.stderr.write(
         `Error: --end-date must be a numeric epoch milliseconds value, got: ${endDateRaw}\n`,

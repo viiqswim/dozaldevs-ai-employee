@@ -1,4 +1,6 @@
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 function adfToPlainText(adf: unknown): string {
   if (!adf || typeof adf !== 'object') return '';
@@ -27,21 +29,12 @@ type CommentOutput = {
 
 function parseArgs(argv: string[]): { issueKey: string; body: string; help: boolean } {
   const args = argv.slice(2);
-  let issueKey = '';
-  let body = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--issue-key' && args[i + 1]) {
-      issueKey = args[++i];
-    } else if (args[i] === '--body' && args[i + 1]) {
-      body = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { issueKey, body, help };
+  const bodyRaw = getArg(args, '--body');
+  return {
+    issueKey: getArg(args, '--issue-key') ?? '',
+    body: bodyRaw !== undefined ? unescapeShellArg(bodyRaw) : '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -66,7 +59,7 @@ async function main(): Promise<void> {
 
   const { resolveJiraAuth } = await import('./auth.js');
 
-  if (process.env['JIRA_MOCK'] === 'true') {
+  if (optionalEnv('JIRA_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');

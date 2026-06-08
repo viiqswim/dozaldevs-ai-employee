@@ -1,6 +1,8 @@
 import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv, requireEnv } from '../lib/require-env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,21 +82,11 @@ async function runToolWithRetry(args: string[], maxAttempts = 3): Promise<ToolRe
 
 function parseArgs(argv: string[]): { propertyId: string; code: string | null; help: boolean } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let code: string | null = null;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i] ?? '';
-    } else if (args[i] === '--code' && args[i + 1]) {
-      code = args[++i] ?? null;
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { propertyId, code, help };
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    code: getArg(args, '--code') ?? null,
+    help: args.includes('--help'),
+  };
 }
 
 const REQUIRED_ENV = [
@@ -107,7 +99,7 @@ const REQUIRED_ENV = [
 ] as const;
 
 function validateEnv(): void {
-  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+  const missing = REQUIRED_ENV.filter((k) => !optionalEnv(k));
   if (missing.length > 0) {
     process.stderr.write(`Error: Missing required environment variables: ${missing.join(', ')}\n`);
     process.exit(1);
@@ -154,9 +146,9 @@ async function main(): Promise<void> {
 
   validateEnv();
 
-  const supabaseUrl = process.env['SUPABASE_URL']!;
-  const supabaseKey = process.env['SUPABASE_SECRET_KEY']!;
-  const tenantId = process.env['TENANT_ID']!;
+  const supabaseUrl = requireEnv('SUPABASE_URL');
+  const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
+  const tenantId = requireEnv('TENANT_ID');
 
   const url =
     `${supabaseUrl}/rest/v1/property_locks` +

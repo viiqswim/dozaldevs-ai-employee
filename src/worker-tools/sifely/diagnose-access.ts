@@ -24,6 +24,8 @@ import type {
   SifelyPasscodeRaw,
   SifelyAccessRecordRaw,
 } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 interface PropertyLock {
   id: string;
@@ -73,18 +75,10 @@ interface CustomDataEntry {
 
 function parseArgs(argv: string[]): { propertyId: string; help: boolean } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i];
-    } else if (args[i] === '--help' || args[i] === '-h') {
-      help = true;
-    }
-  }
-
-  return { propertyId, help };
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    help: args.includes('--help') || args.includes('-h'),
+  };
 }
 
 function deriveExpectedPasscodeName(lock: PropertyLock): string {
@@ -255,10 +249,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const hostfullyApiKey = process.env['HOSTFULLY_API_KEY'];
-  const supabaseUrl = process.env['SUPABASE_URL'];
-  const supabaseKey = process.env['SUPABASE_SECRET_KEY'];
-  const tenantId = process.env['TENANT_ID'];
+  const hostfullyApiKey = optionalEnv('HOSTFULLY_API_KEY');
+  const supabaseUrl = optionalEnv('SUPABASE_URL');
+  const supabaseKey = optionalEnv('SUPABASE_SECRET_KEY');
+  const tenantId = optionalEnv('TENANT_ID');
 
   const missingVars: string[] = [];
   if (!hostfullyApiKey) missingVars.push('HOSTFULLY_API_KEY');
@@ -279,7 +273,7 @@ async function main(): Promise<void> {
   const tenant = tenantId as string;
 
   const hostfullyBaseUrl = (
-    process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com'
+    optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com'
   ).replace(/\/$/, '');
   const config = resolveConfig();
 

@@ -1,14 +1,8 @@
+import { optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
+  return { help: args.includes('--help') };
 }
 
 async function main(): Promise<void> {
@@ -31,15 +25,15 @@ async function main(): Promise<void> {
   const oauthVars = ['JIRA_ACCESS_TOKEN', 'JIRA_CLOUD_ID'] as const;
   const basicVars = ['JIRA_API_TOKEN', 'JIRA_USER_EMAIL', 'JIRA_BASE_URL'] as const;
 
-  const oauthSet = oauthVars.filter((v) => process.env[v]);
-  const basicSet = basicVars.filter((v) => process.env[v]);
+  const oauthSet = oauthVars.filter((v) => optionalEnv(v));
+  const basicSet = basicVars.filter((v) => optionalEnv(v));
 
   const oauthReady = oauthSet.length === oauthVars.length;
   const basicReady = basicSet.length === basicVars.length;
 
   const vars: Record<string, string> = {};
   for (const v of [...oauthVars, ...basicVars]) {
-    vars[v] = process.env[v] ? 'set' : 'missing';
+    vars[v] = optionalEnv(v) ? 'set' : 'missing';
   }
 
   if (oauthReady) {
@@ -47,7 +41,7 @@ async function main(): Promise<void> {
   } else if (basicReady) {
     process.stdout.write(JSON.stringify({ ok: true, mode: 'basic', vars }) + '\n');
   } else {
-    const missing = [...oauthVars, ...basicVars].filter((v) => !process.env[v]);
+    const missing = [...oauthVars, ...basicVars].filter((v) => !optionalEnv(v));
     process.stdout.write(JSON.stringify({ ok: false, mode: null, missing, vars }) + '\n');
   }
 }

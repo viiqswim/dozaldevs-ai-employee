@@ -1,3 +1,6 @@
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
+
 function adfToPlainText(adf: unknown): string {
   if (!adf || typeof adf !== 'object') return '';
   const texts: string[] = [];
@@ -31,21 +34,12 @@ type CommentsOutput = {
 
 function parseArgs(argv: string[]): { issueKey: string; maxResults: number; help: boolean } {
   const args = argv.slice(2);
-  let issueKey = '';
-  let maxResults = 50;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--issue-key' && args[i + 1]) {
-      issueKey = args[++i];
-    } else if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { issueKey, maxResults, help };
+  const maxResultsRaw = getArg(args, '--max-results');
+  return {
+    issueKey: getArg(args, '--issue-key') ?? '',
+    maxResults: maxResultsRaw ? parseInt(maxResultsRaw, 10) : 50,
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -69,7 +63,7 @@ async function main(): Promise<void> {
 
   const { resolveJiraAuth } = await import('./auth.js');
 
-  if (process.env['JIRA_MOCK'] === 'true') {
+  if (optionalEnv('JIRA_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');

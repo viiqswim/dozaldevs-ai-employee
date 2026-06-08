@@ -1,4 +1,6 @@
 import { NOTION_API_VERSION } from '../lib/notion-types.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 type RichTextItem = {
   plain_text?: string;
@@ -94,21 +96,11 @@ async function fetchBlocksRecursive(
 
 function parseArgs(argv: string[]): { pageId: string; fixture: string; help: boolean } {
   const args = argv.slice(2);
-  let pageId = '';
-  let fixture = 'default';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--page-id' && args[i + 1]) {
-      pageId = args[++i];
-    } else if (args[i] === '--fixture' && args[i + 1]) {
-      fixture = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { pageId, fixture, help };
+  return {
+    pageId: getArg(args, '--page-id') ?? '',
+    fixture: getArg(args, '--fixture') ?? 'default',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -136,7 +128,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (process.env['NOTION_MOCK'] === 'true') {
+  if (optionalEnv('NOTION_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');

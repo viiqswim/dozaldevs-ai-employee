@@ -1,3 +1,5 @@
+import { getArg } from '../lib/get-arg.js';
+
 /**
  * Generates memorable 4–6 digit lock codes using mirror (ABBA) and rhythm (ABAB) patterns.
  *
@@ -277,24 +279,14 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let length: string | undefined;
-  let excludeCodes: string[] = [];
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    } else if (args[i] === '--length' && args[i + 1] !== undefined) {
-      length = args[++i];
-    } else if (args[i] === '--exclude-codes' && args[i + 1] !== undefined) {
-      excludeCodes = (args[++i] ?? '')
-        .split(',')
-        .map((c) => c.trim())
-        .filter(Boolean);
-    }
-  }
-
-  return { length, excludeCodes, help };
+  return {
+    length: getArg(args, '--length'),
+    excludeCodes: (getArg(args, '--exclude-codes') ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

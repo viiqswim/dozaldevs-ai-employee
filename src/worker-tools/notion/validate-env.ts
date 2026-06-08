@@ -1,14 +1,8 @@
+import { optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
+  return { help: args.includes('--help') };
 }
 
 async function main(): Promise<void> {
@@ -28,8 +22,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const accessToken = process.env['NOTION_ACCESS_TOKEN'];
-  const apiKey = process.env['NOTION_API_KEY'];
+  const accessToken = optionalEnv('NOTION_ACCESS_TOKEN');
+  const apiKey = optionalEnv('NOTION_API_KEY');
 
   const vars = {
     NOTION_ACCESS_TOKEN: Boolean(accessToken),
