@@ -611,3 +611,33 @@ When `GATEWAY_URL` is only used for the webhook endpoint, it can be fully remove
 
 ### Evidence
 - `.sisyphus/evidence/task-22-network.txt` — curl verification of endpoint + full code audit
+
+## Task 21 — InputSchemaEditor cleanup
+
+### Dead file confirmed
+- `dashboard/src/components/InputSchemaEditor.tsx` — zero imports (grep confirmed: only its own internal declarations referenced it)
+- Deleted safely
+
+### Shared primitives extracted
+- Created `dashboard/src/panels/employees/components/input-schema-shared.tsx`
+- Exports: `TYPE_LABELS`, `FREQUENCY_LABELS`, `TYPE_OPTIONS`, `FREQUENCY_OPTIONS`, `KEY_REGEX`, `deriveKey`, `FormState`, `DEFAULT_FORM`, `itemToForm`, `formToItem`, `FormErrors`, `validate`, `InlineFormProps`, `InlineForm`, `ItemRowProps`, `ItemRow`
+- `InlineForm` and `ItemRow` unified with optional `saving?` / `deleting?` props (default `false`) — wizard editor gets no-op defaults, section editor passes real state
+- Removed ~460 lines of duplicate code across the two live editors
+
+### Live editor changes
+- `components/InputSchemaEditor.tsx`: 416 → 91 lines. Imports from `./input-schema-shared`. Removed local formToItem, InlineForm, ItemRow, all type/freq maps, KEY_REGEX, deriveKey.
+- `sections/InputSchemaSection.tsx`: 571 → 233 lines. Imports from `../components/input-schema-shared`. Removed local formToItem method (was defined inside component body referencing now-removed `deriveKey`).
+
+### Key gotcha
+`InputSchemaSection.tsx` had a local `formToItem` *method inside the component body* (not a top-level function). It called `deriveKey` locally. After removing the shared duplicates, the local method needed to be removed too — it shadows the imported `formToItem` and still referenced the now-deleted `deriveKey`.
+
+### Build
+- `pnpm dashboard:build` → EXIT_CODE:0
+
+### Runtime
+- Employee detail page (cleaning-schedule, advanced tab): InputSchemaSection renders, ItemRow shows "Checkout Date", "Add input" button opens InlineForm — both using shared components from `input-schema-shared.tsx`
+- Create Employee wizard: loads without JS errors (only pre-existing `/api/config.js 404`). Input-schema wizard step unreachable in this session due to LLM provider 500 errors.
+
+### Evidence
+- `.sisyphus/evidence/task-21-create.png` — wizard describe step (0 new errors)
+- `.sisyphus/evidence/task-21-detail.png` — employee advanced tab with InlineForm open (shared component confirmed working)
