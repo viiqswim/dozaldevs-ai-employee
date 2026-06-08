@@ -10,7 +10,7 @@ const log = createLogger('slack-handlers');
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
 export const SUPABASE_URL = () => process.env.SUPABASE_URL ?? '';
 export const SUPABASE_KEY = () => process.env.SUPABASE_SECRET_KEY ?? '';
-export const supabaseHeaders = () => ({
+const supabaseHeaders = () => ({
   apikey: SUPABASE_KEY(),
   Authorization: `Bearer ${SUPABASE_KEY()}`,
   'Content-Type': 'application/json',
@@ -27,7 +27,7 @@ export interface ActionBody {
 
 // Bolt types block-action `ack` as AckFn<void> and does not model the legacy
 // message-replacement body, so handlers cast through LegacyMessageAck instead of `any`.
-export interface LegacyMessageAckBody {
+interface LegacyMessageAckBody {
   replace_original?: boolean;
   text?: string;
   blocks?: unknown[];
@@ -35,7 +35,7 @@ export interface LegacyMessageAckBody {
 
 export type LegacyMessageAck = (body: LegacyMessageAckBody) => Promise<void>;
 
-export const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
+const TRANSIENT_PRE_REVIEWING = new Set(['Submitting', 'Validating', 'Executing']);
 
 // ─── Button block builders ────────────────────────────────────────────────────
 export const BUTTON_BLOCKS = (taskId: string) => [

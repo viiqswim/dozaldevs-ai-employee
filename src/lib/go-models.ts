@@ -17,7 +17,7 @@ export const GO_MODEL_MAP: Map<string, string> = new Map([
 
 // OpenAI-compatible models use /chat/completions endpoint
 // Anthropic-compatible models use /messages endpoint (NOT supported by call-llm.ts)
-export type GoEndpointType = 'openai' | 'anthropic';
+type GoEndpointType = 'openai' | 'anthropic';
 
 const GO_ENDPOINT_TYPE: Map<string, GoEndpointType> = new Map([
   // OpenAI-compatible — can be used by both worker harness AND gateway (call-llm.ts)

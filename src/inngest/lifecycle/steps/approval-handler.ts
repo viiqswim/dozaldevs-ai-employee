@@ -43,13 +43,6 @@ export interface ApprovalHandlerContext {
   runDelivery: typeof runDeliveryWithRetry;
 }
 
-export interface ApprovalEventData {
-  action: string;
-  userId: string;
-  editedContent?: string;
-  rejectionReason?: string;
-}
-
 export async function handleExpiry(
   ctx: ApprovalHandlerContext,
   deliverable: Record<string, unknown> | undefined,
