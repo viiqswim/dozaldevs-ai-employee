@@ -2,11 +2,17 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import {
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -55,19 +61,18 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
         return;
       }
 
-      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientId = GOOGLE_CLIENT_ID();
       if (!clientId) {
         sendError(res, 400, 'GOOGLE_CLIENT_ID not configured');
         return;
       }
 
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenant.id, nonce });
       const state = signState(payload, signingKey);
 
-      const redirectBase =
-        process.env.GOOGLE_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = GOOGLE_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/google/callback`;
 
       const url =
@@ -95,8 +100,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
       error?: string;
     };
 
-    const redirectBase =
-      process.env.GOOGLE_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+    const redirectBase = GOOGLE_REDIRECT_BASE_URL();
 
     if (error) {
       logger.warn({ error }, 'Google OAuth denied by user');
@@ -109,7 +113,7 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
       return;
     }
 
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
       sendError(res, 400, 'INVALID_STATE');
@@ -119,8 +123,8 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
     const { tenant_id: tenantId } = parsed;
 
     try {
-      const clientId = process.env.GOOGLE_CLIENT_ID;
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const clientId = GOOGLE_CLIENT_ID();
+      const clientSecret = GOOGLE_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
         sendError(res, 503, 'Google OAuth not configured');
         return;

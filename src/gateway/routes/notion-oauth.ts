@@ -2,12 +2,18 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { NOTION_AUTH_URL, NOTION_TOKEN_URL } from '../../lib/notion-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import {
+  NOTION_CLIENT_ID,
+  NOTION_CLIENT_SECRET,
+  NOTION_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 export interface NotionOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -35,19 +41,18 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
         return;
       }
 
-      const clientId = process.env.NOTION_CLIENT_ID;
+      const clientId = NOTION_CLIENT_ID();
       if (!clientId) {
         sendError(res, 400, 'NOTION_CLIENT_ID not configured');
         return;
       }
 
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenant.id, nonce });
       const state = signState(payload, signingKey);
 
-      const redirectBase =
-        process.env.NOTION_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = NOTION_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/notion/callback`;
 
       const url =
@@ -72,7 +77,7 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
       return;
     }
 
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
       sendError(res, 400, 'INVALID_STATE');
@@ -82,15 +87,14 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
     const { tenant_id: tenantId } = parsed;
 
     try {
-      const clientId = process.env.NOTION_CLIENT_ID;
-      const clientSecret = process.env.NOTION_CLIENT_SECRET;
+      const clientId = NOTION_CLIENT_ID();
+      const clientSecret = NOTION_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
         sendError(res, 503, 'Notion OAuth not configured');
         return;
       }
 
-      const redirectBase =
-        process.env.NOTION_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = NOTION_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/notion/callback`;
 
       const basicCredentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');

@@ -67,6 +67,8 @@ describe('fly-client', () => {
       mockFetch
         .mockResolvedValueOnce({
           status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: () => null },
           json: async () => ({}),
         })
         .mockResolvedValueOnce({
@@ -139,6 +141,8 @@ describe('fly-client', () => {
       mockFetch
         .mockResolvedValueOnce({
           status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: () => null },
           json: async () => ({}),
         })
         .mockResolvedValueOnce({
@@ -197,6 +201,8 @@ describe('fly-client', () => {
       mockFetch
         .mockResolvedValueOnce({
           status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: () => null },
           json: async () => ({}),
         })
         .mockResolvedValueOnce({
@@ -234,6 +240,8 @@ describe('fly-client', () => {
     it('should throw RateLimitExceededError after exhausting retries on 429', async () => {
       mockFetch.mockResolvedValue({
         status: 429,
+        statusText: 'Too Many Requests',
+        headers: { get: () => null },
         json: async () => ({}),
       });
 

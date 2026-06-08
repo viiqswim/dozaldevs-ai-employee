@@ -2,8 +2,8 @@
  * Fly.io Machines API client.
  * Handles machine creation, destruction, and status queries with retry on rate limits.
  */
-import { ExternalApiError, RateLimitExceededError } from './errors.js';
-import { withRetry } from './retry.js';
+import { ExternalApiError } from './errors.js';
+import { createHttpClient } from './http-client.js';
 
 export interface FlyMachineConfig {
   image: string; // e.g. "registry.fly.io/ai-employee-workers:latest"
@@ -36,62 +36,18 @@ function getFlyApiToken(): string {
 }
 
 /**
- * Make an authenticated request to the Fly.io Machines API.
- * Handles rate limit detection and throws appropriate errors.
+ * Create an authenticated HTTP client for the Fly.io Machines API.
+ * Called per-operation so the token is read fresh each time.
  */
-async function makeRequest<T>(
-  method: 'GET' | 'POST' | 'DELETE',
-  path: string,
-  body?: unknown,
-): Promise<{ data: T; status: number }> {
-  const token = getFlyApiToken();
-  const url = `${BASE_URL}${path}`;
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  // Check for rate limit (429)
-  if (response.status === 429) {
-    throw new RateLimitExceededError(`Fly.io API rate limit exceeded on ${method} ${path}`, {
-      service: 'fly',
-      attempts: 1,
-    });
-  }
-
-  // Return both data and status for caller to handle 404, 204, etc.
-  let data: T | null = null;
-  if (response.status !== 204) {
-    // 204 No Content has no body
-    try {
-      data = (await response.json()) as T;
-    } catch {
-      // If response is not JSON, leave data as null
-    }
-  }
-
-  return { data: data as T, status: response.status };
-}
-
-/**
- * Wrapper around makeRequest that applies retry logic for rate limits.
- */
-async function makeRequestWithRetry<T>(
-  method: 'GET' | 'POST' | 'DELETE',
-  path: string,
-  body?: unknown,
-): Promise<{ data: T; status: number }> {
-  return withRetry(() => makeRequest<T>(method, path, body), {
-    maxAttempts: 3,
-    baseDelayMs: 1000,
-    retryOn: (error) => error instanceof RateLimitExceededError,
-  });
+function getHttpClient() {
+  return createHttpClient(
+    BASE_URL,
+    {
+      Authorization: `Bearer ${getFlyApiToken()}`,
+      'Content-Type': 'application/json',
+    },
+    { service: 'fly', maxAttempts: 3, baseDelayMs: 1000 },
+  );
 }
 
 /**
@@ -142,7 +98,8 @@ export async function createMachine(
     },
   };
 
-  const { data, status } = await makeRequestWithRetry<FlyMachine>('POST', path, body);
+  const response = await getHttpClient().post(path, body);
+  const { status } = response;
 
   if (status < 200 || status >= 300) {
     throw new ExternalApiError(`Fly.io API error: ${status} on POST ${path}`, {
@@ -152,7 +109,7 @@ export async function createMachine(
     });
   }
 
-  return data;
+  return response.json() as Promise<FlyMachine>;
 }
 
 /**
@@ -166,7 +123,7 @@ export async function createMachine(
 export async function destroyMachine(appName: string, machineId: string): Promise<void> {
   const path = `/apps/${appName}/machines/${machineId}?force=true`;
 
-  const { status } = await makeRequestWithRetry<void>('DELETE', path);
+  const { status } = await getHttpClient().delete(path);
 
   // Any 2xx = success, 404 = already gone (also success)
   if ((status >= 200 && status < 300) || status === 404) {
@@ -193,7 +150,8 @@ export async function destroyMachine(appName: string, machineId: string): Promis
 export async function getMachine(appName: string, machineId: string): Promise<FlyMachine | null> {
   const path = `/apps/${appName}/machines/${machineId}`;
 
-  const { data, status } = await makeRequestWithRetry<FlyMachine>('GET', path);
+  const response = await getHttpClient().get(path);
+  const { status } = response;
 
   // 404 = machine not found
   if (status === 404) {
@@ -202,7 +160,7 @@ export async function getMachine(appName: string, machineId: string): Promise<Fl
 
   // 200 = success
   if (status === 200) {
-    return data;
+    return response.json() as Promise<FlyMachine>;
   }
 
   // Any other status is an error

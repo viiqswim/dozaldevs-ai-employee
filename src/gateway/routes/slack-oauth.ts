@@ -2,12 +2,18 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import {
+  SLACK_CLIENT_ID,
+  SLACK_CLIENT_SECRET,
+  SLACK_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 export interface SlackOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -34,17 +40,16 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
         sendError(res, 404, 'NOT_FOUND');
         return;
       }
-      const clientId = process.env.SLACK_CLIENT_ID;
+      const clientId = SLACK_CLIENT_ID();
       if (!clientId) {
         sendError(res, 500, 'SLACK_CLIENT_ID not configured');
         return;
       }
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenantId, nonce });
       const state = signState(payload, signingKey);
-      const redirectBase =
-        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = SLACK_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
       const scopes =
         'channels:history,channels:read,groups:history,groups:read,chat:write,chat:write.public';
@@ -67,7 +72,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
       sendError(res, 400, 'INVALID_STATE');
@@ -75,14 +80,13 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
     }
     const { tenant_id: tenantId } = parsed;
     try {
-      const clientId = process.env.SLACK_CLIENT_ID;
-      const clientSecret = process.env.SLACK_CLIENT_SECRET;
+      const clientId = SLACK_CLIENT_ID();
+      const clientSecret = SLACK_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
         sendError(res, 500, 'Slack OAuth not configured');
         return;
       }
-      const redirectBase =
-        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = SLACK_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
       const tokenRes = await fetch('https://slack.com/api/oauth.v2.access', {
         method: 'POST',

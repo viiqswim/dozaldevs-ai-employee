@@ -2,8 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import {
   JIRA_AUTH_URL,
@@ -13,6 +13,12 @@ import {
 } from '../../lib/jira-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import {
+  JIRA_CLIENT_ID,
+  JIRA_CLIENT_SECRET,
+  JIRA_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 export interface JiraOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -40,19 +46,18 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
         return;
       }
 
-      const clientId = process.env.JIRA_CLIENT_ID;
+      const clientId = JIRA_CLIENT_ID();
       if (!clientId) {
         sendError(res, 503, 'JIRA_CLIENT_ID not configured');
         return;
       }
 
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenant.id, nonce });
       const state = signState(payload, signingKey);
 
-      const redirectBase =
-        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = JIRA_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/jira/callback`;
 
       const url =
@@ -79,7 +84,7 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
       return;
     }
 
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
       sendError(res, 400, 'INVALID_STATE');
@@ -89,15 +94,14 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
     const { tenant_id: tenantId } = parsed;
 
     try {
-      const clientId = process.env.JIRA_CLIENT_ID;
-      const clientSecret = process.env.JIRA_CLIENT_SECRET;
+      const clientId = JIRA_CLIENT_ID();
+      const clientSecret = JIRA_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
         sendError(res, 503, 'Jira OAuth not configured');
         return;
       }
 
-      const redirectBase =
-        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = JIRA_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/jira/callback`;
 
       const tokenRes = await fetch(JIRA_TOKEN_URL, {

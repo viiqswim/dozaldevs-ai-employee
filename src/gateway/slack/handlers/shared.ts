@@ -4,12 +4,12 @@ import {
   TERMINAL_STATUSES,
   APPROVAL_IDEMPOTENCY_TERMINAL_STATUSES,
 } from '../../../lib/task-status.js';
+import { SUPABASE_URL, SUPABASE_SECRET_KEY as SUPABASE_KEY } from '../../../lib/config.js';
 
 const log = createLogger('slack-handlers');
 
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
-export const SUPABASE_URL = () => process.env.SUPABASE_URL ?? '';
-export const SUPABASE_KEY = () => process.env.SUPABASE_SECRET_KEY ?? '';
+export { SUPABASE_URL, SUPABASE_KEY };
 const supabaseHeaders = () => ({
   apikey: SUPABASE_KEY(),
   Authorization: `Bearer ${SUPABASE_KEY()}`,
@@ -132,8 +132,8 @@ export async function isTaskAwaitingApproval(
   taskId: string,
   { maxRetries = 0, retryDelayMs = 2000 }: { maxRetries?: number; retryDelayMs?: number } = {},
 ): Promise<boolean> {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseUrl = SUPABASE_URL();
+  const supabaseKey = SUPABASE_KEY();
   if (!supabaseUrl || !supabaseKey) {
     log.warn('SUPABASE_URL or SUPABASE_SECRET_KEY not set — skipping idempotency check');
     return true;
@@ -172,8 +172,8 @@ export async function isTaskAwaitingApproval(
 }
 
 export async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseUrl = SUPABASE_URL();
+  const supabaseKey = SUPABASE_KEY();
   if (!supabaseUrl || !supabaseKey) {
     log.warn('SUPABASE_URL or SUPABASE_SECRET_KEY not set — skipping idempotency check');
     return true;
@@ -202,8 +202,8 @@ export async function isTaskAwaitingOverride(taskId: string): Promise<boolean> {
 }
 
 export async function getTaskStatusMessage(taskId: string): Promise<string> {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseUrl = SUPABASE_URL();
+  const supabaseKey = SUPABASE_KEY();
   if (!supabaseUrl || !supabaseKey) return 'Looks like this one has already been handled.';
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=status`, {
