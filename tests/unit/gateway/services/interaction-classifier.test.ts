@@ -4,7 +4,7 @@ import {
   InteractionClassifier,
   resolveArchetypeFromChannel,
   resolveArchetypeFromTask,
-} from '../../../../src/gateway/services/interaction-classifier.js';
+} from '../../../../src/lib/interaction-classifier.js';
 
 type MockCallLLM = ReturnType<typeof vi.fn>;
 

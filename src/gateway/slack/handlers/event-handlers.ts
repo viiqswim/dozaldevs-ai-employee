@@ -3,7 +3,7 @@ import type { InngestLike } from '../../types.js';
 import { createLogger } from '../../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../../services/tenant-integration-repository.js';
-import { resolveArchetypeFromChannel } from '../../services/interaction-classifier.js';
+import { resolveArchetypeFromChannel } from '../../../lib/interaction-classifier.js';
 import {
   pendingInputCollections,
   recentMentions,

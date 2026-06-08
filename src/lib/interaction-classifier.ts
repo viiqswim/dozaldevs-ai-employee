@@ -1,5 +1,5 @@
-import type { callLLM } from '../../lib/call-llm.js';
-import { createLogger } from '../../lib/logger.js';
+import type { callLLM } from './call-llm.js';
+import { createLogger } from './logger.js';
 
 const log = createLogger('interaction-classifier');
 

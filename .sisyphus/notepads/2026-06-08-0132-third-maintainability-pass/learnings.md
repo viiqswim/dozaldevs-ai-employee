@@ -752,3 +752,77 @@ Decomposed `dashboard/src/panels/employees/EmployeeDetail.tsx` from 635 lines �
   - `interaction-helpers.ts` added to `src/inngest/lib/` entry
   - `override-handlers.ts` added to `src/gateway/slack/` entry
   - `src/repositories/` added as a top-level directory entry
+
+## Task 29 — Magic number naming (2026-06-08)
+
+### Files modified
+
+- `src/inngest/lifecycle/steps/execute.ts` — `FLY_KILL_TIMEOUT_S`, `MAX_EXECUTION_POLLS`, `POLL_INTERVAL_MS`
+- `src/workers/lib/opencode-server.ts` — `DEFAULT_OPENCODE_PORT`, `DEFAULT_HEALTH_TIMEOUT_MS`, `DEFAULT_IDLE_TIMEOUT_MS`, `TCP_RECONNECT_DELAY_MS`, `TCP_ERROR_RECONNECT_DELAY_MS`, `FORCE_KILL_TIMEOUT_MS`
+- `src/workers/lib/session-manager.ts` — `SESSION_POLL_INTERVAL_MS`, `DEFAULT_SESSION_TIMEOUT_MS`, `DEFAULT_MIN_ELAPSED_MS`, `FIX_PROMPT_MAX_ERROR_CHARS`
+- `src/inngest/lifecycle/steps/override-card.ts` — `DELIVERABLE_RETRY_DELAY_MS`
+- `src/inngest/lifecycle/steps/no-approval-path.ts` — `DELIVERABLE_RETRY_DELAY_MS`
+
+### Key findings
+
+1. **validate-and-submit.ts was decomposed in Task 12** — the two `setTimeout(..., 1000)` calls moved to `override-card.ts:67` and `no-approval-path.ts:74`. Always grep first.
+2. **Test string matching gotcha** — `opencode-server.test.ts:309` asserts the exact log string `"Process did not exit within 5s — sending SIGKILL"`. Changing the log message to use the constant (`${FORCE_KILL_TIMEOUT_MS}ms`) broke the test. Solution: keep the log string hardcoded (it's a human-readable message, not a value), only use the constant for the `setTimeout` call.
+3. **Constants placed at module top** — all constants added immediately after the logger declaration, before any function definitions.
+4. **`60 * 60 * 1000` kept as expression** — `DEFAULT_SESSION_TIMEOUT_MS = 60 * 60 * 1000` is more readable than `3_600_000`. The comment explains "60 minutes".
+5. **Build + test: clean** — `pnpm build` EXIT 0, `pnpm test:unit` 125 files / 1425 pass / 9 skip / 0 fail.
+
+## Task 30 — CONTRIBUTING.md convention sections (2026-06-08)
+
+### Sections added
+
+Three new subsections added under "Key Conventions" in CONTRIBUTING.md, between the "Full conventions" link and the "Logger Variable Naming" subsection:
+
+1. **Barrel Files** — policy against new index.ts barrels; lists 3 intentional exceptions with a table
+2. **Swallowed Errors in Bolt Handlers** — explains why catch blocks in approval-handlers.ts, override-handlers.ts, and socket-mode-lock.ts log-and-return by design
+3. **Type Assertions (`as unknown as`)** — lists 3 legitimate use cases; rules: prefer fixing the type, never use `as any`, always cast through `unknown`, add a comment
+
+### Key observations
+
+- `socket-mode-lock.ts` has TWO bare `catch {}` blocks (lines 56 and 133): one in `isGatewayProcess()` (ps exec failure) and one in `releaseSocketModeLock()` (unlink already-deleted file). Both are intentional — they must not throw during Socket Mode lifecycle events.
+- `approval-handlers.ts` catch blocks (lines 73-90+) log the error and call `respond()` to show a user-friendly error message, then return. This is the correct Bolt pattern.
+- The 3 barrel exceptions are all "registration" or "entry point" barrels — they exist to provide a single import point for a subsystem, not to re-export everything in a directory.
+- CONTRIBUTING.md was modified by a parallel agent (Task 31) between the initial read and the edit — the file gained the `knowledge_base` snake_case bullet. Re-read before editing to avoid conflict.
+
+### No code changes
+
+This task is documentation-only. Zero source files modified.
+
+## Task F1 — Move interaction-classifier to src/lib/ (2026-06-08)
+
+### What was moved
+
+- `src/gateway/services/interaction-classifier.ts` → `src/lib/interaction-classifier.ts`
+- Internal imports updated: `../../lib/call-llm.js` → `./call-llm.js`, `../../lib/logger.js` → `./logger.js`
+
+### Consumers updated (3 source files)
+
+- `src/inngest/interaction-handler.ts:7` — `'../gateway/services/interaction-classifier.js'` → `'../lib/interaction-classifier.js'`
+- `src/inngest/slack-trigger-handler.ts:4` — `'../gateway/services/interaction-classifier.js'` → `'../lib/interaction-classifier.js'`
+- `src/gateway/slack/handlers/event-handlers.ts:6` — `'../../services/interaction-classifier.js'` → `'../../../lib/interaction-classifier.js'`
+
+### Test files updated (9 files)
+
+- `tests/unit/inngest/interaction-handler.test.ts` — vi.mock path updated
+- `tests/unit/inngest/interaction-handler-rejection-feedback.test.ts` — vi.mock path updated
+- `tests/unit/inngest/interaction-handler-injection.test.ts` — vi.mock path + direct import updated
+- `tests/unit/inngest/slack-trigger-handler.test.ts` — vi.mock path updated
+- `tests/unit/inngest/slack-trigger-pre-extract.test.ts` — vi.mock path updated
+- `tests/unit/inngest/slack-input-collector.test.ts` — vi.mock path updated
+- `tests/unit/gateway/services/interaction-classifier.test.ts` — direct import updated
+- `tests/unit/gateway/services/interaction-classifier-injection.test.ts` — direct import updated
+- `tests/unit/interaction-classifier.test.ts` — direct import updated
+
+### CRITICAL GOTCHA — ast-grep `$$$` in rewrite
+
+`mcp_Ast_grep_replace` with pattern `vi.mock('...', $$$)` and rewrite `vi.mock('...', $$$)` leaves a LITERAL `$$$` in the output file — it does NOT preserve the matched content. The `$$$` meta-variable works in the PATTERN to match, but in the REWRITE it is emitted as the literal string `$$$`. Always use Edit tool for vi.mock path updates, or fix the `$$$` literals manually after ast-grep.
+
+### Verification
+
+- `grep -rln "gateway/services" src/inngest --include="*.ts"` → empty (smell fully removed)
+- `pnpm build` → EXIT_CODE 0
+- `pnpm test:unit` → 125 files, 1425 passed, 9 skipped, 0 failures

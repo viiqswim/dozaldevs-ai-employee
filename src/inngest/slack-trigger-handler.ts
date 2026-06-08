@@ -1,7 +1,7 @@
 import { Inngest } from 'inngest';
 import type { EventPayload, InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
-import { resolveArchetypeFromChannel } from '../gateway/services/interaction-classifier.js';
+import { resolveArchetypeFromChannel } from '../lib/interaction-classifier.js';
 import { loadTenantEnv } from '../repositories/tenant-env-loader.js';
 import { TenantRepository } from '../repositories/tenant-repository.js';
 import { TenantSecretRepository } from '../repositories/tenant-secret-repository.js';

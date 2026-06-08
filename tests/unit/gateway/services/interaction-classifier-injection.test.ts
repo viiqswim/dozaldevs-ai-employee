@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { vi } from 'vitest';
 import type { callLLM } from '../../../../src/lib/call-llm.js';
-import { InteractionClassifier } from '../../../../src/gateway/services/interaction-classifier.js';
+import { InteractionClassifier } from '../../../../src/lib/interaction-classifier.js';
 
 type MockCallLLM = ReturnType<typeof vi.fn>;
 

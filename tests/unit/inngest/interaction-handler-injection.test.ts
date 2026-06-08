@@ -11,7 +11,7 @@ vi.mock('../../../src/lib/call-llm.js', () => ({
   }),
 }));
 
-vi.mock('../../../src/gateway/services/interaction-classifier.js', () => ({
+vi.mock('../../../src/lib/interaction-classifier.js', () => ({
   InteractionClassifier: vi.fn().mockImplementation(() => ({
     classifyIntent: vi.fn().mockResolvedValue('question'),
   })),
@@ -55,7 +55,7 @@ vi.mock('../../../src/lib/logger.js', () => ({
 }));
 
 import { callLLM } from '../../../src/lib/call-llm.js';
-import { InteractionClassifier } from '../../../src/gateway/services/interaction-classifier.js';
+import { InteractionClassifier } from '../../../src/lib/interaction-classifier.js';
 import { createInteractionHandlerFunction } from '../../../src/inngest/interaction-handler.js';
 
 function makeStep(intentOverride?: string) {

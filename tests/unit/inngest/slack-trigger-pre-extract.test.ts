@@ -25,7 +25,7 @@ vi.mock('../../../src/repositories/tenant-repository.js', () => ({
 vi.mock('../../../src/repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn(() => ({})),
 }));
-vi.mock('../../../src/gateway/services/interaction-classifier.js', () => ({
+vi.mock('../../../src/lib/interaction-classifier.js', () => ({
   resolveArchetypeFromChannel: mockResolveArchetypeFromChannel,
 }));
 vi.mock('../../../src/lib/extract-inputs.js', () => ({

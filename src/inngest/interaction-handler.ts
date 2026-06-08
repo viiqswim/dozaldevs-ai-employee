@@ -4,7 +4,7 @@ import {
   InteractionClassifier,
   resolveArchetypeFromTask,
   resolveArchetypeFromChannel,
-} from '../gateway/services/interaction-classifier.js';
+} from '../lib/interaction-classifier.js';
 import { callLLM } from '../lib/call-llm.js';
 import { loadTenantEnv } from '../repositories/tenant-env-loader.js';
 import { TenantRepository } from '../repositories/tenant-repository.js';
