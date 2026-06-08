@@ -1,4 +1,5 @@
-import type { GetStepTools, Inngest } from 'inngest';
+import type { Inngest } from 'inngest';
+import type { InngestStep } from '../../events.js';
 import { createLogger } from '../../../lib/logger.js';
 import {
   patchTask,
@@ -28,8 +29,6 @@ import type { NotificationEnrichment } from '../../../lib/types/notification-enr
 import { loadTenantSlack } from './notify-and-track.js';
 
 const log = createLogger('lifecycle-validate-and-submit');
-
-type InngestStep = GetStepTools<Inngest>;
 
 export interface ReviewingPathContext {
   taskId: string;

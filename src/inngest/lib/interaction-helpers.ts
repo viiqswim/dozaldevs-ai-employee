@@ -2,7 +2,7 @@ import { createLogger } from '../../lib/logger.js';
 import { ruleProposedMessage } from '../../lib/slack-copy.js';
 import { SLACK_ACTION_ID } from '../../lib/slack-action-ids.js';
 import { requireEnv } from '../../lib/config.js';
-import type { InngestStep } from '../../gateway/inngest/client.js';
+import type { InngestStep } from '../events.js';
 
 const log = createLogger('interaction-handler');
 

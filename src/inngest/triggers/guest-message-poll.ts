@@ -3,7 +3,7 @@ import type { InngestFunction } from 'inngest';
 import { createLogger } from '../../lib/logger.js';
 import { decrypt } from '../../lib/encryption.js';
 import { requireEnv } from '../../lib/config.js';
-import type { InngestStep } from '../../gateway/inngest/client.js';
+import type { InngestStep } from '../events.js';
 
 const log = createLogger('guest-message-poll');
 

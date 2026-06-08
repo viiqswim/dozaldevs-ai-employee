@@ -1,3 +1,5 @@
+import type { GetStepTools, Inngest } from 'inngest';
+
 /**
  * Typed event schemas for the AI Employee platform.
  * Canonical source for all Inngest event data shapes.
@@ -5,6 +7,9 @@
  * Inngest v4 removed EventSchemas from v3. Type event parameters with EventPayload<TData>:
  *   async ({ event }: { event: EventPayload<RuleExtractRequestedPayload>; step: InngestStep }) => { ... }
  */
+
+export type InngestStep = GetStepTools<Inngest>;
+
 export interface InteractionReceivedData {
   source: 'thread_reply' | 'mention';
   text: string;

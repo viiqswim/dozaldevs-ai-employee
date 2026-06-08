@@ -8,8 +8,7 @@ import { TenantSecretRepository } from '../repositories/tenant-secret-repository
 import { createLogger } from '../lib/logger.js';
 import { callLLM } from '../lib/call-llm.js';
 import { extractInputsFromText } from '../lib/extract-inputs.js';
-import type { InngestStep } from '../gateway/inngest/client.js';
-import type { TriggerInputReceivedData } from './events.js';
+import type { InngestStep, TriggerInputReceivedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 import { prettifyRoleName } from './slack-trigger-handler.js';
 

@@ -13,8 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { questionNoAnswerFallback } from '../lib/slack-copy.js';
-import type { InngestStep } from '../gateway/inngest/client.js';
-import type { InteractionReceivedData } from './events.js';
+import type { InngestStep, InteractionReceivedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 import { runPreClassificationShortCircuits } from './lib/interaction-helpers.js';
 

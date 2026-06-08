@@ -7,7 +7,7 @@ import { createLogger } from '../lib/logger.js';
 import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage } from '../lib/slack-copy.js';
-import type { InngestStep } from '../gateway/inngest/client.js';
+import type { InngestStep } from './events.js';
 import { requireEnv } from '../lib/config.js';
 
 const log = createLogger('rule-extractor');

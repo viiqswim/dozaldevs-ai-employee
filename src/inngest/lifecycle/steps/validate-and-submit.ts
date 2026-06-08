@@ -1,4 +1,5 @@
-import type { GetStepTools, Inngest } from 'inngest';
+import type { Inngest } from 'inngest';
+import type { InngestStep } from '../../events.js';
 import { createLogger } from '../../../lib/logger.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
 import type { NotifyBlocksOpts, NotifyRef } from './triage-and-ready.js';
@@ -8,8 +9,6 @@ import { runOverrideCardPath } from './override-card.js';
 import { runReviewingPath } from './reviewing-path.js';
 
 const log = createLogger('lifecycle-validate-and-submit');
-
-type InngestStep = GetStepTools<Inngest>;
 
 export interface ValidateContext {
   taskId: string;

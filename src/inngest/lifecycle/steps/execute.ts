@@ -1,4 +1,4 @@
-import type { GetStepTools, Inngest } from 'inngest';
+import type { InngestStep } from '../../events.js';
 import { createLogger } from '../../../lib/logger.js';
 import { createMachine, destroyMachine } from '../../../lib/fly-client.js';
 import {
@@ -32,8 +32,6 @@ const FLY_KILL_TIMEOUT_S = 1800;
 const MAX_EXECUTION_POLLS = 120;
 /** Interval between task-status polls in milliseconds (15 seconds) */
 const POLL_INTERVAL_MS = 15_000;
-
-type InngestStep = GetStepTools<Inngest>;
 
 export interface ExecuteContext {
   taskId: string;

@@ -10,8 +10,7 @@ import { createLogger } from '../lib/logger.js';
 import { callLLM } from '../lib/call-llm.js';
 import { extractInputsFromText } from '../lib/extract-inputs.js';
 import { triggerCardPrompt } from '../lib/slack-copy.js';
-import type { InngestStep } from '../gateway/inngest/client.js';
-import type { TaskRequestedData } from './events.js';
+import type { InngestStep, TaskRequestedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 
 const log = createLogger('slack-trigger-handler');

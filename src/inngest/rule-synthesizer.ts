@@ -6,8 +6,7 @@ import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
-import type { InngestStep } from '../gateway/inngest/client.js';
-import type { RuleSynthesizeRequestedData } from './events.js';
+import type { InngestStep, RuleSynthesizeRequestedData } from './events.js';
 import { requireEnv } from '../lib/config.js';
 
 const log = createLogger('rule-synthesizer');

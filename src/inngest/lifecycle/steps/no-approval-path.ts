@@ -1,4 +1,4 @@
-import type { GetStepTools, Inngest } from 'inngest';
+import type { InngestStep } from '../../events.js';
 import { createLogger } from '../../../lib/logger.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
 import { parseClassifyResponse } from '../../../lib/classify-message.js';
@@ -18,8 +18,6 @@ const log = createLogger('lifecycle-validate-and-submit');
 
 /** Delay in ms between deliverable-fetch retry attempts (1 second) */
 const DELIVERABLE_RETRY_DELAY_MS = 1_000;
-
-type InngestStep = GetStepTools<Inngest>;
 
 export interface NoApprovalPathContext {
   taskId: string;

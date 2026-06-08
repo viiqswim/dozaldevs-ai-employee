@@ -1,5 +1,5 @@
 import { NonRetriableError } from 'inngest';
-import type { GetStepTools, Inngest } from 'inngest';
+import type { InngestStep } from '../../events.js';
 import { createSlackClient } from '../../../lib/slack-client.js';
 import { createLogger } from '../../../lib/logger.js';
 import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
@@ -9,8 +9,6 @@ import type { KnownBlock } from '@slack/web-api';
 import { loadTenantSlack } from './notify-and-track.js';
 
 const log = createLogger('lifecycle-triage-and-ready');
-
-type InngestStep = GetStepTools<Inngest>;
 
 export interface NotifyBlocksOpts {
   state: string;

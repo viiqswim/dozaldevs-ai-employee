@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
-import type { InngestStep } from '../../gateway/inngest/client.js';
+import type { InngestStep } from '../events.js';
 import { requireEnv } from '../../lib/config.js';
 
 const supabaseUrl = requireEnv('SUPABASE_URL');
