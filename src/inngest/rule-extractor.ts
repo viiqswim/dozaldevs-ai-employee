@@ -30,7 +30,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
       event: EventPayload<RuleExtractRequestedPayload>;
       step: InngestStep;
     }) => {
-      const payload = event.data;
+      const payload = event.data!;
       const {
         tenantId,
         feedbackId,

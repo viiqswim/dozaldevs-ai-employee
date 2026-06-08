@@ -28,7 +28,8 @@ export function createInteractionHandlerFunction(inngest: Inngest): InngestFunct
       event: EventPayload<InteractionReceivedData>;
       step: InngestStep;
     }) => {
-      const { source, text, userId, channelId, threadTs, messageTs, taskId, tenantId } = event.data;
+      const { source, text, userId, channelId, threadTs, messageTs, taskId, tenantId } =
+        event.data!;
 
       const context = await step.run('resolve-context', async () => {
         if (source === 'thread_reply') {
