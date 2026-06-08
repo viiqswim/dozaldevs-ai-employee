@@ -180,3 +180,54 @@ This guard ensures `main()` only runs when the file is the direct entry point, n
 - isPrismaError extracted to src/gateway/lib/prisma-helpers.ts
 - ERROR_CODES constants added
 - sendError JSDoc added in http-response.ts
+
+## [2026-06-07] Task 4 — Test convenience scripts
+- test:file and test:watch added to package.json
+- CONTRIBUTING.md "Running Tests" subsection added (replaced bare "Unit tests" block)
+- `pnpm test:file tests/unit/lib/classify-message.test.ts` verified: 34 tests pass
+- .sisyphus/evidence/ is gitignored — evidence files stay local only
+
+## [2026-06-07] Task 2 — New contributor setup guide
+- Created docs/guides/2026-06-07-2022-new-contributor-setup.md
+- Linked from CONTRIBUTING.md "Where to Find More" table (added "New contributor setup" row + "Personal Slack dev app setup" row)
+- Banner added to scripts/dev.ts near the end of the summary block: "📖 First time? See docs/guides/2026-06-07-2022-new-contributor-setup.md"
+- Guide covers all 7 required sections: prerequisites, pnpm setup, Cloudflare tunnel, personal Slack dev app (links to existing guide), env-var checklist, running pnpm dev, common first-day issues
+- No personal tunnel UUID (e160ac6d) in the guide — verified with grep -c
+- Evidence: .sisyphus/evidence/task-2-contributor-guide.txt (gitignored, local only)
+
+## [2026-06-07] Task 5 — Architecture diagram
+- Created docs/architecture/CURRENT-ARCHITECTURE.md (living doc, no timestamp)
+- Mermaid diagram with ≤20 nodes (15 nodes: 3 triggers, 5 platform core, 2 worker runtime, 2 LLM routing, 2 approval gate, 1 external APIs)
+- Flow Walkthrough table with 9 numbered steps covering the full trigger-to-delivery path
+- Key Design Decisions section explains two DB access paths, OpenCodeGo routing, optional approval gate, Socket Mode
+- Linked from AGENTS.md Reference Documents table (first row, before full-system-vision.md)
+- File was committed as part of the previous task's commit (3d1bc221) — already in repo
+
+## [2026-06-07] Task 6 — Remove tenant-env barrel
+- Deleted src/inngest/lib/tenant-env.ts
+- employee-lifecycle.ts and approval-handler.ts now import directly from gateway services
+- Relative paths: employee-lifecycle → ../gateway/services/; approval-handler → ../../../gateway/services/
+- git rm used to track deletion; pre-commit hooks ran ESLint cleanly
+- pnpm build: 0 errors; pnpm test:unit: 121 files, 1389 passed, 9 skipped
+
+## [2026-06-07] Task 3 — PR template + husky + lint-staged
+- .github/PULL_REQUEST_TEMPLATE.md created
+- husky + lint-staged installed (husky 9.1.7, lint-staged 17.0.7)
+- .husky/pre-commit runs pnpm lint-staged
+- lint-staged config: *.{ts,tsx} → eslint --max-warnings 0
+- "prepare": "husky" added to package.json scripts
+- pnpm build: EXIT 0; pnpm test -- --run: 121 files, 1389 passed, EXIT 0
+- Note: package.json changes (prepare + lint-staged config) were already in HEAD from a prior commit in this session
+
+## [2026-06-07] Task 7 — optionalEnv helper
+- Added optionalEnv(name) to src/worker-tools/lib/require-env.ts
+- Returns process.env[name] || undefined (graceful, no exit)
+- Test file: src/worker-tools/lib/__tests__/require-env.test.ts
+- src/worker-tools/lib/ is gitignored (compiled JS artifacts) — use git add -f for new files in this dir
+- lint-staged warning about gitignore is non-fatal when using git add -f
+
+## [2026-06-07] Task 11 — Dedup pino/base64url/generateAppJwt
+- admin-auth.ts and server.ts now use createLogger from src/lib/logger.ts
+- base64url and generateAppJwt exported from github-token-manager.ts
+- admin-github.ts imports them from the service (no local defs)
+- Test mock for github-token-manager.js updated to use importOriginal spread so generateAppJwt is available

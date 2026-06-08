@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
-import pino from 'pino';
+import { createLogger } from '../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { createInngestClient } from './inngest/client.js';
 import { healthRoutes } from './routes/health.js';
@@ -49,7 +49,7 @@ import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
 import { requireEnv } from '../lib/config.js';
 import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('gateway');
 
 function validateProductionEnv(): void {
   if (process.env.NODE_ENV === 'production' && !process.env.OPENCODE_GO_API_KEY) {

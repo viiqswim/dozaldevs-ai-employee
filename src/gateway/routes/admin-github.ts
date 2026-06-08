@@ -1,11 +1,10 @@
-import crypto from 'crypto';
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { generateInstallationToken } from '../services/github-token-manager.js';
+import { generateInstallationToken, generateAppJwt } from '../services/github-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 
 export interface AdminGithubRouteOptions {
@@ -22,30 +21,6 @@ interface GitHubInstallation {
   id: number;
   account: GitHubInstallationAccount;
   [key: string]: unknown;
-}
-
-function base64url(input: Buffer | string): string {
-  const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function generateAppJwt(appId: string, privateKey: string): string {
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const payload = base64url(
-    JSON.stringify({
-      iat: now - 60,
-      exp: now + 10 * 60,
-      iss: appId,
-    }),
-  );
-
-  const signingInput = `${header}.${payload}`;
-  const sign = crypto.createSign('RSA-SHA256');
-  sign.update(signingInput, 'utf8');
-  const signature = base64url(sign.sign(privateKey));
-
-  return `${signingInput}.${signature}`;
 }
 
 interface GitHubRepo {

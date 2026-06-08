@@ -28,9 +28,13 @@ vi.mock('../../services/tenant-secret-repository.js', () => ({
   })),
 }));
 
-vi.mock('../../services/github-token-manager.js', () => ({
-  generateInstallationToken: mockGenerateInstallationToken,
-}));
+vi.mock('../../services/github-token-manager.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/github-token-manager.js')>();
+  return {
+    ...actual,
+    generateInstallationToken: mockGenerateInstallationToken,
+  };
+});
 
 vi.mock('../../services/tenant-integration-repository.js', () => ({
   TenantIntegrationRepository: vi.fn(() => ({

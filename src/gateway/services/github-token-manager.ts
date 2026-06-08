@@ -21,12 +21,12 @@ export function _resetCacheForTest(): void {
   _tokenCache.clear();
 }
 
-function base64url(input: Buffer | string): string {
+export function base64url(input: Buffer | string): string {
   const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-function generateAppJwt(appId: string, privateKey: string): string {
+export function generateAppJwt(appId: string, privateKey: string): string {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const payload = base64url(
