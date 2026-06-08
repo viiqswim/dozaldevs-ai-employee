@@ -5,17 +5,19 @@ import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager, extractUsage } from './lib/session-manager.js';
 import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
 import { classifyFailure } from './lib/failure-codes.js';
-import { type StandardOutput } from './lib/output-schema.mjs';
-import { postApprovalCard } from './lib/approval-card-poster.mjs';
 import { buildTemplateVars, substituteTemplateVars } from './lib/template-vars.js';
 import { assembleTaskPrompt } from './lib/prompt-assembler.mjs';
 import { injectAssignmentSection } from './lib/trigger-payload.mjs';
 import { applyResourceCaps } from './lib/resource-caps.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
-import { INNGEST_EVENT_KEY, INNGEST_BASE_URL } from '../lib/config.js';
 import { checkOutputFiles, readOutputContract } from './lib/output-contract.mjs';
-import { updateSlackNotificationToFailed } from './lib/slack-notifier.mjs';
 import { resolveModelProvider } from './lib/model-provider.mjs';
+import {
+  markFailed,
+  fireCompletionEvent,
+  tryAutoPostApprovalCard,
+  writeOpencodeAuth,
+} from './lib/harness-helpers.mjs';
 
 const log = createLogger('opencode-harness');
 
@@ -84,231 +86,6 @@ process.on('SIGTERM', () => {
     });
 });
 
-async function markFailed(
-  reason: string,
-  executionId: string | null,
-  fromStatus: string,
-  failureCode?: string,
-): Promise<void> {
-  try {
-    await db.patch('tasks', `id=eq.${TASK_ID}`, {
-      status: 'Failed',
-      failure_reason: reason,
-      failure_code: failureCode ?? null,
-      updated_at: new Date().toISOString(),
-    });
-  } catch (err) {
-    log.warn({ err }, '[opencode-harness] Failed to PATCH task status to Failed');
-  }
-  try {
-    await db.post('task_status_log', {
-      task_id: TASK_ID,
-      from_status: fromStatus,
-      to_status: 'Failed',
-      actor: 'machine',
-      updated_at: new Date().toISOString(),
-    });
-  } catch (err) {
-    log.warn({ err }, '[opencode-harness] Failed to log status transition to Failed (non-fatal)');
-  }
-
-  if (executionId) {
-    try {
-      await db.patch('executions', `id=eq.${executionId}`, {
-        status: 'failed',
-        updated_at: new Date().toISOString(),
-      });
-    } catch (err) {
-      log.warn({ err }, '[opencode-harness] Failed to PATCH execution status to failed');
-    }
-  }
-
-  // Update the Slack "Received" notification to show failure state (non-fatal)
-  await updateSlackNotificationToFailed(TASK_ID, reason, {
-    roleName: process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee',
-    slackToken: process.env['SLACK_BOT_TOKEN'],
-    slackChannel: process.env['NOTIFICATION_CHANNEL'],
-    slackMsgTs: process.env['NOTIFY_MSG_TS'],
-  });
-}
-
-async function fireCompletionEvent(taskId: string): Promise<void> {
-  const baseUrl = INNGEST_BASE_URL;
-  const eventKey = INNGEST_EVENT_KEY;
-  const url = `${baseUrl}/e/${eventKey}`;
-
-  const payload = {
-    name: 'employee/task.completed',
-    id: `employee-complete-${taskId}`,
-    data: { taskId },
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) {
-      log.info({ taskId }, 'Inngest event fired: employee/task.completed');
-    } else {
-      log.warn(
-        { taskId, httpStatus: response.status },
-        '[opencode-harness] Inngest event returned non-OK status — watchdog will recover',
-      );
-    }
-  } catch (err) {
-    log.warn(
-      { taskId, err },
-      '[opencode-harness] Failed to fire Inngest completion event — watchdog will recover',
-    );
-  }
-}
-
-/**
- * Auto-post an approval card to Slack when the agent wrote a standard-schema summary.txt
- * with NEEDS_APPROVAL but did not post a card itself. Wrapped in try/catch — never throws.
- */
-async function tryAutoPostApprovalCard(
-  parsedOutput: StandardOutput,
-): Promise<Record<string, unknown>> {
-  const token = process.env.SLACK_BOT_TOKEN;
-  const channel = process.env.NOTIFICATION_CHANNEL;
-
-  if (!token || !channel) {
-    log.warn(
-      { taskId: TASK_ID, hasToken: !!token, hasChannel: !!channel },
-      '[opencode-harness] Cannot auto-post approval card — missing SLACK_BOT_TOKEN or NOTIFICATION_CHANNEL',
-    );
-    return {};
-  }
-
-  try {
-    const result = await postApprovalCard({
-      data: parsedOutput,
-      taskId: TASK_ID,
-      channel,
-      token,
-      threadTs: process.env['NOTIFY_MSG_TS'] || undefined,
-    });
-
-    // Build rich metadata so the lifecycle can render context thread replies,
-    // Done-state notifications, and delivery without null fields.
-    const agentMeta = parsedOutput.metadata ?? {};
-    const approvalMeta: Record<string, unknown> = {
-      ts: result.ts,
-      channel: result.channel,
-      approval_message_ts: result.ts,
-      target_channel: result.channel,
-      // Delivery payload
-      ...(parsedOutput.draft !== undefined && { draft_response: parsedOutput.draft }),
-      // Confidence as a 0–1 number (not a percentage string)
-      ...(parsedOutput.confidence !== undefined && { confidence: parsedOutput.confidence }),
-      // Thread / conversation routing (from env vars injected by lifecycle)
-      ...(process.env.THREAD_UID && {
-        thread_uid: process.env.THREAD_UID,
-        conversation_ref: process.env.THREAD_UID,
-      }),
-      ...(process.env.LEAD_UID && { lead_uid: process.env.LEAD_UID }),
-      // Rich display fields written by the agent into StandardOutput.metadata
-      ...(agentMeta['guest_name'] !== undefined && { guest_name: agentMeta['guest_name'] }),
-      ...(agentMeta['property_name'] !== undefined && {
-        property_name: agentMeta['property_name'],
-      }),
-      ...(agentMeta['original_message'] !== undefined && {
-        original_message: agentMeta['original_message'],
-      }),
-      ...(agentMeta['check_in'] !== undefined && { check_in: agentMeta['check_in'] }),
-      ...(agentMeta['check_out'] !== undefined && { check_out: agentMeta['check_out'] }),
-      ...(agentMeta['booking_channel'] !== undefined && {
-        booking_channel: agentMeta['booking_channel'],
-      }),
-      ...(agentMeta['lead_status'] !== undefined && { lead_status: agentMeta['lead_status'] }),
-      ...(agentMeta['category'] !== undefined && { category: agentMeta['category'] }),
-    };
-
-    const { writeFile } = await import('fs/promises');
-    await writeFile('/tmp/approval-message.json', JSON.stringify(approvalMeta), 'utf8');
-
-    log.info(
-      { taskId: TASK_ID, ts: result.ts, channel: result.channel },
-      '[opencode-harness] Auto-posted approval card and wrote /tmp/approval-message.json',
-    );
-
-    return approvalMeta;
-  } catch (err) {
-    log.error(
-      { taskId: TASK_ID, err },
-      '[opencode-harness] Failed to auto-post approval card — continuing without card',
-    );
-    return {};
-  }
-}
-
-async function writeOpencodeAuth(temperature: number = 1.0): Promise<void> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    log.warn('[opencode-harness] OPENROUTER_API_KEY not set — OpenCode may fail to authenticate');
-    return;
-  }
-  const { mkdir, writeFile } = await import('fs/promises');
-  const { homedir } = await import('os');
-  const { join } = await import('path');
-  const authDir = join(homedir(), '.local', 'share', 'opencode');
-  await mkdir(authDir, { recursive: true });
-  const goApiKey = process.env.OPENCODE_GO_API_KEY;
-  const authProviders: Record<string, { type: string; key: string }> = {
-    openrouter: { type: 'api', key: apiKey },
-  };
-  if (goApiKey) {
-    authProviders['opencode-go'] = { type: 'api', key: goApiKey };
-  }
-  const authJson = JSON.stringify(authProviders, null, 2);
-  await writeFile(join(authDir, 'auth.json'), authJson, 'utf8');
-  log.info({ goProviderEnabled: Boolean(goApiKey) }, '[opencode-harness] auth.json written');
-
-  const configDir = join(process.cwd(), '.opencode');
-  await mkdir(configDir, { recursive: true });
-  // The "*": "allow" wildcard covers all permission types including "skill" — no explicit skill permission needed
-  const configJson = JSON.stringify(
-    {
-      provider: {
-        'opencode-go': {
-          options: {
-            baseURL: 'https://opencode.ai/zen/go/v1',
-          },
-        },
-      },
-      agent: { build: { temperature } },
-      permission: { '*': 'allow', question: 'deny' },
-      autoupdate: false,
-    },
-    null,
-    2,
-  );
-  await writeFile(join(configDir, 'opencode.json'), configJson, 'utf8');
-  log.info({ temperature }, '[opencode-harness] opencode.json permission config written');
-
-  // Also write global config to prevent auto-update at the global level
-  const globalConfigDir = join(homedir(), '.config', 'opencode');
-  await mkdir(globalConfigDir, { recursive: true });
-  const globalConfigJson = JSON.stringify({ autoupdate: false }, null, 2);
-  await writeFile(join(globalConfigDir, 'opencode.json'), globalConfigJson, 'utf8');
-  log.info('[opencode-harness] global opencode.json written (autoupdate: false)');
-
-  // Log available skills baked into the container image
-  const skillsDir = '/app/.opencode/skills';
-  try {
-    const { readdirSync } = await import('fs');
-    const entries = readdirSync(skillsDir, { withFileTypes: true });
-    const skills = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-    log.info({ skills }, '[opencode-harness] Skills available in container');
-  } catch {
-    log.info('[opencode-harness] No skills directory found — container has no baked-in skills');
-  }
-}
-
 async function runOpencodeSession(
   instructions: string,
   model: string,
@@ -350,7 +127,8 @@ async function runOpencodeSession(
   // Build options once for all checkOutputFiles / readOutputContract calls in this session
   const outputOptions = {
     approvalRequired: process.env.APPROVAL_REQUIRED !== 'false',
-    onNeedsApproval: tryAutoPostApprovalCard,
+    onNeedsApproval: (out: Parameters<typeof tryAutoPostApprovalCard>[1]) =>
+      tryAutoPostApprovalCard(TASK_ID, out),
   };
 
   try {
@@ -530,6 +308,8 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
   if (!deliverable) {
     log.error({ taskId: TASK_ID }, '[opencode-harness] No deliverable found for delivery phase');
     await markFailed(
+      TASK_ID,
+      db,
       'No deliverable found for delivery phase',
       null,
       'Delivering',
@@ -607,7 +387,14 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
         })
         .catch(() => {});
     }
-    await markFailed('Archetype has no model configured', null, 'Delivering', 'missing_model');
+    await markFailed(
+      TASK_ID,
+      db,
+      'Archetype has no model configured',
+      null,
+      'Delivering',
+      'missing_model',
+    );
     return;
   }
   let deliveryResult: Awaited<ReturnType<typeof runOpencodeSession>> | null = null;
@@ -629,7 +416,7 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
         })
         .catch(() => {});
     }
-    await markFailed(deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
+    await markFailed(TASK_ID, db, deliveryErr, null, 'Delivering', classifyFailure(deliveryErr));
     return;
   }
 
@@ -663,6 +450,8 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
       summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
     } catch {
       await markFailed(
+        TASK_ID,
+        db,
         'Delivery not confirmed — no summary.txt produced',
         null,
         'Delivering',
@@ -675,6 +464,8 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
       deliverySummary = JSON.parse(summaryRaw) as Record<string, unknown>;
     } catch {
       await markFailed(
+        TASK_ID,
+        db,
         'Delivery not confirmed — summary.txt is not valid JSON',
         null,
         'Delivering',
@@ -684,6 +475,8 @@ async function runDeliveryPhase(task: TaskWithArchetype, archetype: ArchetypeRow
     }
     if (deliverySummary.delivered !== true && !deliverySummary.summary) {
       await markFailed(
+        TASK_ID,
+        db,
         'Delivery not confirmed — summary.txt missing both delivered:true and summary field',
         null,
         'Delivering',
@@ -737,6 +530,8 @@ async function runExecutionPhase(task: TaskWithArchetype, archetype: ArchetypeRo
       '[opencode-harness] Archetype has no model configured — cannot proceed',
     );
     await markFailed(
+      TASK_ID,
+      db,
       'Archetype has no model configured. Set a model in the employee settings before triggering.',
       null,
       'Executing',
@@ -877,7 +672,14 @@ async function runExecutionPhase(task: TaskWithArchetype, archetype: ArchetypeRo
   } catch (err) {
     log.error({ taskId: TASK_ID, err }, '[opencode-harness] OpenCode session failed');
     const failureReason = err instanceof Error ? err.message : String(err);
-    await markFailed(failureReason, executionId, 'Executing', classifyFailure(failureReason));
+    await markFailed(
+      TASK_ID,
+      db,
+      failureReason,
+      executionId,
+      'Executing',
+      classifyFailure(failureReason),
+    );
     process.exit(1);
   }
 
