@@ -12,7 +12,9 @@ import {
   runLocalDockerContainer,
   stopLocalDockerContainer,
 } from './lib/lifecycle-helpers.js';
-import { loadTenantEnv, TenantRepository, TenantSecretRepository } from './lib/tenant-env.js';
+import { loadTenantEnv } from '../gateway/services/tenant-env-loader.js';
+import { TenantRepository } from '../gateway/services/tenant-repository.js';
+import { TenantSecretRepository } from '../gateway/services/tenant-secret-repository.js';
 import { parseClassifyResponse } from '../lib/classify-message.js';
 import { getAdapter } from '../lib/enrichment-adapters/index.js';
 import type { NotificationEnrichment } from '../lib/types/notification-enrichment.js';
