@@ -55,6 +55,8 @@ The codebase enforces strict import direction rules. Never cross these boundarie
 - `tenant-secret-repository.ts` — encrypted secrets CRUD for the `tenant_secrets` table
 - `tenant-env-loader.ts` — assembles the worker env-var map from tenant config + secrets
 - `notification-channel.ts` — pure helper used by `tenant-env-loader.ts`
+- `task-repository.ts` (`TaskRepository`) — task lookups by ID, thread_ts, and approval_ts
+- `employee-rule-repository.ts` (`EmployeeRuleRepository`) — rule CRUD: get, countConfirmed, patchConfirm/Reject/Archive/Rephrase
 
 **Rule**: `src/inngest/` must NEVER import from `src/gateway/` (one-way dependency). If you need shared data-access logic in both, add it to `src/repositories/` — NOT `src/gateway/services/`.
 
