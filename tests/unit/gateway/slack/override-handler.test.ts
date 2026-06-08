@@ -1,7 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { App } from '@slack/bolt';
 import type { InngestLike } from '../../../../src/gateway/types.js';
 import { registerSlackHandlers } from '../../../../src/gateway/slack/handlers.js';
+
+const { mockTaskFindFirst } = vi.hoisted(() => ({
+  mockTaskFindFirst: vi.fn(),
+}));
+
+vi.mock('@prisma/client', () => ({
+  PrismaClient: vi.fn(() => ({
+    task: { findFirst: mockTaskFindFirst },
+    deliverable: { findFirst: vi.fn().mockResolvedValue(null) },
+    pendingApproval: { findFirst: vi.fn().mockResolvedValue(null) },
+  })),
+}));
 
 type ActionHandler = (args: {
   ack: unknown;
@@ -59,28 +71,10 @@ function makeClient() {
   };
 }
 
-function makeTaskFetchStatus(status: string) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([{ status }]),
-  });
-}
-
-function makeTaskFetchEmpty() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([]),
-  });
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-key';
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
 });
 
 describe('override_take_action handler', () => {
@@ -235,7 +229,7 @@ describe('override_dismiss handler', () => {
 
 describe('override_take_action_modal view handler', () => {
   it('sends employee/override.requested with direction when valid input submitted', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchStatus('Submitting'));
+    mockTaskFindFirst.mockResolvedValue({ id: 'test-task-id', status: 'Submitting' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -310,7 +304,7 @@ describe('override_take_action_modal view handler', () => {
   });
 
   it('does not send event when task is already resolved (terminal state)', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchStatus('Done'));
+    mockTaskFindFirst.mockResolvedValue({ id: 'test-task-id', status: 'Done' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -336,7 +330,7 @@ describe('override_take_action_modal view handler', () => {
   });
 
   it('does not send event when task is not found', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchEmpty());
+    mockTaskFindFirst.mockResolvedValue(null);
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -362,7 +356,7 @@ describe('override_take_action_modal view handler', () => {
   });
 
   it('updates message to processing state after sending event', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchStatus('Submitting'));
+    mockTaskFindFirst.mockResolvedValue({ id: 'test-task-id', status: 'Submitting' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();

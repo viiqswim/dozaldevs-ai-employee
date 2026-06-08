@@ -3,6 +3,18 @@ import type { App } from '@slack/bolt';
 import type { InngestLike } from '../../../../src/gateway/types.js';
 import { registerSlackHandlers } from '../../../../src/gateway/slack/handlers.js';
 
+const { mockTaskFindFirst } = vi.hoisted(() => ({
+  mockTaskFindFirst: vi.fn(),
+}));
+
+vi.mock('@prisma/client', () => ({
+  PrismaClient: vi.fn(() => ({
+    task: { findFirst: mockTaskFindFirst },
+    deliverable: { findFirst: vi.fn().mockResolvedValue(null) },
+    pendingApproval: { findFirst: vi.fn().mockResolvedValue(null) },
+  })),
+}));
+
 type ActionHandler = (args: {
   ack: unknown;
   body: unknown;
@@ -63,20 +75,6 @@ function makeClient() {
   };
 }
 
-function makeTaskFetchReviewing() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([{ status: 'Reviewing' }]),
-  });
-}
-
-function makeTaskFetchNotReviewing() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([{ status: 'Done' }]),
-  });
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -85,7 +83,7 @@ beforeEach(() => {
 
 describe('approve handler', () => {
   it('fires employee/approval.received with action: approve when task is Reviewing', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-123', status: 'Reviewing' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -112,12 +110,10 @@ describe('approve handler', () => {
         id: 'employee-approval-task-123',
       }),
     );
-
-    vi.unstubAllGlobals();
   });
 
   it('does not fire inngest.send when task is not in Reviewing state', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchNotReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-already-done', status: 'Done' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -141,8 +137,6 @@ describe('approve handler', () => {
 
     expect(inngest.send).not.toHaveBeenCalled();
     expect(respond).toHaveBeenCalledWith(expect.objectContaining({ replace_original: true }));
-
-    vi.unstubAllGlobals();
   });
 });
 
@@ -218,7 +212,7 @@ describe('edit_and_send handler', () => {
 
 describe('edit_and_send_modal view handler', () => {
   it('fires approval event with editedContent when text is valid', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-edit-modal-1', status: 'Reviewing' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -262,8 +256,6 @@ describe('edit_and_send_modal view handler', () => {
         id: 'employee-approval-task-edit-modal-1',
       }),
     );
-
-    vi.unstubAllGlobals();
   });
 
   it('returns validation error for empty text without calling inngest.send', async () => {
@@ -340,7 +332,7 @@ describe('reject handler', () => {
 
 describe('reject_modal view handler', () => {
   it('fires rejection event with rejectionReason when reason is provided', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-reject-modal-1', status: 'Reviewing' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -381,12 +373,10 @@ describe('reject_modal view handler', () => {
         }),
       }),
     );
-
-    vi.unstubAllGlobals();
   });
 
   it('fires rejection event without rejectionReason when reason is omitted', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-reject-no-reason', status: 'Reviewing' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -418,12 +408,10 @@ describe('reject_modal view handler', () => {
     expect(inngest.send).toHaveBeenCalled();
     const sentData = inngest.send.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(sentData.data).not.toHaveProperty('rejectionReason');
-
-    vi.unstubAllGlobals();
   });
 
   it('does not fire inngest.send when task is not Reviewing', async () => {
-    vi.stubGlobal('fetch', makeTaskFetchNotReviewing());
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-already-done', status: 'Done' });
 
     const boltApp = makeMockBoltApp();
     const inngest = makeMockInngest();
@@ -442,7 +430,5 @@ describe('reject_modal view handler', () => {
     });
 
     expect(inngest.send).not.toHaveBeenCalled();
-
-    vi.unstubAllGlobals();
   });
 });
