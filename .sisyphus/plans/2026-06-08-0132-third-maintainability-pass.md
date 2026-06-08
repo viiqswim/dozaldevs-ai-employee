@@ -556,7 +556,7 @@ Critical Path: 1 → 5 → 14/15 ; 2 → 6/7 ; 12/13/16/17 → rebuild → Tier 
   - [ ] Playwright: open the wizard, reach the edit step, 0 console errors. Evidence: `.sisyphus/evidence/task-27-wizard.png`
         **Commit**: YES — `refactor(dashboard): decompose CreateEmployeePage edit step + wizard data hook`
 
-- [ ] 28. **Decompose `CompactSettingsGrid.tsx` (reducer + hook)**
+- [x] 28. **Decompose `CompactSettingsGrid.tsx` (reducer + hook)**
 
   **What to do**: Extract `FormState`/`FormAction`/`initForm`/`formReducer` → `compact-settings-form.ts` (co-located); adopt the `useSlackChannels` hook (Task 23). Component keeps render + save/cancel handlers.
   **Must NOT do**: Change the settings fields, edit/view toggle, or save behavior.
