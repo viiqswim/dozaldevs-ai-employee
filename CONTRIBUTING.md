@@ -87,6 +87,27 @@ Shell tools are TypeScript scripts in `src/worker-tools/{service}/` that run ins
 
 ---
 
+## Worker Tools Development
+
+Shell tools in `src/worker-tools/` have their **own `package.json`** and `node_modules` — separate from the root workspace. This is intentional: the tools run inside Docker containers at `/tools/` and need their own isolated dependency tree.
+
+**Local development setup** (required once, and after any `package.json` change):
+
+```bash
+cd src/worker-tools && pnpm install
+```
+
+Without this, TypeScript imports from `@notionhq/client`, `@slack/web-api`, and other tool dependencies will fail to resolve in your editor and during type-checking.
+
+**Key facts:**
+
+- `src/worker-tools/` is **bind-mounted** into local Docker containers — no image rebuild needed for tool-only changes locally. Only changes to `src/workers/` require a rebuild.
+- In Docker (CI and production), `pnpm install` runs automatically inside the container at build time.
+- `pnpm build` (root `tsconfig.build.json`) **excludes** `src/worker-tools/**` — use `tsc --noEmit -p tsconfig.json` (root tsconfig) to type-check tool files.
+- `src/worker-tools/lib/` compiled JS artifacts are gitignored — use `git add -f` if you need to stage new files there.
+
+---
+
 ## Adding a New Employee
 
 The primary path is the dashboard wizard. It generates all archetype fields from a plain-English description.
