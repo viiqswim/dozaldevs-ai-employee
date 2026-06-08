@@ -50,9 +50,6 @@ model Task {
   project           Project?           @relation(fields: [project_id], references: [id])
   executions        Execution[]
   statusLogs        TaskStatusLog[]
-  clarifications    Clarification[]
-  crossDeptTriggers CrossDeptTrigger[]
-  auditLogs         AuditLog[]
   feedbackEvents    FeedbackEvent[]
   taskMetric        TaskMetric?
 
@@ -85,10 +82,9 @@ model Execution {
   deleted_at         DateTime?
 
   // Relations
-  task           Task            @relation(fields: [task_id], references: [id])
-  agentVersion   AgentVersion?   @relation(fields: [agent_version_id], references: [id])
-  validationRuns ValidationRun[]
-  deliverables   Deliverable[]
+  task         Task           @relation(fields: [task_id], references: [id])
+  agentVersion AgentVersion?  @relation(fields: [agent_version_id], references: [id])
+  deliverables Deliverable[]
 
   @@index([task_id])
   @@map("executions")
@@ -108,27 +104,9 @@ model Deliverable {
 
   // Relations
   execution Execution @relation(fields: [execution_id], references: [id])
-  reviews   Review[]
 
   @@index([execution_id])
   @@map("deliverables")
-}
-
-model ValidationRun {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  execution_id String   @db.Uuid
-  stage        String
-  status       String
-  iteration    Int      @default(1)
-  error_output String?
-  duration_ms  Int?
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-
-  // Relations
-  execution Execution @relation(fields: [execution_id], references: [id])
-
-  @@map("validation_runs")
 }
 
 model Project {
@@ -289,22 +267,6 @@ model RiskModel {
   @@map("risk_models")
 }
 
-model CrossDeptTrigger {
-  id                  String   @id @default(uuid()) @db.Uuid
-  source_task_id      String?  @db.Uuid
-  target_archetype_id String?
-  runtime_hint        String?
-  payload             Json?
-  status              String   @default("pending")
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  // Relations
-  sourceTask Task? @relation(fields: [source_task_id], references: [id])
-
-  @@map("cross_dept_triggers")
-}
-
 model AgentVersion {
   id               String   @id @default(uuid()) @db.Uuid
   archetype_id     String?  @db.Uuid
@@ -320,63 +282,8 @@ model AgentVersion {
   archetype        Archetype?  @relation("ArchetypeVersions", fields: [archetype_id], references: [id])
   activeArchetypes Archetype[] @relation("CurrentArchetypeVersion")
   executions       Execution[]
-  reviews          Review[]
-  auditLogs        AuditLog[]
 
   @@map("agent_versions")
-}
-
-model Clarification {
-  id            String    @id @default(uuid()) @db.Uuid
-  task_id       String?   @db.Uuid
-  question      String?
-  answer        String?
-  source_system String?
-  external_ref  String?
-  asked_at      DateTime?
-  answered_at   DateTime?
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
-
-  // Relations
-  task Task? @relation(fields: [task_id], references: [id])
-
-  @@map("clarifications")
-}
-
-model Review {
-  id               String   @id @default(uuid()) @db.Uuid
-  deliverable_id   String?  @db.Uuid
-  reviewer_type    String?
-  agent_version_id String?  @db.Uuid
-  risk_score       Int?
-  verdict          String?
-  comments         String?
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  // Relations
-  deliverable  Deliverable?  @relation(fields: [deliverable_id], references: [id])
-  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
-
-  @@map("reviews")
-}
-
-model AuditLog {
-  id               String   @id @default(uuid()) @db.Uuid
-  task_id          String?  @db.Uuid
-  agent_version_id String?  @db.Uuid
-  api_endpoint     String?
-  http_method      String?
-  response_status  Int?
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  // Relations
-  task         Task?         @relation(fields: [task_id], references: [id])
-  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
-
-  @@map("audit_log")
 }
 
 // ============================================================
