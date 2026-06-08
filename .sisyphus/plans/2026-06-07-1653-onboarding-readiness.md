@@ -1525,7 +1525,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ### WAVE 5 — Documentation + logger convention
 
-- [ ] 27. Document log vs logger convention in CONTRIBUTING.md
+- [x] 27. Document log vs logger convention in CONTRIBUTING.md
 
   **What to do**:
   - Add a "Logger Variable Naming" section: `src/inngest/` and `src/gateway/slack/handlers/` use `const log = createLogger(...)`; `src/gateway/routes/` uses `const logger = createLogger(...)`; historical split, both correct; new files follow their parent directory's convention. Document, do NOT rename.
@@ -1554,7 +1554,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `docs: document log vs logger naming convention`
 
-- [ ] 28. Update AGENTS.md with new components + conventions
+- [x] 28. Update AGENTS.md with new components + conventions
 
   **What to do**:
   - Add new components: `src/inngest/events.ts`, `src/workers/lib/postgrest-types.ts`, `src/gateway/lib/prisma-helpers.ts`, `tests/helpers/lifecycle-mocks.ts`, the new lifecycle steps, `tests/unit/` + `tests/integration/` split.

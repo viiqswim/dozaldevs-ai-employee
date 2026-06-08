@@ -594,3 +594,19 @@ Files: get-checkouts.ts, get-door-code.ts, get-messages.ts, get-properties.ts, g
 **Imports added:** `import { optionalEnv, requireEnv } from '../lib/require-env.js'`
 
 **Verification:** `pnpm build` exits 0, `CI=true pnpm test:unit` → 122 files, 1404 passed, 9 skipped, 0 failures.
+
+## [2026-06-08] Task 27 — Logger convention doc
+
+- `src/inngest/` and `src/gateway/slack/handlers/` use `const log = createLogger(...)` (confirmed in `employee-lifecycle.ts` line 10)
+- `src/gateway/routes/` uses `const logger = createLogger(...)` (confirmed in `admin-archetypes.ts` line 158)
+- Added "Logger Variable Naming" subsection under "Key Conventions" in CONTRIBUTING.md
+- Convention: new files follow parent directory's pattern; do NOT rename existing variables
+- Build clean after doc-only change (no TS files touched)
+
+## [2026-06-07] Task 28 — AGENTS.md update
+
+- Commands table (`pnpm test:unit`, `pnpm test:integration`, `pnpm test:all`, `pnpm test:db:setup`) was already present — no change needed there.
+- `docs/architecture/CURRENT-ARCHITECTURE.md` was already in Reference Documents table — no change needed.
+- Added to Project Structure: `src/gateway/lib/` (prisma-helpers.ts), `src/inngest/events.ts`, `src/workers/lib/postgrest-types.ts`, `tests/helpers/lifecycle-mocks.ts`, `tests/unit/`, `tests/integration/`.
+- Added three Key Conventions: `sendError()`, `requireEnv()`/`optionalEnv()`, `pnpm test` split.
+- Build clean after edits. Committed as `docs: update AGENTS.md with new modules, conventions, test split`.
