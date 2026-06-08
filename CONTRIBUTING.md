@@ -135,12 +135,21 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 
 **Minimum for any Slack trigger workflow change**: single-gateway pre-flight + live @mention → Confirm → Done E2E. See [AGENTS.md](AGENTS.md) — "Plan E2E Validation" section.
 
-### Unit tests
+### Running Tests
+
+| Command                 | Description                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| `pnpm test`             | Unit suite in watch mode (default — re-runs on file changes) |
+| `pnpm test -- --run`    | Unit suite one-shot (used in CI)                             |
+| `pnpm test:unit`        | Explicit one-shot unit suite (same as `test -- --run`)       |
+| `pnpm test:integration` | DB-backed integration suite (requires running Docker)        |
+| `pnpm test:file <path>` | Run a single test file                                       |
+| `pnpm test:coverage`    | Unit suite with coverage report                              |
+
+**Single-file example:**
 
 ```bash
-pnpm test -- --run   # run once (no watch)
-pnpm lint            # ESLint
-pnpm build           # TypeScript compile
+pnpm test:file tests/unit/lib/classify-message.test.ts
 ```
 
 Pre-existing skips: `container-boot.test.ts` skips 4 tests when Docker is unavailable. This is expected.
