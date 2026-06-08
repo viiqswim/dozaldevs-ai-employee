@@ -315,6 +315,45 @@ A few rules that catch most mistakes:
 
 Full conventions: [AGENTS.md](AGENTS.md) — "Key Conventions" section.
 
+### Barrel Files
+
+We do **not** use `index.ts` barrel files. Import modules directly by their full path.
+
+Three intentional exceptions exist and must not be removed:
+
+| File                                   | Purpose                                                   |
+| -------------------------------------- | --------------------------------------------------------- |
+| `src/gateway/slack/handlers/index.ts`  | Registers all Slack action/event handlers on the Bolt app |
+| `src/lib/enrichment-adapters/index.ts` | Exports the enrichment adapter registry                   |
+| `src/lib/model-selection/index.ts`     | Exports the model-selection engine entry point            |
+
+Do not add new barrels. If you find yourself wanting one, export from the specific file instead.
+
+### Swallowed Errors in Bolt Handlers
+
+Slack/Bolt action handlers **must not throw**. If an unhandled exception escapes a Bolt handler, Bolt swallows it silently and the WebSocket connection can break, causing all subsequent Slack interactions to fail.
+
+For this reason, every `catch` block in `src/gateway/slack/handlers/approval-handlers.ts` and `src/gateway/slack/handlers/override-handlers.ts` logs the error and returns without re-throwing. This is intentional, not a code smell.
+
+`src/gateway/lib/socket-mode-lock.ts` uses bare `catch {}` blocks for the same reason: the lock helpers (`readLockPid`, `releaseSocketModeLock`) must never throw during Socket Mode lifecycle events.
+
+**Rule**: In Bolt handler files, always log-and-return in `catch` blocks. Never re-throw. Never leave a `catch` block empty without a comment explaining why.
+
+### Type Assertions (`as unknown as`)
+
+Some external-boundary points require a type assertion because the library's declared types don't match the actual runtime shape. Legitimate uses in this codebase:
+
+- **Bolt `ack` types** — `ack` in action handlers is typed as `() => Promise<void>` but accepts a `replace_original` payload at runtime. Cast: `(ack as unknown as LegacyMessageAck)(...)`.
+- **Prisma `InputJsonValue`** — Prisma's JSON field type doesn't accept plain `object`. Cast the value to `InputJsonValue` at the write boundary.
+- **Node `dirent` compatibility** — `fs.Dirent` shape differences between Node versions require a cast at the call site.
+
+**Rules:**
+
+- Prefer fixing the type over adding a cast. If the library has a more specific type, use it.
+- Never use `as any`. Always cast through `unknown`: `value as unknown as TargetType`.
+- Add a one-line comment explaining why the cast is necessary.
+- Do not add new `as unknown as` casts outside documented external-boundary points without a code review.
+
 ### Logger Variable Naming
 
 Two variable names are used for the logger — both are correct. The split is historical, not intentional:
