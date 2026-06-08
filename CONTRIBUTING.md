@@ -394,6 +394,214 @@ Two variable names are used for the logger — both are correct. The split is hi
 
 ---
 
+## Your First PR
+
+The lowest-risk first change is adding a shell tool. It's self-contained, has a clear checklist, and doesn't touch the lifecycle or gateway. Load the `adding-shell-tools` skill for the full guide, or follow the quick path:
+
+1. Copy `src/worker-tools/_template/example-tool.ts` to `src/worker-tools/{service}/{verb}-{noun}.ts`
+2. Add a fixture at `src/worker-tools/{service}/fixtures/{verb}-{noun}.json`
+3. Run the tool locally in mock mode: `HOSTFULLY_MOCK=true tsx src/worker-tools/{service}/{verb}-{noun}.ts --help`
+4. Add a unit test at `tests/unit/worker-tools/{service}/{verb}-{noun}.test.ts`
+
+**Pre-PR commands (run all three, fix any failures before opening the PR):**
+
+```bash
+pnpm lint
+pnpm build
+pnpm test:unit
+```
+
+**Smoke-test curl** (verify the trigger endpoint is reachable after `pnpm dev`):
+
+```bash
+source .env
+curl -s -X POST \
+  "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/real-estate-motivation-bot-2/trigger" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq '{task_id: .task_id}'
+```
+
+---
+
+## Where to Put Your Test
+
+| What you're testing                                                               | Directory                     | Runner                  |
+| --------------------------------------------------------------------------------- | ----------------------------- | ----------------------- |
+| Pure logic, no DB (lifecycle steps, utilities, service logic, shell tool helpers) | `tests/unit/`                 | `pnpm test:unit`        |
+| Gateway routes, PostgREST writes, full request/response cycles (needs real DB)    | `tests/integration/`          | `pnpm test:integration` |
+| Dashboard React components                                                        | `dashboard/src/**/*.test.tsx` | `pnpm test:dashboard`   |
+| **Never** put tests here                                                          | `tests/gateway/`              | Not picked up by vitest |
+
+**`tests/gateway/` is an orphan directory.** Vitest's include glob is `tests/unit/**` and `tests/integration/**`. Any test file placed directly in `tests/gateway/` will never run. Always use `tests/unit/` or `tests/integration/`.
+
+**Gateway route tests without a real DB** belong in `tests/unit/gateway/routes/` — inject a mock Prisma client via the route factory's `opts.prisma` parameter. No DB required.
+
+---
+
+## Writing Gateway Route Tests
+
+Gateway routes accept an optional injected Prisma client, so you can test them without a real DB. The pattern from `tests/unit/gateway/routes/admin-tasks.test.ts`:
+
+```typescript
+// tests/unit/gateway/routes/my-feature.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import request from 'supertest';
+import express from 'express';
+import { myFeatureRoutes } from '../../../../src/gateway/routes/my-feature.js';
+
+const TENANT = '11111111-1111-4111-8111-111111111111';
+const ADMIN_KEY = 'test-admin-key';
+
+function makeApp(findFirst: ReturnType<typeof vi.fn>) {
+  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  const app = express();
+  app.use(express.json());
+  app.use(
+    myFeatureRoutes({
+      prisma: { myModel: { findFirst } } as never,
+    }),
+  );
+  return app;
+}
+
+describe('GET /admin/tenants/:tenantId/items/:itemId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('401 when X-Admin-Key header missing', async () => {
+    const findFirst = vi.fn();
+    const res = await request(makeApp(findFirst)).get(`/admin/tenants/${TENANT}/items/item-1`);
+    expect(res.status).toBe(401);
+    expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it('400 when tenantId is not a UUID', async () => {
+    const findFirst = vi.fn();
+    const res = await request(makeApp(findFirst))
+      .get('/admin/tenants/not-a-uuid/items/item-1')
+      .set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_REQUEST');
+  });
+
+  it('404 when item does not exist', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const res = await request(makeApp(findFirst))
+      .get(`/admin/tenants/${TENANT}/items/item-1`)
+      .set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'NOT_FOUND' });
+  });
+
+  it('200 + item when found', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'item-1', name: 'Test', tenant_id: TENANT });
+    const res = await request(makeApp(findFirst))
+      .get(`/admin/tenants/${TENANT}/items/item-1`)
+      .set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('item-1');
+    // Assert tenant scoping — the query must include tenant_id
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tenant_id: TENANT }) }),
+    );
+  });
+
+  it('500 when prisma throws', async () => {
+    const findFirst = vi.fn().mockRejectedValue(new Error('DB down'));
+    const res = await request(makeApp(findFirst))
+      .get(`/admin/tenants/${TENANT}/items/item-1`)
+      .set('X-Admin-Key', ADMIN_KEY);
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'INTERNAL_ERROR' });
+  });
+});
+```
+
+**Key rules for route tests:**
+
+- Cast the partial mock as `never` to satisfy TypeScript: `{ myModel: { findFirst } } as never`
+- Always assert that `findFirst` was NOT called on auth failures (proves middleware ran first)
+- Always assert `tenant_id` is in the `where` clause (proves multi-tenancy is enforced)
+- Use `vi.clearAllMocks()` in `beforeEach` — not `vi.resetAllMocks()` (reset wipes implementations)
+- Run with `pnpm test:unit` (exits cleanly). Never use `pnpm test -- --run` (stays in watch mode)
+
+---
+
+## Writing Shell Tool Tests
+
+Shell tools are TypeScript CLI scripts. Because they read from `process.argv` and call external APIs, the cleanest test approach is to extract the pure logic into testable functions and test those directly, rather than spawning the CLI.
+
+Pattern from `tests/unit/worker-tools/hostfully/get-messages-sender.test.ts`:
+
+```typescript
+// tests/unit/worker-tools/{service}/{verb}-{noun}.test.ts
+import { describe, it, expect } from 'vitest';
+
+// Mirror the exact expression from the tool — test the logic, not the CLI
+function mapSenderToOutput(senderType: string | undefined | null): 'guest' | 'host' | null {
+  return senderType === 'AGENCY' ? 'host' : senderType ? 'guest' : null;
+}
+
+describe('{verb}-{noun} — {description}', () => {
+  it('maps AGENCY to host', () => {
+    expect(mapSenderToOutput('AGENCY')).toBe('host');
+  });
+
+  it('maps GUEST to guest', () => {
+    expect(mapSenderToOutput('GUEST')).toBe('guest');
+  });
+
+  it('returns null for undefined', () => {
+    expect(mapSenderToOutput(undefined)).toBe(null);
+  });
+});
+```
+
+For tools that call external APIs, use the mock fixture path (`HOSTFULLY_MOCK=true`, `SIFELY_MOCK=true`, etc.) to avoid real network calls. The mock mode reads from `fixtures/{verb}-{noun}.json` and returns it verbatim.
+
+**When to use mock mode in tests vs. mirroring logic:**
+
+- **Mirror logic** (copy the expression into the test file): when the function is a pure transformation (mapping, filtering, formatting). No imports needed.
+- **Mock mode** (set `process.env.HOSTFULLY_MOCK = 'true'` and import the tool): when you need to test the full CLI output shape, argument parsing, or `--help` output.
+
+**Run shell tool tests:** `pnpm test:unit` (they live in `tests/unit/worker-tools/` and are picked up by the root vitest glob).
+
+---
+
+## Logger Naming and `vi.stubGlobal('setTimeout')`
+
+### `log` vs `logger`
+
+Two variable names exist for the logger. Both are correct — the split is by directory:
+
+| Directory                     | Variable name                      | Example            |
+| ----------------------------- | ---------------------------------- | ------------------ |
+| `src/inngest/`                | `const log = createLogger(...)`    | `log.info(...)`    |
+| `src/gateway/slack/handlers/` | `const log = createLogger(...)`    | `log.info(...)`    |
+| `src/gateway/routes/`         | `const logger = createLogger(...)` | `logger.info(...)` |
+
+**Rule**: when adding a new file, follow the convention of its parent directory. Do not rename existing variables.
+
+### `vi.stubGlobal('setTimeout')` in lifecycle tests
+
+The lifecycle inserts real delays (post-delivery settle waits, poll loops). To prevent tests from waiting on wall-clock time, stub `setTimeout` so callbacks fire synchronously:
+
+```typescript
+vi.stubGlobal('setTimeout', (fn: (...args: unknown[]) => void) => {
+  fn();
+  return 0 as unknown as NodeJS.Timeout;
+});
+// pair with vi.unstubAllGlobals() in afterEach
+```
+
+For code that loops on a deadline (e.g. `killAndWait` in `dev-preflight`), use `vi.useFakeTimers()` + `await vi.advanceTimersByTimeAsync(ms)` instead. The async variant flushes awaited microtasks between timer fires. Always pair with `vi.useRealTimers()` in `afterEach`.
+
+**`pnpm test:unit` vs `pnpm test -- --run`**: always use `pnpm test:unit`. The `pnpm test -- --run` form does not reliably pass `--run` through the pnpm argument separator and can leave vitest in watch mode, blocking any `&&` chain.
+
+---
+
 ## Git Rules
 
 - Never use `--no-verify`
