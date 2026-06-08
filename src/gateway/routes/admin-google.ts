@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { _resetCacheForTest } from '../services/google-token-manager.js';
+import { clearTokenCache } from '../services/google-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 
 export interface AdminGoogleRouteOptions {
@@ -51,7 +51,7 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
         }
       }
 
-      _resetCacheForTest();
+      clearTokenCache(tenantId);
 
       logger.info({ tenantId }, 'Google integration disconnected');
       res.status(200).json({ disconnected: true, tenant_id: tenantId });

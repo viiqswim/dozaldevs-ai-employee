@@ -8,15 +8,7 @@ export interface ClassifyResult {
   conversationSummary: string | null;
   urgency: boolean;
   displayContext?: Record<string, string>;
-  guestName?: string;
-  propertyName?: string;
-  checkIn?: string;
-  checkOut?: string;
-  bookingChannel?: string;
-  originalMessage?: string;
-  leadUid?: string;
-  threadUid?: string;
-  messageUid?: string;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -109,9 +101,29 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     responseText.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? responseText.match(/(\{[\s\S]+\})/);
   const jsonString = jsonMatch?.[1] ?? responseText;
 
-  let parsed: Partial<ClassifyResult & { displayContext?: Record<string, string> }>;
+  interface LegacyParsed {
+    classification?: string;
+    confidence?: number;
+    reasoning?: string;
+    draftResponse?: string;
+    summary?: string;
+    category?: string;
+    conversationSummary?: string | null;
+    urgency?: boolean;
+    displayContext?: Record<string, string>;
+    guestName?: string;
+    propertyName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    bookingChannel?: string;
+    originalMessage?: string;
+    leadUid?: string;
+    threadUid?: string;
+    messageUid?: string;
+  }
+  let parsed: LegacyParsed;
   try {
-    parsed = JSON.parse(jsonString) as Partial<ClassifyResult>;
+    parsed = JSON.parse(jsonString) as LegacyParsed;
   } catch {
     return {
       classification: 'NEEDS_APPROVAL',
@@ -148,6 +160,18 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
 
   const displayContext = explicitDisplayContext ?? synthesizedDisplayContext;
 
+  const guestContext: Record<string, unknown> = {};
+  if (parsed.guestName !== undefined) guestContext['guestName'] = parsed.guestName;
+  if (parsed.propertyName !== undefined) guestContext['propertyName'] = parsed.propertyName;
+  if (parsed.checkIn !== undefined) guestContext['checkIn'] = parsed.checkIn;
+  if (parsed.checkOut !== undefined) guestContext['checkOut'] = parsed.checkOut;
+  if (parsed.bookingChannel !== undefined) guestContext['bookingChannel'] = parsed.bookingChannel;
+  if (parsed.originalMessage !== undefined)
+    guestContext['originalMessage'] = parsed.originalMessage;
+  if (parsed.leadUid !== undefined) guestContext['leadUid'] = parsed.leadUid;
+  if (parsed.threadUid !== undefined) guestContext['threadUid'] = parsed.threadUid;
+  if (parsed.messageUid !== undefined) guestContext['messageUid'] = parsed.messageUid;
+
   return {
     classification,
     confidence: Math.min(1.0, Math.max(0.0, parsed.confidence ?? 0.5)),
@@ -160,14 +184,6 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
     conversationSummary: parsed.conversationSummary ?? null,
     urgency: parsed.urgency === true,
     ...(displayContext !== undefined && { displayContext }),
-    ...(parsed.guestName !== undefined && { guestName: parsed.guestName }),
-    ...(parsed.propertyName !== undefined && { propertyName: parsed.propertyName }),
-    ...(parsed.checkIn !== undefined && { checkIn: parsed.checkIn }),
-    ...(parsed.checkOut !== undefined && { checkOut: parsed.checkOut }),
-    ...(parsed.bookingChannel !== undefined && { bookingChannel: parsed.bookingChannel }),
-    ...(parsed.originalMessage !== undefined && { originalMessage: parsed.originalMessage }),
-    ...(parsed.leadUid !== undefined && { leadUid: parsed.leadUid }),
-    ...(parsed.threadUid !== undefined && { threadUid: parsed.threadUid }),
-    ...(parsed.messageUid !== undefined && { messageUid: parsed.messageUid }),
+    ...(Object.keys(guestContext).length > 0 && { context: guestContext }),
   };
 }

@@ -362,15 +362,15 @@ describe('parseClassifyResponse', () => {
       messageUid: 'aabbccdd-1234-5678-abcd-ef0123456789',
     });
     const result = parseClassifyResponse(input);
-    expect(result.guestName).toBe('Maria Garcia');
-    expect(result.propertyName).toBe('Beachfront Villa');
-    expect(result.checkIn).toBe('2026-05-10');
-    expect(result.checkOut).toBe('2026-05-17');
-    expect(result.bookingChannel).toBe('AIRBNB');
-    expect(result.originalMessage).toBe('Hi, can I check in early around noon?');
-    expect(result.leadUid).toBe('37f5f58f-d308-42bf-8ed3-f0c2d70f16fb');
-    expect(result.threadUid).toBe('2f18249a-9523-4acd-a512-20ff06d5c3fa');
-    expect(result.messageUid).toBe('aabbccdd-1234-5678-abcd-ef0123456789');
+    expect(result.context?.['guestName']).toBe('Maria Garcia');
+    expect(result.context?.['propertyName']).toBe('Beachfront Villa');
+    expect(result.context?.['checkIn']).toBe('2026-05-10');
+    expect(result.context?.['checkOut']).toBe('2026-05-17');
+    expect(result.context?.['bookingChannel']).toBe('AIRBNB');
+    expect(result.context?.['originalMessage']).toBe('Hi, can I check in early around noon?');
+    expect(result.context?.['leadUid']).toBe('37f5f58f-d308-42bf-8ed3-f0c2d70f16fb');
+    expect(result.context?.['threadUid']).toBe('2f18249a-9523-4acd-a512-20ff06d5c3fa');
+    expect(result.context?.['messageUid']).toBe('aabbccdd-1234-5678-abcd-ef0123456789');
   });
 
   // ─── 16. Guest context fields — absent → undefined (backward compat) ─────
@@ -387,15 +387,15 @@ describe('parseClassifyResponse', () => {
       urgency: false,
     });
     const result = parseClassifyResponse(input);
-    expect(result.guestName).toBeUndefined();
-    expect(result.propertyName).toBeUndefined();
-    expect(result.checkIn).toBeUndefined();
-    expect(result.checkOut).toBeUndefined();
-    expect(result.bookingChannel).toBeUndefined();
-    expect(result.originalMessage).toBeUndefined();
-    expect(result.leadUid).toBeUndefined();
-    expect(result.threadUid).toBeUndefined();
-    expect(result.messageUid).toBeUndefined();
+    expect(result.context?.['guestName']).toBeUndefined();
+    expect(result.context?.['propertyName']).toBeUndefined();
+    expect(result.context?.['checkIn']).toBeUndefined();
+    expect(result.context?.['checkOut']).toBeUndefined();
+    expect(result.context?.['bookingChannel']).toBeUndefined();
+    expect(result.context?.['originalMessage']).toBeUndefined();
+    expect(result.context?.['leadUid']).toBeUndefined();
+    expect(result.context?.['threadUid']).toBeUndefined();
+    expect(result.context?.['messageUid']).toBeUndefined();
   });
 
   describe('displayContext', () => {

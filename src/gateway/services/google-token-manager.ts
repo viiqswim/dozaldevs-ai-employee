@@ -52,6 +52,15 @@ export function _resetCacheForTest(): void {
   _tokenCache.clear();
 }
 
+/** Clear the in-memory token cache. Call when a tenant's Google credentials are revoked or disconnected. */
+export function clearTokenCache(tenantId?: string): void {
+  if (tenantId !== undefined) {
+    _tokenCache.delete(tenantId);
+  } else {
+    _tokenCache.clear();
+  }
+}
+
 export async function getGoogleAccessToken(
   tenantId: string,
   prisma: PrismaClient,
