@@ -990,7 +990,9 @@ async function main(): Promise<void> {
   await runExecutionPhase(task, archetype);
 }
 
-main().catch((err) => {
-  log.error({ taskId: TASK_ID, err }, '[opencode-harness] Unhandled error in main');
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    log.error({ taskId: TASK_ID, err }, '[opencode-harness] Unhandled error in main');
+    process.exit(1);
+  });
+}

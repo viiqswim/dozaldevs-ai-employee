@@ -695,10 +695,12 @@ async function main(): Promise<void> {
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
-main().catch((err) => {
-  fail(`Unhandled error: ${err instanceof Error ? err.message : String(err)}`);
-  if (err instanceof Error && err.stack) {
-    console.error(C.dim + err.stack + C.reset);
-  }
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    fail(`Unhandled error: ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof Error && err.stack) {
+      console.error(C.dim + err.stack + C.reset);
+    }
+    process.exit(1);
+  });
+}
