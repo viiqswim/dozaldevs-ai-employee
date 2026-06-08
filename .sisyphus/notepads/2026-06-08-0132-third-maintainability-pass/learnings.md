@@ -455,10 +455,12 @@ write / end, lines 98-206) is not JSON — left as-is.
 ## Task 18 — slack-input-collector + interaction early-exits
 
 ### Files created
+
 - `src/inngest/slack-input-collector.ts` — `createSlackInputCollectorFunction` extracted from `slack-trigger-handler.ts` (lines 342-489 → new file)
 - `src/inngest/lib/interaction-helpers.ts` — `runPreClassificationShortCircuits()` containing all 4 pre-classification steps extracted from `interaction-handler.ts` (lines 70-287 → new file)
 
 ### Key findings
+
 1. **Two test files needed updating**: `slack-input-collector.test.ts` imported from `slack-trigger-handler.js` (old location); `slack-trigger-handler.test.ts` had `createSlackInputCollectorFunction` bundled in the same import. Both fixed to point to new locations.
 2. **`prettifyRoleName` import**: `slack-input-collector.ts` imports `prettifyRoleName` from `slack-trigger-handler.ts` (pure function, no side effects). Circular-looking but fine — handler depends on collector, not the other way round.
 3. **`interaction-helpers.ts` design**: Single `runPreClassificationShortCircuits(step, params)` function returning `'handled' | 'continue'`. Same logger name `'interaction-handler'` preserved for operational continuity. `supabaseUrl`/`supabaseKey` declared at module level via `requireEnv` (same pattern as the original file).
@@ -466,6 +468,7 @@ write / end, lines 98-206) is not JSON — left as-is.
 5. **Resulting line counts**: `interaction-handler.ts` = 361 lines (was 570; −209). Both new files ≈165-215 lines.
 
 ### Verification
+
 - pnpm build: EXIT_CODE 0
 - pnpm test:unit: 125 files, 1425 passed, 9 skipped, 0 failures
 - pnpm test:integration: 47 files passed, 1 pre-existing failure (opencode-harness-metrics)
@@ -475,16 +478,19 @@ write / end, lines 98-206) is not JSON — left as-is.
 ## Task 19+20 — DB backup + schema cleanup
 
 ### Backup
+
 - Full dump: `database-backups/2026-06-08-0422/full-dump.sql` (23224 lines)
 - Data-only dumps for all 5 tables also in that directory
 - All 5 tables had 0 rows — safe to drop
 
 ### Reference Audit
+
 - grep-based audit across entire `src/` — 0 active references to ValidationRun, AuditLog, CrossDeptTrigger, Clarification
 - `get-reviews.ts` references `j.reviews` which is the Hostfully API JSON field, NOT the DB `reviews` table
 - Prisma LSP unavailable (asdf toolchain restriction) — grep audit is sufficient
 
 ### Migration Approach
+
 - `prisma migrate dev` fails with shadow DB error (P3006/P1014) in this Docker Compose setup
 - The shadow DB setup tries to replay all migrations from scratch but `add_rls_policies` fails
 - Workaround: `prisma migrate diff --from-url ... --to-schema-datamodel --script` generates clean SQL
@@ -493,20 +499,24 @@ write / end, lines 98-206) is not JSON — left as-is.
 - This is safe and produces the same result — verified by Tier A smoke test
 
 ### Migration SQL
+
 - NO CASCADE — 7 DropForeignKey + 5 DropTable statements (plain)
 - Note from diff output: minor `AlterTable` for `platform_settings` and `task_metrics` (column type normalization) — excluded from migration file as they were already applied by previous migrations
 
 ### Schema Changes
+
 Models removed: ValidationRun, CrossDeptTrigger, Clarification, Review, AuditLog
 Back-relations removed: Task.clarifications, Task.crossDeptTriggers, Task.auditLogs, Execution.validationRuns, Deliverable.reviews, AgentVersion.reviews, AgentVersion.auditLogs
 
 ### Verification
+
 - All 5 tables return PGRST205 via PostgREST (confirmed dropped)
 - tasks survivor table resolves fine
 - `pnpm build` clean (0 errors)
 - Tier A: task 07fa8b62 → Done
 
 ### Commit
+
 `chore(db): drop 5 dead forward-compat tables (orchestrate.mts remnants)` — 2 files, 38 insertions, 96 deletions
 
 ## Task 23 — useSlackChannels hook
@@ -518,3 +528,31 @@ Back-relations removed: Task.clarifications, Task.crossDeptTriggers, Task.auditL
 - **Build**: `pnpm dashboard:build` → EXIT_CODE:0, 2181 modules, no new warnings
 - **Screenshots**: `.sisyphus/evidence/task-23-create.png` and `task-23-settings.png` — zero application errors on both pages
 - **Task 28 readiness**: hook is exported cleanly as `useSlackChannels` from `@/hooks/use-slack-channels` — Task 28 (CompactSettingsGrid decomposition) can import it directly
+
+## Task 27 — CreateEmployeePage decomposition
+
+### Files created/modified
+
+- `dashboard/src/panels/employees/components/WizardEditStep.tsx` (332 lines) — full edit-step JSX extracted; exports `EditedFields` interface for use in parent
+- `dashboard/src/hooks/use-wizard-data.ts` (92 lines) — 3 data-fetching effects + state (githubConnected, repos, repoUrl, reposLoading, reposError + URL-sync effect)
+- `dashboard/src/panels/employees/CreateEmployeePage.tsx` trimmed from 593 → 269 lines (-55%)
+
+### Key design decisions
+
+1. **`EditedFields` exported from `WizardEditStep.tsx`** — avoids a separate shared-types file; parent imports `type EditedFields` directly from the component. This is idiomatic React — co-locate types with the component that owns them.
+2. **`useSearchParams` moved to `use-wizard-data`** — the only consumer of `searchParams`/`setSearchParams` was the `repoUrl` URL-sync effect; no orphan import in parent.
+3. **`setEditedFields` prop typed as `Dispatch<SetStateAction<EditedFields>>`** — required because the edit step uses functional updaters `(f) => ({ ...f, field: value })`. Plain `(fields: EditedFields) => void` would not accept functional updates.
+4. **`slackError` prop typed as `string | undefined`** (not `string | null`) — matches `useSlackChannels` return type exactly; WizardEditStep already handled `undefined` as falsy.
+5. **Task 23 already landed** before this task ran — `useSlackChannels` was already imported and used in the file. No duplication.
+
+### Gotcha: parallel agent file writes
+
+- A parallel agent was modifying `CreateEmployeePage.tsx` concurrently — file modification timestamp updated 3x during the write attempt. Workaround: read immediately before writing (last-read check).
+
+### Verification
+
+- `wc -l dashboard/src/panels/employees/CreateEmployeePage.tsx` → 269 lines (< 300 ✓)
+- `pnpm dashboard:build` → EXIT_CODE:0, 2187 modules, no new errors
+- Pre-existing error: `dashboard/src/components/InputSchemaEditor.tsx` (dead duplicate) — not introduced
+- Pre-existing console error: `/api/config.js 404` — not introduced
+- Screenshot: `.sisyphus/evidence/task-27-wizard.png` — wizard loads at describe step, 0 application errors
