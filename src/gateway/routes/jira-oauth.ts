@@ -13,6 +13,7 @@ import {
 } from '../../lib/jira-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
 import {
   JIRA_CLIENT_ID,
   JIRA_CLIENT_SECRET,
@@ -104,17 +105,19 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
       const redirectBase = JIRA_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/jira/callback`;
 
-      const tokenRes = await fetch(JIRA_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grant_type: 'authorization_code',
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
+      const tokenRes = await withRetry(() =>
+        fetch(JIRA_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grant_type: 'authorization_code',
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+          }),
         }),
-      });
+      );
 
       const tokenData = (await tokenRes.json()) as {
         access_token?: string;
@@ -129,12 +132,14 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
         return;
       }
 
-      const resourcesRes = await fetch(JIRA_ACCESSIBLE_RESOURCES_URL, {
-        headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-          Accept: 'application/json',
-        },
-      });
+      const resourcesRes = await withRetry(() =>
+        fetch(JIRA_ACCESSIBLE_RESOURCES_URL, {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            Accept: 'application/json',
+          },
+        }),
+      );
 
       const resources = (await resourcesRes.json()) as Array<{
         id: string;

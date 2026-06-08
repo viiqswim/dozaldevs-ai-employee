@@ -7,6 +7,7 @@ import { TenantSecretRepository } from '../../repositories/tenant-secret-reposit
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
 import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
@@ -132,17 +133,19 @@ export function googleOAuthRoutes(opts: GoogleOAuthRouteOptions = {}): Router {
 
       const redirectUri = `${redirectBase}/integrations/google/callback`;
 
-      const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
+      const tokenRes = await withRetry(() =>
+        fetch(GOOGLE_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code',
+          }),
         }),
-      });
+      );
 
       const tokenData = (await tokenRes.json()) as {
         access_token?: string;

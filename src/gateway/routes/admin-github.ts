@@ -8,6 +8,7 @@ import { generateInstallationToken, generateAppJwt } from '../services/github-to
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
+import { createGitHubClient } from '../../lib/github-client.js';
 
 export interface AdminGithubRouteOptions {
   prisma?: PrismaClient;
@@ -44,24 +45,13 @@ interface GitHubInstallationReposResponse {
 }
 
 async function fetchAllRepos(token: string): Promise<GitHubRepo[]> {
+  const client = createGitHubClient({ token });
   const repos: GitHubRepo[] = [];
   let url: string | null = 'https://api.github.com/installation/repositories?per_page=100';
 
   while (url) {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
+    const { data, headers } = await client.get<GitHubInstallationReposResponse>(url);
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`GitHub API returned ${response.status}: ${body}`);
-    }
-
-    const data = (await response.json()) as GitHubInstallationReposResponse;
     for (const repo of data.repositories) {
       repos.push({
         full_name: repo.full_name,
@@ -71,8 +61,7 @@ async function fetchAllRepos(token: string): Promise<GitHubRepo[]> {
       });
     }
 
-    const linkHeader = response.headers.get('Link');
-    url = parseNextLink(linkHeader);
+    url = parseNextLink(headers.get('Link'));
   }
 
   return repos;
@@ -172,29 +161,15 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
         return;
       }
 
+      const installationsClient = createGitHubClient({ token: jwt });
       const installations: GitHubInstallation[] = [];
       let url: string | null = 'https://api.github.com/app/installations?per_page=100';
 
       try {
         while (url) {
-          const response = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${jwt}`,
-              Accept: 'application/vnd.github+json',
-              'X-GitHub-Api-Version': '2022-11-28',
-            },
-          });
-
-          if (!response.ok) {
-            const body = await response.text();
-            throw new Error(`GitHub API returned ${response.status}: ${body}`);
-          }
-
-          const data = (await response.json()) as GitHubInstallation[];
+          const { data, headers } = await installationsClient.get<GitHubInstallation[]>(url);
           installations.push(...data);
-
-          const linkHeader = response.headers.get('Link');
-          url = parseNextLink(linkHeader);
+          url = parseNextLink(headers.get('Link'));
         }
       } catch (err) {
         logger.error({ err, tenantId }, 'Failed to fetch GitHub App installations');
@@ -261,28 +236,12 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
       }
 
       try {
-        const verifyResponse = await fetch(
+        const verifyClient = createGitHubClient({ token: jwt });
+        await verifyClient.get<GitHubInstallation>(
           `https://api.github.com/app/installations/${installation_id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${jwt}`,
-              Accept: 'application/vnd.github+json',
-              'X-GitHub-Api-Version': '2022-11-28',
-            },
-          },
         );
-
-        if (!verifyResponse.ok) {
-          const body = await verifyResponse.text();
-          logger.warn(
-            { tenantId, installation_id, status: verifyResponse.status },
-            'GitHub installation not found',
-          );
-          sendError(res, 502, `GitHub installation not found: ${verifyResponse.status} ${body}`);
-          return;
-        }
       } catch (err) {
-        logger.error({ err, tenantId }, 'Failed to verify GitHub installation');
+        logger.warn({ err, tenantId, installation_id }, 'GitHub installation not found');
         sendError(res, 502, 'Failed to verify GitHub installation');
         return;
       }

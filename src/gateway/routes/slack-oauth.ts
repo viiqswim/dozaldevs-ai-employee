@@ -8,6 +8,7 @@ import { TenantIntegrationRepository } from '../services/tenant-integration-repo
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
 import {
   SLACK_CLIENT_ID,
   SLACK_CLIENT_SECRET,
@@ -88,16 +89,18 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       }
       const redirectBase = SLACK_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
-      const tokenRes = await fetch('https://slack.com/api/oauth.v2.access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
-        }).toString(),
-      });
+      const tokenRes = await withRetry(() =>
+        fetch('https://slack.com/api/oauth.v2.access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+          }).toString(),
+        }),
+      );
       const tokenData = (await tokenRes.json()) as {
         ok: boolean;
         access_token?: string;

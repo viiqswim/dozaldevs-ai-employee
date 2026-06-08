@@ -8,6 +8,7 @@ import { TenantIntegrationRepository } from '../services/tenant-integration-repo
 import { NOTION_AUTH_URL, NOTION_TOKEN_URL } from '../../lib/notion-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
 import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
 import {
   NOTION_CLIENT_ID,
   NOTION_CLIENT_SECRET,
@@ -98,18 +99,20 @@ export function notionOAuthRoutes(opts: NotionOAuthRouteOptions = {}): Router {
       const redirectUri = `${redirectBase}/integrations/notion/callback`;
 
       const basicCredentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-      const tokenRes = await fetch(NOTION_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${basicCredentials}`,
-        },
-        body: JSON.stringify({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri,
+      const tokenRes = await withRetry(() =>
+        fetch(NOTION_TOKEN_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${basicCredentials}`,
+          },
+          body: JSON.stringify({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: redirectUri,
+          }),
         }),
-      });
+      );
 
       const tokenData = (await tokenRes.json()) as {
         access_token?: string;

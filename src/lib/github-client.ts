@@ -46,6 +46,7 @@ export interface GitHubClient {
   createPR(params: CreatePRParams): Promise<GitHubPR>;
   listPRs(params: ListPRsParams): Promise<GitHubPR[]>;
   getPR(params: GetPRParams): Promise<GitHubPR>;
+  get<T>(url: string): Promise<{ data: T; headers: Headers }>;
 }
 
 /**
@@ -132,9 +133,6 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
     return response.json() as Promise<T>;
   }
 
-  /**
-   * Wrapper around makeRequest that applies retry logic.
-   */
   async function makeRequestWithRetry<T>(
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
@@ -145,6 +143,45 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
       baseDelayMs: 1000,
       retryOn: (error) => error instanceof RateLimitExceededError,
     });
+  }
+
+  async function authenticatedGet<T>(url: string): Promise<{ data: T; headers: Headers }> {
+    return withRetry(
+      async () => {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        });
+
+        if (isRateLimit(response)) {
+          const retryAfterMs = getRetryAfterMs(response);
+          throw new RateLimitExceededError(`GitHub API rate limit exceeded on GET ${url}`, {
+            service: 'github',
+            attempts: 1,
+            retryAfterMs,
+          });
+        }
+
+        if (!response.ok) {
+          throw new ExternalApiError(
+            `GitHub API error: ${response.status} ${response.statusText} on GET ${url}`,
+            { service: 'github', statusCode: response.status, endpoint: url },
+          );
+        }
+
+        const data = (await response.json()) as T;
+        return { data, headers: response.headers };
+      },
+      {
+        maxAttempts: 3,
+        baseDelayMs: 1000,
+        retryOn: (error) => error instanceof RateLimitExceededError,
+      },
+    );
   }
 
   return {
@@ -175,6 +212,10 @@ export function createGitHubClient(config: GitHubClientConfig): GitHubClient {
       const path = `/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`;
 
       return makeRequestWithRetry<GitHubPR>('GET', path);
+    },
+
+    get<T>(url: string): Promise<{ data: T; headers: Headers }> {
+      return authenticatedGet<T>(url);
     },
   };
 }
