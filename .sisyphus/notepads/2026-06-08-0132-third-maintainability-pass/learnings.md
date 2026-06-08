@@ -214,3 +214,25 @@ src/gateway/services/{tenant-env-loader,notification-channel,tenant-repository,t
 module-resolution errors. When verifying in this shared tree, scope tests to the files YOUR
 task owns (here: tests/unit|integration/worker-tools/hostfully/) and rely on `pnpm build`
 exit 0 for repo-wide type safety. Do NOT try to "fix" the gateway test failures — not your scope.
+
+## Task 12 — validate-and-submit decomposition (2026-06-08)
+
+### Files created
+- `src/inngest/lifecycle/steps/lifecycle-helpers.ts` (110 lines) — cleanupExecutionMachine + safeRecordWorkMetric
+- `src/inngest/lifecycle/steps/no-approval-path.ts` (294 lines) — !approvalRequired path
+- `src/inngest/lifecycle/steps/override-card.ts` (315 lines) — NO_ACTION_NEEDED + approval_required=true
+- `src/inngest/lifecycle/steps/reviewing-path.ts` (521 lines) — full reviewing/approval path
+- `src/inngest/lifecycle/steps/validate-and-submit.ts` trimmed to 130 lines (thin sequencer)
+
+### Key findings
+1. **Cleanup blocks**: 4 of 5 are identical (lines 125, 249, 264, 405) → extracted to cleanupExecutionMachine. Line 1097 uses `WORKER_RUNTIME !== 'fly' || machineId.startsWith('docker_')` — different condition, stays inline.
+2. **Metric blocks**: 5 of 6 are identical (lines 194, 242, 372, 557, 602) → extracted to safeRecordWorkMetric. Line 1082 has a status check before recording — stays inline.
+3. **runOverrideCardPath returns boolean** (not void) — critical design decision. Returning void would require a new `check-task-done-after-override` step that would break existing tests asserting `set-reviewing` is NOT called when skipApproval=true. The boolean return lets the sequencer gate the reviewing path without adding a new Inngest step.
+4. **All step IDs preserved byte-for-byte** — verified by grep before and after.
+5. **Pre-existing integration failures**: opencode-harness-metrics.test.ts (7 failures) — unrelated to lifecycle steps, pre-existing.
+
+### Verification
+- pnpm build: EXIT_CODE 0
+- pnpm test:unit: 125 files, 1425 tests pass
+- pnpm test:integration: 47 files pass, 1 pre-existing failure (opencode-harness-metrics)
+- Evidence: .sisyphus/evidence/task-12-tierB-decomp.txt
