@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { sendTaskReceivedEvent } from '../../src/gateway/inngest/send.js';
-import type { InngestLike } from '../../src/gateway/server.js';
+import { sendTaskReceivedEvent } from '../../../src/gateway/inngest/send.js';
+import type { InngestLike } from '../../../src/gateway/server.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
