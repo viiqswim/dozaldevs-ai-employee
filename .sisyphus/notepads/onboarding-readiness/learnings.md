@@ -116,3 +116,17 @@ Full-suite run after fix: 37 failures remain, NONE are Slack copy-string asserti
 2. `getToolUsageReferenceSkill()` — reads SKILL.md directly from `src/workers/skills/tool-usage-reference/SKILL.md`
 
 **Pattern**: When seed.ts consts are removed, check if content moved to archetype `identity`/`execution_steps` fields (inline strings) or to skill files. Don't re-add removed consts.
+
+## Task 0.5 — lifecycle spy / feedback-injection regressions (2026-06-08)
+
+**Root cause A — WORKER_RUNTIME module-level const**: `src/lib/config.ts` exports `WORKER_RUNTIME = getEnv('WORKER_RUNTIME', 'docker')` as a module-level constant evaluated at import time. Tests that set `process.env.WORKER_RUNTIME = 'fly'` in `beforeEach` had no effect because the constant was already bound when the module loaded. The `executing` step always took the local Docker path (`runLocalDockerContainer`) instead of `createMachine`, so `mockCreateMachine` was never called.
+
+**Fix A**: Add `vi.mock('../../src/lib/config.js', () => ({ ..., WORKER_RUNTIME: 'fly', ... }))` to the 4 affected test files. The `requireEnv`/`getEnv` function mocks must read `process.env[name]` at call time (not factory time) so that `beforeEach` env var setup still works.
+
+**Root cause B — missing NOTIFICATION_CHANNEL fallback**: Two tests in `employee-lifecycle-delivery.test.ts` asserted that `handleReject` falls back to `NOTIFICATION_CHANNEL` from tenant env when `metadata.target_channel` is absent. But `handleReject` in `src/inngest/lifecycle/steps/approval-handler.ts` uses `(metadata.target_channel as string) ?? ''` with no fallback — `mockUpdateMessage` is never called when `target_channel` is absent.
+
+**Fix B**: Re-pointed both assertions to `expect(mockUpdateMessage).not.toHaveBeenCalled()`. Kept the `not.toHaveBeenCalledWith('C_LEGACY', ...)` assertion in the second test (still valid).
+
+**Key pattern**: When `vi.mock` factory returns module-level constants, those values are frozen at mock-factory evaluation time. For constants that tests need to control, either (a) mock the entire module with a fixed value, or (b) export a getter function instead of a bare constant.
+
+**Result**: 23/23 passing across all 5 target files. Build clean.

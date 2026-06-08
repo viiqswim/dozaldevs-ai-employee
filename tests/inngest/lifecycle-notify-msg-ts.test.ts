@@ -70,6 +70,20 @@ vi.mock('../../src/lib/platform-settings.js', () => ({
   validateRequiredPlatformSettings: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../src/lib/config.js', () => ({
+  requireEnv: (name: string) => {
+    const val = process.env[name];
+    if (!val) throw new Error(`Missing required environment variable: ${name}`);
+    return val;
+  },
+  getEnv: (name: string, def: string) => process.env[name] ?? def,
+  INNGEST_EVENT_KEY: 'local',
+  INNGEST_BASE_URL: 'http://localhost:8288',
+  GATEWAY_URL: '',
+  WORKER_RUNTIME: 'fly',
+  FLY_WORKER_IMAGE: 'registry.fly.io/ai-employee-workers:latest',
+}));
+
 const TEST_TASK_ID = '33333333-3333-3333-3333-333333333333';
 const TEST_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const TEST_ARCHETYPE_ID = '00000000-0000-0000-0000-000000000012';

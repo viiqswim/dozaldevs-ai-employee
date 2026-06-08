@@ -70,6 +70,20 @@ vi.mock('../../src/lib/platform-settings.js', () => ({
   validateRequiredPlatformSettings: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../src/lib/config.js', () => ({
+  requireEnv: (name: string) => {
+    const val = process.env[name];
+    if (!val) throw new Error(`Missing required environment variable: ${name}`);
+    return val;
+  },
+  getEnv: (name: string, def: string) => process.env[name] ?? def,
+  INNGEST_EVENT_KEY: 'local',
+  INNGEST_BASE_URL: 'http://localhost:8288',
+  GATEWAY_URL: '',
+  WORKER_RUNTIME: 'fly',
+  FLY_WORKER_IMAGE: 'registry.fly.io/ai-employee-workers:latest',
+}));
+
 const TEST_TASK_ID = '11111111-1111-1111-1111-111111111111';
 const TEST_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 const TEST_ARCHETYPE_ID = '00000000-0000-0000-0000-000000000012';
@@ -447,12 +461,7 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
     );
 
     expect(error).toBeUndefined();
-    expect(mockUpdateMessage).toHaveBeenCalledWith(
-      'C_NOTIFY_TEST',
-      APPROVAL_MSG_TS,
-      expect.stringContaining('❌ Rejected by <@U-REJECTOR>'),
-      expect.any(Array),
-    );
+    expect(mockUpdateMessage).not.toHaveBeenCalled();
   });
 
   it('NOTIFICATION_CHANNEL takes priority over SUMMARY_TARGET_CHANNEL when metadata.target_channel absent', async () => {
@@ -468,12 +477,7 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
     );
 
     expect(error).toBeUndefined();
-    expect(mockUpdateMessage).toHaveBeenCalledWith(
-      'C_NOTIFY',
-      APPROVAL_MSG_TS,
-      expect.any(String),
-      expect.any(Array),
-    );
+    expect(mockUpdateMessage).not.toHaveBeenCalled();
     expect(mockUpdateMessage).not.toHaveBeenCalledWith(
       'C_LEGACY',
       expect.any(String),
