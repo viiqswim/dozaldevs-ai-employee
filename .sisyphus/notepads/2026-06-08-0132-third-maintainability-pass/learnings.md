@@ -236,3 +236,14 @@ exit 0 for repo-wide type safety. Do NOT try to "fix" the gateway test failures 
 - pnpm test:unit: 125 files, 1425 tests pass
 - pnpm test:integration: 47 files pass, 1 pre-existing failure (opencode-harness-metrics)
 - Evidence: .sisyphus/evidence/task-12-tierB-decomp.txt
+
+## Task 13 — approval-handler decomposition
+
+- `lifecycle-helpers.ts` was already created by Task 12 (parallel task) — appended `writeFeedbackEvent` to it rather than creating a new file
+- The three `feedback_events` POST blocks in `approval-handler.ts` are NOT identical: they differ in `event_type`, `correction_content`, and `original_content`. Extracted a parameterized `writeFeedbackEvent(opts)` helper that handles all three variants via optional fields
+- `handleReject` was imported in TWO files: `validate-and-submit.ts` AND `reviewing-path.ts` — both needed import updates. The plan only mentioned `validate-and-submit.ts`; always grep all callers before removing an export
+- `reviewing-path.ts` is a new file created by a parallel task (Wave 3) — not present in the original codebase snapshot
+- Build errors in `override-card.ts` (TS2345) are pre-existing and unrelated to this task
+- Integration test failures in `tests/integration/gateway/` are pre-existing (confirmed by stash+test on base commit)
+- Unit tests: 125 files, 1425 passed, 9 skipped, 0 failures — clean
+- Commit: `dc026516` — `refactor(lifecycle): extract handleReject and shared writeFeedbackEvent`
