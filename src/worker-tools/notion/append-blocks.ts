@@ -1,5 +1,5 @@
 import { resolveNotionAuth } from './auth.js';
-import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { NOTION_API_VERSION } from './lib/notion-types.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';

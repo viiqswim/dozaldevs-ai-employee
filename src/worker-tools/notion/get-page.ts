@@ -1,4 +1,4 @@
-import { NOTION_API_VERSION } from '../lib/notion-types.js';
+import { NOTION_API_VERSION } from './lib/notion-types.js';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';
 
