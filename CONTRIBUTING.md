@@ -183,11 +183,13 @@ Full conventions: [AGENTS.md](AGENTS.md) — "Key Conventions" section.
 
 ## Where to Find More
 
-| Need                           | Where to look                                               |
-| ------------------------------ | ----------------------------------------------------------- |
-| Architecture overview          | `docs/architecture/2026-04-14-0104-full-system-vision.md`   |
-| All admin API endpoints        | [AGENTS.md](AGENTS.md) — "Admin API" section                |
-| Lifecycle states and debugging | Load `debugging-lifecycle` skill, or `docs/guides/`         |
-| Slack integration details      | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`   |
-| Production debugging           | `docs/guides/2026-06-01-2246-production-debugging-guide.md` |
-| All reference docs             | [AGENTS.md](AGENTS.md) — "Reference Documents" table        |
+| Need                           | Where to look                                                 |
+| ------------------------------ | ------------------------------------------------------------- |
+| **New contributor setup**      | `docs/guides/2026-06-07-2022-new-contributor-setup.md`        |
+| Architecture overview          | `docs/architecture/2026-04-14-0104-full-system-vision.md`     |
+| All admin API endpoints        | [AGENTS.md](AGENTS.md) — "Admin API" section                  |
+| Lifecycle states and debugging | Load `debugging-lifecycle` skill, or `docs/guides/`           |
+| Slack integration details      | `docs/guides/2026-05-14-0040-slack-tenant-integration.md`     |
+| Personal Slack dev app setup   | `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md` |
+| Production debugging           | `docs/guides/2026-06-01-2246-production-debugging-guide.md`   |
+| All reference docs             | [AGENTS.md](AGENTS.md) — "Reference Documents" table          |
