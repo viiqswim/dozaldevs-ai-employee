@@ -15,7 +15,7 @@ import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage, questionNoAnswerFallback } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
 import type { InteractionReceivedData } from './events.js';
-import { requireEnv } from '../worker-tools/lib/require-env.js';
+import { requireEnv } from '../lib/config.js';
 
 const log = createLogger('interaction-handler');
 

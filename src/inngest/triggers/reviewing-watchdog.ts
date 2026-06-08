@@ -25,7 +25,7 @@ import { TenantSecretRepository } from '../../gateway/services/tenant-secret-rep
 import { createSlackClient } from '../../lib/slack-client.js';
 import { watchdogFailureMessage } from '../../lib/slack-copy.js';
 import type { InngestStep } from '../../gateway/inngest/client.js';
-import { requireEnv } from '../../worker-tools/lib/require-env.js';
+import { requireEnv } from '../../lib/config.js';
 
 const log = createLogger('reviewing-watchdog');
 

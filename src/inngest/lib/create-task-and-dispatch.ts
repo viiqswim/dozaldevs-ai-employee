@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
 import type { InngestStep } from '../../gateway/inngest/client.js';
-import { requireEnv } from '../../worker-tools/lib/require-env.js';
+import { requireEnv } from '../../lib/config.js';
 
 const supabaseUrl = requireEnv('SUPABASE_URL');
 const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');

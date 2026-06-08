@@ -13,7 +13,7 @@ import { extractInputsFromText } from '../lib/extract-inputs.js';
 import { triggerCardPrompt } from '../lib/slack-copy.js';
 import type { InngestStep } from '../gateway/inngest/client.js';
 import type { TaskRequestedData, TriggerInputReceivedData } from './events.js';
-import { requireEnv } from '../worker-tools/lib/require-env.js';
+import { requireEnv } from '../lib/config.js';
 
 const log = createLogger('slack-trigger-handler');
 
