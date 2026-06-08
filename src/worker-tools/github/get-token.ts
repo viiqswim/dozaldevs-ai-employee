@@ -14,29 +14,14 @@
 
 import fs from 'fs';
 
-interface Args {
-  help: boolean;
-}
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
 
 const TOKEN_FILE = '/tmp/github-token';
 
-function parseArgs(argv: string[]): Args {
-  const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
-}
-
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv);
+  const args = process.argv.slice(2);
 
-  if (args.help) {
+  if (args.includes('--help')) {
     process.stdout.write(
       'Usage: tsx get-token.ts\n\n' +
         'Fetches a GitHub installation token from the internal gateway endpoint.\n' +
@@ -56,13 +41,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const taskId = process.env['TASK_ID'];
-  if (!taskId) {
-    process.stderr.write('Error: TASK_ID environment variable is required\n');
-    process.exit(1);
-  }
-
-  const gatewayUrl = process.env['GATEWAY_URL'] ?? 'http://localhost:7700';
+  const taskId = requireEnv('TASK_ID');
+  const gatewayUrl = optionalEnv('GATEWAY_URL') ?? 'http://localhost:7700';
   const endpoint = `${gatewayUrl}/internal/tasks/${encodeURIComponent(taskId)}/github-token`;
 
   let response: Response;
@@ -89,7 +69,6 @@ async function main(): Promise<void> {
         errorMessage = parsed.error;
       }
     } catch {
-      // use raw body if not JSON
       if (body.trim()) {
         errorMessage = body.trim();
       }
@@ -120,7 +99,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Write token to /tmp/github-token for easy use in shell commands
   try {
     fs.writeFileSync(TOKEN_FILE, result.token, 'utf8');
   } catch (err) {

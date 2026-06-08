@@ -11,24 +11,12 @@
  * No external API calls. No mock mode needed (pure computation).
  */
 
-function parseArgs(argv: string[]): { expression: string | null; help: boolean } {
-  const args = argv.slice(2);
-  let expression: string | null = null;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--expression' && args[i + 1] !== undefined) {
-      expression = args[++i];
-    } else if (args[i] === '--help' || args[i] === '-h') {
-      help = true;
-    }
-  }
-
-  return { expression, help };
-}
+import { getArg } from '../lib/get-arg.js';
 
 async function main(): Promise<void> {
-  const { expression, help } = parseArgs(process.argv);
+  const args = process.argv.slice(2);
+  const help = args.includes('--help') || args.includes('-h');
+  const expression = getArg(args, '--expression') ?? null;
 
   if (help) {
     process.stdout.write(
