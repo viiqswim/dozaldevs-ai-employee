@@ -559,7 +559,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test: remove archived migrate-vlre-kb test and guard script entrypoints against import-time exit`
 
-- [ ] 0.7. Split suites into `tests/unit/` + `tests/integration/` (directory move)
+- [x] 0.7. Split suites into `tests/unit/` + `tests/integration/` (directory move)
 
   **What to do** (do this ONLY after 0.1–0.6 make the suite green — never split a red suite):
   - **Classify all 171 test files** as unit (no DB) or integration (DB-backed). Decision rule: a file is **integration** if it imports `../setup.js`/`getPrisma`/`createTestApp`/`cleanupTestData`, OR imports `@prisma/client` to hit a real DB, OR otherwise depends on `tests/helpers/global-setup.ts`. Everything else is **unit**. (Verified baseline: ~122 unit, ~49 integration.) Generate the list with:
@@ -618,7 +618,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `test: split into fast unit suite and isolated integration suite`
 
-- [ ] 0.8. Wire `pnpm test` (unit) + `test:integration` + update CI/husky
+- [x] 0.8. Wire `pnpm test` (unit) + `test:integration` + update CI/husky
 
   **What to do**:
   - **package.json scripts**:
@@ -672,7 +672,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ### WAVE 1 — Foundation (shared helpers + infrastructure)
 
-- [ ] 1. Extract shared gateway helpers
+- [x] 1. Extract shared gateway helpers
 
   **What to do**:
   - Create `src/gateway/lib/prisma-helpers.ts` with `isPrismaError(err: unknown): err is { code: string; meta?: Record<string, unknown> }` — extracted from the duplicate implementations at `admin-archetypes.ts:17` and `admin-model-catalog.ts:10` (both verified to exist).
@@ -709,7 +709,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(gateway): extract shared isPrismaError and standardize error codes`
 
-- [ ] 2. Create new contributor setup guide
+- [x] 2. Create new contributor setup guide
 
   **What to do**:
   - Create `docs/guides/2026-06-07-XXXX-new-contributor-setup.md` (replace XXXX with `date "+%H%M"`). Cover: (1) prerequisites (Node ≥20, pnpm, Docker), (2) `pnpm setup`, (3) personal Cloudflare Tunnel setup, (4) personal Slack dev app (link `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`), (5) env-var checklist (personal vs shared), (6) running `pnpm dev` + banner meaning, (7) common first-day issues (tunnel not found, Socket Mode, PostgREST schema cache).
@@ -743,7 +743,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `docs: add new contributor setup guide`
 
-- [ ] 3. Add PR template + husky + lint-staged
+- [x] 3. Add PR template + husky + lint-staged
 
   **What to do**:
   - Create `.github/PULL_REQUEST_TEMPLATE.md` with a checklist: tenant-scoped queries; soft-delete only; shared files employee-agnostic; no employee-specific language in shared code; `pnpm lint` zero warnings; `pnpm test` passes; AGENTS.md updated for new routes/tools/models/employees; no hardcoded secrets.
@@ -775,7 +775,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(dx): add PR template, husky pre-commit hook, and lint-staged`
 
-- [ ] 4. Add test convenience scripts to package.json
+- [x] 4. Add test convenience scripts to package.json
 
   **What to do**:
   - **VERIFIED**: `test:coverage` ALREADY exists (package.json:20) — do NOT re-add. Wave 0 already added `test:unit`/`test:integration`. Here, add only what's still missing for DX: `"test:file": "vitest run --config vitest.config.ts"` (usage: `pnpm test:file tests/unit/...`) and `"test:watch": "vitest --config vitest.config.ts"`.
@@ -806,7 +806,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(dx): add test:file and test:watch scripts`
 
-- [ ] 5. Create current architecture diagram
+- [x] 5. Create current architecture diagram
 
   **What to do**:
   - Create `docs/architecture/CURRENT-ARCHITECTURE.md` (no timestamp — living doc). One Mermaid diagram (≤20 nodes): Gateway (Express) → Inngest → Worker (Docker/Fly) → Shell Tools → External APIs; Slack @mention trigger path; approval-gate path; OpenCodeGo routing; Dashboard via Gateway; Prisma (gateway) + PostgREST (workers). Load `v-mermaid` skill, follow its conventions. Add "Last updated" line + a Flow Walkthrough table. Link from AGENTS.md Reference Documents.
@@ -837,7 +837,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `docs: add current architecture diagram as living reference`
 
-- [ ] 6. Remove tenant-env barrel re-export
+- [x] 6. Remove tenant-env barrel re-export
 
   **What to do**:
   - **VERIFIED**: `scripts/` one-shots are ALREADY archived — do NOT touch `scripts/`. Delete `src/inngest/lib/tenant-env.ts` (3-line barrel re-exporting `loadTenantEnv`, `TenantRepository`, `TenantSecretRepository`).
@@ -872,7 +872,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(inngest): remove tenant-env barrel, import gateway services directly`
 
-- [ ] 7. Add optionalEnv() to worker-tools shared lib
+- [x] 7. Add optionalEnv() to worker-tools shared lib
 
   **What to do**:
   - **VERIFIED**: `src/worker-tools/lib/require-env.ts` exports `requireEnv(name)` which on a missing var writes stderr + `process.exit(1)` (does NOT throw). `get-arg.ts` exports `getArg(args, flag)`. Both exist.
@@ -906,7 +906,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
 ### WAVE 2 — Type safety + test factory
 
-- [ ] 8. Typed PostgREST client with generics
+- [x] 8. Typed PostgREST client with generics
 
   **What to do**:
   - Create `src/workers/lib/postgrest-types.ts` with interfaces for key models read via PostgREST: `TaskRow`, `ArchetypeRow`, `ExecutionRow`, `TenantRow`, `PendingApprovalRow`, `TaskStatusLogRow`, `TaskMetricsRow` — field names in snake_case (PostgREST), derived from `prisma/schema.prisma`.
@@ -943,7 +943,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(types): add typed PostgREST client with generic query/insert/update`
 
-- [ ] 9. Inngest typed event schemas
+- [x] 9. Inngest typed event schemas
 
   **What to do**:
   - **DERIVE payloads from real call sites** — `grep -rn "inngest.send\|\.send({" src/ --include="*.ts"` and read each `name:`/`data:`. Active events/functions are in AGENTS.md ("Inngest functions (active — 7)"). Names include `employee/task.dispatched`, `employee/interaction.received`, `employee/task.requested`, `employee/approval.received`, `employee/trigger.input-received`, rule events.
@@ -975,7 +975,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(types): add Inngest typed event schemas and typed client`
 
-- [ ] 10. Create lifecycle test mock factory
+- [x] 10. Create lifecycle test mock factory
 
   **What to do**:
   - Create `tests/helpers/lifecycle-mocks.ts` exporting `createLifecycleMocks()` returning pre-configured stubs for `fly-client`, `tunnel-client`, `tenant-env-loader`, `tenant-repository`, `tenant-secret-repository`, `@slack/web-api` WebClient, `postgrest-client`. Sensible overridable defaults. JSDoc usage. Add a "Writing Lifecycle Tests" section to CONTRIBUTING.md.
@@ -1007,7 +1007,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `feat(test): add lifecycle mock factory`
 
-- [ ] 11. Fix raw pino() + base64url duplication
+- [x] 11. Fix raw pino() + base64url duplication
 
   **What to do**:
   - **VERIFIED**: Replace raw `pino()` with `createLogger` at `src/gateway/middleware/admin-auth.ts:5` and `src/gateway/server.ts:52`.
@@ -1039,7 +1039,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor: deduplicate pino/base64url/generateAppJwt`
 
-- [ ] 12. Fix \_resetCacheForTest production leak + ClassifyResult employee fields
+- [x] 12. Fix \_resetCacheForTest production leak + ClassifyResult employee fields
 
   **What to do**:
   - **VERIFIED**: `src/gateway/routes/admin-google.ts:7,54` imports and calls `_resetCacheForTest()` (a test-only fn from `google-token-manager.ts:20`) inside the production DELETE handler. Extract a production `clearTokenCache()` in `google-token-manager.ts` (same cache-clear, non-test name), export it, call that from the route.
@@ -1071,7 +1071,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `fix: remove test-only fn from prod path; make ClassifyResult employee-agnostic`
 
-- [ ] 13. ESLint escalation — warn→error + fix existing violations
+- [x] 13. ESLint escalation — warn→error + fix existing violations
 
   **What to do**:
   - **VERIFIED**: 13 `eslint-disable @typescript-eslint/no-explicit-any` across 9 files: `guest-message-poll.ts:48`, `reviewing-watchdog.ts:58`, `interaction-handler.ts:22`, `create-task-and-dispatch.ts:6`, `rule-synthesizer.ts:26`, `slack-trigger-handler.ts:117,371`, `rule-extractor.ts:25`, `approval-handlers.ts:30,180,575,602`, `rule-handlers.ts:333`.
@@ -1140,7 +1140,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(lifecycle): extract state handlers to step files, use typed PostgREST`
 
-- [ ] 15. sendError adoption — route group 1 (11 admin files, ~137 calls)
+- [x] 15. sendError adoption — route group 1 (11 admin files, ~137 calls)
 
   **What to do**:
   - **VERIFIED**: 29 route files, 279 total `res.status()` calls; `sendError` adopted only in `admin-archetypes.ts`, `admin-brain-preview.ts`, `admin-model-catalog.ts`. (The names `admin-integrations.ts`/`admin-inngest.ts`/`auth-*-oauth.ts`/`github-webhook.ts` DO NOT EXIST — ignore.)
@@ -1171,7 +1171,7 @@ Critical Path: Wave 0 → Task 1 → Task 8 + 9 → Task 14 → Tier B → F1-F4
 
   **Commit**: YES — `refactor(gateway): adopt sendError in admin route group 1`
 
-- [ ] 16. sendError adoption — route group 2 (17 oauth/internal files, ~142 calls)
+- [x] 16. sendError adoption — route group 2 (17 oauth/internal files, ~142 calls)
 
   **What to do**:
   - Migrate **group 2** (re-grep counts): `admin-rules.ts`(13), `admin-slack-channels.ts`(5), `admin-tasks.ts`(8), `admin-tenant-config.ts`(9), `admin-tenant-secrets.ts`(14), `admin-tenants.ts`(24), `admin-tools.ts`(5), `github-oauth.ts`(7), `github.ts`(2), `google-oauth.ts`(11), `hostfully.ts`(2), `internal-github-token.ts`(6), `internal-google-token.ts`(8), `jira-oauth.ts`(10), `jira.ts`(13), `notion-oauth.ts`(10), `slack-oauth.ts`(11). `health.ts` has 0 — skip.

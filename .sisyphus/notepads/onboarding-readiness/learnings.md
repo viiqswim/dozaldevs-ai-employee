@@ -259,3 +259,111 @@ This guard ensures `main()` only runs when the file is the direct entry point, n
 - Pattern: `EventPayload<TData>` from inngest for event param, `InngestStep` for step param
 - Inngest v4 (4.1.0) has NO `EventSchemas` — that was removed from v3. Use `GetStepTools<Inngest>` + `EventPayload<TData>` directly
 - `GetStepTools` and `EventPayload` ARE exported from inngest v4 index
+
+## [2026-06-07] Fix: feedback-tenant-filter test after Task 8
+- Test checked for raw /rest/v1/employee_rules URL in lifecycle source
+- Task 8 moved URL construction to postgrest-client.ts query() function
+- Fix: check for 'employee_rules' table name string instead of full URL
+- Security property (archetype_id filter) still verified by existing assertion
+
+## [2026-06-07] Task 15 — sendError adoption, admin route group 1
+
+### Scope refinement (actual vs estimated counts)
+The plan's per-file call counts include SUCCESS (2xx) calls, which MUST stay as `res.status(2xx).json(...)`. Only ERROR-pattern (`res.status(4xx|5xx).json({ error })`) calls migrate to `sendError`. Actual error-call migrations:
+- admin-archetype-generate.ts: 4 (INVALID_ID, INVALID_REQUEST, GENERATION_FAILED 422, INTERNAL_ERROR)
+- admin-archetypes.ts: 0 changes — ALREADY fully migrated (reference impl). All 6 remaining res.status are 2xx success.
+- admin-brain-preview.ts: 0 changes — both res.status are 2xx success (200).
+- admin-employee-trigger.ts: 9 errors
+- admin-github.ts: 17 errors (4 success 2xx stay)
+- admin-google.ts: 1 error
+- admin-kb.ts: 17 errors (5 success 2xx stay)
+- admin-model-catalog.ts: 0 changes — all 3 res.status are 2xx; errors already use sendError.
+- admin-platform-settings.ts: 4 errors
+- admin-projects.ts: 18 errors
+- admin-property-locks.ts: 15 errors
+
+### CRITICAL: grep "res.status(" → 0 is WRONG goal
+The plan's verification step 1 says grep `res.status(` should be empty. This CONTRADICTS the MUST-DO "Keep success responses (res.status(200).json(...)) UNCHANGED" and the cited reference admin-archetypes.ts ITSELF retains res.status(2xx) success calls. The correct invariant: ZERO error-pattern res.status (`res.status([45]`). Verified: 0 across all 11 files. Success 2xx calls remain by design.
+
+### sendError signature mapping patterns
+- `res.status(400).json({ error: 'INVALID_ID' })` → `sendError(res, 400, ERROR_CODES.INVALID_ID)`
+- `res.status(400).json({ error: 'INVALID_REQUEST', issues: x.error.issues })` → `sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, { issues: x.error.issues })`
+- `res.status(404).json({ error: 'NOT_FOUND', message: m })` → `sendError(res, 404, ERROR_CODES.NOT_FOUND, m)`
+- `res.status(409).json({ error: 'CONFLICT', message: m })` → `sendError(res, 409, 'CONFLICT', m)`
+- Extra body keys (missing, details, activeTaskIds, installation_id) → 5th `extra` arg object
+- Plain-string error bodies (e.g. `{ error: 'Invalid tenantId' }`, `{ error: 'GitHub not connected' }`) → pass the human string as the `code` arg to preserve exact body shape: `sendError(res, 400, 'Invalid tenantId')`. Tests assert these exact strings.
+
+### Test compatibility verified
+- admin-property-locks.test.ts uses `toEqual({ error: 'NOT_FOUND' })` (EXACT match). sendError(res,404,ERROR_CODES.NOT_FOUND) emits exactly `{ error: 'NOT_FOUND' }` (no message/extra) → passes.
+- admin-employee-trigger.test.ts asserts `{ error: 'NOT_FOUND', message: 'No archetype found' }` and `{ error: 'NOT_IMPLEMENTED', message: '...' }` → preserved via `sendError(res, 404, ERROR_CODES.NOT_FOUND, result.message)`.
+
+### Pre-existing flaky note
+`server-startup.test.ts` (2 failures: process.exit from Socket Mode lock at server.ts:141) is pre-existing flaky (notepad Task 12 documented it) — NOT caused by this task. Running `pnpm test -- --run` drops into watch mode and only runs related files; use `CI=true pnpm test:unit` for clean one-shot full suite.
+
+## [2026-06-07] Task 16 — sendError adoption in route group 2 (17 oauth/webhook/internal files)
+
+### Convention confirmed (matched existing migrated files)
+- The 3 already-migrated files (admin-archetypes, admin-model-catalog, admin-brain-preview) use RAW STRING literal codes ('INVALID_REQUEST', 'NOT_FOUND', etc.) as the `code` arg — NOT `ERROR_CODES.X` constants. They import ONLY `sendError` + `isPrismaError`. Importing `ERROR_CODES` unused would fail `eslint --max-warnings 0`. Followed this exactly.
+- `sendError(res, status, code, message?, extra?)` — extra is a `Record<string,unknown>` merged into body. Issues go via `{ issues: result.error.issues }`; arbitrary fields like `detail` go via `{ detail: ... }`.
+
+### Conversion rules applied
+- `res.status(N).json({ error: 'X' })` → `sendError(res, N, 'X')`
+- `res.status(N).json({ error: 'X', message: 'm' })` → `sendError(res, N, 'X', 'm')` (sendError emits `{error, message}` — identical body shape)
+- `res.status(N).json({ error: 'X', issues: e.issues })` → `sendError(res, N, 'X', undefined, { issues: e.issues })`
+- `res.status(N).json({ error: 'X', detail: d })` → `sendError(res, N, 'X', undefined, { detail: d })`
+- Multi-line `res\n.status(404)\n.json(...)` blocks ALSO converted (single-line grep misses them — read the file, don't trust grep count alone).
+
+### Left UNCHANGED (per task spec)
+- `res.redirect(302, ...)` — all OAuth redirects (github-oauth 3, google-oauth 3, jira-oauth 2, notion-oauth 2, slack-oauth 1)
+- HTML response: slack-oauth.ts `res.status(200).send('<html>...')` 
+- Success responses: 200/201/204/202 `.json(...)` and `.send()`
+- `admin-slack-channels.ts:39` `res.status(200).json({ channels: [], error: 'SLACK_NOT_CONFIGURED' })` — this is a 200 SUCCESS with an info field, NOT an error response. Left as-is.
+- jira.ts `res.status(202).json({ status: 'task_created' ... })` — 202 Accepted success, no `error` key.
+
+### Verification
+- grep: files with redirects-only now have ZERO `res.status(` remaining; all 23 remaining `res.status()` across the 17 files are success codes.
+- pnpm build: EXIT 0. pnpm test -- --run: 122 files, 1404 passed, 9 skipped, 0 failures.
+- Evidence: .sisyphus/evidence/task-16-tierA-grep.txt (gitignored)
+- Commit: 656923b7
+
+### Gotcha
+- A duplicate `ai-test` tmux session already existed (from a parallel task) — killing + relaunching with `sleep 1` avoided the "duplicate session" error. Always kill-then-recreate tmux sessions by name.
+
+## [2026-06-08] Task 10 — Lifecycle mock factory
+- Created `tests/helpers/lifecycle-mocks.ts` exporting `createLifecycleMocks()` — returns plain `vi.fn()` stub objects for 7 modules: flyClient, tunnelClient, tenantEnvLoader, tenantRepository, tenantSecretRepository, slackWebApi (WebClient), postgrestClient.
+- Pattern: factory does NOT call `vi.mock()`. Callers do `vi.mock('...path', () => createLifecycleMocks().flyClient)`. Each `vi.mock` factory runs the factory independently — so assert on the IMPORTED (now-mocked) binding, not a separate factory result.
+- Constructor-based modules (TenantRepository/TenantSecretRepository/WebClient) return a `vi.fn(() => sharedInstance)`; shared instance exposed on `.instances` for override/assert. Build factory ONCE and reuse when you need the shared instance.
+- Sample test MUST go in `tests/unit/helpers/` (NOT `tests/helpers/__tests__/`) — `vitest.config.ts` globs only `tests/unit/**/*.test.ts` + `src/**/__tests__/**`. A test under `tests/helpers/__tests__/` would NOT be collected by `pnpm test:unit`.
+- `pnpm build` (tsc -p tsconfig.build.json) EXCLUDES `tests/` (only `src/**/*`) — so test-helper type errors never break build. Validate test types via `pnpm test:unit` + editor LSP instead.
+- Pre-existing editor LSP error on `vitest.config.ts:25` (`coverage does not exist in type UserConfigExport`) is NOT mine — it's a vitest/config type-resolution quirk in a root config file, confirmed not in my git diff, and never reaches `pnpm build`.
+- `pnpm test -- --run` via tmux send-keys did NOT pass `--run` through reliably (landed in watch mode, ran only git-affected files). Use `pnpm test:unit` (explicit `vitest run`) for one-shot in automation.
+- Result: build EXIT 0; `pnpm test:unit` 122 files / 1404 passed / 9 skipped / 0 fail; eslint --max-warnings 0 clean on both new files. Evidence: .sisyphus/evidence/task-10-mock-factory.txt
+
+## [2026-06-08] Task 13 — ESLint escalation: removed 10 remaining no-explicit-any suppressions
+
+### State at task start
+- Escalation ALREADY done in commit cb57b5a5: eslint.config.mjs has both `@typescript-eslint/no-explicit-any: 'error'` and `@typescript-eslint/no-unused-vars: ['error', {argsIgnorePattern:'^_', caughtErrorsIgnorePattern:'^_'}]`.
+- `pnpm lint` already exit 0 (suppressions were keeping it green). Real work = eliminate the 10 inline `eslint-disable no-explicit-any`, none of which had reason comments.
+- Task 9 already removed 3 (interaction-handler, rule-extractor, reviewing-watchdog). 10 remained across 6 files.
+
+### Two fix patterns
+1. **Inngest handlers (5 sites)** — Task 9 pattern: `event: any; step: any` →
+   - event param: `event: EventPayload<TData>` (TData from src/inngest/events.ts), access via `event.data!` (non-null assertion — v4 types data as `T | undefined`)
+   - step param: `step: InngestStep` (from src/gateway/inngest/client.js)
+   - cron triggers (no event): just `{ step }: { step: InngestStep }`
+   - Data interfaces already existed in events.ts: RuleSynthesizeRequestedData, TaskRequestedData, TriggerInputReceivedData.
+   - slack-trigger-handler.ts had a LOCAL `PendingInputContext` interface that became unused after retyping → removed it (structurally identical to the one re-exported via events.ts's TriggerInputReceivedData.pending).
+
+2. **Bolt `(ack as any)` casts (5 sites)** — two sub-cases:
+   - **View handlers (3)**: `boltApp.view(...)` defaults the `ack` to a UNION `AckFn<ViewResponseAction> | AckFn<void>` (that union is why the cast existed). Fix: parametrize `boltApp.view<ViewSubmitAction>(...)` → `ViewAckFn<ViewSubmitAction>` resolves to `AckFn<ViewResponseAction>`, so `ack({response_action:'errors', errors:{...}})` type-checks with NO cast. `ViewSubmitAction` is a type-only export from `@slack/bolt`.
+   - **Block-action handlers (2)**: action `ack` is `AckFn<void>` but code calls `ack({replace_original, text, blocks})` — the legacy Slack interactive-message message-replacement protocol, which Bolt does NOT model. Fix: added `LegacyMessageAck` type to shared.ts and cast `(ack as unknown as LegacyMessageAck)(...)`. This is a typed cast (no `any`) and preserves runtime behavior. Kept a 2-line comment explaining WHY (necessary: prevents regression back to `any`).
+
+### Gotchas
+- LSP (typescript-language-server) is unavailable in this env (`code 126, No version is set` — mise/.tool-versions). Use `pnpm build` (tsc -p tsconfig.build.json) as the type-check gate instead.
+- `pnpm test -- --run` piped through `tee` stays in watch mode after completing (the `--run` passthrough is swallowed when teeing) — the run DOES finish (look for "Test Files N passed"), just kill the tmux session after.
+- Editing a single-arg `boltApp.view('id', fn)` into the 2-arg form `boltApp.view<T>('id', fn)` forced a full re-indent of the override handler body — verified logic/order identical afterward by reading the whole block. tsc clean confirms no structural break.
+
+### Result
+- 10/10 suppressions removed. `grep -rn "eslint-disable.*no-explicit-any" src/` → empty.
+- pnpm lint EXIT 0, pnpm build EXIT 0, pnpm test 122 files/1404 passed/9 skipped/0 fail.
+- Evidence: .sisyphus/evidence/task-13-eslint.txt
