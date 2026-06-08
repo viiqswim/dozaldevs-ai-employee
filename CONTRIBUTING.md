@@ -415,3 +415,341 @@ Two variable names are used for the logger — both are correct. The split is hi
 | Personal Slack dev app setup   | `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md` |
 | Production debugging           | `docs/guides/2026-06-01-2246-production-debugging-guide.md`   |
 | All reference docs             | [AGENTS.md](AGENTS.md) — "Reference Documents" table          |
+
+---
+
+## Adding a Gateway Route
+
+All gateway routes follow the same factory pattern: a function that accepts optional injected dependencies (Prisma, Inngest) and returns an Express `Router`. This makes routes testable without a real DB.
+
+**Full annotated example** (based on `src/gateway/routes/admin-employee-trigger.ts`):
+
+```typescript
+// src/gateway/routes/my-feature.ts
+import { Router } from 'express';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+
+import { createLogger } from '../../lib/logger.js';
+import { requireAdminKey } from '../middleware/admin-auth.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
+
+const logger = createLogger('my-feature'); // use 'logger' in routes/, 'log' in inngest/
+
+// Zod schemas — always validate params, query, and body separately
+const ParamsSchema = z.object({
+  tenantId: z.string().uuid(),
+  itemId: z.string().uuid(),
+});
+
+const BodySchema = z.object({
+  name: z.string().min(1),
+  value: z.string().optional(),
+});
+
+// Options interface — every injectable dep is optional so tests can inject mocks
+export interface MyFeatureRouteOptions {
+  prisma?: PrismaClient;
+}
+
+// Factory function — returns a Router, never registers globally
+export function myFeatureRoutes(opts: MyFeatureRouteOptions = {}): Router {
+  const router = Router();
+  const prisma = opts.prisma ?? new PrismaClient(); // default to real client
+
+  router.get(
+    '/admin/tenants/:tenantId/items/:itemId',
+    requireAdminKey, // admin-key middleware always first
+    async (req, res) => {
+      // 1. Validate params with Zod — safeParse, never parse (parse throws into 500)
+      const paramsResult = ParamsSchema.safeParse(req.params);
+      if (!paramsResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: paramsResult.error.issues,
+        });
+        return;
+      }
+
+      const { tenantId, itemId } = paramsResult.data;
+
+      try {
+        // 2. DB query — always scope by tenant_id (multi-tenancy is mandatory)
+        const item = await prisma.myModel.findFirst({
+          where: { id: itemId, tenant_id: tenantId, deleted_at: null },
+        });
+
+        if (!item) {
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
+          return;
+        }
+
+        // 3. Success — use sendSuccess, never res.status().json() directly
+        sendSuccess(res, 200, { id: item.id, name: item.name });
+      } catch (err) {
+        logger.error({ err }, 'Unexpected error in GET /admin/tenants/:tenantId/items/:itemId');
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+      }
+    },
+  );
+
+  router.post('/admin/tenants/:tenantId/items', requireAdminKey, async (req, res) => {
+    const paramsResult = ParamsSchema.pick({ tenantId: true }).safeParse(req.params);
+    if (!paramsResult.success) {
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: paramsResult.error.issues,
+      });
+      return;
+    }
+
+    const bodyResult = BodySchema.safeParse(req.body);
+    if (!bodyResult.success) {
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: bodyResult.error.issues,
+      });
+      return;
+    }
+
+    const { tenantId } = paramsResult.data;
+    const { name, value } = bodyResult.data;
+
+    try {
+      // 4. Writes — never hard-delete; use soft-delete (deleted_at) for removals
+      const item = await prisma.myModel.create({
+        data: { name, value, tenant_id: tenantId },
+      });
+
+      // 5. 201 Created for new resources
+      sendSuccess(res, 201, { id: item.id });
+    } catch (err) {
+      logger.error({ err }, 'Unexpected error in POST /admin/tenants/:tenantId/items');
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+    }
+  });
+
+  return router;
+}
+```
+
+**Register the router** in `src/gateway/server.ts`:
+
+```typescript
+import { myFeatureRoutes } from './routes/my-feature.js';
+
+// Inside the server setup, after other route registrations:
+app.use(myFeatureRoutes({ prisma }));
+```
+
+**Key rules:**
+
+- `sendError` / `sendSuccess` for every response — never `res.status(N).json(...)` inline
+- `requireAdminKey` middleware on every `/admin/` route
+- Zod `safeParse` (not `.parse()`) — parse throws into the catch block and returns 500 instead of 400
+- Always filter `deleted_at: null` in queries (soft-delete convention)
+- Always scope queries by `tenant_id` (multi-tenancy is mandatory)
+- Use `ERROR_CODES` constants from `src/gateway/lib/prisma-helpers.ts` for machine-readable error codes
+- Logger variable is `logger` in `src/gateway/routes/` (not `log` — that's the inngest convention)
+
+---
+
+## Test Skeletons
+
+Three patterns cover the vast majority of tests in this codebase. Copy the relevant skeleton and fill in the blanks.
+
+### 1. Unit test (pure logic, no DB)
+
+Use for: lifecycle step functions, utility functions, service logic, Slack handler logic.
+
+```typescript
+// tests/unit/inngest/lifecycle/steps/my-step.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import { myStepFunction } from '../../../../src/inngest/lifecycle/steps/my-step.js';
+import { createLifecycleMocks, applyStepMocks } from '../../../helpers/lifecycle-mocks.js';
+
+// Mock external dependencies at the module level — vi.mock hoists to top of file
+const mocks = createLifecycleMocks();
+vi.mock('../../../../src/lib/fly-client.js', () => mocks.flyClient);
+vi.mock('../../../../src/repositories/tenant-env-loader.js', () => mocks.tenantEnvLoader);
+vi.mock('../../../../src/repositories/tenant-repository.js', () => mocks.tenantRepository);
+vi.mock('@slack/web-api', () => mocks.slackWebApi);
+
+describe('myStepFunction', () => {
+  // step mock — executes each step body immediately and returns its value
+  const stepRunMock = vi.fn().mockImplementation(async (_id: string, fn: () => unknown) => fn());
+  const waitForEventMock = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('transitions task to the expected state', async () => {
+    // Arrange — override defaults for this specific test
+    mocks.instances.tenantRepository.findById.mockResolvedValueOnce({
+      id: 'tenant-1',
+      slug: 'vlre',
+    });
+
+    const ctx = {
+      taskId: 'task-1',
+      tenantId: 'tenant-1',
+      archetypeId: 'arch-1',
+    };
+
+    // Act
+    await myStepFunction(ctx, { run: stepRunMock, waitForEvent: waitForEventMock });
+
+    // Assert
+    expect(stepRunMock).toHaveBeenCalledWith('my-step-id', expect.any(Function));
+    expect(mocks.instances.tenantRepository.findById).toHaveBeenCalledWith('tenant-1');
+  });
+
+  it('handles missing tenant gracefully', async () => {
+    mocks.instances.tenantRepository.findById.mockResolvedValueOnce(null);
+
+    const ctx = { taskId: 'task-1', tenantId: 'missing', archetypeId: 'arch-1' };
+
+    await expect(
+      myStepFunction(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
+    ).rejects.toThrow();
+  });
+});
+```
+
+**When to use `createLifecycleMocks()`**: only when your code under test imports from `src/lib/fly-client.js`, `src/repositories/tenant-env-loader.js`, `src/repositories/tenant-repository.js`, `src/repositories/tenant-secret-repository.js`, or `@slack/web-api`. For simpler units (pure functions, utilities), skip the factory and mock only what you need.
+
+**When to use `applyStepMocks()`**: when driving a lifecycle function through `InngestTestEngine` and you need to override `ctx.step.run` / `ctx.step.waitForEvent` / `ctx.step.sendEvent` without casting to `any`:
+
+```typescript
+import { InngestTestEngine } from '@inngest/test';
+import { applyStepMocks } from '../../../helpers/lifecycle-mocks.js';
+
+new InngestTestEngine({
+  function: createMyInngestFunction(inngest),
+  transformCtx: (ctx) => applyStepMocks(ctx, { run: stepRunMock, waitForEvent: waitForEventMock }),
+});
+```
+
+### 2. Integration test (real DB via supertest)
+
+Use for: gateway routes, PostgREST interactions, full request/response cycles.
+
+```typescript
+// tests/integration/gateway/routes/my-feature.test.ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import { PrismaClient } from '@prisma/client';
+import express from 'express';
+
+import { myFeatureRoutes } from '../../../../src/gateway/routes/my-feature.js';
+
+const prisma = new PrismaClient();
+
+// Build a minimal Express app with just the routes under test
+const app = express();
+app.use(express.json());
+app.use(myFeatureRoutes({ prisma })); // inject real test-DB Prisma client
+
+const ADMIN_KEY = process.env['ADMIN_API_KEY'] ?? 'test-admin-key';
+const TENANT_ID = '00000000-0000-0000-0000-000000000003'; // VLRE test tenant
+
+beforeAll(async () => {
+  // Seed any test data your route needs
+  await prisma.myModel.create({
+    data: { id: 'test-item-1', name: 'Test Item', tenant_id: TENANT_ID },
+  });
+});
+
+afterAll(async () => {
+  // Clean up — soft-delete, never hard-delete
+  await prisma.myModel.updateMany({
+    where: { tenant_id: TENANT_ID },
+    data: { deleted_at: new Date() },
+  });
+  await prisma.$disconnect();
+});
+
+describe('GET /admin/tenants/:tenantId/items/:itemId', () => {
+  it('returns 200 with the item', async () => {
+    const res = await request(app)
+      .get(`/admin/tenants/${TENANT_ID}/items/test-item-1`)
+      .set('X-Admin-Key', ADMIN_KEY);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 'test-item-1', name: 'Test Item' });
+  });
+
+  it('returns 404 for unknown item', async () => {
+    const res = await request(app)
+      .get(`/admin/tenants/${TENANT_ID}/items/does-not-exist`)
+      .set('X-Admin-Key', ADMIN_KEY);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+  });
+
+  it('returns 401 without admin key', async () => {
+    const res = await request(app).get(`/admin/tenants/${TENANT_ID}/items/test-item-1`);
+
+    expect(res.status).toBe(401);
+  });
+});
+```
+
+**Prerequisites**: run `pnpm test:db:setup` once before integration tests. The test DB is `ai_employee_test` — the global setup guard throws if `DATABASE_URL` doesn't contain that string.
+
+**Run integration tests**: `pnpm test:integration` (not `pnpm test` — that's unit-only).
+
+### 3. Dashboard component test (React + @testing-library)
+
+Use for: dashboard React components, panels, forms.
+
+```typescript
+// dashboard/src/panels/my-feature/MyComponent.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+
+import { MyComponent } from './MyComponent.js';
+
+// Mock any hooks that make network calls
+vi.mock('../../hooks/useMyData', () => ({
+  useMyData: () => ({ data: null, isLoading: false, error: null }),
+}));
+
+describe('MyComponent', () => {
+  it('renders the component heading', () => {
+    render(<MyComponent tenantId="tenant-1" />);
+
+    expect(screen.getByRole('heading', { name: /my feature/i })).toBeInTheDocument();
+  });
+
+  it('shows a loading state', () => {
+    vi.mocked(useMyData).mockReturnValueOnce({ data: null, isLoading: true, error: null });
+
+    render(<MyComponent tenantId="tenant-1" />);
+
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
+
+  it('calls the action handler on button click', () => {
+    const onAction = vi.fn();
+    render(<MyComponent tenantId="tenant-1" onAction={onAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(onAction).toHaveBeenCalledOnce();
+  });
+});
+```
+
+**Run dashboard tests**: `pnpm test:dashboard` (runs `cd dashboard && pnpm exec vitest run --config vitest.config.ts`). Do NOT run dashboard tests through the root vitest binary — the dashboard uses vitest v4 while the root uses v2.
+
+**Key facts:**
+
+- Dashboard tests live in `dashboard/src/**/*.{test,spec}.{ts,tsx}`
+- Setup file: `dashboard/src/tests/setup.ts` (imports `@testing-library/jest-dom`)
+- jsdom environment — no real browser, no WebGL. Components using Three.js/WebGL need mocking or CDP-based testing
+- `@testing-library/react`, `@testing-library/jest-dom`, and `jsdom` are already installed in `dashboard/`
+- Use `screen.getByRole` over `getByTestId` — role queries are more resilient to markup changes
+
+**Shell tool template**: `src/worker-tools/_template/example-tool.ts` — copy to `src/worker-tools/{service}/{verb}-{noun}.ts` and follow the inline checklist.
