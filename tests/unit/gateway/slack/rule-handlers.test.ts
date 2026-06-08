@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { App } from '@slack/bolt';
+import type { PrismaClient } from '@prisma/client';
 import type { InngestLike } from '../../../../src/gateway/types.js';
 import { registerSlackHandlers } from '../../../../src/gateway/slack/handlers.js';
 
@@ -59,6 +60,41 @@ function makeClient() {
   };
 }
 
+function makeFullRule(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'rule-abc-123',
+    tenant_id: 'tenant-1',
+    archetype_id: 'arch-1',
+    source: 'extraction',
+    parent_rule_ids: [],
+    rule_text: 'Never discuss pricing with guests',
+    slack_ts: null,
+    slack_channel: null,
+    status: 'confirmed',
+    source_task_id: null,
+    created_at: new Date(),
+    confirmed_at: new Date(),
+    deleted_at: null,
+    ...overrides,
+  };
+}
+
+function makeMockPrisma(
+  overrides: {
+    updateResult?: Record<string, unknown>;
+    countResult?: number;
+    findFirstResult?: Record<string, unknown> | null;
+  } = {},
+): PrismaClient {
+  return {
+    employeeRule: {
+      update: vi.fn().mockResolvedValue(overrides.updateResult ?? makeFullRule()),
+      count: vi.fn().mockResolvedValue(overrides.countResult ?? 0),
+      findFirst: vi.fn().mockResolvedValue(overrides.findFirstResult ?? makeFullRule()),
+    },
+  } as unknown as PrismaClient;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.SUPABASE_URL = 'http://localhost:54321';
@@ -66,24 +102,14 @@ beforeEach(() => {
 });
 
 describe('rule_confirm handler', () => {
-  it('ack called with replace_original ✅ message (including rule text) and PATCH status: confirmed + confirmed_at', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      json: () =>
-        Promise.resolve([
-          {
-            id: 'rule-abc-123',
-            tenant_id: 'tenant-1',
-            archetype_id: 'arch-1',
-            source: 'extraction',
-            parent_rule_ids: [],
-            rule_text: 'Never discuss pricing with guests',
-          },
-        ]),
+  it('ack called with ✅ message (including rule text) and patchConfirm called with ruleId and userId', async () => {
+    const mockPrisma = makeMockPrisma({
+      updateResult: makeFullRule({ rule_text: 'Never discuss pricing with guests' }),
+      countResult: 0,
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_confirm');
     expect(handler).toBeDefined();
@@ -116,26 +142,27 @@ describe('rule_confirm handler', () => {
     expect(sectionBlock?.text?.text).toContain('<@U-APPROVER>');
     expect(sectionBlock?.text?.text).toContain('Never discuss pricing with guests');
 
-    const patchCall = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules?id=eq.rule-abc-123') &&
-        (args[1] as RequestInit)?.method === 'PATCH',
-    );
-    expect(patchCall).toBeDefined();
-    const patchBody = JSON.parse((patchCall![1] as RequestInit).body as string);
-    expect(patchBody.status).toBe('confirmed');
-    expect(typeof patchBody.confirmed_at).toBe('string');
-
-    vi.unstubAllGlobals();
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { update: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.update).toHaveBeenCalledOnce();
+    const updateArgs = employeeRule.update.mock.calls[0][0] as {
+      where: { id: string };
+      data: { status: string; confirmed_at: Date };
+    };
+    expect(updateArgs.where.id).toBe('rule-abc-123');
+    expect(updateArgs.data.status).toBe('confirmed');
+    expect(updateArgs.data.confirmed_at).toBeInstanceOf(Date);
   });
 
-  it('confirm message falls back to name-only when rule_text is absent', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('confirm message falls back to name-only when rule_text is empty', async () => {
+    const mockPrisma = makeMockPrisma({
+      updateResult: makeFullRule({ rule_text: '' }),
+      countResult: 0,
+    });
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_confirm');
     const ack = makeAck();
@@ -161,15 +188,13 @@ describe('rule_confirm handler', () => {
     expect(sectionBlock?.text?.text).toContain('✅');
     expect(sectionBlock?.text?.text).toContain('<@U-APPROVER>');
     expect(sectionBlock?.text?.text).not.toContain('\n\n>');
-    vi.unstubAllGlobals();
   });
 
-  it('missing ruleId → plain ack called, no PATCH to DB', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('missing ruleId → plain ack called, no Prisma update', async () => {
+    const mockPrisma = makeMockPrisma();
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_confirm');
     const ack = makeAck();
@@ -185,27 +210,24 @@ describe('rule_confirm handler', () => {
     });
 
     expect(ack).toHaveBeenCalledOnce();
-    const patchCall = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules') &&
-        (args[1] as RequestInit)?.method === 'PATCH',
-    );
-    expect(patchCall).toBeUndefined();
-
-    vi.unstubAllGlobals();
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { update: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.update).not.toHaveBeenCalled();
   });
 });
 
 describe('rule_reject handler', () => {
-  it('ack called with replace_original ❌ message (including rule text) and PATCH status: rejected', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve([{ rule_text: 'Always greet guests by first name' }]),
+  it('ack called with ❌ message (including rule text) and patchReject called with ruleId', async () => {
+    const mockPrisma = makeMockPrisma({
+      updateResult: makeFullRule({
+        rule_text: 'Always greet guests by first name',
+        status: 'rejected',
+      }),
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_reject');
     expect(handler).toBeDefined();
@@ -238,26 +260,26 @@ describe('rule_reject handler', () => {
     expect(sectionBlock?.text?.text).toContain('<@U-REJECTER>');
     expect(sectionBlock?.text?.text).toContain('Always greet guests by first name');
 
-    const patchCall = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules?id=eq.rule-xyz-456') &&
-        (args[1] as RequestInit)?.method === 'PATCH',
-    );
-    expect(patchCall).toBeDefined();
-    const patchBody = JSON.parse((patchCall![1] as RequestInit).body as string);
-    expect(patchBody.status).toBe('rejected');
-    expect(patchBody).not.toHaveProperty('confirmed_at');
-
-    vi.unstubAllGlobals();
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { update: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.update).toHaveBeenCalledOnce();
+    const updateArgs = employeeRule.update.mock.calls[0][0] as {
+      where: { id: string };
+      data: { status: string };
+    };
+    expect(updateArgs.where.id).toBe('rule-xyz-456');
+    expect(updateArgs.data.status).toBe('rejected');
+    expect(updateArgs.data).not.toHaveProperty('confirmed_at');
   });
 
-  it('reject message falls back to name-only when rule_text is absent', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('reject message falls back to name-only when rule_text is empty', async () => {
+    const mockPrisma = makeMockPrisma({
+      updateResult: makeFullRule({ rule_text: '', status: 'rejected' }),
+    });
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_reject');
     const ack = makeAck();
@@ -283,20 +305,17 @@ describe('rule_reject handler', () => {
     expect(sectionBlock?.text?.text).toContain('❌');
     expect(sectionBlock?.text?.text).toContain('<@U-REJECTER>');
     expect(sectionBlock?.text?.text).not.toContain('\n\n>');
-
-    vi.unstubAllGlobals();
   });
 });
 
 describe('rule_rephrase handler', () => {
-  it('fetches current rule_text and opens modal with rule_rephrase_modal callback_id', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ json: () => Promise.resolve([{ rule_text: 'Existing rule text' }]) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('fetches current rule_text via get() and opens modal with rule_rephrase_modal callback_id', async () => {
+    const mockPrisma = makeMockPrisma({
+      findFirstResult: makeFullRule({ rule_text: 'Existing rule text' }),
+    });
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getAction('rule_rephrase');
     expect(handler).toBeDefined();
@@ -317,13 +336,14 @@ describe('rule_rephrase handler', () => {
 
     expect(ack).toHaveBeenCalledOnce();
 
-    const getFetch = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules?id=eq.rule-rephrase-789') &&
-        args[0].includes('select=rule_text'),
-    );
-    expect(getFetch).toBeDefined();
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { findFirst: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.findFirst).toHaveBeenCalledOnce();
+    const findArgs = employeeRule.findFirst.mock.calls[0][0] as {
+      where: { id: string };
+    };
+    expect(findArgs.where.id).toBe('rule-rephrase-789');
 
     expect(client.views.open).toHaveBeenCalledOnce();
     const openCall = client.views.open.mock.calls[0][0] as {
@@ -342,26 +362,22 @@ describe('rule_rephrase handler', () => {
 
     const inputBlock = openCall.view.blocks.find((b) => b.block_id === 'rule_input');
     expect(inputBlock?.element?.initial_value).toBe('Existing rule text');
-
-    vi.unstubAllGlobals();
   });
 });
 
 describe('rule_rephrase_modal view handler', () => {
-  it('PATCHes rule_text and calls chat.update with fresh 3-button block kit', async () => {
-    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes('select=slack_ts')) {
-        return {
-          json: () =>
-            Promise.resolve([{ slack_ts: 'ts-original-111', slack_channel: 'C-RULE-CHAN' }]),
-        };
-      }
-      return { json: () => Promise.resolve([]) };
+  it('calls patchRephrase and updates chat with fresh 3-button block kit using slack_ts from return value', async () => {
+    const mockPrisma = makeMockPrisma({
+      updateResult: makeFullRule({
+        id: 'rule-modal-001',
+        rule_text: 'Updated rule: always greet by name',
+        slack_ts: 'ts-original-111',
+        slack_channel: 'C-RULE-CHAN',
+      }),
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getView('rule_rephrase_modal') as ViewHandler;
     expect(handler).toBeDefined();
@@ -387,41 +403,39 @@ describe('rule_rephrase_modal view handler', () => {
 
     expect(ack).toHaveBeenCalledOnce();
 
-    const patchCall = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules?id=eq.rule-modal-001') &&
-        (args[1] as RequestInit)?.method === 'PATCH',
-    );
-    expect(patchCall).toBeDefined();
-    const patchBody = JSON.parse((patchCall![1] as RequestInit).body as string);
-    expect(patchBody.rule_text).toBe('Updated rule: always greet by name');
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { update: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.update).toHaveBeenCalledOnce();
+    const updateArgs = employeeRule.update.mock.calls[0][0] as {
+      where: { id: string };
+      data: { rule_text: string };
+    };
+    expect(updateArgs.where.id).toBe('rule-modal-001');
+    expect(updateArgs.data.rule_text).toBe('Updated rule: always greet by name');
 
     expect(client.chat.update).toHaveBeenCalledOnce();
-    const updateCall = client.chat.update.mock.calls[0][0] as {
+    const chatUpdateCall = client.chat.update.mock.calls[0][0] as {
       channel: string;
       ts: string;
       blocks: Array<{ type: string; elements?: Array<{ action_id: string }> }>;
     };
-    expect(updateCall.channel).toBe('C-RULE-CHAN');
-    expect(updateCall.ts).toBe('ts-original-111');
+    expect(chatUpdateCall.channel).toBe('C-RULE-CHAN');
+    expect(chatUpdateCall.ts).toBe('ts-original-111');
 
-    const actionsBlock = updateCall.blocks.find((b) => b.type === 'actions');
+    const actionsBlock = chatUpdateCall.blocks.find((b) => b.type === 'actions');
     expect(actionsBlock).toBeDefined();
     const actionIds = actionsBlock!.elements!.map((e) => e.action_id);
     expect(actionIds).toEqual(
       expect.arrayContaining(['rule_confirm', 'rule_reject', 'rule_rephrase']),
     );
-
-    vi.unstubAllGlobals();
   });
 
-  it('empty rule_text → validation error ack, no PATCH', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('empty rule_text → validation error ack, no Prisma update', async () => {
+    const mockPrisma = makeMockPrisma();
 
     const boltApp = makeMockBoltApp();
-    registerSlackHandlers(boltApp as unknown as App, makeMockInngest());
+    registerSlackHandlers(boltApp as unknown as App, makeMockInngest(), mockPrisma);
 
     const handler = boltApp._getView('rule_rephrase_modal') as ViewHandler;
     const ack = makeAck();
@@ -444,14 +458,9 @@ describe('rule_rephrase_modal view handler', () => {
     const ackArg = (ack.mock.calls[0] as unknown[])[0] as { response_action: string };
     expect(ackArg.response_action).toBe('errors');
 
-    const patchCall = fetchMock.mock.calls.find(
-      (args: unknown[]) =>
-        typeof args[0] === 'string' &&
-        args[0].includes('employee_rules') &&
-        (args[1] as RequestInit)?.method === 'PATCH',
-    );
-    expect(patchCall).toBeUndefined();
-
-    vi.unstubAllGlobals();
+    const { employeeRule } = mockPrisma as unknown as {
+      employeeRule: { update: ReturnType<typeof vi.fn> };
+    };
+    expect(employeeRule.update).not.toHaveBeenCalled();
   });
 });

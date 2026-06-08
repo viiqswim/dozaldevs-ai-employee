@@ -4,11 +4,16 @@ import { createLogger } from '../../../lib/logger.js';
 import { SLACK_ACTION_ID } from '../../../lib/slack-action-ids.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
 import { ruleProposedMessage } from '../../../lib/slack-copy.js';
-import { type ActionBody, SUPABASE_URL, SUPABASE_KEY } from './shared.js';
+import type { ActionBody } from './shared.js';
+import type { EmployeeRuleRepository } from '../../../repositories/employee-rule-repository.js';
 
 const log = createLogger('slack-handlers');
 
-export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
+export function registerRuleHandlers(
+  boltApp: App,
+  inngest: InngestLike,
+  ruleRepo: EmployeeRuleRepository,
+): void {
   boltApp.action(SLACK_ACTION_ID.RULE_CONFIRM, async ({ ack, body, client }) => {
     await ack();
     const actionBody = body as ActionBody;
@@ -38,32 +43,10 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
     }
 
     try {
-      const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
-      const authHeaders = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      };
-
-      const patchRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
-        method: 'PATCH',
-        headers: authHeaders,
-        body: JSON.stringify({ status: 'confirmed', confirmed_at: new Date().toISOString() }),
-      });
-      const patchedRows = (await patchRes.json()) as Array<{
-        id: string;
-        tenant_id: string;
-        archetype_id: string;
-        source: string;
-        parent_rule_ids: string[];
-        rule_text: string;
-      }>;
-      const patchedRule = patchedRows[0];
+      const patchedRule = await ruleRepo.patchConfirm(ruleId, user.id);
 
       if (channel && messageTs) {
-        const ruleText = patchedRule?.rule_text ?? '';
+        const ruleText = patchedRule.rule_text;
         const displayText = ruleText
           ? `✅ Rule confirmed by <@${user.id}>\n\n> ${ruleText}`
           : `✅ Rule confirmed by <@${user.id}>`;
@@ -76,11 +59,6 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
             { type: 'context', elements: [{ type: 'mrkdwn', text: `Rule \`${ruleId}\`` }] },
           ],
         });
-      }
-
-      if (!patchedRule) {
-        log.warn({ ruleId }, 'rule_confirm: no rule returned after PATCH');
-        return;
       }
 
       const {
@@ -96,12 +74,7 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
         data: { ruleId, tenantId, archetypeId, confirmedBy: user.id },
       });
 
-      const countRes = await fetch(
-        `${supabaseUrl}/rest/v1/employee_rules?status=eq.confirmed&archetype_id=eq.${archetypeId}&select=id`,
-        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
-      );
-      const confirmedRules = (await countRes.json()) as Array<{ id: string }>;
-      const confirmedCount = confirmedRules.length;
+      const confirmedCount = await ruleRepo.countConfirmed(archetypeId);
 
       if (
         confirmedCount > 0 &&
@@ -116,17 +89,7 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
       }
 
       if (source === 'synthesis' && parentRuleIds.length > 0) {
-        const idList = parentRuleIds.join(',');
-        await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=in.(${idList})`, {
-          method: 'PATCH',
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({ status: 'archived' }),
-        });
+        await Promise.all(parentRuleIds.map((id) => ruleRepo.patchArchive(id)));
         log.info({ ruleId, parentRuleIds }, 'Parent rules archived after synthesis confirmation');
       }
     } catch (err) {
@@ -184,20 +147,8 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
     }
 
     try {
-      const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
-      const patchRes = await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
-        method: 'PATCH',
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify({ status: 'rejected' }),
-      });
-      const patchedRows = (await patchRes.json()) as Array<{ rule_text: string }>;
-      const ruleText = patchedRows[0]?.rule_text ?? '';
+      const patchedRule = await ruleRepo.patchReject(ruleId);
+      const ruleText = patchedRule.rule_text;
       log.info({ ruleId, userId: user.id }, 'Rule rejected');
 
       if (channel && messageTs) {
@@ -274,19 +225,8 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
 
     let currentRuleText = '';
     try {
-      const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
-      const res = await fetch(
-        `${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}&select=rule_text`,
-        {
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-          },
-        },
-      );
-      const rows = (await res.json()) as Array<{ rule_text: string }>;
-      currentRuleText = rows[0]?.rule_text ?? '';
+      const rule = await ruleRepo.get(ruleId);
+      currentRuleText = rule?.rule_text ?? '';
     } catch (err) {
       log.error({ ruleId, err }, 'Failed to fetch rule_text for rephrase modal');
     }
@@ -381,36 +321,10 @@ export function registerRuleHandlers(boltApp: App, inngest: InngestLike): void {
     }
 
     try {
-      const supabaseUrl = SUPABASE_URL();
-      const supabaseKey = SUPABASE_KEY();
-
-      await fetch(`${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}`, {
-        method: 'PATCH',
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ rule_text: newText.trim() }),
-      });
+      const updatedRule = await ruleRepo.patchRephrase(ruleId, newText.trim());
       log.info({ ruleId }, 'rule_text updated via rephrase');
 
-      const metaRes = await fetch(
-        `${supabaseUrl}/rest/v1/employee_rules?id=eq.${ruleId}&select=slack_ts,slack_channel`,
-        {
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-          },
-        },
-      );
-      const metaRows = (await metaRes.json()) as Array<{
-        slack_ts: string | null;
-        slack_channel: string | null;
-      }>;
-      const slack_ts = metaRows[0]?.slack_ts;
-      const slack_channel = metaRows[0]?.slack_channel;
+      const { slack_ts, slack_channel } = updatedRule;
 
       if (slack_ts && slack_channel) {
         await client.chat.update({
