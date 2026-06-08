@@ -26,10 +26,20 @@ export const PORT = (): string => process.env.PORT ?? '7700';
 export const ADMIN_API_KEY = (): string => process.env.ADMIN_API_KEY ?? '';
 export const ENCRYPTION_KEY = (): string => process.env.ENCRYPTION_KEY ?? '';
 
+// Database
+export const DATABASE_URL = (): string => process.env.DATABASE_URL ?? '';
+
 // Supabase / PostgREST
 export const SUPABASE_URL = (): string => process.env.SUPABASE_URL ?? '';
 export const SUPABASE_SECRET_KEY = (): string => process.env.SUPABASE_SECRET_KEY ?? '';
 export const SUPABASE_ANON_KEY = (): string => process.env.SUPABASE_ANON_KEY ?? '';
+
+// AI providers
+export const OPENROUTER_API_KEY = (): string => process.env.OPENROUTER_API_KEY ?? '';
+export const OPENCODE_GO_API_KEY = (): string => process.env.OPENCODE_GO_API_KEY ?? '';
+
+// Slack bot
+export const SLACK_BOT_TOKEN = (): string => process.env.SLACK_BOT_TOKEN ?? '';
 
 // Slack OAuth
 export const SLACK_CLIENT_ID = (): string => process.env.SLACK_CLIENT_ID ?? '';

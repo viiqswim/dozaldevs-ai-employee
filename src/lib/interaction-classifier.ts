@@ -1,4 +1,5 @@
 import type { callLLM } from './call-llm.js';
+import { SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY, SUPABASE_URL } from './config.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('interaction-classifier');
@@ -83,8 +84,8 @@ Respond with exactly one word: feedback, teaching, question, task, or unclear. N
 
 function getPostgrestHeaders(): Record<string, string> {
   return {
-    apikey: process.env.SUPABASE_ANON_KEY || '',
-    Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY || ''}`,
+    apikey: SUPABASE_ANON_KEY(),
+    Authorization: `Bearer ${SUPABASE_SECRET_KEY()}`,
     'Content-Type': 'application/json',
   };
 }
@@ -96,7 +97,7 @@ export async function resolveArchetypeFromChannel(
   archetype: { id: string; role_name: string; notification_channel: string | null } | null;
   isExactMatch: boolean;
 }> {
-  const supabaseUrl = process.env.SUPABASE_URL || '';
+  const supabaseUrl = SUPABASE_URL();
   const headers = getPostgrestHeaders();
 
   try {
@@ -134,7 +135,7 @@ export async function resolveArchetypeFromChannel(
 export async function resolveArchetypeFromTask(
   taskId: string,
 ): Promise<{ id: string; role_name: string; tenantId: string } | null> {
-  const supabaseUrl = process.env.SUPABASE_URL || '';
+  const supabaseUrl = SUPABASE_URL();
   const headers = getPostgrestHeaders();
 
   try {
