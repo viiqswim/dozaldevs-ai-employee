@@ -5,7 +5,7 @@ import { join } from 'path';
 describe('feedback queries — tenant_id filter', () => {
   it('lifecycle execute step employee_rules query includes archetype_id=eq.${archetypeId} filter', () => {
     const src = readFileSync(
-      join(process.cwd(), 'src/inngest/lifecycle/steps/execute.ts'),
+      join(process.cwd(), 'src/inngest/lifecycle/lib/machine-provisioner.ts'),
       'utf-8',
     );
     expect(src).toContain('archetype_id=eq.${archetypeId}');
