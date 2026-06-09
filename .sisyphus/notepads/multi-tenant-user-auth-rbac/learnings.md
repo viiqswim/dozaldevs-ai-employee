@@ -222,3 +222,11 @@
 - `getMockedFindFirst()` anti-pattern creates a new PrismaClient instance (different from the one in the SUT); use a hoisted shared `mockFindFirst` fn instead
 - `admin-github.test.ts` has a flaky test ("returns 401 when X-Admin-Key header is missing") that intermittently fails but is NOT caused by authz changes — confirmed by stash test
 - Build: `pnpm build` is ground truth; LSP errors on `@prisma/client` exports (Role, TenantRole) are stale and can be ignored
+
+## [2026-06-09] T12★ — deactivation enforcement
+- `ensure-user-exists.ts` upsert does NOT reset `status` on update — only `email` is updated; safe to add `deleted_at` check after upsert
+- `authMiddleware` catch block at line 53 catches any throw from `ensureUserExists` and returns 401 `INVALID_TOKEN` — correct channel for soft-deleted user responses (don't reveal user exists)
+- Integration test uses `vi.mock` for `verifySupabaseJwt` + direct `authMiddleware` call (no HTTP) — clean way to test DB-level immediacy without Supabase Auth running
+- Supabase Admin API ban endpoint: `PUT /auth/v1/admin/users/:supabase_id` — guard `user.supabase_id` nullability before calling
+- `req.params['userId'] as string` needed (vs destructuring) due to TS type resolution issue in multi-middleware Express routes
+- `users.status='disabled'` check (in `auth.ts`) is the primary immediate lockout; Supabase ban is belt-and-suspenders for token refresh blocking

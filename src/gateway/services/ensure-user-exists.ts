@@ -16,6 +16,10 @@ export async function ensureUserExists(claims: SupabaseJwtClaims): Promise<Authe
     },
   });
 
+  if (user.deleted_at !== null) {
+    throw new Error('User account has been deleted');
+  }
+
   return {
     id: user.id,
     supabaseId: user.supabase_id!,

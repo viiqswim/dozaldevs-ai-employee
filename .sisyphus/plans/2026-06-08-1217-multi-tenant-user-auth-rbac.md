@@ -936,7 +936,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 12. Immediate deactivation + role-change enforcement
+- [x] 12. Immediate deactivation + role-change enforcement
 
   **What to do**:
   - Ensure the per-request DB lookup (T9/T11) reads current `User.status`/`deleted_at` and current `TenantMembership.role` (no caching outliving a request, or short TTL with explicit invalidation on member/role mutations).
@@ -1905,7 +1905,7 @@ Max Concurrent: 9 (Wave 1)
   - **QA**: verify a real LOCAL (HS256) token AND a real CLOUD (ES256) token; assert a cloud token is rejected by the local-only path and vice-versa.
   - Evidence: `.sisyphus/evidence/{local,cloud}/task-8-verify.txt`
 
-- [ ] 12★ (AMENDS T12). Deactivation = Supabase ban + app `users.status`
+- [x] 12★ (AMENDS T12). Deactivation = Supabase ban + app `users.status`
   - **Amendment**: deactivation calls the Supabase Admin API ban (`auth.admin.updateUserById` with `ban_duration`) **and** sets app `users.status='disabled'`. The per-request DB check (T9/T11) enforces immediate lockout (Supabase ban only blocks token refresh, ~1h). E2E must assert next-request 403 with the **same still-valid JWT**.
   - **References**: librarian Supabase Admin ban semantics; T9/T11 per-request check.
   - **QA**: 200 → ban+status → 403 on next request (same token), on BOTH envs.
