@@ -23,6 +23,8 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
+**Permitted Anthropic model (verification/judge only):** `anthropic/claude-haiku-4-5` is the sole Anthropic model permitted for gateway verification/judge calls (distinct from execution models). It may appear as a `gateway_llm_model` platform setting value. It must NOT be used as an execution model or hardcoded anywhere else.
+
 **OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/lib/go-models.ts`). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
 
 ## Deprecated Components
