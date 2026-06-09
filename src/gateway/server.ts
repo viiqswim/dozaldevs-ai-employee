@@ -46,7 +46,7 @@ import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
 import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
-import { requireEnv } from '../lib/config.js';
+import { requireEnv, assertEnvProfile } from '../lib/config.js';
 import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
 const logger = createLogger('gateway');
@@ -73,6 +73,7 @@ export interface BuildAppResult {
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppResult> {
+  assertEnvProfile();
   validateEncryptionKey();
 
   requireEnv('ADMIN_API_KEY');

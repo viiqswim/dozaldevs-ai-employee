@@ -20,8 +20,8 @@ services:
 
       DB_NAMESPACE: auth
 
-      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:3000}
-      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:7700/dashboard/}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-http://localhost:7700/dashboard/**,http://localhost:7700/dashboard/auth/callback}
       GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
 
       GOTRUE_JWT_ADMIN_ROLES: service_role
@@ -48,6 +48,11 @@ services:
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP:-false}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM:-false}
+
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOTRUE_EXTERNAL_GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOTRUE_EXTERNAL_GOOGLE_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: http://localhost:54331/auth/v1/callback
     networks:
       - supabase-shared
       - ai-employee-internal

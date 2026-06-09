@@ -1,5 +1,12 @@
 # Issues — multi-tenant-user-auth-rbac
 
+## [2026-06-09] CRITICAL: prisma migrate dev is broken in this repo
+
+- Root cause: An existing RLS migration enables RLS on `_prisma_migrations` itself, which breaks Prisma's shadow DB validation
+- Resolution: Use `prisma migrate deploy` (or direct psql) for ALL future migrations
+- Workaround used in T2: Created `_prisma_migrations` table, inserted 58 baseline records, applied migration SQL via psql directly
+- Future tasks: NEVER use `prisma migrate dev` — use `prisma migrate deploy` or write SQL and apply via psql
+
 ## [2026-06-09] Known issues from planning phase
 
 - `GOTRUE_SITE_URL` is wrong (`localhost:3000`); must point at dashboard (`http://localhost:7700/dashboard/`)

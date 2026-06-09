@@ -18,40 +18,40 @@ datasource db {
 // ============================================================
 
 model Task {
-  id                 String   @id @default(uuid()) @db.Uuid
-  archetype_id       String?  @db.Uuid
-  project_id         String?  @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
+  archetype_id       String?   @db.Uuid
+  project_id         String?   @db.Uuid
   external_id        String?
   source_system      String?
-  status             String   @default("Received")
+  status             String    @default("Received")
   requirements       Json?
   scope_estimate     Int?
   affected_resources Json?
-  tenant_id          String   @db.Uuid
+  tenant_id          String    @db.Uuid
   raw_event          Json?
-  dispatch_attempts  Int      @default(0)
+  dispatch_attempts  Int       @default(0)
   failure_reason     String?
   triage_result      Json?
   metadata           Json?
-  planContent        String?  @map("plan_content") @db.Text
+  planContent        String?   @map("plan_content") @db.Text
   planGeneratedAt    DateTime? @map("plan_generated_at")
-  costUsdCents       Int      @default(0) @map("cost_usd_cents")
+  costUsdCents       Int       @default(0) @map("cost_usd_cents")
   started_at         DateTime?
   completed_at       DateTime?
   failure_code       String?
-  compiled_agents_md String?  @db.Text
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
+  compiled_agents_md String?   @db.Text
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
   deleted_at         DateTime?
 
   // Relations
-  tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
-  archetype         Archetype?         @relation(fields: [archetype_id], references: [id])
-  project           Project?           @relation(fields: [project_id], references: [id])
-  executions        Execution[]
-  statusLogs        TaskStatusLog[]
-  feedbackEvents    FeedbackEvent[]
-  taskMetric        TaskMetric?
+  tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
+  archetype      Archetype?      @relation(fields: [archetype_id], references: [id])
+  project        Project?        @relation(fields: [project_id], references: [id])
+  executions     Execution[]
+  statusLogs     TaskStatusLog[]
+  feedbackEvents FeedbackEvent[]
+  taskMetric     TaskMetric?
 
   @@unique([external_id, source_system, tenant_id])
   @@index([archetype_id])
@@ -82,8 +82,8 @@ model Execution {
   deleted_at         DateTime?
 
   // Relations
-  task         Task           @relation(fields: [task_id], references: [id])
-  agentVersion AgentVersion?  @relation(fields: [agent_version_id], references: [id])
+  task         Task          @relation(fields: [task_id], references: [id])
+  agentVersion AgentVersion? @relation(fields: [agent_version_id], references: [id])
   deliverables Deliverable[]
 
   @@index([task_id])
@@ -169,39 +169,39 @@ model Department {
 }
 
 model Archetype {
-  id                String   @id @default(uuid()) @db.Uuid
-  department_id     String?  @db.Uuid
-  role_name         String?
-  runtime           String?
-  trigger_sources   Json?
-  tool_registry     Json?
-  risk_model        Json?
-  concurrency_limit Int      @default(3)
-  agent_version_id  String?  @db.Uuid
-  tenant_id         String   @db.Uuid
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-  execution_instructions String?  @db.Text
-  delivery_instructions  String?  @db.Text
-  notification_channel   String?  @db.Text
-  vm_size             String?   // Per-archetype VM size override (e.g. 'shared-cpu-1x', 'shared-cpu-2x')
-  enrichment_adapter  String?   // Name of enrichment adapter to use (e.g. 'hostfully', null for none)
-  pre_check_adapter String?
-  worker_env        Json?
-  input_schema      Json?
-  model             String
-  deliverable_type  String?
-  status            String   @default("active")
-  overview          Json?
-  parent_draft_id   String?
-  deleted_at        DateTime?
+  id                                String    @id @default(uuid()) @db.Uuid
+  department_id                     String?   @db.Uuid
+  role_name                         String?
+  runtime                           String?
+  trigger_sources                   Json?
+  tool_registry                     Json?
+  risk_model                        Json?
+  concurrency_limit                 Int       @default(3)
+  agent_version_id                  String?   @db.Uuid
+  tenant_id                         String    @db.Uuid
+  created_at                        DateTime  @default(now())
+  updated_at                        DateTime  @updatedAt
+  execution_instructions            String?   @db.Text
+  delivery_instructions             String?   @db.Text
+  notification_channel              String?   @db.Text
+  vm_size                           String? // Per-archetype VM size override (e.g. 'shared-cpu-1x', 'shared-cpu-2x')
+  enrichment_adapter                String? // Name of enrichment adapter to use (e.g. 'hostfully', null for none)
+  pre_check_adapter                 String?
+  worker_env                        Json?
+  input_schema                      Json?
+  model                             String
+  deliverable_type                  String?
+  status                            String    @default("active")
+  overview                          Json?
+  parent_draft_id                   String?
+  deleted_at                        DateTime?
   estimated_manual_minutes          Int?
   estimated_manual_minutes_override Int?
-  identity              String?  @db.Text
-  execution_steps       String?  @db.Text
-  delivery_steps        String?  @db.Text
-  temperature           Float?   @default(1.0)
-  platform_rules_override String?  @db.Text  // When set, replaces the default platform rules section in compiled AGENTS.md
+  identity                          String?   @db.Text
+  execution_steps                   String?   @db.Text
+  delivery_steps                    String?   @db.Text
+  temperature                       Float?    @default(1.0)
+  platform_rules_override           String?   @db.Text // When set, replaces the default platform rules section in compiled AGENTS.md
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -248,8 +248,8 @@ model KnowledgeBaseEntry {
   // Relations
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
 
-  @@index([tenant_id, entity_type, entity_id])
   @@unique([tenant_id, entity_type, entity_id, scope])
+  @@index([tenant_id, entity_type, entity_id])
   @@map("knowledge_base_entries")
 }
 
@@ -300,20 +300,22 @@ model Tenant {
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
 
-  secrets        TenantSecret[]
-  tasks          Task[]
-  projects       Project[]
-  departments    Department[]
-  archetypes     Archetype[]
-  knowledgeBases        KnowledgeBase[]
-  knowledgeBaseEntries  KnowledgeBaseEntry[]
-  integrations          TenantIntegration[]
-  systemEvents   SystemEvent[]
-  pendingApprovals      PendingApproval[]
-  propertyLocks         PropertyLock[]
-  feedbackEvents        FeedbackEvent[]
-  employeeRules         EmployeeRule[]
-   taskMetrics           TaskMetric[]
+  secrets              TenantSecret[]
+  tasks                Task[]
+  projects             Project[]
+  departments          Department[]
+  archetypes           Archetype[]
+  knowledgeBases       KnowledgeBase[]
+  knowledgeBaseEntries KnowledgeBaseEntry[]
+  integrations         TenantIntegration[]
+  systemEvents         SystemEvent[]
+  pendingApprovals     PendingApproval[]
+  propertyLocks        PropertyLock[]
+  feedbackEvents       FeedbackEvent[]
+  employeeRules        EmployeeRule[]
+  taskMetrics          TaskMetric[]
+  memberships          TenantMembership[]
+  invitations          TenantInvitation[]
 
   @@map("tenants")
 }
@@ -367,18 +369,18 @@ model TenantSecret {
 }
 
 model PendingApproval {
-  id         String   @id @default(uuid()) @db.Uuid
-  tenant_id  String   @db.Uuid
-  thread_uid String
-  task_id    String
-  slack_ts   String
-  channel_id String
-  created_at        DateTime  @default(now())
-  reminder_sent_at  DateTime? @map("reminder_sent_at")
-  urgency           Boolean   @default(false) @map("urgency")
-  recipient_name    String?   @map("recipient_name")
-  context_label     String?   @map("context_label")
-  deleted_at        DateTime?
+  id               String    @id @default(uuid()) @db.Uuid
+  tenant_id        String    @db.Uuid
+  thread_uid       String
+  task_id          String
+  slack_ts         String
+  channel_id       String
+  created_at       DateTime  @default(now())
+  reminder_sent_at DateTime? @map("reminder_sent_at")
+  urgency          Boolean   @default(false) @map("urgency")
+  recipient_name   String?   @map("recipient_name")
+  context_label    String?   @map("context_label")
+  deleted_at       DateTime?
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
 
@@ -413,16 +415,16 @@ model PropertyLock {
 // ============================================================
 
 model FeedbackEvent {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenant_id          String   @db.Uuid
-  archetype_id       String   @db.Uuid
-  task_id            String?  @db.Uuid
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id          String    @db.Uuid
+  archetype_id       String    @db.Uuid
+  task_id            String?   @db.Uuid
   event_type         String
   actor_id           String?
   correction_content String?
   original_content   String?
   metadata           Json?
-  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at         DateTime?
 
   // Relations
@@ -460,33 +462,33 @@ model EmployeeRule {
 }
 
 model ModelCatalog {
-  id                          String    @id @default(uuid()) @db.Uuid
-  model_id                    String    // e.g. "minimax/minimax-m2.7"
-  display_name                String
-  provider                    String
-  description                 String?   @db.Text
-  context_window              Int
-  input_cost_per_million      Float
-  output_cost_per_million     Float
-  is_free                     Boolean   @default(false)
-  throughput_tokens_per_sec   Float?
-  latency_seconds             Float?
-  tool_call_error_rate        Float?
+  id                           String    @id @default(uuid()) @db.Uuid
+  model_id                     String // e.g. "minimax/minimax-m2.7"
+  display_name                 String
+  provider                     String
+  description                  String?   @db.Text
+  context_window               Int
+  input_cost_per_million       Float
+  output_cost_per_million      Float
+  is_free                      Boolean   @default(false)
+  throughput_tokens_per_sec    Float?
+  latency_seconds              Float?
+  tool_call_error_rate         Float?
   structured_output_error_rate Float?
-  quality_index               Float?
-  agentic_score               Float?
-  tool_use_score              Float?
-  instruction_following_score Float?
-  non_hallucination_rate      Float?
-  supports_tools              Boolean   @default(false)
-  supports_structured_output  Boolean   @default(false)
-  is_active                   Boolean   @default(true)
-  notes                       String?   @db.Text
-  strengths                   String?   @db.Text
-  weaknesses                  String?   @db.Text
-  created_at                  DateTime  @default(now())
-  updated_at                  DateTime  @updatedAt
-  deleted_at                  DateTime?
+  quality_index                Float?
+  agentic_score                Float?
+  tool_use_score               Float?
+  instruction_following_score  Float?
+  non_hallucination_rate       Float?
+  supports_tools               Boolean   @default(false)
+  supports_structured_output   Boolean   @default(false)
+  is_active                    Boolean   @default(true)
+  notes                        String?   @db.Text
+  strengths                    String?   @db.Text
+  weaknesses                   String?   @db.Text
+  created_at                   DateTime  @default(now())
+  updated_at                   DateTime  @updatedAt
+  deleted_at                   DateTime?
 
   @@unique([model_id])
   @@map("model_catalog")
@@ -510,17 +512,90 @@ model PlatformSetting {
 }
 
 // ============================================================
+// User Auth & RBAC
+// ============================================================
+
+enum Role {
+  PLATFORM_OWNER
+  ADMIN
+  EDITOR
+  USER
+  VIEWER
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model User {
+  id                String             @id @default(uuid()) @db.Uuid
+  supabase_id       String?            @unique @db.Uuid
+  email             String             @unique
+  name              String?
+  role              Role               @default(USER)
+  status            String             @default("active")
+  current_tenant_id String?            @db.Uuid
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime           @updatedAt @db.Timestamptz(6)
+  deleted_at        DateTime?          @db.Timestamptz(6)
+  memberships       TenantMembership[]
+  invitations_sent  TenantInvitation[] @relation("InvitationInviter")
+
+  @@index([deleted_at])
+  @@map("users")
+}
+
+model TenantMembership {
+  tenant_id  String     @db.Uuid
+  user_id    String     @db.Uuid
+  role       TenantRole @default(MEMBER)
+  joined_at  DateTime   @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime?  @db.Timestamptz(6)
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id])
+  user       User       @relation(fields: [user_id], references: [id])
+
+  @@id([tenant_id, user_id])
+  @@index([user_id])
+  @@map("tenant_memberships")
+}
+
+model TenantInvitation {
+  id          String     @id @default(uuid()) @db.Uuid
+  tenant_id   String     @db.Uuid
+  email       String
+  role        TenantRole @default(MEMBER)
+  token       String     @unique
+  status      String     @default("pending")
+  expires_at  DateTime   @db.Timestamptz(6)
+  accepted_at DateTime?  @db.Timestamptz(6)
+  declined_at DateTime?  @db.Timestamptz(6)
+  revoked_at  DateTime?  @db.Timestamptz(6)
+  inviter_id  String?    @db.Uuid
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  tenant      Tenant     @relation(fields: [tenant_id], references: [id])
+  inviter     User?      @relation("InvitationInviter", fields: [inviter_id], references: [id], onDelete: SetNull)
+
+  @@index([token])
+  @@index([email])
+  @@index([tenant_id, email])
+  @@map("tenant_invitations")
+}
+
+// ============================================================
 // Time Estimation & Task Metrics
 // ============================================================
 
 model TaskMetric {
-  id            String   @id @default(uuid()) @db.Uuid
-  task_id       String   @unique @db.Uuid
-  archetype_id  String   @db.Uuid
-  tenant_id     String   @db.Uuid
-  work_minutes  Int
-  created_at    DateTime @default(now())
-  deleted_at    DateTime?
+  id           String    @id @default(uuid()) @db.Uuid
+  task_id      String    @unique @db.Uuid
+  archetype_id String    @db.Uuid
+  tenant_id    String    @db.Uuid
+  work_minutes Int
+  created_at   DateTime  @default(now())
+  deleted_at   DateTime?
 
   task      Task      @relation(fields: [task_id], references: [id])
   archetype Archetype @relation(fields: [archetype_id], references: [id])

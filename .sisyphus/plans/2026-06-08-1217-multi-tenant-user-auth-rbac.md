@@ -435,7 +435,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 1 — Data & Infrastructure
 
-- [ ] 1. Prisma models + enums (User, TenantMembership, TenantInvitation)
+- [x] 1. Prisma models + enums (User, TenantMembership, TenantInvitation)
 
   **What to do**:
   - Add to `prisma/schema.prisma`:
@@ -489,7 +489,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 2. Migration + PostgREST schema reload + verify
+- [x] 2. Migration + PostgREST schema reload + verify
 
   **What to do**:
   - Generate and apply: `pnpm prisma migrate dev --name add_user_auth_rbac` (creates `users`, `tenant_memberships`, `tenant_invitations`).
@@ -536,7 +536,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 3. Enable Supabase Auth (email/password + Google) on the ACTIVE compose file
+- [x] 3. Enable Supabase Auth (email/password + Google) on the ACTIVE compose file
 
   **What to do**:
   - Edit `docker/supabase-services.yml` (ACTIVE file — verified in T0a) `auth` service env:
@@ -587,7 +587,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 4. SERVICE_TOKEN concept + env + config constant
+- [x] 4. SERVICE_TOKEN concept + env + config constant
 
   **What to do**:
   - Add `SERVICE_TOKEN` to `.env`/`.env.example` (Platform Core section; machine-only; never in browser/`/api/config.js`). Generate a strong value.
@@ -629,7 +629,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 5. Shared TypeScript types (roles, permissions, claims, DTOs)
+- [x] 5. Shared TypeScript types (roles, permissions, claims, DTOs)
 
   **What to do**:
   - Add `src/lib/auth/types.ts`: `Role`, `TenantRole` (mirror Prisma enums), `Permission` union, `AuthenticatedUser` (id, supabaseId, email, globalRole, status), `TenantContext` (tenantId, tenantRole), `SupabaseJwtClaims` (sub, email, role, aud, exp — identity only), and Express request-augmentation types (`req.auth`).
@@ -665,7 +665,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 6. Static ROLE_PERMISSIONS map + hasPermission (TDD)
+- [x] 6. Static ROLE_PERMISSIONS map + hasPermission (TDD)
 
   **What to do**:
   - RED: `tests/unit/auth/permissions.test.ts` asserting the matrix (PLATFORM_OWNER has all; tenant OWNER manages members/invite; ADMIN invites; MEMBER triggers employees [per matrix]; VIEWER read-only) and `hasPermission` truth table.
@@ -709,7 +709,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 7. Minimal RLS backstop policies
+- [x] 7. Minimal RLS backstop policies
 
   **What to do**:
   - Add a SQL migration (or `supabase/`-style policy file per repo conventions) keeping `users`, `tenant_memberships`, `tenant_invitations`, `tenant_secrets` LOCKED from the `anon` role (no SELECT). Defense-in-depth only — app reads go through the gateway (path B), so do NOT author `authenticated` per-table policies for the 14 tenant tables.
@@ -1773,7 +1773,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 1 additions
 
-- [ ] C. CLOUD provision — migrate, schema reload, seed, providers, redirects
+- [x] C. CLOUD provision — migrate, schema reload, seed, providers, redirects
 
   **What to do**:
   - Using an **all-cloud env profile**, run `pnpm prisma migrate deploy` against the cloud DB via `DATABASE_URL_DIRECT` (session pooler, IPv4, `5432`). Confirm all tables (existing + the 3 new) are created.
@@ -1818,7 +1818,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 3b. Dual-env config layer + atomic-profile startup assertion
+- [x] 3b. Dual-env config layer + atomic-profile startup assertion
 
   **What to do**:
   - Add an env profile concept (LOCAL vs CLOUD) driven entirely by env values: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (holds publishable value), `SUPABASE_SECRET_KEY` (secret), `SUPABASE_JWKS_URL` (derived `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`), `DATABASE_URL` / `DATABASE_URL_DIRECT`. Keep var NAMES; change VALUES.
@@ -1862,7 +1862,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 1)
 
-- [ ] 1E2E. Wave-1 checkpoint — signup+login issue a JWT on BOTH envs; tables visible
+- [x] 1E2E. Wave-1 checkpoint — signup+login issue a JWT on BOTH envs; tables visible
 
   **What to do**:
   - On LOCAL and CLOUD: perform a real signup + password login via Auth; assert a JWT is returned and decodes with the expected `alg` (HS256 local / ES256 cloud). Assert the 3 new tables are queryable via each env's Data API.

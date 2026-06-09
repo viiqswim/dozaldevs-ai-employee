@@ -39,6 +39,7 @@
 - CLOUD auth signup: ✅ Functional (rate-limited on repeated calls, email domain validation active)
 
 ### Key Findings
+
 1. **Cloud REST root (`/rest/v1/`) requires secret key** — this is expected Supabase behavior; the root is a management endpoint. Data table endpoints (`/rest/v1/tenants`) accept the publishable key fine.
 2. **Cloud auth health requires apikey header** — unlike local Kong which has `/auth/v1/health` as an open route, Supabase Cloud requires `apikey` for health too.
 3. **JWKS endpoint is open** — no apikey needed for `/.well-known/jwks.json` on cloud.
@@ -46,5 +47,132 @@
 5. **Dual-accept baseline confirmed** — local admin key still returns 200 (no regression from Wave 0 spike work).
 
 ### Evidence Files
+
 - `.sisyphus/evidence/local/task-0e2e-local-connectivity.txt`
 - `.sisyphus/evidence/cloud/task-0e2e-cloud-connectivity.txt`
+
+## [2026-06-09] T1 Prisma Models
+
+- Added enums: Role (PLATFORM_OWNER/ADMIN/EDITOR/USER/VIEWER), TenantRole (OWNER/ADMIN/MEMBER/VIEWER)
+- Added models: User, TenantMembership, TenantInvitation
+- All three models have deleted_at for soft-delete
+- TenantMembership uses composite PK [tenant_id, user_id]
+- TenantInvitation.token is @unique for secure lookup
+- Back-relations added to Tenant model (memberships, invitations)
+- schema.prisma timestamps use @db.Timestamptz(6) on new models (consistent with FeedbackEvent/EmployeeRule patterns)
+- pnpm prisma validate passes before and after pnpm prisma format (idempotent)
+- Evidence: .sisyphus/evidence/local/task-1-prisma-validate.txt
+
+## [2026-06-09] T2 Migration Applied
+
+- Migration name: `20260609000000_add_user_auth_rbac`
+- Tables created: `users`, `tenant_memberships`, `tenant_invitations`
+- Enums created: `Role` (PLATFORM_OWNER, ADMIN, EDITOR, USER, VIEWER), `TenantRole` (OWNER, ADMIN, MEMBER, VIEWER)
+- PostgREST schema reloaded via `NOTIFY pgrst, 'reload schema'`
+- All three tables accessible via PostgREST (returns `[]` not PGRST205)
+
+### DB Baseline Issue (IMPORTANT for future tasks)
+
+- `_prisma_migrations` table did NOT exist — DB was set up outside Prisma
+- `prisma migrate dev` fails due to RLS on `_prisma_migrations` (shadow DB can't read its own tracking table)
+- Workaround: manually created `_prisma_migrations`, inserted 58 baseline records, created migration file manually, applied via psql, registered in tracking table
+- `prisma migrate deploy` (not `migrate dev`) is the correct command for this repo going forward
+- Evidence: `.sisyphus/evidence/local/task-2-psql-tables.txt`, `.sisyphus/evidence/local/task-2-postgrest-tables.txt`
+
+## [2026-06-09] T3 Supabase Auth Config
+
+- GOTRUE_SITE_URL corrected to http://localhost:7700/dashboard/ (was http://localhost:3000)
+- GOTRUE_URI_ALLOW_LIST set to http://localhost:7700/dashboard/\*\*,http://localhost:7700/dashboard/auth/callback
+- Google OAuth vars added to compose file (env-driven, disabled by default)
+- Google redirect URI: http://localhost:54331/auth/v1/callback (Kong port)
+- Email/password signup still works after recreate — returns JWT ✓
+- Google authorize returns 400 when GOTRUE_EXTERNAL_GOOGLE_ENABLED=false (expected)
+- CRITICAL: `docker compose restart` does NOT re-read env vars — must use `up -d --force-recreate auth`
+
+## [2026-06-09] T4 SERVICE_TOKEN
+
+- Added SERVICE_TOKEN to .env, .env.example, src/lib/config.ts
+- Uses lazy getter pattern `(): string => requireEnv('SERVICE_TOKEN')` (throws at call time if missing, not at import time)
+- NOT exposed to browser or /api/config.js
+- Auth resolution order: SERVICE_TOKEN → Supabase JWT → legacy ADMIN_API_KEY (per Oracle T0c)
+- Header: Authorization: Bearer <token> (distinguish from JWTs by structure — JWTs have 3 dot-separated segments)
+- .env.example section: Platform Core (after ADMIN_API_KEY)
+- config.ts pattern: lazy getter (same as ADMIN_API_KEY, ENCRYPTION_KEY) — not eager like INNGEST_EVENT_KEY
+
+## [2026-06-09] T7 RLS Backstop
+
+- RLS enabled on: users, tenant_memberships, tenant_invitations
+- anon role: no SELECT policy = returns [] (empty) for all three tables
+- service_role: full access via explicit policy (Prisma/gateway uses service_role)
+- RLS is defense-in-depth only — gateway (Prisma) is the real auth boundary
+- No authenticated-role policies added (gateway is the boundary, not RLS)
+
+## [2026-06-09] T6 ROLE_PERMISSIONS
+
+- PERMISSIONS const: 16 named permissions (3 platform-level + 13 tenant-level)
+- ROLE_PERMISSIONS: global Role → Set<Permission> (5 roles: PLATFORM_OWNER, ADMIN, EDITOR, USER, VIEWER)
+- TENANT_ROLE_PERMISSIONS: TenantRole → Set<Permission> (4 roles: OWNER, ADMIN, MEMBER, VIEWER)
+- PLATFORM_OWNER has all permissions (Object.values(PERMISSIONS) spread into Set)
+- VIEWER has read-only (READ_TENANT, READ_TASKS) — no write permissions
+- USER can trigger employees (READ_TENANT, TRIGGER_EMPLOYEE, READ_TASKS)
+- EDITOR can manage archetypes/rules/KB but cannot trigger employees
+- ADMIN can manage archetypes/rules/KB/locks/projects + invite, but not manage tenants
+- TenantRole OWNER has all tenant permissions including DELETE_TENANT, MANAGE_SECRETS, MANAGE_INTEGRATIONS, MANAGE_MEMBERS
+- TenantRole ADMIN can invite but not delete tenant or manage secrets/integrations
+- TenantRole MEMBER can trigger employees (READ_TENANT, TRIGGER_EMPLOYEE, READ_TASKS)
+- TenantRole VIEWER read-only (READ_TENANT, READ_TASKS)
+- Files: src/lib/auth/permissions.ts, src/lib/auth/index.ts (barrel), tests/unit/auth/permissions.test.ts
+- 17 tests pass, all green
+
+## [2026-06-09] T5 Auth Types
+
+- Created src/lib/auth/types.ts with: SupabaseJwtClaims, AuthenticatedUser, TenantContext
+- Express request augmentation: req.auth, req.tenantContext, req.isServiceToken
+- SupabaseJwtClaims is identity-only (no tenant/membership fields)
+- Re-exports Role and TenantRole from @prisma/client
+- Barrel: src/lib/auth/index.ts (already existed, exports types.ts + permissions.ts)
+- NOTE: src/lib/auth/ already had index.ts and permissions.ts from a prior task
+- Prisma client must be generated (pnpm prisma generate) for Role/TenantRole to be available
+- LSP may show stale errors on @prisma/client imports — pnpm build (tsc) is the ground truth
+
+## [2026-06-09] Task C — Cloud DB Provision
+
+- Migration `20260609000000_add_user_auth_rbac` applied to cloud DB via Supabase SQL Editor (browser)
+- Direct psql/prisma connections to cloud pooler fail: `FATAL: (ENOTFOUND) tenant/user postgres.gjqrysxpvktmibpkwrvy not found`
+  - Affects all pooler regions (us-west-2, us-east-1, eu-west-1) on both port 5432 and 6543
+  - Root cause: `db.gjqrysxpvktmibpkwrvy.supabase.co` is IPv6-only (no A record); Supavisor doesn't route to this tenant
+  - Workaround: Use Supabase dashboard SQL Editor (authenticated browser session already available via victordozal@)
+- Tables `users`, `tenant_memberships`, `tenant_invitations` verified returning `[]` via cloud Data API
+- Tenants seeded: DozalDevs (`00000000-0000-0000-0000-000000000002`), VLRE (`00000000-0000-0000-0000-000000000003`)
+  - A third tenant Snobahn (`00000000-0000-0000-0000-000000000004`) was already seeded in cloud — left as-is
+- Auth providers: Email ✅ (already enabled), Google ✅ (enabled with GOOGLE_CLIENT_ID/SECRET from .env)
+- Redirect allow-list: Site URL = `http://localhost:7700/dashboard/` (was `localhost:3000`); 3 redirect URLs added
+- Evidence: `.sisyphus/evidence/cloud/task-C-provision.txt`
+
+## [2026-06-09] T3b — Dual-env config layer
+
+- `detectEnvProfile()` and `assertEnvProfile()` added to `src/lib/config.ts`
+- `SUPABASE_JWKS_URL` lazy getter added: `() => \`\${SUPABASE_URL()}/auth/v1/.well-known/jwks.json\``
+- `assertEnvProfile()` called as first line of `buildApp()` in `src/gateway/server.ts` (before `validateEncryptionKey()`)
+- Detection heuristic: eyJ prefix = LOCAL (HS256 JWT), sb\_ prefix = CLOUD (opaque publishable key)
+- `.env.example` Supabase section now shows both LOCAL and CLOUD profile examples with placeholders
+- Build passes zero errors; 1612 tests pass, 9 skipped
+
+## [2026-06-09] T1E2E Wave-1 Checkpoint Results
+
+- LOCAL signup + login: ✅ both return JWT; header decodes to `{"alg":"HS256","typ":"JWT"}`
+- LOCAL tables via PostgREST (anon key): ✅ `users`, `tenant_memberships`, `tenant_invitations` all return `[]` (no PGRST205)
+- CLOUD admin-create + login: ✅ JWT header decodes to `{"alg":"ES256","kid":"1df77847-802f-46b6-92a9-5f9ed42a5e21","typ":"JWT"}`
+- CLOUD tables via Data API (secret key): ✅ all three return `[]`
+
+### Key Findings / Reusable Wisdom
+
+1. **`python3` is BLOCKED by asdf** in this repo (no version set in `.tool-versions` → "No version is set for command python3"). For JWT header decoding, use `echo "$JWT" | cut -d. -f1 | base64 -d` instead of python3. Base64 std-decode works fine for JWT headers (URL-safe alphabet only differs for `-`/`_`; headers rarely contain them).
+2. **LOCAL mailer autoconfirm = true** confirmed again — signup returns `email_confirmed_at` immediately, login works without any email step.
+3. **CLOUD signup email validation** rejects `@example.com`; Admin API (`POST /auth/v1/admin/users` with `email_confirm:true`, secret key as both apikey + Bearer) is the reliable path — worked first try.
+4. **CLOUD login uses publishable key as apikey** (`sb_publishable_...`), Data API reads use secret key (`sb_secret_...`) as both apikey + Bearer. Both confirmed working.
+5. **alg split confirmed end-to-end**: LOCAL=HS256 (symmetric shared secret), CLOUD=ES256 (asymmetric ECC, kid `1df77847-802f-46b6-92a9-5f9ed42a5e21`). This is the dual-env JWT verification contract for T3b's `SUPABASE_JWKS_URL` work.
+
+### Evidence Files
+- `.sisyphus/evidence/local/wave1/jwt-and-tables.txt`
+- `.sisyphus/evidence/cloud/wave1/jwt-and-tables.txt`
