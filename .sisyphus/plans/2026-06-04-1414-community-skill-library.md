@@ -786,7 +786,7 @@ Max Concurrent: 10 (Wave 1)
 
 ---
 
-- [ ] 10. AGENTS.md Surgery + Merges + Stale-Model Fix
+- [x] 10. AGENTS.md Surgery + Merges + Stale-Model Fix
 
   **What to do**:
   The integration task. Execute in order:
@@ -878,7 +878,7 @@ Max Concurrent: 10 (Wave 1)
   - Message: `docs(agents-md): extract 6 sections into skills, add 10 triggers, slim ~350 lines`
   - Files: `AGENTS.md`, `.opencode/skills/debugging-lifecycle/SKILL.md`, `.opencode/skills/adding-shell-tools/SKILL.md`, `.opencode/skills/creating-archetypes/SKILL.md`
 
-- [ ] 11. Skill Usefulness Eval (Before/After Validation)
+- [x] 11. Skill Usefulness Eval (Before/After Validation)
 
   **What to do**:
   - This task answers the real question: "do these skills actually change agent behavior, or are they passing greps while adding noise?"
@@ -931,7 +931,7 @@ Max Concurrent: 10 (Wave 1)
   - Message: `docs(skills): add skill usefulness eval`
   - Files: `.sisyphus/evidence/skill-usefulness-eval.md`
 
-- [ ] 12. Send Telegram Notification
+- [x] 12. Send Telegram Notification
 
   **What to do**:
   - Run: `npx tsx scripts/telegram-notify.ts "✅ Lean Skill Library complete — 10 skills written (incl. data-access-conventions), AGENTS.md slimmed ~350 lines, usefulness eval done. Come back to review results (esp. the eval verdicts)."`
@@ -965,19 +965,19 @@ Max Concurrent: 10 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed after verification.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for required content). For each "Must NOT Have": search for forbidden patterns — reject with file:line if found (especially: any of the 6 cut skills accidentally created; `git-commits`/`code-review` collisions; stale "$50/day hardcoded" cost fact in the inngest skill). Verify exactly 15 skill directories (`ls .opencode/skills/ | wc -l`). Verify AGENTS.md ≤530 lines. Check evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Skills [15/15] | AGENTS.md Lines [N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `wc -l .opencode/skills/*/SKILL.md` — every new file ≥50 and ≤400 lines. Run `grep -rn "claude-sonnet\|gpt-4o\|claude-opus\|claude-haiku" .opencode/skills/` and `grep -rn "rnd_0XF5" .opencode/skills/` — both must be empty. Verify every new SKILL.md has valid frontmatter (`---`, `name:`, `description:` starting with "Use when", `name` matching directory). Check for broken file-path references and markdown issues.
       Output: `Line Counts [PASS/FAIL] | Forbidden Patterns [PASS/FAIL] | Hardcoded Keys [PASS/FAIL] | Frontmatter [N/N valid] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       For each of the 10 new skills: read it fully, verify every file-path reference points to a real file, verify `name` matches directory, verify `description` starts with "Use when". Verify AGENTS.md has 15 dev-skill rows and every "Moved to skill" pointer references a skill that exists. Verify `debugging-lifecycle/SKILL.md` contains the merged Quick Reference commands and `api-design/SKILL.md` contains the absorbed Admin API table. Spot-check the post-refactor accuracy: `inngest` skill references `lifecycle/steps/` (not just the monolith) and has NO "$50/day hardcoded" claim; `data-access-conventions` names all 7 conventions. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Skills [N/N valid] | File Refs [N verified/N broken] | AGENTS.md [PASS/FAIL] | Merges [2/2] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual file. Verify 1:1 — everything in spec was built, nothing beyond spec. Confirm NONE of the 6 cut skills were created. For extraction skills: verify content matches the original AGENTS.md section (lossless, not summarized). Verify no project-specific skill duplicates AGENTS.md verbatim. Verify the stale-model fix and API-key removal landed. Read `skill-usefulness-eval.md` and confirm it contains an honest per-skill verdict.
       Output: `Tasks [N/N compliant] | No Cut Skills [PASS/FAIL] | Extraction Fidelity [PASS/FAIL] | Eval Honest [PASS/FAIL] | VERDICT`
 
