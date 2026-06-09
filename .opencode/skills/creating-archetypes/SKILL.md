@@ -15,16 +15,17 @@ Source of truth: `prisma/schema.prisma` → `model Archetype` (@@map("archetypes
 
 ## Approved Models — CRITICAL CONSTRAINT
 
-Only **two** models are ever allowed in the `model` field. Any other value is a bug.
+The `model` field must reference a model from the `model_catalog` table. Use the recommendation engine:
 
-| Model ID                     | Purpose                                                      |
-| ---------------------------- | ------------------------------------------------------------ |
-| `minimax/minimax-m2.7`       | Primary execution model — all employee work, code generation |
-| `anthropic/claude-haiku-4-5` | Verification/judge only — plan checks, intent classification |
+```bash
+POST /admin/tenants/:tenantId/archetypes/recommend-model
+```
 
-**Never use**: `anthropic/claude-sonnet-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`, or any other model.
+**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used. The full 14-model seeded catalog is listed in `AGENTS.md` § Approved LLM Models.
 
-This constraint applies to: production code, seed data, default fallbacks, env var examples, and test fixtures.
+**Forbidden models**: Never hardcode the models listed in `AGENTS.md` § "Forbidden in hardcoded references". Any model NOT in the `model_catalog` table is forbidden.
+
+**Gateway-only models**: The `anthropic/claude-haiku-4-5` model is permitted ONLY as a `gateway_llm_model` platform setting. **NEVER** use it as the `model` field in archetypes — it is not an execution model.
 
 ---
 
@@ -280,7 +281,7 @@ In `prisma/seed.ts`, add a `prisma.archetype.upsert` call with:
 - [ ] `role_name` — URL-safe slug (no spaces)
 - [ ] `system_prompt` — employee identity (WHO, not WHAT)
 - [ ] `instructions` — step-by-step procedure (WHAT, with $ENV_VARS and tool calls)
-- [ ] `model: 'minimax/minimax-m2.7'` — verified against approved list
+  - [ ] `model` — use `recommend-model` endpoint output, or `minimax/minimax-m2.7` as default seed
 - [ ] `runtime: 'opencode'`
 - [ ] `risk_model` — approval gate config
 - [ ] `agents_md: PLATFORM_AGENTS_MD` — always set this
@@ -336,7 +337,7 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 
 ## Common Mistakes to Avoid
 
-1. **Wrong model** — any model not on the approved list. Always: `minimax/minimax-m2.7`
+1. **Wrong model** — use only models from the `model_catalog`. Default seed: `minimax/minimax-m2.7`. Use the `recommend-model` endpoint rather than hardcoding.
 2. **tenant_id in update** — immutable. Only in `create` block of upsert.
 3. **Credentials in `.env`** — go in `tenant_secrets`. Only legitimate `.env` exception: `WEBHOOK_PUBLIC_URL`.
 4. **Channel IDs in shared code** — channel IDs belong in `notification_channel` field or archetype `instructions`, not in `employee-lifecycle.ts`.

@@ -252,3 +252,20 @@ async ({ event, step }: { event: EventPayload<{ taskId: string; archetypeId: str
 | Throw `Error` for unrecoverable failures               | Throw `NonRetriableError`                                                     |
 | Nest `step.run()` inside another                       | Keep all steps at the top level of the function                               |
 | Edit the old engineering lifecycle or redispatch files | Both are deprecated — only touch `employee-lifecycle.ts` and its step modules |
+
+---
+
+## Known Issue: Dev Server Step Output Contamination
+
+**Symptom**: In the Inngest Dev Server UI, step outputs for a run of `employee/universal-lifecycle` may show data from a completely different run. The function executed correctly — only the UI display is wrong.
+
+**Root cause**: Step IDs are computed as `sha1(stepName)` — deterministic across ALL runs. The Dev Server's in-memory SQLite cache does not scope stored outputs by run ID. When a new run completes, its step outputs overwrite the previous run's stored outputs under the same step ID key.
+
+**Impact**: Display only. Does NOT affect production Inngest Cloud (which uses Redis with proper run-scoped keys).
+
+**Workaround**: Restart the Dev Server to clear the cache. Use DB queries and gateway logs as ground truth:
+
+- DB: `docker exec shared-postgres psql -U postgres -d ai_employee -c "SELECT id, status, archetype_id FROM tasks WHERE id = '<taskId>'"`
+- Gateway logs: `grep '"taskId":"<taskId>"' /tmp/ai-dev.log | grep '"step"'`
+
+**Warning**: Do NOT use `inngest dev --persist` — it makes contamination worse by accumulating stale span data across restarts.

@@ -461,3 +461,43 @@ Get channel and ts from `tasks.metadata` if not already set in your shell:
 PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
   -c "SELECT metadata->>'notify_slack_channel', metadata->>'notify_slack_ts' FROM tasks WHERE id = '$TASK_ID';"
 ```
+
+---
+
+## Quick Reference Commands
+
+Assumes `TASK_ID` is set in your shell. Container prefix: `${TASK_ID:0:8}`.
+
+**Task state:**
+
+```bash
+# Current status
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT status, updated_at FROM tasks WHERE id = '$TASK_ID';"
+
+# Full lifecycle trace
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT from_status, to_status, created_at FROM task_status_log WHERE task_id = '$TASK_ID' ORDER BY created_at;"
+```
+
+**Container logs:**
+
+```bash
+docker logs -f employee-${TASK_ID:0:8}
+docker logs -f employee-delivery-${TASK_ID:0:8}
+```
+
+**Harness log** (persists after container exits):
+
+```bash
+grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | tail -30
+grep '"level":[45][0-9]' /tmp/employee-${TASK_ID:0:8}.log
+# Dashboard viewer: http://localhost:7700/dashboard/tasks/<TASK_ID>/logs?tenant=<TENANT_ID>
+```
+
+**Execution metrics:**
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "SELECT prompt_tokens, completion_tokens, estimated_cost_usd FROM executions WHERE task_id = '$TASK_ID';"
+```

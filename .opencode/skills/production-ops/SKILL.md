@@ -57,3 +57,9 @@ curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
 - Deploy logs (build output) are only visible in the Render dashboard, not via API
 - `GET /env-vars` paginates at ~20 by default — always append `?limit=100` when listing or verifying env vars, or keys will appear missing even when set
 - Prod `DATABASE_URL` MUST include `?pgbouncer=true` (it uses the 6543 transaction pooler) — without it Prisma intermittently crashes at boot with `42P05 prepared statement "s0" already exists`. `DATABASE_URL_DIRECT` (port 5432, used for migrations) must NOT have the param.
+
+---
+
+## Known Issue: ngrok Free Tier Doesn't Work with Fly.io
+
+Cloudflare Tunnel is the permanent solution. Named tunnel `postgrest-ai-employee.dozaldevs.com` is configured in `~/.cloudflared/ai-employee-local.yml` — stable across restarts. If `TUNNEL_URL` is unset, `dev.ts` auto-spawns a quick tunnel.
