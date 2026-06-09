@@ -84,3 +84,13 @@ ALTER TABLE "tenant_invitations" ADD CONSTRAINT "tenant_invitations_tenant_id_fk
 
 -- AddForeignKey
 ALTER TABLE "tenant_invitations" ADD CONSTRAINT "tenant_invitations_inviter_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Enable RLS on auth tables (defense-in-depth: anon role gets no access)
+ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "tenant_memberships" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "tenant_invitations" ENABLE ROW LEVEL SECURITY;
+
+-- service_role bypass (Prisma/gateway uses service_role and must retain full access)
+CREATE POLICY "service_role_users" ON "users" TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_tenant_memberships" ON "tenant_memberships" TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_tenant_invitations" ON "tenant_invitations" TO service_role USING (true) WITH CHECK (true);
