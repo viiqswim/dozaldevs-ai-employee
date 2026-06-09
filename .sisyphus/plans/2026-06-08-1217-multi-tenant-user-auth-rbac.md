@@ -797,7 +797,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 9. Auth middleware — dual-accept (JWT | SERVICE_TOKEN | admin key)
+- [x] 9. Auth middleware — dual-accept (JWT | SERVICE_TOKEN | admin key)
 
   **What to do**:
   - Create `src/gateway/middleware/auth.ts` with the resolution order (from T0c):
@@ -850,7 +850,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 10. ensureUserExists upsert (TDD, race-safe)
+- [x] 10. ensureUserExists upsert (TDD, race-safe)
 
   **What to do**:
   - RED: `tests/integration/auth/ensure-user-exists.test.ts` — first call creates a `users` row keyed on `supabaseId`; second is idempotent; concurrent calls don't duplicate.
@@ -1899,7 +1899,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 2 amendments + checkpoint
 
-- [ ] 8★ (AMENDS T8). Make the JWT verifier env-aware (JWKS/ES256 + HS256)
+- [x] 8★ (AMENDS T8). Make the JWT verifier env-aware (JWKS/ES256 + HS256)
   - **Amendment**: T8 above ("verify HS256 shared secret") is REPLACED by an env-aware verifier: `jose.createRemoteJWKSet(SUPABASE_JWKS_URL)` for cloud (ES256), `jose.createSecretKey(JWT_SECRET)` for local (HS256), selected by the active profile / token issuer. Reject cross-issuer tokens. Tests cover both algorithms.
   - **References**: `.sisyphus/notepads/dual-env-spike.md` (cloud `kid`/`alg`); librarian `jose` JWKS pattern.
   - **QA**: verify a real LOCAL (HS256) token AND a real CLOUD (ES256) token; assert a cloud token is rejected by the local-only path and vice-versa.

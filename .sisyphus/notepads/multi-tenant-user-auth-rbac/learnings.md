@@ -176,3 +176,37 @@
 ### Evidence Files
 - `.sisyphus/evidence/local/wave1/jwt-and-tables.txt`
 - `.sisyphus/evidence/cloud/wave1/jwt-and-tables.txt`
+
+## [2026-06-09] T8 — verify-jwt
+
+- `jose` v6.2.3 installed as production dependency
+- `verifySupabaseJwt(token)` in `src/lib/auth/verify-jwt.ts`:
+  - LOCAL path: `jwtVerify(token, TextEncoder.encode(secret), { algorithms: ['HS256'] })` — secret from `GOTRUE_JWT_SECRET` env var (fallback: local dev default)
+  - CLOUD path: `jwtVerify(token, createRemoteJWKSet(new URL(SUPABASE_JWKS_URL())), { algorithms: ['ES256'] })`
+  - Post-verify: throws `'JWT missing sub claim'` if `payload.sub` is falsy
+- Unit test pattern: `vi.mock('../../../src/lib/config.js', async (importOriginal) => ...)` spreads the real module then overrides `detectEnvProfile` — the hoisted import of `verifySupabaseJwt` must come AFTER the mock declaration
+- 4 tests all green; build zero errors
+- Evidence: `.sisyphus/evidence/local/task-8-verify-jwt.txt`
+
+## T10 — ensureUserExists upsert (2026-06-09)
+- Prisma User model uses `supabase_id` (snake_case, no @map) — upsert key is `{ supabase_id: claims.sub }`
+- Return type maps `supabase_id → supabaseId` and `role → globalRole` to match `AuthenticatedUser`
+- `supabase_id` is nullable (`String?`) but `@unique`; Prisma upsert works correctly with nullable unique fields
+- Concurrent calls with same `supabase_id` are handled atomically by PostgreSQL's ON CONFLICT via Prisma upsert
+- After T1 schema migration adds User model, `pnpm prisma generate` must be re-run; the pnpm symlink
+  `.prisma/client` must exist inside `@prisma/client` for TypeScript LSP to see new types
+  (tsc/build resolves correctly via the pnpm virtual store even without the symlink)
+- Integration test pattern: `afterEach` cleans test rows by `supabase_id`; `afterAll` disconnects Prisma
+- Evidence: `.sisyphus/evidence/local/task-10-ensure-user.txt`
+
+## [2026-06-09] T9 — auth middleware
+
+- Created `src/gateway/middleware/auth.ts` exporting `authMiddleware` (async Express middleware)
+- Resolution order: SERVICE_TOKEN → Supabase JWT → legacy X-Admin-Key
+- SERVICE_TOKEN path: `try { SERVICE_TOKEN() } catch { '' }` — graceful when env var not set (avoids throwing at middleware load)
+- JWT path: `verifySupabaseJwt()` + `ensureUserExists()` → `user.status !== 'active'` → 403; success → `req.auth = user`
+- Legacy admin key path: `req.isServiceToken = true` (service-level), marked "remove in T24"
+- `sendError` signature: `sendError(res, status, code, message?, extra?)` — code is machine-readable string, not numeric
+- `AuthenticatedUser` has NO `deleted_at` field — only `status: string` is the deactivation mechanism
+- Flaky test: `admin-tenant-secrets.test.ts > DELETE 404 when tenant not found` gets `socket hang up` intermittently when run in parallel with the full suite; passes in isolation and on re-run. Pre-existing race condition unrelated to T9.
+- `pnpm build` zero errors; `pnpm test:unit` 1616 passed, 9 skipped (confirmed clean)
