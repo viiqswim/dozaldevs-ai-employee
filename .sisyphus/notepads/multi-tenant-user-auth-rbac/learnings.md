@@ -271,18 +271,21 @@
 ## [2026-06-09] T2E2E Wave-2 Checkpoint Results
 
 ### LOCAL (HS256, gateway local profile) — ALL PASS
+
 - Authz matrix (GET /admin/tenants/:id/members): own-OWNER 200 / non-member 403 / unauth 401 / wrong-role VIEWER 403 "Insufficient role" / cross-tenant 403 / garbage Bearer 401. All correct.
 - Deactivate lockout: 200 active → PATCH deactivate (SERVICE_TOKEN) 200 → DB status='disabled' → SAME JWT 403 ACCOUNT_DISABLED on /me AND tenant endpoint (immediate).
 - /me + /me/tenants: owner /me 200; /me/tenants owner=[DozalDevs/OWNER] (exactly 1); nonmember=[]; unauth 401; SERVICE synthetic {globalRole:SERVICE} + /me/tenants [].
 - Invite full flow: POST invitations (owner JWT) 201 → auth.users provisioned → /invitations/accept 200 → invitation status='accepted'+accepted_at → tenant_memberships row (MEMBER) created → /me/tenants confirms → re-accept 410 ALREADY_USED (idempotent).
 
 ### CLOUD (ES256, gateway CLOUD Supabase profile + LOCAL DB for Prisma state) — ALL PASS
+
 - Authz matrix (real cloud ES256 JWTs): own-OWNER 200 / non-member 403 / unauth 401 / wrong-role VIEWER 403 / cross-tenant 403 / LOCAL-HS256-token-vs-cloud-gateway 401 (alg enforcement) / garbage 401.
 - Deactivate lockout: cloud ES256 viewer 200 → deactivate 200 (real cloud Auth admin PUT landed — cloud updated_at advanced) → status='disabled' → SAME ES256 JWT 403 ACCOUNT_DISABLED.
 - /me + /me/tenants (cloud ES256): owner /me 200; /me/tenants=[DozalDevs/OWNER]; nonmember []; unauth 401; SERVICE synthetic.
 - Invite create-only: POST invitations (cloud owner ES256 JWT) 201; (2A) real cloud auth.users invited state confirmed (invitee exists, confirmed_at=null, sub e5d42c08...); (2B) TenantInvitation row INSERT+SELECT in REAL cloud DB via Data API (201 + readable 200).
 
 ### Key Findings / Reusable Wisdom
+
 1. **Kong port is 54331, NOT 54321** in this local setup (task instructions said 54321, which returns 000). `docker port ai-employee-kong` → 8000→54331. Auth=http://localhost:54331/auth/v1, REST=http://localhost:54331/rest/v1. AGENTS.md README port table also lists Kong=54321 — but the running container maps to 54331. The PostgREST/Pooler row (54331) is the one actually serving Kong here.
 2. **ENDPOINT CONTRACT**: GET /admin/tenants/:tenantId uses LEGACY requireAdminKey (X-Admin-Key), NOT the JWT RBAC chain — a JWT 401s there. The correct JWT-protected tenant-scoped test endpoint is **GET /admin/tenants/:tenantId/members** (authMiddleware → requireAuth → requireTenantRole(ADMIN,OWNER)). Dual-accept confirmed: members=JWT, tenants=admin-key.
 3. **Local GOTRUE_JWT_SECRET matches gateway fallback** exactly (`super-secret-jwt-token-with-at-least-32-characters-long`) — confirmed via `docker exec ai-employee-auth env | grep JWT`. So local HS256 JWTs verify without setting GOTRUE_JWT_SECRET in .env.
@@ -294,16 +297,20 @@
 9. **ensureUserExists pattern**: hitting /me with a fresh Supabase JWT auto-creates the app `users` row (upsert by supabase_id=sub). Must do this BEFORE seeding tenant_memberships (FK to users.id).
 
 ### Evidence Files
+
 - .sisyphus/evidence/local/wave2/{SUMMARY,authz-matrix,deactivate,me-endpoints,invite-accept}.txt
 - .sisyphus/evidence/cloud/wave2/{authz-matrix,deactivate,me-endpoints,invite-create}.txt
 
 ## T16 Completion — 2026-06-09
 
 ### All 18 route files updated
+
 All `requireAdminKey` replaced with `authMiddleware + requireAuth + requireTenantRole/requirePermission` per the authz matrix.
 
 ### Additional test files discovered
+
 Beyond the 6 test files in `tests/unit/gateway/routes/`, there are 3 more in `src/gateway/routes/__tests__/` that also needed mock blocks:
+
 - `src/gateway/routes/__tests__/admin-archetypes-create.test.ts`
 - `src/gateway/routes/__tests__/admin-model-catalog.test.ts`
 - `src/gateway/routes/__tests__/admin-slack-channels.test.ts`
@@ -311,10 +318,12 @@ Beyond the 6 test files in `tests/unit/gateway/routes/`, there are 3 more in `sr
 These use relative mock paths (`../../../gateway/middleware/auth.js`) vs the `tests/unit/` files which use (`../../../../src/gateway/middleware/auth.js`).
 
 ### Mock path convention
+
 - `tests/unit/gateway/routes/*.test.ts` → `../../../../src/gateway/middleware/auth.js`
 - `src/gateway/routes/__tests__/*.test.ts` → `../../../gateway/middleware/auth.js`
 
 ### Final verification
+
 - `pnpm build` → exit 0
 - `pnpm test:unit` → 144 files, 1689 passing, 0 failures
 - `git diff --name-only` → 18 route files + 9 test files (all in scope)
@@ -326,3 +335,29 @@ These use relative mock paths (`../../../gateway/middleware/auth.js`) vs the `te
 - Fix: use `apikey: SUPABASE_SECRET_KEY()` only (no Authorization header). This is the correct server-side PostgREST pattern.
 - Also removed the now-unused `SUPABASE_ANON_KEY` import from the file.
 - Pre-existing test failure: `socket-mode-lock.test.ts` (1 test) fails due to a race condition — confirmed pre-existing before this change, not a regression.
+
+## UserRepository (T11)
+
+- Created `src/repositories/user-repository.ts` following `TenantRepository` pattern exactly
+- `list(tenantId, opts?)` uses `memberships: { some: { tenant_id, deleted_at: null } }` to scope users to a tenant via the join table
+- `restore()` does NOT check for email collisions (unlike `TenantRepository.restore()` which checks slug collisions) — email uniqueness is enforced by DB constraint
+- LSP errors on `prisma.user` and `User` type are stale (Prisma client not regenerated in LSP context) — `pnpm build` is ground truth and exits 0
+- `softDelete()` is idempotent: returns existing record if already deleted
+- No `create()` method — users are created via `ensureUserExists` (Supabase auth flow)
+
+## [2026-06-09] T21 — gateway read endpoints (admin-reads.ts)
+
+- Created `src/gateway/routes/admin-reads.ts` — 11 tenant-scoped GET endpoints replacing the dashboard's direct PostgREST reads (which break under opaque `sb_publishable_*` keys via `Bearer`).
+- **CRITICAL registration order**: `adminReadsRoutes` MUST be registered BEFORE `adminTasksRoutes` in `server.ts`. Both define `GET /admin/tenants/:tenantId/tasks/:id`. Express matches first-registered; the richer detail handler in admin-reads (with embeds) must win. The SSE `/tasks/:id/logs` route has a different segment count → still resolves to `adminTasksRoutes`. Param name differs (`:taskId` here vs `:id` in admin-tasks) but Express matches on path SHAPE not param name, so the shadow is real and order is the only guard.
+- **PostgREST embed key vs Prisma relation name**: dashboard reads `task.archetypes` (object) + `task.executions` (array). PostgREST embeds a to-one relation under the TABLE name (`archetypes`, plural); Prisma exposes it under the SINGULAR relation name (`archetype`). Must remap `archetype` → `archetypes` in the response. Used `Prisma.TaskGetPayload<{ include: typeof TASK_INCLUDE }>` for the remap fn param type — a bare generic `<T extends {archetype:unknown}>` does NOT infer through `Array.map` and fails tsc.
+- **Tables without tenant_id** — scope via relation traversal in the `where`:
+  - `deliverables`: no `tenant_id` AND no `task_id`. Scope via `execution: { task: { tenant_id } }`. Dashboard queries by `external_ref=eq.${taskId}` (external_ref holds the task id), so `?task_id=` maps to `external_ref`, NOT `task_id`.
+  - `executions`: no `tenant_id`. Scope via `task: { tenant_id }`. Heavy `session_transcript` field gated behind `?id=` (single-execution transcript view) to match dashboard's lean list select.
+  - `task_status_log`: no `tenant_id`. Scope via `task: { id, tenant_id }`.
+- **PostgREST query param → Prisma mapping**: dashboard sends `order: 'created_at.asc'` / `.desc`; parse the `.asc`/`.desc` suffix. `limit: 'none'` means no take (omit). Numeric limit → `take`.
+- Prisma `Decimal` (estimated_cost_usd) serializes to a JSON string — matches PostgREST numeric-as-string output, so dashboard `parseFloat(String(...))` keeps working.
+- All guards: `[authMiddleware, requireAuth, requireTenantRole(TenantRole.VIEWER)]` spread as a shared array — VIEWER is the read minimum; PLATFORM_OWNER + SERVICE_TOKEN bypass membership in the middleware.
+- Applied `deleted_at: null` on every model that HAS the column (Task, Archetype, EmployeeRule, FeedbackEvent, TaskMetric, PendingApproval, TenantIntegration, Execution). `Deliverable` and `TaskStatusLog` have NO `deleted_at` column — do NOT add the filter there (tsc rejects it).
+- **Stale Prisma client again**: after creating the file, LSP showed `deleted_at does not exist in type XWhereInput` + `TenantRole has no exported member` for ALL models. `pnpm prisma generate` + `pnpm build` (exit 0) is ground truth — every one was a stale-client false positive. The schema has all these fields.
+- LSP tool (`typescript-language-server`) is unavailable in this shell via asdf (`No version is set`). Use `pnpm build` for diagnostics.
+- Pre-existing flaky test confirmed again: `socket-mode-lock.test.ts > blocked-live` fails in full-suite parallel run (PID race), passes in isolation. NOT a regression. Full suite: 1688 passed / 1 flaky; isolated re-run: 1689 passed, 9 skipped, 0 failures.

@@ -14,6 +14,7 @@ import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { adminEmployeeTriggerRoutes } from './routes/admin-employee-trigger.js';
 import { adminTasksRoutes } from './routes/admin-tasks.js';
+import { adminReadsRoutes } from './routes/admin-reads.js';
 import { adminTenantsRoutes } from './routes/admin-tenants.js';
 import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
@@ -236,6 +237,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(githubRoutes({ prisma }));
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
+  app.use(adminReadsRoutes({ prisma }));
   app.use(adminTasksRoutes({ prisma }));
   app.use(adminTenantsRoutes({ prisma }));
   app.use(adminTenantSecretsRoutes({ prisma }));
