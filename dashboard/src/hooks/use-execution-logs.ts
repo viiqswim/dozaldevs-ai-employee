@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { GATEWAY_URL } from '../lib/constants';
-import { getAdminApiKey } from '../lib/gateway';
+import { getAccessToken } from '../lib/gateway';
 import { parseLine, type ParsedLogEntry } from '../lib/log-parser';
 
 export interface UseExecutionLogsResult {
@@ -26,11 +26,7 @@ export function useExecutionLogs(
   useEffect(() => {
     if (!enabled || !taskId || !tenantId) return;
 
-    const adminKey = getAdminApiKey();
-    if (!adminKey) {
-      setError('Admin API key not configured');
-      return;
-    }
+    const token = getAccessToken();
 
     setEntries([]);
     setRawLines([]);
@@ -46,7 +42,7 @@ export function useExecutionLogs(
     fetch(url, {
       signal: controller.signal,
       headers: {
-        'X-Admin-Key': adminKey,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     })
       .then(async (response) => {

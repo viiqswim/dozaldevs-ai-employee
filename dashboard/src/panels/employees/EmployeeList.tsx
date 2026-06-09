@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype } from '@/lib/types';
@@ -60,22 +60,10 @@ export function EmployeeList() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-  const fetchArchetypes = useCallback(() => {
-    const params: Record<string, string> = {
-      ...scopeByTenant(tenantId),
-      order: 'created_at.desc',
-      limit: '50',
-    };
-    if (statusFilter === 'deleted') {
-      params['deleted_at'] = 'not.is.null';
-    } else {
-      params['deleted_at'] = 'is.null';
-      params['status'] = 'neq.superseded';
-      if (statusFilter === 'active') params['status'] = 'eq.active';
-      if (statusFilter === 'draft') params['status'] = 'eq.draft';
-    }
-    return postgrestFetch<Archetype>('archetypes', params);
-  }, [tenantId, statusFilter]);
+  const fetchArchetypes = useCallback(
+    () => gatewayFetch<Archetype[]>(`/admin/tenants/${tenantId}/archetypes`),
+    [tenantId],
+  );
 
   const { data: archetypes, error, loading, refresh } = usePoll(fetchArchetypes);
 
@@ -85,11 +73,17 @@ export function EmployeeList() {
 
   if (loading) return <EmployeeListLoading />;
   if (error) return <EmployeeListError error={error} refresh={refresh} />;
-  if (!archetypes || archetypes.length === 0) return <EmployeeListEmpty />;
 
-  const filteredArchetypes = archetypes.filter(
-    (a) => a.role_name?.toLowerCase().includes(search.toLowerCase()) ?? true,
-  );
+  const filteredArchetypes = (archetypes ?? []).filter((a) => {
+    const matchesSearch = a.role_name?.toLowerCase().includes(search.toLowerCase()) ?? true;
+    if (!matchesSearch) return false;
+    if (statusFilter === 'deleted') return false;
+    if (statusFilter === 'active') return a.status === 'active';
+    if (statusFilter === 'draft') return a.status === 'draft';
+    return a.status !== 'superseded';
+  });
+
+  if (!archetypes || archetypes.length === 0) return <EmployeeListEmpty />;
 
   const allSelected = filteredArchetypes.length > 0 && selected.size === filteredArchetypes.length;
 

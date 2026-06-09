@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { useSearchParams } from 'react-router-dom';
@@ -17,12 +17,7 @@ export function RulesPanel() {
 
   const fetchArchetypes = useCallback(
     () =>
-      postgrestFetch<Pick<Archetype, 'id' | 'role_name'>>('archetypes', {
-        ...scopeByTenant(tenantId),
-        select: 'id,role_name',
-        deleted_at: 'is.null',
-        order: 'role_name.asc',
-      }),
+      gatewayFetch<Pick<Archetype, 'id' | 'role_name'>[]>(`/admin/tenants/${tenantId}/archetypes`),
     [tenantId],
   );
 

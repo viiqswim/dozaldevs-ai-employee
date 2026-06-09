@@ -28,30 +28,19 @@ export type ModelQuestionAnswers = {
   speedPreference: string;
 };
 
-export function getAdminApiKey(): string | null {
-  return localStorage.getItem('admin_api_key');
-}
-
-export function setAdminApiKey(key: string): void {
-  localStorage.setItem('admin_api_key', key);
-}
-
-export function isAdminKeySet(): boolean {
-  return !!localStorage.getItem('admin_api_key');
+export function getAccessToken(): string | null {
+  return localStorage.getItem('supabase_access_token');
 }
 
 export async function gatewayFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const key = getAdminApiKey();
-  if (!key) {
-    throw new Error('Admin API key not set. Please configure it in the dashboard.');
-  }
+  const token = getAccessToken();
 
   const url = `${GATEWAY_URL}${path}`;
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-Admin-Key': key,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
@@ -314,12 +303,13 @@ export async function recommendModel(
 export async function fetchSlackChannels(
   tenantId: string,
 ): Promise<{ channels: SlackChannel[]; error?: string }> {
-  const key = getAdminApiKey();
-  if (!key) return { channels: [], error: 'SLACK_NOT_CONFIGURED' };
-
+  const token = getAccessToken();
   const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/slack/channels`;
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 
   const body = await response.json().catch(() => ({}));

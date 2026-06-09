@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { createRule, updateRule, deleteRule } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import type { EmployeeRule } from '@/lib/types';
@@ -55,12 +55,9 @@ export function TrainingTab({ archetypeId, tenantId }: TrainingTabProps) {
 
   const fetchFn = useCallback(
     () =>
-      postgrestFetch<EmployeeRule>('employee_rules', {
-        ...scopeByTenant(tenantId),
-        archetype_id: `eq.${archetypeId}`,
-        order: 'created_at.desc',
-        limit: '50',
-      }),
+      gatewayFetch<EmployeeRule[]>(
+        `/admin/tenants/${tenantId}/employee-rules?archetype_id=${archetypeId}&limit=50`,
+      ),
     [tenantId, archetypeId],
   );
 

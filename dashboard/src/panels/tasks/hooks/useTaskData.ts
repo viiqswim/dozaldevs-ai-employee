@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { usePoll } from '@/hooks/use-poll';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import type { Task, TaskStatusLog, PendingApproval } from '@/lib/types';
 import { TERMINAL_STATUSES, POLL_INTERVAL_MS } from '@/lib/constants';
 import { useExecution } from '@/hooks/use-execution';
@@ -11,22 +11,15 @@ import { useExecutionTranscript } from '@/hooks/use-execution-transcript';
 export function useTaskData(taskId: string | undefined, tenantId: string, showTranscript: boolean) {
   const fetchTask = useCallback(async () => {
     if (!taskId) return null;
-    const rows = await postgrestFetch<Task>('tasks', {
-      id: `eq.${taskId}`,
-      ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model,input_schema),executions(estimated_cost_usd,phase)',
-    });
-    return rows[0] ?? null;
+    return gatewayFetch<Task>(`/admin/tenants/${tenantId}/tasks/${taskId}`);
   }, [taskId, tenantId]);
 
   const fetchLogs = useCallback(async () => {
     if (!taskId) return [];
-    return postgrestFetch<TaskStatusLog>('task_status_log', {
-      task_id: `eq.${taskId}`,
-      order: 'created_at.asc',
-      limit: '100',
-    });
-  }, [taskId]);
+    return gatewayFetch<TaskStatusLog[]>(
+      `/admin/tenants/${tenantId}/tasks/${taskId}/status-log?limit=100`,
+    );
+  }, [taskId, tenantId]);
 
   const {
     data: task,
@@ -43,21 +36,27 @@ export function useTaskData(taskId: string | undefined, tenantId: string, showTr
 
   const fetchApprovals = useCallback(async () => {
     if (!taskId || task?.status !== 'Reviewing') return [];
-    return postgrestFetch<PendingApproval>('pending_approvals', {
-      task_id: `eq.${taskId}`,
-    });
-  }, [taskId, task?.status]);
+    return gatewayFetch<PendingApproval[]>(
+      `/admin/tenants/${tenantId}/tasks/${taskId}/pending-approval`,
+    );
+  }, [taskId, task?.status, tenantId]);
 
   const { data: pendingApprovals } = usePoll(fetchApprovals, POLL_INTERVAL_MS, !isTerminal);
 
-  const { execution, loading: executionLoading } = useExecution(taskId ?? '', !isTerminal);
-  const { deliverable } = useDeliverable(taskId ?? '', !isTerminal);
+  const { execution, loading: executionLoading } = useExecution(
+    taskId ?? '',
+    tenantId,
+    !isTerminal,
+  );
+  const { deliverable } = useDeliverable(taskId ?? '', tenantId, !isTerminal);
   const { events: feedbackEvents, error: feedbackError } = useFeedbackEvents(
     taskId ?? '',
+    tenantId,
     !isTerminal,
   );
   const { transcript, loading: transcriptLoading } = useExecutionTranscript(
     showTranscript ? (execution?.id ?? null) : null,
+    tenantId,
   );
 
   return {

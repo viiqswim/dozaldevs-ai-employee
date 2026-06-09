@@ -130,7 +130,7 @@ const TIMEOUT_SEC = getNumArg('--timeout', 300);
 const TENANT_ID = getArg('--tenant', VLRE_TENANT);
 const EMPLOYEE_SLUG = getArg('--employee', 'daily-real-estate-inspiration-2-copy');
 const GATEWAY_BASE = `http://localhost:${process.env.PORT ?? '7700'}`;
-const ADMIN_API_KEY = getEnv('ADMIN_API_KEY');
+const SERVICE_TOKEN = getEnv('SERVICE_TOKEN');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
 const OUTPUT_PATH = getArg('--output', `/tmp/stress-test-${timestamp}.json`);
 
@@ -180,7 +180,7 @@ async function triggerTask(): Promise<string> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Admin-Key': ADMIN_API_KEY,
+      Authorization: `Bearer ${SERVICE_TOKEN}`,
     },
     body: '{}',
   });
@@ -377,8 +377,8 @@ async function main(): Promise<void> {
   info(`Timeout:     ${TIMEOUT_SEC}s per task`);
   info(`Output:      ${OUTPUT_PATH}`);
 
-  if (!ADMIN_API_KEY) {
-    fail('ADMIN_API_KEY not set in .env');
+  if (!SERVICE_TOKEN) {
+    fail('SERVICE_TOKEN not set in .env');
     process.exit(1);
   }
 
@@ -397,7 +397,7 @@ async function main(): Promise<void> {
       `${GATEWAY_BASE}/admin/tenants/${TENANT_ID}/employees/${EMPLOYEE_SLUG}/trigger?dry_run=true`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_API_KEY },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SERVICE_TOKEN}` },
         body: '{}',
       },
     );

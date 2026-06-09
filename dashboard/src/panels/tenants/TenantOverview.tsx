@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { postgrestFetch } from '@/lib/postgrest';
-import { listSecrets, setSecret } from '@/lib/gateway';
+import { gatewayFetch, listSecrets, setSecret } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
@@ -125,16 +124,15 @@ export function TenantOverview() {
   };
 
   const fetchTenant = useCallback(
-    () => postgrestFetch<Tenant>('tenants', { id: `eq.${tenantId}` }),
+    () => gatewayFetch<Tenant>(`/admin/tenants/${tenantId}`),
     [tenantId],
   );
   const {
-    data: tenants,
+    data: tenant,
     error: tenantError,
     loading: tenantLoading,
     refresh: refreshTenant,
   } = usePoll(fetchTenant);
-  const tenant = tenants?.[0] ?? null;
 
   const fetchSecrets = useCallback(() => listSecrets(tenantId), [tenantId]);
   const {

@@ -369,6 +369,7 @@ gateway read endpoints (T17/T21: GET /admin/tenants/:id/tasks and /archetypes)
 return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256).
 
 ### LOCAL (HS256) — ALL PASS (12 status tests + 3 row-scoping asserts)
+
 - Role-gate (GET /members): OWNER 200 / VIEWER 403 "Insufficient role" / no-auth 401.
 - Reads (GET /tasks,/archetypes): OWNER own-tenant 200 (exactly the seeded row) /
   cross-tenant 403 "Access denied" (both tasks AND archetypes) / VIEWER own-tenant
@@ -377,6 +378,7 @@ return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256)
   tenant_id ABSENT. SERVICE→tasks(B) returned ONLY tenant-B row. Airtight isolation.
 
 ### CLOUD (ES256, gateway CLOUD Supabase profile + LOCAL DB for Prisma state) — ALL PASS
+
 - Same 12+3 matrix with REAL cloud ES256 JWTs (kid 1df77847-...). All identical verdicts.
 - alg enforcement reconfirmed: a LOCAL HS256 token presented to the CLOUD-profile
   gateway → 401 INVALID_TOKEN. This is the functional proof the CLOUD profile is active.
@@ -392,14 +394,14 @@ return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256)
 
 2. **LOCAL DB SCHEMA DRIFT — recorded-but-unexecuted migrations (T2 baseline issue, now
    bites read endpoints).** `prisma migrate status` said "up to date" and all 59 rows
-   were in _prisma_migrations, yet columns `tasks.deleted_at` (+ executions,
+   were in \_prisma_migrations, yet columns `tasks.deleted_at` (+ executions,
    pending_approvals, employee_rules, feedback_events, task_metrics) and
    `archetypes.platform_rules_override` were PHYSICALLY MISSING. admin-reads.ts filters
    `deleted_at: null` on every model → Prisma P2022 → HTTP 500. The migrations were
-   manually inserted into _prisma_migrations as the T2 baseline without their DDL ever
+   manually inserted into \_prisma_migrations as the T2 baseline without their DDL ever
    running against this local DB. FIX (idempotent psql, NO source change — same pattern
    Wave-2 used for platform_settings): apply the two migrations' `ALTER TABLE ... ADD
-   COLUMN IF NOT EXISTS` from prisma/migrations/20260607084955_add_deleted_at_to_active_tables
+COLUMN IF NOT EXISTS` from prisma/migrations/20260607084955_add_deleted_at_to_active_tables
    and 20260602101613_add_platform_rules_override, then `NOTIFY pgrst,'reload schema'`.
    After that all reads 200. **For future waves touching admin-reads endpoints, verify
    these columns exist FIRST** (they're absent on a T2-style baselined local DB).
@@ -417,13 +419,13 @@ return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256)
 5. **Re-enable Wave-2-disabled users before reuse.** Wave-2's deactivate test left BOTH
    viewer users (test.local + dozaldevs.io) with status='disabled' → they'd 403
    ACCOUNT_DISABLED. `UPDATE users SET status='active' WHERE email IN (...) AND
-   status='disabled'`. Reusing Wave-2 users (already have memberships) avoids the
+status='disabled'`. Reusing Wave-2 users (already have memberships) avoids the
    /me-then-seed-membership dance entirely.
 
 6. **Passwords weren't recorded in Wave-2 evidence** — reset to a known value via the
-   Admin API PUT /auth/v1/admin/users/:supabase_id {"password":...} (works for both
+   Admin API PUT /auth/v1/admin/users/:supabase*id {"password":...} (works for both
    LOCAL Kong:54331 and CLOUD), then login via /auth/v1/token?grant_type=password.
-   LOCAL uses SUPABASE_ANON_KEY as apikey; CLOUD uses sb_publishable_... as apikey.
+   LOCAL uses SUPABASE_ANON_KEY as apikey; CLOUD uses sb_publishable*... as apikey.
 
 7. **The endpoint role floors**: /members = requireTenantRole(ADMIN,OWNER) → VIEWER
    blocked; /tasks,/archetypes,/employee-rules = requireTenantRole(VIEWER) → VIEWER
@@ -431,9 +433,70 @@ return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256)
 
 8. **Stale LSP TenantRole false-positive persists** (documented T5/T11/T14/T21): editing
    ANY file triggers "Module @prisma/client has no exported member 'TenantRole'" across
-   admin-*.ts. The gateway runs fine via tsx — these are not real errors. No source files
+   admin-\*.ts. The gateway runs fine via tsx — these are not real errors. No source files
    were changed in this checkpoint.
 
 ### Evidence Files
+
 - .sisyphus/evidence/local/wave3/{SUMMARY,wave3-tests}.txt
 - .sisyphus/evidence/cloud/wave3/{SUMMARY,wave3-tests}.txt
+
+## [2026-06-09] T (seed-platform-owner script)
+
+- Script exports `seedPlatformOwner()` function for testability; main entrypoint guarded by `fileURLToPath(import.meta.url) === process.argv[1]`
+- Supabase Auth admin create: `POST /auth/v1/admin/users` with `{ email, password, email_confirm: true }` + `apikey` + `Authorization: Bearer` both set to SUPABASE_SECRET_KEY
+- On 422 (user already exists): fall back to `GET /auth/v1/admin/users?email=<encoded>&per_page=100` and find exact email match in `response.users[]`
+- Prisma upsert for User: `where: { supabase_id }`, `create: { supabase_id, email, role: 'PLATFORM_OWNER' }`, `update: { email, role: 'PLATFORM_OWNER' }`
+- Prisma upsert for TenantMembership: `where: { tenant_id_user_id: { tenant_id, user_id } }`, `update: { role: 'OWNER', deleted_at: null }` (un-soft-deletes if previously deleted)
+- Stale Prisma LSP client causes `Property 'user'/'tenantMembership' does not exist on PrismaClient` — worked around with `as unknown as PrismaWithUserModels` type alias; `pnpm build` exits 0 confirming it's a false positive
+- Integration test uses `describe.runIf(hasRealSupabaseKey)` where `hasRealSupabaseKey = realSecretKey.startsWith('eyJ')` — skips gracefully when no real auth service key is present in .env
+- Integration test OVERRIDES `process.env.SUPABASE_SECRET_KEY` with the real key from `.env` because vitest config sets it to the fake `test-supabase-service-role-key` placeholder
+- Cleanup in `afterAll`: raw SQL `DELETE FROM tenant_memberships WHERE user_id = ...` then `DELETE FROM users WHERE id = ...` — NOT deleting Supabase Auth user (no cleanup API in test context)
+- Password handling: generated `randomBytes(16).toString('hex')` inline when not provided; in `isMain` block, generated password is printed once and set on `process.env` before calling function so function uses it
+- `.env` loading in `isMain` block uses regex `/^([A-Z_][A-Z0-9_]*)=(.*)$/` to parse; silently catches ENOENT (shell env already set)
+- `pnpm build` exits 0; `pnpm test:unit` 144 files, 1689 passed, 9 skipped, 0 failures (no regressions)
+
+## [2026-06-09-1229] T (migrate scripts X-Admin-Key → Authorization: Bearer SERVICE_TOKEN)
+
+- Migrated 5 scripts that sent `X-Admin-Key` HTTP headers + updated 1 user-facing log hint. All in `scripts/` (archive/ untouched).
+- **HTTP header pattern**: `'X-Admin-Key': KEY` → `Authorization: \`Bearer ${TOKEN}\``. Object-shorthand key `Authorization` (no quotes) is valid JS; template literal interpolates the token.
+- **Lazy-getter discipline**: every script reads `process.env.SERVICE_TOKEN` (or its local `getEnv('SERVICE_TOKEN')`) AT CALL TIME, never cached at module load — matches `src/lib/config.ts` `SERVICE_TOKEN` getter. dev-e2e + verify-multi-tenancy read `process.env.SERVICE_TOKEN ?? ''` inline at the fetch site; stress-test/preflight/register-project use their own `.env`-parsing `getEnv()` helper at main()-time.
+- **Files changed**:
+  - `dev-e2e.ts` — REQUIRED_VARS `ADMIN_API_KEY`→`SERVICE_TOKEN`; trigger fetch header; status-curl log hint.
+  - `stress-test.ts` — module const `ADMIN_API_KEY`→`SERVICE_TOKEN` (via `getEnv`); 2 fetch headers (triggerTask + dry_run validate); the missing-key guard message.
+  - `verify-multi-tenancy.ts` — local `SERVICE_TOKEN` const; 3 fetch headers (create probe task + 2 cross-tenant GETs).
+  - `preflight-guest-messaging.ts` — `getEnv('SERVICE_TOKEN')`; REQUIRED_VARS swap (count stays 11); secrets-GET header; PUT auto-fix header; the curl hint in the not-stored fail message.
+  - `register-project.ts` — `serviceToken` var + guard; POST header; 401 message; 2 help/docstring blocks; the "(all require ... header)" footer.
+  - `dev.ts` — line 928 log hint only (per scope). **LEFT line 335 `ADMIN_API_KEY` in REQUIRED_VARS env-presence check** — not an HTTP call; still valid during dual-accept window.
+- **setup.ts**: NO change — lines 370-386 are pure `ADMIN_API_KEY` auto-generation (no HTTP headers). Kept per task instruction (T24 removes it later).
+- **Verification**: `grep -rn "X-Admin-Key" scripts/ --include="*.ts" | grep -v archive | wc -l` = **0**. Remaining `ADMIN_API_KEY` greps are only dev.ts:335 (env check) + setup.ts auto-gen (both intentional, in-scope-excluded).
+- **LSP-during-parallel-edits gotcha**: firing multiple Edit calls in one batch on the SAME file produces transient "Cannot find name 'ADMIN_API_KEY'" diagnostics for not-yet-edited occurrences — these resolve once all edits land. The asdf `typescript-language-server` is unavailable in this shell (documented prior), so `pnpm build` (tsc) is ground truth.
+- **Pre-existing errors in verify-multi-tenancy.ts** (confirmed via `git stash` + tsc): module-not-found for `../src/gateway/services/{tenant-repository,tenant-secret-repository,tenant-env-loader}.js` (lines 3/4/6) + `TenantInstallationStore` "Expected 3 arguments, got 2" (line 210). NOT caused by this migration — present with changes stashed. tsconfig.build.json excludes scripts/ so `pnpm build` stays exit 0.
+- `pnpm build` exits 0; `pnpm test:unit` 144 files, 1689 passed, 9 skipped, 0 failures (no regressions).
+
+## [2026-06-09] T17 Dashboard migration — gateway read endpoints + JWT auth
+
+- Migrated all dashboard components from `postgrestFetch` (direct PostgREST) + `X-Admin-Key` to `gatewayFetch` (gateway read endpoints) + `Authorization: Bearer <supabase_access_token>`.
+- **Files migrated**: `TaskFeed.tsx`, `RulesPanel.tsx`, `RulesTab.tsx`, `FeedbackEventsTab.tsx`, `IntegrationsPage.tsx`, `TenantOverview.tsx`, `TriggerPanel.tsx` (plus previously migrated: `gateway.ts`, `use-execution-logs.ts`, `ApiKeyPrompt.tsx`, `App.tsx`, `use-execution.ts`, `use-deliverable.ts`, `use-execution-transcript.ts`, `use-feedback-events.ts`, `useTaskData.ts`, `use-wizard-data.ts`, `EmployeeDetail.tsx`, `EmployeeList.tsx`, `TrainingTab.tsx`, `TriggerEmployeePage.tsx`).
+- **`postgrestFetch` only remains in `postgrest.ts`** (the library file itself) — no component imports it anymore.
+- **Zero `X-Admin-Key` / `adminApiKey` / `getAdminApiKey` references** remain in `dashboard/src/`.
+- **`ApiKeyPrompt.tsx` is now a no-op stub** returning `null`.
+- **`getAccessToken()`** reads `localStorage.getItem('supabase_access_token')` — returns null if not set; `gatewayFetch` sends no auth header in that case (gateway returns 401, UI handles it).
+
+### Key migration patterns
+
+- **Array endpoints**: `gatewayFetch<T[]>('/admin/tenants/${tenantId}/archetypes')` — returns array directly (no PostgREST envelope).
+- **Single-object endpoints**: `gatewayFetch<Tenant>('/admin/tenants/${tenantId}')` — returns single object, NOT array. Old pattern `postgrestFetch(...).then(arr => arr[0])` becomes just `gatewayFetch<Tenant>(...)`.
+- **`usePoll` type inference**: `usePoll(fetchFn)` infers `T` from the return type of `fetchFn`. Changing `fetchFn` to return `Promise<T[]>` vs `Promise<T>` changes the `data` type accordingly — no explicit generic needed on `usePoll`.
+- **Multi-archetype filter (RulesTab, FeedbackEventsTab)**: `buildArchetypeFilter(selectedIdsKey)` produced PostgREST `in.(id1,id2)` syntax — gateway only supports single `?archetype_id=`. Strategy: fetch ALL tenant rules/events (no archetype filter in URL), then filter client-side by `selectedIds.has(r.archetype_id)`. Efficient for small rule sets; acceptable tradeoff.
+- **TaskFeed stats consolidation**: eliminated `fetchTenantCosts` and `fetchDoneTasks` (separate PostgREST queries). The main tasks query already includes `executions` embed — compute `totalCostUsd` and `tasksCompleted` from `rawTasks` client-side. `fetchTenantMetrics` migrated to `/task-metrics` endpoint; date/employee filtering done client-side via `useMemo`.
+- **IntegrationsPage tenant fetch**: `postgrestFetch<Tenant>('tenants', ...).then(arr => arr[0])` → `gatewayFetch<Tenant>('/admin/tenants/${tenantId}')` (single object). Removed `const tenant = tenants?.[0] ?? null` pattern.
+- **TenantOverview same pattern**: `data: tenants` + `const tenant = tenants?.[0] ?? null` → `data: tenant` directly.
+
+### Verification results
+
+- `grep -rn "X-Admin-Key|adminApiKey|getAdminApiKey" dashboard/src` → **0 matches**
+- `grep -rn "postgrestFetch|scopeByTenant" dashboard/src` → **1 match** (only `postgrest.ts` itself)
+- `pnpm dashboard:build` → **exit 0** (vite build, 2198 modules, 442ms)
+- `pnpm build` → **exit 0** (gateway tsc)
+- `pnpm test:unit` → **144 files, 1689 passed, 9 skipped, 0 failures**

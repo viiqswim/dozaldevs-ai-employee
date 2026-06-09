@@ -12,14 +12,13 @@ import {
 import { Search, X } from 'lucide-react';
 import { MultiSelectDropdown } from '@/components/ui/multi-select-dropdown';
 import type { MultiSelectOption } from '@/components/ui/multi-select-dropdown';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
 import { useSearchParams } from 'react-router-dom';
 import type { EmployeeRule } from '@/lib/types';
 import {
-  buildArchetypeFilter,
   ErrorState,
   RuleStatusBadge,
   RULE_STATUS_CLASSES,
@@ -51,18 +50,23 @@ export function RulesTab({
     searchParams.get('status')?.split(',').filter(Boolean) ?? [],
   );
 
-  const fetchRules = useCallback(
-    () =>
-      postgrestFetch<EmployeeRule>('employee_rules', {
-        ...scopeByTenant(tenantId),
-        ...buildArchetypeFilter(selectedIdsKey),
-        order: 'created_at.desc',
-        limit: '100',
-      }),
-    [tenantId, selectedIdsKey],
+  const selectedIds = useMemo(
+    () => new Set(selectedIdsKey.split(',').filter(Boolean)),
+    [selectedIdsKey],
   );
 
-  const { data: rules, error, loading, refresh } = usePoll(fetchRules);
+  const fetchRules = useCallback(
+    () => gatewayFetch<EmployeeRule[]>(`/admin/tenants/${tenantId}/employee-rules?limit=100`),
+    [tenantId],
+  );
+
+  const { data: allRules, error, loading, refresh } = usePoll(fetchRules);
+
+  const rules = useMemo(() => {
+    if (!allRules) return null;
+    if (selectedIds.size === 0) return allRules;
+    return allRules.filter((r) => selectedIds.has(r.archetype_id));
+  }, [allRules, selectedIds]);
 
   const filteredRules = useMemo(() => {
     if (!rules) return [];

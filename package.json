@@ -28,6 +28,7 @@
     "stress-test": "tsx scripts/stress-test.ts",
     "register-project": "tsx scripts/register-project.ts",
     "register-dev-slack": "tsx scripts/register-dev-slack-tenant.ts",
+    "seed-platform-owner": "tsx scripts/seed-platform-owner.ts",
     "dev:e2e": "tsx scripts/dev-e2e.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
     "fly:setup": "tsx scripts/fly-setup.ts",

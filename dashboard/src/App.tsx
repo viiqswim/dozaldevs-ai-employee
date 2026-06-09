@@ -1,9 +1,8 @@
-import { Component, type ReactNode, useState } from 'react';
+import { Component, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TenantProvider } from './hooks/use-tenant';
 import { Layout } from './components/layout/Layout';
-import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
 import { EmployeeList } from './panels/employees/EmployeeList';
@@ -56,16 +55,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 export default function App() {
-  const [apiKeyOpen, setApiKeyOpen] = useState(false);
-
   return (
     <ErrorBoundary>
       <TenantProvider>
         <BrowserRouter>
           <Toaster richColors position="top-right" />
-          <ApiKeyPrompt open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
           <Routes>
-            <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
+            <Route element={<Layout onOpenApiKey={() => {}} />}>
               <Route path="/dashboard" element={<TaskFeed />} />
               <Route path="/dashboard/tasks" element={<TaskFeed />} />
               <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />

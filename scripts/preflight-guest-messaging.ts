@@ -137,7 +137,7 @@ async function main(): Promise<void> {
   const POSTGREST = `${getEnv('SUPABASE_URL') || 'http://localhost:54331'}/rest/v1`;
   const HOSTFULLY_BASE = 'https://api.hostfully.com/api/v3.2';
 
-  const ADMIN_API_KEY = getEnv('ADMIN_API_KEY');
+  const SERVICE_TOKEN = getEnv('SERVICE_TOKEN');
   const SUPABASE_SECRET_KEY = getEnv('SUPABASE_SECRET_KEY');
   const WEBHOOK_PUBLIC_URL = getEnv('WEBHOOK_PUBLIC_URL');
 
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
     'SUPABASE_SECRET_KEY',
     'INNGEST_EVENT_KEY',
     'INNGEST_SIGNING_KEY',
-    'ADMIN_API_KEY',
+    'SERVICE_TOKEN',
     'ENCRYPTION_KEY',
     'SLACK_APP_TOKEN',
     'SLACK_SIGNING_SECRET',
@@ -294,7 +294,7 @@ async function main(): Promise<void> {
   section('Check 9 · Hostfully Tenant Secrets');
   try {
     const r = await fetch(`${GATEWAY}/admin/tenants/${TENANT_ID}/secrets`, {
-      headers: { 'X-Admin-Key': ADMIN_API_KEY },
+      headers: { Authorization: `Bearer ${SERVICE_TOKEN}` },
     });
     const body = (await r.json()) as {
       secrets?: Array<{ key: string; is_set: boolean }>;
@@ -309,7 +309,7 @@ async function main(): Promise<void> {
       fail(
         'hostfully_api_key not stored',
         `Store via: curl -X PUT ${GATEWAY}/admin/tenants/${TENANT_ID}/secrets/hostfully_api_key` +
-          ` -H "X-Admin-Key: <ADMIN_API_KEY>" -H "Content-Type: application/json"` +
+          ` -H "Authorization: Bearer <SERVICE_TOKEN>" -H "Content-Type: application/json"` +
           ` -d '{"value":"<your-hostfully-api-key>"}'`,
       );
     }
@@ -337,7 +337,10 @@ async function main(): Promise<void> {
             `${GATEWAY}/admin/tenants/${TENANT_ID}/secrets/hostfully_agency_uid`,
             {
               method: 'PUT',
-              headers: { 'X-Admin-Key': ADMIN_API_KEY, 'Content-Type': 'application/json' },
+              headers: {
+                Authorization: `Bearer ${SERVICE_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
               body: JSON.stringify({ value: uid }),
             },
           );

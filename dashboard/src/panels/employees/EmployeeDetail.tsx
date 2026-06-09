@@ -2,8 +2,7 @@ import { useCallback, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway';
+import { gatewayFetch, triggerEmployee, deleteArchetype, patchArchetype } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import type { Archetype, Tenant } from '@/lib/types';
@@ -49,18 +48,16 @@ export function EmployeeDetail() {
 
   const fetchArchetype = useCallback(
     () =>
-      postgrestFetch<Archetype>('archetypes', {
-        id: `eq.${archetypeId ?? ''}`,
-        ...scopeByTenant(tenantId),
-        deleted_at: 'is.null',
-      }).then((arr) => arr[0] ?? null),
+      gatewayFetch<Archetype[]>(
+        `/admin/tenants/${tenantId}/archetypes?id=${archetypeId ?? ''}`,
+      ).then((arr) => arr[0] ?? null),
     [archetypeId, tenantId],
   );
 
   const { data: archetype, error, loading, refresh } = usePoll<Archetype | null>(fetchArchetype);
 
   const fetchTenant = useCallback(
-    () => postgrestFetch<Tenant>('tenants', { id: `eq.${tenantId}` }).then((arr) => arr[0] ?? null),
+    () => gatewayFetch<Tenant>(`/admin/tenants/${tenantId}`),
     [tenantId],
   );
   const { data: tenant } = usePoll<Tenant | null>(fetchTenant);

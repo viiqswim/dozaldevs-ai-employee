@@ -188,7 +188,7 @@ const REQUIRED_VARS = [
   'SUPABASE_SECRET_KEY',
   'OPENROUTER_API_KEY',
   'INNGEST_EVENT_KEY',
-  'ADMIN_API_KEY',
+  'SERVICE_TOKEN',
   'ENCRYPTION_KEY',
   'SLACK_APP_TOKEN',
   'SLACK_SIGNING_SECRET',
@@ -497,7 +497,7 @@ try {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Admin-Key': process.env.ADMIN_API_KEY ?? '',
+        Authorization: `Bearer ${process.env.SERVICE_TOKEN ?? ''}`,
       },
       body: JSON.stringify({}),
     },
@@ -532,7 +532,7 @@ log(`    Gateway:    http://localhost:${GATEWAY_PORT}`);
 log('');
 log('  Task:');
 log(`    ID:         ${taskId}`);
-log(`    Status:     curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \\`);
+log(`    Status:     curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \\`);
 log(
   `                  "http://localhost:${GATEWAY_PORT}/admin/tenants/${VLRE_TENANT_ID}/tasks/${taskId}" | jq '.status'`,
 );
