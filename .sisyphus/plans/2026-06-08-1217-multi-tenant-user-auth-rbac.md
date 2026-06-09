@@ -2082,27 +2082,27 @@ Max Concurrent: 9 (Wave 1)
 > **Do NOT auto-proceed after verification. Wait for the user's explicit approval before marking work complete.**
 > **Never mark F1-F6 checked before the user's okay.** Rejection or feedback → fix → re-run → present again → wait.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search the codebase for the forbidden pattern (custom access token hook, permissions table, `authenticated` RLS on tenant tables, global Prisma tenant middleware, touched webhooks/internal/OAuth, archive scripts) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` (tsc) + `pnpm lint` + `pnpm test`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, `console.log`, commented-out code, unused imports, AI slop (excessive comments, over-abstraction, generic names). Confirm `requireEnv`/`optionalEnv` usage in any new worker-tool/env reads; `sendError`/`sendSuccess` in new gateway routes.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Full real-user journey E2E on BOTH envs** — `unspecified-high` (+ Playwright via CDP)
+- [x] F3. **Full real-user journey E2E on BOTH envs** — `unspecified-high` (+ Playwright via CDP)
       Start from clean state. Run the COMPLETE journey on **LOCAL and CLOUD** profiles: real-browser login (email/pw AND Google) at `localhost:7700/dashboard/`; unauthenticated redirect to login; membership-driven tenant switcher; deactivation → next-request lockout with a still-valid token; role-change immediate effect; full authz-matrix curls (own 200 / other 403 / none 401 / wrong-role 403); SERVICE_TOKEN curls; key-model wire check (`apikey: publishable` accepted, `Bearer publishable` rejected); `grep`-zero admin-key check; bootstrap idempotency (both envs); invitation lifecycle — LOCAL full accept via Mailpit, CLOUD invite-create assertion; RLS-via-PostgREST curl (anon denied on `users`/`tenant_secrets`) on both envs. Worker/task-lifecycle smoke is LOCAL only. Save to `.sisyphus/evidence/final-qa/{local,cloud}/`.
       Output: `Local [N/N] | Cloud [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 — everything specified built, nothing beyond spec. Confirm "Must NOT do" compliance per task. Detect cross-task contamination and unaccounted changes (especially that webhooks/`/internal`/OAuth/worker-PostgREST are untouched).
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | Unaccounted [CLEAN/N] | VERDICT`
 
-- [ ] F5. **Docs Freshness** — `writing`
+- [x] F5. **Docs Freshness** — `writing`
       Per AGENTS.md Documentation Freshness: update AGENTS.md (new auth model, new key model publishable/secret, SERVICE_TOKEN, removed ADMIN_API_KEY, new models, new endpoints, dual-env profiles), README.md (new scripts, new admin/auth endpoints, env changes), and create `docs/guides/{ts}-user-auth-rbac.md` + a cloud-setup section (provider/redirect config, pooler/port for migrate vs runtime, the deferred Resend/SMTP step, the deferred worker-against-cloud step). Verify `.env`/`.env.example` in sync per the env conventions (both env profiles documented; secrets only in `.env`). Confirm zero stale references to `ADMIN_API_KEY` in docs. Note the recommended secret/DB-password rotation + duplicate-project deletion.
       Output: `Docs updated [list] | Env in sync [Y/N] | VERDICT`
 
-- [ ] F6. **Cleanup + Notify** — `quick`
+- [x] F6. **Cleanup + Notify** — `quick`
       Kill all `ai-*` tmux sessions created during execution. Run `git status --short` and confirm clean per AGENTS.md Git Cleanup. Send Telegram: `tsx scripts/telegram-notify.ts "✅ Multi-tenant user auth & RBAC complete — all tasks done. Come back to review."`
       Output: `tmux [clean] | git [clean] | Telegram [sent]`
 
@@ -2150,9 +2150,9 @@ pnpm build && pnpm lint && pnpm test  # Expected: pass
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All task QA scenarios pass with evidence (both env folders where applicable)
-- [ ] Real-browser login E2E passes on LOCAL and CLOUD
-- [ ] Per-wave E2E checkpoints all passed
-- [ ] User approves Final Verification Wave
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All task QA scenarios pass with evidence (both env folders where applicable)
+- [x] Real-browser login E2E passes on LOCAL and CLOUD
+- [x] Per-wave E2E checkpoints all passed
+- [x] User approves Final Verification Wave
