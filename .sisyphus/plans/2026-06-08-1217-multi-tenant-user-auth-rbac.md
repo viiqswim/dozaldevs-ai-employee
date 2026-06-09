@@ -887,7 +887,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 11. Authz helpers: requireAuth / requireTenantRole / requirePermission
+- [x] 11. Authz helpers: requireAuth / requireTenantRole / requirePermission
 
   **What to do**:
   - `src/gateway/middleware/authz.ts`:

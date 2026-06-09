@@ -210,3 +210,15 @@
 - `AuthenticatedUser` has NO `deleted_at` field — only `status: string` is the deactivation mechanism
 - Flaky test: `admin-tenant-secrets.test.ts > DELETE 404 when tenant not found` gets `socket hang up` intermittently when run in parallel with the full suite; passes in isolation and on re-run. Pre-existing race condition unrelated to T9.
 - `pnpm build` zero errors; `pnpm test:unit` 1616 passed, 9 skipped (confirmed clean)
+
+## [2026-06-09] T11 — authz middleware
+
+- Created `src/gateway/middleware/authz.ts` with `requireAuth`, `requireTenantRole`, `requirePermission`
+- `requireAuth` is a plain middleware (not a factory); `requireTenantRole` and `requirePermission` are factories returning `RequestHandler`
+- Prisma client instantiated at module level (`new PrismaClient()`) matching the pattern used in `ensure-user-exists.ts` and other gateway services — no shared singleton
+- `req.params['tenantId']` with bracket notation + `as string` cast needed to avoid `string | string[]` type error in Express params
+- Role ordering: OWNER(4) > ADMIN(3) > MEMBER(2) > VIEWER(1); `requireTenantRole(ADMIN)` means ADMIN or higher (OWNER satisfies it)
+- Vitest hoisting: `vi.mock` factories are hoisted before module-level `const` declarations; use `vi.hoisted(() => ({ fn: vi.fn() }))` to define mock state shared across the module and the mock factory
+- `getMockedFindFirst()` anti-pattern creates a new PrismaClient instance (different from the one in the SUT); use a hoisted shared `mockFindFirst` fn instead
+- `admin-github.test.ts` has a flaky test ("returns 401 when X-Admin-Key header is missing") that intermittently fails but is NOT caused by authz changes — confirmed by stash test
+- Build: `pnpm build` is ground truth; LSP errors on `@prisma/client` exports (Role, TenantRole) are stale and can be ignored
