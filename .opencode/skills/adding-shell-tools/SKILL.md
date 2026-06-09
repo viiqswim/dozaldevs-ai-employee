@@ -144,7 +144,7 @@ Every tool that calls an external API must support mock mode.
 
 ```bash
 curl -X PUT "http://localhost:7700/admin/tenants/{tenantId}/secrets/{key}" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<secret-value>"}'
 ```
 

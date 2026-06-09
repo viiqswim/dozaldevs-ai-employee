@@ -64,12 +64,38 @@ Signatures:
 - Detect Prisma constraint violations with `isPrismaError(err)` — **never** `err instanceof PrismaClientKnownRequestError`. Example: `if (isPrismaError(err) && err.code === 'P2002') sendError(res, 409, 'MODEL_ID_TAKEN', ...)`.
 - **Exception — webhook receiver routes** (`hostfully.ts`, `jira.ts`, `github.ts`) use `res.json()` directly for fire-and-forget 200 acks. The helper rule applies to admin / OAuth / internal routes only.
 
-### 3. Admin auth — `X-Admin-Key` header
+### 3. Admin auth — `Authorization: Bearer` (SERVICE_TOKEN or Supabase JWT)
 
-All `/admin/*` routes are guarded by the `requireAdminKey` middleware (`src/gateway/middleware/admin-auth.ts`). It does a timing-safe compare of the `X-Admin-Key` header against `ADMIN_API_KEY`. Attach it per-route:
+All `/admin/*` and `/me` routes are guarded by `authMiddleware` + `requireAuth` + `requireTenantRole`/`requirePermission` from `src/gateway/middleware/auth.ts` and `src/gateway/middleware/authz.ts`. Two token types are accepted:
+
+- **SERVICE_TOKEN** — opaque hex string from `SERVICE_TOKEN` env var. Bypasses all membership checks.
+- **Supabase JWT** — short-lived JWT issued by Supabase Auth. Checked against `users.status` per-request.
+
+`X-Admin-Key` / `ADMIN_API_KEY` / `requireAdminKey` are **removed** — not deprecated, gone since T24. All callers must use `Authorization: Bearer`.
+
+Standard guard chain for a tenant-scoped route:
 
 ```typescript
-router.get('/admin/model-catalog', requireAdminKey, async (req, res) => { ... });
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
+import { TenantRole } from '@prisma/client';
+
+router.get(
+  '/admin/tenants/:tenantId/things',
+  authMiddleware,
+  requireAuth,
+  requireTenantRole(TenantRole.VIEWER),
+  async (req, res) => { ... }
+);
+```
+
+For global (non-tenant-scoped) endpoints, use `requirePermission` instead of `requireTenantRole`:
+
+```typescript
+import { requirePermission } from '../middleware/authz.js';
+import { PERMISSIONS } from '../../lib/auth/permissions.js';
+
+router.get('/admin/model-catalog', authMiddleware, requireAuth, requirePermission(PERMISSIONS.MANAGE_ARCHETYPES), async (req, res) => { ... });
 ```
 
 ### 4. Tenant-scoped path shape
@@ -93,7 +119,7 @@ Gateway route handlers use Prisma directly. **Worker containers** (`src/workers/
 | `202` | Async work accepted (task dispatched — returns `{ task_id, status_url }`) |
 | `204` | Success, no body                                                          |
 | `400` | Zod validation failure (`INVALID_REQUEST` / `INVALID_ID` + `issues`)      |
-| `401` | Missing/invalid `X-Admin-Key` (`UNAUTHORIZED`)                            |
+| `401` | Missing/invalid auth token (`UNAUTHORIZED` / `AUTHENTICATION_REQUIRED`)   |
 | `404` | Not found / cross-tenant access (`NOT_FOUND`)                             |
 | `409` | Unique-constraint conflict (Prisma `P2002`)                               |
 | `422` | Semantically invalid (e.g. missing required employee inputs)              |
@@ -108,9 +134,10 @@ Copy this shape for every new admin route. It demonstrates `uuidField()`, `safeP
 ```typescript
 import { Router } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES, isPrismaError } from '../lib/prisma-helpers.js';
@@ -121,27 +148,33 @@ export function exampleRoutes({ prisma }: { prisma: PrismaClient }): Router {
   const router = Router();
   const logger = createLogger('example-routes');
 
-  router.get('/admin/tenants/:tenantId/things/:id', requireAdminKey, async (req, res) => {
-    const parsed = ParamSchema.safeParse(req.params);
-    if (!parsed.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, { issues: parsed.error.issues });
-      return;
-    }
-    const { tenantId, id } = parsed.data;
-    try {
-      const thing = await prisma.thing.findFirst({
-        where: { id, tenant_id: tenantId, deleted_at: null },
-      });
-      if (!thing) {
-        sendError(res, 404, ERROR_CODES.NOT_FOUND);
+  router.get(
+    '/admin/tenants/:tenantId/things/:id',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.VIEWER),
+    async (req, res) => {
+      const parsed = ParamSchema.safeParse(req.params);
+      if (!parsed.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, { issues: parsed.error.issues });
         return;
       }
-      sendSuccess(res, 200, thing);
-    } catch (err) {
-      logger.error({ err }, 'Failed to get thing');
-      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
-    }
-  });
+      const { tenantId, id } = parsed.data;
+      try {
+        const thing = await prisma.thing.findFirst({
+          where: { id, tenant_id: tenantId, deleted_at: null },
+        });
+        if (!thing) {
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
+          return;
+        }
+        sendSuccess(res, 200, thing);
+      } catch (err) {
+        logger.error({ err }, 'Failed to get thing');
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+      }
+    },
+  );
 
   return router;
 }
@@ -153,7 +186,7 @@ export function exampleRoutes({ prisma }: { prisma: PrismaClient }): Router {
 
 ## Admin API Endpoint Catalog
 
-Auth: every endpoint below requires `X-Admin-Key: $ADMIN_API_KEY` (unless noted as OAuth/internal). This table is the authoritative catalog — it was moved here out of AGENTS.md.
+Auth: every endpoint below requires `Authorization: Bearer $SERVICE_TOKEN` (or a valid Supabase JWT with sufficient role) unless noted as OAuth/internal/public. This table is the authoritative catalog — it was moved here out of AGENTS.md.
 
 | Method   | Path                                                      | Description                                                                                                               |
 | -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -190,7 +223,7 @@ Auth: every endpoint below requires `X-Admin-Key: $ADMIN_API_KEY` (unless noted 
 | `GET`  | `/integrations/google/install?tenant=<slug>` | Initiates Google OAuth flow for a tenant.                    |
 | `GET`  | `/integrations/google/callback`              | OAuth callback; stores 5 Google secrets in `tenant_secrets`. |
 
-**Internal (worker containers only — auth via `X-Task-ID` header, not `X-Admin-Key`):**
+**Internal (worker containers only — auth via `X-Task-ID` header, not `Authorization: Bearer`):**
 
 | Method | Path                                   | Description                                                                                                                                         |
 | ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -203,7 +236,7 @@ Auth: every endpoint below requires `X-Admin-Key: $ADMIN_API_KEY` (unless noted 
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -214,7 +247,7 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
 
 ## Quick Checklist for a New Route
 
-- [ ] Path under `/admin/tenants/:tenantId/...` if tenant-scoped; `requireAdminKey` attached
+- [ ] Path under `/admin/tenants/:tenantId/...` if tenant-scoped; `authMiddleware + requireAuth + requireTenantRole(...)` attached
 - [ ] UUID params validated with `uuidField()` — **not** `z.string().uuid()`
 - [ ] `req.params` / `req.query` / `req.body` each `safeParse`d; 400 + `{ issues }` on failure
 - [ ] All responses via `sendSuccess` / `sendError` — no inline `res.status().json()`

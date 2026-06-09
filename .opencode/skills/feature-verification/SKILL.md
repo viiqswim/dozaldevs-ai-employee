@@ -96,7 +96,7 @@ Use **`real-estate-motivation-bot-2`** (VLRE tenant) as the default smoke-test e
 source .env
 curl -s -X POST \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/real-estate-motivation-bot-2/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}' | jq '{task_id: .task_id, status_url: .status_url}'
 ```

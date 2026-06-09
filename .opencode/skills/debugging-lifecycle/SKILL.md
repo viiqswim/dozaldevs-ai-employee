@@ -289,7 +289,7 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 ### Check task status
 
 ```bash
-curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/<tenantId>/tasks/<taskId>"
 ```
 
@@ -298,7 +298,7 @@ Returns current `status`, `failure_reason`, `metadata`, and `updated_at`.
 ### Trigger an employee (for testing)
 
 ```bash
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/<tenantId>/employees/<slug>/trigger" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -306,7 +306,7 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
 ### Dry-run trigger (validates without creating task)
 
 ```bash
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/<tenantId>/employees/<slug>/trigger?dry_run=true" \
   -H "Content-Type: application/json" -d '{}'
 ```

@@ -52,7 +52,7 @@ All Prisma-based DB access from gateway routes and Inngest functions goes throug
 
 In gateway and Inngest code, always use one of:
 
-- **`requireEnv(name)`** — throws `Error: Missing required environment variable: ${name}` at call time; use for vars that are non-negotiable at startup (e.g., `ENCRYPTION_KEY`, `ADMIN_API_KEY`).
+- **`requireEnv(name)`** — throws `Error: Missing required environment variable: ${name}` at call time; use for vars that are non-negotiable at startup (e.g., `ENCRYPTION_KEY`, `SERVICE_TOKEN`).
 - **`getEnv(name, defaultValue)`** — returns `process.env[name] ?? defaultValue`; use for optional vars with safe fallbacks.
 - **Named lazy getters** exported from `config.ts` (e.g., `SUPABASE_SECRET_KEY()`, `OPENROUTER_API_KEY()`) — these are zero-arg functions that read `process.env` at call time, not at module load time. Import and call them instead of re-reading `process.env`.
 

@@ -72,15 +72,17 @@ where: {
 
 ---
 
-## 4. Admin Routes — `X-Admin-Key` Header
+## 4. Admin Routes — `Authorization: Bearer` (SERVICE_TOKEN or Supabase JWT)
 
-All `/admin/*` routes are guarded by `requireAdminKey` in `src/gateway/middleware/admin-auth.ts`.
+All `/admin/*` and `/me` routes are guarded by `authMiddleware` + `requireAuth` + `requireTenantRole`/`requirePermission` from `src/gateway/middleware/auth.ts` and `src/gateway/middleware/authz.ts`.
 
-- Reads the `x-admin-key` request header, compares against `ADMIN_API_KEY` using `crypto.timingSafeEqual` (constant-time — resists timing attacks).
-- Length is checked **before** `timingSafeEqual` (which throws on unequal buffer lengths).
-- Missing, empty, wrong-length, or mismatched key → `401 { error: 'Unauthorized' }`. The log line never echoes the provided key.
+- **SERVICE_TOKEN path**: timing-safe compare of the Bearer token against `SERVICE_TOKEN()`. Sets `req.isServiceToken = true`. Bypasses all membership checks.
+- **Supabase JWT path**: `verifySupabaseJwt(token)` + `ensureUserExists(claims)` upsert. Checks `user.status` per-request — `status = 'disabled'` → 403 `ACCOUNT_DISABLED`.
+- Missing or invalid token → 401 `AUTHENTICATION_REQUIRED`. The log line never echoes the provided token.
 
-**MUST NOT** add an admin route that skips this middleware. **DO NOT** replace the timing-safe comparison with `===` or `==` — a plain string compare reintroduces a timing side-channel. **DO NOT** log the provided or expected key value.
+`X-Admin-Key` / `ADMIN_API_KEY` / `requireAdminKey` are **removed** — not deprecated, gone since T24.
+
+**MUST NOT** add an admin route that skips `authMiddleware + requireAuth`. **DO NOT** replace the SERVICE_TOKEN timing-safe comparison with `===` or `==`. **DO NOT** log the provided or expected token value.
 
 ---
 
@@ -155,18 +157,18 @@ No security-relevant record (tenant, secret, task) is ever hard-deleted — dele
 
 ## Quick Checklist
 
-| Don't                                                   | Do Instead                                                            |
-| ------------------------------------------------------- | --------------------------------------------------------------------- |
-| Put a tenant credential in `.env` or code               | Store encrypted in `tenant_secrets` via `tenant-secret-repository.ts` |
-| Bypass `encrypt()`/`decrypt()`                          | All crypto goes through `src/lib/encryption.ts`                       |
-| Default or hardcode a fallback `ENCRYPTION_KEY`         | Let `validateEncryptionKey()` fail-fast at startup                    |
-| Write an unscoped multi-tenant query/cache              | Scope every query by `tenant_id`                                      |
-| Add an `/admin/*` route without `requireAdminKey`       | Guard with `src/gateway/middleware/admin-auth.ts`                     |
-| Read `VLRE_SLACK_BOT_TOKEN` at runtime                  | Read the tenant's Slack token from `tenant_secrets`                   |
-| Log guest names / emails / message bodies               | Log `taskId` / `tenant_id` identifiers only                           |
-| Commit `.env` or paste real secrets into `.env.example` | Keep `.env` local (gitignored); placeholders only in `.env.example`   |
-| Read `req.body`/`req.params` raw in a handler           | Parse via a Zod schema in `src/gateway/validation/schemas.ts` first   |
-| Use `z.string().uuid()` for tenant/task params          | Use `uuidField()` / `UUID_REGEX`                                      |
+| Don't                                                   | Do Instead                                                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Put a tenant credential in `.env` or code               | Store encrypted in `tenant_secrets` via `tenant-secret-repository.ts`           |
+| Bypass `encrypt()`/`decrypt()`                          | All crypto goes through `src/lib/encryption.ts`                                 |
+| Default or hardcode a fallback `ENCRYPTION_KEY`         | Let `validateEncryptionKey()` fail-fast at startup                              |
+| Write an unscoped multi-tenant query/cache              | Scope every query by `tenant_id`                                                |
+| Add an `/admin/*` route without auth guards             | Guard with `authMiddleware + requireAuth + requireTenantRole/requirePermission` |
+| Read `VLRE_SLACK_BOT_TOKEN` at runtime                  | Read the tenant's Slack token from `tenant_secrets`                             |
+| Log guest names / emails / message bodies               | Log `taskId` / `tenant_id` identifiers only                                     |
+| Commit `.env` or paste real secrets into `.env.example` | Keep `.env` local (gitignored); placeholders only in `.env.example`             |
+| Read `req.body`/`req.params` raw in a handler           | Parse via a Zod schema in `src/gateway/validation/schemas.ts` first             |
+| Use `z.string().uuid()` for tenant/task params          | Use `uuidField()` / `UUID_REGEX`                                                |
 
 ---
 
@@ -174,7 +176,9 @@ No security-relevant record (tenant, secret, task) is ever hard-deleted — dele
 
 - `src/lib/encryption.ts` — AES-256-GCM encrypt/decrypt + `validateEncryptionKey()`
 - `src/repositories/tenant-secret-repository.ts` — the only sanctioned secret read/write path
-- `src/gateway/middleware/admin-auth.ts` — `X-Admin-Key` timing-safe auth
+- `src/gateway/middleware/auth.ts` — `authMiddleware` (SERVICE_TOKEN + Supabase JWT)
+- `src/gateway/middleware/authz.ts` — `requireAuth`, `requireTenantRole`, `requirePermission`
+- `src/lib/auth/permissions.ts` — `ROLE_PERMISSIONS`, `TENANT_ROLE_PERMISSIONS`
 - `src/gateway/validation/schemas.ts` — Zod schemas, `uuidField()`, `UUID_REGEX`
 - `src/gateway/server.ts` — startup `validateEncryptionKey()` call
 - `prisma` skill — soft-delete enforcement and `deleted_at` coverage

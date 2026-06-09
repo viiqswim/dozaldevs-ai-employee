@@ -168,7 +168,7 @@ const archetype = await (prisma.archetype as any).upsert({
 ```bash
 # Store a secret for a tenant
 curl -X PUT "http://localhost:7700/admin/tenants/{tenantId}/secrets/{key}" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"value":"<secret-value>"}'
 ```
@@ -183,7 +183,7 @@ Configure cron-job.org to call the admin API trigger endpoint. No new Inngest fu
 
 ```
 cron-job.org → POST /admin/tenants/:tenantId/employees/:slug/trigger
-               Header: X-Admin-Key: {key}
+               Header: Authorization: Bearer {SERVICE_TOKEN}
                Body: {}
 ```
 
@@ -311,7 +311,7 @@ docker build -t ai-employee-worker:latest .
 
 ```bash
 curl -X PUT "http://localhost:7700/admin/tenants/{tenantId}/secrets/{key}" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"value":"..."}'
 ```

@@ -198,6 +198,86 @@ For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-0
 
 **[Moved to skill]** — See `slack-conventions` skill.
 
+## Authentication & Authorization
+
+All `/admin/*` and `/me` endpoints require an `Authorization: Bearer <token>` header. Two token types are accepted:
+
+| Token type        | Value                                          | Use case                                          |
+| ----------------- | ---------------------------------------------- | ------------------------------------------------- |
+| **SERVICE_TOKEN** | Opaque hex string from `SERVICE_TOKEN` env var | External cron callers, scripts, Inngest functions |
+| **Supabase JWT**  | Short-lived JWT issued by Supabase Auth        | Dashboard users, logged-in humans                 |
+
+`ADMIN_API_KEY` / `X-Admin-Key` are **removed** (not deprecated — gone since T24). All callers must use `Authorization: Bearer`.
+
+### Auth middleware resolution order
+
+`authMiddleware` in `src/gateway/middleware/auth.ts` resolves identity in this order:
+
+1. **SERVICE_TOKEN** — timing-safe compare of the Bearer token against `SERVICE_TOKEN()`. Sets `req.isServiceToken = true`. Bypasses all membership checks.
+2. **Supabase JWT** — `verifySupabaseJwt(token)` (see below) + `ensureUserExists(claims)` upsert. Sets `req.auth` to the `AuthenticatedUser`. Returns 403 `ACCOUNT_DISABLED` if `user.status !== 'active'`.
+3. **No match** — 401 `AUTHENTICATION_REQUIRED`.
+
+### JWT verification — dual-env profiles
+
+The gateway detects its profile at startup via `detectEnvProfile()` in `src/lib/config.ts`:
+
+| Profile   | Detection                                                                               | JWT algorithm | Verification                              |
+| --------- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- |
+| **LOCAL** | `SUPABASE_URL` starts with `http://localhost` and `SUPABASE_ANON_KEY` starts with `eyJ` | HS256         | Symmetric secret from `GOTRUE_JWT_SECRET` |
+| **CLOUD** | `SUPABASE_URL` is `https://*.supabase.co` and `SUPABASE_ANON_KEY` starts with `sb_`     | ES256         | Asymmetric JWKS from `SUPABASE_JWKS_URL`  |
+
+Mixing LOCAL and CLOUD values causes a fatal error at startup. `SUPABASE_JWKS_URL` is derived automatically: `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
+
+### Supabase key model
+
+The platform uses the new Supabase opaque key model:
+
+- **Publishable key** (`sb_publishable_...`) — safe for browser use. Stored as `SUPABASE_ANON_KEY`. Used as the `apikey` header for PostgREST and Auth calls.
+- **Secret key** (`sb_secret_...`) — server-side only. Stored as `SUPABASE_SECRET_KEY`. Used as both `apikey` and `Authorization: Bearer` for admin Auth API calls (user creation, invitations). **Never expose to browser.**
+
+Legacy `eyJ` HS256 JWT keys (local dev) are still valid for the LOCAL profile. The `sb_` opaque keys are CLOUD-only.
+
+### Authorization middleware
+
+`src/gateway/middleware/authz.ts` exports three guards:
+
+- `requireAuth` — plain middleware; passes if `req.isServiceToken` or `req.auth` is set. Returns 401 otherwise.
+- `requireTenantRole(...roles)` — factory; checks the user's `TenantMembership` for the `:tenantId` route param. SERVICE_TOKEN and PLATFORM_OWNER bypass the membership check. Returns 403 if the user's role rank is below the minimum required.
+- `requirePermission(permission)` — factory; checks `ROLE_PERMISSIONS` or `TENANT_ROLE_PERMISSIONS` for the named permission. SERVICE_TOKEN and PLATFORM_OWNER always pass.
+
+Role rank order (highest to lowest): `OWNER(4) > ADMIN(3) > MEMBER(2) > VIEWER(1)`.
+
+### RBAC — roles and permissions
+
+**Global roles** (`Role` enum, `src/lib/auth/permissions.ts`):
+
+| Role             | Scope                   | Key permissions                                                                  |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `PLATFORM_OWNER` | Cross-tenant superadmin | All permissions                                                                  |
+| `ADMIN`          | Platform-level          | Manage archetypes, rules, KB, locks, projects, trigger employees, invite members |
+| `EDITOR`         | Platform-level          | Manage archetypes, rules, KB (no trigger)                                        |
+| `USER`           | Platform-level          | Trigger employees, read tasks                                                    |
+| `VIEWER`         | Platform-level          | Read tenant and tasks only                                                       |
+
+**Tenant roles** (`TenantRole` enum):
+
+| Role     | Key permissions                                                                          |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `OWNER`  | All tenant permissions including delete tenant, manage secrets/integrations/members      |
+| `ADMIN`  | Manage archetypes, rules, KB, locks, projects, trigger, invite (no secrets/integrations) |
+| `MEMBER` | Trigger employees, read tasks                                                            |
+| `VIEWER` | Read tenant and tasks only                                                               |
+
+### Bootstrap — first PLATFORM_OWNER
+
+Run `scripts/seed-platform-owner.ts` to create the first PLATFORM_OWNER user in both Supabase Auth and the app DB:
+
+```bash
+BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword tsx scripts/seed-platform-owner.ts
+```
+
+The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants.
+
 ## Admin API
 
 **[Moved to skill]** — Load `api-design` skill for the full admin API endpoint table and curl examples.
@@ -256,6 +336,10 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **`archetypes` table**: has `estimated_manual_minutes` (Haiku-generated estimate) and `estimated_manual_minutes_override` (PM-set override); effective value = `override ?? estimated_manual_minutes`.
 - **`task_metrics` table**: `id, task_id (unique), archetype_id, tenant_id, work_minutes, created_at` — one row per task, records work minutes done vs manual effort.
 - **`platform_settings` table**: global key-value store for platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels). All 8 initial settings have `is_required = true`. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Missing required settings throw errors at startup via `validateRequiredPlatformSettings()` (called in `src/gateway/server.ts`). Managed via the dashboard at `/dashboard/settings` or via admin API. Keys: `default_worker_vm_size`, `cost_limit_usd_per_day`, `synthesis_threshold`, `max_employee_rules_chars`, `max_employee_knowledge_chars`, `worker_bash_timeout_ms`, `issues_slack_channel`, `cost_alert_slack_channel`, `gateway_llm_model` (controls which LLM model is used for gateway verification calls; default: `deepseek/deepseek-v4-flash`).
+- **`users` table**: `id, supabase_id (unique, nullable), email, name, role (Role enum), status, created_at, updated_at, deleted_at`. Created/updated via `ensureUserExists()` on every authenticated request. `status = 'disabled'` is the immediate lockout mechanism — checked per-request in `authMiddleware`.
+- **`tenant_memberships` table**: composite PK `[tenant_id, user_id]`. Fields: `tenant_id, user_id, role (TenantRole enum), joined_at, deleted_at`. Soft-delete only. Scoped by `tenant_id` on every query.
+- **`tenant_invitations` table**: `id, tenant_id, email, role (TenantRole), token (unique), status, expires_at, accepted_at, declined_at, revoked_at, inviter_id, created_at`. No `deleted_at` — status transitions (`pending → accepted/declined/revoked`) are the lifecycle. Token is a 32-byte random hex string; expires in 7 days.
+- **Enums**: `Role` (PLATFORM_OWNER, ADMIN, EDITOR, USER, VIEWER) — global platform role. `TenantRole` (OWNER, ADMIN, MEMBER, VIEWER) — per-tenant role stored in `tenant_memberships`.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
@@ -323,7 +407,7 @@ src/
 ├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
 │   ├── routes/       # All HTTP route handlers
 │   ├── slack/        # Bolt event/action handlers + OAuth installation store; `handlers/override-handlers.ts` (extracted override card handlers); per-action approval modules: `approve-action.ts`, `edit-action.ts`, `reject-action.ts`; per-action rule modules: `rule-confirm-action.ts`, `rule-reject-action.ts`, `rule-rephrase-action.ts`
-│   ├── middleware/   # Admin auth middleware
+│   ├── middleware/   # Auth middleware: `auth.ts` (authMiddleware — SERVICE_TOKEN + Supabase JWT), `authz.ts` (requireAuth, requireTenantRole, requirePermission)
 │   ├── validation/   # Zod schemas + HMAC signature verification
 │   ├── services/     # Business logic services: archetype generator (`archetype-generator.ts` — wizard LLM prompt for employee creation), dispatcher, task creation, tenant/secret management, interaction classification, and more. Browse `src/gateway/services/` for the full list.
 │   ├── lib/          # Shared gateway utilities: `http-response.ts` (`sendError()` + `sendSuccess()`), `prisma-helpers.ts` (`isPrismaError` + `ERROR_CODES`), `socket-mode-lock.ts`
@@ -337,7 +421,7 @@ src/
 │   └── events.ts     # Typed Inngest event schemas (`EventPayload`, `InngestStep`) — import from here, never inline event types
 ├── workers/      # Docker container code — runs inside the worker machine
 │   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes), `harness-helpers.mts` (extracted harness utilities: container naming, log helpers), `execution-phase.mts` (execution phase logic extracted from harness), `delivery-phase.mts` (delivery phase logic extracted from harness)
-├── repositories/ # Tenant-scoped data access layer (relocated from `src/gateway/services/`); `TaskRepository` (task lookups by ID/thread_ts/approval_ts), `EmployeeRuleRepository` (rule CRUD: get, countConfirmed, patchConfirm/Reject/Archive/Rephrase)
+├── repositories/ # Tenant-scoped data access layer (relocated from `src/gateway/services/`); `TaskRepository` (task lookups by ID/thread_ts/approval_ts), `EmployeeRuleRepository` (rule CRUD: get, countConfirmed, patchConfirm/Reject/Archive/Rephrase), `UserRepository` (user list/softDelete/restore — no create, users come from ensureUserExists)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
@@ -535,3 +619,4 @@ Read these on demand when you need deeper context — do not load preemptively.
 | `docs/employees/2026-06-03-0243-google-assistant.md`                             | Working on Google Workspace Assistant employee — archetype IDs, trigger command (`google-workspace-assistant`), available tools, required tenant secrets, known gotchas                                                                                  |
 | `docs/guides/2026-06-03-0202-google-cloud-setup.md`                              | Setting up Google Cloud OAuth credentials for the Google integration                                                                                                                                                                                     |
 | `docs/guides/2026-06-05-0111-maintainability-audit.md`                           | Reviewing or planning maintainability/refactoring work — full findings by dimension with file:line evidence and finding IDs.                                                                                                                             |
+| `docs/guides/2026-06-09-1448-user-auth-rbac.md`                                  | Multi-tenant user auth and RBAC — JWT flow, SERVICE_TOKEN, dual-env profiles (LOCAL HS256 vs CLOUD ES256), key model, invitation flow, bootstrap, cloud setup, known gotchas.                                                                            |

@@ -83,7 +83,7 @@ curl -X POST http://localhost:7700/webhooks/hostfully \
 
 ```bash
 curl -X POST \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger" \
   -d '{}'
@@ -95,7 +95,7 @@ Approval card appears in `#victor-tests` (`C0AUBMXKVNU`). Published to `#project
 
 ```bash
 curl -X POST \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/code-rotation/trigger" \
   -d '{}'

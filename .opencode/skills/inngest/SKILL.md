@@ -228,7 +228,7 @@ Change the limit via the dashboard at `/dashboard/settings` or:
 
 ```bash
 curl -X PATCH "http://localhost:7700/admin/platform-settings/cost_limit_usd_per_day" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"75"}'
 ```
 
