@@ -701,3 +701,26 @@ Final focused re-verification of the full API journey WITHOUT admin key, post-T2
 ### Evidence Files
 - .sisyphus/evidence/local/wave5/{01-login-page,02-dashboard-after-login,03-tenant-switcher,04-members-page,05-invite-form,05-invite-sent,05b-change-role-dropdown,06-after-logout}.png + SUMMARY.txt
 - .sisyphus/evidence/cloud/wave5/{journey.txt,SUMMARY.txt}
+
+## [2026-06-09] F3 — Final Verification Wave (Full real-user journey, LOCAL + CLOUD)
+
+**VERDICT: APPROVE.** Local 11/11 + 6/6 browser steps; Cloud 3/3; Edge cases 5 tested. All PASS.
+
+### LOCAL (HS256, gateway :7700) — 11/11 + browser 6/6
+1. Unauth GET /members -> 401. 2. owner@test.com login -> HS256, /me PLATFORM_OWNER/active. 3. /me/tenants=[DozalDevs/OWNER,VLRE/OWNER]. 4. OWNER /members -> 200. 5. Cross-tenant: VIEWER /A/members 403 "Insufficient role", VIEWER /B/members 403 "Access denied", VIEWER /A/tasks 200 (VIEWER floor), VIEWER /B/tasks 403; garbage Bearer 401. 6. SERVICE_TOKEN /tasks+/members 200 (bypass). 7. RLS: anon []x3 on users/memberships/invitations; service_role(apikey+Bearer) sees users=8/memberships=7 => RLS-not-empty. 8. grep-zero ADMIN_API_KEY = 0 active hits. 9. Deactivate (PATCH /admin/users/:id/deactivate via SERVICE_TOKEN) -> same JWT 403 ACCOUNT_DISABLED immediate on /me AND tenant endpoint; reactivate via psql -> 200. 10. Invite create 201. 11. Full lifecycle: invite->accept(200)->membership MEMBER->re-accept 410 ALREADY_USED.
+- Browser (Playwright MCP headed Chromium): /dashboard/ unauth->login; login->dashboard?tenant=...0003; switcher lists DozalDevs+VLRE by NAME; Members page full RBAC table; Pending Invitations renders 4; signout->login; post-logout /members->login.
+
+### CLOUD (ES256) — 3/3
+1. wave2-owner@dozaldevs.io login -> ES256 kid 1df77847. 2. publishable RLS []x3. 3. service_role control (tenants=3/invitations=2 => RLS active); cloud ES256->LOCAL:7700 = 401 (alg boundary); Data API invite-create 201 persisted + publishable-blocked + revoked.
+
+### KEY FINDING — stale gateway served the Wave-5 invitations 404 (NOT a code bug)
+- Running gateway PID 58075 started 12:52:14; commit 01d39b18 added GET /admin/tenants/:id/invitations to admin-reads.ts:400 at 14:24:58 (AFTER). Gateway runs via plain `tsx` (no watch) => stale code => GET invitations 404 in browser ("Failed to load invitations / Gateway error 404"). **The committed source IS correct** (route present + registered server.ts:238).
+- FIX: restarted LOCAL gateway with SAME LOCAL .env (HS256 preserved — verified owner JWT alg=HS256 post-restart). After restart GET invitations -> 200 (4 pending); dashboard panel renders table. The F3 MUST-NOT only bans restarting with CLOUD env; same-LOCAL-env restart is compliant.
+- **REUSABLE LESSON**: before trusting a 404/old-behavior from the running :7700 gateway, check `ps -o lstart` of the gateway PID vs `git log -1 -S "<route>"` commit time. tmux `ai-gateway` launches via `./node_modules/.bin/tsx src/gateway/server.ts` (NOT tsx watch) — code changes after launch are NOT picked up. Restart with the SAME LOCAL .env to load fixes without changing profile.
+
+### Edge cases tested (5)
+- garbage Bearer -> 401; cloud-ES256-token vs LOCAL-HS256-gateway -> 401; deactivated-user same-JWT -> 403 immediate; re-accept used invitation -> 410; accept-with-unregistered-email -> 404 USER_NOT_FOUND (correct defensive behavior, the invitee must register first).
+
+### Cleanup / steady state
+- PLATFORM_OWNER count=1 (owner@test.com); disabled users=0; wave2-nonmember membership restored to 0; f3-test invitation revoked; cloud test invitation revoked. Viewer (wave2-viewer@test.local) password reset to Test1234! for testing.
+- Evidence: .sisyphus/evidence/final-qa/local/{SUMMARY.txt, checks-1-3.txt, checks-4-6.txt, check-7-rls.txt, check-8-grep-zero.txt, check-9-deactivation.txt, checks-10-11-invitation.txt, check-11-lifecycle.txt, browser-01..06.png}; .sisyphus/evidence/final-qa/cloud/{SUMMARY.txt, checks-1-2.txt, check-3-invite-authz.txt}.
