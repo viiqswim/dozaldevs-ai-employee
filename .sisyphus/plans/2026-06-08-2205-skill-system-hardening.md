@@ -511,7 +511,7 @@ Critical Path: (1‖2‖3‖4) → 5 → (6a‖6b‖6c‖6d‖7) → loop → 8 
 
 > **LOOP-TO-GREEN**: If Task 5 finds volatile hits, or any of 6a–6d is not YES, or Task 7 is NEEDS WORK / has an open HIGH+ or a coverage gap → delegate the specific fix, then re-run ONLY the affected check(s). Repeat until: brittle-sweep clean, 6a–6d all YES, Task 7 ADEQUATE+. Do not proceed to commit until every check is green.
 
-- [ ] 8. Commit all changes
+- [x] 8. Commit all changes
 
   **What to do**: Stage AGENTS.md + the edited skill files (and the evidence dir if desired). Commit: `docs(skills): add documentation durability convention, remove volatile counts, de-overlap triggers`. Then `git status --short` must be clean (or only intentionally-gitignored entries).
 
@@ -529,7 +529,7 @@ Critical Path: (1‖2‖3‖4) → 5 → (6a‖6b‖6c‖6d‖7) → loop → 8 
 
   **Commit**: YES (this task)
 
-- [ ] 9. Notify completion
+- [x] 9. Notify completion
 
   **What to do**: Send Telegram: `tsx scripts/telegram-notify.ts "✅ Skill system hardening complete — durability convention added, volatile counts removed, triggers de-overlapped; all blind re-tests YES. Come back to review."`
 
