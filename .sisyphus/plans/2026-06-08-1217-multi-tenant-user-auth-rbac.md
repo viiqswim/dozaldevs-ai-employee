@@ -1055,7 +1055,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 15. Invitation endpoints (create / accept / decline / revoke) — Serializable (TDD)
+- [x] 15. Invitation endpoints (create / accept / decline / revoke) — Serializable (TDD)
 
   **What to do**:
   - RED: tests for the state machine — pending→accepted (membership created), pending→declined, pending→revoked, expired (7-day) accept rejected, double-accept rejected, inviting an existing member rejected.
@@ -1911,13 +1911,13 @@ Max Concurrent: 9 (Wave 1)
   - **QA**: 200 → ban+status → 403 on next request (same token), on BOTH envs.
   - Evidence: `.sisyphus/evidence/{local,cloud}/task-12-deactivate.txt`
 
-- [ ] 15★ (AMENDS T15). Invitations via Supabase Admin API (+ app tenant/role intent)
+- [x] 15★ (AMENDS T15). Invitations via Supabase Admin API (+ app tenant/role intent)
   - **Amendment**: invite EMAIL + account creation use `supabase.auth.admin.inviteUserByEmail(email, { data, redirectTo })` (secret key, server-side). The app `TenantInvitation` row still stores `{tenant_id, role, status, expires_at}` as the tenant/role intent. On acceptance (magic-link callback / first authenticated request), materialize `tenant_memberships` in a Serializable txn. LOCAL uses Mailpit (full accept E2E); CLOUD asserts the account is created in `invited` state + the `TenantInvitation` row exists (email delivery deferred — built-in 2/hr team-only).
   - **References**: librarian `inviteUserByEmail` semantics + rate-limit facts; nexus invite→membership-attach step.
   - **QA**: LOCAL invite→Mailpit→accept→membership row; CLOUD invite→assert `auth.users` invited + `TenantInvitation` row (no email dependency).
   - Evidence: `.sisyphus/evidence/{local,cloud}/task-15-invite.txt`
 
-- [ ] 2E2E. Wave-2 checkpoint — authz matrix + invite-create + deactivate-lockout (both envs)
+- [x] 2E2E. Wave-2 checkpoint — authz matrix + invite-create + deactivate-lockout (both envs)
 
   **What to do**:
   - Run the API journey via `curl` on BOTH envs: authz matrix (own 200 / other 403 / none 401 / wrong-role 403); Supabase-managed invite (local full accept; cloud create-only); deactivate → next-request 403 with a still-valid token; `/me` + `/me/tenants` scoping.

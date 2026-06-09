@@ -255,3 +255,44 @@
 - Route param extraction pattern: `req.params['tenantId'] as string` (not destructuring) — avoids `string | string[]` TypeScript error
 - `sendSuccess(res, 204)` (no body arg) triggers `res.status(204).end()` — correct for DELETE no-content
 - Test mock for `requireTenantRole` needs to replicate rank logic since it's a higher-order function returning an async middleware; the module-level `tenantMembershipForAuthz` state variable pattern (same as `currentAuth` in `me.test.ts`) keeps tests clean
+
+## [2026-06-09] T15★ — invitation endpoints
+
+- `TenantInvitation` has no `deleted_at` field — queries don't filter by it (unlike most other tables)
+- Status timestamps `accepted_at`, `declined_at`, `revoked_at` exist on `TenantInvitation` and should be updated alongside `status`
+- Supabase Admin API invite: `POST /auth/v1/admin/users` with `{ email, email_confirm: false, invite: true }` — 422 means user already in auth, treat as success
+- Accept endpoint uses `prisma.$transaction(..., { isolationLevel: 'Serializable' })` for race-safety; tx callback receives a typed tx object
+- The `PrismaWithInvitation` type pattern (cast via `prisma as unknown as`) is needed because `User` and `TenantInvitation` models are recently added and LSP may lag behind actual Prisma client generation
+- Run `pnpm prisma generate` after any schema changes — the LSP will show stale errors until regenerated
+- Accept/decline endpoints require no auth (user may not be authenticated when clicking the magic link)
+- `vi.stubGlobal('fetch', mockFetch)` at module level works for mocking global `fetch` in Vitest; reset via `mockFetch.mockReset()` in `beforeEach`
+- Test structure: share mock factory with optional overrides; override `transaction` entirely for accept endpoint tests
+
+## [2026-06-09] T2E2E Wave-2 Checkpoint Results
+
+### LOCAL (HS256, gateway local profile) — ALL PASS
+- Authz matrix (GET /admin/tenants/:id/members): own-OWNER 200 / non-member 403 / unauth 401 / wrong-role VIEWER 403 "Insufficient role" / cross-tenant 403 / garbage Bearer 401. All correct.
+- Deactivate lockout: 200 active → PATCH deactivate (SERVICE_TOKEN) 200 → DB status='disabled' → SAME JWT 403 ACCOUNT_DISABLED on /me AND tenant endpoint (immediate).
+- /me + /me/tenants: owner /me 200; /me/tenants owner=[DozalDevs/OWNER] (exactly 1); nonmember=[]; unauth 401; SERVICE synthetic {globalRole:SERVICE} + /me/tenants [].
+- Invite full flow: POST invitations (owner JWT) 201 → auth.users provisioned → /invitations/accept 200 → invitation status='accepted'+accepted_at → tenant_memberships row (MEMBER) created → /me/tenants confirms → re-accept 410 ALREADY_USED (idempotent).
+
+### CLOUD (ES256, gateway CLOUD Supabase profile + LOCAL DB for Prisma state) — ALL PASS
+- Authz matrix (real cloud ES256 JWTs): own-OWNER 200 / non-member 403 / unauth 401 / wrong-role VIEWER 403 / cross-tenant 403 / LOCAL-HS256-token-vs-cloud-gateway 401 (alg enforcement) / garbage 401.
+- Deactivate lockout: cloud ES256 viewer 200 → deactivate 200 (real cloud Auth admin PUT landed — cloud updated_at advanced) → status='disabled' → SAME ES256 JWT 403 ACCOUNT_DISABLED.
+- /me + /me/tenants (cloud ES256): owner /me 200; /me/tenants=[DozalDevs/OWNER]; nonmember []; unauth 401; SERVICE synthetic.
+- Invite create-only: POST invitations (cloud owner ES256 JWT) 201; (2A) real cloud auth.users invited state confirmed (invitee exists, confirmed_at=null, sub e5d42c08...); (2B) TenantInvitation row INSERT+SELECT in REAL cloud DB via Data API (201 + readable 200).
+
+### Key Findings / Reusable Wisdom
+1. **Kong port is 54331, NOT 54321** in this local setup (task instructions said 54321, which returns 000). `docker port ai-employee-kong` → 8000→54331. Auth=http://localhost:54331/auth/v1, REST=http://localhost:54331/rest/v1. AGENTS.md README port table also lists Kong=54321 — but the running container maps to 54331. The PostgREST/Pooler row (54331) is the one actually serving Kong here.
+2. **ENDPOINT CONTRACT**: GET /admin/tenants/:tenantId uses LEGACY requireAdminKey (X-Admin-Key), NOT the JWT RBAC chain — a JWT 401s there. The correct JWT-protected tenant-scoped test endpoint is **GET /admin/tenants/:tenantId/members** (authMiddleware → requireAuth → requireTenantRole(ADMIN,OWNER)). Dual-accept confirmed: members=JWT, tenants=admin-key.
+3. **Local GOTRUE_JWT_SECRET matches gateway fallback** exactly (`super-secret-jwt-token-with-at-least-32-characters-long`) — confirmed via `docker exec ai-employee-auth env | grep JWT`. So local HS256 JWTs verify without setting GOTRUE_JWT_SECRET in .env.
+4. **Gateway startup requires platform_settings table** — validateRequiredPlatformSettings() aborts startup (P2021) if missing. This local DB lacked it; applied migration table + seeded 9 settings via psql (NOT migrate dev). Also lacked tenants — seeded DozalDevs(...0002)+VLRE(...0003).
+5. **Cloud DB is Prisma-unreachable** (confirmed again): pooler `FATAL (ENOTFOUND) tenant/user postgres.gjqrysxpvktmibpkwrvy not found`; direct host IPv6 `No route to host`. Strategy for cloud gateway authz E2E: run gateway with CLOUD SUPABASE auth profile (real ES256 JWKS) + DATABASE_URL=LOCAL for Prisma state, keyed by cloud `sub`. Inline env vars OVERRIDE `--env-file=.env` in `tsx --env-file`.
+6. **Cloud Data API insert needs explicit `id`** — tenant_invitations.id has NO DB default (Prisma generates UUID client-side). POST via Data API without id → 23502 not-null violation. Supply crypto.randomUUID().
+7. **deactivate-user.ts ban_duration:'none' is a NO-OP** (not an actual ban) — the immediate lockout is purely the app `users.status='disabled'` per-request check. The cloud Auth admin PUT still fires (proven by cloud auth updated_at advancing).
+8. **Gateway launch in tmux**: `tsx` not on PATH in tmux zsh (asdf shim issue) — use `./node_modules/.bin/tsx`. Disable Slack via empty SLACK_SIGNING_SECRET/APP_TOKEN/CLIENT_ID/CLIENT_SECRET to avoid Bolt OAuth init crash + Socket Mode lock contention.
+9. **ensureUserExists pattern**: hitting /me with a fresh Supabase JWT auto-creates the app `users` row (upsert by supabase_id=sub). Must do this BEFORE seeding tenant_memberships (FK to users.id).
+
+### Evidence Files
+- .sisyphus/evidence/local/wave2/{SUMMARY,authz-matrix,deactivate,me-endpoints,invite-accept}.txt
+- .sisyphus/evidence/cloud/wave2/{authz-matrix,deactivate,me-endpoints,invite-create}.txt
