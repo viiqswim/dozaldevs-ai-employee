@@ -1,19 +1,21 @@
 ---
 name: inngest
-description: 'Use when writing or modifying Inngest functions, step functions, event handlers, or durable workflow logic. Covers the 5 active functions, the lifecycle step-module map, the state machine, NonRetriableError, the InngestStep type, makePostgrestHeaders, mergeTaskMetadata, and idempotency.'
+description: 'Use when writing or modifying Inngest functions, step functions, event handlers, or durable workflow logic. Covers the active lifecycle functions, the step-module map, the state machine, NonRetriableError, the InngestStep type, makePostgrestHeaders, mergeTaskMetadata, and idempotency.'
 ---
 
 # Inngest Durable Workflows — ai-employee
 
-## Active Functions (5)
+## Active Functions
 
-| Function ID                    | Trigger event                        | File                                         |
-| ------------------------------ | ------------------------------------ | -------------------------------------------- |
-| `employee/universal-lifecycle` | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`          |
-| `employee/interaction-handler` | `employee/interaction.received`      | `src/inngest/interaction-handler.ts`         |
-| `employee/rule-extractor`      | `employee/rule.extract-requested`    | `src/inngest/rule-extractor.ts`              |
-| `employee/rule-synthesizer`    | `employee/rule.synthesize-requested` | `src/inngest/rule-synthesizer.ts`            |
-| `trigger/reviewing-watchdog`   | cron `*/15 * * * *`                  | `src/inngest/triggers/reviewing-watchdog.ts` |
+| Function ID                      | Trigger event                        | File                                         |
+| -------------------------------- | ------------------------------------ | -------------------------------------------- |
+| `employee/universal-lifecycle`   | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`          |
+| `employee/interaction-handler`   | `employee/interaction.received`      | `src/inngest/interaction-handler.ts`         |
+| `employee/rule-extractor`        | `employee/rule.extract-requested`    | `src/inngest/rule-extractor.ts`              |
+| `employee/rule-synthesizer`      | `employee/rule.synthesize-requested` | `src/inngest/rule-synthesizer.ts`            |
+| `trigger/reviewing-watchdog`     | cron `*/15 * * * *`                  | `src/inngest/triggers/reviewing-watchdog.ts` |
+| `employee/slack-trigger-handler` | `employee/task.requested`            | `src/inngest/slack-trigger-handler.ts`       |
+| `employee/slack-input-collector` | `employee/trigger.input-received`    | `src/inngest/slack-input-collector.ts`       |
 
 All functions register in the **gateway process** — not a separate service. They are served via `serve()` from Express.
 
@@ -41,7 +43,7 @@ Key decision points:
 
 ## Post-Refactor Architecture — CRITICAL
 
-`employee-lifecycle.ts` is a **thin orchestrator** (84 lines). All lifecycle logic lives in extracted step modules.
+`employee-lifecycle.ts` is a **thin orchestrator that only wires the step modules together**. All lifecycle logic lives in extracted step modules.
 
 **NEVER add lifecycle logic directly to `employee-lifecycle.ts`.** Find the matching step module and add it there.
 
@@ -61,6 +63,15 @@ Key decision points:
 | `src/inngest/lifecycle/steps/notify-and-track.ts`        | Notify                         | Slack message helpers, tenant Slack loading                                                  |
 | `src/inngest/lifecycle/steps/lifecycle-helpers.ts`       | Shared                         | `cleanupExecutionMachine`, `safeRecordWorkMetric`, `mergeTaskMetadata`, `writeFeedbackEvent` |
 | `src/inngest/lifecycle/lib/machine-provisioner.ts`       | Provisioning                   | `provisionWorkerMachine()` — Fly.io/Docker machine provisioning + env-manifest assembly      |
+
+### ⚠️ Two files share the name `lifecycle-helpers.ts` — never confuse them
+
+| File                                               | Layer                                 | Exports                                                                                                       |
+| -------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `src/inngest/lifecycle/steps/lifecycle-helpers.ts` | **Step-level** (high-level wrappers)  | `cleanupExecutionMachine`, `safeRecordWorkMetric`, `mergeTaskMetadata`, `writeFeedbackEvent`                  |
+| `src/inngest/lib/lifecycle-helpers.ts`             | **Lower-level** (raw PostgREST calls) | `patchTask`, `logStatusTransition`, `recordWorkMetric`, `runLocalDockerContainer`, `stopLocalDockerContainer` |
+
+**Rule**: From a step module, always import from `src/inngest/lifecycle/steps/lifecycle-helpers.ts` (the step-level wrappers). The lower-level `src/inngest/lib/lifecycle-helpers.ts` is the raw layer those wrappers call — step modules should not reach down into it directly.
 
 ---
 
@@ -248,7 +259,7 @@ async ({ event, step }: { event: EventPayload<{ taskId: string; archetypeId: str
 | Add logic to `employee-lifecycle.ts`                   | Add to the matching step module in `lifecycle/steps/`                         |
 | Use `GetStepTools<Inngest>` inline                     | Import `InngestStep` from `../events.js`                                      |
 | Construct PostgREST headers inline                     | Use `makePostgrestHeaders(supabaseKey)`                                       |
-| Fetch-then-patch `metadata` column inline              | Use `mergeTaskMetadata()` from `lifecycle-helpers.ts`                         |
+| Fetch-then-patch `metadata` column inline              | Use `mergeTaskMetadata()` from `lifecycle/steps/lifecycle-helpers.ts`         |
 | Throw `Error` for unrecoverable failures               | Throw `NonRetriableError`                                                     |
 | Nest `step.run()` inside another                       | Keep all steps at the top level of the function                               |
 | Edit the old engineering lifecycle or redispatch files | Both are deprecated — only touch `employee-lifecycle.ts` and its step modules |

@@ -1,11 +1,11 @@
 ---
 name: data-access-conventions
-description: 'Use when adding or modifying a gateway route, an Inngest function, a service, or any code that reads/writes the database, env vars, or makes outbound HTTP calls. Covers the mandatory repository layer, config.ts env access, sendError/sendSuccess, makePostgrestHeaders, mergeTaskMetadata, createHttpClient, and the worker-vs-repository boundary.'
+description: 'Use when adding or modifying a gateway route, a service, or any code that reads/writes the database, env vars, or makes outbound HTTP calls. Covers the mandatory repository layer, config.ts env access, sendError/sendSuccess, makePostgrestHeaders, mergeTaskMetadata, createHttpClient, and the worker-vs-repository boundary.'
 ---
 
 # Data-Access Conventions
 
-Seven mandatory conventions introduced in the refactor. Every rule names the exact file it lives in.
+The mandatory data-access conventions introduced in the refactor. Every rule names the exact file it lives in.
 
 ---
 
@@ -27,7 +27,7 @@ Seven mandatory conventions introduced in the refactor. Every rule names the exa
 
 **File**: `src/repositories/`
 
-All Prisma-based DB access from gateway routes and Inngest functions goes through one of the 6 repository modules:
+All Prisma-based DB access from gateway routes and Inngest functions goes through a repository module under `src/repositories/` (the directory listing is the source of truth):
 
 | Module                        | Purpose                                                                          |
 | ----------------------------- | -------------------------------------------------------------------------------- |

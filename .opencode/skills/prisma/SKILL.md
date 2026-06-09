@@ -52,7 +52,7 @@ Zero rows is acceptable on an empty table. A PGRST205 error means the cache relo
 
 All gateway routes (`src/gateway/routes/`) and Inngest functions (`src/inngest/`) **MUST** go through a repository class in `src/repositories/`. Never write raw `prisma.model.findFirst()` inline in a route handler or lifecycle function.
 
-**Six repository modules** — use the matching one:
+**Repository modules** — use the matching one (the `src/repositories/` directory listing is the source of truth):
 
 | Module                        | Owns                                                                  |
 | ----------------------------- | --------------------------------------------------------------------- |
@@ -104,7 +104,7 @@ where: { id, deleted_at: null }
 2. Reload PostgREST schema cache: `psql ... -c "NOTIFY pgrst, 'reload schema';"`
 3. Verify table visible via PostgREST curl (see above)
 4. If the new table needs PostgREST row-level security policies, add them in the migration SQL
-5. Update `src/workers/lib/postgrest-types.ts` if workers need typed access to the new table (8 snake_case row interfaces live there)
+5. Update `src/workers/lib/postgrest-types.ts` if workers need typed access to the new table (the snake_case row interfaces live there)
 
 **Do NOT use `DATABASE_URL` (6543 pooler) for migrations** — use `DATABASE_URL_DIRECT` (5432). The pooler may reject DDL statements.
 
@@ -150,9 +150,9 @@ After any seed edit: `pnpm prisma db seed` (idempotent, does not wipe data).
 
 ## Cross-References
 
-- `src/repositories/` — all 6 repository modules (read the headers for ownership context)
+- `src/repositories/` — the repository modules (read each file's header for ownership context; the directory listing is the source of truth)
 - `src/workers/lib/postgrest-client.ts` — PostgREST client used by worker containers
-- `src/workers/lib/postgrest-types.ts` — 8 typed row interfaces for PostgREST reads/writes
+- `src/workers/lib/postgrest-types.ts` — the typed PostgREST row interfaces for reads/writes
 - `prisma/schema.prisma` — single source of truth for table structure
 - `prisma/seed.ts` — canonical upsert pattern reference
 - `data-access-conventions` skill — full data-access convention set (repository contracts, PostgREST write patterns, multi-tenancy invariants)
