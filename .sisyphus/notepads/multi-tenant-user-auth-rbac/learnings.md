@@ -318,3 +318,11 @@ These use relative mock paths (`../../../gateway/middleware/auth.js`) vs the `te
 - `pnpm build` → exit 0
 - `pnpm test:unit` → 144 files, 1689 passing, 0 failures
 - `git diff --name-only` → 18 route files + 9 test files (all in scope)
+
+## [2026-06-09] T19b — interaction-classifier.ts PostgREST header fix
+
+- `getPostgrestHeaders()` in `src/lib/interaction-classifier.ts` was using `apikey: SUPABASE_ANON_KEY()` + `Authorization: Bearer SUPABASE_SECRET_KEY()`.
+- Under the new Supabase opaque key model, `sb_secret_*` keys are NOT JWTs — they cannot be used as Bearer tokens. Supabase Cloud rejects `Authorization: Bearer sb_secret_*`.
+- Fix: use `apikey: SUPABASE_SECRET_KEY()` only (no Authorization header). This is the correct server-side PostgREST pattern.
+- Also removed the now-unused `SUPABASE_ANON_KEY` import from the file.
+- Pre-existing test failure: `socket-mode-lock.test.ts` (1 test) fails due to a race condition — confirmed pre-existing before this change, not a regression.

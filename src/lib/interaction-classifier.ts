@@ -1,5 +1,5 @@
 import type { callLLM } from './call-llm.js';
-import { SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY, SUPABASE_URL } from './config.js';
+import { SUPABASE_SECRET_KEY, SUPABASE_URL } from './config.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('interaction-classifier');
@@ -84,8 +84,7 @@ Respond with exactly one word: feedback, teaching, question, task, or unclear. N
 
 function getPostgrestHeaders(): Record<string, string> {
   return {
-    apikey: SUPABASE_ANON_KEY(),
-    Authorization: `Bearer ${SUPABASE_SECRET_KEY()}`,
+    apikey: SUPABASE_SECRET_KEY(),
     'Content-Type': 'application/json',
   };
 }
