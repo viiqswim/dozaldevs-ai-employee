@@ -361,3 +361,79 @@ These use relative mock paths (`../../../gateway/middleware/auth.js`) vs the `te
 - **Stale Prisma client again**: after creating the file, LSP showed `deleted_at does not exist in type XWhereInput` + `TenantRole has no exported member` for ALL models. `pnpm prisma generate` + `pnpm build` (exit 0) is ground truth — every one was a stale-client false positive. The schema has all these fields.
 - LSP tool (`typescript-language-server`) is unavailable in this shell via asdf (`No version is set`). Use `pnpm build` for diagnostics.
 - Pre-existing flaky test confirmed again: `socket-mode-lock.test.ts > blocked-live` fails in full-suite parallel run (PID race), passes in isolation. NOT a regression. Full suite: 1688 passed / 1 flaky; isolated re-run: 1689 passed, 9 skipped, 0 failures.
+
+## [2026-06-09] T3E2E Wave-3 Checkpoint Results
+
+Verified (1) role-gated admin endpoints enforce the authz matrix and (2) the new
+gateway read endpoints (T17/T21: GET /admin/tenants/:id/tasks and /archetypes)
+return ONLY the caller's tenant data — on BOTH local (HS256) and cloud (ES256).
+
+### LOCAL (HS256) — ALL PASS (12 status tests + 3 row-scoping asserts)
+- Role-gate (GET /members): OWNER 200 / VIEWER 403 "Insufficient role" / no-auth 401.
+- Reads (GET /tasks,/archetypes): OWNER own-tenant 200 (exactly the seeded row) /
+  cross-tenant 403 "Access denied" (both tasks AND archetypes) / VIEWER own-tenant
+  200 (VIEWER is read minimum) / nonmember 403 / SERVICE_TOKEN 200 (bypasses membership).
+- Row-scoping asserts: every 200 read returned rows=1, own tenant_id present, foreign
+  tenant_id ABSENT. SERVICE→tasks(B) returned ONLY tenant-B row. Airtight isolation.
+
+### CLOUD (ES256, gateway CLOUD Supabase profile + LOCAL DB for Prisma state) — ALL PASS
+- Same 12+3 matrix with REAL cloud ES256 JWTs (kid 1df77847-...). All identical verdicts.
+- alg enforcement reconfirmed: a LOCAL HS256 token presented to the CLOUD-profile
+  gateway → 401 INVALID_TOKEN. This is the functional proof the CLOUD profile is active.
+
+### Key Findings / Reusable Wisdom
+
+1. **AUTHZ FIRES BEFORE THE QUERY (proven).** On the first local read run the in-tenant
+   reads 500'd (DB drift, below) BUT the role-gate, cross-tenant, and nonmember DENIALS
+   still returned 403/401 correctly. requireTenantRole rejects non-members before any
+   Prisma call; the tenant_id WHERE clause only matters for members who pass the gate.
+   So cross-tenant isolation has TWO independent layers: (a) membership gate → 403 for
+   non-members, (b) `where:{tenant_id}` → row scoping for members.
+
+2. **LOCAL DB SCHEMA DRIFT — recorded-but-unexecuted migrations (T2 baseline issue, now
+   bites read endpoints).** `prisma migrate status` said "up to date" and all 59 rows
+   were in _prisma_migrations, yet columns `tasks.deleted_at` (+ executions,
+   pending_approvals, employee_rules, feedback_events, task_metrics) and
+   `archetypes.platform_rules_override` were PHYSICALLY MISSING. admin-reads.ts filters
+   `deleted_at: null` on every model → Prisma P2022 → HTTP 500. The migrations were
+   manually inserted into _prisma_migrations as the T2 baseline without their DDL ever
+   running against this local DB. FIX (idempotent psql, NO source change — same pattern
+   Wave-2 used for platform_settings): apply the two migrations' `ALTER TABLE ... ADD
+   COLUMN IF NOT EXISTS` from prisma/migrations/20260607084955_add_deleted_at_to_active_tables
+   and 20260602101613_add_platform_rules_override, then `NOTIFY pgrst,'reload schema'`.
+   After that all reads 200. **For future waves touching admin-reads endpoints, verify
+   these columns exist FIRST** (they're absent on a T2-style baselined local DB).
+
+3. **Prisma P2022 is a per-query check, NOT cached at connect** — after the psql ALTER,
+   reads succeeded immediately with NO gateway restart needed.
+
+4. **Read-scoping needs SEED DATA to be meaningful.** An empty DB returns 200 [] which
+   does NOT prove scoping. Seeded 1 task + 1 archetype per tenant with distinguishable
+   ids/role_names (A: cccccccc/wave3-dozaldevs-archetype; B: dddddddd/wave3-vlre-archetype),
+   then asserted rows=1 AND foreign-tenant-id-count=0. NOTE: both `tasks` and `archetypes`
+   require explicit `updated_at` on INSERT (no DB default; created_at has CURRENT_TIMESTAMP
+   but updated_at does not).
+
+5. **Re-enable Wave-2-disabled users before reuse.** Wave-2's deactivate test left BOTH
+   viewer users (test.local + dozaldevs.io) with status='disabled' → they'd 403
+   ACCOUNT_DISABLED. `UPDATE users SET status='active' WHERE email IN (...) AND
+   status='disabled'`. Reusing Wave-2 users (already have memberships) avoids the
+   /me-then-seed-membership dance entirely.
+
+6. **Passwords weren't recorded in Wave-2 evidence** — reset to a known value via the
+   Admin API PUT /auth/v1/admin/users/:supabase_id {"password":...} (works for both
+   LOCAL Kong:54331 and CLOUD), then login via /auth/v1/token?grant_type=password.
+   LOCAL uses SUPABASE_ANON_KEY as apikey; CLOUD uses sb_publishable_... as apikey.
+
+7. **The endpoint role floors**: /members = requireTenantRole(ADMIN,OWNER) → VIEWER
+   blocked; /tasks,/archetypes,/employee-rules = requireTenantRole(VIEWER) → VIEWER
+   allowed. Confirmed both floors behave correctly.
+
+8. **Stale LSP TenantRole false-positive persists** (documented T5/T11/T14/T21): editing
+   ANY file triggers "Module @prisma/client has no exported member 'TenantRole'" across
+   admin-*.ts. The gateway runs fine via tsx — these are not real errors. No source files
+   were changed in this checkpoint.
+
+### Evidence Files
+- .sisyphus/evidence/local/wave3/{SUMMARY,wave3-tests}.txt
+- .sisyphus/evidence/cloud/wave3/{SUMMARY,wave3-tests}.txt
