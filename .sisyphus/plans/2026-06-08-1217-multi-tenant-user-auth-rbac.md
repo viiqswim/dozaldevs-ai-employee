@@ -2045,7 +2045,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 5 checkpoint
 
-- [ ] 5E2E. Wave-5 checkpoint — full Playwright user journey (both envs)
+- [x] 5E2E. Wave-5 checkpoint — full Playwright user journey (both envs)
 
   **What to do**:
   - Playwright via CDP (real Chrome) on BOTH env profiles: open `/dashboard/` unauthenticated → redirected to login; log in (email/password); tenant switcher shows membership tenants; on LOCAL run full invite→accept (Mailpit) + change role + deactivate→confirm the deactivated user is locked out on next action + log out; on CLOUD run login + switch + invite-create + role change + logout (skip email-delivery accept). Capture screenshots per step.

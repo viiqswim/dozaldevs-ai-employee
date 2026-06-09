@@ -671,3 +671,33 @@ Final focused re-verification of the full API journey WITHOUT admin key, post-T2
 - `GET /invitations` is VIEWER-accessible. All roles see pending invitations; only ADMIN+ see the Revoke button.
 - Sidebar: added `UserCheck` icon + `Members` nav item. Renamed `Tenants` label to `Organizations` (route stays `/dashboard/tenants`).
 - `pnpm dashboard:build` → exit 0 (2246 modules). `pnpm build` → exit 0.
+
+## [2026-06-09] T5E2E Wave-5 Checkpoint — Full Playwright user journey (LOCAL + CLOUD)
+
+### LOCAL (HS256, browser via Playwright MCP) — ALL PASS (6/6 + 2 bonus)
+- Unauth /dashboard/ -> redirect /dashboard/login (auth guard works).
+- Login owner@test.com/Test1234! -> /dashboard/?tenant=...0003.
+- Tenant switcher dropdown lists "DozalDevs" + "VLRE" by ORG NAME (not UUID); header pill="VLRE". Confirms /me/tenants -> SearchableSelect renders names.
+- Members page: owner@test.com row (Role=Owner, Joined Jun 9 2026) + invite form (OWNER sees it).
+- Invite POST /admin/tenants/:id/invitations -> 201 {id,email,role:MEMBER,status:pending,expiresAt+7d}. (network req #12)
+- Change Role dropdown functional (Owner/Admin/Member/Viewer searchable select). Did NOT execute on sole owner (last-owner guard + lockout risk).
+- Sign out -> /dashboard/login; re-nav to /members -> /login (post-logout guard).
+
+### CLOUD (ES256, curl) — ALL PASS (login->ES256->tenant list->invite-create->logout)
+- Cloud login wave2-owner@dozaldevs.io/Test1234! -> ES256 JWT (kid 1df77847-...), sub 7b140910-85c9-421b-957d-3ffd87266148.
+- Cloud ES256 token -> LOCAL HS256 gateway GET /me -> 401 INVALID_TOKEN (alg/profile boundary PROVEN).
+- /rest/v1/tenants -> Snobahn, DozalDevs, VLRE (switcher equivalent).
+- Invite-create POST /rest/v1/tenant_invitations -> 201 (real cloud DB), read-back confirms persisted. Revoked after (hygiene).
+- POST /auth/v1/logout -> 204.
+
+### Key Findings / Reusable Wisdom
+1. **GATEWAY BUG FOUND: GET /admin/tenants/:tenantId/invitations -> 404.** The invitation CREATE (POST) works (201) but the LIST (GET) endpoint is NOT registered. Dashboard "Pending Invitations" panel shows "Failed to load invitations / Gateway error 404" and a created invite never appears in the pending list. T15★ added POST + accept/decline/revoke but no LIST handler. RECOMMEND: register GET /admin/tenants/:tenantId/invitations (filter status='pending', deleted_at not applicable — table has no deleted_at). This is a real product gap, not a test artifact.
+2. **CDP to user Chrome is fragile**: an already-running Chrome IGNORES a later `--remote-debugging-port=9222` (flag only applies at process launch). `curl :9222/json/version` stays 000. For the LOCAL DASHBOARD (a plain React+Supabase login form, no anti-bot), the Playwright MCP's own headed Chromium is the correct tool — CDP-to-real-Chrome is only needed for Airbnb/Slack (real-session/anti-bot). Don't quit the user's Chrome.
+3. **Cloud password Test1234! still valid** for wave2-owner@dozaldevs.io (Wave-2 reset persists).
+4. **base64 JWT decode in bash 3.2**: pad the segment to a multiple of 4 with '=' before `base64 -d` (header/payload segments are often unpadded). python3 is asdf-blocked (documented Wave-1).
+5. **Cloud users table query by supabase_id -> []**: expected. App `users` row is lazily created by ensureUserExists() on first authenticated GATEWAY hit; the cloud-profile gateway isn't running, so no backfill. Supabase auth user exists (login worked) independently of the app users row.
+6. **Full CLOUD browser journey** requires restarting gateway with CLOUD env (SUPABASE_URL/ANON/SECRET = cloud) — not done to preserve the live LOCAL gateway (task MUST-NOT-DO). curl path is the documented substitute.
+
+### Evidence Files
+- .sisyphus/evidence/local/wave5/{01-login-page,02-dashboard-after-login,03-tenant-switcher,04-members-page,05-invite-form,05-invite-sent,05b-change-role-dropdown,06-after-logout}.png + SUMMARY.txt
+- .sisyphus/evidence/cloud/wave5/{journey.txt,SUMMARY.txt}
