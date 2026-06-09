@@ -7,13 +7,13 @@ description: 'Use when writing or modifying Inngest functions, step functions, e
 
 ## Active Functions (5)
 
-| Function ID                    | Trigger event                        | File                                    |
-| ------------------------------ | ------------------------------------ | --------------------------------------- |
-| `employee/universal-lifecycle` | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`     |
-| `employee/interaction-handler` | `employee/interaction.received`      | `src/inngest/interaction-handler.ts`    |
-| `employee/rule-extractor`      | `employee/rule.extract-requested`    | `src/inngest/rule-extractor.ts`         |
-| `employee/rule-synthesizer`    | `employee/rule.synthesize-requested` | `src/inngest/rule-synthesizer.ts`       |
-| `trigger/reviewing-watchdog`   | cron `*/15 * * * *`                  | `src/inngest/watchdog.ts` (active cron) |
+| Function ID                    | Trigger event                        | File                                         |
+| ------------------------------ | ------------------------------------ | -------------------------------------------- |
+| `employee/universal-lifecycle` | `employee/task.dispatched`           | `src/inngest/employee-lifecycle.ts`          |
+| `employee/interaction-handler` | `employee/interaction.received`      | `src/inngest/interaction-handler.ts`         |
+| `employee/rule-extractor`      | `employee/rule.extract-requested`    | `src/inngest/rule-extractor.ts`              |
+| `employee/rule-synthesizer`    | `employee/rule.synthesize-requested` | `src/inngest/rule-synthesizer.ts`            |
+| `trigger/reviewing-watchdog`   | cron `*/15 * * * *`                  | `src/inngest/triggers/reviewing-watchdog.ts` |
 
 All functions register in the **gateway process** — not a separate service. They are served via `serve()` from Express.
 

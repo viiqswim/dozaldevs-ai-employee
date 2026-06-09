@@ -25,7 +25,7 @@ POST /admin/tenants/:tenantId/archetypes/recommend-model
 
 **Forbidden models**: Never hardcode the models listed in `AGENTS.md` § "Forbidden in hardcoded references". Any model NOT in the `model_catalog` table is forbidden.
 
-**Gateway-only models**: The `anthropic/claude-haiku-4-5` model is permitted ONLY as a `gateway_llm_model` platform setting. **NEVER** use it as the `model` field in archetypes — it is not an execution model.
+**Gateway-only models**: One Anthropic model is permitted ONLY as a `gateway_llm_model` platform setting — see `AGENTS.md` § "Permitted Anthropic model". **NEVER** use it as the `model` field in archetypes — it is not an execution model.
 
 ---
 
