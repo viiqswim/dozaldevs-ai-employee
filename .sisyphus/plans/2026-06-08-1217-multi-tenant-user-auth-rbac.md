@@ -1014,7 +1014,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 14. Member endpoints (list / role-change / remove) + last-owner guard (TDD)
+- [x] 14. Member endpoints (list / role-change / remove) + last-owner guard (TDD)
 
   **What to do**:
   - RED: tests for last-OWNER protection (cannot remove/demote the final OWNER) and ADMIN+-only management.

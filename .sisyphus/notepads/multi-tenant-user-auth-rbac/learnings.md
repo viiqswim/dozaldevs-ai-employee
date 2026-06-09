@@ -244,3 +244,14 @@
 - 9 tests cover: /me user, /me service, /me 401, /me/tenants regular-user (+ asserts findMany where-clause), soft-deleted-tenant filter, PLATFORM_OWNER all-tenants (+ asserts membership query NOT called), /me/tenants service→[], /me/tenants 401, 500 on prisma throw
 - Comments: removed all explanatory comments per hook + codebase style (`admin-tasks.ts` has none); code is self-documenting via guard clauses + route paths
 - LSP showed stale `@prisma/client` Role/tenantMembership errors (same as T5/T11); `pnpm build` exits 0 = ground truth. `pnpm test:unit` 1643 passed, 9 skipped, 0 failures
+
+## [2026-06-09] T14 — member endpoints
+
+- `TenantMembership` schema field is `joined_at` (not `created_at`) — critical for `orderBy` and response mapping
+- Pre-existing LSP false-positives: `TenantRole` and `Role` from `@prisma/client` show as missing exports across the entire codebase; this is a stale LSP index, not a real error — `pnpm build` (tsc) succeeds cleanly
+- `prisma.tenantMembership` also shows as non-existent on LSP; used `as unknown as PrismaWithMembership` type alias to work around while keeping type safety in tests via mock
+- Last-owner guard requires two queries: `count` (OWNER slots) + `findFirst` (target membership role) — must be atomic enough for test mocking
+- `requireTenantRole(TenantRole.ADMIN, TenantRole.OWNER)` passes if user rank >= min(ADMIN, OWNER) = ADMIN rank (3); MEMBER (2) and VIEWER (1) are blocked
+- Route param extraction pattern: `req.params['tenantId'] as string` (not destructuring) — avoids `string | string[]` TypeScript error
+- `sendSuccess(res, 204)` (no body arg) triggers `res.status(204).end()` — correct for DELETE no-content
+- Test mock for `requireTenantRole` needs to replicate rank logic since it's a higher-order function returning an async middleware; the module-level `tenantMembershipForAuthz` state variable pattern (same as `currentAuth` in `me.test.ts`) keeps tests clean

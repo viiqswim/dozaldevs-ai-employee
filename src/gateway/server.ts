@@ -38,6 +38,7 @@ import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { adminGoogleRoutes } from './routes/admin-google.js';
 import { adminUsersRoutes } from './routes/admin-users.js';
+import { adminMembersRoutes } from './routes/admin-members.js';
 import { meRoutes } from './routes/me.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from '../repositories/tenant-repository.js';
@@ -258,6 +259,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminGithubRoutes({ prisma }));
   app.use(adminGoogleRoutes({ prisma }));
   app.use(adminUsersRoutes());
+  app.use(adminMembersRoutes({ prisma }));
   app.use(meRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
