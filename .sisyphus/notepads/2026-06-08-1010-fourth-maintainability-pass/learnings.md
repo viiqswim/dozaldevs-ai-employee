@@ -754,3 +754,46 @@ During execution, another Wave 4 task modified `execute.ts` (moved `archetype_id
 - `SUPABASE_ANON_KEY` in `.env` = `ANON_KEY` in `docker/.env`
 - Default demo JWT values in `docker/.env.example` are safe for local dev (HS256 signed with the demo JWT_SECRET)
 - Commit: `docs: explain docker/.env + supabase keys; add task-stuck troubleshooting`
+
+## [Task 32] Documentation freshness update (2026-06-08)
+
+### AGENTS.md changes (commit b322ace7)
+
+- `src/gateway/slack/` entry: added per-action approval modules (`approve-action.ts`, `edit-action.ts`, `reject-action.ts`) and per-action rule modules (`rule-confirm-action.ts`, `rule-reject-action.ts`, `rule-rephrase-action.ts`)
+- `src/inngest/lifecycle/` entry: changed `└── steps/` to `├── steps/` + added `└── lib/` with `machine-provisioner.ts`
+- `src/inngest/lib/` entry: added `postgrest-headers.ts` (`makePostgrestHeaders` — canonical PostgREST header factory)
+- `src/workers/lib/` entry: added `execution-phase.mts` and `delivery-phase.mts`
+- `src/repositories/` entry: added `TaskRepository` and `EmployeeRuleRepository` inline
+- Deprecated components table: updated `src/workers/lib/` exception list to include `execution-phase.mts`, `delivery-phase.mts`, `harness-helpers.mts`, `agents-md-compiler.mts`, `postgrest-types.ts`
+- Harness bullet: added sentence about execution/delivery phase extraction
+
+### CONTRIBUTING.md changes
+
+- `src/repositories/` section: added `task-repository.ts` (`TaskRepository`) and `employee-rule-repository.ts` (`EmployeeRuleRepository`) entries
+- Template reference (`src/worker-tools/_template/example-tool.ts`) was ALREADY present at lines 401 and 963 — no change needed
+
+### What was already correct
+
+- `InngestStep` in `events.ts` was already documented at AGENTS.md line 467
+- `src/repositories/` was already mentioned in AGENTS.md line 470 (just needed the new repos called out)
+- CONTRIBUTING.md already had the template reference — no change needed there
+
+## F2 (Re-run) Code Quality Review — APPROVE (2026-06-08)
+
+HEAD: 4a21a7e0. All gates green:
+- Build: exit 0 | Lint: exit 0
+- Unit: 138 files, 1595 passed, 9 skipped, 0 failed (matches expected)
+- Integration ×2: both 450 passed, 17 skipped, exit 1 from the SAME pre-existing
+  unhandled rejection attributed to `sifely/diagnose-access.test.ts`. Deterministic
+  across both runs → confirms pre-existing, NOT a regression.
+- Dashboard: exit 0 (2200 modules, built in ~380ms)
+
+Two prior regressions confirmed fixed:
+1. Stale harness imports (startHeartbeat/markFailed/writeOpencodeAuth) — grep returns empty.
+2. opencode-harness-metrics.test.ts — 8 tests pass; added `vi.spyOn(process,'exit')`
+   mock in afterEach. This file is NOT the source of the integration unhandled rejection.
+
+Quality spot-check (only 2 code files changed in last 5 commits): no new as-any/@ts-ignore/
+empty-catch/console.* in added lines. The lone `as never` is the standard process.exit
+mock idiom. Note: LSP flagged pre-existing errors in approval-handlers.test.ts and
+inngest-send.test.ts — NOT in the changed set, unrelated to this plan; both pass at runtime.
