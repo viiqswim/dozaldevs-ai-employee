@@ -2,12 +2,12 @@ import { createLogger } from '../lib/logger.js';
 import { createPostgRESTClient, type PostgRESTClient } from './lib/postgrest-client.js';
 import { startOpencodeServer } from './lib/opencode-server.js';
 import { createSessionManager, extractUsage } from './lib/session-manager.js';
-import { startHeartbeat, type HeartbeatHandle } from './lib/heartbeat.js';
+import { type HeartbeatHandle } from './lib/heartbeat.js';
 import { applyResourceCaps } from './lib/resource-caps.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 import { checkOutputFiles, readOutputContract } from './lib/output-contract.mjs';
 import { resolveModelProvider } from './lib/model-provider.mjs';
-import { markFailed, tryAutoPostApprovalCard, writeOpencodeAuth } from './lib/harness-helpers.mjs';
+import { tryAutoPostApprovalCard } from './lib/harness-helpers.mjs';
 import { runExecutionPhase } from './lib/execution-phase.mjs';
 import { runDeliveryPhase } from './lib/delivery-phase.mjs';
 

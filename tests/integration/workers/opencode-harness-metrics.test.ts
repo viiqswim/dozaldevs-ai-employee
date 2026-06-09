@@ -253,6 +253,7 @@ describe('opencode-harness — execution metrics', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     vi.unstubAllGlobals();
     delete process.env.TASK_ID;
     delete process.env.EMPLOYEE_PHASE;
