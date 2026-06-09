@@ -500,3 +500,47 @@ status='disabled'`. Reusing Wave-2 users (already have memberships) avoids the
 - `pnpm dashboard:build` → **exit 0** (vite build, 2198 modules, 442ms)
 - `pnpm build` → **exit 0** (gateway tsc)
 - `pnpm test:unit` → **144 files, 1689 passed, 9 skipped, 0 failures**
+
+---
+
+## T21: SERVICE_TOKEN trigger verification (2026-06-09)
+
+### Auth chain works end-to-end
+
+- `Authorization: Bearer $SERVICE_TOKEN` → `authMiddleware` sets `req.isServiceToken = true`
+- `requireAuth` passes immediately when `isServiceToken = true` (no user lookup)
+- `requireTenantRole(MEMBER)` passes immediately when `isServiceToken = true` (no DB membership lookup)
+- Missing auth → 401. Wrong token → 401. Valid SERVICE_TOKEN → 202.
+
+### Trigger route confirmed (T16 guards in place)
+
+`POST /admin/tenants/:tenantId/employees/:slug/trigger` uses:
+```
+authMiddleware → requireAuth → requireTenantRole(TenantRole.MEMBER)
+```
+
+### Live trigger result
+
+- Employee: `wave3-vlre-archetype` (VLRE tenant, runtime=opencode)
+- task_id: `56716455-2285-4619-9a14-d390a281fc04`
+- Lifecycle: Received → Triaging → AwaitingInput → Ready → **Executing** ✅
+- Failed at Executing (harness) — expected, archetype has no identity/execution_steps
+- The auth + trigger + lifecycle are correct
+
+### Runtime null = 501 NOT_IMPLEMENTED
+
+Wave3 archetypes were created with no runtime set. Must patch `runtime = 'opencode'` in DB before triggering. The error is post-auth — 501 means auth already passed.
+
+### External cron callers must use Bearer token
+
+- cron-job.org and other external callers: `Authorization: Bearer $SERVICE_TOKEN`
+- `X-Admin-Key` is dual-accept during migration window only — deprecated, remove after T24
+
+### Docs updated
+
+`docs/guides/2026-04-16-0310-manual-employee-trigger.md` updated:
+- All curl examples use `Authorization: Bearer $SERVICE_TOKEN`
+- Legacy `X-Admin-Key` examples labeled deprecated
+- Port corrected from 3000 → 7700
+- HTTP response codes table updated (added 403)
+- How it works section updated with full auth chain description
