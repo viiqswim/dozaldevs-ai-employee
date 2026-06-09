@@ -38,6 +38,7 @@ import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { adminGoogleRoutes } from './routes/admin-google.js';
 import { adminUsersRoutes } from './routes/admin-users.js';
+import { meRoutes } from './routes/me.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from '../repositories/tenant-repository.js';
 import { TenantSecretRepository } from '../repositories/tenant-secret-repository.js';
@@ -257,6 +258,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminGithubRoutes({ prisma }));
   app.use(adminGoogleRoutes({ prisma }));
   app.use(adminUsersRoutes());
+  app.use(meRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   const viteDevProxy = process.env.VITE_DEV_PROXY;

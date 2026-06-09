@@ -975,7 +975,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 2)
 
-- [ ] 13. /me and /me/tenants endpoints
+- [x] 13. /me and /me/tenants endpoints
 
   **What to do**:
   - `GET /me` → `{ id, email, name, globalRole, status, currentTenantId }`.

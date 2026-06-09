@@ -174,6 +174,7 @@
 5. **alg split confirmed end-to-end**: LOCAL=HS256 (symmetric shared secret), CLOUD=ES256 (asymmetric ECC, kid `1df77847-802f-46b6-92a9-5f9ed42a5e21`). This is the dual-env JWT verification contract for T3b's `SUPABASE_JWKS_URL` work.
 
 ### Evidence Files
+
 - `.sisyphus/evidence/local/wave1/jwt-and-tables.txt`
 - `.sisyphus/evidence/cloud/wave1/jwt-and-tables.txt`
 
@@ -189,6 +190,7 @@
 - Evidence: `.sisyphus/evidence/local/task-8-verify-jwt.txt`
 
 ## T10 — ensureUserExists upsert (2026-06-09)
+
 - Prisma User model uses `supabase_id` (snake_case, no @map) — upsert key is `{ supabase_id: claims.sub }`
 - Return type maps `supabase_id → supabaseId` and `role → globalRole` to match `AuthenticatedUser`
 - `supabase_id` is nullable (`String?`) but `@unique`; Prisma upsert works correctly with nullable unique fields
@@ -224,9 +226,21 @@
 - Build: `pnpm build` is ground truth; LSP errors on `@prisma/client` exports (Role, TenantRole) are stale and can be ignored
 
 ## [2026-06-09] T12★ — deactivation enforcement
+
 - `ensure-user-exists.ts` upsert does NOT reset `status` on update — only `email` is updated; safe to add `deleted_at` check after upsert
 - `authMiddleware` catch block at line 53 catches any throw from `ensureUserExists` and returns 401 `INVALID_TOKEN` — correct channel for soft-deleted user responses (don't reveal user exists)
 - Integration test uses `vi.mock` for `verifySupabaseJwt` + direct `authMiddleware` call (no HTTP) — clean way to test DB-level immediacy without Supabase Auth running
 - Supabase Admin API ban endpoint: `PUT /auth/v1/admin/users/:supabase_id` — guard `user.supabase_id` nullability before calling
 - `req.params['userId'] as string` needed (vs destructuring) due to TS type resolution issue in multi-middleware Express routes
 - `users.status='disabled'` check (in `auth.ts`) is the primary immediate lockout; Supabase ban is belt-and-suspenders for token refresh blocking
+
+## [2026-06-09] T13 — /me endpoints
+
+- Created `src/gateway/routes/me.ts` exporting `meRoutes(opts)` factory with `prisma?` DI option (matches `adminTasksRoutes` pattern); registered in `server.ts` as `app.use(meRoutes({ prisma }))` right after `adminUsersRoutes()`
+- `GET /me`: service token → synthetic `{ id:null, email:null, name:null, globalRole:'SERVICE', status:'active' }`; user → `{ id, email, name, globalRole, status }` from `req.auth`
+- `GET /me/tenants`: PLATFORM_OWNER → all `tenant.findMany({ where:{ deleted_at:null } })` mapped with `tenantRole:'OWNER'`; regular user → `tenantMembership.findMany({ where:{ user_id, deleted_at:null }, include:{ tenant } })`, then JS-filter `m.tenant.deleted_at === null` (defends against soft-deleted tenant with live membership row)
+- Both routes use real `authMiddleware` + real `requireAuth` chain; `requireAuth` is the genuine 401 source (pure guard, no DB)
+- Test strategy: `vi.mock` the `authMiddleware` module to set `req.auth`/`req.isServiceToken` from a module-level `currentAuth` var; use real `requireAuth`; inject mock prisma via `meRoutes({ prisma })`. Top-level `await import()` of the SUT AFTER the `vi.mock` declaration (mock is hoisted, dynamic import resolves after).
+- 9 tests cover: /me user, /me service, /me 401, /me/tenants regular-user (+ asserts findMany where-clause), soft-deleted-tenant filter, PLATFORM_OWNER all-tenants (+ asserts membership query NOT called), /me/tenants service→[], /me/tenants 401, 500 on prisma throw
+- Comments: removed all explanatory comments per hook + codebase style (`admin-tasks.ts` has none); code is self-documenting via guard clauses + route paths
+- LSP showed stale `@prisma/client` Role/tenantMembership errors (same as T5/T11); `pnpm build` exits 0 = ground truth. `pnpm test:unit` 1643 passed, 9 skipped, 0 failures
