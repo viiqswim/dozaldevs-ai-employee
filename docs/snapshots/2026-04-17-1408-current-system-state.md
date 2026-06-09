@@ -158,11 +158,11 @@ This makes the platform ready for Jira, GitHub, Linear, and other providers with
 
 ```bash
 # Trigger the summarizer
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000001/employees/daily-summarizer/trigger
 
 # Check task status
-curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -H "Authorization: Bearer $SERVICE_TOKEN" \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000001/tasks/<task-id>
 
 # Rebuild worker image after any src/workers/ change

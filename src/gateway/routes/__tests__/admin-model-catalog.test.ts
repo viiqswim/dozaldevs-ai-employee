@@ -7,8 +7,8 @@ import { GO_MODEL_MAP } from '../../../lib/go-models.js';
 
 vi.mock('../../../gateway/middleware/auth.js', () => ({
   authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
-    const adminKey = req.headers['x-admin-key'] as string | undefined;
-    if (adminKey && adminKey === process.env.ADMIN_API_KEY) {
+    const authHeader = req.headers.authorization as string | undefined;
+    if (authHeader?.startsWith('Bearer ') && authHeader.slice(7) === process.env.SERVICE_TOKEN) {
       (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
     }
     next();
@@ -76,7 +76,7 @@ function makeModelRow(overrides: Record<string, unknown> = {}) {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
   const app = express();
   app.use(express.json());
@@ -112,7 +112,7 @@ describe('GET /admin/model-catalog', () => {
     vi.clearAllMocks();
   });
 
-  it('returns 401 when X-Admin-Key header is missing', async () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).get('/admin/model-catalog');
     expect(res.status).toBe(401);
@@ -123,7 +123,9 @@ describe('GET /admin/model-catalog', () => {
     const model = makeModelRow();
     const findMany = vi.fn().mockResolvedValue([model]);
     const app = makeApp({ findMany });
-    const res = await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get('/admin/model-catalog')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].id).toBe(MODEL_ID);
@@ -134,7 +136,9 @@ describe('GET /admin/model-catalog', () => {
     const model = makeModelRow({ model_id: 'provider/model-name' });
     const findMany = vi.fn().mockResolvedValue([model]);
     const app = makeApp({ findMany });
-    const res = await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get('/admin/model-catalog')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body[0].supported_gateways).toEqual(['openrouter']);
   });
@@ -144,7 +148,9 @@ describe('GET /admin/model-catalog', () => {
     const model = makeModelRow({ model_id: goModelId });
     const findMany = vi.fn().mockResolvedValue([model]);
     const app = makeApp({ findMany });
-    const res = await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get('/admin/model-catalog')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body[0].supported_gateways).toEqual(['opencode-go', 'openrouter']);
   });
@@ -152,7 +158,7 @@ describe('GET /admin/model-catalog', () => {
   it('passes deleted_at:null filter to findMany', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const app = makeApp({ findMany });
-    await request(app).get('/admin/model-catalog').set('X-Admin-Key', ADMIN_KEY);
+    await request(app).get('/admin/model-catalog').set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ deleted_at: null }),
@@ -166,7 +172,7 @@ describe('GET /admin/model-catalog/:id', () => {
     vi.clearAllMocks();
   });
 
-  it('returns 401 when X-Admin-Key header is missing', async () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).get(`/admin/model-catalog/${MODEL_ID}`);
     expect(res.status).toBe(401);
@@ -178,7 +184,7 @@ describe('GET /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .get(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(MODEL_ID);
     expect(res.body.supported_gateways).toEqual(['openrouter']);
@@ -189,7 +195,7 @@ describe('GET /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .get(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });
@@ -200,7 +206,7 @@ describe('POST /admin/model-catalog', () => {
     vi.clearAllMocks();
   });
 
-  it('returns 401 when X-Admin-Key header is missing', async () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).post('/admin/model-catalog').send(VALID_CREATE_BODY);
     expect(res.status).toBe(401);
@@ -210,7 +216,7 @@ describe('POST /admin/model-catalog', () => {
     const app = makeApp();
     const res = await request(app)
       .post('/admin/model-catalog')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ model_id: 'only-id' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -222,7 +228,7 @@ describe('POST /admin/model-catalog', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post('/admin/model-catalog')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_CREATE_BODY);
     expect(res.status).toBe(201);
     expect(create).toHaveBeenCalledOnce();
@@ -233,7 +239,7 @@ describe('POST /admin/model-catalog', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post('/admin/model-catalog')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_CREATE_BODY);
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('MODEL_ID_TAKEN');
@@ -250,7 +256,7 @@ describe('PATCH /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -261,7 +267,7 @@ describe('PATCH /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ display_name: 'Updated' });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
@@ -274,7 +280,7 @@ describe('PATCH /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst, update });
     const res = await request(app)
       .patch(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ display_name: 'Updated' });
     expect(res.status).toBe(200);
     expect(res.body.display_name).toBe('Updated');
@@ -291,7 +297,7 @@ describe('DELETE /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .delete(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });
@@ -302,7 +308,7 @@ describe('DELETE /admin/model-catalog/:id', () => {
     const app = makeApp({ findFirst, update });
     const res = await request(app)
       .delete(`/admin/model-catalog/${MODEL_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
     expect(update).toHaveBeenCalledWith(
@@ -318,7 +324,9 @@ describe('DELETE /admin/model-catalog/:id', () => {
     const update = vi.fn().mockResolvedValue({});
     const deleteFn = vi.fn();
     const app = makeApp({ findFirst, update, delete: deleteFn });
-    await request(app).delete(`/admin/model-catalog/${MODEL_ID}`).set('X-Admin-Key', ADMIN_KEY);
+    await request(app)
+      .delete(`/admin/model-catalog/${MODEL_ID}`)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(deleteFn).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalled();
   });

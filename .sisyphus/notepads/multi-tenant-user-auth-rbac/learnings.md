@@ -544,3 +544,44 @@ Wave3 archetypes were created with no runtime set. Must patch `runtime = 'openco
 - Port corrected from 3000 → 7700
 - HTTP response codes table updated (added 403)
 - How it works section updated with full auth chain description
+
+## [2026-06-09] T23 — Endpoint sweep without admin key
+
+### Results
+- **69/69 endpoint checks PASS, 0 FAIL** using PLATFORM_OWNER JWT (HS256) + SERVICE_TOKEN, NO X-Admin-Key.
+- Covered every admin route across all 22 live admin-*.ts files + me.ts + public /invitations/*.
+- Zero 401s from missing admin key → T16 migration confirmed complete; no route still relies on requireAdminKey alone.
+
+### Method (key insight for T24 and future sweeps)
+- **Auth middleware runs BEFORE body/param validation and BEFORE any DB call** (authMiddleware → requireAuth → requireTenantRole/requirePermission). So ANY non-401 response proves the auth chain passed. **401 is the ONLY fail signal.**
+- 400 (invalid body/id) and 404 (not found) are EXPECTED passes — handler reached validation/DB stage.
+- All mutating verbs (POST/PATCH/PUT/DELETE) used empty/invalid bodies or fake UUID `99999999-...` → **nothing mutated, sweep is fully read-safe.**
+- 3 integrity checks added to evidence: (1) harness sends zero X-Admin-Key, (2) negative control — all 10 sampled endpoints return 401 with NO auth (proves they actually enforce auth), (3) dual-accept still ON (X-Admin-Key → 200).
+
+### Setup gotchas
+- **owner@test.com did NOT exist** on this DB — had to create it: `POST localhost:54331/auth/v1/admin/users {email,password:Test1234!,email_confirm:true}` (apikey+Bearer = SUPABASE_SECRET_KEY), then run `scripts/seed-platform-owner.ts` with `BOOTSTRAP_OWNER_EMAIL=owner@test.com BOOTSTRAP_OWNER_PASSWORD=Test1234!` to set role=PLATFORM_OWNER + OWNER memberships in both tenants. Verified via `/me` → globalRole=PLATFORM_OWNER.
+- **bash 3.2 (macOS) + `set -u`**: empty array expansion `"${arr[@]}"` throws "unbound variable". Guard with `if [ "${#arr[@]}" -gt 0 ]; then args+=("${arr[@]}"); fi`.
+
+### Failures found and fixed
+- **NO auth failures** (the actual T23 deliverable — every endpoint authed without admin key).
+- **DB DRIFT FIXED (pre-existing, not auth-related)**: GET/DELETE/PATCH `/admin/model-catalog*` initially 500'd — Prisma P2022 `column model_catalog.strengths does not exist`. Columns `strengths`+`weaknesses` are in schema.prisma (ModelCatalog) but missing from this T2-baselined local DB (same drift class as Wave-3 deleted_at/platform_rules_override). Fix (NO source change, idempotent): `ALTER TABLE model_catalog ADD COLUMN IF NOT EXISTS strengths TEXT; ADD COLUMN IF NOT EXISTS weaknesses TEXT; NOTIFY pgrst,'reload schema';`. P2022 is per-query → no gateway restart needed. Endpoints now 200/404. **For future waves touching model-catalog endpoints on a baselined local DB, verify these two columns exist first.**
+
+### Evidence
+- `.sisyphus/evidence/local/task-23-sweep.txt` (147 lines: full 69-row checklist + 3 integrity checks + findings)
+- Reusable harness: `scripts/t23-sweep.sh` (reads `/tmp/t23-tokens.env`)
+
+## [2026-06-09] T24 — ADMIN_API_KEY fully removed
+
+- Deleted: src/gateway/middleware/admin-auth.ts (already deleted in working tree — confirmed via `git status`)
+- Removed dual-accept X-Admin-Key branch from auth.ts (already done in working tree)
+- Removed ADMIN_API_KEY getter from config.ts (already done)
+- Removed ADMIN_API_KEY from .env + moved to DEPRECATED comment in .env.example (already done, with note "Removed in T24")
+- Removed auto-generation from setup.ts (already done)
+- Removed from dev.ts REQUIRED_VARS (already done)
+- Removed stale 'ADMIN_API_KEY' string from LAZY_VARS cleanup array in tests/unit/lib/config.test.ts (T24 fix)
+- Final grep (src dashboard scripts docs .env.example --exclude-dir=archive, filtered by # / DEPRECATED): 0 active references
+- pnpm build: EXIT 0
+- pnpm test:unit: 144 files, 1686 tests passed, 9 skipped, 0 failures
+- Gateway boots without ADMIN_API_KEY — /health → {"status":"ok"}
+- X-Admin-Key → 401 (rejected — auth.ts only accepts Authorization: Bearer)
+- Note: tests/unit/gateway/routes/* still mock authMiddleware using X-Admin-Key pattern internally — those are self-contained unit test mocks and pass as-is; they test route handler logic, not the auth middleware

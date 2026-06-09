@@ -336,7 +336,7 @@ All 9 functions are registered in `src/gateway/inngest/serve.ts`.
 
 ## Gateway and Routes
 
-Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set), registers all routes, listens on `PORT` (default 7700).
+Gateway startup: validates `ENCRYPTION_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set), registers all routes, listens on `PORT` (default 7700).
 
 ### Webhook Routes (no auth)
 
@@ -353,7 +353,7 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 | `GET`  | `/slack/install?tenant=uuid` | Initiates OAuth flow with HMAC-signed state |
 | `GET`  | `/slack/oauth_callback`      | Completes OAuth, stores encrypted token     |
 
-### Admin Routes (`X-Admin-Key` header required)
+### Admin Routes (`Authorization: Bearer` header required)
 
 | Method   | Path                                               | Description                                     |
 | -------- | -------------------------------------------------- | ----------------------------------------------- |
@@ -685,15 +685,15 @@ Active development plan: `docs/planning/2026-04-21-2202-phase1-story-map.md`. Fi
 
 ```bash
 # Trigger the DozalDevs summarizer
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger"
 
 # Trigger the VLRE guest messaging employee
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/guest-messaging/trigger"
 
 # Check task status
-curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/<task-id>"
 
 # Manual approval (fallback when Slack button doesn't reach gateway)

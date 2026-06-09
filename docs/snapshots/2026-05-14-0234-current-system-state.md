@@ -247,7 +247,7 @@ The platform runs five active Inngest functions, an Express gateway with 18 rout
 | `FLY_WORKER_APP`       | `.env`                | Fly.io app name for all worker machines                           |
 | `WORKER_VM_SIZE`       | `.env`                | Default VM size; overridden per-archetype by `vm_size` field      |
 | `ENCRYPTION_KEY`       | `.env`                | AES-256-GCM key for tenant secrets (validated at gateway startup) |
-| `ADMIN_API_KEY`        | `.env`                | Admin API authentication for all `/admin/*` endpoints             |
+| `SERVICE_TOKEN`        | `.env`                | Machine-to-machine auth for all `/admin/*` endpoints              |
 | `SLACK_APP_TOKEN`      | `.env`                | `xapp-...` Socket Mode token for Bolt WebSocket connection        |
 | `SLACK_SIGNING_SECRET` | `.env`                | Verifies Slack interaction webhook payloads                       |
 | `EMPLOYEE_RULES`       | injected by lifecycle | Confirmed behavioral rules for the archetype (cap: 8,000 chars)   |

@@ -99,7 +99,7 @@ SLACK_REDIRECT_BASE_URL=https://your-domain.com  # Public URL for OAuth callback
 
 ```bash
 curl -X POST http://localhost:3000/admin/tenants \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Acme Corp",
@@ -134,7 +134,7 @@ Response:
 
 ```bash
 curl http://localhost:3000/admin/tenants/<tenant-id> \
-  -H "X-Admin-Key: $ADMIN_API_KEY"
+  -H "Authorization: Bearer $SERVICE_TOKEN"
 # slack_team_id should now be set (e.g., "T0XXXXXXX")
 ```
 
@@ -146,7 +146,7 @@ Configure which Slack channels the summarizer reads from and posts to:
 
 ```bash
 curl -X PATCH http://localhost:3000/admin/tenants/<tenant-id>/config \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "summary": {
@@ -166,7 +166,7 @@ For secrets like `jira_webhook_secret`, `github_token`, `openrouter_api_key`:
 
 ```bash
 curl -X POST http://localhost:3000/admin/tenants/<tenant-id>/secrets \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "key": "jira_webhook_secret",
@@ -178,7 +178,7 @@ Secrets are stored encrypted. The listing endpoint returns metadata only (no pla
 
 ```bash
 curl http://localhost:3000/admin/tenants/<tenant-id>/secrets \
-  -H "X-Admin-Key: $ADMIN_API_KEY"
+  -H "Authorization: Bearer $SERVICE_TOKEN"
 # Returns: [{ "key": "jira_webhook_secret", "is_set": true, "updated_at": "..." }]
 ```
 
@@ -188,7 +188,7 @@ curl http://localhost:3000/admin/tenants/<tenant-id>/secrets \
 
 ```bash
 curl -X POST http://localhost:3000/admin/tenants/<tenant-id>/employees/daily-summarizer/trigger \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
@@ -262,7 +262,7 @@ Verify the tenant has a `github_token` secret set:
 
 ```bash
 curl http://localhost:3000/admin/tenants/<tenant-id>/secrets \
-  -H "X-Admin-Key: $ADMIN_API_KEY"
+  -H "Authorization: Bearer $SERVICE_TOKEN"
 ```
 
 If missing, add it via `POST /admin/tenants/<id>/secrets`.

@@ -44,7 +44,7 @@ function makeArchetype(overrides: Record<string, unknown> = {}) {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
   const app = express();
   app.use(express.json());
@@ -91,7 +91,7 @@ describe('Time estimation — POST /admin/tenants/:tenantId/archetypes', () => {
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_BODY);
 
     expect(res.status).toBe(201);
@@ -111,7 +111,7 @@ describe('Time estimation — POST /admin/tenants/:tenantId/archetypes', () => {
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_BODY);
 
     expect(res.status).toBe(201);
@@ -146,7 +146,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ instructions: 'New instructions' });
 
     expect(res.status).toBe(200);
@@ -165,7 +165,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ notification_channel: '#new-channel' });
 
     expect(res.status).toBe(200);
@@ -182,7 +182,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ estimated_manual_minutes_override: 25 });
 
     expect(res.status).toBe(200);
@@ -203,7 +203,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ estimated_manual_minutes_override: null });
 
     expect(res.status).toBe(200);
@@ -215,7 +215,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ estimated_manual_minutes_override: 0 });
 
     expect(res.status).toBe(400);
@@ -227,7 +227,7 @@ describe('Time estimation — PATCH /admin/tenants/:tenantId/archetypes/:archety
 
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ estimated_manual_minutes_override: 1441 });
 
     expect(res.status).toBe(400);

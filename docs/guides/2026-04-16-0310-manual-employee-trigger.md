@@ -13,14 +13,12 @@ Two endpoints were added to the admin API:
 | `POST` | `/admin/tenants/:tenantId/employees/:slug/trigger` | Create a task and dispatch the employee |
 | `GET`  | `/admin/tenants/:tenantId/tasks/:id`               | Check task status                       |
 
-All requests require authentication. Two methods are accepted (dual-accept migration window — `X-Admin-Key` will be removed in T24):
+All requests require authentication via `Authorization: Bearer <SERVICE_TOKEN>` or a Supabase JWT.
 
-| Method                            | Header                                  | Use case                             |
-| --------------------------------- | --------------------------------------- | ------------------------------------ |
-| **SERVICE_TOKEN** (preferred)     | `Authorization: Bearer <SERVICE_TOKEN>` | External cron callers (cron-job.org) |
-| **Legacy admin key** (deprecated) | `X-Admin-Key: <ADMIN_API_KEY>`          | Internal tooling (remove after T24)  |
-
-> **External cron callers** (e.g., cron-job.org scheduled triggers): use `Authorization: Bearer $SERVICE_TOKEN`. Do **not** use `X-Admin-Key` for external systems — it will stop working after the T24 migration.
+| Method            | Header                                  | Use case                             |
+| ----------------- | --------------------------------------- | ------------------------------------ |
+| **SERVICE_TOKEN** | `Authorization: Bearer <SERVICE_TOKEN>` | External cron callers (cron-job.org) |
+| **Supabase JWT**  | `Authorization: Bearer <jwt>`           | Dashboard / logged-in user calls     |
 
 The downstream flow is identical to a cron or webhook trigger — the Slack approval gate still fires.
 
@@ -31,7 +29,7 @@ The downstream flow is identical to a cron or webhook trigger — the Slack appr
 ## Prerequisites
 
 - Services running: `pnpm dev`
-- `SERVICE_TOKEN` in `.env` (preferred) — or `ADMIN_API_KEY` for legacy callers
+- `SERVICE_TOKEN` in `.env`
 
 ---
 
@@ -56,16 +54,6 @@ curl -s -X POST \
   "task_id": "356785e8-8605-4e7a-a4bf-06ab14354242",
   "status_url": "/admin/tenants/00000000-.../tasks/356785e8-..."
 }
-```
-
-### Trigger an employee (legacy admin key — deprecated, remove after T24)
-
-```bash
-curl -s -X POST \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" \
-  -d '{}'
 ```
 
 ### Dry-run (validate without firing)
@@ -127,7 +115,7 @@ curl -s \
 | `202` | Task created, event dispatched                      |
 | `200` | Dry-run preview (no side effects)                   |
 | `400` | Invalid tenant UUID or slug format                  |
-| `401` | Missing or invalid `Authorization` / `X-Admin-Key`  |
+| `401` | Missing or invalid `Authorization` header           |
 | `403` | Authenticated but insufficient tenant role          |
 | `404` | No archetype for this tenant + slug                 |
 | `501` | Runtime not supported (`null` or unsupported value) |
@@ -138,9 +126,9 @@ curl -s \
 ## How it works
 
 1. Request hits `POST /admin/tenants/:tenantId/employees/:slug/trigger`
-2. `authMiddleware` resolves identity: `Bearer <SERVICE_TOKEN>` → `isServiceToken=true`; Supabase JWT → `req.auth`; legacy `X-Admin-Key` → `isServiceToken=true` (dual-accept window, remove in T24)
+2. `authMiddleware` resolves identity: `Bearer <SERVICE_TOKEN>` → `isServiceToken=true`; Supabase JWT → `req.auth`
 3. `requireAuth` passes for any authenticated identity
-4. `requireTenantRole(MEMBER)` passes for SERVICE_TOKEN/X-Admin-Key (no tenant membership check needed)
+4. `requireTenantRole(MEMBER)` passes for SERVICE_TOKEN (no tenant membership check needed)
 5. Gateway looks up the archetype by `(tenant_id, role_name)` — the slug is the `role_name`
 6. A `tasks` row is created with `source_system: 'manual'` and `status: 'Ready'`
 7. An `employee/task.dispatched` event is sent to Inngest

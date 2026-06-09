@@ -329,7 +329,7 @@ curl -s -X PUT \
     {"key": "SUPABASE_SECRET_KEY", "value": "sb_secret_{...}"},
     {"key": "SUPABASE_ANON_KEY", "value": "sb_publishable_{...}"},
     {"key": "ENCRYPTION_KEY", "value": "{64-hex-chars}"},
-    {"key": "ADMIN_API_KEY", "value": "{your-key}"},
+    {"key": "SERVICE_TOKEN", "value": "{your-key}"},
     {"key": "INNGEST_EVENT_KEY", "value": "{your-key}"},
     {"key": "INNGEST_SIGNING_KEY", "value": "{your-key}"},
     {"key": "GATEWAY_PUBLIC_URL", "value": "https://{render-url}"},
@@ -383,7 +383,7 @@ To debug startup crashes locally before deploying:
 docker build -f Dockerfile.gateway -t ai-employee-gateway:test .
 docker run --rm \
   -e ENCRYPTION_KEY={...} \
-  -e ADMIN_API_KEY={...} \
+  -e SERVICE_TOKEN={...} \
   -e PORT=10000 \
   -p 10000:10000 \
   ai-employee-gateway:test
@@ -415,7 +415,7 @@ Set these in Render's environment variable panel. All variables listed here are 
 | Variable             | Value / Source          | Notes                                                                                |
 | -------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
 | `ENCRYPTION_KEY`     | `openssl rand -hex 32`  | 64 hex chars; never change after first deploy — all tenant secrets become unreadable |
-| `ADMIN_API_KEY`      | `openssl rand -hex 32`  | Protects all `/admin/*` endpoints                                                    |
+| `SERVICE_TOKEN`      | `openssl rand -hex 32`  | Machine-to-machine auth for all `/admin/*` endpoints                                 |
 | `PORT`               | `7700`                  | Render sets `PORT` automatically; this is the fallback                               |
 | `GATEWAY_PUBLIC_URL` | Your Render service URL | e.g. `https://{render-url}` — required for Inngest Cloud callbacks                   |
 
@@ -696,7 +696,7 @@ Run through this after every fresh deployment to confirm everything is wired up 
     Check that data loads (not blank or "—" for all stats)
 
 [ ] Trigger a test task via admin API and confirm it reaches Done status
-    curl -X POST -H "X-Admin-Key: {admin_key}" https://{render-url}/admin/tenants/{tenant_id}/employees/{slug}/trigger
+    curl -X POST -H "Authorization: Bearer {SERVICE_TOKEN}" https://{render-url}/admin/tenants/{tenant_id}/employees/{slug}/trigger
 
 [ ] Slack message appears in the configured channel after the task completes
 ```

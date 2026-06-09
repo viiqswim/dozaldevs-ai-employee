@@ -70,7 +70,7 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
 # Trigger
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" -H "Content-Type: application/json" -d '{}'
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" -H "Content-Type: application/json" -d '{}'
 # Dry-run
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" -H "Content-Type: application/json" -d '{}'
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" -H "Content-Type: application/json" -d '{}'
 ```

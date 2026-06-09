@@ -153,12 +153,12 @@ Hostfully credentials are **tenant-level secrets stored in the database**, not `
 ```bash
 # Store Hostfully API key for VLRE
 curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/hostfully_api_key" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<your-key>"}'
 
 # Store agency UID for VLRE (value already seeded in tenant config)
 curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/hostfully_agency_uid" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"942d08d9-82bb-4fd3-9091-ca0c6b50b578"}'
 ```
 

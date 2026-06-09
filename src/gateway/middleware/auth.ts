@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
-import { SERVICE_TOKEN, ADMIN_API_KEY } from '../../lib/config.js';
+import { SERVICE_TOKEN } from '../../lib/config.js';
 import { verifySupabaseJwt } from '../../lib/auth/verify-jwt.js';
 import { ensureUserExists } from '../services/ensure-user-exists.js';
 import { sendError } from '../lib/http-response.js';
@@ -22,7 +22,6 @@ export async function authMiddleware(
   next: NextFunction,
 ): Promise<void> {
   const authHeader = req.headers.authorization;
-  const adminKey = req.headers['x-admin-key'] as string | undefined;
 
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
@@ -54,13 +53,6 @@ export async function authMiddleware(
       sendError(res, 401, 'INVALID_TOKEN', 'Invalid or expired token');
       return;
     }
-  }
-
-  // Legacy admin key — dual-accept migration window. Remove in T24.
-  const adminApiKey = ADMIN_API_KEY();
-  if (adminKey && adminApiKey && timingSafeCompare(adminKey, adminApiKey)) {
-    req.isServiceToken = true;
-    return next();
   }
 
   sendError(res, 401, 'AUTHENTICATION_REQUIRED', 'Authentication required');

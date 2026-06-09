@@ -205,7 +205,7 @@ Secrets are encrypted at rest with AES-256-GCM. The `ENCRYPTION_KEY` (32-byte he
 | What stays in `.env` (platform infrastructure)                   | What's in `tenant_secrets` (per-tenant) |
 | ---------------------------------------------------------------- | --------------------------------------- |
 | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`            | `slack_bot_token`                       |
-| `ADMIN_API_KEY`, `ENCRYPTION_KEY`                                | `openrouter_api_key`                    |
+| `ENCRYPTION_KEY`                                                        | `openrouter_api_key`                    |
 | `INNGEST_*`, `FLY_*`                                             | `github_token`                          |
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET` | `jira_webhook_secret`                   |
 
@@ -333,7 +333,7 @@ More complex: includes cost gating, dispatch retries (up to 3), hybrid/local Doc
 
 ## Admin API
 
-All endpoints require `X-Admin-Key` header.
+All endpoints require `Authorization: Bearer $SERVICE_TOKEN` header.
 
 | Method   | Path                                               | Description                          |
 | -------- | -------------------------------------------------- | ------------------------------------ |
@@ -553,9 +553,9 @@ This section maps every major concept from the [Full System Vision](./2026-04-14
 | Lint                           | `pnpm lint`                                                                                                                                                 |
 | Build                          | `pnpm build`                                                                                                                                                |
 | Trigger engineering task       | `pnpm trigger-task`                                                                                                                                         |
-| Trigger summarizer (DozalDevs) | `curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger` |
-| Trigger summarizer (VLRE)      | `curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000003/employees/daily-summarizer/trigger` |
-| Check task status              | `curl -H "X-Admin-Key: $ADMIN_API_KEY" http://localhost:3000/admin/tenants/<tenantId>/tasks/<taskId>`                                                       |
+| Trigger summarizer (DozalDevs) | `curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger` |
+| Trigger summarizer (VLRE)      | `curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000003/employees/daily-summarizer/trigger` |
+| Check task status              | `curl -H "Authorization: Bearer $SERVICE_TOKEN" http://localhost:3000/admin/tenants/<tenantId>/tasks/<taskId>`                                                       |
 | Rebuild worker image           | `docker build -t ai-employee-worker:latest .`                                                                                                               |
 | Push to Fly.io registry        | `pnpm fly:image`                                                                                                                                            |
 | Verify E2E                     | `pnpm verify:e2e --task-id <uuid>`                                                                                                                          |

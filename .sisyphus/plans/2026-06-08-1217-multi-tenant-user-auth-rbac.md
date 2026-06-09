@@ -1151,7 +1151,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 17. Gateway read endpoints replacing dashboard PostgREST reads
+- [x] 17. Gateway read endpoints replacing dashboard PostgREST reads
 
   **What to do**:
   - Inventory the dashboard's direct PostgREST reads (Metis: `dashboard/src/lib/postgrest.ts` callers, ~8 read sites). For each, add a tenant-scoped gateway read endpoint returning the same shape (tasks list, task detail, KB entries, rules, etc.), guarded by `requireAuth` + tenant membership.
@@ -1189,7 +1189,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 18. User repository + soft-delete
+- [x] 18. User repository + soft-delete
 
   **What to do**:
   - `src/repositories/user-repository.ts` — find by id/email/supabaseId, list (tenant-scoped via membership), update, `softDelete` (`deleted_at`), restore. Filter `deleted_at IS NULL` by default.
@@ -1224,7 +1224,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 19. Bootstrap seed-platform-owner script + SQL break-glass (TDD)
+- [x] 19. Bootstrap seed-platform-owner script + SQL break-glass (TDD)
 
   **What to do**:
   - RED: `tests/integration/auth/seed-platform-owner.test.ts` — running the seed yields exactly one PLATFORM_OWNER; re-running stays exactly one (idempotent).
@@ -1271,7 +1271,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 4 — Migrate Machine Callers, Then Remove the Admin Key
 
-- [ ] 20. Migrate machine scripts to SERVICE_TOKEN
+- [x] 20. Migrate machine scripts to SERVICE_TOKEN
 
   **What to do**:
   - Update the 7 ACTIVE scripts that send `X-Admin-Key` (Metis: stress-test, dev-e2e, register-project, preflight-guest-messaging, verify-multi-tenancy, + others identified) to send `Authorization: Bearer $SERVICE_TOKEN`. Read the token via the config constant (T4).
@@ -1306,7 +1306,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 21. Migrate cron / scheduled-trigger path to SERVICE_TOKEN
+- [x] 21. Migrate cron / scheduled-trigger path to SERVICE_TOKEN
 
   **What to do**:
   - Identify the scheduled/cron trigger path (cron-job.org → `POST /admin/tenants/:tenantId/employees/:slug/trigger`). Update it to authenticate with `SERVICE_TOKEN` (and document the header change for the external cron config).
@@ -1343,7 +1343,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 22. Migrate dashboard API client to JWT
+- [x] 22. Migrate dashboard API client to JWT
 
   **What to do**:
   - Replace admin-key injection with the user's Supabase JWT in: `dashboard/src/lib/gateway.ts:54`, `dashboard/src/lib/gateway.ts:322`, and the raw fetch in `dashboard/src/hooks/use-execution-logs.ts:49` (Metis-flagged — bypasses `gatewayFetch`).
@@ -1381,7 +1381,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 23. Verify EVERY endpoint works without the admin key (dual-accept still ON)
+- [x] 23. Verify EVERY endpoint works without the admin key (dual-accept still ON)
 
   **What to do**:
   - With dual-accept still enabled, run a full sweep: authenticate as appropriate principals (user JWT / SERVICE_TOKEN) and confirm every admin endpoint + dashboard flow + migrated scripts + cron works WITHOUT supplying the admin key.
@@ -1418,7 +1418,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 4)
 
-- [ ] 24. REMOVE the admin key (middleware branch, requireEnv, all references, env)
+- [x] 24. REMOVE the admin key (middleware branch, requireEnv, all references, env)
 
   **What to do**:
   - Delete the dual-accept admin-key branch from `src/gateway/middleware/auth.ts`; delete `src/gateway/middleware/admin-auth.ts`.
@@ -1953,7 +1953,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 3 addition + checkpoint
 
-- [ ] 19b. Fix `interaction-classifier.ts` for the opaque key model
+- [x] 19b. Fix `interaction-classifier.ts` for the opaque key model
 
   **What to do**:
   - Update `src/lib/interaction-classifier.ts` (the `apikey: ANON` + `Authorization: Bearer SECRET` call at ~lines 87-88) to send the secret as `apikey` only (drop the `Bearer sb_secret_*`, which the new model rejects). Keep behavior identical otherwise.
@@ -1987,7 +1987,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 3)
 
-- [ ] 3E2E. Wave-3 checkpoint — role-gated endpoints + gateway reads scoped (both envs)
+- [x] 3E2E. Wave-3 checkpoint — role-gated endpoints + gateway reads scoped (both envs)
 
   **What to do**:
   - On BOTH envs: confirm role-gated admin endpoints enforce the matrix; the new gateway read endpoints return only the caller's tenant data; bootstrap owner exists and owns both tenants.

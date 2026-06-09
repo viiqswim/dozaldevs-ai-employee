@@ -56,7 +56,6 @@ export function assertEnvProfile(): void {
 
 // Platform core
 export const PORT = (): string => process.env.PORT ?? '7700';
-export const ADMIN_API_KEY = (): string => process.env.ADMIN_API_KEY ?? '';
 export const ENCRYPTION_KEY = (): string => process.env.ENCRYPTION_KEY ?? '';
 // Machine-to-machine auth token. Never expose to browser.
 export const SERVICE_TOKEN = (): string => requireEnv('SERVICE_TOKEN');

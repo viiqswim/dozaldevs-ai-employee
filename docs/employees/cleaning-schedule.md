@@ -17,7 +17,7 @@
 source .env
 curl -s -X POST \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/cleaning-schedule/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"inputs":{"date":"YYYY-MM-DD"}}' | jq '{task_id: .task_id, status_url: .status_url}'
 ```
@@ -38,7 +38,7 @@ Replace `YYYY-MM-DD` with the target date (e.g. `2026-06-01`).
 2. **Verify secrets** — after OAuth, confirm `notion_access_token` is set:
    ```bash
    curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets" \
-     -H "X-Admin-Key: $ADMIN_API_KEY" | jq '.[] | select(.key == "notion_access_token") | .is_set'
+     -H "Authorization: Bearer $SERVICE_TOKEN" | jq '.[] | select(.key == "notion_access_token") | .is_set'
    # Expected: true
    ```
 3. **Hostfully credentials** — `hostfully_api_key` and `hostfully_agency_uid` must be set as tenant secrets (same as guest-messaging employee).
@@ -90,7 +90,7 @@ The Notion integration only has access to pages explicitly selected during OAuth
    source .env
    curl -s -X POST \
      "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/cleaning-schedule/trigger" \
-     -H "X-Admin-Key: $ADMIN_API_KEY" \
+     -H "Authorization: Bearer $SERVICE_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"inputs":{"date":"2026-06-01"}}' | jq .
    ```
