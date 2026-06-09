@@ -1106,7 +1106,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 3 — Apply Authorization & Gateway Read Endpoints
 
-- [ ] 16. Apply authz matrix to all admin route files
+- [x] 16. Apply authz matrix to all admin route files
 
   **What to do**:
   - For each of the 18 admin route files, replace `requireAdminKey` with `requireAuth` + the appropriate `requireTenantRole(...)` / `requirePermission(...)` per `.sisyphus/notepads/authz-matrix.md` (T0b). Keep dual-accept active (the new `requireAuth` still honors admin key via T9 until T24).

@@ -1,10 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { adminEmployeeTriggerRoutes } from '../../../../src/gateway/routes/admin-employee-trigger.js';
 import * as dispatcher from '../../../../src/gateway/services/employee-dispatcher.js';
 
 vi.mock('../../../../src/gateway/services/employee-dispatcher.js');
+
+vi.mock('../../../../src/gateway/middleware/auth.js', () => ({
+  authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
+    const adminKey = req.headers['x-admin-key'] as string | undefined;
+    if (adminKey && adminKey === process.env.ADMIN_API_KEY) {
+      (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
+    }
+    next();
+  },
+}));
+
+vi.mock('../../../../src/gateway/middleware/authz.js', () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction): void => {
+    if (
+      (req as Request & { isServiceToken?: boolean }).isServiceToken ||
+      (req as Request & { auth?: unknown }).auth
+    ) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+  },
+  requireTenantRole:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+  requirePermission:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+}));
 
 const TENANT = 'a0000000-0000-4000-8000-000000000001';
 const ADMIN_KEY = 'test-admin-key';

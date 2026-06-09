@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { PrismaClient, TenantRole } from '@prisma/client';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { generateInstallationToken, generateAppJwt } from '../services/github-token-manager.js';
@@ -87,54 +88,65 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
   const secretRepo = new TenantSecretRepository(prisma);
   const integrationRepo = new TenantIntegrationRepository(prisma);
 
-  router.get('/admin/tenants/:tenantId/github/repos', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_ID);
-      return;
-    }
+  router.get(
+    '/admin/tenants/:tenantId/github/repos',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
+        return;
+      }
 
-    const { tenantId } = paramResult.data;
+      const { tenantId } = paramResult.data;
 
-    let installationId: string | null;
-    try {
-      installationId = await secretRepo.get(tenantId, 'github_installation_id');
-    } catch (err) {
-      logger.error({ err, tenantId }, 'Failed to read github_installation_id from tenant secrets');
-      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
-      return;
-    }
+      let installationId: string | null;
+      try {
+        installationId = await secretRepo.get(tenantId, 'github_installation_id');
+      } catch (err) {
+        logger.error(
+          { err, tenantId },
+          'Failed to read github_installation_id from tenant secrets',
+        );
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+        return;
+      }
 
-    if (!installationId) {
-      sendError(res, 404, 'GitHub not connected');
-      return;
-    }
+      if (!installationId) {
+        sendError(res, 404, 'GitHub not connected');
+        return;
+      }
 
-    let token: string;
-    try {
-      const installationToken = await generateInstallationToken(parseInt(installationId, 10));
-      token = installationToken.token;
-    } catch (err) {
-      logger.error({ err, tenantId }, 'Failed to generate GitHub installation token');
-      sendError(res, 502, 'Failed to authenticate with GitHub');
-      return;
-    }
+      let token: string;
+      try {
+        const installationToken = await generateInstallationToken(parseInt(installationId, 10));
+        token = installationToken.token;
+      } catch (err) {
+        logger.error({ err, tenantId }, 'Failed to generate GitHub installation token');
+        sendError(res, 502, 'Failed to authenticate with GitHub');
+        return;
+      }
 
-    let repos: GitHubRepo[];
-    try {
-      repos = await fetchAllRepos(token);
-    } catch (err) {
-      logger.error({ err, tenantId }, 'Failed to fetch repositories from GitHub');
-      sendError(res, 502, 'Failed to fetch repositories from GitHub');
-      return;
-    }
+      let repos: GitHubRepo[];
+      try {
+        repos = await fetchAllRepos(token);
+      } catch (err) {
+        logger.error({ err, tenantId }, 'Failed to fetch repositories from GitHub');
+        sendError(res, 502, 'Failed to fetch repositories from GitHub');
+        return;
+      }
 
-    sendSuccess(res, 200, { repos });
-  });
+      sendSuccess(res, 200, { repos });
+    },
+  );
 
   router.get(
     '/admin/tenants/:tenantId/github/available-installations',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -202,7 +214,9 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
 
   router.post(
     '/admin/tenants/:tenantId/github/link-installation',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.OWNER),
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -261,7 +275,9 @@ export function adminGithubRoutes(opts: AdminGithubRouteOptions = {}): Router {
 
   router.delete(
     '/admin/tenants/:tenantId/integrations/github',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.OWNER),
     async (req, res) => {
       const parsed = TenantIdParamSchema.safeParse(req.params);
       if (!parsed.success) {

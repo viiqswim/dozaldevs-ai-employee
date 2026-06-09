@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requirePermission } from '../middleware/authz.js';
+import { PERMISSIONS } from '../../lib/auth/permissions.js';
 import { GO_MODEL_MAP } from '../../lib/go-models.js';
 import { uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
@@ -88,156 +90,186 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
   const router = Router();
   const logger = createLogger('admin-model-catalog');
 
-  router.get('/admin/model-catalog', requireAdminKey, async (req, res) => {
-    const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);
-    if (!queryResult.success) {
-      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: queryResult.error.issues });
-      return;
-    }
-
-    const { include_inactive } = queryResult.data;
-
-    try {
-      const models = await prisma.modelCatalog.findMany({
-        where: {
-          deleted_at: null,
-          ...(include_inactive ? {} : { is_active: true }),
-        },
-        orderBy: { created_at: 'desc' },
-      });
-      sendSuccess(
-        res,
-        200,
-        models.map((m) => ({ ...m, supported_gateways: computeSupportedGateways(m.model_id) })),
-      );
-    } catch (err) {
-      logger.error({ err }, 'Failed to list model catalog');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
-
-  router.get('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
-    const paramResult = ModelCatalogParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
-      return;
-    }
-
-    const { id } = paramResult.data;
-
-    try {
-      const model = await prisma.modelCatalog.findFirst({
-        where: { id, deleted_at: null },
-      });
-
-      if (!model) {
-        sendError(res, 404, 'NOT_FOUND');
+  router.get(
+    '/admin/model-catalog',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    async (req, res) => {
+      const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: queryResult.error.issues });
         return;
       }
 
-      sendSuccess(res, 200, {
-        ...model,
-        supported_gateways: computeSupportedGateways(model.model_id),
-      });
-    } catch (err) {
-      logger.error({ err }, 'Failed to get model catalog entry');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+      const { include_inactive } = queryResult.data;
 
-  router.post('/admin/model-catalog', requireAdminKey, async (req, res) => {
-    const bodyResult = CreateModelCatalogBodySchema.safeParse(req.body);
-    if (!bodyResult.success) {
-      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
-      return;
-    }
-
-    try {
-      const created = await prisma.modelCatalog.create({
-        data: bodyResult.data,
-      });
-      sendSuccess(res, 201, created);
-    } catch (err) {
-      if (isPrismaError(err) && err.code === 'P2002') {
-        sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
-        return;
+      try {
+        const models = await prisma.modelCatalog.findMany({
+          where: {
+            deleted_at: null,
+            ...(include_inactive ? {} : { is_active: true }),
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        sendSuccess(
+          res,
+          200,
+          models.map((m) => ({ ...m, supported_gateways: computeSupportedGateways(m.model_id) })),
+        );
+      } catch (err) {
+        logger.error({ err }, 'Failed to list model catalog');
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
-      logger.error({ err }, 'Failed to create model catalog entry');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+    },
+  );
 
-  router.patch('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
-    const paramResult = ModelCatalogParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
-      return;
-    }
-
-    const bodyResult = PatchModelCatalogBodySchema.safeParse(req.body);
-    if (!bodyResult.success) {
-      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
-      return;
-    }
-
-    const { id } = paramResult.data;
-
-    try {
-      const existing = await prisma.modelCatalog.findFirst({
-        where: { id, deleted_at: null },
-      });
-
-      if (!existing) {
-        sendError(res, 404, 'NOT_FOUND');
+  router.get(
+    '/admin/model-catalog/:id',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    async (req, res) => {
+      const paramResult = ModelCatalogParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
 
-      const updated = await prisma.modelCatalog.update({
-        where: { id },
-        data: bodyResult.data,
-      });
+      const { id } = paramResult.data;
 
-      sendSuccess(res, 200, updated);
-    } catch (err) {
-      if (isPrismaError(err) && err.code === 'P2002') {
-        sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
+      try {
+        const model = await prisma.modelCatalog.findFirst({
+          where: { id, deleted_at: null },
+        });
+
+        if (!model) {
+          sendError(res, 404, 'NOT_FOUND');
+          return;
+        }
+
+        sendSuccess(res, 200, {
+          ...model,
+          supported_gateways: computeSupportedGateways(model.model_id),
+        });
+      } catch (err) {
+        logger.error({ err }, 'Failed to get model catalog entry');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
+
+  router.post(
+    '/admin/model-catalog',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    async (req, res) => {
+      const bodyResult = CreateModelCatalogBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
         return;
       }
-      logger.error({ err }, 'Failed to update model catalog entry');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
 
-  router.delete('/admin/model-catalog/:id', requireAdminKey, async (req, res) => {
-    const paramResult = ModelCatalogParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
-      return;
-    }
+      try {
+        const created = await prisma.modelCatalog.create({
+          data: bodyResult.data,
+        });
+        sendSuccess(res, 201, created);
+      } catch (err) {
+        if (isPrismaError(err) && err.code === 'P2002') {
+          sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
+          return;
+        }
+        logger.error({ err }, 'Failed to create model catalog entry');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
 
-    const { id } = paramResult.data;
-
-    try {
-      const existing = await prisma.modelCatalog.findFirst({
-        where: { id, deleted_at: null },
-      });
-
-      if (!existing) {
-        sendError(res, 404, 'NOT_FOUND');
+  router.patch(
+    '/admin/model-catalog/:id',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    async (req, res) => {
+      const paramResult = ModelCatalogParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
 
-      await prisma.modelCatalog.update({
-        where: { id },
-        data: { deleted_at: new Date() },
-      });
+      const bodyResult = PatchModelCatalogBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
+        return;
+      }
 
-      sendSuccess(res, 200, { success: true });
-    } catch (err) {
-      logger.error({ err }, 'Failed to soft-delete model catalog entry');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+      const { id } = paramResult.data;
+
+      try {
+        const existing = await prisma.modelCatalog.findFirst({
+          where: { id, deleted_at: null },
+        });
+
+        if (!existing) {
+          sendError(res, 404, 'NOT_FOUND');
+          return;
+        }
+
+        const updated = await prisma.modelCatalog.update({
+          where: { id },
+          data: bodyResult.data,
+        });
+
+        sendSuccess(res, 200, updated);
+      } catch (err) {
+        if (isPrismaError(err) && err.code === 'P2002') {
+          sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
+          return;
+        }
+        logger.error({ err }, 'Failed to update model catalog entry');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
+
+  router.delete(
+    '/admin/model-catalog/:id',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    async (req, res) => {
+      const paramResult = ModelCatalogParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
+        return;
+      }
+
+      const { id } = paramResult.data;
+
+      try {
+        const existing = await prisma.modelCatalog.findFirst({
+          where: { id, deleted_at: null },
+        });
+
+        if (!existing) {
+          sendError(res, 404, 'NOT_FOUND');
+          return;
+        }
+
+        await prisma.modelCatalog.update({
+          where: { id },
+          data: { deleted_at: new Date() },
+        });
+
+        sendSuccess(res, 200, { success: true });
+      } catch (err) {
+        logger.error({ err }, 'Failed to soft-delete model catalog entry');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
 
   return router;
 }

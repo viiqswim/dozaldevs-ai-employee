@@ -1,7 +1,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { adminTasksRoutes } from '../../../../src/gateway/routes/admin-tasks.js';
+
+vi.mock('../../../../src/gateway/middleware/auth.js', () => ({
+  authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
+    const adminKey = req.headers['x-admin-key'] as string | undefined;
+    if (adminKey && adminKey === process.env.ADMIN_API_KEY) {
+      (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
+    }
+    next();
+  },
+}));
+
+vi.mock('../../../../src/gateway/middleware/authz.js', () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction): void => {
+    if (
+      (req as Request & { isServiceToken?: boolean }).isServiceToken ||
+      (req as Request & { auth?: unknown }).auth
+    ) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+  },
+  requireTenantRole:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+  requirePermission:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+}));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const OTHER_TENANT = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';

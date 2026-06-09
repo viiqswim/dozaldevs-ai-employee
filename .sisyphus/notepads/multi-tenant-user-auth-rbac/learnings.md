@@ -296,3 +296,25 @@
 ### Evidence Files
 - .sisyphus/evidence/local/wave2/{SUMMARY,authz-matrix,deactivate,me-endpoints,invite-accept}.txt
 - .sisyphus/evidence/cloud/wave2/{authz-matrix,deactivate,me-endpoints,invite-create}.txt
+
+## T16 Completion — 2026-06-09
+
+### All 18 route files updated
+All `requireAdminKey` replaced with `authMiddleware + requireAuth + requireTenantRole/requirePermission` per the authz matrix.
+
+### Additional test files discovered
+Beyond the 6 test files in `tests/unit/gateway/routes/`, there are 3 more in `src/gateway/routes/__tests__/` that also needed mock blocks:
+- `src/gateway/routes/__tests__/admin-archetypes-create.test.ts`
+- `src/gateway/routes/__tests__/admin-model-catalog.test.ts`
+- `src/gateway/routes/__tests__/admin-slack-channels.test.ts`
+
+These use relative mock paths (`../../../gateway/middleware/auth.js`) vs the `tests/unit/` files which use (`../../../../src/gateway/middleware/auth.js`).
+
+### Mock path convention
+- `tests/unit/gateway/routes/*.test.ts` → `../../../../src/gateway/middleware/auth.js`
+- `src/gateway/routes/__tests__/*.test.ts` → `../../../gateway/middleware/auth.js`
+
+### Final verification
+- `pnpm build` → exit 0
+- `pnpm test:unit` → 144 files, 1689 passing, 0 failures
+- `git diff --name-only` → 18 route files + 9 test files (all in scope)

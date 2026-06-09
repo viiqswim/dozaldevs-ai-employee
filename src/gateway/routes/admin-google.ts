@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { PrismaClient, TenantRole } from '@prisma/client';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { clearTokenCache } from '../services/google-token-manager.js';
@@ -21,7 +22,9 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
 
   router.delete(
     '/admin/tenants/:tenantId/integrations/google',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.OWNER),
     async (req, res) => {
       const parsed = TenantIdParamSchema.safeParse(req.params);
       if (!parsed.success) {
