@@ -58,6 +58,16 @@ function remapTask({ archetype, ...rest }: TaskWithEmbeds) {
   return { ...rest, archetypes: archetype };
 }
 
+type PrismaForInvitationList = {
+  tenantInvitation: {
+    findMany: (
+      args: unknown,
+    ) => Promise<
+      Array<{ id: string; email: string; role: string; status: string; expires_at: Date }>
+    >;
+  };
+};
+
 /**
  * Tenant-scoped read endpoints that replace the dashboard's direct PostgREST reads.
  *
@@ -381,6 +391,39 @@ export function adminReadsRoutes(opts: AdminReadsRouteOptions = {}): Router {
       sendSuccess(res, 200, executions);
     } catch (err) {
       logger.error({ err }, 'Failed to list executions');
+      sendError(res, 500, 'INTERNAL_ERROR');
+    }
+  });
+
+  // ─── Invitations ─────────────────────────────────────────────────────────────
+
+  router.get('/admin/tenants/:tenantId/invitations', ...guards, async (req, res) => {
+    const paramResult = TenantIdParamSchema.safeParse(req.params);
+    if (!paramResult.success) {
+      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
+      return;
+    }
+    const { tenantId } = paramResult.data;
+
+    try {
+      const db = prisma as unknown as PrismaForInvitationList;
+      const invitations = await db.tenantInvitation.findMany({
+        where: { tenant_id: tenantId, status: 'pending' },
+        orderBy: { created_at: 'desc' },
+      });
+      sendSuccess(
+        res,
+        200,
+        invitations.map((inv) => ({
+          id: inv.id,
+          email: inv.email,
+          role: inv.role,
+          status: inv.status,
+          expiresAt: inv.expires_at,
+        })),
+      );
+    } catch (err) {
+      logger.error({ err }, 'Failed to list invitations');
       sendError(res, 500, 'INTERNAL_ERROR');
     }
   });

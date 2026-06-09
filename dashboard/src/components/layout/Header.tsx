@@ -1,9 +1,9 @@
-import { Settings } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useTenant } from '@/hooks/use-tenant';
-import { TENANTS } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 import type { PreflightStatus } from '@/hooks/use-preflight-status';
 
 interface HeaderProps {
@@ -51,7 +51,8 @@ function HealthChip({ status }: { status: PreflightStatus }) {
 }
 
 export function Header({ onOpenApiKey, preflightStatus }: HeaderProps) {
-  const { tenantId, setTenantId } = useTenant();
+  const { tenantId, setTenantId, tenants, loading } = useTenant();
+  const { signOut } = useAuth();
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-4">
@@ -61,12 +62,13 @@ export function Header({ onOpenApiKey, preflightStatus }: HeaderProps) {
       </div>
       <div className="flex items-center gap-2">
         <SearchableSelect
-          options={Object.entries(TENANTS).map(([id, name]) => ({ value: id, label: name }))}
+          options={tenants.map((t) => ({ value: t.tenantId, label: t.name }))}
           value={tenantId}
           onValueChange={setTenantId}
-          placeholder="Select organization"
-          searchPlaceholder="Search organizations..."
+          placeholder={loading ? 'Loading…' : 'Select organization'}
+          searchPlaceholder="Search organizations…"
           className="w-36"
+          disabled={loading}
         />
         <Button
           variant="ghost"
@@ -76,6 +78,15 @@ export function Header({ onOpenApiKey, preflightStatus }: HeaderProps) {
           title="Configure API key"
         >
           <Settings className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => void signOut()}
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </header>

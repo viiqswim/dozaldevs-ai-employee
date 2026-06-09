@@ -585,3 +585,89 @@ Wave3 archetypes were created with no runtime set. Must patch `runtime = 'openco
 - Gateway boots without ADMIN_API_KEY — /health → {"status":"ok"}
 - X-Admin-Key → 401 (rejected — auth.ts only accepts Authorization: Bearer)
 - Note: tests/unit/gateway/routes/* still mock authMiddleware using X-Admin-Key pattern internally — those are self-contained unit test mocks and pass as-is; they test route handler logic, not the auth middleware
+
+## [2026-06-09] T4E2E Wave-4 Checkpoint Results
+
+Final focused re-verification of the full API journey WITHOUT admin key, post-T24, on BOTH envs. **ALL PASS on both LOCAL (HS256) and CLOUD (ES256).** Evidence: `.sisyphus/evidence/{local,cloud}/wave4/journey.txt`.
+
+### Results — LOCAL (HS256, running gateway :7700) — 9/9 PASS
+- Grep-zero: 0 hits in active code (`src dashboard scripts docs`); 2 total hits both in `.env.example` (commented-out DEPRECATED markers, lines 299/302 — intentional per README env-file convention).
+- Owner JWT alg=HS256. Authz matrix on `GET /admin/tenants/:id/members`: own-OWNER 200 / no-auth 401 / VIEWER-wrong-role 403 "Insufficient role" / cross-tenant 403 "Access denied".
+- SERVICE_TOKEN 200; `/me` PLATFORM_OWNER + `/me/tenants` length=2; X-Admin-Key→401; reads `/tasks`+`/archetypes` 200/200; invite create 201; bootstrap PLATFORM_OWNER count=1.
+
+### Results — CLOUD (ES256, gateway :7800 = CLOUD Supabase profile + LOCAL DATABASE_URL) — steps 0-9 PASS
+- Step 0 profile proof: LOCAL HS256 token → CLOUD gateway 401 (alg enforcement = functional proof CLOUD profile active). Owner JWT alg=ES256, kid `1df77847-802f-46b6-92a9-5f9ed42a5e21`.
+- Same grep-zero, same authz matrix (200/401/403/403), SERVICE_TOKEN 200, `/me` PLATFORM_OWNER + 2 tenants, X-Admin-Key→401, reads 200/200, invite 201 (`wave4cloudtest@dozaldevs.io`), bootstrap count=1 after revert.
+
+### Key Findings / Reusable Wisdom (NEW for Wave-4)
+1. **`owner@test.com` does NOT exist in CLOUD auth** — the task instruction's premise was wrong. Supabase Cloud rejects `@test.com` domains (Wave-0/1 finding). The cloud test users are all `@dozaldevs.io`. Cloud auth has 5 users; none is `owner@test.com`.
+2. **Cloud PLATFORM_OWNER pattern for E2E**: the cloud-profile gateway authenticates via cloud ES256 then resolves the app role from the LOCAL DB keyed by `sub`. To get a PLATFORM_OWNER+≥2-tenants cloud identity, I temporarily promoted `wave2-owner@dozaldevs.io` (cloud sub `7b140910`, already OWNER@both-tenants via memberships) to `role=PLATFORM_OWNER` in the LOCAL DB, ran steps, then **reverted to USER** and re-asserted bootstrap count=1. Clean, no residue.
+3. **Cloud user→LOCAL-DB sub map** (stable): `wave2-owner@dozaldevs.io`=`7b140910` (OWNER@0002), `wave2-viewer@dozaldevs.io`=`dde00b49` (VIEWER@0002), `wave2-nonmember@dozaldevs.io`=`abfb27b2` (no membership). VIEWER on tenant 0003 = cross-tenant non-member → 403 "Access denied".
+4. **Cloud passwords were unknown** — reset both owner+viewer via cloud Admin API `PUT /auth/v1/admin/users/:id {"password":"Test1234!"}` (apikey+Bearer = `sb_secret_...`), then login via `POST /auth/v1/token?grant_type=password` with `apikey: sb_publishable_...`. Both reset → HTTP 200, login → ES256 JWT.
+5. **base64 JWT decode padding**: cloud JWT payloads aren't always a multiple-of-4 length → `base64 -d` throws "Unfinished JSON term". Header decodes fine (shorter), so alg/kid are readable, but for the payload `sub`/`email` pad first: `m=$((${#s}%4)); [ $m -eq 2 ]&&s="$s=="; [ $m -eq 3 ]&&s="$s="` then `tr '_-' '/+' | base64 -d`. (python3 still blocked by asdf.)
+6. **Cloud-profile gateway on a SEPARATE PORT (7800)** — never touch the running LOCAL :7700 gateway. Launch in tmux with inline env OVERRIDES (PORT=7800 SUPABASE_URL/ANON/SECRET=cloud, DATABASE_URL=local, Slack vars empty) + `./node_modules/.bin/tsx --env-file=.env`. Inline vars override `--env-file`. Killed `ai-cloud-gw` session + removed temp files after; :7700 stays healthy, :7800 released.
+7. **`.env.example` ADMIN_API_KEY lines are the ONLY surviving references** and are correct as-is: commented-out under a "Removed in T24 — use SERVICE_TOKEN" note. The grep-zero deliverable is satisfied for ACTIVE code; the `--exclude-dir=archive` whole-tree grep returns 2 only because of these intentional deprecation markers. **Do not delete them** (README mandates deprecated vars stay in the DEPRECATED block, commented).
+8. **DB left in steady state**: final PLATFORM_OWNER count=1 (owner@test.com only); no disabled users; promotion fully reverted.
+
+## [2026-06-09] T25+T26 — Supabase browser client + auth pages + OAuth callback
+
+### Supabase client derivation
+- `SUPABASE_URL` is NOT in `window.__RUNTIME_CONFIG__`. The config exposes `VITE_POSTGREST_URL` = `${supabaseUrl}/rest/v1`. Derive supabaseUrl by stripping `/rest/v1`: `postgrestUrl.replace(/\/rest\/v1\/?$/, '')`. Works for both local (http://localhost:54331) and cloud (https://gjqrysxpvktmibpkwrvy.supabase.co).
+- `dashboard/src/lib/supabase.ts` reads `window.__RUNTIME_CONFIG__['VITE_POSTGREST_URL']` and `VITE_SUPABASE_ANON_KEY`. Exports a singleton `supabase = createSupabaseClient()`.
+- `@supabase/supabase-js` v2.108.1 installed as a dashboard dependency.
+
+### Auth pages pattern
+- All 4 pages: card shell `rounded-lg border bg-card px-5 py-4`, `Input`/`Button` from `@/components/ui/`, non-technical copy.
+- `localStorage.setItem('supabase_access_token', session.access_token)` — matches `getAccessToken()` in `gateway.ts`.
+- OAuth callback handles both `?code=` (OAuth PKCE → `exchangeCodeForSession`) and `#access_token=` (magic link / password reset → direct localStorage store).
+- `signInWithOAuth` redirectTo: `${window.location.origin}/dashboard/auth/callback`.
+- `resetPasswordForEmail` redirectTo: same callback URL.
+
+### Routes
+- 4 public routes added to `App.tsx` OUTSIDE the `<Layout>` wrapper: `/dashboard/login`, `/dashboard/signup`, `/dashboard/forgot-password`, `/dashboard/auth/callback`.
+- React Router v6 pattern: public routes as siblings to the Layout route group.
+
+### Build
+- `pnpm dashboard:build` → exit 0, 2243 modules, no errors. Pre-existing warnings (chunk size, esbuild deprecation) are not new.
+
+## [2026-06-09] T27 — Auth context + protected routes + logout
+
+**Files created/modified:**
+- `dashboard/src/contexts/AuthContext.tsx` — `AuthProvider` + `useAuth()` hook
+- `dashboard/src/components/ProtectedRoute.tsx` — redirect to `/dashboard/login` when unauthenticated
+- `dashboard/src/App.tsx` — `<AuthProvider>` wraps all routes (inside `<BrowserRouter>`), `<ProtectedRoute>` wraps layout route element
+- `dashboard/src/components/layout/Header.tsx` — `LogOut` icon button calling `signOut()` via `useAuth()`
+
+**Key patterns:**
+- `AuthProvider` must be inside `<BrowserRouter>` because `ProtectedRoute` uses `useLocation()` (needs Router context)
+- `onAuthStateChange` keeps `localStorage.supabase_access_token` in sync → `getAccessToken()` in gateway.ts reads it unchanged
+- `getSession()` initialises state synchronously before the listener fires; `loading=true` prevents flash-of-redirect
+- Layout route uses `<Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>` — Outlet context flows through the fragment wrapper fine
+- `signOut()` in Header: `onClick={() => void signOut()}` (void handles the floating promise correctly)
+
+**Gotchas:**
+- LSP server unavailable in dashboard dir (`no .tool-versions for nodejs`) — use build to verify instead
+- `dashboard/.tool-versions` not present; run build via `pnpm dashboard:build` from repo root
+- No changes needed to `gateway.ts` — localStorage sync via `onAuthStateChange` is sufficient
+
+## [2026-06-09] T28 — Membership-driven tenant switcher
+
+- `TenantProvider` moved INSIDE `BrowserRouter` + `AuthProvider` in `App.tsx` so it can use both `useSearchParams` (React Router) and `useAuth()` (session detection).
+- `use-tenant.ts` now exposes `tenants: TenantInfo[]` + `loading: boolean` alongside the existing `tenantId`, `setTenantId`, `tenantName`.
+- `GET /me/tenants` fetch is gated on `session` from `useAuth()` — fires when user authenticates, clears tenants on sign-out.
+- Auto-validation effect: after tenants load, if `tenantId` is not in the membership list, auto-selects `tenants[0].tenantId` (prevents invalid tenant selection after login/re-invite changes).
+- `setTenantId` writes to both `localStorage` (cross-session persistence) and `useSearchParams` (URL state via `{ replace: true }`).
+- `TenantUrlSync` in `Layout.tsx` preserved — still needed to re-add `?tenant=` when React Router `<Link>` navigation strips search params.
+- `TENANTS` map and `DEFAULT_TENANT_ID` constant removed from `constants.ts` — zero remaining references in `dashboard/src/`.
+- `Header.tsx` no longer imports `TENANTS` — renders `SearchableSelect` with `tenants.map(t => ({ value: t.tenantId, label: t.name }))`, disabled + "Loading…" placeholder while fetching.
+- `pnpm dashboard:build` → exit 0, 2245 modules, tsc clean.
+
+## [2026-06-09] T29 — Members + invitation management UI
+
+- `GET /admin/tenants/:tenantId/invitations` added to `admin-reads.ts` (guards: VIEWER+). Uses `PrismaForInvitationList` type cast (same pattern as `PrismaWithMembership` / `PrismaWithInvitation`). `TenantInvitation` has no `deleted_at` — no filter needed, only `status: 'pending'`.
+- `removeMember` uses raw `fetch` (not `gatewayFetch`) because `DELETE /members/:userId` returns HTTP 204 (no body) and `gatewayFetch` unconditionally calls `response.json()` which throws on empty body. Pattern mirrors `fireApprovalEvent`. Other member/invitation functions use `gatewayFetch`.
+- `MembersPage.tsx`: `isAdmin = tenantRole === 'OWNER' || tenantRole === 'ADMIN'` derived from `useTenant().tenants.find(t => t.tenantId === tenantId)?.tenantRole`. Controls (invite, role-change, remove, revoke) are gated client-side by `isAdmin`.
+- `GET /members` requires ADMIN+ (from `admin-members.ts`). MEMBER/VIEWER will get 403 on the members list — handled gracefully via error state + Retry button.
+- `GET /invitations` is VIEWER-accessible. All roles see pending invitations; only ADMIN+ see the Revoke button.
+- Sidebar: added `UserCheck` icon + `Members` nav item. Renamed `Tenants` label to `Organizations` (route stays `/dashboard/tenants`).
+- `pnpm dashboard:build` → exit 0 (2246 modules). `pnpm build` → exit 0.

@@ -16,6 +16,22 @@ import type {
   GitHubInstallation,
 } from './types';
 
+export type MemberInfo = {
+  userId: string;
+  email: string;
+  name: string | null;
+  tenantRole: string;
+  joinedAt: string;
+};
+
+export type InvitationInfo = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+};
+
 export type ModelRecommendation = {
   recommended: ModelRecommendationEntry | null;
   cheaperAlternative: ModelRecommendationEntry | null;
@@ -398,6 +414,58 @@ export async function disconnectGitHub(tenantId: string): Promise<{ disconnected
 export async function disconnectGoogle(tenantId: string): Promise<{ disconnected: boolean }> {
   return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
     method: 'DELETE',
+  });
+}
+
+export async function listMembers(tenantId: string): Promise<MemberInfo[]> {
+  return gatewayFetch<MemberInfo[]>(`/admin/tenants/${tenantId}/members`);
+}
+
+export async function changeMemberRole(
+  tenantId: string,
+  userId: string,
+  role: string,
+): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/members/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function removeMember(tenantId: string, userId: string): Promise<void> {
+  const token = getAccessToken();
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/members/${userId}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gateway error ${response.status}: ${text}`);
+  }
+}
+
+export async function inviteMember(
+  tenantId: string,
+  email: string,
+  role: string,
+): Promise<InvitationInfo> {
+  return gatewayFetch<InvitationInfo>(`/admin/tenants/${tenantId}/invitations`, {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+export async function listInvitations(tenantId: string): Promise<InvitationInfo[]> {
+  return gatewayFetch<InvitationInfo[]>(`/admin/tenants/${tenantId}/invitations`);
+}
+
+export async function revokeInvitation(tenantId: string, invitationId: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/invitations/${invitationId}/revoke`, {
+    method: 'POST',
   });
 }
 

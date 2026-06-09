@@ -1464,7 +1464,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 5 — Dashboard UX
 
-- [ ] 25. Supabase browser client + login/signup/forgot-password pages
+- [x] 25. Supabase browser client + login/signup/forgot-password pages
 
   **What to do**:
   - Add `@supabase/supabase-js` browser client in `dashboard/src/lib/supabase.ts` using `SUPABASE_URL` (Kong `:54331`) + anon key (served pre-login via existing `/api/config.js`).
@@ -1507,7 +1507,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 26. Google OAuth callback handling in dashboard
+- [x] 26. Google OAuth callback handling in dashboard
 
   **What to do**:
   - Handle the OAuth return at the dashboard callback route: exchange code/verify session via `supabase.auth`, then route into the app. Ensure the redirect target matches `GOTRUE_SITE_URL` (T3).
@@ -1544,7 +1544,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 27. Auth context/session + protected routes + logout
+- [x] 27. Auth context/session + protected routes + logout
 
   **What to do**:
   - Add a Supabase auth context/provider in the dashboard that tracks `user`/`session` via `onAuthStateChange`, exposes `useAuth()`, and attaches the JWT to all `gatewayFetch` calls.
@@ -1623,7 +1623,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 29. Member + invitation management UI
+- [x] 29. Member + invitation management UI
 
   **What to do**:
   - Add a tenant "Members" view: list members (from a gateway endpoint), change role, remove member (calls T14; last-owner guard surfaces a friendly error), and an "Invite" action (calls T15) showing pending invitations with revoke. Show invite emails landing in Mailpit for dev.
@@ -2016,7 +2016,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 4 checkpoint
 
-- [ ] 4E2E. Wave-4 checkpoint — full API journey WITHOUT admin key (both envs)
+- [x] 4E2E. Wave-4 checkpoint — full API journey WITHOUT admin key (both envs)
 
   **What to do**:
   - On BOTH envs, re-run the full API journey using only JWT / SERVICE_TOKEN (no admin key present): authz matrix, invite-create, deactivate-lockout, `/me`, member/invite endpoints. Confirm `grep`-zero admin-key references in active code.
