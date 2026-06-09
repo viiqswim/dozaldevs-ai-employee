@@ -751,7 +751,7 @@ Max Concurrent: 9 (Wave 1)
 
 ### Wave 2 — Gateway Authorization
 
-- [ ] 8. JWT verification utility with `jose` (TDD)
+- [x] 8. JWT verification utility with `jose` (TDD)
 
   **What to do**:
   - RED: `tests/unit/auth/verify-jwt.test.ts` — valid → claims; expired → throws; wrong-signature → throws; missing `sub` → throws.
@@ -1583,7 +1583,7 @@ Max Concurrent: 9 (Wave 1)
 
   **Commit**: NO (groups with Wave 5)
 
-- [ ] 28. Membership-driven tenant switcher
+- [x] 28. Membership-driven tenant switcher
 
   **What to do**:
   - Replace the hardcoded `TENANTS` map (`dashboard/src/lib/constants.ts:29-32`) and `DEFAULT_TENANT_ID` with a tenant switcher populated from `GET /me/tenants` (T13).
