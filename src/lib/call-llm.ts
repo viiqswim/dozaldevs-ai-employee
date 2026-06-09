@@ -1,4 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import {
+  DATABASE_URL,
+  OPENCODE_GO_API_KEY,
+  OPENROUTER_API_KEY,
+  SLACK_BOT_TOKEN,
+} from './config.js';
 import { CostCircuitBreakerError, LLMTimeoutError, RateLimitExceededError } from './errors.js';
 import { GO_OPENAI_ENDPOINT, resolveProvider } from './go-models.js';
 import { createLogger } from './logger.js';
@@ -70,6 +76,11 @@ const COST_CACHE: { value: number; refreshedAt: Date | null } = {
 };
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export function _resetCostCache(): void {
+  COST_CACHE.value = 0;
+  COST_CACHE.refreshedAt = null;
+}
+
 const GATEWAY_MODEL_CACHE: { value: string | null; refreshedAt: Date | null } = {
   value: null,
   refreshedAt: null,
@@ -105,7 +116,7 @@ export function _resetAlertState(): void {
 type CostRow = { total: number | string | null };
 
 async function checkCostCircuitBreaker(): Promise<void> {
-  if (!process.env.DATABASE_URL) return;
+  if (!DATABASE_URL()) return;
 
   const costLimitStr = await getPlatformSetting('cost_limit_usd_per_day');
   const parsedLimit = parseFloat(costLimitStr);
@@ -137,7 +148,7 @@ async function checkCostCircuitBreaker(): Promise<void> {
   if (COST_CACHE.value > limitUsd) {
     if (!alertSentAt || now.getTime() - alertSentAt.getTime() > ALERT_COOLDOWN_MS) {
       alertSentAt = now;
-      const slackBotToken = process.env.SLACK_BOT_TOKEN;
+      const slackBotToken = SLACK_BOT_TOKEN();
       if (slackBotToken) {
         const slack = createSlackClient({
           botToken: slackBotToken,
@@ -147,7 +158,9 @@ async function checkCostCircuitBreaker(): Promise<void> {
           .postMessage({
             text: `🚨 *Cost Circuit Breaker Triggered*\nDepartment: default\nCurrent spend: $${COST_CACHE.value.toFixed(2)}\nLimit: $${limitUsd.toFixed(2)}\nTimestamp: ${now.toISOString()}\nNew LLM calls are paused until the daily limit resets or the limit is increased.`,
           })
-          .catch(() => {});
+          .catch((err) => {
+            createLogger('call-llm').warn({ err }, 'Cost alert Slack post failed');
+          });
       }
     }
     throw new CostCircuitBreakerError(
@@ -200,7 +213,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
     );
   }
 
-  const resolved = resolveProvider(effectiveModel, !!process.env.OPENCODE_GO_API_KEY);
+  const resolved = resolveProvider(effectiveModel, !!OPENCODE_GO_API_KEY());
 
   let apiUrl: string;
   let authKey: string;
@@ -209,7 +222,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   if (resolved.providerID === 'opencode-go') {
     if (resolved.goEndpointType === 'openai') {
       apiUrl = GO_OPENAI_ENDPOINT;
-      authKey = process.env.OPENCODE_GO_API_KEY ?? '';
+      authKey = OPENCODE_GO_API_KEY();
       requestModelId = resolved.modelID; // Go model ID (no vendor prefix)
     } else {
       // Anthropic-format model — fall back to OpenRouter
@@ -218,12 +231,12 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
         'Model uses Anthropic format on Go — falling back to OpenRouter for gateway call',
       );
       apiUrl = OPENROUTER_URL;
-      authKey = process.env.OPENROUTER_API_KEY ?? '';
+      authKey = OPENROUTER_API_KEY();
       requestModelId = effectiveModel; // Full OpenRouter model ID
     }
   } else {
     apiUrl = OPENROUTER_URL;
-    authKey = process.env.OPENROUTER_API_KEY ?? '';
+    authKey = OPENROUTER_API_KEY();
     requestModelId = effectiveModel; // Full OpenRouter model ID
   }
 

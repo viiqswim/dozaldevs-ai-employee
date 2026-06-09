@@ -2,8 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import {
   JIRA_AUTH_URL,
@@ -12,6 +12,14 @@ import {
   JIRA_REQUIRED_SCOPES,
 } from '../../lib/jira-types.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
+import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
+import {
+  JIRA_CLIENT_ID,
+  JIRA_CLIENT_SECRET,
+  JIRA_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 export interface JiraOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -28,30 +36,29 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
   router.get('/jira/install', async (req, res) => {
     const tenantSlug = req.query['tenant'];
     if (!tenantSlug || typeof tenantSlug !== 'string') {
-      res.status(400).json({ error: 'MISSING_TENANT' });
+      sendError(res, 400, 'MISSING_TENANT');
       return;
     }
 
     try {
       const tenant = await tenantRepo.findBySlug(tenantSlug);
       if (!tenant) {
-        res.status(400).json({ error: 'TENANT_NOT_FOUND' });
+        sendError(res, 400, 'TENANT_NOT_FOUND');
         return;
       }
 
-      const clientId = process.env.JIRA_CLIENT_ID;
+      const clientId = JIRA_CLIENT_ID();
       if (!clientId) {
-        res.status(503).json({ error: 'JIRA_CLIENT_ID not configured' });
+        sendError(res, 503, 'JIRA_CLIENT_ID not configured');
         return;
       }
 
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenant.id, nonce });
       const state = signState(payload, signingKey);
 
-      const redirectBase =
-        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = JIRA_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/jira/callback`;
 
       const url =
@@ -67,49 +74,50 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
       res.redirect(302, url);
     } catch (err) {
       logger.error({ err }, 'Failed to generate Jira install link');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.get('/jira/callback', async (req, res) => {
     const { code, state } = req.query as { code?: string; state?: string };
     if (!code || !state) {
-      res.status(400).json({ error: 'MISSING_PARAMS' });
+      sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
 
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
-      res.status(400).json({ error: 'INVALID_STATE' });
+      sendError(res, 400, 'INVALID_STATE');
       return;
     }
 
     const { tenant_id: tenantId } = parsed;
 
     try {
-      const clientId = process.env.JIRA_CLIENT_ID;
-      const clientSecret = process.env.JIRA_CLIENT_SECRET;
+      const clientId = JIRA_CLIENT_ID();
+      const clientSecret = JIRA_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
-        res.status(503).json({ error: 'Jira OAuth not configured' });
+        sendError(res, 503, 'Jira OAuth not configured');
         return;
       }
 
-      const redirectBase =
-        process.env.JIRA_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = JIRA_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/integrations/jira/callback`;
 
-      const tokenRes = await fetch(JIRA_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grant_type: 'authorization_code',
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
+      const tokenRes = await withRetry(() =>
+        fetch(JIRA_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grant_type: 'authorization_code',
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+          }),
         }),
-      });
+      );
 
       const tokenData = (await tokenRes.json()) as {
         access_token?: string;
@@ -120,16 +128,18 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
 
       if (!tokenData.access_token) {
         logger.error({ error: tokenData.error }, 'Jira OAuth token exchange failed');
-        res.status(400).json({ error: 'JIRA_OAUTH_FAILED', detail: tokenData.error });
+        sendError(res, 400, 'JIRA_OAUTH_FAILED', undefined, { detail: tokenData.error });
         return;
       }
 
-      const resourcesRes = await fetch(JIRA_ACCESSIBLE_RESOURCES_URL, {
-        headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-          Accept: 'application/json',
-        },
-      });
+      const resourcesRes = await withRetry(() =>
+        fetch(JIRA_ACCESSIBLE_RESOURCES_URL, {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            Accept: 'application/json',
+          },
+        }),
+      );
 
       const resources = (await resourcesRes.json()) as Array<{
         id: string;
@@ -139,7 +149,7 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
 
       if (!Array.isArray(resources) || resources.length === 0) {
         logger.error({}, 'No accessible Jira resources found');
-        res.status(400).json({ error: 'NO_ACCESSIBLE_RESOURCES' });
+        sendError(res, 400, 'NO_ACCESSIBLE_RESOURCES');
         return;
       }
 
@@ -160,7 +170,7 @@ export function jiraOAuthRoutes(opts: JiraOAuthRouteOptions = {}): Router {
       res.redirect(302, dashboardUrl);
     } catch (err) {
       logger.error({ err }, 'Jira OAuth callback failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 

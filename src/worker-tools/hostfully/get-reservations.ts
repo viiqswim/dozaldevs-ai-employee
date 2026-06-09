@@ -47,6 +47,13 @@ type ReservationSummary = {
   status: string | null;
 };
 
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
+import { formatGuestName } from './lib/format.js';
+import { CONFIRMED_STATUSES } from './lib/constants.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): {
   propertyId: string;
   status: string;
@@ -55,37 +62,13 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let status = '';
-  let from = '';
-  let to = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i];
-    } else if (args[i] === '--status' && args[i + 1]) {
-      status = args[++i];
-    } else if (args[i] === '--from' && args[i + 1]) {
-      from = args[++i];
-    } else if (args[i] === '--to' && args[i + 1]) {
-      to = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { propertyId, status, from, to, help };
-}
-
-function formatGuestName(
-  gi: { firstName?: string | null; lastName?: string | null } | undefined,
-): string | null {
-  if (!gi) return null;
-  const parts = [gi.firstName, gi.lastName].filter(
-    (p): p is string => typeof p === 'string' && p !== '',
-  );
-  return parts.length > 0 ? parts.join(' ').trim() : null;
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    status: getArg(args, '--status') ?? '',
+    from: getArg(args, '--from') ?? '',
+    to: getArg(args, '--to') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -117,7 +100,7 @@ async function main(): Promise<void> {
 
   // HOSTFULLY_MOCK: return fixture data instead of calling the real API.
   // Set HOSTFULLY_MOCK=true in .env for local E2E testing without real Hostfully credentials.
-  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+  if (optionalEnv('HOSTFULLY_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -133,15 +116,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
-
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
-
-  const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
+  const { headers, baseUrl } = resolveHostfullyClient();
 
   let queryBase = `${baseUrl}/leads?propertyUid=${encodeURIComponent(propertyId)}`;
 
@@ -161,48 +136,17 @@ async function main(): Promise<void> {
     queryBase += `&checkInFrom=${thirtyDaysAgo}`;
   }
 
-  const seenUids = new Set<string>();
-  const allLeads: RawLead[] = [];
-  let cursor: string | undefined = undefined;
-
-  for (;;) {
-    const url = cursor ? `${queryBase}&_cursor=${encodeURIComponent(cursor)}` : queryBase;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      process.stderr.write(`Error: Failed to fetch reservations: ${res.status}\n`);
-      process.exit(1);
-    }
-
-    const json = (await res.json()) as {
-      leads?: RawLead[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.leads ?? [];
-    let hasNew = false;
-    for (const lead of page) {
-      if (lead.uid && !seenUids.has(lead.uid)) {
-        seenUids.add(lead.uid);
-        allLeads.push(lead);
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
+  let allLeads: RawLead[];
+  try {
+    allLeads = await paginateCursor<RawLead>(queryBase, headers, (json) => {
+      const j = json as { leads?: RawLead[]; _paging?: { _nextCursor?: string } };
+      return { items: j.leads ?? [], nextCursor: j._paging?._nextCursor };
+    });
+  } catch (err) {
+    process.stderr.write(`Error: Failed to fetch reservations: ${String(err)}\n`);
+    process.exit(1);
   }
 
-  // CONFIRMED_STATUSES: active/upcoming bookings a guest will actually show up for.
-  //   BOOKED / BOOKED_BY_AGENT / BOOKED_BY_CUSTOMER / BOOKED_EXTERNALLY — reservation confirmed
-  //   STAY — guest is currently checked in
-  const CONFIRMED_STATUSES = new Set([
-    'BOOKED',
-    'BOOKED_BY_AGENT',
-    'BOOKED_BY_CUSTOMER',
-    'BOOKED_EXTERNALLY',
-    'STAY',
-  ]);
   // CANCELLED_STATUSES: any cancellation variant regardless of who initiated it.
   const CANCELLED_STATUSES = new Set(['CANCELLED', 'CANCELLED_BY_TRAVELER', 'CANCELLED_BY_OWNER']);
 

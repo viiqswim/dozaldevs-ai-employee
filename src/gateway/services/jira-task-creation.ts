@@ -51,6 +51,8 @@ export async function createTaskFromJiraWebhook(params: {
           ...(projectId ? { project_id: projectId } : {}),
           tenant_id: tenantId,
           archetype_id: archetypeId,
+          // Safe: both are plain JSON-serializable objects; Prisma's InputJsonValue
+          // can't be inferred from our typed payload/triage shapes without a cast.
           raw_event: payload as unknown as Prisma.InputJsonValue,
           triage_result: buildTriageResult(payload) as unknown as Prisma.InputJsonValue,
         },

@@ -18,6 +18,13 @@ export function getPrisma(): PrismaClient {
 // Clean up test-inserted data but preserve seed records
 export async function cleanupTestData(): Promise<void> {
   const prisma = getPrisma();
+
+  // --- children of Task (delete before Task to satisfy FK constraints) ---
+  await prisma.feedbackEvent.deleteMany({});
+  await prisma.pendingApproval.deleteMany({});
+  await prisma.taskMetric.deleteMany({});
+
+  // --- other Task children + Task itself ---
   await prisma.knowledgeBaseEntry.deleteMany({
     where: {
       id: {
@@ -37,13 +44,15 @@ export async function cleanupTestData(): Promise<void> {
     },
   });
   await prisma.taskStatusLog.deleteMany({});
-  await prisma.validationRun.deleteMany({});
   await prisma.deliverable.deleteMany({});
   await prisma.execution.deleteMany({});
-  await prisma.clarification.deleteMany({});
-  await prisma.crossDeptTrigger.deleteMany({});
-  await prisma.auditLog.deleteMany({});
   await prisma.task.deleteMany({});
+
+  // --- no FK to Task — safe to delete after ---
+  await prisma.employeeRule.deleteMany({});
+  await prisma.systemEvent.deleteMany({});
+
+  // --- seeded parent records — preserve seed rows ---
   await prisma.project.deleteMany({
     where: { id: { not: '00000000-0000-0000-0000-000000000003' } },
   });

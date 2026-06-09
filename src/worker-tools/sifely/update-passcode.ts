@@ -24,6 +24,7 @@
 
 import { login, resolveConfig, withRetry, assertMutationSuccess } from './lib/api.js';
 import type { SifelyMutationResponse } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -59,8 +60,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const lockIdIndex = args.indexOf('--lock-id');
-  if (lockIdIndex === -1 || !args[lockIdIndex + 1]) {
+  const lockId = getArg(args, '--lock-id') ?? '';
+  if (!lockId) {
     process.stderr.write('Error: --lock-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/update-passcode.ts --lock-id <id> --passcode-id <id>\n',
@@ -68,8 +69,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const passcodeIdIndex = args.indexOf('--passcode-id');
-  if (passcodeIdIndex === -1 || !args[passcodeIdIndex + 1]) {
+  const passcodeId = getArg(args, '--passcode-id') ?? '';
+  if (!passcodeId) {
     process.stderr.write('Error: --passcode-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/update-passcode.ts --lock-id <id> --passcode-id <id>\n',
@@ -77,24 +78,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const lockId = args[lockIdIndex + 1];
-  const passcodeId = args[passcodeIdIndex + 1];
+  const name = getArg(args, '--name');
 
-  const nameIndex = args.indexOf('--name');
-  const name = nameIndex !== -1 ? args[nameIndex + 1] : undefined;
+  const newCode = getArg(args, '--code');
 
-  const codeIndex = args.indexOf('--code');
-  const newCode = codeIndex !== -1 ? args[codeIndex + 1] : undefined;
+  const startDateRaw = getArg(args, '--start-date');
+  const startDate = startDateRaw ? Number(startDateRaw) : undefined;
 
-  const startDateIndex = args.indexOf('--start-date');
-  const startDate =
-    startDateIndex !== -1 && args[startDateIndex + 1]
-      ? Number(args[startDateIndex + 1])
-      : undefined;
-
-  const endDateIndex = args.indexOf('--end-date');
-  const endDate =
-    endDateIndex !== -1 && args[endDateIndex + 1] ? Number(args[endDateIndex + 1]) : undefined;
+  const endDateRaw = getArg(args, '--end-date');
+  const endDate = endDateRaw ? Number(endDateRaw) : undefined;
 
   const config = resolveConfig();
   const token = await login(config.baseUrl, config.clientId, config.username, config.password);

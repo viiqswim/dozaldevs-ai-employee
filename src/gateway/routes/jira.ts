@@ -10,7 +10,8 @@ import {
   createTaskFromJiraWebhook,
   cancelTaskByExternalId,
 } from '../services/jira-task-creation.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('jira-webhook');
 
@@ -36,7 +37,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     } catch (error) {
       if (error instanceof ZodError) {
         logger.warn({ issues: error.issues }, 'Invalid Jira webhook payload');
-        res.status(400).json({ error: 'Invalid payload', details: error.issues });
+        sendError(res, 400, 'Invalid payload', undefined, { details: error.issues });
         return;
       }
       throw error;
@@ -56,7 +57,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     const tenant = await prisma.tenant.findFirst({ where: { slug: tenantSlug } });
     if (!tenant) {
       logger.warn({ tenantSlug }, 'Jira per-employee webhook for unknown tenant slug');
-      res.status(404).json({ error: 'Tenant not found' });
+      sendError(res, 404, 'Tenant not found');
       return;
     }
 
@@ -68,7 +69,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
         { tenantSlug, employeeSlug, tenant_id: tenant.id },
         'Jira per-employee webhook for unknown employee slug',
       );
-      res.status(404).json({ error: 'Employee not found' });
+      sendError(res, 404, 'Employee not found');
       return;
     }
 
@@ -88,13 +89,13 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
 
     if (!secret) {
       logger.warn({ tenantSlug }, 'No JIRA_WEBHOOK_SECRET available — rejecting webhook');
-      res.status(401).json({ error: 'Webhook signing not configured' });
+      sendError(res, 401, 'Webhook signing not configured');
       return;
     }
 
     if (!verifyJiraSignature(rawBody, signatureHeader, secret)) {
       logger.warn({ url: req.path, tenant_id: tenant.id }, 'Invalid Jira webhook signature');
-      res.status(401).json({ error: 'Invalid webhook signature' });
+      sendError(res, 401, 'Invalid webhook signature');
       return;
     }
 
@@ -123,7 +124,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
           { taskId: task.id, error },
           'Inngest send failed — task in Ready for manual recovery',
         );
-        res.status(202).json({ status: 'task_created', taskId: task.id });
+        sendSuccess(res, 202, { status: 'task_created', taskId: task.id });
         return;
       }
     }
@@ -141,7 +142,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     } catch (error) {
       if (error instanceof ZodError) {
         logger.warn({ issues: error.issues }, 'Invalid Jira webhook payload');
-        res.status(400).json({ error: 'Invalid payload', details: error.issues });
+        sendError(res, 400, 'Invalid payload', undefined, { details: error.issues });
         return;
       }
       throw error;
@@ -189,7 +190,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
 
       if (!project) {
         logger.warn({ jiraProjectKey }, 'Jira webhook for unknown project');
-        res.status(404).json({ error: 'Unknown Jira project' });
+        sendError(res, 404, 'Unknown Jira project');
         return;
       }
 
@@ -216,13 +217,13 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
 
     if (!secret) {
       logger.warn('No JIRA_WEBHOOK_SECRET available — rejecting webhook');
-      res.status(401).json({ error: 'Webhook signing not configured' });
+      sendError(res, 401, 'Webhook signing not configured');
       return;
     }
 
     if (!verifyJiraSignature(rawBody, signatureHeader, secret)) {
       logger.warn({ url: '/webhooks/jira', tenant_id: tenantId }, 'Invalid Jira webhook signature');
-      res.status(401).json({ error: 'Invalid webhook signature' });
+      sendError(res, 401, 'Invalid webhook signature');
       return;
     }
 
@@ -259,7 +260,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
     }
 
     if (!project) {
-      res.status(404).json({ error: 'Unknown Jira project' });
+      sendError(res, 404, 'Unknown Jira project');
       return;
     }
 
@@ -277,7 +278,7 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
         { tenant_id: project.tenant_id, role_name: 'jira-motivation-bot' },
         'No jira-motivation-bot archetype found for tenant — cannot create task',
       );
-      res.status(422).json({ error: 'No matching employee archetype found' });
+      sendError(res, 422, 'No matching employee archetype found');
       return;
     }
 
@@ -307,7 +308,11 @@ export function jiraRoutes(opts: JiraRouteOptions = {}): Router {
           { taskId: task.id, error },
           'Inngest send failed — task in Ready for manual recovery',
         );
-        res.status(202).json({ received: true, action: 'queued_without_inngest', taskId: task.id });
+        sendSuccess(res, 202, {
+          received: true,
+          action: 'queued_without_inngest',
+          taskId: task.id,
+        });
         return;
       }
     }

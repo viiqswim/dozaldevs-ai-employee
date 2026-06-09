@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { Inngest } from 'inngest';
+import type { InngestStep } from '../events.js';
+import { requireEnv } from '../../lib/config.js';
+import { makePostgrestHeaders } from './postgrest-headers.js';
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 export interface CreateTaskAndDispatchParams {
   inngest: Inngest;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  step: any;
+  step: InngestStep;
   tenantId: string;
   archetypeSlug: string;
   externalId: string;
@@ -22,15 +27,7 @@ export async function createTaskAndDispatch(
   const { inngest, step, tenantId, archetypeSlug, externalId, sourceSystem } = params;
 
   return step.run('create-task-and-dispatch', async () => {
-    const supabaseUrl = process.env.SUPABASE_URL!;
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
-
-    const headers = {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    };
+    const headers = makePostgrestHeaders(supabaseKey);
 
     const archetypeRes = await fetch(
       `${supabaseUrl}/rest/v1/archetypes?role_name=eq.${archetypeSlug}&tenant_id=eq.${tenantId}&status=eq.active&deleted_at=is.null&select=id`,

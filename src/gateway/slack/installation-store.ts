@@ -1,6 +1,6 @@
 import type { InstallationStore, Installation, InstallationQuery } from '@slack/bolt';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 
 export class TenantInstallationStore implements InstallationStore {

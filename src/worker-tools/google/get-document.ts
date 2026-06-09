@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 type TextRun = {
   content?: string;
@@ -29,18 +30,10 @@ type DocumentApiResponse = {
 
 function parseArgs(argv: string[]): { documentId: string; help: boolean } {
   const args = argv.slice(2);
-  let documentId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--document-id' && args[i + 1]) {
-      documentId = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { documentId, help };
+  return {
+    documentId: getArg(args, '--document-id') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 function extractPlainText(body: DocumentBody): string {

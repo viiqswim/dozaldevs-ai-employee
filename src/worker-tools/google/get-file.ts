@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 type FileOwner = {
   displayName: string;
@@ -20,18 +21,10 @@ type FileMetadata = {
 
 function parseArgs(argv: string[]): { fileId: string; help: boolean } {
   const args = argv.slice(2);
-  let fileId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--file-id' && args[i + 1]) {
-      fileId = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { fileId, help };
+  return {
+    fileId: getArg(args, '--file-id') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

@@ -48,8 +48,5 @@ export async function sendTaskReceivedEvent(params: {
     }
   }
 
-  return {
-    success: false,
-    error: lastError?.message ?? 'Unknown error sending Inngest event',
-  };
+  return { success: false, error: lastError?.message ?? 'Unknown error' };
 }

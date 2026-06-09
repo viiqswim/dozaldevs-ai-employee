@@ -1,0 +1,8 @@
+     205 src/inngest/lifecycle/steps/execute.ts
+     281 src/inngest/lifecycle/lib/machine-provisioner.ts
+     486 total
+execute.ts before: 435 lines
+execute.ts after:      205 lines
+machine-provisioner.ts created:      281 lines
+pnpm build: CLEAN
+pnpm test:unit: 128 files, 1450 passed, 9 skipped, 0 failures

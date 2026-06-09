@@ -1,4 +1,5 @@
 import { googleFetch, requireEnv } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 type MessageHeader = {
   name: string;
@@ -32,18 +33,10 @@ type FullMessage = {
 
 function parseArgs(argv: string[]): { messageId: string; help: boolean } {
   const args = argv.slice(2);
-  let messageId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--message-id' && args[i + 1]) {
-      messageId = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { messageId, help };
+  return {
+    messageId: getArg(args, '--message-id') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 function findHeader(headers: MessageHeader[], name: string): string | null {

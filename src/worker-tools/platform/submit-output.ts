@@ -17,79 +17,15 @@
 import fs from 'fs';
 
 import { unescapeShellArg } from '../lib/unescape-args.js';
-
-interface Args {
-  summary: string;
-  classification: string;
-  draft: string | null;
-  draftFile: string | null;
-  confidence: number | null;
-  reasoning: string | null;
-  urgency: boolean;
-  metadata: Record<string, unknown> | null;
-  help: boolean;
-}
+import { getArg } from '../lib/get-arg.js';
 
 const VALID_CLASSIFICATIONS = ['NEEDS_APPROVAL', 'NO_ACTION_NEEDED'] as const;
 const OUTPUT_PATH = '/tmp/summary.txt';
 
-function parseArgs(argv: string[]): Args {
-  const args = argv.slice(2);
-  let summary = '';
-  let classification = '';
-  let draft: string | null = null;
-  let draftFile: string | null = null;
-  let confidence: number | null = null;
-  let reasoning: string | null = null;
-  let urgency = false;
-  let metadata: Record<string, unknown> | null = null;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--summary' && args[i + 1]) {
-      summary = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--classification' && args[i + 1]) {
-      classification = args[++i];
-    } else if (args[i] === '--draft' && args[i + 1]) {
-      draft = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--draft-file' && args[i + 1]) {
-      draftFile = args[++i];
-    } else if (args[i] === '--confidence' && args[i + 1]) {
-      confidence = parseFloat(args[++i]);
-    } else if (args[i] === '--reasoning' && args[i + 1]) {
-      reasoning = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--urgency') {
-      urgency = true;
-    } else if (args[i] === '--metadata' && args[i + 1]) {
-      const raw = args[++i];
-      try {
-        metadata = JSON.parse(raw) as Record<string, unknown>;
-      } catch {
-        process.stderr.write('Error: --metadata must be valid JSON\n');
-        process.exit(1);
-      }
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return {
-    summary,
-    classification,
-    draft,
-    draftFile,
-    confidence,
-    reasoning,
-    urgency,
-    metadata,
-    help,
-  };
-}
-
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv);
+  const args = process.argv.slice(2);
 
-  if (args.help) {
+  if (args.includes('--help')) {
     process.stdout.write(
       'Usage: tsx submit-output.ts --summary <text> --classification <value> [options]\n\n' +
         'Writes the platform output contract to /tmp/summary.txt.\n' +
@@ -117,52 +53,75 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (!args.summary) {
+  const rawSummary = getArg(args, '--summary');
+  const classification = getArg(args, '--classification') ?? '';
+  const rawDraft = getArg(args, '--draft');
+  const draftFile = getArg(args, '--draft-file') ?? null;
+  const rawConfidence = getArg(args, '--confidence');
+  const rawReasoning = getArg(args, '--reasoning');
+  const urgency = args.includes('--urgency');
+  const rawMetadata = getArg(args, '--metadata');
+
+  const summary = rawSummary !== undefined ? unescapeShellArg(rawSummary) : '';
+  let draft: string | null = rawDraft !== undefined ? unescapeShellArg(rawDraft) : null;
+  const confidence: number | null = rawConfidence !== undefined ? parseFloat(rawConfidence) : null;
+  const reasoning: string | null =
+    rawReasoning !== undefined ? unescapeShellArg(rawReasoning) : null;
+
+  let metadata: Record<string, unknown> | null = null;
+  if (rawMetadata !== undefined) {
+    try {
+      metadata = JSON.parse(rawMetadata) as Record<string, unknown>;
+    } catch {
+      process.stderr.write('Error: --metadata must be valid JSON\n');
+      process.exit(1);
+    }
+  }
+
+  if (!summary) {
     process.stderr.write('Error: --summary is required\n');
     process.exit(1);
   }
 
-  if (!args.classification) {
+  if (!classification) {
     process.stderr.write('Error: --classification is required\n');
     process.exit(1);
   }
 
-  if (
-    !VALID_CLASSIFICATIONS.includes(args.classification as (typeof VALID_CLASSIFICATIONS)[number])
-  ) {
+  if (!VALID_CLASSIFICATIONS.includes(classification as (typeof VALID_CLASSIFICATIONS)[number])) {
     process.stderr.write(
       `Error: --classification must be one of: ${VALID_CLASSIFICATIONS.join(', ')}\n`,
     );
     process.exit(1);
   }
 
-  if (args.confidence !== null) {
-    if (isNaN(args.confidence) || args.confidence < 0 || args.confidence > 1) {
+  if (confidence !== null) {
+    if (isNaN(confidence) || confidence < 0 || confidence > 1) {
       process.stderr.write('Error: --confidence must be a number between 0 and 1\n');
       process.exit(1);
     }
   }
 
-  if (args.draftFile !== null) {
-    if (!fs.existsSync(args.draftFile)) {
-      process.stderr.write(`Error: --draft-file path does not exist: ${args.draftFile}\n`);
+  if (draftFile !== null) {
+    if (!fs.existsSync(draftFile)) {
+      process.stderr.write(`Error: --draft-file path does not exist: ${draftFile}\n`);
       process.exit(1);
     }
-    args.draft = fs.readFileSync(args.draftFile, 'utf-8').trim();
-  } else if (args.draft === null && fs.existsSync('/tmp/draft.txt')) {
-    args.draft = fs.readFileSync('/tmp/draft.txt', 'utf-8').trim();
+    draft = fs.readFileSync(draftFile, 'utf-8').trim();
+  } else if (draft === null && fs.existsSync('/tmp/draft.txt')) {
+    draft = fs.readFileSync('/tmp/draft.txt', 'utf-8').trim();
   }
 
   const output: Record<string, unknown> = {
-    summary: args.summary,
-    classification: args.classification,
+    summary,
+    classification,
   };
 
-  if (args.draft !== null) output['draft'] = args.draft;
-  if (args.confidence !== null) output['confidence'] = args.confidence;
-  if (args.reasoning !== null) output['reasoning'] = args.reasoning;
-  if (args.urgency) output['urgency'] = true;
-  if (args.metadata !== null) output['metadata'] = args.metadata;
+  if (draft !== null) output['draft'] = draft;
+  if (confidence !== null) output['confidence'] = confidence;
+  if (reasoning !== null) output['reasoning'] = reasoning;
+  if (urgency) output['urgency'] = true;
+  if (metadata !== null) output['metadata'] = metadata;
 
   const json = JSON.stringify(output);
 

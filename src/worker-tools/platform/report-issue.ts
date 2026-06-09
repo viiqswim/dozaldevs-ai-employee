@@ -16,43 +16,12 @@
  */
 
 import { unescapeShellArg } from '../lib/unescape-args.js';
-
-interface Args {
-  taskId: string;
-  toolName: string;
-  description: string;
-  patchDiff: string | null;
-  help: boolean;
-}
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { getArg } from '../lib/get-arg.js';
 
 interface PostgRestRecord {
   id: string;
   [key: string]: unknown;
-}
-
-function parseArgs(argv: string[]): Args {
-  const args = argv.slice(2);
-  let taskId = '';
-  let toolName = '';
-  let description = '';
-  let patchDiff: string | null = null;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--task-id' && args[i + 1]) {
-      taskId = args[++i];
-    } else if (args[i] === '--tool-name' && args[i + 1]) {
-      toolName = args[++i];
-    } else if (args[i] === '--description' && args[i + 1]) {
-      description = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--patch-diff' && args[i + 1]) {
-      patchDiff = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { taskId, toolName, description, patchDiff, help };
 }
 
 function formatSlackMessage(
@@ -74,9 +43,9 @@ function formatSlackMessage(
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv);
+  const args = process.argv.slice(2);
 
-  if (args.help) {
+  if (args.includes('--help')) {
     process.stdout.write(
       'Usage: tsx report-issue.ts --task-id <id> --tool-name <name> --description <text> [--patch-diff <diff>]\n\n' +
         'Reports a tool issue to system_events (PostgREST) and sends a Slack alert.\n\n' +
@@ -102,45 +71,34 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (!args.taskId) {
+  const taskId = getArg(args, '--task-id');
+  const toolName = getArg(args, '--tool-name');
+  const rawDescription = getArg(args, '--description');
+  const rawPatchDiff = getArg(args, '--patch-diff');
+
+  const description = rawDescription !== undefined ? unescapeShellArg(rawDescription) : '';
+  const patchDiff = rawPatchDiff !== undefined ? unescapeShellArg(rawPatchDiff) : null;
+
+  if (!taskId) {
     process.stderr.write('Error: --task-id is required\n');
     process.exit(1);
   }
-  if (!args.toolName) {
+  if (!toolName) {
     process.stderr.write('Error: --tool-name is required\n');
     process.exit(1);
   }
-  if (!args.description) {
+  if (!description) {
     process.stderr.write('Error: --description is required\n');
     process.exit(1);
   }
 
-  const supabaseUrl = process.env['SUPABASE_URL'];
-  if (!supabaseUrl) {
-    process.stderr.write('Error: SUPABASE_URL environment variable is required\n');
-    process.exit(1);
-  }
+  const supabaseUrl = requireEnv('SUPABASE_URL');
+  const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
+  const tenantId = requireEnv('TENANT_ID');
+  const slackBotToken = requireEnv('SLACK_BOT_TOKEN');
 
-  const supabaseKey = process.env['SUPABASE_SECRET_KEY'];
-  if (!supabaseKey) {
-    process.stderr.write('Error: SUPABASE_SECRET_KEY environment variable is required\n');
-    process.exit(1);
-  }
-
-  const tenantId = process.env['TENANT_ID'];
-  if (!tenantId) {
-    process.stderr.write('Error: TENANT_ID environment variable is required\n');
-    process.exit(1);
-  }
-
-  const slackBotToken = process.env['SLACK_BOT_TOKEN'];
-  if (!slackBotToken) {
-    process.stderr.write('Error: SLACK_BOT_TOKEN environment variable is required\n');
-    process.exit(1);
-  }
-
-  const issuesSlackChannel = process.env['ISSUES_SLACK_CHANNEL'];
-  const slackApiBase = process.env['SLACK_API_BASE_URL'] ?? 'https://slack.com/api';
+  const issuesSlackChannel = optionalEnv('ISSUES_SLACK_CHANNEL');
+  const slackApiBase = optionalEnv('SLACK_API_BASE_URL') ?? 'https://slack.com/api';
 
   const postgrestUrl = `${supabaseUrl}/rest/v1/system_events`;
   const postgrestHeaders = {
@@ -152,13 +110,13 @@ async function main(): Promise<void> {
 
   const body: Record<string, unknown> = {
     tenant_id: tenantId,
-    task_id: args.taskId,
-    tool_name: args.toolName,
-    issue_description: args.description,
-    patch_applied: args.patchDiff !== null,
+    task_id: taskId,
+    tool_name: toolName,
+    issue_description: description,
+    patch_applied: patchDiff !== null,
   };
-  if (args.patchDiff !== null) {
-    body['patch_diff'] = args.patchDiff;
+  if (patchDiff !== null) {
+    body['patch_diff'] = patchDiff;
   }
 
   const dbRes = await fetch(postgrestUrl, {
@@ -179,12 +137,7 @@ async function main(): Promise<void> {
     process.stderr.write('Warning: ISSUES_SLACK_CHANNEL not set — skipping Slack notification\n');
   } else {
     const slackUrl = `${slackApiBase}/chat.postMessage`;
-    const slackText = formatSlackMessage(
-      args.taskId,
-      args.toolName,
-      args.description,
-      args.patchDiff !== null,
-    );
+    const slackText = formatSlackMessage(taskId, toolName, description, patchDiff !== null);
 
     try {
       const slackRes = await fetch(slackUrl, {

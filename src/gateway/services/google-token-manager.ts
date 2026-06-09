@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import type { PrismaClient } from '@prisma/client';
-import { TenantSecretRepository } from './tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 
 export class GoogleNotConnectedError extends Error {
   readonly code = 'google_not_connected';
@@ -50,6 +50,15 @@ const _tokenCache = new Map<string, CachedGoogleToken>();
 /** Reset cache — for test isolation only. Do not call in production code. */
 export function _resetCacheForTest(): void {
   _tokenCache.clear();
+}
+
+/** Clear the in-memory token cache. Call when a tenant's Google credentials are revoked or disconnected. */
+export function clearTokenCache(tenantId?: string): void {
+  if (tenantId !== undefined) {
+    _tokenCache.delete(tenantId);
+  } else {
+    _tokenCache.clear();
+  }
 }
 
 export async function getGoogleAccessToken(

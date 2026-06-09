@@ -4,7 +4,8 @@ import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
+import { sendError } from '../lib/http-response.js';
 
 const logger = createLogger('github-webhook');
 
@@ -42,13 +43,13 @@ export function githubRoutes(opts: GitHubWebhookRouteOptions = {}): Router {
         { event: githubEvent },
         'GITHUB_WEBHOOK_SECRET not configured — rejecting webhook',
       );
-      res.status(401).json({ error: 'Webhook signing not configured' });
+      sendError(res, 401, 'Webhook signing not configured');
       return;
     }
 
     if (!verifyGitHubSignature(rawBody, signature, webhookSecret)) {
       logger.warn({ event: githubEvent }, 'Invalid GitHub webhook signature');
-      res.status(401).json({ error: 'Invalid webhook signature' });
+      sendError(res, 401, 'Invalid webhook signature');
       return;
     }
 

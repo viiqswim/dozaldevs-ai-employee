@@ -19,6 +19,7 @@
 
 import { login, resolveConfig, withRetry, assertListSuccess } from './lib/api.js';
 import type { LockPasscode, SifelyListResponse, SifelyPasscodeRaw } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -49,14 +50,12 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const lockIdIndex = args.indexOf('--lock-id');
-  if (lockIdIndex === -1 || !args[lockIdIndex + 1]) {
+  const lockId = getArg(args, '--lock-id') ?? '';
+  if (!lockId) {
     process.stderr.write('Error: --lock-id <id> is required\n');
     process.stderr.write('Usage: tsx src/worker-tools/sifely/list-passcodes.ts --lock-id <id>\n');
     process.exit(1);
   }
-
-  const lockId = args[lockIdIndex + 1];
 
   const config = resolveConfig();
   const token = await login(config.baseUrl, config.clientId, config.username, config.password);

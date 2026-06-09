@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { generateInstallationToken } from '../services/github-token-manager.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('internal-github-token');
 
@@ -20,19 +21,19 @@ export function internalGithubTokenRoutes(opts: InternalGithubTokenRouteOptions 
     const headerTaskId = req.headers['x-task-id'];
 
     if (!headerTaskId || headerTaskId !== taskId) {
-      res.status(400).json({ error: 'X-Task-ID header missing or does not match task ID' });
+      sendError(res, 400, 'X-Task-ID header missing or does not match task ID');
       return;
     }
 
     try {
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
-        res.status(404).json({ error: 'Task not found' });
+        sendError(res, 404, 'Task not found');
         return;
       }
 
       if (task.status !== 'Executing') {
-        res.status(403).json({ error: 'Task is not in Executing state' });
+        sendError(res, 403, 'Task is not in Executing state');
         return;
       }
 
@@ -40,7 +41,7 @@ export function internalGithubTokenRoutes(opts: InternalGithubTokenRouteOptions 
 
       const installationIdStr = await secretRepo.get(tenantId, 'github_installation_id');
       if (!installationIdStr) {
-        res.status(404).json({ error: 'GitHub not connected' });
+        sendError(res, 404, 'GitHub not connected');
         return;
       }
 
@@ -49,10 +50,10 @@ export function internalGithubTokenRoutes(opts: InternalGithubTokenRouteOptions 
 
       logger.info({ taskId, tenantId }, 'GitHub installation token generated for task');
 
-      res.status(200).json({ token: tokenResult.token, expires_at: tokenResult.expires_at });
+      sendSuccess(res, 200, { token: tokenResult.token, expires_at: tokenResult.expires_at });
     } catch (err) {
       logger.error({ err, taskId }, 'Failed to generate GitHub installation token');
-      res.status(500).json({ error: 'Failed to generate GitHub token' });
+      sendError(res, 500, 'Failed to generate GitHub token');
     }
   });
 

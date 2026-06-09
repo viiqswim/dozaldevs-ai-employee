@@ -4,6 +4,19 @@ import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('opencode-server');
 
+/** Default port for the OpenCode HTTP server */
+const DEFAULT_OPENCODE_PORT = 4096;
+/** Default health-check timeout in ms — how long to wait for "listening" before giving up */
+const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
+/** Default idle timeout in ms passed to OpenCode via env (5 minutes) */
+const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+/** Reconnect delay in ms after a clean TCP close */
+const TCP_RECONNECT_DELAY_MS = 50;
+/** Reconnect delay in ms after a TCP error */
+const TCP_ERROR_RECONNECT_DELAY_MS = 100;
+/** Grace period in ms before SIGKILL after SIGTERM during server stop (5 seconds) */
+const FORCE_KILL_TIMEOUT_MS = 5_000;
+
 const exitListenerRegistry = new WeakMap<ChildProcess, () => void>();
 
 export interface OpencodeServerHandle {
@@ -23,9 +36,9 @@ export interface StartOpencodeServerOptions {
 export async function startOpencodeServer(
   options?: StartOpencodeServerOptions,
 ): Promise<OpencodeServerHandle | null> {
-  const port = options?.port ?? 4096;
+  const port = options?.port ?? DEFAULT_OPENCODE_PORT;
   const cwd = options?.cwd ?? '/workspace';
-  const healthTimeoutMs = options?.healthTimeoutMs ?? 30000;
+  const healthTimeoutMs = options?.healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
 
   let listeningDetected = false;
 
@@ -39,7 +52,8 @@ export async function startOpencodeServer(
         detached: false,
         env: {
           ...process.env,
-          OPENCODE_IDLE_TIMEOUT: process.env.OPENCODE_IDLE_TIMEOUT ?? '300000',
+          OPENCODE_IDLE_TIMEOUT:
+            process.env.OPENCODE_IDLE_TIMEOUT ?? String(DEFAULT_IDLE_TIMEOUT_MS),
         },
       },
     );
@@ -82,12 +96,12 @@ export async function startOpencodeServer(
         });
         sock.on('close', () => {
           if (!keepaliveAbortController?.signal.aborted) {
-            setTimeout(connectSocket, 50);
+            setTimeout(connectSocket, TCP_RECONNECT_DELAY_MS);
           }
         });
         sock.on('error', () => {
           if (!keepaliveAbortController?.signal.aborted) {
-            setTimeout(connectSocket, 100);
+            setTimeout(connectSocket, TCP_ERROR_RECONNECT_DELAY_MS);
           }
         });
       };
@@ -114,12 +128,12 @@ export async function startOpencodeServer(
             reader.releaseLock();
           }
           if (!keepaliveAbortController?.signal.aborted) {
-            setTimeout(runKeepalive, 50);
+            setTimeout(runKeepalive, TCP_RECONNECT_DELAY_MS);
           }
         })
         .catch(() => {
           if (!keepaliveAbortController?.signal.aborted) {
-            setTimeout(runKeepalive, 100);
+            setTimeout(runKeepalive, TCP_ERROR_RECONNECT_DELAY_MS);
           }
         });
     };
@@ -227,7 +241,7 @@ export async function stopOpencodeServer(handle: OpencodeServerHandle): Promise<
         }
       }
       resolve();
-    }, 5000);
+    }, FORCE_KILL_TIMEOUT_MS);
 
     handle.process.once('exit', () => {
       clearTimeout(forceKillTimeout);

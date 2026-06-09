@@ -20,6 +20,7 @@
 
 import { login, resolveConfig, withRetry, assertMutationSuccess } from './lib/api.js';
 import type { SifelyMutationResponse } from './lib/api.js';
+import { getArg } from '../lib/get-arg.js';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -51,8 +52,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const lockIdIndex = args.indexOf('--lock-id');
-  if (lockIdIndex === -1 || !args[lockIdIndex + 1]) {
+  const lockId = getArg(args, '--lock-id') ?? '';
+  if (!lockId) {
     process.stderr.write('Error: --lock-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/delete-passcode.ts --lock-id <id> --passcode-id <id>\n',
@@ -60,17 +61,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const passcodeIdIndex = args.indexOf('--passcode-id');
-  if (passcodeIdIndex === -1 || !args[passcodeIdIndex + 1]) {
+  const passcodeId = getArg(args, '--passcode-id') ?? '';
+  if (!passcodeId) {
     process.stderr.write('Error: --passcode-id <id> is required\n');
     process.stderr.write(
       'Usage: tsx src/worker-tools/sifely/delete-passcode.ts --lock-id <id> --passcode-id <id>\n',
     );
     process.exit(1);
   }
-
-  const lockId = args[lockIdIndex + 1];
-  const passcodeId = args[passcodeIdIndex + 1];
 
   const config = resolveConfig();
   const token = await login(config.baseUrl, config.clientId, config.username, config.password);

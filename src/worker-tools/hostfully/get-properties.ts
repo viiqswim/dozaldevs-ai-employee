@@ -19,17 +19,15 @@ type PropertySummary = {
   isActive: boolean | null;
 };
 
+import { resolveHostfullyClient } from './lib/client.js';
+import { paginateCursor } from './lib/paginate.js';
+import { requireEnv } from '../lib/require-env.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { help };
+  return {
+    help: args.includes('--help'),
+  };
 }
 
 function curateProperty(p: RawProperty): PropertySummary {
@@ -55,54 +53,26 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
+  const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
+
+  const { headers, baseUrl } = resolveHostfullyClient();
+
+  let rawProperties: RawProperty[];
+  try {
+    rawProperties = await paginateCursor<RawProperty>(
+      `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`,
+      headers,
+      (json) => {
+        const j = json as { properties?: RawProperty[]; _paging?: { _nextCursor?: string } };
+        return { items: j.properties ?? [], nextCursor: j._paging?._nextCursor };
+      },
+    );
+  } catch (err) {
+    process.stderr.write(`Error: Failed to fetch properties: ${String(err)}\n`);
     process.exit(1);
   }
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
-
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
-
-  const headers = { 'X-HOSTFULLY-APIKEY': apiKey, Accept: 'application/json' };
-  const seenUids = new Set<string>();
-  const allProperties: PropertySummary[] = [];
-  let cursor: string | undefined = undefined;
-
-  for (;;) {
-    const url = cursor
-      ? `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}&_cursor=${encodeURIComponent(cursor)}`
-      : `${baseUrl}/properties?agencyUid=${encodeURIComponent(agencyUid)}`;
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      process.stderr.write(`Error: Failed to fetch properties: ${res.status}\n`);
-      process.exit(1);
-    }
-
-    const json = (await res.json()) as {
-      properties?: RawProperty[];
-      _paging?: { _nextCursor?: string };
-    };
-
-    const page = json.properties ?? [];
-    let hasNew = false;
-    for (const p of page) {
-      if (p.uid && !seenUids.has(p.uid)) {
-        seenUids.add(p.uid);
-        allProperties.push(curateProperty(p));
-        hasNew = true;
-      }
-    }
-
-    cursor = json._paging?._nextCursor;
-    if (!hasNew || !cursor) break;
-  }
+  const allProperties = rawProperties.map(curateProperty);
 
   process.stdout.write(JSON.stringify(allProperties) + '\n');
 }

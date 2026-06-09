@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { requireAdminKey } from '../middleware/admin-auth.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
-import { _resetCacheForTest } from '../services/google-token-manager.js';
+import { clearTokenCache } from '../services/google-token-manager.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 export interface AdminGoogleRouteOptions {
   prisma?: PrismaClient;
@@ -24,7 +25,7 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
     async (req, res) => {
       const parsed = TenantIdParamSchema.safeParse(req.params);
       if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid tenantId' });
+        sendError(res, 400, 'Invalid tenantId');
         return;
       }
       const { tenantId } = parsed.data;
@@ -51,10 +52,10 @@ export function adminGoogleRoutes(opts: AdminGoogleRouteOptions = {}): Router {
         }
       }
 
-      _resetCacheForTest();
+      clearTokenCache(tenantId);
 
       logger.info({ tenantId }, 'Google integration disconnected');
-      res.status(200).json({ disconnected: true, tenant_id: tenantId });
+      sendSuccess(res, 200, { disconnected: true, tenant_id: tenantId });
     },
   );
 

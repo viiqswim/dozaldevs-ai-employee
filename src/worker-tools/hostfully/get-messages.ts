@@ -30,6 +30,8 @@
 import { resolveHostfullyClient } from './lib/client.js';
 import { paginateCursor } from './lib/paginate.js';
 import { formatGuestName } from './lib/format.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 type RawLead = {
   uid: string;
@@ -89,30 +91,14 @@ function parseArgs(argv: string[]): {
   fallbackPropertyUid: string;
 } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let leadId = '';
-  let unrespondedOnly = false;
-  let limit = 30;
-  let help = false;
-  let fallbackPropertyUid = '';
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i];
-    } else if (args[i] === '--lead-id' && args[i + 1]) {
-      leadId = args[++i];
-    } else if (args[i] === '--unresponded-only') {
-      unrespondedOnly = true;
-    } else if (args[i] === '--limit' && args[i + 1]) {
-      limit = parseInt(args[++i], 10);
-    } else if (args[i] === '--fallback-property-uid' && args[i + 1]) {
-      fallbackPropertyUid = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { propertyId, leadId, unrespondedOnly, limit, help, fallbackPropertyUid };
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    leadId: getArg(args, '--lead-id') ?? '',
+    unrespondedOnly: args.includes('--unresponded-only'),
+    limit: parseInt(getArg(args, '--limit') ?? '30', 10),
+    help: args.includes('--help'),
+    fallbackPropertyUid: getArg(args, '--fallback-property-uid') ?? '',
+  };
 }
 
 async function main(): Promise<void> {
@@ -122,11 +108,12 @@ async function main(): Promise<void> {
 
   // LEAD_UID env var fallback: if --lead-id was not provided but LEAD_UID is set,
   // auto-use it (lifecycle injects LEAD_UID from webhook raw_event).
-  if (!leadId && process.env['LEAD_UID']) {
+  const leadUidEnv = optionalEnv('LEAD_UID');
+  if (!leadId && leadUidEnv) {
     process.stderr.write(
-      `[get-messages] WARNING: --lead-id not provided, falling back to LEAD_UID env var: ${process.env['LEAD_UID']}\n`,
+      `[get-messages] WARNING: --lead-id not provided, falling back to LEAD_UID env var: ${leadUidEnv}\n`,
     );
-    leadId = process.env['LEAD_UID'];
+    leadId = leadUidEnv;
   }
 
   if (help) {
@@ -187,7 +174,7 @@ async function main(): Promise<void> {
 
   // HOSTFULLY_MOCK: return fixture data instead of calling the real API.
   // Set HOSTFULLY_MOCK=true in .env for local E2E testing without real Hostfully credentials.
-  if (process.env['HOSTFULLY_MOCK'] === 'true') {
+  if (optionalEnv('HOSTFULLY_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -207,7 +194,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'] ?? '';
+  const agencyUid = optionalEnv('HOSTFULLY_AGENCY_UID') ?? '';
 
   if (!leadId && !propertyId && !agencyUid) {
     process.stderr.write(
@@ -270,7 +257,7 @@ async function main(): Promise<void> {
       }
       threads.push({
         leadUid: lead.uid,
-        threadUid: process.env['THREAD_UID'] ?? '',
+        threadUid: optionalEnv('THREAD_UID') ?? '',
         propertyUid: resolvedPropertyUid,
         guestName: formatGuestName(lead.guestInformation),
         channel: lead.channel ?? null,
@@ -347,7 +334,7 @@ async function main(): Promise<void> {
     }
     threads.push({
       leadUid: lead.uid,
-      threadUid: process.env['THREAD_UID'] ?? '',
+      threadUid: optionalEnv('THREAD_UID') ?? '',
       propertyUid: resolvedPropertyUid,
       guestName: formatGuestName(lead.guestInformation),
       channel: lead.channel ?? null,

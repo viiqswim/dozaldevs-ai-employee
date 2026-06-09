@@ -14,25 +14,24 @@ interface WebhookRecord {
   objectUid?: string;
 }
 
+import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import { resolveHostfullyClient } from './lib/client.js';
+
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);
-  let help = false;
-  for (const arg of args) {
-    if (arg === '--help') help = true;
-  }
-  return { help };
+  return { help: args.includes('--help') };
 }
 
 async function listWebhooks(
   baseUrl: string,
-  apiKey: string,
+  headers: Record<string, string>,
   agencyUid: string,
 ): Promise<WebhookRecord[]> {
   const url = `${baseUrl}/webhooks?agencyUid=${encodeURIComponent(agencyUid)}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: {
-      'X-HOSTFULLY-APIKEY': apiKey,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -48,7 +47,7 @@ async function listWebhooks(
 
 async function registerWebhook(
   baseUrl: string,
-  apiKey: string,
+  headers: Record<string, string>,
   agencyUid: string,
   callbackUrl: string,
 ): Promise<WebhookRecord> {
@@ -63,7 +62,7 @@ async function registerWebhook(
   const res = await fetch(`${baseUrl}/webhooks`, {
     method: 'POST',
     headers: {
-      'X-HOSTFULLY-APIKEY': apiKey,
+      ...headers,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -96,25 +95,13 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const { headers } = resolveHostfullyClient();
 
-  const agencyUid = process.env['HOSTFULLY_AGENCY_UID'];
-  if (!agencyUid) {
-    process.stderr.write('Error: HOSTFULLY_AGENCY_UID environment variable is required\n');
-    process.exit(1);
-  }
+  const agencyUid = requireEnv('HOSTFULLY_AGENCY_UID');
 
-  const webhookPublicUrl = process.env['WEBHOOK_PUBLIC_URL'];
-  if (!webhookPublicUrl) {
-    process.stderr.write('Error: WEBHOOK_PUBLIC_URL environment variable is required\n');
-    process.exit(1);
-  }
+  const webhookPublicUrl = requireEnv('WEBHOOK_PUBLIC_URL');
 
-  const baseUrl = process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com/api/v3.2';
+  const baseUrl = optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com/api/v3.2';
   const callbackUrl = `${webhookPublicUrl}/webhooks/hostfully`;
 
   console.log('Registering Hostfully webhook...');
@@ -124,7 +111,7 @@ async function main(): Promise<void> {
 
   let existing: WebhookRecord[] = [];
   try {
-    existing = await listWebhooks(baseUrl, apiKey, agencyUid);
+    existing = await listWebhooks(baseUrl, headers, agencyUid);
 
     const duplicate = existing.find(
       (w) => w.eventType === 'NEW_INBOX_MESSAGE' && w.callbackUrl === callbackUrl,
@@ -150,7 +137,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const result = await registerWebhook(baseUrl, apiKey, agencyUid, callbackUrl);
+    const result = await registerWebhook(baseUrl, headers, agencyUid, callbackUrl);
 
     console.log('✅ Webhook registered successfully!');
     console.log('  UID:', result.uid);

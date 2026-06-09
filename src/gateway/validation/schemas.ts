@@ -159,6 +159,7 @@ export function parseUpdateProject(body: unknown): UpdateProjectInput {
   return UpdateProjectSchema.parse(body);
 }
 
+// used by AGENTS.md documentation and route handlers that accept tenant/task UUIDs
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const uuidField = () =>
   z.string().regex(UUID_REGEX, 'Invalid UUID — expected 8-4-4-4-12 hex format');

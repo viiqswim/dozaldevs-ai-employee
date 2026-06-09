@@ -10,6 +10,8 @@ import {
 } from '../validation/schemas.js';
 import { dispatchEmployee } from '../services/employee-dispatcher.js';
 import { createInngestClient } from '../inngest/client.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import type { InngestLike } from '../types.js';
 
 const logger = createLogger('admin-employee-trigger');
@@ -37,13 +39,17 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
     async (req, res) => {
       const paramsResult = TriggerEmployeeParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: paramsResult.error.issues,
+        });
         return;
       }
 
       const queryResult = TriggerEmployeeQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: queryResult.error.issues });
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: queryResult.error.issues,
+        });
         return;
       }
 
@@ -51,7 +57,9 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
       );
       if (!bodyResult.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: bodyResult.error.issues,
+        });
         return;
       }
 
@@ -77,7 +85,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
             if (requiredEveryRunKeys.length > 0) {
               const missing = requiredEveryRunKeys.filter((key) => !inputs || !(key in inputs));
               if (missing.length > 0) {
-                res.status(422).json({ error: 'MISSING_REQUIRED_INPUTS', missing });
+                sendError(res, 422, 'MISSING_REQUIRED_INPUTS', undefined, { missing });
                 return;
               }
             }
@@ -87,7 +95,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         const result = await dispatchEmployee({ tenantId, slug, dryRun, prisma, inngest, inputs });
 
         if (result.kind === 'dispatched') {
-          res.status(202).json({
+          sendSuccess(res, 202, {
             task_id: result.taskId,
             status_url: `/admin/tenants/${tenantId}/tasks/${result.taskId}`,
           });
@@ -95,7 +103,7 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         }
 
         if (result.kind === 'dry_run') {
-          res.status(200).json({
+          sendSuccess(res, 200, {
             valid: true,
             would_fire: {
               event_name: result.wouldFire.eventName,
@@ -108,27 +116,27 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
         }
 
         if (result.code === 'ARCHETYPE_NOT_FOUND') {
-          res.status(404).json({ error: 'NOT_FOUND', message: result.message });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND, result.message);
           return;
         }
 
         if (result.code === 'UNSUPPORTED_RUNTIME') {
-          res.status(501).json({ error: 'NOT_IMPLEMENTED', message: result.message });
+          sendError(res, 501, 'NOT_IMPLEMENTED', result.message);
           return;
         }
 
         if (result.code === 'MODEL_NOT_CONFIGURED') {
-          res.status(422).json({ error: 'MODEL_NOT_CONFIGURED', message: result.message });
+          sendError(res, 422, 'MODEL_NOT_CONFIGURED', result.message);
           return;
         }
 
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       } catch (err) {
         logger.error(
           { err },
           'Unexpected error in POST /admin/tenants/:tenantId/employees/:slug/trigger',
         );
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );

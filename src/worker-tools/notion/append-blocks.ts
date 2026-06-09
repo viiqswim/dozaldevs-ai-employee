@@ -1,6 +1,8 @@
 import { resolveNotionAuth } from './auth.js';
-import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { NOTION_API_VERSION } from './lib/notion-types.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 type BlockType = 'paragraph' | 'bulleted_list_item' | 'heading_2';
 
@@ -11,24 +13,14 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let pageId = '';
-  let content = '';
-  let type: BlockType = 'paragraph';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--page-id' && args[i + 1]) {
-      pageId = args[++i];
-    } else if (args[i] === '--content' && args[i + 1]) {
-      content = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--type' && args[i + 1]) {
-      type = args[++i] as BlockType;
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { pageId, content, type, help };
+  const contentRaw = getArg(args, '--content');
+  const typeRaw = getArg(args, '--type');
+  return {
+    pageId: getArg(args, '--page-id') ?? '',
+    content: contentRaw !== undefined ? unescapeShellArg(contentRaw) : '',
+    type: typeRaw !== undefined ? (typeRaw as BlockType) : 'paragraph',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -51,7 +43,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (process.env['NOTION_MOCK'] === 'true') {
+  if (optionalEnv('NOTION_MOCK') === 'true') {
     process.stdout.write(JSON.stringify({ success: true, blocksAdded: 1 }) + '\n');
     process.exit(0);
   }

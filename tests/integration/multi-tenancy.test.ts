@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'crypto';
-import { TenantRepository } from '../../src/gateway/services/tenant-repository.js';
-import { TenantSecretRepository } from '../../src/gateway/services/tenant-secret-repository.js';
+import { TenantRepository } from '../../src/repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../src/repositories/tenant-secret-repository.js';
 import { TenantInstallationStore } from '../../src/gateway/slack/installation-store.js';
-import { loadTenantEnv } from '../../src/gateway/services/tenant-env-loader.js';
+import { loadTenantEnv } from '../../src/repositories/tenant-env-loader.js';
 import { encrypt, decrypt } from '../../src/lib/encryption.js';
 
 const TENANT_A_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';

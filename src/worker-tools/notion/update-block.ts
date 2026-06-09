@@ -1,6 +1,8 @@
 import { resolveNotionAuth } from './auth.js';
-import { NOTION_API_VERSION } from '../../lib/notion-types.js';
+import { NOTION_API_VERSION } from './lib/notion-types.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
 
 function parseArgs(argv: string[]): {
   blockId: string;
@@ -8,21 +10,12 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let blockId = '';
-  let content = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--block-id' && args[i + 1]) {
-      blockId = args[++i];
-    } else if (args[i] === '--content' && args[i + 1]) {
-      content = unescapeShellArg(args[++i]);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { blockId, content, help };
+  const contentRaw = getArg(args, '--content');
+  return {
+    blockId: getArg(args, '--block-id') ?? '',
+    content: contentRaw !== undefined ? unescapeShellArg(contentRaw) : '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -44,7 +37,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (process.env['NOTION_MOCK'] === 'true') {
+  if (optionalEnv('NOTION_MOCK') === 'true') {
     const id = blockId || 'unknown';
     process.stdout.write(JSON.stringify({ success: true, blockId: id }) + '\n');
     process.exit(0);

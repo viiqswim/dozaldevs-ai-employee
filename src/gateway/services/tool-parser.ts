@@ -13,6 +13,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('tool-parser');
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -66,8 +69,8 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
   for (const dirent of entries) {
     if (!dirent.isFile()) continue;
 
-    // Build relative path within basePath
-    // dirent.parentPath or dirent.path (Node 20+)
+    // Safe: both properties exist at runtime on Node 20+ Dirent (parentPath is
+    // newer, path is the legacy alias); the @types/node Dirent lags the runtime.
     const parentDir =
       'parentPath' in dirent
         ? (dirent as unknown as { parentPath: string }).parentPath
@@ -89,10 +92,9 @@ export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
       const metadata = await parseToolFile(filePath);
       results.push(metadata);
     } catch (err) {
-      console.warn(
+      logger.warn(
+        { filePath, err: err instanceof Error ? err.message : String(err) },
         'tool-parser: failed to parse',
-        filePath,
-        err instanceof Error ? err.message : String(err),
       );
     }
   }

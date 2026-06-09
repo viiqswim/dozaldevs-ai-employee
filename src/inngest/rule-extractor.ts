@@ -1,14 +1,20 @@
 import { randomUUID } from 'crypto';
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import type { RuleExtractRequestedPayload } from './rule-extractor-types.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleProposedMessage } from '../lib/slack-copy.js';
+import type { InngestStep } from './events.js';
+import { requireEnv } from '../lib/config.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('rule-extractor');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const RULE_EXTRACTOR_SYSTEM_PROMPT =
   'You are a rule extractor. Analyze the correction and extract ONE concrete, actionable behavioral rule. ' +
@@ -22,9 +28,14 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
       id: 'employee/rule-extractor',
       triggers: [{ event: 'employee/rule.extract-requested' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const payload = event.data as RuleExtractRequestedPayload;
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<RuleExtractRequestedPayload>;
+      step: InngestStep;
+    }) => {
+      const payload = event.data!;
       const {
         tenantId,
         feedbackId,
@@ -39,14 +50,7 @@ export function createRuleExtractorFunction(inngest: Inngest): InngestFunction.A
         targetChannel: payloadTargetChannel,
       } = payload;
 
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
-      const headers: Record<string, string> = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const resolvedContent = await step.run('load-context', async () => {
         if (feedbackType === 'edit_diff') {

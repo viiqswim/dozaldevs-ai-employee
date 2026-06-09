@@ -8,6 +8,8 @@
  *     'Content-Type': 'application/json',
  *   }, { service: 'slack' });
  *   const response = await http.post('/api/chat.postMessage', body);
+ *   const response = await http.get('/api/resource');
+ *   const response = await http.delete('/api/resource/123');
  */
 import { RateLimitExceededError } from './errors.js';
 import { withRetry, type RetryOptions } from './retry.js';
@@ -18,8 +20,15 @@ export interface HttpClientConfig {
   baseDelayMs?: number;
 }
 
+/** Optional per-request overrides (e.g. extra/override headers). */
+export interface HttpRequestOptions {
+  headers?: Record<string, string>;
+}
+
 export interface HttpClient {
   post(path: string, body: unknown): Promise<Response>;
+  get(path: string, opts?: HttpRequestOptions): Promise<Response>;
+  delete(path: string, opts?: HttpRequestOptions): Promise<Response>;
 }
 
 function parseRetryAfterMs(headers: Headers): number | undefined {
@@ -40,6 +49,16 @@ export function createHttpClient(
     retryOn: (err) => err instanceof RateLimitExceededError,
   };
 
+  function handle429(response: Response): void {
+    if (response.status === 429) {
+      const retryAfterMs = parseRetryAfterMs(response.headers);
+      throw new RateLimitExceededError(
+        `${config.service} rate limit exceeded: ${response.statusText}`,
+        { service: config.service, attempts: 1, retryAfterMs },
+      );
+    }
+  }
+
   return {
     post(path: string, body: unknown): Promise<Response> {
       return withRetry(async () => {
@@ -48,15 +67,29 @@ export function createHttpClient(
           headers: defaultHeaders,
           body: JSON.stringify(body),
         });
+        handle429(response);
+        return response;
+      }, retryOptions);
+    },
 
-        if (response.status === 429) {
-          const retryAfterMs = parseRetryAfterMs(response.headers);
-          throw new RateLimitExceededError(
-            `${config.service} rate limit exceeded: ${response.statusText}`,
-            { service: config.service, attempts: 1, retryAfterMs },
-          );
-        }
+    get(path: string, opts?: HttpRequestOptions): Promise<Response> {
+      return withRetry(async () => {
+        const response = await fetch(`${baseUrl}${path}`, {
+          method: 'GET',
+          headers: { ...defaultHeaders, ...opts?.headers },
+        });
+        handle429(response);
+        return response;
+      }, retryOptions);
+    },
 
+    delete(path: string, opts?: HttpRequestOptions): Promise<Response> {
+      return withRetry(async () => {
+        const response = await fetch(`${baseUrl}${path}`, {
+          method: 'DELETE',
+          headers: { ...defaultHeaders, ...opts?.headers },
+        });
+        handle429(response);
         return response;
       }, retryOptions);
     },

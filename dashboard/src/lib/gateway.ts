@@ -1,4 +1,4 @@
-import { GATEWAY_URL, INNGEST_URL } from './constants';
+import { GATEWAY_URL, INNGEST_URL, WEBHOOK_FIXTURES } from './constants';
 import type {
   Archetype,
   Task,
@@ -409,4 +409,21 @@ export async function disconnectGoogle(tenantId: string): Promise<{ disconnected
   return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
     method: 'DELETE',
   });
+}
+
+export async function fireHostfullyWebhook(messageUid: string): Promise<void> {
+  const response = await fetch(`${GATEWAY_URL}/webhooks/hostfully`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...WEBHOOK_FIXTURES,
+      event_type: 'NEW_INBOX_MESSAGE',
+      message_uid: messageUid,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Webhook error ${response.status}: ${text}`);
+  }
 }

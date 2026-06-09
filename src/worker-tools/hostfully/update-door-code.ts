@@ -1,20 +1,14 @@
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
+import { resolveHostfullyClient } from './lib/client.js';
+
 function parseArgs(argv: string[]): { propertyId: string; code: string; help: boolean } {
   const args = argv.slice(2);
-  let propertyId = '';
-  let code = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--property-id' && args[i + 1]) {
-      propertyId = args[++i];
-    } else if (args[i] === '--code' && args[i + 1]) {
-      code = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { propertyId, code, help };
+  return {
+    propertyId: getArg(args, '--property-id') ?? '',
+    code: getArg(args, '--code') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 interface CustomDataField {
@@ -61,21 +55,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const apiKey = process.env['HOSTFULLY_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: HOSTFULLY_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  const { headers } = resolveHostfullyClient();
 
-  const baseUrl = (process.env['HOSTFULLY_API_URL'] ?? 'https://api.hostfully.com').replace(
+  const baseUrl = (optionalEnv('HOSTFULLY_API_URL') ?? 'https://api.hostfully.com').replace(
     /\/$/,
     '',
   );
-
-  const headers = {
-    'X-HOSTFULLY-APIKEY': apiKey,
-    Accept: 'application/json',
-  };
 
   const getUrl = `${baseUrl}/api/v3.2/custom-data?propertyUid=${encodeURIComponent(propertyId)}`;
 

@@ -7,6 +7,8 @@ import {
   TenantIdParamSchema,
   TenantPropertyLockParamSchema,
 } from '../validation/schemas.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
 const logger = createLogger('admin-property-locks');
@@ -22,13 +24,15 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
   router.post('/admin/tenants/:tenantId/property-locks', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
     const result = CreatePropertyLockSchema.safeParse(req.body);
     if (!result.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: result.error.issues,
+      });
       return;
     }
 
@@ -40,17 +44,17 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           tenant_id: paramResult.data.tenantId,
         },
       });
-      res.status(201).json(propertyLock);
+      sendSuccess(res, 201, propertyLock);
     } catch (err) {
       logger.error({ err }, 'Failed to create property lock');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.get('/admin/tenants/:tenantId/property-locks', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -64,10 +68,10 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         },
         orderBy: { created_at: 'asc' },
       });
-      res.status(200).json({ propertyLocks });
+      sendSuccess(res, 200, { propertyLocks });
     } catch (err) {
       logger.error({ err }, 'Failed to list property locks');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
@@ -77,7 +81,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
@@ -90,14 +94,14 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         });
 
         if (!propertyLock) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
           return;
         }
 
-        res.status(200).json(propertyLock);
+        sendSuccess(res, 200, propertyLock);
       } catch (err) {
         logger.error({ err }, 'Failed to get property lock');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );
@@ -108,13 +112,15 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
       const result = UpdatePropertyLockSchema.safeParse(req.body);
       if (!result.success) {
-        res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: result.error.issues,
+        });
         return;
       }
 
@@ -127,7 +133,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         });
 
         if (!existing) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
           return;
         }
 
@@ -139,10 +145,10 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           },
         });
 
-        res.status(200).json(propertyLock);
+        sendSuccess(res, 200, propertyLock);
       } catch (err) {
         logger.error({ err }, 'Failed to update property lock');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );
@@ -153,7 +159,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {
-        res.status(400).json({ error: 'INVALID_ID' });
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
         return;
       }
 
@@ -166,7 +172,7 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
         });
 
         if (!existing) {
-          res.status(404).json({ error: 'NOT_FOUND' });
+          sendError(res, 404, ERROR_CODES.NOT_FOUND);
           return;
         }
 
@@ -174,10 +180,10 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
           where: { id: paramResult.data.lockId, tenant_id: paramResult.data.tenantId },
         });
 
-        res.status(204).send();
+        sendSuccess(res, 204);
       } catch (err) {
         logger.error({ err }, 'Failed to delete property lock');
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
       }
     },
   );

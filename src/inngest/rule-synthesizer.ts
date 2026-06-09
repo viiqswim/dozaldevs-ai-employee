@@ -1,13 +1,19 @@
 import { randomUUID } from 'crypto';
 import { Inngest } from 'inngest';
-import type { InngestFunction } from 'inngest';
+import type { EventPayload, InngestFunction } from 'inngest';
 import { callLLM } from '../lib/call-llm.js';
 import { decrypt } from '../lib/encryption.js';
 import { createLogger } from '../lib/logger.js';
 import { SLACK_ACTION_ID } from '../lib/slack-action-ids.js';
 import { ruleMergedMessage, ruleContradictionMessage } from '../lib/slack-copy.js';
+import type { InngestStep, RuleSynthesizeRequestedData } from './events.js';
+import { requireEnv } from '../lib/config.js';
+import { makePostgrestHeaders } from './lib/postgrest-headers.js';
 
 const log = createLogger('rule-synthesizer');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const RULE_SYNTHESIZER_SYSTEM_PROMPT =
   'You are analyzing behavioral rules for an AI employee. Find rules that overlap (address the same topic) or contradict each other. ' +
@@ -23,18 +29,16 @@ export function createRuleSynthesizerFunction(inngest: Inngest): InngestFunction
       id: 'employee/rule-synthesizer',
       triggers: [{ event: 'employee/rule.synthesize-requested' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ event, step }: { event: any; step: any }) => {
-      const { tenantId, archetypeId } = event.data as { tenantId: string; archetypeId: string };
+    async ({
+      event,
+      step,
+    }: {
+      event: EventPayload<RuleSynthesizeRequestedData>;
+      step: InngestStep;
+    }) => {
+      const { tenantId, archetypeId } = event.data!;
 
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
-      const headers: Record<string, string> = {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const rules = await step.run('load-confirmed-rules', async () => {
         const res = await fetch(

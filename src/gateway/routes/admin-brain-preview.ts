@@ -5,9 +5,9 @@ import { z } from 'zod';
 import path from 'path';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
 import { buildEnvManifestFromVars } from '../../workers/lib/env-manifest-builder.mjs';
@@ -62,7 +62,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           employeeRules: '',
           employeeKnowledge: '',
         });
-        res.status(200).json({ compiled_agents_md: compiledAgentsMd });
+        sendSuccess(res, 200, { compiled_agents_md: compiledAgentsMd });
       } catch (err) {
         logger.error({ err }, 'Failed to compile AGENTS.md preview');
         sendError(res, 500, 'INTERNAL_ERROR');
@@ -305,7 +305,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           containerPath: t.containerPath,
         }));
 
-        res.status(200).json({
+        sendSuccess(res, 200, {
           compiled_agents_md: compiledAgentsMd,
           execution_prompt: EXECUTION_PROMPT,
           delivery_prompt: DELIVERY_PROMPT,

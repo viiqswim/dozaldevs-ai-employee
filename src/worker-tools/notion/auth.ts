@@ -1,10 +1,12 @@
+import { optionalEnv } from '../lib/require-env.js';
+
 export type NotionAuth = {
   headers: Record<string, string>;
   mode: 'oauth' | 'api_key';
 };
 
 export function resolveNotionAuth(): NotionAuth {
-  const accessToken = process.env['NOTION_ACCESS_TOKEN'];
+  const accessToken = optionalEnv('NOTION_ACCESS_TOKEN');
 
   if (accessToken) {
     return {
@@ -17,7 +19,7 @@ export function resolveNotionAuth(): NotionAuth {
     };
   }
 
-  const apiKey = process.env['NOTION_API_KEY'];
+  const apiKey = optionalEnv('NOTION_API_KEY');
 
   if (apiKey) {
     return {

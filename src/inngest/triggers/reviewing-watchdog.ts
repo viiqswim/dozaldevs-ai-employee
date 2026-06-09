@@ -19,13 +19,19 @@ import { Inngest } from 'inngest';
 import type { InngestFunction } from 'inngest';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { loadTenantEnv } from '../../gateway/services/tenant-env-loader.js';
-import { TenantRepository } from '../../gateway/services/tenant-repository.js';
-import { TenantSecretRepository } from '../../gateway/services/tenant-secret-repository.js';
+import { loadTenantEnv } from '../../repositories/tenant-env-loader.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { createSlackClient } from '../../lib/slack-client.js';
 import { watchdogFailureMessage } from '../../lib/slack-copy.js';
+import type { InngestStep } from '../events.js';
+import { requireEnv } from '../../lib/config.js';
+import { makePostgrestHeaders } from '../lib/postgrest-headers.js';
 
 const log = createLogger('reviewing-watchdog');
+
+const supabaseUrl = requireEnv('SUPABASE_URL');
+const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
 
 const ZOMBIE_THRESHOLD_MINUTES = 30;
 
@@ -41,31 +47,19 @@ interface PendingApprovalRow {
   id: string;
 }
 
-function makeHeaders(supabaseKey: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-  };
-}
-
 export function createReviewingWatchdogTrigger(inngest: Inngest): InngestFunction.Any {
   return inngest.createFunction(
     {
       id: 'trigger/reviewing-watchdog',
       triggers: [{ cron: '*/15 * * * *' }],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async ({ step }: { step: any }) => {
-      const supabaseUrl = process.env.SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? '';
-
+    async ({ step }: { step: InngestStep }) => {
       if (!supabaseUrl || !supabaseKey) {
         log.warn('SUPABASE_URL or SUPABASE_SECRET_KEY not set — skipping reviewing watchdog');
         return { zombiesFound: 0, zombiesResolved: 0 };
       }
 
-      const headers = makeHeaders(supabaseKey);
+      const headers = makePostgrestHeaders(supabaseKey);
 
       const cutoff = new Date(Date.now() - ZOMBIE_THRESHOLD_MINUTES * 60 * 1000).toISOString();
 

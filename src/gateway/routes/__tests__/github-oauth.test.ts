@@ -9,13 +9,13 @@ const { mockFindBySlug, mockSecretSet, mockIntegrationUpsert } = vi.hoisted(() =
   mockIntegrationUpsert: vi.fn(),
 }));
 
-vi.mock('../../services/tenant-repository.js', () => ({
+vi.mock('../../../repositories/tenant-repository.js', () => ({
   TenantRepository: vi.fn(() => ({
     findBySlug: mockFindBySlug,
   })),
 }));
 
-vi.mock('../../services/tenant-secret-repository.js', () => ({
+vi.mock('../../../repositories/tenant-secret-repository.js', () => ({
   TenantSecretRepository: vi.fn(() => ({
     set: mockSecretSet,
   })),

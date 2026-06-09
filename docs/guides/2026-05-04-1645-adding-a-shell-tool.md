@@ -28,6 +28,8 @@ Place the file at `src/worker-tools/{service}/{verb}-{noun}.ts`.
 Every tool must follow this structure:
 
 ```typescript
+import { requireEnv } from '../lib/require-env.js';
+
 // 1. parseArgs — manual, no CLI frameworks
 function parseArgs(argv: string[]): { requiredArg: string; help: boolean } {
   const args = argv.slice(2);
@@ -60,12 +62,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // 4. Validate required env vars — exit 1 with message to stderr
-  const apiKey = process.env['SERVICE_API_KEY'];
-  if (!apiKey) {
-    process.stderr.write('Error: SERVICE_API_KEY environment variable is required\n');
-    process.exit(1);
-  }
+  // 4. Validate required env vars — use requireEnv() from ../lib/require-env.js
+  const apiKey = requireEnv('SERVICE_API_KEY');
 
   // 5. Do the work, write JSON result to stdout
   const result = { success: true, data: 'value' };
@@ -117,7 +115,7 @@ async function main(): Promise<void> {
 
 ### 4. Handle environment variables
 
-**Credentials (secrets)**: Store in `tenant_secrets` table with a lowercase key (e.g., `hostfully_api_key`). The `tenant-env-loader.ts` auto-uppercases and injects all secrets into the worker machine env — no code changes needed. Access in the tool via `process.env['HOSTFULLY_API_KEY']`.
+**Credentials (secrets)**: Store in `tenant_secrets` table with a lowercase key (e.g., `hostfully_api_key`). The `tenant-env-loader.ts` auto-uppercases and injects all secrets into the worker machine env — no code changes needed. Access in the tool via `requireEnv('HOSTFULLY_API_KEY')` from `../lib/require-env.js` — never use `process.env` directly (missing vars fail silently and produce cryptic errors at runtime).
 
 **Non-secret config vars** (e.g., `HOSTFULLY_MOCK`, `HOSTFULLY_API_URL`): Must be explicitly added to the platform env whitelist in `src/gateway/services/tenant-env-loader.ts`. They are not auto-injected.
 

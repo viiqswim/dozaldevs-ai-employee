@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { App, ExpressReceiver, SocketModeReceiver } from '@slack/bolt';
-import pino from 'pino';
+import { createLogger } from '../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
 import { createInngestClient } from './inngest/client.js';
 import { healthRoutes } from './routes/health.js';
@@ -38,8 +38,8 @@ import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { adminGoogleRoutes } from './routes/admin-google.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
-import { TenantRepository } from './services/tenant-repository.js';
-import { TenantSecretRepository } from './services/tenant-secret-repository.js';
+import { TenantRepository } from '../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from './services/tenant-integration-repository.js';
 import { inngestServeRoutes } from './inngest/serve.js';
 import { registerSlackHandlers } from './slack/handlers.js';
@@ -49,7 +49,7 @@ import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
 import { requireEnv } from '../lib/config.js';
 import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('gateway');
 
 function validateProductionEnv(): void {
   if (process.env.NODE_ENV === 'production' && !process.env.OPENCODE_GO_API_KEY) {
@@ -145,6 +145,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
         .start()
         .then(() => {
           logger.info('Slack Bolt — Socket Mode connected');
+          // Safe: Bolt's App does not expose `receiver` in its public types, but at
+          // runtime it is the SocketModeReceiver we configured at construction.
           const smClient = (boltApp as unknown as { receiver: SocketModeReceiver }).receiver.client;
           smClient.on('disconnected', () => {
             logger.warn('Slack Bolt — Socket Mode disconnected');
@@ -206,7 +208,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
     }
 
     if (options.inngestClient && boltApp) {
-      registerSlackHandlers(boltApp, options.inngestClient);
+      registerSlackHandlers(boltApp, options.inngestClient, prisma);
     }
   } else {
     logger.warn(

@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 interface ParsedArgs {
   calendarId: string;
@@ -9,24 +10,13 @@ interface ParsedArgs {
 
 function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
-  let calendarId = 'primary';
-  let maxResults = 10;
-  let timeMin = new Date().toISOString();
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--calendar-id' && args[i + 1]) {
-      calendarId = args[++i];
-    } else if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--time-min' && args[i + 1]) {
-      timeMin = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { calendarId, maxResults, timeMin, help };
+  const maxResultsArg = getArg(args, '--max-results');
+  return {
+    calendarId: getArg(args, '--calendar-id') ?? 'primary',
+    maxResults: maxResultsArg ? parseInt(maxResultsArg, 10) : 10,
+    timeMin: getArg(args, '--time-min') ?? new Date().toISOString(),
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

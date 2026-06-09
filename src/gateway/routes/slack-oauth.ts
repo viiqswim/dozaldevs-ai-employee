@@ -2,11 +2,19 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient } from '@prisma/client';
-import { TenantRepository } from '../services/tenant-repository.js';
-import { TenantSecretRepository } from '../services/tenant-secret-repository.js';
+import { TenantRepository } from '../../repositories/tenant-repository.js';
+import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { TenantIntegrationRepository } from '../services/tenant-integration-repository.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { signState, verifyState } from '../lib/oauth-state.js';
+import { sendError } from '../lib/http-response.js';
+import { withRetry } from '../../lib/retry.js';
+import {
+  SLACK_CLIENT_ID,
+  SLACK_CLIENT_SECRET,
+  SLACK_REDIRECT_BASE_URL,
+  ENCRYPTION_KEY,
+} from '../../lib/config.js';
 
 export interface SlackOAuthRouteOptions {
   prisma?: PrismaClient;
@@ -23,27 +31,26 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
   router.get('/slack/install', async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse({ tenantId: req.query['tenant'] });
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_TENANT_ID' });
+      sendError(res, 400, 'INVALID_TENANT_ID');
       return;
     }
     const tenantId = paramResult.data.tenantId;
     try {
       const tenant = await tenantRepo.findById(tenantId);
       if (!tenant) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
-      const clientId = process.env.SLACK_CLIENT_ID;
+      const clientId = SLACK_CLIENT_ID();
       if (!clientId) {
-        res.status(500).json({ error: 'SLACK_CLIENT_ID not configured' });
+        sendError(res, 500, 'SLACK_CLIENT_ID not configured');
         return;
       }
-      const signingKey = process.env.ENCRYPTION_KEY ?? '';
+      const signingKey = ENCRYPTION_KEY();
       const nonce = crypto.randomBytes(16).toString('hex');
       const payload = JSON.stringify({ tenant_id: tenantId, nonce });
       const state = signState(payload, signingKey);
-      const redirectBase =
-        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = SLACK_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
       const scopes =
         'channels:history,channels:read,groups:history,groups:read,chat:write,chat:write.public';
@@ -56,43 +63,44 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       res.redirect(302, url);
     } catch (err) {
       logger.error({ err }, 'Failed to generate install link');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
   router.get('/slack/oauth_callback', async (req, res) => {
     const { code, state } = req.query as { code?: string; state?: string };
     if (!code || !state) {
-      res.status(400).json({ error: 'MISSING_PARAMS' });
+      sendError(res, 400, 'MISSING_PARAMS');
       return;
     }
-    const signingKey = process.env.ENCRYPTION_KEY ?? '';
+    const signingKey = ENCRYPTION_KEY();
     const parsed = verifyState(state, signingKey);
     if (!parsed) {
-      res.status(400).json({ error: 'INVALID_STATE' });
+      sendError(res, 400, 'INVALID_STATE');
       return;
     }
     const { tenant_id: tenantId } = parsed;
     try {
-      const clientId = process.env.SLACK_CLIENT_ID;
-      const clientSecret = process.env.SLACK_CLIENT_SECRET;
+      const clientId = SLACK_CLIENT_ID();
+      const clientSecret = SLACK_CLIENT_SECRET();
       if (!clientId || !clientSecret) {
-        res.status(500).json({ error: 'Slack OAuth not configured' });
+        sendError(res, 500, 'Slack OAuth not configured');
         return;
       }
-      const redirectBase =
-        process.env.SLACK_REDIRECT_BASE_URL ?? `http://localhost:${process.env.PORT ?? '7700'}`;
+      const redirectBase = SLACK_REDIRECT_BASE_URL();
       const redirectUri = `${redirectBase}/slack/oauth_callback`;
-      const tokenRes = await fetch('https://slack.com/api/oauth.v2.access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
-        }).toString(),
-      });
+      const tokenRes = await withRetry(() =>
+        fetch('https://slack.com/api/oauth.v2.access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+          }).toString(),
+        }),
+      );
       const tokenData = (await tokenRes.json()) as {
         ok: boolean;
         access_token?: string;
@@ -102,7 +110,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       };
       if (!tokenData.ok || !tokenData.access_token || !tokenData.team) {
         logger.error({ slackError: tokenData.error }, 'Slack OAuth token exchange failed');
-        res.status(400).json({ error: 'SLACK_OAUTH_FAILED', detail: tokenData.error });
+        sendError(res, 400, 'SLACK_OAUTH_FAILED', undefined, { detail: tokenData.error });
         return;
       }
       const teamId = tokenData.team.id;
@@ -110,10 +118,7 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const accessToken = tokenData.access_token;
       const existingIntegration = await integrationRepo.findByExternalId('slack', teamId);
       if (existingIntegration && existingIntegration.tenant_id !== tenantId) {
-        res.status(409).json({
-          error: 'CONFLICT',
-          message: 'Slack workspace already attached to a different tenant',
-        });
+        sendError(res, 409, 'CONFLICT', 'Slack workspace already attached to a different tenant');
         return;
       }
       await secretRepo.set(tenantId, 'slack_bot_token', accessToken);
@@ -129,14 +134,11 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
         err instanceof Error &&
         (err as NodeJS.ErrnoException & { code?: string }).code === 'DUPLICATE_TEAM'
       ) {
-        res.status(409).json({
-          error: 'CONFLICT',
-          message: 'Slack workspace already attached to a different tenant',
-        });
+        sendError(res, 409, 'CONFLICT', 'Slack workspace already attached to a different tenant');
         return;
       }
       logger.error({ err }, 'OAuth callback failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 

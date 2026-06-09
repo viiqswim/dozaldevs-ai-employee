@@ -1,0 +1,29 @@
+Task 19 — reviewing-path.ts decomposition evidence
+
+Before: 516 lines (monolith with two large step.run callbacks)
+After:  533 lines (same file, helpers extracted as named functions)
+
+Extracted functions:
+  - checkSupersede(ctx: ReviewingPathContext): Promise<void>
+    Lines 53-168 (was inline in step.run 'check-supersede', lines 74-214)
+  - trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void>
+    Lines 170-295 (was inline in step.run 'track-pending-approval', lines 258-390)
+
+step.run wrappers are now thin orchestrators:
+  - step.run('check-supersede', () => checkSupersede(ctx))
+  - step.run('track-pending-approval', () => trackPendingApprovalStep(ctx))
+
+Step IDs preserved exactly:
+  - 'check-supersede' ✓
+  - 'track-pending-approval' ✓
+  - 'set-reviewing' ✓
+  - 'update-notify-reviewing' ✓
+  - 'wait-for-approval' ✓
+  - 'handle-approval-result' ✓
+  - 'record-work-metric-approval' ✓
+  - 'cleanup' ✓
+
+Build: pnpm build → EXIT_CODE:0 (clean)
+Unit tests: 128 files, 1450 passed, 9 skipped, 0 failures
+Integration tests: pre-existing failures only (admin-kb-crud, projects, harness-metrics, etc.)
+  — none related to reviewing-path.ts

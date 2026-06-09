@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import type { callLLM } from '../../lib/call-llm.js';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ArchetypeGenerator } from '../services/archetype-generator.js';
 
 export interface AdminArchetypeGenerateRouteOptions {
@@ -18,6 +20,15 @@ const GenerateBodySchema = z.object({
   refinement_instruction: z.string().max(500).optional(),
 });
 
+// refine() only reads these fields directly; the rest is JSON-stringified as-is.
+const PreviousConfigSchema = z
+  .object({
+    role_name: z.string(),
+    identity: z.string(),
+    execution_steps: z.string(),
+  })
+  .passthrough();
+
 export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOptions): Router {
   const router = Router();
   const logger = createLogger('admin-archetype-generate');
@@ -27,13 +38,15 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
   router.post('/admin/tenants/:tenantId/archetypes/generate', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID', issues: paramResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, { issues: paramResult.error.issues });
       return;
     }
 
     const bodyResult = GenerateBodySchema.safeParse(req.body);
     if (!bodyResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: bodyResult.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+        issues: bodyResult.error.issues,
+      });
       return;
     }
 
@@ -47,6 +60,14 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
       let result;
 
       if (previous_config !== undefined && refinement_instruction !== undefined) {
+        const prevResult = PreviousConfigSchema.safeParse(previous_config);
+        if (!prevResult.success) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+            issues: prevResult.error.issues,
+          });
+          return;
+        }
+
         result = await generator.refine(
           previous_config as unknown as Parameters<typeof generator.refine>[0],
           refinement_instruction,
@@ -56,17 +77,17 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
         result = await generator.generate(description, catalog);
       }
 
-      res.status(200).json(result);
+      sendSuccess(res, 200, result);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
       if (message.includes('GENERATION_FAILED')) {
-        res.status(422).json({ error: 'GENERATION_FAILED', details: message });
+        sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
         return;
       }
 
       logger.error({ err }, 'Archetype generation failed');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 

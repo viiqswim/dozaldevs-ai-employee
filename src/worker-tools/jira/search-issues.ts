@@ -1,3 +1,6 @@
+import { getArg } from '../lib/get-arg.js';
+import { optionalEnv } from '../lib/require-env.js';
+
 type IssueSearchItem = {
   key: string;
   summary: string;
@@ -21,30 +24,15 @@ function parseArgs(argv: string[]): {
   help: boolean;
 } {
   const args = argv.slice(2);
-  let project = '';
-  let status = '';
-  let assignee = '';
-  let jql = '';
-  let maxResults = 50;
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--project' && args[i + 1]) {
-      project = args[++i];
-    } else if (args[i] === '--status' && args[i + 1]) {
-      status = args[++i];
-    } else if (args[i] === '--assignee' && args[i + 1]) {
-      assignee = args[++i];
-    } else if (args[i] === '--jql' && args[i + 1]) {
-      jql = args[++i];
-    } else if (args[i] === '--max-results' && args[i + 1]) {
-      maxResults = parseInt(args[++i], 10);
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { project, status, assignee, jql, maxResults, help };
+  const maxResultsRaw = getArg(args, '--max-results');
+  return {
+    project: getArg(args, '--project') ?? '',
+    status: getArg(args, '--status') ?? '',
+    assignee: getArg(args, '--assignee') ?? '',
+    jql: getArg(args, '--jql') ?? '',
+    maxResults: maxResultsRaw ? parseInt(maxResultsRaw, 10) : 50,
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {
@@ -71,7 +59,7 @@ async function main(): Promise<void> {
 
   const { resolveJiraAuth } = await import('./auth.js');
 
-  if (process.env['JIRA_MOCK'] === 'true') {
+  if (optionalEnv('JIRA_MOCK') === 'true') {
     const { readFileSync } = await import('node:fs');
     const { join, dirname } = await import('node:path');
     const { fileURLToPath } = await import('node:url');

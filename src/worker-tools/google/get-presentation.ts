@@ -1,4 +1,5 @@
 import { googleFetch } from './google-fetch.js';
+import { getArg } from '../lib/get-arg.js';
 
 interface SlidePageElement {
   objectId: string;
@@ -17,18 +18,10 @@ interface PresentationResponse {
 
 function parseArgs(argv: string[]): { presentationId: string; help: boolean } {
   const args = argv.slice(2);
-  let presentationId = '';
-  let help = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--presentation-id' && args[i + 1]) {
-      presentationId = args[++i];
-    } else if (args[i] === '--help') {
-      help = true;
-    }
-  }
-
-  return { presentationId, help };
+  return {
+    presentationId: getArg(args, '--presentation-id') ?? '',
+    help: args.includes('--help'),
+  };
 }
 
 async function main(): Promise<void> {

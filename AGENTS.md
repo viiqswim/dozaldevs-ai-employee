@@ -23,22 +23,24 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
+**Permitted Anthropic model (verification/judge only):** `anthropic/claude-haiku-4-5` is the sole Anthropic model permitted for gateway verification/judge calls (distinct from execution models). It may appear as a `gateway_llm_model` platform setting value. It must NOT be used as an execution model or hardcoded anywhere else.
+
 **OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/lib/go-models.ts`). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
 
 ## Deprecated Components
 
 The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
 
-| Component                       | File                                              | Reason                                                                                                                                                                                                                                                                                                         |
-| ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                        | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                                                                                                                         |
-| Engineering task redispatch     | `src/inngest/redispatch.ts`                       | Paired with the deprecated engineering lifecycle.                                                                                                                                                                                                                                                              |
-| Generic worker harness          | `src/workers/generic-harness.mts`                 | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                                                                                                                     |
-| Tool registry                   | `src/workers/tools/registry.ts`                   | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                                                                                                                 |
-| Engineering watchdog cron       | `src/inngest/watchdog.ts`                         | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                                                                                                                            |
-| Engineering worker orchestrator | `src/workers/orchestrate.mts`                     | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify. **Note**: This is the old orchestrator-based engineering employee. The new archetype-based engineer employee (created via wizard) is active and uses the OpenCode harness. |
-| Engineering worker launcher     | `src/workers/entrypoint.sh`                       | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                                                                                                                            |
-| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active.                                                                                                  |
+| Component                       | File                                                                                                                                                                                        | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                                                                                                                                                                  | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Engineering task redispatch     | `src/inngest/redispatch.ts`                                                                                                                                                                 | Paired with the deprecated engineering lifecycle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Generic worker harness          | `src/workers/generic-harness.mts`                                                                                                                                                           | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Tool registry                   | `src/workers/tools/registry.ts`                                                                                                                                                             | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Engineering watchdog cron       | `src/inngest/watchdog.ts`                                                                                                                                                                   | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Engineering worker orchestrator | `src/workers/orchestrate.mts`                                                                                                                                                               | Engineering-only worker — ~1100-line orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify. **Note**: This is the old orchestrator-based engineering employee. The new archetype-based engineer employee (created via wizard) is active and uses the OpenCode harness.                                                                                                                                                                                                                                                                                    |
+| Engineering worker launcher     | `src/workers/entrypoint.sh`                                                                                                                                                                 | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`, `session-manager.ts`, `execution-phase.mts`, `delivery-phase.mts`, `harness-helpers.mts`, `agents-md-compiler.mts`, `postgrest-types.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. `session-manager.ts` is also active — imported by `opencode-harness.mts` to manage OpenCode sessions. `execution-phase.mts` and `delivery-phase.mts` are active — extracted from `opencode-harness.mts`. **`postgrest-client.ts` uses raw `process.env` with null-checks intentionally** — worker startup guarantees differ from gateway startup; do not "fix" with `requireEnv()`. |
 
 ## Platform Vision
 
@@ -68,7 +70,7 @@ Employee-specific details are in each archetype's `identity` and `execution_step
 
 All non-deprecated employees use the OpenCode-based harness on Fly.io:
 
-- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, compiles AGENTS.md via `src/workers/lib/agents-md-compiler.mts`, starts OpenCode session, monitors until completion. The compiled AGENTS.md is saved to `tasks.compiled_agents_md` for debugging.
+- **Harness**: `src/workers/opencode-harness.mts` — reads archetype from DB, compiles AGENTS.md via `src/workers/lib/agents-md-compiler.mts`, starts OpenCode session, monitors until completion. The compiled AGENTS.md is saved to `tasks.compiled_agents_md` for debugging. Shared utilities (container naming, log helpers) extracted to `src/workers/lib/harness-helpers.mts`. Execution and delivery logic extracted to `src/workers/lib/execution-phase.mts` and `src/workers/lib/delivery-phase.mts`.
 - **AGENTS.md compilation**: `agents-md-compiler.mts` assembles the per-task AGENTS.md from archetype fields (`identity`, `execution_steps`, `delivery_steps`), learned rules, knowledge base entries, and the platform base config (`src/workers/config/agents.md`). The `execution_instructions` field is the platform constant prompt injected as the initial OpenCode message — it is not user-editable.
   **Shell tools** at `/tools/` in Docker image — one directory per service:
 
@@ -294,23 +296,27 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" "http://localhost:7700/admin/tenan
 
 ## Commands
 
-| Action           | Command                            |
-| ---------------- | ---------------------------------- |
-| First-time setup | `pnpm setup`                       |
-| Start services   | `pnpm dev`                         |
-| Run tests        | `pnpm test -- --run`               |
-| Setup test DB    | `pnpm test:db:setup`               |
-| Lint             | `pnpm lint`                        |
-| Build            | `pnpm build`                       |
-| Trigger E2E task | `pnpm trigger-task`                |
-| Verify E2E       | `pnpm verify:e2e --task-id <uuid>` |
-| Stress test      | `pnpm stress-test`                 |
-| Docker start     | `pnpm docker:start`                |
-| Docker stop      | `pnpm docker:stop`                 |
-| Docker reset     | `pnpm docker:reset`                |
-| Docker status    | `pnpm docker:status`               |
-| Dashboard build  | `pnpm dashboard:build`             |
-| Full E2E run     | `pnpm dev:e2e`                     |
+| Action                     | Command                            |
+| -------------------------- | ---------------------------------- |
+| First-time setup           | `pnpm setup`                       |
+| Start services             | `pnpm dev`                         |
+| Run unit tests (watch)     | `pnpm test`                        |
+| Run unit tests (one-shot)  | `pnpm test -- --run`               |
+| Run unit tests (explicit)  | `pnpm test:unit`                   |
+| Run integration tests (DB) | `pnpm test:integration`            |
+| Run all tests (unit + DB)  | `pnpm test:all`                    |
+| Setup test DB              | `pnpm test:db:setup`               |
+| Lint                       | `pnpm lint`                        |
+| Build                      | `pnpm build`                       |
+| Trigger E2E task           | `pnpm trigger-task`                |
+| Verify E2E                 | `pnpm verify:e2e --task-id <uuid>` |
+| Stress test                | `pnpm stress-test`                 |
+| Docker start               | `pnpm docker:start`                |
+| Docker stop                | `pnpm docker:stop`                 |
+| Docker reset               | `pnpm docker:reset`                |
+| Docker status              | `pnpm docker:status`               |
+| Dashboard build            | `pnpm dashboard:build`             |
+| Full E2E run               | `pnpm dev:e2e`                     |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -449,22 +455,30 @@ docker build -t ai-employee-worker:latest . && pnpm trigger-task
 src/
 ├── gateway/      # Express HTTP server — webhook receiver + Inngest function host
 │   ├── routes/       # All HTTP route handlers
-│   ├── slack/        # Bolt event/action handlers + OAuth installation store
+│   ├── slack/        # Bolt event/action handlers + OAuth installation store; `handlers/override-handlers.ts` (extracted override card handlers); per-action approval modules: `approve-action.ts`, `edit-action.ts`, `reject-action.ts`; per-action rule modules: `rule-confirm-action.ts`, `rule-reject-action.ts`, `rule-rephrase-action.ts`
 │   ├── middleware/   # Admin auth middleware
 │   ├── validation/   # Zod schemas + HMAC signature verification
 │   ├── services/     # Business logic services: archetype generator (`archetype-generator.ts` — wizard LLM prompt for employee creation), dispatcher, task creation, tenant/secret management, interaction classification, and more. Browse `src/gateway/services/` for the full list.
+│   ├── lib/          # Shared gateway utilities: `http-response.ts` (`sendError()` + `sendSuccess()`), `prisma-helpers.ts` (`isPrismaError` + `ERROR_CODES`), `socket-mode-lock.ts`
 │   └── inngest/      # Inngest client factory, event sender, serve registration
 ├── inngest/      # Durable workflow functions: lifecycle, watchdog, redispatch
 │   ├── triggers/     # Cron trigger functions (guest-message-poll; daily-summarizer deregistered)
 │   ├── lifecycle/    # Extracted lifecycle step modules
-│   │   └── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers)
-│   └── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks
+│   │   ├── steps/    # `delivery-retry.ts` (delivery retry loop), `approval-handler.ts` (approval handlers), `approval-handler-reject.ts` (extracted `handleReject`), `triage-and-ready.ts`, `execute.ts`, `validate-and-submit.ts`, `no-approval-path.ts`, `override-card.ts`, `reviewing-path.ts`, `notify-and-track.ts`, `lifecycle-helpers.ts` (`cleanupExecutionMachine`, `safeRecordWorkMetric`)
+│   │   └── lib/      # `machine-provisioner.ts` — Fly.io/Docker machine provisioning + env-manifest assembly (extracted from `execute.ts`)
+│   ├── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks, `interaction-helpers.ts` (extracted from `interaction-handler.ts`), `postgrest-headers.ts` (`makePostgrestHeaders` — canonical PostgREST header factory, import from here)
+│   └── events.ts     # Typed Inngest event schemas (`EventPayload`, `InngestStep`) — import from here, never inline event types
 ├── workers/      # Docker container code — runs inside the worker machine
-│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client)
+│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (8 typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes), `harness-helpers.mts` (extracted harness utilities: container naming, log helpers), `execution-phase.mts` (execution phase logic extracted from harness), `delivery-phase.mts` (delivery phase logic extracted from harness)
+├── repositories/ # Tenant-scoped data access layer (relocated from `src/gateway/services/`); `TaskRepository` (task lookups by ID/thread_ts/approval_ts), `EmployeeRuleRepository` (rule CRUD: get, countConfirmed, patchConfirm/Reject/Archive/Rephrase)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
 └── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
+tests/
+├── unit/         # Fast unit tests (no DB) — run with `pnpm test` or `pnpm test:unit`
+├── integration/  # DB-backed integration tests — run with `pnpm test:integration`
+└── helpers/      # Shared test utilities: `lifecycle-mocks.ts` (`createLifecycleMocks()` factory for Inngest step mocking)
 ```
 
 ## Key Conventions
@@ -487,6 +501,10 @@ scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 - **AI employee outputs should be concise** — Slack messages, summaries, and guest replies produced by AI employees should be short and to-the-point. Avoid verbose explanations or filler text in delivered content. If the user asks for more detail, provide it; otherwise, keep it brief.
 - **`/tmp/` contract files must be written via tools only** — `/tmp/summary.txt` and `/tmp/approval-message.json` are the harness output contract files. They MUST be written exclusively via TypeScript tools in `/tools/` (e.g., `submit-output.ts`). Never write to these files directly via `echo`, shell redirects, or any non-tool method. The harness reads these files after the OpenCode session completes — if written in the wrong format, the task will fail. This applies to both the execution phase and the delivery phase.
 - **Platform settings over env vars** — Platform-level behavior defaults (VM size, cost limits, thresholds, Slack channels) are stored in the `platform_settings` DB table, not env vars. Use `getPlatformSetting(key)` from `src/lib/platform-settings.ts` to read. Never add hardcoded fallback values — missing required settings throw errors at startup. Managed via `/dashboard/settings` or `PATCH /admin/platform-settings/:key`.
+- **`sendError()` / `sendSuccess()` for ALL gateway responses** — Every gateway route handler MUST use `sendError()` from `src/gateway/lib/http-response.ts` for error responses (never `res.status(N).json({...})` inline) and `sendSuccess()` for ALL 2xx responses (never `res.status(N).json({...})` inline for success either). Both helpers live in `src/gateway/lib/http-response.ts`. `sendSuccess(res, status, body?)` sends `res.status(status).json(body)` when body is present, `res.status(status).end()` when absent — no envelope wrapping. This ensures consistent response shape and structured logging across all routes.
+- **`src/worker-tools/knowledge_base/` uses snake_case intentionally** — All other tool directories under `src/worker-tools/` use kebab-case (e.g. `slack/`, `hostfully/`). `knowledge_base/` is the lone exception: it uses snake_case to match the Docker image path `/tools/knowledge_base/` exactly. Do not rename it to `knowledge-base/`.
+- **`requireEnv()`/`optionalEnv()` in worker tools, never raw `process.env`** — All shell tools in `src/worker-tools/` must read environment variables via `requireEnv(name)` (throws if missing) or `optionalEnv(name)` (returns `string | undefined`). Never access `process.env.FOO` directly — missing vars fail silently and produce cryptic errors at runtime.
+- **`pnpm test` = fast unit suite; `pnpm test:integration` = DB suite** — `pnpm test` (alias: `pnpm test:unit`) runs the unit suite in `tests/unit/` — no DB required, completes in seconds. `pnpm test:integration` runs `tests/integration/` against the test DB (`ai_employee_test`). Run `pnpm test:db:setup` once before integration tests. `pnpm test:all` runs both suites sequentially.
 
 ### Documentation Freshness (MANDATORY)
 
@@ -941,6 +959,7 @@ Read these on demand when you need deeper context — do not load preemptively.
 
 | Document                                                                         | When to Read                                                                                                                                                                                                                                             |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/architecture/CURRENT-ARCHITECTURE.md`                                      | Living architecture diagram — current system topology, trigger paths, approval gate, OpenCodeGo routing. Start here for a quick visual overview.                                                                                                         |
 | `docs/architecture/2026-04-14-0104-full-system-vision.md`                        | Architecture, archetypes, lifecycle, event routing, operating modes, multi-tenancy                                                                                                                                                                       |
 | `docs/architecture/2026-03-22-2317-ai-employee-architecture.md`                  | Original detailed architecture (data model, security, scaling, cost estimates)                                                                                                                                                                           |
 | `docs/architecture/2026-04-14-0057-worker-post-redesign-overview.md`             | Worker redesign scope (before/after, files added/removed)                                                                                                                                                                                                |

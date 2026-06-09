@@ -930,6 +930,8 @@ log(`    "http://localhost:${GATEWAY_PORT}/admin/tenants/<id>/employees/daily-su
 log('');
 log('  Press Ctrl+C to stop all services.');
 log('');
+log(`  ${C.cyan}📖 First time?${C.reset} See docs/guides/2026-06-07-2022-new-contributor-setup.md`);
+log('');
 
 // Block until Ctrl+C (SIGINT/SIGTERM handled above)
 await new Promise<void>(() => {});

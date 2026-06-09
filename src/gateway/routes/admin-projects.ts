@@ -16,6 +16,8 @@ import {
   TenantProjectParamSchema,
 } from '../validation/schemas.js';
 import { ProjectRegistryConflictError } from '../../lib/errors.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
 const logger = createLogger('admin-projects');
@@ -31,13 +33,13 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
   router.post('/admin/tenants/:tenantId/projects', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
     const result = CreateProjectSchema.safeParse(req.body);
     if (!result.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, { issues: result.error.issues });
       return;
     }
 
@@ -47,21 +49,21 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         tenantId: paramResult.data.tenantId,
         prisma,
       });
-      res.status(201).json(project);
+      sendSuccess(res, 201, project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
-        res.status(409).json({ error: 'CONFLICT', message: (err as Error).message });
+        sendError(res, 409, 'CONFLICT', (err as Error).message);
         return;
       }
       logger.error({ err }, 'Failed to create project');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.get('/admin/tenants/:tenantId/projects', requireAdminKey, async (req, res) => {
     const paramResult = TenantIdParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -70,17 +72,17 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
         tenantId: paramResult.data.tenantId,
         prisma,
       });
-      res.status(200).json({ projects });
+      sendSuccess(res, 200, { projects });
     } catch (err) {
       logger.error({ err }, 'Failed to list projects');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.get('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
     const paramResult = TenantProjectParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -92,27 +94,27 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
       });
 
       if (!project) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, ERROR_CODES.NOT_FOUND);
         return;
       }
 
-      res.status(200).json(project);
+      sendSuccess(res, 200, project);
     } catch (err) {
       logger.error({ err }, 'Failed to get project');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.patch('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
     const paramResult = TenantProjectParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
     const result = UpdateProjectSchema.safeParse(req.body);
     if (!result.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: result.error.issues });
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, { issues: result.error.issues });
       return;
     }
 
@@ -125,25 +127,25 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
       });
 
       if (!project) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, ERROR_CODES.NOT_FOUND);
         return;
       }
 
-      res.status(200).json(project);
+      sendSuccess(res, 200, project);
     } catch (err) {
       if (err instanceof ProjectRegistryConflictError) {
-        res.status(409).json({ error: 'CONFLICT', message: (err as Error).message });
+        sendError(res, 409, 'CONFLICT', (err as Error).message);
         return;
       }
       logger.error({ err }, 'Failed to update project');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 
   router.delete('/admin/tenants/:tenantId/projects/:id', requireAdminKey, async (req, res) => {
     const paramResult = TenantProjectParamSchema.safeParse(req.params);
     if (!paramResult.success) {
-      res.status(400).json({ error: 'INVALID_ID' });
+      sendError(res, 400, ERROR_CODES.INVALID_ID);
       return;
     }
 
@@ -155,23 +157,25 @@ export function adminProjectRoutes(opts: AdminProjectRouteOptions = {}): Router 
       });
 
       if (result.deleted) {
-        res.status(204).send();
+        sendSuccess(res, 204);
         return;
       }
 
       if (result.reason === 'not_found') {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, ERROR_CODES.NOT_FOUND);
         return;
       }
 
-      res.status(409).json({
-        error: 'CONFLICT',
-        message: 'Project has active tasks. Wait for them to complete or cancel them first.',
-        activeTaskIds: result.activeTaskIds,
-      });
+      sendError(
+        res,
+        409,
+        'CONFLICT',
+        'Project has active tasks. Wait for them to complete or cancel them first.',
+        { activeTaskIds: result.activeTaskIds },
+      );
     } catch (err) {
       logger.error({ err }, 'Failed to delete project');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
     }
   });
 

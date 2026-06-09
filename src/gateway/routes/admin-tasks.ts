@@ -6,6 +6,7 @@ import { createInterface } from 'readline';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GetTaskParamsSchema } from '../validation/schemas.js';
 import { LOG_STREAM_TERMINAL_STATUSES } from '../../lib/task-status.js';
+import { sendError, sendSuccess } from '../lib/http-response.js';
 
 const logger = createLogger('admin-tasks');
 
@@ -24,7 +25,7 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
     });
 
     if (!paramsResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: paramsResult.error.issues });
       return;
     }
 
@@ -45,14 +46,14 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
       });
 
       if (!task) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
 
-      res.status(200).json(task);
+      sendSuccess(res, 200, task);
     } catch (err) {
       logger.error({ err }, 'Failed to get task');
-      res.status(500).json({ error: 'INTERNAL_ERROR' });
+      sendError(res, 500, 'INTERNAL_ERROR');
     }
   });
 
@@ -63,7 +64,7 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
     });
 
     if (!paramsResult.success) {
-      res.status(400).json({ error: 'INVALID_REQUEST', issues: paramsResult.error.issues });
+      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: paramsResult.error.issues });
       return;
     }
 
@@ -76,17 +77,19 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
       });
 
       if (!task) {
-        res.status(404).json({ error: 'NOT_FOUND' });
+        sendError(res, 404, 'NOT_FOUND');
         return;
       }
 
       const logPath = `/tmp/employee-${id.slice(0, 8)}.log`;
 
       if (!existsSync(logPath)) {
-        res.status(404).json({
-          error: 'LOG_NOT_FOUND',
-          message: 'No log file found for this task. The worker may not have started yet.',
-        });
+        sendError(
+          res,
+          404,
+          'LOG_NOT_FOUND',
+          'No log file found for this task. The worker may not have started yet.',
+        );
         return;
       }
 
@@ -197,7 +200,7 @@ export function adminTasksRoutes(opts: AdminTasksRouteOptions = {}): Router {
     } catch (err) {
       logger.error({ err }, 'Failed to open SSE log stream');
       if (!res.writableEnded) {
-        res.status(500).json({ error: 'INTERNAL_ERROR' });
+        sendError(res, 500, 'INTERNAL_ERROR');
       }
     }
   });

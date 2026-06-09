@@ -5,11 +5,8 @@ import { z } from 'zod';
 import { requireAdminKey } from '../middleware/admin-auth.js';
 import { GO_MODEL_MAP } from '../../lib/go-models.js';
 import { uuidField } from '../validation/schemas.js';
-import { sendError } from '../lib/http-response.js';
-
-function isPrismaError(err: unknown): err is { code: string } {
-  return typeof err === 'object' && err !== null && 'code' in err;
-}
+import { sendError, sendSuccess } from '../lib/http-response.js';
+import { isPrismaError } from '../lib/prisma-helpers.js';
 
 const ModelCatalogParamSchema = z.object({
   id: uuidField(),
@@ -108,11 +105,11 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         },
         orderBy: { created_at: 'desc' },
       });
-      res
-        .status(200)
-        .json(
-          models.map((m) => ({ ...m, supported_gateways: computeSupportedGateways(m.model_id) })),
-        );
+      sendSuccess(
+        res,
+        200,
+        models.map((m) => ({ ...m, supported_gateways: computeSupportedGateways(m.model_id) })),
+      );
     } catch (err) {
       logger.error({ err }, 'Failed to list model catalog');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -138,9 +135,10 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         return;
       }
 
-      res
-        .status(200)
-        .json({ ...model, supported_gateways: computeSupportedGateways(model.model_id) });
+      sendSuccess(res, 200, {
+        ...model,
+        supported_gateways: computeSupportedGateways(model.model_id),
+      });
     } catch (err) {
       logger.error({ err }, 'Failed to get model catalog entry');
       sendError(res, 500, 'INTERNAL_ERROR');
@@ -158,7 +156,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
       const created = await prisma.modelCatalog.create({
         data: bodyResult.data,
       });
-      res.status(201).json(created);
+      sendSuccess(res, 201, created);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
         sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
@@ -199,7 +197,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         data: bodyResult.data,
       });
 
-      res.status(200).json(updated);
+      sendSuccess(res, 200, updated);
     } catch (err) {
       if (isPrismaError(err) && err.code === 'P2002') {
         sendError(res, 409, 'MODEL_ID_TAKEN', 'A model with this model_id already exists');
@@ -234,7 +232,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
         data: { deleted_at: new Date() },
       });
 
-      res.status(200).json({ success: true });
+      sendSuccess(res, 200, { success: true });
     } catch (err) {
       logger.error({ err }, 'Failed to soft-delete model catalog entry');
       sendError(res, 500, 'INTERNAL_ERROR');

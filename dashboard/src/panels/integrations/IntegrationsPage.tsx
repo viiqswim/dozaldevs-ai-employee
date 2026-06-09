@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,8 +125,8 @@ function GitHubIntegrationRow({
     try {
       await disconnectGitHub(tenantId);
       onRefresh();
-    } catch (err) {
-      console.error('Failed to disconnect GitHub:', err);
+    } catch {
+      toast.error('Failed to disconnect GitHub. Please try again.');
     } finally {
       setDisconnecting(false);
     }
@@ -136,8 +137,8 @@ function GitHubIntegrationRow({
     try {
       await linkGitHubInstallation(tenantId, String(id));
       onRefresh();
-    } catch (err) {
-      console.error('Failed to link GitHub installation:', err);
+    } catch {
+      toast.error('Failed to link GitHub connection. Please try again.');
     } finally {
       setLinking(false);
     }

@@ -1,0 +1,78 @@
+# Task 22 — fireHostfullyWebhook Centralization Evidence
+Date: 2026-06-08
+
+## Verification: grep -rc "/webhooks/hostfully" dashboard/src/panels → 0 fetch calls
+
+Raw grep output (only JSX description text remains, no fetch calls):
+  dashboard/src/panels/trigger/TriggerPanel.tsx:220:
+    gateway. No auth required for <code className="text-xs">/webhooks/hostfully</code>.
+
+All fetch calls centralized in dashboard/src/lib/gateway.ts:
+  fireHostfullyWebhook() defined at gateway.ts lines 414-427
+
+
+## Network Capture: Direct curl to /webhooks/hostfully
+
+Command (exact payload used by fireHostfullyWebhook):
+  POST http://localhost:7700/webhooks/hostfully
+  Content-Type: application/json
+
+Request body:
+  {
+    "agency_uid":    "942d08d9-82bb-4fd3-9091-ca0c6b50b578",
+    "thread_uid":    "2f18249a-9523-4acd-a512-20ff06d5c3fa",
+    "lead_uid":      "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb",
+    "property_uid":  "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2",
+    "event_type":    "NEW_INBOX_MESSAGE",
+    "message_uid":   "test-msg-evidence-task22"
+  }
+
+Response:
+  HTTP/1.1 200 OK
+  Content-Type: application/json; charset=utf-8
+  {"ok":true,"skipped":"host_message"}
+
+Status: ✅ Gateway accepted request with identical payload shape.
+("host_message" skip is expected — test fixture uses a host-sent message thread)
+
+
+## Code Audit: All 3 panels now route through fireHostfullyWebhook
+
+EmployeeDetail.tsx line ~163:
+  BEFORE: await fetch(`${GATEWAY_URL}/webhooks/hostfully`, { method: 'POST', ... })
+  AFTER:  await fireHostfullyWebhook(messageUid);
+
+EmployeeList.tsx line ~239:
+  BEFORE: await fetch(`${GATEWAY_URL}/webhooks/hostfully`, { method: 'POST', ... })
+  AFTER:  await fireHostfullyWebhook(messageUid);
+
+TriggerPanel.tsx line ~101:
+  BEFORE: await fetch(`${GATEWAY_URL}/webhooks/hostfully`, { method: 'POST', ... })
+  AFTER:  await fireHostfullyWebhook(messageUid);
+
+
+## Build Verification
+
+pnpm dashboard:build → EXIT_CODE:0
+  ✓ 2181 modules transformed.
+  ✓ built in 467ms
+
+
+## Source: fireHostfullyWebhook in gateway.ts
+
+export async function fireHostfullyWebhook(messageUid: string): Promise<void> {
+  const response = await fetch(`${GATEWAY_URL}/webhooks/hostfully`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...WEBHOOK_FIXTURES,
+      event_type: 'NEW_INBOX_MESSAGE',
+      message_uid: messageUid,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Webhook error ${response.status}: ${text}`);
+  }
+}

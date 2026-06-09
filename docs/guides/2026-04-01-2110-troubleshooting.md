@@ -1,5 +1,7 @@
 # Troubleshooting — Common E2E Failures
 
+> **Note**: Entries marked `[DEPRECATED — engineering employee only]` apply to the old orchestrator-based engineering employee (`src/workers/orchestrate.mts`), which is on hold. They do not apply to the active archetype-based employees (guest-messaging, summarizer, code-rotation, engineer, google-workspace-assistant).
+
 ## 1. Gateway Returns 401 on Webhook
 
 **Symptom**: `curl -d @file` to `POST /webhooks/jira` returns HTTP 401 "Invalid signature".
@@ -26,7 +28,7 @@ curl http://localhost:8288/   # verify Inngest is up
 pnpm dev                      # restart all services
 ```
 
-## 3. Container Exits Immediately ("REPO_URL not set")
+## 3. Container Exits Immediately ("REPO_URL not set") `[DEPRECATED — engineering employee only]`
 
 **Symptom**: Container dispatched but exits in under 1 second. No heartbeat in DB.
 
@@ -64,7 +66,7 @@ has no grants until the `postgrest_grants` migration runs.
 pnpm prisma migrate deploy
 ```
 
-## 6. Tests Fail After E2E Run (extra `agent_versions` row)
+## 6. Tests Fail After E2E Run (extra `agent_versions` row) `[DEPRECATED — engineering employee only]`
 
 **Symptom**: `schema.test.ts` fails — wrong `model_id` returned by `findFirst({ is_active: true })`.
 
@@ -78,7 +80,7 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
   -c "DELETE FROM agent_versions WHERE id != '00000000-0000-0000-0000-000000000002';"
 ```
 
-## 7. Branch Already Exists on GitHub (push conflict)
+## 7. Branch Already Exists on GitHub (push conflict) `[DEPRECATED — engineering employee only]`
 
 **Symptom**: Container exits during PR creation. No PR on GitHub.
 
@@ -118,3 +120,60 @@ pnpm prisma db seed && pnpm test
 supabase stop
 docker compose -f docker/docker-compose.yml up -d
 ```
+
+---
+
+## Active-Employee Failures (current employees)
+
+### 10. Task Stuck in `Executing` — Worker Container OOM-Killed
+
+**Symptom**: Task stays in `Executing` indefinitely. `docker logs employee-<taskId[:8]>` shows the container exited with code 137 (OOM kill) or the harness log shows 0 tokens and exits within 45 seconds.
+
+**Root Cause**: Archetype has `runtime: 'opencode'` but `vm_size` is not set (defaults to `shared-cpu-1x`, 256MB RAM). The OpenCode binary reserves ~74GB virtual memory at startup and OOM-kills on small machines.
+
+**Fix**:
+
+```bash
+# Set vm_size to performance-1x for the archetype
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "UPDATE archetypes SET vm_size = 'performance-1x' WHERE id = '<archetype_id>';"
+```
+
+### 11. Task Stuck in `Executing` — Model Won't Call Bash Tools
+
+**Symptom**: Task reaches `Executing` but never progresses. Worker logs show the LLM responding with text but never calling any shell tools. Task eventually times out.
+
+**Root Cause**: Some catalog models (e.g., `xiaomi/mimo-v2.5`, `minimax/minimax-m2.7` via OpenCodeGo) don't reliably call bash tools.
+
+**Fix**: Override the archetype model to `deepseek/deepseek-v4-flash` for testing:
+
+```bash
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
+  -c "UPDATE archetypes SET model = 'deepseek/deepseek-v4-flash' WHERE id = '<archetype_id>';"
+```
+
+### 12. Task Reaches `Submitting` but Never Moves to `Reviewing` or `Delivering`
+
+**Symptom**: Task status is `Submitting` and doesn't advance. No Slack approval card appears.
+
+**Root Cause**: Worker wrote `/tmp/summary.txt` but not `/tmp/approval-message.json`, or wrote them via shell redirect instead of the `submit-output.ts` tool. The harness treats absence of both contract files as a hard failure.
+
+**Fix**: Check the harness log for the contract file check:
+
+```bash
+grep '"component":"opencode-harness"' /tmp/employee-${TASK_ID:0:8}.log | grep -i "contract\|summary\|approval"
+```
+
+Ensure the archetype's `execution_steps` calls `tsx /tools/platform/submit-output.ts --draft-file /tmp/draft.txt --classification NEEDS_APPROVAL` (or `NO_ACTION_NEEDED`). Never write contract files via `echo` or shell redirects.
+
+### 13. @mention in Slack Produces No Response (~50% of the time)
+
+**Symptom**: Mentioning the bot in Slack sometimes works, sometimes produces no response. No gateway log entry for the missed event.
+
+**Root Cause A**: Multiple `pnpm dev` instances running simultaneously — Slack round-robins events across all open sockets. Check: `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` (should be 1).
+
+**Root Cause B**: Dev and prod share the same `SLACK_APP_TOKEN` — Slack delivers ~50% of events to the production gateway. Fix: create a personal dev Slack app per `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`.
+
+**Root Cause C**: Phantom socket — a previous unclean gateway death left a WebSocket registered with Slack. Wait 2-15 minutes for Slack to expire it, or check `num_connections` in gateway startup logs.
+
+**Fix**: See [Known Issues #4 and #5](../../AGENTS.md) in AGENTS.md for full diagnostics and prevention steps.

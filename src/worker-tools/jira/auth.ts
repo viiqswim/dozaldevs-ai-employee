@@ -1,3 +1,5 @@
+import { optionalEnv } from '../lib/require-env.js';
+
 export type JiraAuth = {
   headers: Record<string, string>;
   baseUrl: string;
@@ -5,8 +7,8 @@ export type JiraAuth = {
 };
 
 export function resolveJiraAuth(): JiraAuth {
-  const accessToken = process.env['JIRA_ACCESS_TOKEN'];
-  const cloudId = process.env['JIRA_CLOUD_ID'];
+  const accessToken = optionalEnv('JIRA_ACCESS_TOKEN');
+  const cloudId = optionalEnv('JIRA_CLOUD_ID');
 
   if (accessToken && cloudId) {
     return {
@@ -19,9 +21,9 @@ export function resolveJiraAuth(): JiraAuth {
     };
   }
 
-  const apiToken = process.env['JIRA_API_TOKEN'];
-  const email = process.env['JIRA_USER_EMAIL'];
-  const baseUrl = process.env['JIRA_BASE_URL'];
+  const apiToken = optionalEnv('JIRA_API_TOKEN');
+  const email = optionalEnv('JIRA_USER_EMAIL');
+  const baseUrl = optionalEnv('JIRA_BASE_URL');
 
   if (apiToken && email && baseUrl) {
     const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');

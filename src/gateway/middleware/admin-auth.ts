@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import pino from 'pino';
 import type { RequestHandler } from 'express';
+import { createLogger } from '../../lib/logger.js';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = createLogger('admin-auth');
 
 export const requireAdminKey: RequestHandler = (req, res, next) => {
   const provided = req.headers['x-admin-key'];
