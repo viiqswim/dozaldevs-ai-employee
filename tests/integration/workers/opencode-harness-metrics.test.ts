@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSpawn = vi.hoisted(() => vi.fn());
 const mockReadFile = vi.hoisted(() => vi.fn());
@@ -262,6 +262,17 @@ describe('opencode-harness — execution metrics', () => {
     delete process.env.OPENROUTER_API_KEY;
   });
 
+  afterAll(() => {
+    // opencode-harness.mts registers process.on('SIGTERM') / process.on('SIGINT') at module level.
+    // Each vi.resetModules() + re-import in beforeEach accumulates listeners on the shared
+    // single-fork process. Without cleanup, a deferred process.exit(1) from the SIGTERM handler
+    // fires after vitest teardown removes the spy, producing an unhandled rejection attributed
+    // to a later test file.
+    process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGINT');
+    vi.restoreAllMocks();
+  });
+
   it('patches tasks with started_at when entering Executing state', async () => {
     const mockFetch = buildMetricsMockFetch();
     vi.stubGlobal('fetch', mockFetch);
@@ -442,5 +453,10 @@ describe('opencode-harness — execution metrics', () => {
       failure_reason: 'Worker terminated',
       failure_code: 'worker_terminated',
     });
+
+    // The SIGTERM handler calls process.exit(1) asynchronously via .finally() after the DB patch
+    // resolves. Drain it now so it fires while the spy is active — not after vitest teardown
+    // removes the spy, which would produce an unhandled rejection in a later test file.
+    await waitForProcessExit(exitSpy);
   });
 });

@@ -254,3 +254,37 @@ test
 ## [2026-06-10] Task 9b: deploy-gateway trigger switched to Render API POST /deploys
 
 - deploy-gateway now triggers via Render API POST /deploys (returns deploy id directly); RENDER_DEPLOY_HOOK_URL secret no longer needed.
+
+## [2026-06-10] Task 11: @prisma/client specifier mismatch fixed
+
+- The earlier prisma-generate fix accidentally pinned @prisma/client to exact 6.19.2 in package.json without updating the lockfile (which still records specifier ^6.0.0) → ERR_PNPM_OUTDATED_LOCKFILE in CI; reverted to ^6.0.0 to match the lockfile.
+
+## [2026-06-10] Task 12: harness-metrics test leaks process.exit/SIGTERM into shared fork
+
+### Root cause
+
+`tests/integration/workers/opencode-harness-metrics.test.ts` is the ONLY integration test that:
+
+1. Spies on `process.exit` via `vi.spyOn`
+2. Imports `src/workers/opencode-harness.mts`, which registers a `process.on('SIGTERM', ...)` handler at module level on import
+3. Uses `vi.resetModules()` in `beforeEach` and re-imports the harness each test — so each of the 7 tests registers a NEW SIGTERM handler, accumulating listeners on the shared single-fork process
+
+The last test ("SIGTERM handler patches tasks with failure_code worker_terminated"):
+
+- Emits `process.emit('SIGTERM')` → fires the handler
+- The handler calls `process.exit(1)` asynchronously via `.finally()` after the DB PATCH resolves
+- The test only awaited `waitForPatchWithBody` (the DB PATCH call being made), NOT `waitForProcessExit` — so the test ended before `.finally()` ran
+- `afterEach` tore down the spy; vitest teardown removed the re-stub; then `.finally(() => process.exit(1))` fired for real
+- This called the REAL `process.exit(1)` during the next test file (`diagnose-access.test.ts`), where vitest's own spy machinery threw "process.exit unexpectedly called with 1" as an unhandled rejection → suite exit 1 despite all 460 tests passing
+
+The symptom (attribution to `diagnose-access`) was completely misleading — the error originated from harness-metrics.
+
+### Fix applied (test-only, no production code changes)
+
+Two changes to `opencode-harness-metrics.test.ts`:
+
+1. **Added `afterAll`** — calls `process.removeAllListeners('SIGTERM')` and `process.removeAllListeners('SIGINT')` plus `vi.restoreAllMocks()` to drain accumulated signal handlers before the file tears down
+
+2. **Added `await waitForProcessExit(exitSpy)` at the end of the SIGTERM test** — ensures the handler's deferred `process.exit(1)` fires while the spy is active (captured + no-op), not after teardown
+
+Both changes are required: `afterAll` handles the case where the spy is removed by vitest's global teardown between tests, and the SIGTERM test fix ensures the fire-and-forget async handler is drained before the spy window closes.

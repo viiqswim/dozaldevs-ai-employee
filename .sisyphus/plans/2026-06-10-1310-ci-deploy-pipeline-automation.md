@@ -658,7 +658,7 @@ Critical Path: Task 0 → Task 1 → (Tasks 3-6) → Task 7 → Task 8 → Task 
 
   **Commit**: YES (Group D). Message: `docs: document auto-deploy + auto-migrate CI pipeline`. Files: AGENTS.md, the guide. Pre-commit: none.
 
-- [ ] 12. **Live merge E2E — prove all four behaviors**
+- [ ] 12. **Live merge E2E — prove all four behaviors** (IN PROGRESS: merged #14+#16; CI exposed 2 pre-existing latent failures now that the test job finally runs — (a) missing prisma generate [FIXED #16], (b) @prisma/client lockfile pin [FIXED ad7ed30a], (c) process.exit leak from opencode-harness-metrics.test.ts [fixing])
 
   **What to do**:
   - Ensure Wave 0 is CLEAN and a fresh prod backup exists. Open a TRIVIAL PR (one-line README touch) on branch `ci/verify-deploy-2026-06-10`, get CI green on the PR, merge to `main`.
