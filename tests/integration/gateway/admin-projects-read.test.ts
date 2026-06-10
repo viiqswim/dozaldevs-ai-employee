@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import express from 'express';
-import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../../setup.js';
+import {
+  TestApp,
+  getPrisma,
+  cleanupTestData,
+  disconnectPrisma,
+  ADMIN_TEST_KEY,
+} from '../../setup.js';
 import { adminProjectRoutes } from '../../../src/gateway/routes/admin-projects.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000002';
@@ -10,7 +16,7 @@ const NONEXISTENT_UUID = '00000000-0000-0000-0000-999999999999';
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
   const expressApp = express();
@@ -36,7 +42,7 @@ describe('GET /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
     });
     expect(res.statusCode).toBe(200);
@@ -50,7 +56,7 @@ describe('GET /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
     });
     expect(res.statusCode).toBe(200);
@@ -62,14 +68,14 @@ describe('GET /admin/tenants/:tenantId/projects', () => {
 });
 
 describe('GET /admin/tenants/:tenantId/projects/:id', () => {
-  it('missing X-Admin-Key header → 401', async () => {
+  it('missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${TENANT_ID}/projects/${SEED_PROJECT_ID}`,
       headers: { 'content-type': 'application/json' },
     });
     expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
+    expect(JSON.parse(res.body).error).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('valid key + seed project id → 200 with project payload', async () => {
@@ -78,7 +84,7 @@ describe('GET /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${TENANT_ID}/projects/${SEED_PROJECT_ID}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
     });
     expect(res.statusCode).toBe(200);
@@ -93,7 +99,7 @@ describe('GET /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${TENANT_ID}/projects/${NONEXISTENT_UUID}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
     });
     expect(res.statusCode).toBe(404);
@@ -106,7 +112,7 @@ describe('GET /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${TENANT_ID}/projects/not-a-uuid`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
     });
     expect(res.statusCode).toBe(400);

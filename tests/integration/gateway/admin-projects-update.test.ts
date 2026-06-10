@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import express from 'express';
-import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../../setup.js';
+import {
+  TestApp,
+  getPrisma,
+  cleanupTestData,
+  disconnectPrisma,
+  ADMIN_TEST_KEY,
+} from '../../setup.js';
 import { adminProjectRoutes } from '../../../src/gateway/routes/admin-projects.js';
 import { createProject } from '../../../src/gateway/services/project-registry.js';
 
@@ -10,7 +16,7 @@ const SEED_PROJECT_KEY = 'TEST';
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
   const expressApp = express();
@@ -30,7 +36,7 @@ afterAll(async () => {
 });
 
 describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
-  it('missing X-Admin-Key header → 401', async () => {
+  it('missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000003`,
@@ -38,7 +44,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       payload: { name: 'Updated Name' },
     });
     expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
+    expect(JSON.parse(res.body).error).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('PATCH non-existent id → 404', async () => {
@@ -47,7 +53,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { name: 'Updated Name' },
     });
@@ -72,7 +78,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: {},
     });
@@ -100,7 +106,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { name: 'Updated Name' },
     });
@@ -128,7 +134,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { repo_url: 'https://github.com/testorg/new-repo-url' },
     });
@@ -156,7 +162,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { jira_project_key: SEED_PROJECT_KEY },
     });
@@ -172,7 +178,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/not-a-valid-uuid`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { name: 'Should Not Reach' },
     });
@@ -197,7 +203,7 @@ describe('PATCH /admin/tenants/:tenantId/projects/:id', () => {
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { name: 'After Update' },
     });

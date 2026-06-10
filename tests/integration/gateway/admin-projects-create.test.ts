@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import express from 'express';
-import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../../setup.js';
+import {
+  TestApp,
+  getPrisma,
+  cleanupTestData,
+  disconnectPrisma,
+  ADMIN_TEST_KEY,
+} from '../../setup.js';
 import { adminProjectRoutes } from '../../../src/gateway/routes/admin-projects.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000002';
@@ -14,7 +20,7 @@ const VALID_PAYLOAD = {
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
   const expressApp = express();
@@ -34,7 +40,7 @@ afterAll(async () => {
 });
 
 describe('POST /admin/tenants/:tenantId/projects', () => {
-  it('missing X-Admin-Key header → 401', async () => {
+  it('missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${TENANT_ID}/projects`,
@@ -42,21 +48,21 @@ describe('POST /admin/tenants/:tenantId/projects', () => {
       payload: VALID_PAYLOAD,
     });
     expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
+    expect(JSON.parse(res.body).error).toBe('AUTHENTICATION_REQUIRED');
   });
 
-  it('wrong X-Admin-Key value → 401', async () => {
+  it('malformed Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': 'totally-wrong-key',
+        authorization: 'totally-wrong-key',
       },
       payload: VALID_PAYLOAD,
     });
     expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
+    expect(JSON.parse(res.body).error).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('valid key + invalid body (missing repo_url) → 400 with Zod issues', async () => {
@@ -65,7 +71,7 @@ describe('POST /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: { name: 'Missing Repo', jira_project_key: 'MISSING' },
     });
@@ -82,7 +88,7 @@ describe('POST /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: VALID_PAYLOAD,
     });
@@ -99,7 +105,7 @@ describe('POST /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: {
         name: 'Duplicate Project',
@@ -119,7 +125,7 @@ describe('POST /admin/tenants/:tenantId/projects', () => {
       url: `/admin/tenants/${TENANT_ID}/projects`,
       headers: {
         'content-type': 'application/json',
-        'x-admin-key': ADMIN_TEST_KEY,
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: VALID_PAYLOAD,
     });
