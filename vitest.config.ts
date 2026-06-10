@@ -1,21 +1,45 @@
-import { defineConfig } from 'vitest/config';
+import { existsSync } from 'node:fs';
+import { dirname, resolve as pathResolve } from 'node:path';
 
-export default defineConfig({
-  test: {
-    include: [
-      'tests/unit/**/*.test.ts',
-      'tests/unit/**/*.test.mts',
-      'src/**/__tests__/**/*.test.ts',
-      'src/**/__tests__/**/*.test.mts',
-    ],
-    exclude: [],
-    env: {
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/ai_employee_test',
-      SUPABASE_URL: 'http://localhost:54331',
-      SUPABASE_SECRET_KEY: 'test-supabase-service-role-key',
+import { defineConfig, mergeConfig } from 'vitest/config';
+
+const resolveJsToTs = {
+  name: 'resolve-ts-js-extension',
+  enforce: 'pre',
+  resolveId(source, importer) {
+    if (
+      importer &&
+      source.endsWith('.js') &&
+      (importer.endsWith('.ts') || importer.endsWith('.mts'))
+    ) {
+      const candidate = pathResolve(dirname(importer), source.replace(/\.js$/, '.ts'));
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  },
+};
+
+export default mergeConfig(
+  { plugins: [resolveJsToTs] },
+  defineConfig({
+    test: {
+      include: [
+        'tests/unit/**/*.test.ts',
+        'tests/unit/**/*.test.mts',
+        'src/**/__tests__/**/*.test.ts',
+        'src/**/__tests__/**/*.test.mts',
+      ],
+      exclude: [],
+      env: {
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/ai_employee_test',
+        SUPABASE_URL: 'http://localhost:54331',
+        SUPABASE_SECRET_KEY: 'test-supabase-service-role-key',
+        SUPABASE_ANON_KEY: 'eyJ-test-anon-key-local-profile',
+        ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001',
+      },
+      pool: 'forks',
+      testTimeout: 30000,
     },
-    pool: 'forks',
-    testTimeout: 30000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
@@ -30,5 +54,5 @@ export default defineConfig({
         'src/worker-tools/notion/lib/**',
       ],
     },
-  },
-});
+  }),
+);
