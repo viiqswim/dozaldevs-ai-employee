@@ -4,8 +4,9 @@ import { PrismaClient, TenantRole } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
-import { SUPABASE_URL, SUPABASE_SECRET_KEY } from '../../lib/config.js';
+import { SUPABASE_URL, SUPABASE_SECRET_KEY, DASHBOARD_BASE_URL } from '../../lib/config.js';
 import { createLogger } from '../../lib/logger.js';
+import { setInvitationPasswordSchema } from '../validation/schemas.js';
 
 const logger = createLogger('admin-invitations');
 
@@ -40,11 +41,17 @@ type TxLike = {
   };
   user: {
     findFirst: (args: unknown) => Promise<UserRecord | null>;
+    create: (args: unknown) => Promise<UserRecord>;
   };
   tenantMembership: {
     findFirst: (args: unknown) => Promise<MembershipRecord | null>;
     create: (args: unknown) => Promise<unknown>;
   };
+};
+
+type TenantRecord = {
+  id: string;
+  name: string;
 };
 
 type PrismaWithInvitation = {
@@ -59,13 +66,35 @@ type PrismaWithInvitation = {
   tenantMembership: {
     findFirst: (args: unknown) => Promise<MembershipRecord | null>;
   };
+  tenant: {
+    findFirst: (args: unknown) => Promise<TenantRecord | null>;
+  };
   $transaction: <T>(
     fn: (tx: TxLike) => Promise<T>,
     opts?: { isolationLevel?: string },
   ) => Promise<T>;
 };
 
-async function sendSupabaseInvite(email: string): Promise<void> {
+async function getSupabaseUserIdByEmail(email: string): Promise<string | null> {
+  const url = `${SUPABASE_URL()}/auth/v1/admin/users?email=${encodeURIComponent(email)}`;
+  const secretKey = SUPABASE_SECRET_KEY();
+  const response = await fetch(url, {
+    headers: {
+      apikey: secretKey,
+      Authorization: `Bearer ${secretKey}`,
+    },
+  });
+  if (!response.ok) return null;
+  const data = (await response.json()) as { users?: Array<{ id: string; email: string }> };
+  const user = data.users?.find((u) => u.email === email);
+  return user?.id ?? null;
+}
+
+/**
+ * Creates a Supabase Auth user with email_confirm: true (no magic link sent).
+ * Returns the Supabase user ID on success, or null if the user already exists (422).
+ */
+async function createSupabaseUser(email: string): Promise<string | null> {
   const url = `${SUPABASE_URL()}/auth/v1/admin/users`;
   const secretKey = SUPABASE_SECRET_KEY();
   const response = await fetch(url, {
@@ -75,13 +104,25 @@ async function sendSupabaseInvite(email: string): Promise<void> {
       apikey: secretKey,
       Authorization: `Bearer ${secretKey}`,
     },
-    body: JSON.stringify({ email, email_confirm: false, invite: true }),
+    body: JSON.stringify({ email, email_confirm: true }),
   });
-  if (!response.ok && response.status !== 422) {
-    const body = await response.text();
-    throw new Error(`Supabase invite failed: ${response.status} ${body}`);
+  if (response.status === 422) {
+    return null;
   }
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Supabase user creation failed: ${response.status} ${body}`);
+  }
+  const data = (await response.json()) as { id: string };
+  return data.id;
 }
+
+const ROLE_RANK: Record<string, number> = {
+  OWNER: 4,
+  ADMIN: 3,
+  MEMBER: 2,
+  VIEWER: 1,
+};
 
 export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {}): Router {
   const router = Router();
@@ -107,8 +148,23 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
         return;
       }
 
+      let inviterRank = 5;
+      if (!req.isServiceToken && req.auth?.globalRole !== 'PLATFORM_OWNER') {
+        const inviterTenantRole = req.tenantContext?.tenantRole;
+        inviterRank = inviterTenantRole ? (ROLE_RANK[inviterTenantRole] ?? 1) : 1;
+      }
+      const requestedRank = ROLE_RANK[role] ?? 1;
+      if (requestedRank > inviterRank) {
+        sendError(
+          res,
+          403,
+          'INSUFFICIENT_ROLE',
+          'You cannot invite someone with a higher role than your own',
+        );
+        return;
+      }
+
       try {
-        // Check if email belongs to an existing member
         const existingUser = await db.user.findFirst({
           where: { email, deleted_at: null },
         });
@@ -122,17 +178,26 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
           }
         }
 
-        // Send Supabase invite email
+        const existingInvite = await db.tenantInvitation.findFirst({
+          where: { tenant_id: tenantId, email, status: 'pending', deleted_at: null },
+        });
+        if (existingInvite) {
+          await db.tenantInvitation.update({
+            where: { id: existingInvite.id },
+            data: { status: 'revoked', revoked_at: new Date() },
+          });
+        }
+
         try {
-          await sendSupabaseInvite(email);
+          await createSupabaseUser(email);
         } catch (err) {
-          logger.error({ err }, 'Supabase invite email failed');
-          sendError(res, 500, 'INVITE_FAILED', 'Failed to send invitation email');
+          logger.error({ err }, 'Supabase user creation failed');
+          sendError(res, 500, 'INVITE_FAILED', 'Failed to prepare invitation');
           return;
         }
 
         const token = randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
         const invitation = await db.tenantInvitation.create({
           data: {
@@ -142,8 +207,40 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
             token,
             status: 'pending',
             expires_at: expiresAt,
+            inviter_id: req.auth?.id ?? null,
           },
         });
+
+        let organizationName = tenantId;
+        try {
+          const tenant = await db.tenant.findFirst({ where: { id: tenantId } });
+          if (tenant?.name) organizationName = tenant.name;
+        } catch (_ignored) {
+          organizationName = tenantId;
+        }
+
+        const acceptUrl = `${DASHBOARD_BASE_URL()}/dashboard/accept-invite?token=${token}`;
+        const inviterName = req.auth?.name ?? req.auth?.email ?? undefined;
+
+        try {
+          const { getEmailProvider } = await import('../../lib/email/index.js');
+          const { buildInvitationEmail } = await import('../../lib/email/templates/invitation.js');
+          const emailContent = buildInvitationEmail({
+            acceptUrl,
+            organizationName,
+            inviterName,
+            role,
+          });
+          await getEmailProvider().send({ to: email, ...emailContent });
+        } catch (emailErr) {
+          logger.error({ err: emailErr }, 'Failed to send invitation email');
+          await db.tenantInvitation.update({
+            where: { id: invitation.id },
+            data: { status: 'revoked', revoked_at: new Date() },
+          });
+          sendError(res, 500, 'INVITE_EMAIL_FAILED', 'Failed to send invitation email');
+          return;
+        }
 
         sendSuccess(res, 201, {
           id: invitation.id,
@@ -193,14 +290,30 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
             });
           }
 
-          const user = await tx.user.findFirst({
+          let user = await tx.user.findFirst({
             where: { email: invitation.email, deleted_at: null },
           });
+
+          if (req.auth && req.auth.email === invitation.email) {
+            const authUser = await tx.user.findFirst({
+              where: { id: req.auth.id, deleted_at: null },
+            });
+            if (authUser) {
+              user = authUser;
+            }
+          }
+
           if (!user) {
-            throw Object.assign(
-              new Error('User not found — complete registration via the magic link first'),
-              { code: 'USER_NOT_FOUND', status: 404 },
-            );
+            const supabaseId = await getSupabaseUserIdByEmail(invitation.email);
+            user = await tx.user.create({
+              data: {
+                supabase_id: supabaseId ?? null,
+                email: invitation.email,
+                name: null,
+                role: 'USER',
+                status: 'active',
+              },
+            });
           }
 
           const existingMembership = await tx.tenantMembership.findFirst({
@@ -269,6 +382,108 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
     } catch (err) {
       logger.error({ err }, 'Failed to decline invitation');
       sendError(res, 500, 'INTERNAL_ERROR', 'Failed to decline invitation');
+    }
+  });
+
+  // POST /invitations/set-password — no auth required; token-bound
+  router.post('/invitations/set-password', async (req, res) => {
+    const parseResult = setInvitationPasswordSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      sendError(res, 400, 'INVALID_INPUT', parseResult.error.issues[0]?.message ?? 'Invalid input');
+      return;
+    }
+    const { token, password } = parseResult.data;
+
+    try {
+      const invitation = await db.tenantInvitation.findFirst({ where: { token } });
+      if (!invitation) {
+        sendError(res, 404, 'NOT_FOUND', 'Invitation not found');
+        return;
+      }
+      if (invitation.status !== 'pending') {
+        sendError(res, 410, 'ALREADY_USED', 'Invitation is no longer pending');
+        return;
+      }
+      if (invitation.expires_at < new Date()) {
+        sendError(res, 410, 'EXPIRED', 'Invitation has expired');
+        return;
+      }
+
+      const supabaseUserId = await getSupabaseUserIdByEmail(invitation.email);
+      if (!supabaseUserId) {
+        sendError(res, 404, 'USER_NOT_FOUND', 'No account found for this invitation');
+        return;
+      }
+
+      // Set password via Supabase admin API (server-side only — never expose secret key)
+      const setPasswordUrl = `${SUPABASE_URL()}/auth/v1/admin/users/${supabaseUserId}`;
+      const secretKey = SUPABASE_SECRET_KEY();
+      const pwResponse = await fetch(setPasswordUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: secretKey,
+          Authorization: `Bearer ${secretKey}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!pwResponse.ok) {
+        logger.error(
+          { status: pwResponse.status },
+          'Failed to set password via Supabase admin API',
+        );
+        sendError(res, 500, 'SET_PASSWORD_FAILED', `Failed to set password: ${pwResponse.status}`);
+        return;
+      }
+
+      sendSuccess(res, 200, { message: 'Password set successfully' });
+    } catch (err) {
+      logger.error({ err }, 'Failed to set invitation password');
+      sendError(res, 500, 'INTERNAL_ERROR', 'Failed to set password');
+    }
+  });
+
+  // GET /invitations/:token — public; returns safe fields for the acceptance page
+  router.get('/invitations/:token', async (req, res) => {
+    const token = req.params['token'] as string;
+    if (!token) {
+      sendError(res, 400, 'MISSING_TOKEN', 'Token is required');
+      return;
+    }
+
+    try {
+      const invitation = await db.tenantInvitation.findFirst({ where: { token } });
+      if (!invitation) {
+        sendError(res, 404, 'NOT_FOUND', 'Invitation not found');
+        return;
+      }
+
+      // Resolve organization name (non-fatal: fall back to tenant_id)
+      let organizationName = invitation.tenant_id;
+      try {
+        const tenant = await db.tenant.findFirst({ where: { id: invitation.tenant_id } });
+        if (tenant?.name) organizationName = tenant.name;
+      } catch {
+        // non-fatal: use tenant_id as fallback
+      }
+
+      // isExistingUser: true if a users row exists for this email (they've signed in before)
+      const existingUser = await db.user.findFirst({
+        where: { email: invitation.email, deleted_at: null },
+      });
+
+      sendSuccess(res, 200, {
+        email: invitation.email,
+        organizationName,
+        role: invitation.role,
+        status: invitation.status,
+        expiresAt: invitation.expires_at,
+        isExistingUser: existingUser !== null,
+      });
+    } catch (err) {
+      logger.error({ err }, 'Failed to look up invitation');
+      sendError(res, 500, 'INTERNAL_ERROR', 'Failed to look up invitation');
     }
   });
 

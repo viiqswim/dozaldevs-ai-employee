@@ -64,6 +64,20 @@ vi.mock('../../../../src/gateway/middleware/authz.js', () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+vi.mock('../../../../src/lib/email/index.js', () => ({
+  getEmailProvider: () => ({
+    send: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+vi.mock('../../../../src/lib/email/templates/invitation.js', () => ({
+  buildInvitationEmail: vi.fn().mockReturnValue({
+    subject: 'Test invitation',
+    html: '<p>Test</p>',
+    text: 'Test',
+  }),
+}));
+
 const { adminInvitationsRoutes } =
   await import('../../../../src/gateway/routes/admin-invitations.js');
 
@@ -137,6 +151,9 @@ function makeApp(overrides: PrismaOverrides = {}) {
         },
         user: { findFirst: userFind },
         tenantMembership: { findFirst: memFind },
+        tenant: {
+          findFirst: vi.fn().mockResolvedValue({ id: TENANT_ID, name: 'Test Org' }),
+        },
         $transaction: overrides.transaction ?? defaultTransaction,
       } as never,
     }),
@@ -149,7 +166,11 @@ describe('POST /admin/tenants/:tenantId/invitations', () => {
     currentAuth = {};
     tenantMembershipForAuthz = null;
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ id: 'supabase-user-id' }),
+    });
   });
 
   it('creates invitation and returns 201 for valid email and role', async () => {
@@ -443,7 +464,16 @@ describe('POST /invitations/accept', () => {
     expect(res.body.error).toBe('EXPIRED');
   });
 
-  it('returns 404 when user record not found after clicking magic link', async () => {
+  it('creates user inline and accepts when user record not found', async () => {
+    const newUserId = 'cccccccc-cccc-4ccc-cccc-cccccccccccc';
+    const membershipCreate = vi.fn().mockResolvedValue({});
+    const invitationUpdate = vi.fn().mockResolvedValue({});
+    const userCreate = vi.fn().mockResolvedValue({ id: newUserId, email: 'new@example.com' });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ users: [] }),
+    });
     const transaction = vi
       .fn()
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -457,17 +487,26 @@ describe('POST /invitations/accept', () => {
               status: 'pending',
               expires_at: new Date(Date.now() + 86400000),
             }),
-            update: vi.fn(),
+            update: invitationUpdate,
           },
-          user: { findFirst: vi.fn().mockResolvedValue(null) },
-          tenantMembership: { findFirst: vi.fn(), create: vi.fn() },
+          user: { findFirst: vi.fn().mockResolvedValue(null), create: userCreate },
+          tenantMembership: {
+            findFirst: vi.fn().mockResolvedValue(null),
+            create: membershipCreate,
+          },
         };
         return fn(tx);
       });
     const app = makeApp({ transaction });
     const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBe('USER_NOT_FOUND');
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Invitation accepted');
+    expect(userCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'new@example.com', role: 'USER', status: 'active' }),
+      }),
+    );
+    expect(membershipCreate).toHaveBeenCalled();
   });
 
   it('returns 409 when user is already a member', async () => {
