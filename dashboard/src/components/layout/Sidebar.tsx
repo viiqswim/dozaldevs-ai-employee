@@ -10,9 +10,11 @@ import {
   Settings,
   Plug,
   UserCheck,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PreflightStatus } from '@/hooks/use-preflight-status';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface NavItem {
   icon: React.ElementType;
@@ -21,17 +23,21 @@ interface NavItem {
   healthDot?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { icon: ListTodo, label: 'Tasks', to: '/dashboard/tasks' },
   { icon: Users, label: 'Employees', to: '/dashboard/employees' },
   { icon: BookOpen, label: 'Rules', to: '/dashboard/rules' },
   { icon: Plug, label: 'Integrations', to: '/dashboard/integrations' },
   { icon: UserCheck, label: 'Members', to: '/dashboard/members' },
   { icon: Building2, label: 'Organizations', to: '/dashboard/tenants' },
-  { icon: Wrench, label: 'Tools', to: '/dashboard/tools' },
+];
+
+const PLATFORM_ADMIN_NAV_ITEMS: NavItem[] = [
   { icon: Cpu, label: 'AI Models', to: '/dashboard/models' },
   { icon: Settings, label: 'Platform Settings', to: '/dashboard/settings' },
   { icon: HeartPulse, label: 'Preflight', to: '/dashboard/preflight', healthDot: true },
+  { icon: Wrench, label: 'Tools', to: '/dashboard/tools' },
+  { icon: Shield, label: 'Tenant Management', to: '/dashboard/admin/tenants' },
 ];
 
 interface SidebarProps {
@@ -40,6 +46,7 @@ interface SidebarProps {
 
 export function Sidebar({ preflightStatus }: SidebarProps) {
   const { allOk, hasError, failingNames, checking } = preflightStatus;
+  const { isPlatformOwner, roleLoading } = useAuth();
 
   const dotColor = checking
     ? 'bg-slate-300 animate-pulse'
@@ -51,40 +58,55 @@ export function Sidebar({ preflightStatus }: SidebarProps) {
 
   const dotTitle = hasError ? `Failing: ${failingNames.join(', ')}` : allOk ? 'All systems OK' : '';
 
+  function renderNavItem({ icon: Icon, label, to, healthDot }: NavItem) {
+    return (
+      <NavLink
+        key={to}
+        to={to}
+        end={to === '/dashboard/tasks'}
+        className={({ isActive }) => (isActive ? 'block' : 'block')}
+      >
+        {({ isActive }) => (
+          <Button
+            variant="ghost"
+            className={`w-full justify-start gap-2 ${
+              isActive
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {label}
+            {healthDot && (
+              <span
+                title={dotTitle}
+                className={`ml-auto h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`}
+              />
+            )}
+          </Button>
+        )}
+      </NavLink>
+    );
+  }
+
   return (
     <aside className="flex h-screen w-56 flex-col border-r bg-background">
       <div className="flex h-14 items-center border-b px-4">
         <span className="text-sm font-bold tracking-tight">AI Employee</span>
       </div>
-      <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.map(({ icon: Icon, label, to, healthDot }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/dashboard/tasks'}
-            className={({ isActive }) => (isActive ? 'block' : 'block')}
-          >
-            {({ isActive }) => (
-              <Button
-                variant="ghost"
-                className={`w-full justify-start gap-2 ${
-                  isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {label}
-                {healthDot && (
-                  <span
-                    title={dotTitle}
-                    className={`ml-auto h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`}
-                  />
-                )}
-              </Button>
-            )}
-          </NavLink>
-        ))}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+        {WORKSPACE_NAV_ITEMS.map(renderNavItem)}
+
+        {!roleLoading && isPlatformOwner && (
+          <>
+            <div className="mb-1 mt-4 px-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Platform Admin
+              </span>
+            </div>
+            {PLATFORM_ADMIN_NAV_ITEMS.map(renderNavItem)}
+          </>
+        )}
       </nav>
     </aside>
   );

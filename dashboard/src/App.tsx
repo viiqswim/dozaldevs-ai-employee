@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import { TenantProvider } from './hooks/use-tenant';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { PlatformOwnerRoute } from './components/PlatformOwnerRoute';
 import { Layout } from './components/layout/Layout';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
@@ -22,6 +23,7 @@ import { ModelCatalogPage } from './pages/ModelCatalogPage';
 import { TaskLogsPage } from './pages/TaskLogsPage';
 import { PlatformSettingsPage } from './pages/PlatformSettingsPage';
 import { MembersPage } from './pages/MembersPage';
+import { TenantManagementPage } from './pages/TenantManagementPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -100,12 +102,15 @@ export default function App() {
                 <Route path="/dashboard/tenants" element={<TenantOverview />} />
                 <Route path="/dashboard/integrations" element={<IntegrationsPage />} />
                 <Route path="/dashboard/rules" element={<RulesPanel />} />
-                <Route path="/dashboard/preflight" element={<PreflightPanel />} />
-                <Route path="/dashboard/tools" element={<ToolList />} />
-                <Route path="/dashboard/tools/:service/:toolName" element={<ToolDetail />} />
-                <Route path="/dashboard/models" element={<ModelCatalogPage />} />
-                <Route path="/dashboard/settings" element={<PlatformSettingsPage />} />
                 <Route path="/dashboard/members" element={<MembersPage />} />
+                <Route element={<PlatformOwnerRoute />}>
+                  <Route path="/dashboard/preflight" element={<PreflightPanel />} />
+                  <Route path="/dashboard/tools" element={<ToolList />} />
+                  <Route path="/dashboard/tools/:service/:toolName" element={<ToolDetail />} />
+                  <Route path="/dashboard/models" element={<ModelCatalogPage />} />
+                  <Route path="/dashboard/settings" element={<PlatformSettingsPage />} />
+                  <Route path="/dashboard/admin/tenants" element={<TenantManagementPage />} />
+                </Route>
               </Route>
             </Routes>
           </TenantProvider>
