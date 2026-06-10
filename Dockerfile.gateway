@@ -3,6 +3,8 @@ FROM node:22-alpine AS builder
 
 RUN corepack enable pnpm
 
+ENV HUSKY=0
+
 RUN apk add --no-cache openssl
 
 WORKDIR /build
@@ -31,7 +33,8 @@ RUN pnpm build
 RUN mkdir -p dist/workers/config && cp src/workers/config/agents.md dist/workers/config/agents.md
 
 # Prune to production dependencies only (in-place, avoids reinstall)
-RUN pnpm prune --prod
+# --ignore-scripts prevents the prepare lifecycle (husky) from running after devDeps are removed
+RUN pnpm prune --prod --ignore-scripts
 
 # Copy dashboard source files
 COPY dashboard/src/ ./dashboard/src/
