@@ -288,3 +288,40 @@ Two changes to `opencode-harness-metrics.test.ts`:
 2. **Added `await waitForProcessExit(exitSpy)` at the end of the SIGTERM test** — ensures the handler's deferred `process.exit(1)` fires while the spy is active (captured + no-op), not after teardown
 
 Both changes are required: `afterAll` handles the case where the spy is removed by vitest's global teardown between tests, and the SIGTERM test fix ensures the fire-and-forget async handler is drained before the spy window closes.
+
+## [2026-06-10] Task: guest lifecycle unit tests spawned real docker (CI fix)
+
+### Root cause
+
+`tests/unit/inngest/lifecycle-guest-approval.test.ts` (2 failing) and `lifecycle-guest-delivery.test.ts` (1 failing) exercise the lifecycle DELIVERY path via the Inngest test engine. The `handle-approval-result` step mock calls `fn()` (the real step function), which ultimately calls `runLocalDockerContainer()` from `src/inngest/lib/lifecycle-helpers.ts`. That function executes a real `docker run -d ... ai-employee-worker:latest ...` via `child_process.execSync`. CI's `test` job never builds the worker Docker image → `docker run` fails → tests fail. Locally they passed because the dev machine had `ai-employee-worker:latest` built.
+
+This was a latent issue: prior CI runs never reached `pnpm test:unit` (the `test` job was blocked earlier), so these tests never ran in CI before.
+
+### Fix
+
+Used the `importActual` spread mock pattern (same pattern as `delivery-retry.test.ts`) to override ONLY the two docker functions while keeping all other real exports from `lifecycle-helpers`:
+
+```typescript
+const mockRunLocalDockerContainer = vi.hoisted(() =>
+  vi.fn().mockReturnValue({ id: 'mock-delivery-container' }),
+);
+const mockStopLocalDockerContainer = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../src/inngest/lib/lifecycle-helpers.js', async (importActual) => {
+  const actual =
+    await importActual<typeof import('../../../src/inngest/lib/lifecycle-helpers.js')>();
+  return {
+    ...actual,
+    runLocalDockerContainer: mockRunLocalDockerContainer,
+    stopLocalDockerContainer: mockStopLocalDockerContainer,
+  };
+});
+```
+
+The path uses `../../../` (3 levels up) because the files are at `tests/unit/inngest/` — one level shallower than `delivery-retry.test.ts` at `tests/unit/inngest/lifecycle-steps/` (which uses `../../../../`).
+
+Proof: ran tests with `PATH="/tmp/nodocker:$PATH"` where `/tmp/nodocker/docker` exits 1 with "docker called - MOCK LEAK" — no leak output, tests pass clean.
+
+### Committed
+
+`test: mock local-docker delivery spawn in guest lifecycle unit tests (fixes CI without worker image)` — 2 files, +32 insertions
