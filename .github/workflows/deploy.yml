@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,7 +26,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -45,12 +49,95 @@ jobs:
       - name: Run dashboard tests
         run: pnpm test:dashboard
 
-  deploy-gateway:
+  migrate:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy
-        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Guard — reject pooled/transaction URL (must be port 5432, no pgbouncer)
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+        run: |
+          # Do NOT print the URL. Use a case match on the value only.
+          case "$PROD_DB_URL" in
+            *":6543"*|*"pgbouncer"*)
+              echo "::error::PROD_DATABASE_URL_DIRECT must be a direct/session connection on port 5432 (no :6543, no pgbouncer)."
+              exit 1
+              ;;
+            "")
+              echo "::error::PROD_DATABASE_URL_DIRECT secret is empty."
+              exit 1
+              ;;
+          esac
+          echo "Port-5432 guard passed."
+      - name: Apply pending migrations to production
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+          DATABASE_URL_DIRECT: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+        run: pnpm prisma migrate deploy
+      - name: Reload PostgREST schema cache
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+        run: |
+          # Install psql client, then NOTIFY pgrst to reload the schema cache so workers see new tables.
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          psql "$PROD_DB_URL" -c "NOTIFY pgrst, 'reload schema';"
+
+  deploy-gateway:
+    needs: [test, migrate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger, watch, and report Render gateway deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: srv-d8f1b2gg4nts738dj7jg
+          RENDER_OWNER_ID: tea-d1uscc3uibrs738pu040
+        run: |
+          set -euo pipefail
+          echo "Triggering Render deploy via API..."
+          # POST /deploys creates a new deploy and returns the deploy object { id, status, ... }.
+          DEPLOY_ID=$(curl -fsS -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Accept: application/json" \
+            -H "Content-Type: application/json" -d '{"clearCache":"do_not_clear"}' \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const o=JSON.parse(d);console.log(o.id||(o.deploy&&o.deploy.id)||'')})")
+          if [ -z "$DEPLOY_ID" ]; then echo "::error::Could not create Render deploy"; exit 1; fi
+          echo "Watching Render deploy: $DEPLOY_ID"
+          # Poll until terminal status.
+          for i in $(seq 1 80); do
+            STATUS=$(curl -fsS "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Accept: application/json" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const o=JSON.parse(d);console.log(o.status||(o.deploy&&o.deploy.status)||'unknown')})")
+            echo "[$i] Render deploy status: $STATUS"
+            case "$STATUS" in
+              live) echo "Deploy is LIVE."; break ;;
+              build_failed|update_failed|canceled|deactivated|pre_deploy_failed)
+                echo "::error::Render deploy ended with status: $STATUS"
+                FAILED=1; break ;;
+            esac
+            sleep 15
+          done
+          # Pull recent Render logs into the Actions output for single-pane-of-glass visibility.
+          echo "----- Render deploy logs (most recent) -----"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          START=$(date -u -d '20 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          curl -fsS -G "https://api.render.com/v1/logs" \
+            --data-urlencode "ownerId=${RENDER_OWNER_ID}" \
+            --data-urlencode "resource=${RENDER_SERVICE_ID}" \
+            --data-urlencode "startTime=${START}" \
+            --data-urlencode "endTime=${NOW}" \
+            --data-urlencode "limit=100" \
+            --data-urlencode "direction=backward" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Accept: application/json" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const o=JSON.parse(d);(o.logs||[]).reverse().forEach(l=>console.log(l.timestamp, l.message))}catch(e){console.log('(could not parse logs)')}})" || echo "(log fetch failed, non-fatal)"
+          echo "--------------------------------------------"
+          if [ "${FAILED:-0}" = "1" ]; then exit 1; fi
+          echo "Gateway deploy completed successfully."
 
   deploy-worker:
     needs: test

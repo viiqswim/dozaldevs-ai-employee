@@ -402,6 +402,25 @@ Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
 ```
 
+## CI/CD — Auto-Deploy + Auto-Migrate on Merge to `main`
+
+Every push to `main` runs `.github/workflows/deploy.yml`:
+
+1. **test** — pnpm (pinned: `packageManager: pnpm@10.24.0` + `pnpm/action-setup@v4`), build, unit + integration (postgres service container) + lint + dashboard tests.
+2. **migrate** (`needs: test`) — `prisma migrate deploy` against prod, then PostgREST schema reload (`NOTIFY pgrst, 'reload schema'`). A guard step fails fast if the DB URL is pooled/transaction (`:6543`/`pgbouncer`).
+3. **deploy-gateway** (`needs: [test, migrate]`) — triggers the Render deploy via the Render API, polls to `live`/failed, and surfaces Render's deploy logs inside the Actions run. The job goes red if the deploy doesn't reach `live`.
+4. **deploy-worker** (`needs: test`) — rebuilds + pushes the Fly worker image (`registry.fly.io/ai-employee-workers:latest`, `--platform linux/amd64`).
+
+Workflow `concurrency` serializes overlapping merges (`cancel-in-progress: false`) so a running migrate is never cancelled.
+
+**Single trigger**: Render auto-deploy is OFF (`autoDeploy: false` in `render.yaml` and on the live service). GitHub Actions is the sole gateway-deploy trigger — no more Render-on-push double-deploy race.
+
+**Prod DB connection (critical)**: the migrate job connects via the Supabase **session-mode pooler on port 5432** (`aws-1-us-west-2.pooler.supabase.com:5432`), held in the `PROD_DATABASE_URL_DIRECT` GitHub secret. The direct `db.<ref>.supabase.co:5432` host is **IPv6-only** and unreachable from IPv4-only GitHub runners (`P1001`); the session pooler is IPv4 and supports DDL-in-transaction. It is NOT the transaction pooler (`:6543`/`pgbouncer`), so it passes the port-5432 guard.
+
+**Secrets**: `PROD_DATABASE_URL_DIRECT` (session pooler, port 5432), `FLY_API_TOKEN`, `RENDER_API_KEY` (trigger + poll + logs). The old `RENDER_DEPLOY_HOOK_URL` is no longer used.
+
+**Migrate-failure recovery**: a prod backup is taken before each risky change (`database-backups/<timestamp>/`). If a migrate fails mid-run, restore from that backup (see "Database Backup" above) and investigate before re-merging.
+
 ## Project Structure
 
 ```

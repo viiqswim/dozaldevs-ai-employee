@@ -21,6 +21,7 @@ export default function AcceptInvitePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [declined, setDeclined] = useState(false);
+  const [alreadyAuthed, setAlreadyAuthed] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -28,11 +29,27 @@ export default function AcceptInvitePage() {
       setLoading(false);
       return;
     }
-    getInvitationByToken(token)
-      .then(setInvitation)
+    Promise.all([getInvitationByToken(token), supabase.auth.getSession()])
+      .then(([inv, { data }]) => {
+        setInvitation(inv);
+        if (data.session) setAlreadyAuthed(true);
+      })
       .catch(() => setError('This invitation link is invalid or has expired.'))
       .finally(() => setLoading(false));
   }, [token]);
+
+  async function handleAcceptOnly() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await acceptInvitation(token);
+      navigate('/dashboard/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +63,7 @@ export default function AcceptInvitePage() {
     }
     setSubmitting(true);
     setError(null);
+    let signedIn = false;
     try {
       await setInvitationPassword(token, password);
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -53,10 +71,16 @@ export default function AcceptInvitePage() {
         password,
       });
       if (signInError) throw signInError;
+      signedIn = true;
+      setAlreadyAuthed(true);
       await acceptInvitation(token);
       navigate('/dashboard/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      if (signedIn) {
+        setError('Could not complete setup. Click "Accept invitation" to try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -125,24 +149,38 @@ export default function AcceptInvitePage() {
             </strong>
             .
           </p>
-          <p className="mb-4 text-sm">
-            You already have an account. Please{' '}
-            <Link
-              to={`/dashboard/login?redirect=${encodeURIComponent(`/dashboard/accept-invite?token=${token}`)}`}
-              className="text-primary underline"
+          {alreadyAuthed ? (
+            <>
+              <button
+                onClick={handleAcceptOnly}
+                disabled={submitting}
+                className="w-full bg-primary text-primary-foreground rounded px-4 py-2 font-medium disabled:opacity-50"
+              >
+                {submitting ? 'Accepting...' : 'Accept invitation'}
+              </button>
+              {error && <p className="text-destructive text-sm mt-2">{error}</p>}
+            </>
+          ) : (
+            <p className="mb-4 text-sm">
+              You already have an account. Please{' '}
+              <Link
+                to={`/dashboard/login?redirect=${encodeURIComponent(`/dashboard/accept-invite?token=${token}`)}`}
+                className="text-primary underline"
+              >
+                log in
+              </Link>{' '}
+              to accept this invitation.
+            </p>
+          )}
+          <div className="mt-4 text-center">
+            <button
+              onClick={handleDecline}
+              disabled={submitting}
+              className="text-sm text-muted-foreground underline disabled:opacity-50"
             >
-              log in
-            </Link>{' '}
-            to accept this invitation.
-          </p>
-          <button
-            onClick={handleDecline}
-            disabled={submitting}
-            className="text-sm text-muted-foreground underline disabled:opacity-50"
-          >
-            Decline invitation
-          </button>
-          {error && <p className="text-destructive text-sm mt-2">{error}</p>}
+              Decline invitation
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -159,45 +197,58 @@ export default function AcceptInvitePage() {
           </strong>
           . Set a password to create your account.
         </p>
-        <form onSubmit={handleSetPassword} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              className="w-full border rounded px-3 py-2 text-sm bg-background"
-              placeholder="At least 8 characters"
-            />
+        {alreadyAuthed ? (
+          <div className="space-y-4">
+            {error && <p className="text-destructive text-sm">{error}</p>}
+            <button
+              onClick={handleAcceptOnly}
+              disabled={submitting}
+              className="w-full bg-primary text-primary-foreground rounded px-4 py-2 font-medium disabled:opacity-50"
+            >
+              {submitting ? 'Accepting...' : 'Accept invitation'}
+            </button>
           </div>
-          <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium mb-1">
-              Confirm password
-            </label>
-            <input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              className="w-full border rounded px-3 py-2 text-sm bg-background"
-              placeholder="Repeat your password"
-            />
-          </div>
-          {error && <p className="text-destructive text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-primary text-primary-foreground rounded px-4 py-2 font-medium disabled:opacity-50"
-          >
-            {submitting ? 'Setting up your account...' : 'Accept invitation'}
-          </button>
-        </form>
+        ) : (
+          <form onSubmit={handleSetPassword} className="space-y-4">
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-1">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="w-full border rounded px-3 py-2 text-sm bg-background"
+                placeholder="At least 8 characters"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirm-password" className="block text-sm font-medium mb-1">
+                Confirm password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full border rounded px-3 py-2 text-sm bg-background"
+                placeholder="Repeat your password"
+              />
+            </div>
+            {error && <p className="text-destructive text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-primary text-primary-foreground rounded px-4 py-2 font-medium disabled:opacity-50"
+            >
+              {submitting ? 'Setting up your account...' : 'Accept invitation'}
+            </button>
+          </form>
+        )}
         <div className="mt-4 text-center">
           <button
             onClick={handleDecline}

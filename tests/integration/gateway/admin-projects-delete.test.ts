@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import express from 'express';
-import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../../setup.js';
+import {
+  TestApp,
+  getPrisma,
+  cleanupTestData,
+  disconnectPrisma,
+  ADMIN_TEST_KEY,
+} from '../../setup.js';
 import { adminProjectRoutes } from '../../../src/gateway/routes/admin-projects.js';
 import { createProject } from '../../../src/gateway/services/project-registry.js';
 
@@ -9,7 +15,7 @@ const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000002';
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   process.env.JIRA_WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET ?? 'test-secret';
 
   const expressApp = express();
@@ -29,20 +35,20 @@ afterAll(async () => {
 });
 
 describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
-  it('missing X-Admin-Key header → 401', async () => {
+  it('missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
     });
     expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body).error).toBe('Unauthorized');
+    expect(JSON.parse(res.body).error).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('invalid UUID format → 400 INVALID_ID', async () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/not-a-valid-uuid`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toBe('INVALID_ID');
@@ -52,7 +58,7 @@ describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/00000000-0000-0000-0000-000000000099`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(404);
     expect(JSON.parse(res.body).error).toBe('NOT_FOUND');
@@ -83,7 +89,7 @@ describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
 
     expect(res.statusCode).toBe(409);
@@ -109,7 +115,7 @@ describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
 
     expect(res.statusCode).toBe(204);
@@ -144,7 +150,7 @@ describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
 
     expect(res.statusCode).toBe(204);
@@ -178,7 +184,7 @@ describe('DELETE /admin/tenants/:tenantId/projects/:id', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${SYSTEM_TENANT_ID}/projects/${project.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
 
     expect(res.statusCode).toBe(409);

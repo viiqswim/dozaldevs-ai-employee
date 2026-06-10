@@ -5,6 +5,7 @@ services:
     dockerfilePath: ./Dockerfile.gateway
     region: ohio
     plan: starter
+    autoDeploy: false
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

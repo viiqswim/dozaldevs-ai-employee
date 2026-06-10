@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import express from 'express';
-import { TestApp, getPrisma, cleanupTestData, disconnectPrisma, ADMIN_TEST_KEY } from '../../setup.js';
+import {
+  TestApp,
+  getPrisma,
+  cleanupTestData,
+  disconnectPrisma,
+  ADMIN_TEST_KEY,
+} from '../../setup.js';
 import { adminKbRoutes } from '../../../src/gateway/routes/admin-kb.js';
 
 const VLRE_TENANT = '00000000-0000-0000-0000-000000000003';
@@ -22,7 +28,7 @@ const EMPTY_TENANT_UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   const expressApp = express();
   expressApp.use(express.json());
   expressApp.use(adminKbRoutes({ prisma: getPrisma() }));
@@ -46,7 +52,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'new-test-property-unique',
@@ -68,7 +74,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${DOZALDEVS_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         content: 'General policies for DozalDevs tenant.',
       },
@@ -86,7 +92,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: '' },
     });
     expect(res.statusCode).toBe(400);
@@ -100,7 +106,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { entity_id: 'some-property-id', content: 'Some content here.' },
     });
     expect(res.statusCode).toBe(400);
@@ -112,7 +118,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: SEED_ENTITY_TYPE,
         entity_id: SEED_ENTITY_ENTITY_ID,
@@ -129,7 +135,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Another common entry attempt for VLRE.' },
     });
     expect(res.statusCode).toBe(409);
@@ -142,7 +148,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/admin/tenants/not-a-valid-uuid/kb/entries',
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Some content.' },
     });
     expect(res.statusCode).toBe(400);
@@ -150,7 +156,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     expect(body.error).toBe('INVALID_ID');
   });
 
-  it('8. missing X-Admin-Key header → 401', async () => {
+  it('8. missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
@@ -159,7 +165,7 @@ describe('POST /admin/tenants/:tenantId/kb/entries', () => {
     });
     expect(res.statusCode).toBe(401);
     const body = JSON.parse(res.body);
-    expect(body.error).toBe('Unauthorized');
+    expect(body.error).toBe('AUTHENTICATION_REQUIRED');
   });
 });
 
@@ -170,7 +176,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -185,7 +191,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries?entity_type=property`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -200,7 +206,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries?entity_type=property&entity_id=${SEED_ENTITY_ENTITY_ID}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -213,7 +219,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${EMPTY_TENANT_UUID}/kb/entries`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -225,7 +231,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/admin/tenants/not-a-uuid/kb/entries',
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body);
@@ -240,7 +246,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${SEED_COMMON_ID}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -254,7 +260,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${NONEXISTENT_UUID}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.body);
@@ -265,7 +271,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${DOZALDEVS_TENANT}/kb/entries/${SEED_ENTITY_ID}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.body);
@@ -276,7 +282,7 @@ describe('GET /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/not-a-valid-uuid`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body);
@@ -292,7 +298,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'patch-test-property',
@@ -305,7 +311,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const patchRes = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Updated content after patch.' },
     });
     expect(patchRes.statusCode).toBe(200);
@@ -318,7 +324,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${NONEXISTENT_UUID}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Updated content.' },
     });
     expect(res.statusCode).toBe(404);
@@ -330,7 +336,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${SEED_ENTITY_ID}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: '' },
     });
     expect(res.statusCode).toBe(400);
@@ -343,7 +349,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'cross-tenant-patch-test',
@@ -356,7 +362,7 @@ describe('PATCH /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const patchRes = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${DOZALDEVS_TENANT}/kb/entries/${created.id}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Should not be updated.' },
     });
     expect(patchRes.statusCode).toBe(404);
@@ -372,7 +378,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'delete-test-property',
@@ -385,7 +391,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const deleteRes = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(deleteRes.statusCode).toBe(204);
     expect(deleteRes.body).toBe('');
@@ -395,7 +401,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'verify-delete-property',
@@ -408,13 +414,13 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
 
     const getRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes.statusCode).toBe(404);
     const body = JSON.parse(getRes.body);
@@ -425,7 +431,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${NONEXISTENT_UUID}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.body);
@@ -436,7 +442,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'cross-tenant-delete-test',
@@ -449,7 +455,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const deleteRes = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${DOZALDEVS_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(deleteRes.statusCode).toBe(404);
     const body = JSON.parse(deleteRes.body);
@@ -459,7 +465,7 @@ describe('DELETE /admin/tenants/:tenantId/kb/entries/:entryId', () => {
     const getRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes.statusCode).toBe(200);
   });
@@ -473,7 +479,7 @@ describe('Integration', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: {
         entity_type: 'property',
         entity_id: 'full-crud-cycle-property',
@@ -488,7 +494,7 @@ describe('Integration', () => {
     const getRes1 = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes1.statusCode).toBe(200);
     expect(JSON.parse(getRes1.body).content).toBe('Initial content for full CRUD test.');
@@ -497,7 +503,7 @@ describe('Integration', () => {
     const patchRes = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { content: 'Updated content after PATCH in full CRUD cycle.' },
     });
     expect(patchRes.statusCode).toBe(200);
@@ -509,7 +515,7 @@ describe('Integration', () => {
     const getRes2 = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes2.statusCode).toBe(200);
     expect(JSON.parse(getRes2.body).content).toBe(
@@ -520,7 +526,7 @@ describe('Integration', () => {
     const deleteRes = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(deleteRes.statusCode).toBe(204);
 
@@ -528,7 +534,7 @@ describe('Integration', () => {
     const getRes3 = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes3.statusCode).toBe(404);
   });
@@ -541,7 +547,7 @@ describe('Integration', () => {
       const res = await app.inject({
         method: 'POST',
         url: `/admin/tenants/${VLRE_TENANT}/kb/entries`,
-        headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
         payload: {
           entity_type: 'property',
           entity_id: propId,
@@ -555,7 +561,7 @@ describe('Integration', () => {
     const listRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries?entity_type=property`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(listRes.statusCode).toBe(200);
     const allProps = JSON.parse(listRes.body);
@@ -565,7 +571,7 @@ describe('Integration', () => {
     const filteredRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/kb/entries?entity_type=property&entity_id=multi-prop-test-b`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(filteredRes.statusCode).toBe(200);
     const filtered = JSON.parse(filteredRes.body);

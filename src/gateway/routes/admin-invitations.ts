@@ -4,6 +4,7 @@ import { PrismaClient, TenantRole } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
+import { isPrismaError } from '../lib/prisma-helpers.js';
 import { SUPABASE_URL, SUPABASE_SECRET_KEY, DASHBOARD_BASE_URL } from '../../lib/config.js';
 import { createLogger } from '../../lib/logger.js';
 import { setInvitationPasswordSchema } from '../validation/schemas.js';
@@ -288,94 +289,117 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
       return;
     }
 
-    try {
-      await db.$transaction(
-        async (tx) => {
-          const invitation = await tx.tenantInvitation.findFirst({
-            where: { token },
-          });
+    const MAX_RETRIES = 3;
 
-          if (!invitation) {
-            throw Object.assign(new Error('Invitation not found'), {
-              code: 'NOT_FOUND',
-              status: 404,
-            });
-          }
-          if (invitation.status !== 'pending') {
-            throw Object.assign(new Error('Invitation is no longer pending'), {
-              code: 'ALREADY_USED',
-              status: 410,
-            });
-          }
-          if (invitation.expires_at < new Date()) {
-            throw Object.assign(new Error('Invitation has expired'), {
-              code: 'EXPIRED',
-              status: 410,
-            });
-          }
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50 * attempt));
+      }
 
-          let user = await tx.user.findFirst({
-            where: { email: invitation.email, deleted_at: null },
-          });
-
-          if (req.auth && req.auth.email === invitation.email) {
-            const authUser = await tx.user.findFirst({
-              where: { id: req.auth.id, deleted_at: null },
+      try {
+        await db.$transaction(
+          async (tx) => {
+            const invitation = await tx.tenantInvitation.findFirst({
+              where: { token },
             });
-            if (authUser) {
-              user = authUser;
+
+            if (!invitation) {
+              throw Object.assign(new Error('Invitation not found'), {
+                code: 'NOT_FOUND',
+                status: 404,
+              });
             }
-          }
+            if (invitation.status !== 'pending') {
+              throw Object.assign(new Error('Invitation is no longer pending'), {
+                code: 'ALREADY_USED',
+                status: 410,
+              });
+            }
+            if (invitation.expires_at < new Date()) {
+              throw Object.assign(new Error('Invitation has expired'), {
+                code: 'EXPIRED',
+                status: 410,
+              });
+            }
 
-          if (!user) {
-            const supabaseId = await getSupabaseUserIdByEmail(invitation.email);
-            user = await tx.user.create({
+            let user = await tx.user.findFirst({
+              where: { email: invitation.email, deleted_at: null },
+            });
+
+            if (req.auth && req.auth.email === invitation.email) {
+              const authUser = await tx.user.findFirst({
+                where: { id: req.auth.id, deleted_at: null },
+              });
+              if (authUser) {
+                user = authUser;
+              }
+            }
+
+            if (!user) {
+              const supabaseId = await getSupabaseUserIdByEmail(invitation.email);
+              user = await tx.user.create({
+                data: {
+                  supabase_id: supabaseId ?? null,
+                  email: invitation.email,
+                  name: null,
+                  role: 'USER',
+                  status: 'active',
+                },
+              });
+            }
+
+            const existingMembership = await tx.tenantMembership.findFirst({
+              where: { tenant_id: invitation.tenant_id, user_id: user.id, deleted_at: null },
+            });
+            if (existingMembership) {
+              throw Object.assign(new Error('User is already a member of this tenant'), {
+                code: 'ALREADY_MEMBER',
+                status: 409,
+              });
+            }
+
+            await tx.tenantMembership.create({
               data: {
-                supabase_id: supabaseId ?? null,
-                email: invitation.email,
-                name: null,
-                role: 'USER',
-                status: 'active',
+                tenant_id: invitation.tenant_id,
+                user_id: user.id,
+                role: invitation.role,
               },
             });
-          }
 
-          const existingMembership = await tx.tenantMembership.findFirst({
-            where: { tenant_id: invitation.tenant_id, user_id: user.id, deleted_at: null },
-          });
-          if (existingMembership) {
-            throw Object.assign(new Error('User is already a member of this tenant'), {
-              code: 'ALREADY_MEMBER',
-              status: 409,
+            await tx.tenantInvitation.update({
+              where: { id: invitation.id },
+              data: { status: 'accepted', accepted_at: new Date() },
             });
-          }
+          },
+          { isolationLevel: 'Serializable' },
+        );
 
-          await tx.tenantMembership.create({
-            data: {
-              tenant_id: invitation.tenant_id,
-              user_id: user.id,
-              role: invitation.role,
-            },
-          });
-
-          await tx.tenantInvitation.update({
-            where: { id: invitation.id },
-            data: { status: 'accepted', accepted_at: new Date() },
-          });
-        },
-        { isolationLevel: 'Serializable' },
-      );
-
-      sendSuccess(res, 200, { message: 'Invitation accepted' });
-    } catch (err) {
-      if (err instanceof Error && 'code' in err) {
-        const e = err as Error & { code: string; status: number };
-        sendError(res, e.status, e.code, err.message);
+        sendSuccess(res, 200, { message: 'Invitation accepted' });
+        return;
+      } catch (err) {
+        if (isPrismaError(err) && err.code === 'P2034') {
+          logger.warn(
+            { attempt: attempt + 1, maxRetries: MAX_RETRIES },
+            'Serialization failure on accept invitation, retrying',
+          );
+          continue;
+        }
+        if (err instanceof Error && 'status' in err) {
+          const e = err as Error & { code: string; status: number };
+          sendError(res, e.status, e.code, err.message);
+          return;
+        }
+        logger.error({ err }, 'Failed to accept invitation');
+        sendError(res, 500, 'INTERNAL_ERROR', 'Failed to accept invitation');
         return;
       }
-      logger.error({ err }, 'Failed to accept invitation');
-      sendError(res, 500, 'INTERNAL_ERROR', 'Failed to accept invitation');
     }
+
+    logger.error(
+      { token: token.slice(0, 8) },
+      'Serialization failure persisted after all retries on accept invitation',
+    );
+    sendError(res, 409, 'SERIALIZATION_FAILURE', 'Transaction conflict — please retry');
   });
 
   // POST /invitations/decline — no auth required

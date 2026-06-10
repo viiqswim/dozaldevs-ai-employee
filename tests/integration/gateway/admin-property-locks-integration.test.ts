@@ -16,7 +16,7 @@ const VALID_CREATE_BODY = {
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = ADMIN_TEST_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   const expressApp = express();
   expressApp.use(express.json());
   expressApp.use(adminPropertyLockRoutes({ prisma: getPrisma() }));
@@ -38,7 +38,7 @@ describe('POST /admin/tenants/:tenantId/property-locks — integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: VALID_CREATE_BODY,
     });
 
@@ -63,7 +63,7 @@ describe('GET /admin/tenants/:tenantId/property-locks — integration', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: VALID_CREATE_BODY,
     });
     expect(createRes.statusCode).toBe(201);
@@ -72,7 +72,7 @@ describe('GET /admin/tenants/:tenantId/property-locks — integration', () => {
     const listRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(listRes.statusCode).toBe(200);
     const listBody = JSON.parse(listRes.body);
@@ -83,7 +83,7 @@ describe('GET /admin/tenants/:tenantId/property-locks — integration', () => {
     const filteredRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks?property_id=integ-prop-ext-001`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(filteredRes.statusCode).toBe(200);
     const filteredBody = JSON.parse(filteredRes.body);
@@ -99,7 +99,7 @@ describe('PATCH /admin/tenants/:tenantId/property-locks/:lockId — integration'
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: VALID_CREATE_BODY,
     });
     expect(createRes.statusCode).toBe(201);
@@ -108,7 +108,7 @@ describe('PATCH /admin/tenants/:tenantId/property-locks/:lockId — integration'
     const patchRes = await app.inject({
       method: 'PATCH',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks/${created.id}`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: { lock_name: 'Updated Lock Name', passcode_name: 'permanent-visitor-home' },
     });
     expect(patchRes.statusCode).toBe(200);
@@ -127,7 +127,7 @@ describe('DELETE /admin/tenants/:tenantId/property-locks/:lockId — integration
     const createRes = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks`,
-      headers: { 'content-type': 'application/json', 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${ADMIN_TEST_KEY}` },
       payload: VALID_CREATE_BODY,
     });
     expect(createRes.statusCode).toBe(201);
@@ -136,7 +136,7 @@ describe('DELETE /admin/tenants/:tenantId/property-locks/:lockId — integration
     const deleteRes = await app.inject({
       method: 'DELETE',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(deleteRes.statusCode).toBe(204);
     expect(deleteRes.body).toBe('');
@@ -147,7 +147,7 @@ describe('DELETE /admin/tenants/:tenantId/property-locks/:lockId — integration
     const getRes = await app.inject({
       method: 'GET',
       url: `/admin/tenants/${VLRE_TENANT}/property-locks/${created.id}`,
-      headers: { 'x-admin-key': ADMIN_TEST_KEY },
+      headers: { Authorization: `Bearer ${ADMIN_TEST_KEY}` },
     });
     expect(getRes.statusCode).toBe(404);
   });

@@ -44,6 +44,201 @@ psql "$CLOUD_DB" -c "SELECT 'tenants' as t, COUNT(*) FROM tenants UNION ALL SELE
 
 ---
 
+## DB Connection Topology Gotcha (IPv6 vs IPv4)
+
+`DATABASE_URL_DIRECT` on Render points to `db.gjqrysxpvktmibpkwrvy.supabase.co:5432` — the **IPv6-only direct host**. This resolves fine inside Render's infrastructure but is not routable from a typical local machine (most home/office networks don't route IPv6 to Supabase's direct host).
+
+**Use the session pooler for local psql and migrations:**
+
+```bash
+# Session pooler — IPv4, reachable from local machines
+PROD_5432="postgresql://postgres.gjqrysxpvktmibpkwrvy:<password>@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
+psql "$PROD_5432" -c "SELECT COUNT(*) FROM tasks;"
+```
+
+**Port rules:**
+
+| Port | Endpoint                                                   | Use for                                                 |
+| ---- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| 5432 | `aws-1-us-west-2.pooler.supabase.com` (session pooler)     | Local psql queries, migrations, pg_dump                 |
+| 6543 | `aws-1-us-west-2.pooler.supabase.com` (transaction pooler) | App `DATABASE_URL` (with `?pgbouncer=true`)             |
+| 5432 | `db.gjqrysxpvktmibpkwrvy.supabase.co` (direct host)        | Render-side migrations only — IPv6, not local-reachable |
+
+**PG17 client requirement**: Prod runs PostgreSQL 17.6. The default Homebrew `psql`/`pg_dump` may be 15.x (too old — will error on connection). Use the versioned binaries:
+
+```bash
+/opt/homebrew/opt/postgresql@17/bin/psql "$PROD_5432" -c "SELECT version();"
+/opt/homebrew/opt/postgresql@17/bin/pg_dump "$PROD_5432" --format=plain > backup.sql
+```
+
+Install if missing: `brew install postgresql@17`
+
+---
+
+## CI Auto-Deploy / Auto-Migrate Pipeline
+
+Every merge to `main` triggers `.github/workflows/deploy.yml`. GitHub Actions is the **single pane of glass** for the entire deploy — no separate Render dashboard polling needed.
+
+### Reading a deploy run
+
+```bash
+# List recent deploy runs
+gh run list --workflow=deploy.yml --branch=main
+
+# View a specific run (logs streamed inline)
+gh run view <run-id> --log
+```
+
+### Job order
+
+```
+test ──────────────────────────────────────────────────────────────────┐
+                                                                        ├─► deploy-gateway
+migrate (needs: test) ─────────────────────────────────────────────────┘
+deploy-worker (needs: test) ─────────────────────────────────────────── (parallel with migrate)
+```
+
+1. **test** — pnpm install (pinned via `packageManager: pnpm@10.24.0` + `pnpm/action-setup@v4`), build, unit tests, integration tests (postgres service container), lint, dashboard tests.
+2. **migrate** (`needs: test`) — runs `pnpm prisma migrate deploy` against prod, then reloads the PostgREST schema cache via `NOTIFY pgrst, 'reload schema'`. Has a guard step that rejects `:6543`/`pgbouncer` URLs.
+3. **deploy-gateway** (`needs: [test, migrate]`) — triggers the Render deploy via the Render API, polls until `live` or failed, and pulls Render's deploy logs into the Actions run output. The job goes red if the deploy doesn't reach `live`.
+4. **deploy-worker** (`needs: test`) — rebuilds and pushes the Fly worker image (`registry.fly.io/ai-employee-workers:latest`, `--platform linux/amd64`). Runs in parallel with `migrate`.
+
+### IPv6 gotcha — why CI uses the session pooler
+
+The direct Supabase host (`db.<ref>.supabase.co:5432`) is **IPv6-only**. GitHub Actions runners are **IPv4-only**. Using the direct host in CI fails every migrate with `P1001`. The `PROD_DATABASE_URL_DIRECT` GitHub secret holds the **session-mode pooler URL** (`aws-1-us-west-2.pooler.supabase.com:5432`) — IPv4, supports DDL-in-transaction, same database.
+
+If a migrate job fails with `P1001`, confirm `PROD_DATABASE_URL_DIRECT` is the pooler URL (contains `pooler.supabase.com:5432`), not the direct host.
+
+### Port-5432 guard
+
+The migrate job intentionally rejects URLs containing `:6543` or `pgbouncer`. This prevents accidentally running `prisma migrate deploy` against the transaction pooler, which doesn't support DDL-in-transaction. The `PROD_DATABASE_URL_DIRECT` secret must be the session pooler (port 5432, no `pgbouncer` param) to pass this guard.
+
+### PostgREST schema reload
+
+After `prisma migrate deploy`, the workflow runs `NOTIFY pgrst, 'reload schema'` via psql. Without this, PostgREST caches the old schema and workers get `PGRST205` errors when querying newly added columns or tables.
+
+### Concurrency
+
+The workflow uses `concurrency: { group: deploy-${{ github.ref }}, cancel-in-progress: false }`. Overlapping merges serialize — a running migrate is never cancelled mid-flight.
+
+### Single trigger — Render autoDeploy is OFF
+
+`autoDeploy: false` is set in both `render.yaml` and on the live Render service. GitHub Actions is the sole gateway-deploy trigger. This eliminates the previous double-deploy race (Render-on-push firing simultaneously with the Actions hook).
+
+### Migrate-failure recovery
+
+If a migrate job fails mid-run, restore from the pre-change backup and investigate before re-merging:
+
+```bash
+# Restore from backup (replace timestamp)
+docker exec -i shared-postgres psql -U postgres -d ai_employee < database-backups/YYYY-MM-DD-HHMM/full-dump.sql
+```
+
+See "Database Backup" in AGENTS.md for the full backup/restore procedure.
+
+### GitHub secrets used
+
+| Secret                     | Value                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `PROD_DATABASE_URL_DIRECT` | Session pooler URL — `*.pooler.supabase.com:5432` (NOT direct host, NOT `:6543`) |
+| `FLY_API_TOKEN`            | Fly.io API token for pushing worker images                                       |
+| `RENDER_API_KEY`           | Render API key — used to trigger deploy, poll status, and fetch logs             |
+
+The old `RENDER_DEPLOY_HOOK_URL` is no longer used.
+
+---
+
+## Migration Drift — Dashboard 500s (P2022)
+
+**Symptom**: Dashboard reads return `INTERNAL_ERROR` for `/tasks`, `/employee-rules`, `/task-metrics`. The gateway logs flood with Prisma errors every ~5 seconds (dashboard polling interval). The error is masked in the API response — you won't see `P2022` in the browser, only in Render logs.
+
+**Root cause**: A Prisma migration was applied locally but never deployed to production. The gateway queries a column (e.g. `deleted_at`) that doesn't exist in the prod DB schema.
+
+**Diagnostic queries:**
+
+```bash
+# Check which migrations are missing from prod
+comm -23 <(ls -1 prisma/migrations | grep -v migration_lock | sort) \
+  <(psql "$PROD_5432" -t -A -c "SELECT migration_name FROM _prisma_migrations;" | sort)
+
+# Confirm a specific column is absent
+psql "$PROD_5432" -t -A -c "SELECT table_name FROM information_schema.columns WHERE column_name='deleted_at' AND table_name IN ('tasks','task_metrics','employee_rules','feedback_events','pending_approvals','executions') ORDER BY 1;"
+
+# Check for P2022 errors in Render logs
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/logs?ownerId=tea-d1uscc3uibrs738pu040&resource=$RENDER_SERVICE_ID&limit=200&level=error" \
+  | jq -r '.logs[]?.message // .[]?.message // .' 2>/dev/null | grep "does not exist"
+```
+
+**P2022 grep gotcha**: Prisma's actual error text wraps the column name in backticks: ``The column `tasks.deleted_at` does not exist``. A bare `deleted_at does not exist` grep may miss it because the backtick before "does" breaks the match. Use `does not exist` as the grep pattern, or filter Render logs by `startTime` to narrow the window.
+
+**Fix**: Apply the missing migration(s) — see "How to Apply a Missing Migration" below.
+
+---
+
+## How to Apply a Missing Migration
+
+**Always back up first:**
+
+```bash
+TS=$(date "+%Y-%m-%d-%H%M")
+mkdir -p "database-backups/$TS"
+/opt/homebrew/opt/postgresql@17/bin/pg_dump "$PROD_5432" --format=plain > "database-backups/$TS/full-dump.sql"
+echo "Backup: database-backups/$TS/full-dump.sql"
+```
+
+**Preferred path — Render one-off job:**
+
+If your Render plan supports Jobs, trigger a one-off job that runs `pnpm prisma migrate deploy`. The job runs inside Render's network where the IPv6 direct host (`DATABASE_URL_DIRECT`) resolves correctly.
+
+```bash
+# Trigger a one-off job (requires Render Jobs API access)
+curl -s -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/jobs" \
+  -H "Authorization: Bearer $RENDER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"startCommand": "pnpm prisma migrate deploy"}' | jq .
+```
+
+**Fallback — apply raw SQL via session pooler:**
+
+If the Jobs API is unavailable (plan restriction), apply the migration SQL directly and record it in `_prisma_migrations`:
+
+```bash
+# 1. Apply the migration SQL
+psql "$PROD_5432" < prisma/migrations/<migration_name>/migration.sql
+
+# 2. Get the checksum (sha256 of the migration file)
+shasum -a 256 prisma/migrations/<migration_name>/migration.sql
+
+# 3. Insert the migration record (replace checksum and name)
+psql "$PROD_5432" -c "
+INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES (
+  gen_random_uuid(),
+  '<sha256-checksum-from-step-2>',
+  NOW(),
+  '<migration_name>',
+  NULL,
+  NULL,
+  NOW(),
+  1
+);"
+```
+
+**Verify the migration landed:**
+
+```bash
+psql "$PROD_5432" -c "SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5;"
+```
+
+**Rules:**
+
+- Never use `prisma migrate dev`, `db push`, or `migrate reset` against production
+- Never apply migrations without a backup
+- After applying, trigger a Render redeploy to confirm the gateway starts cleanly
+
+---
+
 ## Admin API (Production)
 
 ```bash

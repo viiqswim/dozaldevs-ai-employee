@@ -52,13 +52,14 @@ function webhookHeaders(body: string) {
 function adminHeaders() {
   return {
     'content-type': 'application/json',
-    'x-admin-key': ADMIN_TEST_KEY,
+    Authorization: `Bearer ${ADMIN_TEST_KEY}`,
   };
 }
 
 let app: TestApp;
 
 beforeEach(async () => {
+  process.env.SERVICE_TOKEN = ADMIN_TEST_KEY;
   await getPrisma().archetype.upsert({
     where: { id: TEST_JIRA_BOT_ARCHETYPE_ID },
     create: {

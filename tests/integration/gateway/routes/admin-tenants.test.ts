@@ -24,7 +24,7 @@ function makeTenant(overrides: Record<string, unknown> = {}) {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
   const app = express();
   app.use(express.json());
@@ -50,18 +50,18 @@ describe('POST /admin/tenants', () => {
     vi.clearAllMocks();
   });
 
-  it('401 when X-Admin-Key header missing', async () => {
+  it('401 when Authorization header missing', async () => {
     const app = makeApp();
     const res = await request(app).post('/admin/tenants').send({ name: 'Acme', slug: 'acme' });
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: 'Unauthorized' });
+    expect(res.body.error).toBe('AUTHENTICATION_REQUIRED');
   });
 
-  it('401 when X-Admin-Key is wrong', async () => {
+  it('401 when Authorization token is wrong', async () => {
     const app = makeApp();
     const res = await request(app)
       .post('/admin/tenants')
-      .set('X-Admin-Key', 'wrong-key')
+      .set('Authorization', 'Bearer wrong-key')
       .send({ name: 'Acme', slug: 'acme' });
     expect(res.status).toBe(401);
   });
@@ -70,7 +70,7 @@ describe('POST /admin/tenants', () => {
     const app = makeApp();
     const res = await request(app)
       .post('/admin/tenants')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'Acme' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -80,7 +80,7 @@ describe('POST /admin/tenants', () => {
     const app = makeApp();
     const res = await request(app)
       .post('/admin/tenants')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'Acme', slug: 'Acme Corp' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -92,7 +92,7 @@ describe('POST /admin/tenants', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post('/admin/tenants')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'Acme Corp', slug: 'acme-corp' });
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(TENANT_ID);
@@ -110,7 +110,7 @@ describe('POST /admin/tenants', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post('/admin/tenants')
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'Acme Corp', slug: 'acme-corp' });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('CONFLICT');
@@ -132,7 +132,9 @@ describe('GET /admin/tenants', () => {
     const tenants = [makeTenant()];
     const findMany = vi.fn().mockResolvedValue(tenants);
     const app = makeApp({ findMany });
-    const res = await request(app).get('/admin/tenants').set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get('/admin/tenants')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.tenants).toHaveLength(1);
     expect(res.body.tenants[0].id).toBe(TENANT_ID);
@@ -142,7 +144,9 @@ describe('GET /admin/tenants', () => {
   it('includes deleted tenants when include_deleted=true', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const app = makeApp({ findMany });
-    await request(app).get('/admin/tenants?include_deleted=true').set('X-Admin-Key', ADMIN_KEY);
+    await request(app)
+      .get('/admin/tenants?include_deleted=true')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
   });
 });
@@ -160,7 +164,9 @@ describe('GET /admin/tenants/:tenantId', () => {
 
   it('400 when tenantId is not a UUID', async () => {
     const app = makeApp();
-    const res = await request(app).get('/admin/tenants/not-a-uuid').set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get('/admin/tenants/not-a-uuid')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_ID');
   });
@@ -168,7 +174,9 @@ describe('GET /admin/tenants/:tenantId', () => {
   it('404 when tenant not found', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const app = makeApp({ findFirst });
-    const res = await request(app).get(`/admin/tenants/${TENANT_ID}`).set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get(`/admin/tenants/${TENANT_ID}`)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });
@@ -177,7 +185,9 @@ describe('GET /admin/tenants/:tenantId', () => {
     const tenant = makeTenant();
     const findFirst = vi.fn().mockResolvedValue(tenant);
     const app = makeApp({ findFirst });
-    const res = await request(app).get(`/admin/tenants/${TENANT_ID}`).set('X-Admin-Key', ADMIN_KEY);
+    const res = await request(app)
+      .get(`/admin/tenants/${TENANT_ID}`)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(TENANT_ID);
   });
@@ -188,7 +198,7 @@ describe('GET /admin/tenants/:tenantId', () => {
     const app = makeApp({ findUnique });
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}?include_deleted=true`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(findUnique).toHaveBeenCalledOnce();
   });
@@ -210,7 +220,7 @@ describe('PATCH /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -221,7 +231,7 @@ describe('PATCH /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'New Name' });
     expect(res.status).toBe(404);
   });
@@ -233,7 +243,7 @@ describe('PATCH /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst, update });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ name: 'New Name' });
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('New Name');
@@ -257,7 +267,7 @@ describe('DELETE /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst, findUnique });
     const res = await request(app)
       .delete(`/admin/tenants/${TENANT_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(404);
   });
 
@@ -269,7 +279,7 @@ describe('DELETE /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst, findUnique, update });
     const res = await request(app)
       .delete(`/admin/tenants/${TENANT_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(TENANT_ID);
     expect(res.body.deleted_at).toBeDefined();
@@ -283,7 +293,7 @@ describe('DELETE /admin/tenants/:tenantId', () => {
     const app = makeApp({ findFirst, findUnique, update });
     const res = await request(app)
       .delete(`/admin/tenants/${TENANT_ID}?hard=true`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.deleted_at).toBeDefined();
     expect(update).toHaveBeenCalledOnce();
@@ -305,7 +315,7 @@ describe('POST /admin/tenants/:tenantId/restore', () => {
     const app = makeApp();
     const res = await request(app)
       .post('/admin/tenants/not-a-uuid/restore')
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(400);
   });
 
@@ -314,7 +324,7 @@ describe('POST /admin/tenants/:tenantId/restore', () => {
     const app = makeApp({ findUnique });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/restore`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(404);
   });
 
@@ -327,7 +337,7 @@ describe('POST /admin/tenants/:tenantId/restore', () => {
     const app = makeApp({ findUnique });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/restore`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('CONFLICT');
   });
@@ -339,7 +349,7 @@ describe('POST /admin/tenants/:tenantId/restore', () => {
     const app = makeApp({ findUnique, update });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/restore`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(TENANT_ID);
   });
