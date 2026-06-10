@@ -9,6 +9,7 @@ import {
   Cpu,
   Settings,
   Plug,
+  UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PreflightStatus } from '@/hooks/use-preflight-status';
@@ -25,7 +26,8 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Users, label: 'Employees', to: '/dashboard/employees' },
   { icon: BookOpen, label: 'Rules', to: '/dashboard/rules' },
   { icon: Plug, label: 'Integrations', to: '/dashboard/integrations' },
-  { icon: Building2, label: 'Tenants', to: '/dashboard/tenants' },
+  { icon: UserCheck, label: 'Members', to: '/dashboard/members' },
+  { icon: Building2, label: 'Organizations', to: '/dashboard/tenants' },
   { icon: Wrench, label: 'Tools', to: '/dashboard/tools' },
   { icon: Cpu, label: 'AI Models', to: '/dashboard/models' },
   { icon: Settings, label: 'Platform Settings', to: '/dashboard/settings' },

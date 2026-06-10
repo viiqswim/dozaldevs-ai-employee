@@ -3,16 +3,16 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { postgrestFetch } from '@/lib/postgrest';
-import { GATEWAY_URL } from '@/lib/constants';
-import { usePoll } from '@/hooks/use-poll';
-import { useTenant } from '@/hooks/use-tenant';
-import { formatRelativeTime } from '@/lib/utils';
 import {
+  gatewayFetch,
   fetchAvailableInstallations,
   linkGitHubInstallation,
   disconnectGitHub,
 } from '@/lib/gateway';
+import { GATEWAY_URL } from '@/lib/constants';
+import { usePoll } from '@/hooks/use-poll';
+import { useTenant } from '@/hooks/use-tenant';
+import { formatRelativeTime } from '@/lib/utils';
 import type { Tenant, TenantIntegration, GitHubInstallation } from '@/lib/types';
 import { ErrorBox } from '@/components/ui/error-box';
 
@@ -228,11 +228,7 @@ export function IntegrationsPage() {
   const { tenantId } = useTenant();
 
   const fetchIntegrations = useCallback(
-    () =>
-      postgrestFetch<TenantIntegration>('tenant_integrations', {
-        tenant_id: `eq.${tenantId}`,
-        deleted_at: 'is.null',
-      }),
+    () => gatewayFetch<TenantIntegration[]>(`/admin/tenants/${tenantId}/integrations`),
     [tenantId],
   );
   const {
@@ -243,11 +239,10 @@ export function IntegrationsPage() {
   } = usePoll(fetchIntegrations);
 
   const fetchTenant = useCallback(
-    () => postgrestFetch<Tenant>('tenants', { id: `eq.${tenantId}` }),
+    () => gatewayFetch<Tenant>(`/admin/tenants/${tenantId}`),
     [tenantId],
   );
-  const { data: tenants } = usePoll(fetchTenant);
-  const tenant = tenants?.[0] ?? null;
+  const { data: tenant } = usePoll(fetchTenant);
 
   return (
     <div className="p-6">

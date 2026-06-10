@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, TenantRole } from '@prisma/client';
 import { z } from 'zod';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema, InputSchemaSchema, uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { isPrismaError } from '../lib/prisma-helpers.js';
@@ -160,90 +161,98 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   const repo = new ArchetypeRepository(prisma);
   const estimator = new TimeEstimator(callLLM);
 
-  router.post('/admin/tenants/:tenantId/archetypes', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
-      return;
-    }
-
-    const bodyResult = CreateArchetypeBodySchema.safeParse(req.body);
-    if (!bodyResult.success) {
-      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
-      return;
-    }
-
-    const { tenantId } = paramResult.data;
-    const {
-      risk_model,
-      trigger_sources,
-      tool_registry,
-      overview,
-      input_schema,
-      worker_env,
-      instructions,
-      ...rest
-    } = bodyResult.data;
-
-    try {
-      const newArchetype = await prisma.archetype.create({
-        data: {
-          ...rest,
-          tenant_id: tenantId,
-          execution_instructions: instructions,
-          risk_model: risk_model as Prisma.InputJsonValue,
-          ...(trigger_sources !== null && {
-            trigger_sources: trigger_sources as Prisma.InputJsonValue,
-          }),
-          ...(tool_registry !== null && {
-            tool_registry: tool_registry as Prisma.InputJsonValue,
-          }),
-          overview: overview !== null ? (overview as Prisma.InputJsonValue) : Prisma.JsonNull,
-          ...(input_schema !== undefined && {
-            input_schema: input_schema as Prisma.InputJsonValue,
-          }),
-          ...(worker_env != null && {
-            worker_env: worker_env as Prisma.InputJsonValue,
-          }),
-        },
-      });
-
-      let resultArchetype = newArchetype;
-      try {
-        const estimated = await estimator.estimate(newArchetype);
-        if (estimated !== null) {
-          const reEstimated = await prisma.archetype.update({
-            where: { id: newArchetype.id },
-            data: { estimated_manual_minutes: estimated },
-          });
-          if (reEstimated) resultArchetype = reEstimated;
-        }
-      } catch (estimateErr) {
-        logger.warn(
-          { err: estimateErr },
-          'Time estimation failed after create — returning archetype without estimate',
-        );
-      }
-
-      sendSuccess(res, 201, resultArchetype);
-    } catch (err) {
-      if (isPrismaError(err) && err.code === 'P2002') {
-        sendError(
-          res,
-          409,
-          'ROLE_NAME_TAKEN',
-          'An employee with this name already exists for this tenant',
-        );
+  router.post(
+    '/admin/tenants/:tenantId/archetypes',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID', undefined, { issues: paramResult.error.issues });
         return;
       }
-      logger.error({ err }, 'Failed to create archetype');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+
+      const bodyResult = CreateArchetypeBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
+        return;
+      }
+
+      const { tenantId } = paramResult.data;
+      const {
+        risk_model,
+        trigger_sources,
+        tool_registry,
+        overview,
+        input_schema,
+        worker_env,
+        instructions,
+        ...rest
+      } = bodyResult.data;
+
+      try {
+        const newArchetype = await prisma.archetype.create({
+          data: {
+            ...rest,
+            tenant_id: tenantId,
+            execution_instructions: instructions,
+            risk_model: risk_model as Prisma.InputJsonValue,
+            ...(trigger_sources !== null && {
+              trigger_sources: trigger_sources as Prisma.InputJsonValue,
+            }),
+            ...(tool_registry !== null && {
+              tool_registry: tool_registry as Prisma.InputJsonValue,
+            }),
+            overview: overview !== null ? (overview as Prisma.InputJsonValue) : Prisma.JsonNull,
+            ...(input_schema !== undefined && {
+              input_schema: input_schema as Prisma.InputJsonValue,
+            }),
+            ...(worker_env != null && {
+              worker_env: worker_env as Prisma.InputJsonValue,
+            }),
+          },
+        });
+
+        let resultArchetype = newArchetype;
+        try {
+          const estimated = await estimator.estimate(newArchetype);
+          if (estimated !== null) {
+            const reEstimated = await prisma.archetype.update({
+              where: { id: newArchetype.id },
+              data: { estimated_manual_minutes: estimated },
+            });
+            if (reEstimated) resultArchetype = reEstimated;
+          }
+        } catch (estimateErr) {
+          logger.warn(
+            { err: estimateErr },
+            'Time estimation failed after create — returning archetype without estimate',
+          );
+        }
+
+        sendSuccess(res, 201, resultArchetype);
+      } catch (err) {
+        if (isPrismaError(err) && err.code === 'P2002') {
+          sendError(
+            res,
+            409,
+            'ROLE_NAME_TAKEN',
+            'An employee with this name already exists for this tenant',
+          );
+          return;
+        }
+        logger.error({ err }, 'Failed to create archetype');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
 
   router.get(
     '/admin/tenants/:tenantId/archetypes/model-questions',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.VIEWER),
     (_req, res) => {
       sendSuccess(res, 200, MODEL_QUESTIONS);
     },
@@ -251,7 +260,9 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
   router.post(
     '/admin/tenants/:tenantId/archetypes/recommend-model',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -288,7 +299,9 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
   router.patch(
     '/admin/tenants/:tenantId/archetypes/:archetypeId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -405,7 +418,9 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
   router.delete(
     '/admin/tenants/:tenantId/archetypes/:archetypeId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -439,7 +454,9 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
   router.post(
     '/admin/tenants/:tenantId/archetypes/:archetypeId/restore',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = ArchetypeParamSchema.safeParse(req.params);
       if (!paramResult.success) {

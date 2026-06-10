@@ -1,8 +1,42 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { adminTasksRoutes } from '../../../../src/gateway/routes/admin-tasks.js';
+
+vi.mock('../../../../src/gateway/middleware/auth.js', () => ({
+  authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
+    const adminKey = req.headers['x-admin-key'] as string | undefined;
+    if (adminKey && adminKey === process.env.ADMIN_API_KEY) {
+      (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
+    }
+    next();
+  },
+}));
+
+vi.mock('../../../../src/gateway/middleware/authz.js', () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction): void => {
+    if (
+      (req as Request & { isServiceToken?: boolean }).isServiceToken ||
+      (req as Request & { auth?: unknown }).auth
+    ) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+  },
+  requireTenantRole:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+  requirePermission:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+}));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const TASK_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';

@@ -47,14 +47,14 @@ psql "$CLOUD_DB" -c "SELECT 'tenants' as t, COUNT(*) FROM tenants UNION ALL SELE
 ## Admin API (Production)
 
 ```bash
-source .env  # loads ADMIN_API_KEY
+source .env  # loads SERVICE_TOKEN
 
 # Check task status
-curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   "https://ai-employees-laaa.onrender.com/admin/tenants/<tenantId>/tasks/<taskId>" | jq .
 
 # Trigger an employee
-curl -s -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "https://ai-employees-laaa.onrender.com/admin/tenants/<tenantId>/employees/<slug>/trigger" \
   -H "Content-Type: application/json" -d '{}' | jq .
 
@@ -287,7 +287,7 @@ SLUG="cleaning-schedule"
 
 curl -s -X POST \
   "https://ai-employees-laaa.onrender.com/admin/tenants/$TENANT_ID/employees/$SLUG/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"inputs":{"date":"YYYY-MM-DD"}}' | jq '{task_id: .task_id, status_url: .status_url}'
 ```

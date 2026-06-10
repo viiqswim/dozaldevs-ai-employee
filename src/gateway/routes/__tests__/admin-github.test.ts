@@ -51,7 +51,7 @@ const ADMIN_KEY = 'test-admin-key';
 const TENANT_ID = '00000000-0000-0000-0000-000000000002';
 
 function makeApp() {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   const app = express();
   app.use(express.json());
   app.use(adminGithubRoutes({ prisma: {} as never }));
@@ -84,17 +84,17 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
     vi.unstubAllGlobals();
   });
 
-  it('returns 401 when X-Admin-Key header is missing', async () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).get(`/admin/tenants/${TENANT_ID}/github/repos`);
     expect(res.status).toBe(401);
   });
 
-  it('returns 401 when X-Admin-Key is wrong', async () => {
+  it('returns 401 when Authorization header is wrong', async () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', 'wrong-key');
+      .set('Authorization', 'Bearer wrong-key');
     expect(res.status).toBe(401);
   });
 
@@ -104,7 +104,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'GitHub not connected' });
@@ -128,7 +128,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -204,7 +204,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body.repos).toHaveLength(2);
@@ -231,7 +231,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(502);
     expect(res.body).toHaveProperty('error');
@@ -245,7 +245,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(502);
     expect(res.body).toHaveProperty('error');
@@ -269,7 +269,7 @@ describe('GET /admin/tenants/:tenantId/github/repos', () => {
 
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/repos`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     for (const repo of res.body.repos as Record<string, unknown>[]) {
@@ -317,7 +317,7 @@ describe('GET /admin/tenants/:tenantId/github/available-installations', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/available-installations`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(503);
     expect(res.body).toHaveProperty('error');
   });
@@ -354,7 +354,7 @@ describe('GET /admin/tenants/:tenantId/github/available-installations', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/available-installations`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -404,7 +404,7 @@ describe('GET /admin/tenants/:tenantId/github/available-installations', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/available-installations`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body.installations[0].already_linked).toBe(true);
@@ -431,7 +431,7 @@ describe('GET /admin/tenants/:tenantId/github/available-installations', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/github/available-installations`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(502);
     expect(res.body).toHaveProperty('error');
@@ -477,7 +477,7 @@ describe('POST /admin/tenants/:tenantId/github/link-installation', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/github/link-installation`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({});
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
@@ -506,7 +506,7 @@ describe('POST /admin/tenants/:tenantId/github/link-installation', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/github/link-installation`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ installation_id: '12345' });
 
     expect(res.status).toBe(200);
@@ -538,7 +538,7 @@ describe('POST /admin/tenants/:tenantId/github/link-installation', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/github/link-installation`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ installation_id: '99999' });
 
     expect(res.status).toBe(502);
@@ -566,7 +566,7 @@ describe('DELETE /admin/tenants/:tenantId/integrations/github', () => {
     const app = makeApp();
     const res = await request(app)
       .delete(`/admin/tenants/${TENANT_ID}/integrations/github`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ disconnected: true, tenant_id: TENANT_ID });
@@ -581,7 +581,7 @@ describe('DELETE /admin/tenants/:tenantId/integrations/github', () => {
     const app = makeApp();
     const res = await request(app)
       .delete(`/admin/tenants/${TENANT_ID}/integrations/github`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ disconnected: true, tenant_id: TENANT_ID });

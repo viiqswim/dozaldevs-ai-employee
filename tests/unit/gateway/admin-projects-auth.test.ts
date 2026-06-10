@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import { TestApp } from '../../setup.js';
-import { requireAdminKey } from '../../../src/gateway/middleware/admin-auth.js';
+import { authMiddleware } from '../../../src/gateway/middleware/auth.js';
 
 let app: TestApp;
 
 beforeEach(async () => {
-  process.env.ADMIN_API_KEY = 'test-admin-key-x';
+  process.env.SERVICE_TOKEN = 'test-service-token-x';
+  process.env.SUPABASE_URL = 'http://localhost:54331';
+  process.env.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dGVzdA.test';
   const expressApp = express();
   expressApp.use(express.json());
-  expressApp.get('/admin/ping', requireAdminKey, (_req, res) => {
+  expressApp.get('/admin/ping', authMiddleware, (_req, res) => {
     res.json({ success: true });
   });
   app = new TestApp(expressApp);
@@ -17,12 +19,12 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env.ADMIN_API_KEY;
+  delete process.env.SERVICE_TOKEN;
   await app.close();
 });
 
-describe('requireAdminKey middleware', () => {
-  it('missing X-Admin-Key header → 401 with error body', async () => {
+describe('authMiddleware — SERVICE_TOKEN Bearer', () => {
+  it('missing Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/admin/ping',
@@ -30,43 +32,27 @@ describe('requireAdminKey middleware', () => {
 
     expect(res.statusCode).toBe(401);
     const json = JSON.parse(res.body);
-    expect(json.error).toBe('Unauthorized');
+    expect(json.error).toBe('AUTHENTICATION_REQUIRED');
   });
 
-  it('wrong key value → 401 with error body', async () => {
+  it('wrong token value → 401', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/admin/ping',
       headers: {
-        'x-admin-key': 'wrong-key',
+        authorization: 'Bearer wrong-token',
       },
     });
 
     expect(res.statusCode).toBe(401);
-    const json = JSON.parse(res.body);
-    expect(json.error).toBe('Unauthorized');
   });
 
-  it('key with wrong length (one char) → 401, no ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH thrown', async () => {
+  it('correct SERVICE_TOKEN → 200 with success response', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/admin/ping',
       headers: {
-        'x-admin-key': 'x',
-      },
-    });
-
-    expect(res.statusCode).toBe(401);
-    const json = JSON.parse(res.body);
-    expect(json.error).toBe('Unauthorized');
-  });
-
-  it('correct key → 200 with success response', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: '/admin/ping',
-      headers: {
-        'x-admin-key': 'test-admin-key-x',
+        authorization: 'Bearer test-service-token-x',
       },
     });
 
@@ -75,31 +61,17 @@ describe('requireAdminKey middleware', () => {
     expect(json.success).toBe(true);
   });
 
-  it('array value header (multiple values) → 401', async () => {
+  it('empty Authorization header → 401', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/admin/ping',
       headers: {
-        'x-admin-key': ['test-admin-key-x', 'another-key'],
+        authorization: '',
       },
     });
 
     expect(res.statusCode).toBe(401);
     const json = JSON.parse(res.body);
-    expect(json.error).toBe('Unauthorized');
-  });
-
-  it('empty string header → 401', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: '/admin/ping',
-      headers: {
-        'x-admin-key': '',
-      },
-    });
-
-    expect(res.statusCode).toBe(401);
-    const json = JSON.parse(res.body);
-    expect(json.error).toBe('Unauthorized');
+    expect(json.error).toBe('AUTHENTICATION_REQUIRED');
   });
 });

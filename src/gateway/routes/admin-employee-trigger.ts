@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import {
   TriggerEmployeeParamsSchema,
   TriggerEmployeeQuerySchema,
@@ -35,7 +36,9 @@ export function adminEmployeeTriggerRoutes(opts: AdminEmployeeTriggerRouteOption
 
   router.post(
     '/admin/tenants/:tenantId/employees/:slug/trigger',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.MEMBER),
     async (req, res) => {
       const paramsResult = TriggerEmployeeParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {

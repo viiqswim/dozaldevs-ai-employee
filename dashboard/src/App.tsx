@@ -1,9 +1,10 @@
-import { Component, type ReactNode, useState } from 'react';
+import { Component, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TenantProvider } from './hooks/use-tenant';
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/layout/Layout';
-import { ApiKeyPrompt } from './components/ApiKeyPrompt';
 import { TaskFeed } from './panels/tasks/TaskFeed';
 import { TaskDetail } from './panels/tasks/TaskDetail';
 import { EmployeeList } from './panels/employees/EmployeeList';
@@ -20,6 +21,12 @@ import { ToolDetail } from './panels/tools/ToolDetail';
 import { ModelCatalogPage } from './pages/ModelCatalogPage';
 import { TaskLogsPage } from './pages/TaskLogsPage';
 import { PlatformSettingsPage } from './pages/PlatformSettingsPage';
+import { MembersPage } from './pages/MembersPage';
+import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -56,40 +63,54 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 export default function App() {
-  const [apiKeyOpen, setApiKeyOpen] = useState(false);
-
   return (
     <ErrorBoundary>
-      <TenantProvider>
-        <BrowserRouter>
-          <Toaster richColors position="top-right" />
-          <ApiKeyPrompt open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
-          <Routes>
-            <Route element={<Layout onOpenApiKey={() => setApiKeyOpen(true)} />}>
-              <Route path="/dashboard" element={<TaskFeed />} />
-              <Route path="/dashboard/tasks" element={<TaskFeed />} />
-              <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
-              <Route path="/dashboard/tasks/:taskId/logs" element={<TaskLogsPage />} />
-              <Route path="/dashboard/employees" element={<EmployeeList />} />
-              <Route path="/dashboard/employees/new" element={<CreateEmployeePage />} />
-              <Route path="/dashboard/employees/:archetypeId/edit" element={<EditEmployeePage />} />
+      <BrowserRouter>
+        <AuthProvider>
+          <TenantProvider>
+            <Toaster richColors position="top-right" />
+            <Routes>
+              <Route path="/dashboard/login" element={<LoginPage />} />
+              <Route path="/dashboard/signup" element={<SignupPage />} />
+              <Route path="/dashboard/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/dashboard/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/dashboard/accept-invite" element={<AcceptInvitePage />} />
               <Route
-                path="/dashboard/employees/:archetypeId/trigger"
-                element={<TriggerEmployeePage />}
-              />
-              <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
-              <Route path="/dashboard/tenants" element={<TenantOverview />} />
-              <Route path="/dashboard/integrations" element={<IntegrationsPage />} />
-              <Route path="/dashboard/rules" element={<RulesPanel />} />
-              <Route path="/dashboard/preflight" element={<PreflightPanel />} />
-              <Route path="/dashboard/tools" element={<ToolList />} />
-              <Route path="/dashboard/tools/:service/:toolName" element={<ToolDetail />} />
-              <Route path="/dashboard/models" element={<ModelCatalogPage />} />
-              <Route path="/dashboard/settings" element={<PlatformSettingsPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </TenantProvider>
+                element={
+                  <ProtectedRoute>
+                    <Layout onOpenApiKey={() => {}} />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/dashboard" element={<TaskFeed />} />
+                <Route path="/dashboard/tasks" element={<TaskFeed />} />
+                <Route path="/dashboard/tasks/:taskId" element={<TaskDetail />} />
+                <Route path="/dashboard/tasks/:taskId/logs" element={<TaskLogsPage />} />
+                <Route path="/dashboard/employees" element={<EmployeeList />} />
+                <Route path="/dashboard/employees/new" element={<CreateEmployeePage />} />
+                <Route
+                  path="/dashboard/employees/:archetypeId/edit"
+                  element={<EditEmployeePage />}
+                />
+                <Route
+                  path="/dashboard/employees/:archetypeId/trigger"
+                  element={<TriggerEmployeePage />}
+                />
+                <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
+                <Route path="/dashboard/tenants" element={<TenantOverview />} />
+                <Route path="/dashboard/integrations" element={<IntegrationsPage />} />
+                <Route path="/dashboard/rules" element={<RulesPanel />} />
+                <Route path="/dashboard/preflight" element={<PreflightPanel />} />
+                <Route path="/dashboard/tools" element={<ToolList />} />
+                <Route path="/dashboard/tools/:service/:toolName" element={<ToolDetail />} />
+                <Route path="/dashboard/models" element={<ModelCatalogPage />} />
+                <Route path="/dashboard/settings" element={<PlatformSettingsPage />} />
+                <Route path="/dashboard/members" element={<MembersPage />} />
+              </Route>
+            </Routes>
+          </TenantProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }

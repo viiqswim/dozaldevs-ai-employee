@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee } from '@/lib/gateway';
+import { gatewayFetch, triggerEmployee } from '@/lib/gateway';
 import { useTenant } from '@/hooks/use-tenant';
 import { usePoll } from '@/hooks/use-poll';
 import type { Archetype, InputSchemaItem } from '@/lib/types';
@@ -21,11 +20,9 @@ export function TriggerEmployeePage() {
 
   const fetchArchetype = useCallback(
     () =>
-      postgrestFetch<Archetype>('archetypes', {
-        id: `eq.${archetypeId ?? ''}`,
-        ...scopeByTenant(tenantId),
-        deleted_at: 'is.null',
-      }).then((arr) => arr[0] ?? null),
+      gatewayFetch<Archetype[]>(
+        `/admin/tenants/${tenantId}/archetypes?id=${archetypeId ?? ''}`,
+      ).then((arr) => arr[0] ?? null),
     [archetypeId, tenantId],
   );
 

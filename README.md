@@ -77,32 +77,43 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 > The active employees (Summarizer, Guest-Messaging, Code-Rotation, Engineer, Google Workspace Assistant) do not use project registration. This section applies only to the old orchestrator-based engineering employee (`src/workers/orchestrate.mts`), which is on hold.
 
-Projects can be registered at runtime via the admin REST API. All endpoints require an `X-Admin-Key` header matching `ADMIN_API_KEY`.
+Projects can be registered at runtime via the admin REST API. All endpoints require an `Authorization: Bearer $SERVICE_TOKEN` header.
 
-| Method   | Path                                                      | Description                                                                     |
-| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                          |
-| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                               |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                            |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                 |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                 |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                             |
-| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                              |
-| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                  |
-| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)               |
-| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                 |
-| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                           |
-| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                         |
-| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants) |
+| Method   | Path                                                      | Description                                                                                 |
+| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                                      |
+| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                                           |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                                        |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                            |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                            |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                             |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                             |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                                         |
+| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                                          |
+| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                              |
+| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)                           |
+| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                             |
+| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                                       |
+| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                                     |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants)             |
+| `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                                    |
+| `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)                          |
+| `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                                          |
+| `PATCH`  | `/admin/tenants/:tenantId/members/:userId`                | Update a member's tenant role                                                               |
+| `DELETE` | `/admin/tenants/:tenantId/members/:userId`                | Remove a member (soft-delete; blocks removing the last OWNER)                               |
+| `POST`   | `/admin/tenants/:tenantId/invitations`                    | Create an invitation (custom email + token; expires in 7 days)                              |
+| `POST`   | `/admin/tenants/:tenantId/invitations/:id/revoke`         | Revoke a pending invitation                                                                 |
+| `GET`    | `/invitations/:token`                                     | Look up invitation details by token (public; returns email, org name, role, isExistingUser) |
+| `POST`   | `/invitations/set-password`                               | Set password for a new invitee (public, token-bound, gateway-proxied)                       |
+| `POST`   | `/invitations/accept`                                     | Accept an invitation by token (no auth required)                                            |
+| `POST`   | `/invitations/decline`                                    | Decline an invitation by token (no auth required)                                           |
 
 **Create a project:**
 
 ```bash
 curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -d '{
     "jira_project_key": "MYPROJ",
     "repo_url": "https://github.com/your-org/your-repo",
@@ -123,17 +134,18 @@ curl -X POST http://localhost:7700/admin/tenants/$TENANT_ID/projects \
 
 ## Scripts
 
-| Script                 | Command                                | Purpose                                                                                                                                                                                              |
-| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `setup.ts`             | `pnpm setup`                           | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                                                              |
-| `dev.ts`               | `pnpm dev`                             | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel`                                  |
-| `dev-e2e.ts`           | `pnpm dev:e2e`                         | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                                                      |
-| `register-project.ts`  | `pnpm register-project`                | Interactive wizard to register a new project via the admin API                                                                                                                                       |
-| `trigger-task.ts`      | `pnpm trigger-task`                    | Send mock webhook and monitor                                                                                                                                                                        |
-| `verify-e2e.ts`        | `pnpm verify:e2e --task-id <uuid>`     | 12-point E2E verification                                                                                                                                                                            |
-| `stress-test.ts`       | `pnpm stress-test`                     | Run an employee N times and report success rate, p50/p90/p99 timing, and anomaly detection (tag bleed, retries, missing Slack posts). Options: `--count`, `--concurrency`, `--employee`, `--timeout` |
-| `setup-two-tenants.ts` | (archived)                             | One-shot multi-tenant setup script — moved to `scripts/archive/`. Run manually if needed: `pnpm exec tsx scripts/archive/setup-two-tenants.ts`                                                       |
-| `telegram-notify.ts`   | `tsx scripts/telegram-notify.ts "msg"` | Send developer Telegram push notification                                                                                                                                                            |
+| Script                   | Command                                                                                                            | Purpose                                                                                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.ts`               | `pnpm setup`                                                                                                       | One-time setup: Docker Compose services, migrations, seed, Docker image                                                                                                                              |
+| `dev.ts`                 | `pnpm dev`                                                                                                         | Full local stack: Docker Compose + Inngest + Gateway + auto-detected Cloudflare tunnel + Docker worker image build. Flags: `--reset`, `--skip-build`, `--no-tunnel`                                  |
+| `dev-e2e.ts`             | `pnpm dev:e2e`                                                                                                     | Start services + build Docker image + trigger task + run E2E verification (full end-to-end run)                                                                                                      |
+| `register-project.ts`    | `pnpm register-project`                                                                                            | Interactive wizard to register a new project via the admin API                                                                                                                                       |
+| `trigger-task.ts`        | `pnpm trigger-task`                                                                                                | Send mock webhook and monitor                                                                                                                                                                        |
+| `verify-e2e.ts`          | `pnpm verify:e2e --task-id <uuid>`                                                                                 | 12-point E2E verification                                                                                                                                                                            |
+| `stress-test.ts`         | `pnpm stress-test`                                                                                                 | Run an employee N times and report success rate, p50/p90/p99 timing, and anomaly detection (tag bleed, retries, missing Slack posts). Options: `--count`, `--concurrency`, `--employee`, `--timeout` |
+| `setup-two-tenants.ts`   | (archived)                                                                                                         | One-shot multi-tenant setup script — moved to `scripts/archive/`. Run manually if needed: `pnpm exec tsx scripts/archive/setup-two-tenants.ts`                                                       |
+| `telegram-notify.ts`     | `tsx scripts/telegram-notify.ts "msg"`                                                                             | Send developer Telegram push notification                                                                                                                                                            |
+| `seed-platform-owner.ts` | `BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword tsx scripts/seed-platform-owner.ts` | Bootstrap the first PLATFORM_OWNER user in Supabase Auth and the app DB; creates OWNER memberships in all seeded tenants                                                                             |
 
 ## Project Structure
 
@@ -143,7 +155,7 @@ src/
 ├── inngest/      # Universal employee lifecycle, interaction handler, rule extractor, cron triggers
 ├── workers/      # Docker container code — AI agent execution (OpenCode harness)
 ├── worker-tools/ # Shell tools for employees (Slack, Hostfully, locks, KB search, platform reporting)
-└── lib/          # Shared utilities: LLM client, Slack/Fly.io/GitHub clients, encryption, logging, retry
+└── lib/          # Shared utilities: LLM client, Slack/Fly.io/GitHub clients, encryption, logging, retry; `email/` — EmailProvider abstraction (Mailpit local / Resend prod)
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts (setup, trigger, verify, dev tools)
 docker/           # Docker Compose infrastructure (shared PostgreSQL, project-specific services)
@@ -162,7 +174,7 @@ Copy `.env.example` to `.env` and fill in your API keys.
 
 **Core (all employees):**
 
-- `ADMIN_API_KEY` — admin API authentication (auto-generated by `pnpm setup`)
+- `SERVICE_TOKEN` — machine-to-machine auth for all `/admin/*` endpoints. Generate: `openssl rand -hex 32`
 - `ENCRYPTION_KEY` — AES-256-GCM key for tenant secrets (validated at gateway startup)
 
 **Slack (Papi Chulo bot — all employees):**
@@ -172,6 +184,13 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `FLY_WORKER_APP` — Fly.io app name for worker machines (currently: `ai-employee-workers`)
 
 > **Note**: `SUMMARIZER_VM_SIZE`, `WORKER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table. Use the dashboard at `/dashboard/settings` or `PATCH /admin/platform-settings/:key` to update them.
+
+**Email:**
+
+- `RESEND_API_KEY` — Resend API key for production email delivery. Leave empty to use Mailpit (local dev).
+- `EMAIL_FROM` — Sender address for invitation emails. Default: `DozalDevs <noreply@dozaldevs.com>`.
+- `DASHBOARD_BASE_URL` — Base URL for invitation links in emails. Default: `http://localhost:7700`. Production: `https://ai-employees-laaa.onrender.com`.
+- `SMTP_URL` — SMTP connection URL for local Mailpit. Default: `smtp://localhost:54324`.
 
 **Guest-Messaging (VLRE):**
 
@@ -195,7 +214,7 @@ Copy `.env.example` to `.env` and fill in your API keys.
 **Summarizer**: Trigger manually via admin API:
 
 ```bash
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000002/employees/daily-summarizer/trigger" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -228,6 +247,7 @@ Note: `message_uid` must be unique per request. A real unresponded message must 
 | [Engineer Employee](docs/employees/2026-06-02-1230-engineer.md)                             | Engineer employee operational details — archetype setup, GitHub App OAuth, trigger command, known gotchas, verified E2E flow.                                                                        |
 | [Google Workspace Assistant](docs/employees/2026-06-03-0243-google-assistant.md)            | Google Workspace Assistant employee operational details — archetype ID, trigger command, available tools, required tenant secrets, known gotchas.                                                    |
 | [Maintainability Audit](docs/guides/2026-06-05-0111-maintainability-audit.md)               | Comprehensive maintainability findings (architecture, large files, code smells, tests, types, conventions, docs, build) with a companion remediation plan in .sisyphus/plans/.                       |
+| [User Auth & RBAC](docs/guides/2026-06-09-1448-user-auth-rbac.md)                           | Multi-tenant user auth and RBAC — JWT flow, SERVICE_TOKEN, dual-env profiles (LOCAL HS256 vs CLOUD ES256), Supabase key model, invitation flow, bootstrap, cloud setup, known gotchas.               |
 | [Contributing Guide](CONTRIBUTING.md)                                                       | Active vs deprecated component map, task-creation paths (Prisma vs PostgREST), how to add a shell tool, how to add an employee, how to run E2E tests, and key conventions.                           |
 
 ## Testing
@@ -251,18 +271,19 @@ pnpm build       # TypeScript compile
 
 1. **Database** — `DATABASE_URL`, `DATABASE_URL_DIRECT`
 2. **Supabase (PostgREST + Auth)** — `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_ANON_KEY`
-3. **Platform Core** — `ENCRYPTION_KEY`, `ADMIN_API_KEY`, `PORT`
+3. **Platform Core** — `ENCRYPTION_KEY`, `SERVICE_TOKEN`, `PORT`
 4. **Inngest (Event Queue)** — `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
 5. **Worker Dispatch Mode** — `WORKER_RUNTIME`, `TUNNEL_URL`
 6. **Fly.io (Worker Runtime)** — `FLY_API_TOKEN`, `FLY_WORKER_APP`, `FLY_WORKER_IMAGE` (note: `WORKER_VM_SIZE` moved to `platform_settings` DB table)
 7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
 8. **GitHub** — `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`
 9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
-10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
-11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-12. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
-13. **TENANT SECRETS** — reference-only comment block; never real values here
-14. **DEPRECATED** — commented-out superseded vars; always at the bottom
+10. **Email** — `RESEND_API_KEY`, `EMAIL_FROM`, `DASHBOARD_BASE_URL`, `SMTP_URL`
+11. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
+12. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+13. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
+14. **TENANT SECRETS** — reference-only comment block; never real values here
+15. **DEPRECATED** — commented-out superseded vars; always at the bottom
 
 ### Rules
 

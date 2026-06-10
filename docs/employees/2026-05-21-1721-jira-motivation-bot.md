@@ -129,17 +129,17 @@ Jira credentials are stored as tenant secrets, not `.env` variables:
 ```bash
 # Store Jira API token for VLRE
 curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/jira_api_token" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<your-jira-api-token>"}'
 
 # Store Jira user email for VLRE
 curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/jira_user_email" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<your-jira-email>"}'
 
 # Store Jira base URL for VLRE
 curl -X PUT "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/jira_base_url" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"https://your-org.atlassian.net"}'
 ```
 

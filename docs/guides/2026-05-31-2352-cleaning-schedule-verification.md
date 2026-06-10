@@ -33,7 +33,7 @@ Look for `HOSTFULLY_API_KEY` and `HOSTFULLY_AGENCY_UID`. The agency UID for VLRE
 
 ```bash
 source .env
-echo $ADMIN_API_KEY
+echo $SERVICE_TOKEN
 ```
 
 ---
@@ -251,7 +251,7 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 source .env
 curl -s -X POST \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/cleaning-schedule/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"inputs":{"date":"YYYY-MM-DD"}}' | jq '{task_id: .task_id, status_url: .status_url}'
 ```

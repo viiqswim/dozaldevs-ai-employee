@@ -13,30 +13,37 @@ Two endpoints were added to the admin API:
 | `POST` | `/admin/tenants/:tenantId/employees/:slug/trigger` | Create a task and dispatch the employee |
 | `GET`  | `/admin/tenants/:tenantId/tasks/:id`               | Check task status                       |
 
-All requests require the `X-Admin-Key` header. The downstream flow is identical to a cron or webhook trigger — the Slack approval gate still fires.
+All requests require authentication via `Authorization: Bearer <SERVICE_TOKEN>` or a Supabase JWT.
 
-**Supported employees**: `daily-summarizer` (generic-harness runtime). Engineering workers return `501 NOT_IMPLEMENTED`.
+| Method            | Header                                  | Use case                             |
+| ----------------- | --------------------------------------- | ------------------------------------ |
+| **SERVICE_TOKEN** | `Authorization: Bearer <SERVICE_TOKEN>` | External cron callers (cron-job.org) |
+| **Supabase JWT**  | `Authorization: Bearer <jwt>`           | Dashboard / logged-in user calls     |
+
+The downstream flow is identical to a cron or webhook trigger — the Slack approval gate still fires.
+
+**Supported runtimes**: `opencode`. Archetypes with `runtime = null` return `501 NOT_IMPLEMENTED`.
 
 ---
 
 ## Prerequisites
 
 - Services running: `pnpm dev`
-- `ADMIN_API_KEY` in `.env`
+- `SERVICE_TOKEN` in `.env`
 
 ---
 
 ## Usage
 
-### Trigger an employee
+### Trigger an employee (SERVICE_TOKEN — preferred)
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000002
 
 curl -s -X POST \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
-  "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger" \
+  "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" \
   -d '{}'
 ```
 
@@ -55,9 +62,9 @@ Append `?dry_run=true` to preview what would happen — no task row is created, 
 
 ```bash
 curl -s -X POST \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
-  "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" \
+  "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger?dry_run=true" \
   -d '{}'
 ```
 
@@ -81,8 +88,8 @@ curl -s -X POST \
 TASK_ID=356785e8-8605-4e7a-a4bf-06ab14354242
 
 curl -s \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
-  "http://localhost:3000/admin/tenants/$TENANT/tasks/$TASK_ID"
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
+  "http://localhost:7700/admin/tenants/$TENANT/tasks/$TASK_ID"
 ```
 
 **Response — 200:**
@@ -103,25 +110,29 @@ curl -s \
 
 ## HTTP Response Codes
 
-| Code  | Meaning                                 |
-| ----- | --------------------------------------- |
-| `202` | Task created, event dispatched          |
-| `200` | Dry-run preview (no side effects)       |
-| `400` | Invalid tenant UUID or slug format      |
-| `401` | Missing or wrong `X-Admin-Key`          |
-| `404` | No archetype for this tenant + slug     |
-| `501` | Runtime not yet supported (engineering) |
-| `500` | Unexpected server error                 |
+| Code  | Meaning                                             |
+| ----- | --------------------------------------------------- |
+| `202` | Task created, event dispatched                      |
+| `200` | Dry-run preview (no side effects)                   |
+| `400` | Invalid tenant UUID or slug format                  |
+| `401` | Missing or invalid `Authorization` header           |
+| `403` | Authenticated but insufficient tenant role          |
+| `404` | No archetype for this tenant + slug                 |
+| `501` | Runtime not supported (`null` or unsupported value) |
+| `500` | Unexpected server error                             |
 
 ---
 
 ## How it works
 
 1. Request hits `POST /admin/tenants/:tenantId/employees/:slug/trigger`
-2. Gateway looks up the archetype by `(tenant_id, role_name)` — the slug is the `role_name`
-3. A `tasks` row is created with `source_system: 'manual'` and `status: 'Ready'`
-4. An `employee/task.dispatched` event is sent to Inngest
-5. The `employee/task-lifecycle` function picks it up and runs the full generic-harness flow (Slack approval gate included)
+2. `authMiddleware` resolves identity: `Bearer <SERVICE_TOKEN>` → `isServiceToken=true`; Supabase JWT → `req.auth`
+3. `requireAuth` passes for any authenticated identity
+4. `requireTenantRole(MEMBER)` passes for SERVICE_TOKEN (no tenant membership check needed)
+5. Gateway looks up the archetype by `(tenant_id, role_name)` — the slug is the `role_name`
+6. A `tasks` row is created with `source_system: 'manual'` and `status: 'Ready'`
+7. An `employee/task.dispatched` event is sent to Inngest
+8. The `employee/universal-lifecycle` function picks it up and runs the full OpenCode harness flow
 
 Manual tasks are distinguishable from automated ones by `source_system = 'manual'`.
 

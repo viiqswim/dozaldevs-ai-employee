@@ -24,13 +24,6 @@ export const INNGEST_URL =
 
 export const POLL_INTERVAL_MS = 5000;
 
-export const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000003';
-
-export const TENANTS: Record<string, string> = {
-  '00000000-0000-0000-0000-000000000002': 'DozalDevs',
-  '00000000-0000-0000-0000-000000000003': 'VLRE',
-};
-
 export const TERMINAL_STATUSES = ['Done', 'Failed', 'Cancelled'] as const;
 export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 

@@ -1,7 +1,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { adminArchetypesRoutes } from '../admin-archetypes.js';
+
+vi.mock('../../../gateway/middleware/auth.js', () => ({
+  authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
+    const authHeader = req.headers.authorization as string | undefined;
+    if (authHeader?.startsWith('Bearer ') && authHeader.slice(7) === process.env.SERVICE_TOKEN) {
+      (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
+    }
+    next();
+  },
+}));
+
+vi.mock('../../../gateway/middleware/authz.js', () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction): void => {
+    if (
+      (req as Request & { isServiceToken?: boolean }).isServiceToken ||
+      (req as Request & { auth?: unknown }).auth
+    ) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+  },
+  requireTenantRole:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+  requirePermission:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+}));
 
 const ADMIN_KEY = 'test-admin-key';
 const TENANT_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
@@ -32,7 +66,7 @@ function makeArchetype(overrides: Record<string, unknown> = {}) {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
   const app = express();
   app.use(express.json());
@@ -65,7 +99,7 @@ describe('POST /admin/tenants/:tenantId/archetypes', () => {
     vi.clearAllMocks();
   });
 
-  it('401 when X-Admin-Key header is missing', async () => {
+  it('401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).post(`/admin/tenants/${TENANT_ID}/archetypes`).send(VALID_BODY);
     expect(res.status).toBe(401);
@@ -76,7 +110,7 @@ describe('POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ ...VALID_BODY, role_name: 'My Invalid Name!' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -86,7 +120,7 @@ describe('POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ role_name: 'test' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -98,7 +132,7 @@ describe('POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_BODY);
     expect(res.status).toBe(201);
     expect(res.body.id).toBeDefined();
@@ -112,7 +146,7 @@ describe('POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_BODY);
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('ROLE_NAME_TAKEN');

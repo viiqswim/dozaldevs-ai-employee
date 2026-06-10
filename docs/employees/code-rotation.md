@@ -16,7 +16,7 @@ Use these VLRE resources for all code-rotation testing. **ALL E2E and manual tes
 **Trigger manually** (admin API):
 
 ```bash
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/code-rotation/trigger" \
   -H "Content-Type: application/json" -d '{}'
 ```
@@ -34,7 +34,7 @@ curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
 **Trigger manually** (admin API):
 
 ```bash
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/code-rotation/trigger" \
   -H "Content-Type: application/json" -d '{}'
 ```

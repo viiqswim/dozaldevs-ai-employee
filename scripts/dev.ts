@@ -332,7 +332,6 @@ const REQUIRED_VARS = [
   'SUPABASE_SECRET_KEY',
   'INNGEST_EVENT_KEY',
   'INNGEST_SIGNING_KEY',
-  'ADMIN_API_KEY',
   'ENCRYPTION_KEY',
   'SLACK_APP_TOKEN',
   'SLACK_SIGNING_SECRET',
@@ -925,7 +924,7 @@ if (process.env.WORKER_RUNTIME === 'fly') {
 }
 log('');
 log('  Slack webhooks route through the tunnel automatically.');
-log(`  Trigger a task:  curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \\`);
+log(`  Trigger a task:  curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \\`);
 log(`    "http://localhost:${GATEWAY_PORT}/admin/tenants/<id>/employees/daily-summarizer/trigger"`);
 log('');
 log('  Press Ctrl+C to stop all services.');

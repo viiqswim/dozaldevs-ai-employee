@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { StatCard } from '@/components/ui/stat-card';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { TERMINAL_STATUSES } from '@/lib/constants';
@@ -116,86 +116,63 @@ export function TaskFeed() {
   };
 
   useEffect(() => {
-    postgrestFetch<{ id: string; role_name: string | null }>('archetypes', {
-      select: 'id,role_name',
-      ...scopeByTenant(tenantId),
-      deleted_at: 'is.null',
-    })
+    gatewayFetch<{ id: string; role_name: string | null }[]>(
+      `/admin/tenants/${tenantId}/archetypes`,
+    )
       .then(setArchetypes)
       .catch(() => {});
   }, [tenantId]);
 
   const fetchTasks = useCallback(() => {
-    const params: Record<string, string> = {
-      ...scopeByTenant(tenantId),
-      select: '*,archetypes(role_name,model),executions(estimated_cost_usd,phase,primary_model_id)',
-      order: 'created_at.desc',
-      created_at: `gte.${effectiveDateFrom}T00:00:00`,
-      limit: 'none',
-    };
-    if (statusFilter) params.status = `eq.${statusFilter}`;
-    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
-    return postgrestFetch<Task>('tasks', params);
-  }, [tenantId, statusFilter, employeeFilter, effectiveDateFrom]);
+    let url = `/admin/tenants/${tenantId}/tasks?order=desc`;
+    if (statusFilter) url += `&status=${encodeURIComponent(statusFilter)}`;
+    return gatewayFetch<Task[]>(url);
+  }, [tenantId, statusFilter]);
 
   const { data: rawTasks, error, loading, refresh } = usePoll(fetchTasks);
-  const fetchTenantMetrics = useCallback(() => {
-    const params: Record<string, string> = {
-      ...scopeByTenant(tenantId),
-      select: 'work_minutes,created_at',
-      limit: 'none',
-    };
-    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
-    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
-    return postgrestFetch<{ work_minutes: number; created_at: string }>('task_metrics', params);
-  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
+
+  const fetchTenantMetrics = useCallback(
+    () =>
+      gatewayFetch<{ work_minutes: number; created_at: string; archetype_id: string }[]>(
+        `/admin/tenants/${tenantId}/task-metrics`,
+      ),
+    [tenantId],
+  );
   const { data: tenantMetrics } = usePoll(fetchTenantMetrics);
 
-  const fetchTenantCosts = useCallback(() => {
-    const params: Record<string, string> = {
-      ...scopeByTenant(tenantId),
-      select: 'created_at,executions(estimated_cost_usd,phase)',
-      limit: 'none',
-    };
-    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
-    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
-    return postgrestFetch<{
-      created_at: string;
-      executions: { estimated_cost_usd: number | null; phase: string | null }[];
-    }>('tasks', params);
-  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
-  const { data: tenantCosts } = usePoll(fetchTenantCosts);
+  const filteredTasks = useMemo(() => {
+    if (!rawTasks) return [];
+    return rawTasks.filter((task) => {
+      const date = task.created_at.slice(0, 10);
+      const matchesDate = date >= effectiveDateFrom && date <= effectiveDateTo;
+      const matchesEmployee = !employeeFilter || task.archetype_id === employeeFilter;
+      return matchesDate && matchesEmployee;
+    });
+  }, [rawTasks, effectiveDateFrom, effectiveDateTo, employeeFilter]);
 
-  const fetchDoneTasks = useCallback(() => {
-    const params: Record<string, string> = {
-      ...scopeByTenant(tenantId),
-      select: 'created_at',
-      status: 'eq.Done',
-      limit: 'none',
-    };
-    if (employeeFilter) params.archetype_id = `eq.${employeeFilter}`;
-    if (effectiveDateFrom) params.created_at = `gte.${effectiveDateFrom}T00:00:00`;
-    return postgrestFetch<{ created_at: string }>('tasks', params);
-  }, [tenantId, employeeFilter, effectiveDateFrom, effectiveDateTo]);
-  const { data: doneTasks } = usePoll(fetchDoneTasks);
+  const filteredMetrics = useMemo(() => {
+    if (!tenantMetrics) return [];
+    return tenantMetrics.filter((m) => {
+      const date = m.created_at.slice(0, 10);
+      const matchesDate = date >= effectiveDateFrom && date <= effectiveDateTo;
+      const matchesEmployee = !employeeFilter || m.archetype_id === employeeFilter;
+      return matchesDate && matchesEmployee;
+    });
+  }, [tenantMetrics, effectiveDateFrom, effectiveDateTo, employeeFilter]);
 
-  const filteredMetrics = tenantMetrics?.filter(
-    (m) => m.created_at.slice(0, 10) <= effectiveDateTo,
+  const totalWorkMinutes = filteredMetrics.reduce((sum, m) => sum + m.work_minutes, 0);
+  const tasksCompleted = filteredTasks.filter((t) => t.status === 'Done').length;
+
+  const totalCostUsd = filteredTasks.reduce(
+    (sum, t) =>
+      sum +
+      (t.executions?.reduce((s, e) => s + parseFloat(String(e.estimated_cost_usd ?? 0)), 0) ?? 0),
+    0,
   );
-  const totalWorkMinutes = filteredMetrics?.reduce((sum, m) => sum + m.work_minutes, 0) ?? 0;
-  const tasksCompleted =
-    doneTasks?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo).length ?? 0;
-
-  const filteredCosts = tenantCosts?.filter((t) => t.created_at.slice(0, 10) <= effectiveDateTo);
-  const totalCostUsd =
-    filteredCosts?.reduce(
-      (sum, t) => sum + (t.executions?.reduce((s, e) => s + (e.estimated_cost_usd ?? 0), 0) ?? 0),
-      0,
-    ) ?? 0;
   const costPerWorkHour =
     totalWorkMinutes > 0 && totalCostUsd > 0 ? totalCostUsd / (totalWorkMinutes / 60) : 0;
 
-  const tasks = rawTasks?.filter((task) => task.created_at.slice(0, 10) <= effectiveDateTo);
+  const tasks = filteredTasks;
 
   const employeeOptions = [
     { value: '', label: 'All Employees' },

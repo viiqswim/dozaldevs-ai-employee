@@ -618,9 +618,9 @@ All 11 functions are registered in `src/gateway/inngest/serve.ts`.
 
 ## Gateway and Routes
 
-Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set), registers all routes, listens on `PORT` (default 7700).
+Gateway startup: validates `ENCRYPTION_KEY`, initializes Slack Bolt (Socket Mode when `SLACK_APP_TOKEN` is set), registers all routes, listens on `PORT` (default 7700).
 
-**Required env vars at startup** (hard failures): `ENCRYPTION_KEY`, `ADMIN_API_KEY`
+**Required env vars at startup** (hard failures): `ENCRYPTION_KEY`, `SERVICE_TOKEN`
 
 **Logged warnings (soft, gateway still starts)**: `JIRA_WEBHOOK_SECRET` missing, Slack vars missing (`SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`)
 
@@ -639,9 +639,9 @@ Gateway startup: validates `ENCRYPTION_KEY` + `ADMIN_API_KEY`, initializes Slack
 | `GET`  | `/slack/install?tenant=<tenantId>` | Generates HMAC-signed state token, redirects to `slack.com/oauth/v2/authorize` with scopes: `channels:history,groups:history,groups:read,chat:write,chat:write.public`                  |
 | `GET`  | `/slack/oauth_callback`            | Verifies state, exchanges code for token, stores encrypted `slack_bot_token` in `tenant_secrets`, upserts `tenant_integrations`. 409 if workspace already attached to different tenant. |
 
-### Admin Routes (`X-Admin-Key` header required)
+### Admin Routes (`Authorization: Bearer` header required)
 
-Auth: `requireAdminKey` middleware — timing-safe comparison of `X-Admin-Key` header against `ADMIN_API_KEY` env var. Returns 401 on missing/wrong key.
+Auth: `authMiddleware` — `Bearer <SERVICE_TOKEN>` → `isServiceToken=true`; Supabase JWT → `req.auth`. Returns 401 on missing/invalid header.
 
 **Tenant CRUD:**
 
@@ -1215,19 +1215,19 @@ pnpm dev            # Start gateway (:7700) + Inngest (:8288)
 
 # Trigger DozalDevs daily summarizer
 TENANT=00000000-0000-0000-0000-000000000002
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/employees/daily-summarizer/trigger" \
   -H "Content-Type: application/json" -d '{}'
 
 # Trigger VLRE guest messaging employee
 TENANT=00000000-0000-0000-0000-000000000003
-curl -X POST -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -X POST -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/employees/guest-messaging/trigger" \
   -H "Content-Type: application/json" -d '{}'
 
 # Check task status
 TENANT=00000000-0000-0000-0000-000000000002
-curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/tasks/<TASK_ID>"
 
 # Manual approval fallback (when button click doesn't work)
@@ -1266,7 +1266,7 @@ src/
 │   │                     #   tenant/secret repos, interaction-classifier, kb-repository,
 │   │                     #   notification-channel, tenant-env-loader, tenant-integration-repo)
 │   ├── slack/            # 2 files: Bolt event/action handlers + OAuth installation store
-│   ├── middleware/       # 1 file: admin-auth.ts (X-Admin-Key validation)
+│   ├── middleware/       # 1 file: auth.ts (JWT + SERVICE_TOKEN validation)
 │   ├── validation/       # 2 files: Zod schemas + HMAC signature verification
 │   ├── inngest/          # 3 files: Inngest client factory, event sender, serve registration
 │   ├── server.ts         # Express app entry point (Socket Mode Bolt, Inngest serve)

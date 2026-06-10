@@ -27,7 +27,7 @@ TENANT=00000000-0000-0000-0000-000000000003
 
 curl -s -X POST \
   "http://localhost:7700/admin/tenants/$TENANT/employees/google-workspace-assistant/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"inputs": {"prompt": "List the 5 most recent emails in the inbox and summarize their subjects"}}' \
   | jq '{task_id: .task_id, status_url: .status_url}'
@@ -84,15 +84,15 @@ Store via admin API:
 
 ```bash
 curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_client_id" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<client_id>"}'
 
 curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_client_secret" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<client_secret>"}'
 
 curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_refresh_token" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<refresh_token>"}'
 ```
 

@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import { createLogger } from '../../lib/logger.js';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import {
   RuleArchetypeParamsSchema,
   RuleIdParamsSchema,
@@ -22,7 +23,9 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
 
   router.post(
     '/admin/tenants/:tenantId/employees/:archetypeId/rules',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramsResult = RuleArchetypeParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
@@ -70,7 +73,9 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
 
   router.patch(
     '/admin/tenants/:tenantId/employees/:archetypeId/rules/:ruleId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramsResult = RuleIdParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {
@@ -125,7 +130,9 @@ export function adminRulesRoutes(opts: AdminRulesRouteOptions = {}): Router {
 
   router.delete(
     '/admin/tenants/:tenantId/employees/:archetypeId/rules/:ruleId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramsResult = RuleIdParamsSchema.safeParse(req.params);
       if (!paramsResult.success) {

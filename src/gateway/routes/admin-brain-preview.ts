@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import { z } from 'zod';
 import path from 'path';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
@@ -41,7 +42,9 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
 
   router.post(
     '/admin/tenants/:tenantId/archetypes/compile-preview',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = TenantIdParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -72,7 +75,9 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
 
   router.get(
     '/admin/tenants/:tenantId/archetypes/:archetypeId/brain-preview',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = BrainPreviewParamSchema.safeParse(req.params);
       if (!paramResult.success) {

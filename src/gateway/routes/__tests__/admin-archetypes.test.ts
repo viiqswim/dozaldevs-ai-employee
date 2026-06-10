@@ -37,7 +37,7 @@ function makeArchetype(overrides: Record<string, unknown> = {}) {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
   const app = express();
   app.use(express.json());
@@ -76,7 +76,7 @@ describe('Draft flow — POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ ...VALID_BODY, status: 'draft' });
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('draft');
@@ -89,7 +89,7 @@ describe('Draft flow — POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp({ create });
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send(VALID_BODY);
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('active');
@@ -100,7 +100,7 @@ describe('Draft flow — POST /admin/tenants/:tenantId/archetypes', () => {
     const app = makeApp();
     const res = await request(app)
       .post(`/admin/tenants/${TENANT_ID}/archetypes`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ ...VALID_BODY, status: 'published' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
@@ -122,7 +122,7 @@ describe('Draft flow — PATCH /admin/tenants/:tenantId/archetypes/:archetypeId'
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ status: 'active' });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('ROLE_NAME_CONFLICT');
@@ -137,7 +137,7 @@ describe('Draft flow — PATCH /admin/tenants/:tenantId/archetypes/:archetypeId'
     const app = makeApp({ findFirst, update });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ status: 'active' });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('active');
@@ -149,7 +149,7 @@ describe('Draft flow — PATCH /admin/tenants/:tenantId/archetypes/:archetypeId'
     const app = makeApp({ findFirst });
     const res = await request(app)
       .patch(`/admin/tenants/${TENANT_ID}/archetypes/${ARCHETYPE_ID}`)
-      .set('X-Admin-Key', ADMIN_KEY)
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
       .send({ status: 'draft' });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');

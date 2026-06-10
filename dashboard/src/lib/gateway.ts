@@ -16,6 +16,31 @@ import type {
   GitHubInstallation,
 } from './types';
 
+export type MemberInfo = {
+  userId: string;
+  email: string;
+  name: string | null;
+  tenantRole: string;
+  joinedAt: string;
+};
+
+export type InvitationInfo = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+};
+
+export type InvitationLookupResult = {
+  email: string;
+  organizationName: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+  isExistingUser: boolean;
+};
+
 export type ModelRecommendation = {
   recommended: ModelRecommendationEntry | null;
   cheaperAlternative: ModelRecommendationEntry | null;
@@ -28,30 +53,19 @@ export type ModelQuestionAnswers = {
   speedPreference: string;
 };
 
-export function getAdminApiKey(): string | null {
-  return localStorage.getItem('admin_api_key');
-}
-
-export function setAdminApiKey(key: string): void {
-  localStorage.setItem('admin_api_key', key);
-}
-
-export function isAdminKeySet(): boolean {
-  return !!localStorage.getItem('admin_api_key');
+export function getAccessToken(): string | null {
+  return localStorage.getItem('supabase_access_token');
 }
 
 export async function gatewayFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const key = getAdminApiKey();
-  if (!key) {
-    throw new Error('Admin API key not set. Please configure it in the dashboard.');
-  }
+  const token = getAccessToken();
 
   const url = `${GATEWAY_URL}${path}`;
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-Admin-Key': key,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
@@ -314,12 +328,13 @@ export async function recommendModel(
 export async function fetchSlackChannels(
   tenantId: string,
 ): Promise<{ channels: SlackChannel[]; error?: string }> {
-  const key = getAdminApiKey();
-  if (!key) return { channels: [], error: 'SLACK_NOT_CONFIGURED' };
-
+  const token = getAccessToken();
   const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/slack/channels`;
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 
   const body = await response.json().catch(() => ({}));
@@ -408,6 +423,83 @@ export async function disconnectGitHub(tenantId: string): Promise<{ disconnected
 export async function disconnectGoogle(tenantId: string): Promise<{ disconnected: boolean }> {
   return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
     method: 'DELETE',
+  });
+}
+
+export async function listMembers(tenantId: string): Promise<MemberInfo[]> {
+  return gatewayFetch<MemberInfo[]>(`/admin/tenants/${tenantId}/members`);
+}
+
+export async function changeMemberRole(
+  tenantId: string,
+  userId: string,
+  role: string,
+): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/members/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function removeMember(tenantId: string, userId: string): Promise<void> {
+  const token = getAccessToken();
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/members/${userId}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gateway error ${response.status}: ${text}`);
+  }
+}
+
+export async function inviteMember(
+  tenantId: string,
+  email: string,
+  role: string,
+): Promise<InvitationInfo> {
+  return gatewayFetch<InvitationInfo>(`/admin/tenants/${tenantId}/invitations`, {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+export async function listInvitations(tenantId: string): Promise<InvitationInfo[]> {
+  return gatewayFetch<InvitationInfo[]>(`/admin/tenants/${tenantId}/invitations`);
+}
+
+export async function revokeInvitation(tenantId: string, invitationId: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/invitations/${invitationId}/revoke`, {
+    method: 'POST',
+  });
+}
+
+export async function getInvitationByToken(token: string): Promise<InvitationLookupResult> {
+  return gatewayFetch<InvitationLookupResult>(`/invitations/${token}`);
+}
+
+export async function setInvitationPassword(token: string, password: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/set-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+export async function acceptInvitation(token: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function declineInvitation(token: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/decline', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
   });
 }
 

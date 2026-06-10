@@ -1,6 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
+
+vi.mock('../../../gateway/middleware/auth.js', () => ({
+  authMiddleware: (req: Request, _res: Response, next: NextFunction): void => {
+    const authHeader = req.headers.authorization as string | undefined;
+    if (authHeader?.startsWith('Bearer ') && authHeader.slice(7) === process.env.SERVICE_TOKEN) {
+      (req as Request & { isServiceToken?: boolean }).isServiceToken = true;
+    }
+    next();
+  },
+}));
+
+vi.mock('../../../gateway/middleware/authz.js', () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction): void => {
+    if (
+      (req as Request & { isServiceToken?: boolean }).isServiceToken ||
+      (req as Request & { auth?: unknown }).auth
+    ) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+  },
+  requireTenantRole:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+  requirePermission:
+    () =>
+    (_req: Request, _res: Response, next: NextFunction): void => {
+      next();
+    },
+}));
 
 const { mockSecretGet, mockConversationsList } = vi.hoisted(() => ({
   mockSecretGet: vi.fn(),
@@ -27,7 +61,7 @@ const ADMIN_KEY = 'test-admin-key';
 const TENANT_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 
 function makeApp() {
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
   const app = express();
   app.use(express.json());
   app.use(adminSlackChannelsRoutes({ prisma: {} as never }));
@@ -39,7 +73,7 @@ describe('GET /admin/tenants/:tenantId/slack/channels', () => {
     vi.clearAllMocks();
   });
 
-  it('401 when X-Admin-Key header is missing', async () => {
+  it('401 when Authorization header is missing', async () => {
     const app = makeApp();
     const res = await request(app).get(`/admin/tenants/${TENANT_ID}/slack/channels`);
     expect(res.status).toBe(401);
@@ -51,7 +85,7 @@ describe('GET /admin/tenants/:tenantId/slack/channels', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/slack/channels`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ channels: [], error: 'SLACK_NOT_CONFIGURED' });
   });
@@ -67,7 +101,7 @@ describe('GET /admin/tenants/:tenantId/slack/channels', () => {
     const app = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/slack/channels`)
-      .set('X-Admin-Key', ADMIN_KEY);
+      .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.body.channels).toHaveLength(2);
     expect(res.body.channels[0]).toEqual({ id: 'C001', name: 'general', is_private: false });

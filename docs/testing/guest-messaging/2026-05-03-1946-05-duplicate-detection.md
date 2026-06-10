@@ -61,7 +61,7 @@ TASK_ID_1="<paste task_id here>"
 source .env
 
 curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/$TASK_ID_1" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" | jq '{id, status, external_id}'
+  -H "Authorization: Bearer $SERVICE_TOKEN" | jq '{id, status, external_id}'
 ```
 
 **Expected**:

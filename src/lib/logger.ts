@@ -15,7 +15,6 @@ export function createLogger(component: string): pino.Logger {
       paths: [
         '*.GITHUB_TOKEN',
         '*.JIRA_TOKEN',
-        '*.ADMIN_API_KEY',
         '*.*_TOKEN',
         '*.*_SECRET',
         '*.*_KEY',

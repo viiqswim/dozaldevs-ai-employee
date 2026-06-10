@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { PrismaClient, Prisma, TenantRole } from '@prisma/client';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import {
   CreatePropertyLockSchema,
   UpdatePropertyLockSchema,
@@ -21,63 +22,77 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
   const router = Router();
   const prisma = opts.prisma ?? new PrismaClient();
 
-  router.post('/admin/tenants/:tenantId/property-locks', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_ID);
-      return;
-    }
+  router.post(
+    '/admin/tenants/:tenantId/property-locks',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
+        return;
+      }
 
-    const result = CreatePropertyLockSchema.safeParse(req.body);
-    if (!result.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
-        issues: result.error.issues,
-      });
-      return;
-    }
+      const result = CreatePropertyLockSchema.safeParse(req.body);
+      if (!result.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: result.error.issues,
+        });
+        return;
+      }
 
-    try {
-      const propertyLock = await prisma.propertyLock.create({
-        data: {
-          ...result.data,
-          lock_metadata: result.data.lock_metadata as Prisma.InputJsonValue | undefined,
-          tenant_id: paramResult.data.tenantId,
-        },
-      });
-      sendSuccess(res, 201, propertyLock);
-    } catch (err) {
-      logger.error({ err }, 'Failed to create property lock');
-      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
-    }
-  });
+      try {
+        const propertyLock = await prisma.propertyLock.create({
+          data: {
+            ...result.data,
+            lock_metadata: result.data.lock_metadata as Prisma.InputJsonValue | undefined,
+            tenant_id: paramResult.data.tenantId,
+          },
+        });
+        sendSuccess(res, 201, propertyLock);
+      } catch (err) {
+        logger.error({ err }, 'Failed to create property lock');
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+      }
+    },
+  );
 
-  router.get('/admin/tenants/:tenantId/property-locks', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_ID);
-      return;
-    }
+  router.get(
+    '/admin/tenants/:tenantId/property-locks',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.VIEWER),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_ID);
+        return;
+      }
 
-    const propertyId = req.query.property_id as string | undefined;
+      const propertyId = req.query.property_id as string | undefined;
 
-    try {
-      const propertyLocks = await prisma.propertyLock.findMany({
-        where: {
-          tenant_id: paramResult.data.tenantId,
-          ...(propertyId ? { property_external_id: propertyId } : {}),
-        },
-        orderBy: { created_at: 'asc' },
-      });
-      sendSuccess(res, 200, { propertyLocks });
-    } catch (err) {
-      logger.error({ err }, 'Failed to list property locks');
-      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
-    }
-  });
+      try {
+        const propertyLocks = await prisma.propertyLock.findMany({
+          where: {
+            tenant_id: paramResult.data.tenantId,
+            ...(propertyId ? { property_external_id: propertyId } : {}),
+          },
+          orderBy: { created_at: 'asc' },
+        });
+        sendSuccess(res, 200, { propertyLocks });
+      } catch (err) {
+        logger.error({ err }, 'Failed to list property locks');
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+      }
+    },
+  );
 
   router.get(
     '/admin/tenants/:tenantId/property-locks/:lockId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.VIEWER),
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -108,7 +123,9 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
 
   router.patch(
     '/admin/tenants/:tenantId/property-locks/:lockId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {
@@ -155,7 +172,9 @@ export function adminPropertyLockRoutes(opts: AdminPropertyLockRouteOptions = {}
 
   router.delete(
     '/admin/tenants/:tenantId/property-locks/:lockId',
-    requireAdminKey,
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
     async (req, res) => {
       const paramResult = TenantPropertyLockParamSchema.safeParse(req.params);
       if (!paramResult.success) {

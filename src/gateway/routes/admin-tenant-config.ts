@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantRepository } from '../../repositories/tenant-repository.js';
 import { TenantIdParamSchema, TenantConfigBodySchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
@@ -41,56 +42,70 @@ export function adminTenantConfigRoutes(opts: AdminTenantConfigRouteOptions = {}
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new TenantRepository(prisma);
 
-  router.get('/admin/tenants/:tenantId/config', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID');
-      return;
-    }
-    try {
-      const tenant = await repo.findById(paramResult.data.tenantId);
-      if (!tenant) {
-        sendError(res, 404, 'NOT_FOUND');
+  router.get(
+    '/admin/tenants/:tenantId/config',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.VIEWER),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID');
         return;
       }
-      sendSuccess(res, 200, tenant.config ?? {});
-    } catch (err) {
-      logger.error({ err }, 'Failed to get config');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+      try {
+        const tenant = await repo.findById(paramResult.data.tenantId);
+        if (!tenant) {
+          sendError(res, 404, 'NOT_FOUND');
+          return;
+        }
+        sendSuccess(res, 200, tenant.config ?? {});
+      } catch (err) {
+        logger.error({ err }, 'Failed to get config');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
 
-  router.patch('/admin/tenants/:tenantId/config', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, 'INVALID_ID');
-      return;
-    }
-    const bodyResult = TenantConfigBodySchema.safeParse(req.body);
-    if (!bodyResult.success) {
-      sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
-      return;
-    }
-    try {
-      const tenant = await repo.findById(paramResult.data.tenantId);
-      if (!tenant) {
-        sendError(res, 404, 'NOT_FOUND');
+  router.patch(
+    '/admin/tenants/:tenantId/config',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, 'INVALID_ID');
         return;
       }
-      const existing =
-        tenant.config !== null && typeof tenant.config === 'object' && !Array.isArray(tenant.config)
-          ? (tenant.config as Record<string, unknown>)
-          : {};
-      const merged = deepMerge(existing, bodyResult.data as Record<string, unknown>);
-      const updated = await repo.update(paramResult.data.tenantId, {
-        config: merged as Prisma.InputJsonValue,
-      });
-      sendSuccess(res, 200, updated.config ?? {});
-    } catch (err) {
-      logger.error({ err }, 'Failed to update config');
-      sendError(res, 500, 'INTERNAL_ERROR');
-    }
-  });
+      const bodyResult = TenantConfigBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        sendError(res, 400, 'INVALID_REQUEST', undefined, { issues: bodyResult.error.issues });
+        return;
+      }
+      try {
+        const tenant = await repo.findById(paramResult.data.tenantId);
+        if (!tenant) {
+          sendError(res, 404, 'NOT_FOUND');
+          return;
+        }
+        const existing =
+          tenant.config !== null &&
+          typeof tenant.config === 'object' &&
+          !Array.isArray(tenant.config)
+            ? (tenant.config as Record<string, unknown>)
+            : {};
+        const merged = deepMerge(existing, bodyResult.data as Record<string, unknown>);
+        const updated = await repo.update(paramResult.data.tenantId, {
+          config: merged as Prisma.InputJsonValue,
+        });
+        sendSuccess(res, 200, updated.config ?? {});
+      } catch (err) {
+        logger.error({ err }, 'Failed to update config');
+        sendError(res, 500, 'INTERNAL_ERROR');
+      }
+    },
+  );
 
   return router;
 }

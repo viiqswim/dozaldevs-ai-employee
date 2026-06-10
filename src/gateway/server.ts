@@ -14,6 +14,7 @@ import { githubRoutes } from './routes/github.js';
 import { adminProjectRoutes } from './routes/admin-projects.js';
 import { adminEmployeeTriggerRoutes } from './routes/admin-employee-trigger.js';
 import { adminTasksRoutes } from './routes/admin-tasks.js';
+import { adminReadsRoutes } from './routes/admin-reads.js';
 import { adminTenantsRoutes } from './routes/admin-tenants.js';
 import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
@@ -37,6 +38,10 @@ import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
 import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { adminGoogleRoutes } from './routes/admin-google.js';
+import { adminUsersRoutes } from './routes/admin-users.js';
+import { adminMembersRoutes } from './routes/admin-members.js';
+import { adminInvitationsRoutes } from './routes/admin-invitations.js';
+import { meRoutes } from './routes/me.js';
 import { TenantInstallationStore } from './slack/installation-store.js';
 import { TenantRepository } from '../repositories/tenant-repository.js';
 import { TenantSecretRepository } from '../repositories/tenant-secret-repository.js';
@@ -46,7 +51,7 @@ import { registerSlackHandlers } from './slack/handlers.js';
 import { createFilteredBoltLogger } from './slack-logger.js';
 import { validateEncryptionKey } from '../lib/encryption.js';
 import { validateRequiredPlatformSettings } from '../lib/platform-settings.js';
-import { requireEnv } from '../lib/config.js';
+import { assertEnvProfile } from '../lib/config.js';
 import { acquireSocketModeLock, releaseSocketModeLock } from './lib/socket-mode-lock.js';
 
 const logger = createLogger('gateway');
@@ -73,9 +78,8 @@ export interface BuildAppResult {
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppResult> {
+  assertEnvProfile();
   validateEncryptionKey();
-
-  requireEnv('ADMIN_API_KEY');
 
   if (!process.env.JIRA_WEBHOOK_SECRET) {
     logger.warn(
@@ -231,6 +235,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(githubRoutes({ prisma }));
   app.use(adminProjectRoutes({ prisma }));
   app.use(adminEmployeeTriggerRoutes({ prisma, inngest: options.inngestClient }));
+  app.use(adminReadsRoutes({ prisma }));
   app.use(adminTasksRoutes({ prisma }));
   app.use(adminTenantsRoutes({ prisma }));
   app.use(adminTenantSecretsRoutes({ prisma }));
@@ -254,6 +259,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use('/internal', internalGoogleTokenRoutes({ prisma }));
   app.use(adminGithubRoutes({ prisma }));
   app.use(adminGoogleRoutes({ prisma }));
+  app.use(adminUsersRoutes());
+  app.use(adminMembersRoutes({ prisma }));
+  app.use(adminInvitationsRoutes({ prisma }));
+  app.use(meRoutes({ prisma }));
   app.use('/api/inngest', inngestServeRoutes());
 
   const viteDevProxy = process.env.VITE_DEV_PROXY;

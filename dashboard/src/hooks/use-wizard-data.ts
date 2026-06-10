@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchGitHubRepos } from '@/lib/gateway';
-import { postgrestFetch } from '@/lib/postgrest';
+import { fetchGitHubRepos, gatewayFetch } from '@/lib/gateway';
 import type { GitHubRepo, TenantIntegration } from '@/lib/types';
 
 interface UseWizardDataResult {
@@ -27,10 +26,7 @@ export function useWizardData(tenantId: string): UseWizardDataResult {
 
   useEffect(() => {
     let cancelled = false;
-    postgrestFetch<TenantIntegration>('tenant_integrations', {
-      tenant_id: `eq.${tenantId}`,
-      provider: 'eq.github',
-    })
+    gatewayFetch<TenantIntegration[]>(`/admin/tenants/${tenantId}/integrations?provider=github`)
       .then((rows) => {
         if (cancelled) return;
         setGithubConnected(rows.length > 0);

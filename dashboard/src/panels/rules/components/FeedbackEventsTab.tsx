@@ -12,14 +12,13 @@ import {
 import { Search, X } from 'lucide-react';
 import { MultiSelectDropdown } from '@/components/ui/multi-select-dropdown';
 import type { MultiSelectOption } from '@/components/ui/multi-select-dropdown';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
+import { gatewayFetch } from '@/lib/gateway';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
 import { formatRelativeTime } from '@/lib/utils';
 import { useSearchParams } from 'react-router-dom';
 import type { FeedbackEvent } from '@/lib/types';
 import {
-  buildArchetypeFilter,
   ErrorState,
   EventTypeBadge,
   EVENT_TYPE_CLASSES,
@@ -51,18 +50,23 @@ export function FeedbackEventsTab({
   const query = searchParams.get('q') ?? '';
   const selectedTypes = new Set<string>(searchParams.get('type')?.split(',').filter(Boolean) ?? []);
 
-  const fetchEvents = useCallback(
-    () =>
-      postgrestFetch<FeedbackEvent>('feedback_events', {
-        ...scopeByTenant(tenantId),
-        ...buildArchetypeFilter(selectedIdsKey),
-        order: 'created_at.desc',
-        limit: '100',
-      }),
-    [tenantId, selectedIdsKey],
+  const selectedIds = useMemo(
+    () => new Set(selectedIdsKey.split(',').filter(Boolean)),
+    [selectedIdsKey],
   );
 
-  const { data: events, error, loading, refresh } = usePoll(fetchEvents);
+  const fetchEvents = useCallback(
+    () => gatewayFetch<FeedbackEvent[]>(`/admin/tenants/${tenantId}/feedback-events?limit=100`),
+    [tenantId],
+  );
+
+  const { data: allEvents, error, loading, refresh } = usePoll(fetchEvents);
+
+  const events = useMemo(() => {
+    if (!allEvents) return null;
+    if (selectedIds.size === 0) return allEvents;
+    return allEvents.filter((e) => selectedIds.has(e.archetype_id));
+  }, [allEvents, selectedIds]);
 
   const filteredEvents = useMemo(() => {
     if (!events) return [];

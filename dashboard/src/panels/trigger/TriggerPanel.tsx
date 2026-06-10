@@ -3,8 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { postgrestFetch, scopeByTenant } from '@/lib/postgrest';
-import { triggerEmployee, fireHostfullyWebhook } from '@/lib/gateway';
+import { gatewayFetch, triggerEmployee, fireHostfullyWebhook } from '@/lib/gateway';
 import { WEBHOOK_FIXTURES } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
@@ -47,14 +46,7 @@ export function TriggerPanel() {
   const [webhookError, setWebhookError] = useState<string | null>(null);
 
   const fetchArchetypes = useCallback(
-    () =>
-      postgrestFetch<Archetype>('archetypes', {
-        ...scopeByTenant(tenantId),
-        select: 'id,role_name,model,runtime,deliverable_type,risk_model,concurrency_limit',
-        deleted_at: 'is.null',
-        order: 'role_name.asc',
-        limit: '50',
-      }),
+    () => gatewayFetch<Archetype[]>(`/admin/tenants/${tenantId}/archetypes`),
     [tenantId],
   );
 

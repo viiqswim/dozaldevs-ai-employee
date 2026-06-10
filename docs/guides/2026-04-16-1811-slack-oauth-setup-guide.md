@@ -117,18 +117,18 @@ Each install flow:
 After installing, set which channels the summarizer reads from and where it posts:
 
 ```bash
-ADMIN_KEY="031ef6bd6f06d069a20957bd3fd2699bb9c0d24c161feae9a9b772c69835f374"
+# Use SERVICE_TOKEN from .env
 
 # DozalDevs
 curl -s -X PATCH \
-  -H "X-Admin-Key: $ADMIN_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"summary":{"channel_ids":["C0123...","C0456..."],"target_channel":"C0789..."}}' \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/config
 
 # VLRE
 curl -s -X PATCH \
-  -H "X-Admin-Key: $ADMIN_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"summary":{"channel_ids":["C0AMGJQN05S","C0ANH9J91NC","C0960S2Q8RL"],"target_channel":"C0960S2Q8RL"}}' \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000003/config
@@ -141,10 +141,10 @@ curl -s -X PATCH \
 If VLRE already has a `SLACK_BOT_TOKEN` in `.env` from before multi-tenancy, migrate it into `tenant_secrets` so the bot can resolve it at runtime:
 
 ```bash
-ADMIN_KEY="031ef6bd6f06d069a20957bd3fd2699bb9c0d24c161feae9a9b772c69835f374"
+# Use SERVICE_TOKEN from .env
 
 curl -s -X PUT \
-  -H "X-Admin-Key: $ADMIN_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"value":"xoxb-...your-vlre-token..."}' \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000003/secrets/slack_bot_token
@@ -164,11 +164,11 @@ Once confirmed, you can remove `SLACK_BOT_TOKEN` from `.env` — the bot token n
 ## Trigger a Summarizer
 
 ```bash
-ADMIN_KEY="031ef6bd6f06d069a20957bd3fd2699bb9c0d24c161feae9a9b772c69835f374"
+# Use SERVICE_TOKEN from .env
 TENANT="00000000-0000-0000-0000-000000000002"  # DozalDevs
 
 curl -s -X POST \
-  -H "X-Admin-Key: $ADMIN_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}' \
   "http://localhost:3000/admin/tenants/$TENANT/employees/daily-summarizer/trigger"
@@ -185,18 +185,18 @@ pnpm verify:multi-tenancy
 Or manually check each tenant:
 
 ```bash
-ADMIN_KEY="031ef6bd6f06d069a20957bd3fd2699bb9c0d24c161feae9a9b772c69835f374"
+# Use SERVICE_TOKEN from .env
 
 # Check tenant state
-curl -s -H "X-Admin-Key: $ADMIN_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002
 
 # Check secrets (keys only, no values)
-curl -s -H "X-Admin-Key: $ADMIN_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/secrets
 
 # Check channel config
-curl -s -H "X-Admin-Key: $ADMIN_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   http://localhost:3000/admin/tenants/00000000-0000-0000-0000-000000000002/config
 ```
 

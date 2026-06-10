@@ -124,7 +124,7 @@ The wizard uses the repo list to let users pick which repository the engineer em
 
 ```
 GET /admin/tenants/:tenantId/github/repos
-X-Admin-Key: <key>
+Authorization: Bearer <SERVICE_TOKEN>
 ```
 
 Implementation (`src/gateway/routes/admin-github.ts`):
@@ -366,7 +366,7 @@ The platform uses the GitHub API to detect existing installations and lets tenan
 **List available installations** (for linking):
 
 ```bash
-curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT_ID/github/available-installations" | jq .
 # Returns: { installations: [{ id, account: { login, type, avatar_url }, already_linked }] }
 ```
@@ -374,7 +374,7 @@ curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
 **Link an existing installation**:
 
 ```bash
-curl -s -X POST -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+curl -s -X POST -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   "http://localhost:7700/admin/tenants/$TENANT_ID/github/link-installation" \
   -d '{"installation_id": "137599429"}' | jq .
 # Returns: { linked: true, installation_id: "137599429" }
@@ -384,7 +384,7 @@ curl -s -X POST -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/j
 **Disconnect GitHub from a tenant**:
 
 ```bash
-curl -s -X DELETE -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -X DELETE -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT_ID/integrations/github" | jq .
 # Returns: { disconnected: true, tenant_id: "..." }
 # NOTE: Only removes the requesting tenant's records. Other tenants sharing the same installation are unaffected.

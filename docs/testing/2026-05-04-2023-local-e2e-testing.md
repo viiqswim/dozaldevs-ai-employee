@@ -194,7 +194,7 @@ The response includes a `task_id`. Save it.
 TASK_ID=<your-task-id>
 TENANT=00000000-0000-0000-0000-000000000003
 
-curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/tasks/$TASK_ID" \
   | jq '.status'
 ```
@@ -224,7 +224,7 @@ The delivery phase spawns a second container. With `HOSTFULLY_MOCK=true`, the `s
 Final check:
 
 ```bash
-curl -s -H "X-Admin-Key: $ADMIN_API_KEY" \
+curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
   "http://localhost:7700/admin/tenants/$TENANT/tasks/$TASK_ID" \
   | jq '{status, status_transitions: .status_transitions[-3:]}'
 ```

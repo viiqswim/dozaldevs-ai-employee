@@ -116,17 +116,20 @@ async function main() {
     }
 
     section('Check 4: Cross-tenant API isolation');
-    const ADMIN_API_KEY = process.env.ADMIN_API_KEY ?? '';
+    const SERVICE_TOKEN = process.env.SERVICE_TOKEN ?? '';
     const BASE_URL = process.env.GATEWAY_BASE ?? `http://localhost:${process.env.PORT ?? '7700'}`;
-    if (!ADMIN_API_KEY) {
-      fail('Cross-tenant isolation', 'ADMIN_API_KEY not set — skipping');
+    if (!SERVICE_TOKEN) {
+      fail('Cross-tenant isolation', 'SERVICE_TOKEN not set — skipping');
     } else {
       const probeTaskKey = `probe-task-${Date.now()}`;
       let probeTaskId: string | undefined;
       try {
         const createRes = await fetch(`${BASE_URL}/admin/tenants/${DOZALDEVS_ID}/tasks`, {
           method: 'POST',
-          headers: { 'X-Admin-Key': ADMIN_API_KEY, 'Content-Type': 'application/json' },
+          headers: {
+            Authorization: `Bearer ${SERVICE_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({ external_id: probeTaskKey }),
         });
         if (createRes.ok) {
@@ -138,7 +141,7 @@ async function main() {
           const crossRes = await fetch(
             `${BASE_URL}/admin/tenants/${VLRE_ID}/tasks/${probeTaskId}`,
             {
-              headers: { 'X-Admin-Key': ADMIN_API_KEY },
+              headers: { Authorization: `Bearer ${SERVICE_TOKEN}` },
             },
           );
           if (crossRes.status === 404) {
@@ -155,7 +158,7 @@ async function main() {
             const crossRes = await fetch(
               `${BASE_URL}/admin/tenants/${VLRE_ID}/tasks/${directTask.id}`,
               {
-                headers: { 'X-Admin-Key': ADMIN_API_KEY },
+                headers: { Authorization: `Bearer ${SERVICE_TOKEN}` },
               },
             );
             if (crossRes.status === 404) {

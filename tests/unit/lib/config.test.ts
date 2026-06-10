@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  ADMIN_API_KEY,
   ENCRYPTION_KEY,
   getEnv,
   GOOGLE_CLIENT_ID,
@@ -27,7 +26,6 @@ const LAZY_VARS = [
   'SUPABASE_SECRET_KEY',
   'SUPABASE_ANON_KEY',
   'ENCRYPTION_KEY',
-  'ADMIN_API_KEY',
   'PORT',
   'SLACK_CLIENT_ID',
   'SLACK_CLIENT_SECRET',
@@ -59,7 +57,6 @@ describe('config lazy getters', () => {
       void SUPABASE_SECRET_KEY;
       void SUPABASE_ANON_KEY;
       void ENCRYPTION_KEY;
-      void ADMIN_API_KEY;
       void PORT;
       void SLACK_CLIENT_ID;
       void SLACK_CLIENT_SECRET;
@@ -81,7 +78,6 @@ describe('config lazy getters', () => {
     expect(SUPABASE_SECRET_KEY()).toBe('');
     expect(SUPABASE_ANON_KEY()).toBe('');
     expect(ENCRYPTION_KEY()).toBe('');
-    expect(ADMIN_API_KEY()).toBe('');
     expect(SLACK_CLIENT_ID()).toBe('');
     expect(SLACK_CLIENT_SECRET()).toBe('');
     expect(GOOGLE_CLIENT_ID()).toBe('');

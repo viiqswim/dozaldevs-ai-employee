@@ -144,7 +144,7 @@ Every tool that calls an external API must support mock mode.
 
 ```bash
 curl -X PUT "http://localhost:7700/admin/tenants/{tenantId}/secrets/{key}" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"value":"<secret-value>"}'
 ```
 
@@ -233,3 +233,33 @@ pnpm prisma db seed
 | Skip AGENTS.md update                                                     | New **service directories** must be added to the shell tools table in AGENTS.md. Individual tools within an existing service do not need AGENTS.md entries. |
 | Skip archetype instructions update                                        | Agents only use tools they know about — add usage to `prisma/seed.ts` instructions                                                                          |
 | Use bare `tsx` in test commands                                           | Use `pnpm exec tsx` — bare `tsx` is not on PATH in this project                                                                                             |
+
+---
+
+## Critical Environment Variable Rules
+
+### Rule 1 — `requireEnv()`/`optionalEnv()` only, never raw `process.env`
+
+All shell tools in `src/worker-tools/` MUST read environment variables via `requireEnv(name)` (throws + exits 1 if missing) or `optionalEnv(name)` (returns `string | undefined`). Never access `process.env.FOO` directly — missing vars fail silently and produce cryptic runtime errors.
+
+```typescript
+// CORRECT
+const apiKey = requireEnv('SERVICE_API_KEY'); // throws if missing
+const url = optionalEnv('SERVICE_API_URL'); // undefined if not set
+
+// WRONG — never do this
+const apiKey = process.env['SERVICE_API_KEY']; // silent failure risk
+```
+
+### Rule 2 — `unescapeShellArg` for all free-text CLI arguments
+
+Import `unescapeShellArg` from `../lib/unescape-args.js` and wrap every free-text CLI argument (`--body`, `--message`, `--content`, `--description`, etc.) at parse time.
+
+LLMs generate shell commands with literal `\n` in string arguments (e.g. `--body "Hello\nWorld"`). The shell passes `\`+`n` as two characters to `process.argv` — NOT a real newline. `unescapeShellArg` converts `\n` → newline, `\t` → tab, `\r` → carriage return. Omitting this causes literal backslash-n to reach external APIs (email, Notion, Jira, Hostfully, Slack, etc.).
+
+```typescript
+import { unescapeShellArg } from '../lib/unescape-args.js';
+
+const body = unescapeShellArg(getArg(args, '--body') ?? '');
+const message = unescapeShellArg(getArg(args, '--message') ?? '');
+```

@@ -220,7 +220,7 @@ PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
 # 3. Trigger
 TASK_ID=$(curl -s -X POST \
   "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/employees/$SLUG/trigger" \
-  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}' | jq -r '.task_id')
 echo "Task ID: $TASK_ID"
@@ -542,7 +542,7 @@ The SYSTEM_PROMPT in `src/gateway/services/archetype-generator.ts` must teach th
 | Test channel            | `C0960S2Q8RL` (#victor-tests)                                                                      |
 | Source channels         | `C0AMGJQN05S`, `C0ANH9J91NC`, `C0960S2Q8RL`                                                        |
 | Slack bot token env var | `$VLRE_SLACK_BOT_TOKEN`                                                                            |
-| Admin API key env var   | `$ADMIN_API_KEY`                                                                                   |
+| Admin API key env var   | `$SERVICE_TOKEN`                                                                                   |
 | Wizard URL              | `http://localhost:7701/dashboard/employees/new?tenant=00000000-0000-0000-0000-000000000003`        |
 | Task logs URL           | `http://localhost:7701/dashboard/tasks/<TASK_ID>/logs?tenant=00000000-0000-0000-0000-000000000003` |
 

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createLogger } from '../../lib/logger.js';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TenantRole } from '@prisma/client';
 import type { callLLM } from '../../lib/call-llm.js';
-import { requireAdminKey } from '../middleware/admin-auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
@@ -35,61 +36,69 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
   const prisma = opts.prisma ?? new PrismaClient();
   const generator = new ArchetypeGenerator(opts.callLLM);
 
-  router.post('/admin/tenants/:tenantId/archetypes/generate', requireAdminKey, async (req, res) => {
-    const paramResult = TenantIdParamSchema.safeParse(req.params);
-    if (!paramResult.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, { issues: paramResult.error.issues });
-      return;
-    }
-
-    const bodyResult = GenerateBodySchema.safeParse(req.body);
-    if (!bodyResult.success) {
-      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
-        issues: bodyResult.error.issues,
-      });
-      return;
-    }
-
-    const { description, previous_config, refinement_instruction } = bodyResult.data;
-
-    try {
-      const catalog = await prisma.modelCatalog.findMany({
-        where: { deleted_at: null, is_active: true },
-      });
-
-      let result;
-
-      if (previous_config !== undefined && refinement_instruction !== undefined) {
-        const prevResult = PreviousConfigSchema.safeParse(previous_config);
-        if (!prevResult.success) {
-          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
-            issues: prevResult.error.issues,
-          });
-          return;
-        }
-
-        result = await generator.refine(
-          previous_config as unknown as Parameters<typeof generator.refine>[0],
-          refinement_instruction,
-          catalog,
-        );
-      } else {
-        result = await generator.generate(description, catalog);
-      }
-
-      sendSuccess(res, 200, result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-
-      if (message.includes('GENERATION_FAILED')) {
-        sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
+  router.post(
+    '/admin/tenants/:tenantId/archetypes/generate',
+    authMiddleware,
+    requireAuth,
+    requireTenantRole(TenantRole.ADMIN),
+    async (req, res) => {
+      const paramResult = TenantIdParamSchema.safeParse(req.params);
+      if (!paramResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_ID, undefined, {
+          issues: paramResult.error.issues,
+        });
         return;
       }
 
-      logger.error({ err }, 'Archetype generation failed');
-      sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
-    }
-  });
+      const bodyResult = GenerateBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+          issues: bodyResult.error.issues,
+        });
+        return;
+      }
+
+      const { description, previous_config, refinement_instruction } = bodyResult.data;
+
+      try {
+        const catalog = await prisma.modelCatalog.findMany({
+          where: { deleted_at: null, is_active: true },
+        });
+
+        let result;
+
+        if (previous_config !== undefined && refinement_instruction !== undefined) {
+          const prevResult = PreviousConfigSchema.safeParse(previous_config);
+          if (!prevResult.success) {
+            sendError(res, 400, ERROR_CODES.INVALID_REQUEST, undefined, {
+              issues: prevResult.error.issues,
+            });
+            return;
+          }
+
+          result = await generator.refine(
+            previous_config as unknown as Parameters<typeof generator.refine>[0],
+            refinement_instruction,
+            catalog,
+          );
+        } else {
+          result = await generator.generate(description, catalog);
+        }
+
+        sendSuccess(res, 200, result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+
+        if (message.includes('GENERATION_FAILED')) {
+          sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
+          return;
+        }
+
+        logger.error({ err }, 'Archetype generation failed');
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR);
+      }
+    },
+  );
 
   return router;
 }
