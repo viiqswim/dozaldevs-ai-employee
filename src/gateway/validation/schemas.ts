@@ -390,3 +390,30 @@ export const UpdateRuleBodySchema = z
       });
     }
   });
+
+// ─── Invitation schemas ───────────────────────────────────────────────────────
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(1, 'token is required'),
+});
+
+export const declineInvitationSchema = z.object({
+  token: z.string().min(1, 'token is required'),
+});
+
+export const setInvitationPasswordSchema = z.object({
+  token: z.string().min(1, 'token is required'),
+  password: z.string().min(8, 'password must be at least 8 characters'),
+});
+
+export const createInvitationBodySchema = z.object({
+  email: z.string().email('Invalid email address'),
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'] as const, {
+    error: 'role must be one of: OWNER, ADMIN, MEMBER, VIEWER',
+  }),
+});
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
+export type DeclineInvitationInput = z.infer<typeof declineInvitationSchema>;
+export type SetInvitationPasswordInput = z.infer<typeof setInvitationPasswordSchema>;
+export type CreateInvitationBodyInput = z.infer<typeof createInvitationBodySchema>;

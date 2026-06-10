@@ -99,3 +99,11 @@ export const NOTION_CLIENT_ID = (): string => process.env.NOTION_CLIENT_ID ?? ''
 export const NOTION_CLIENT_SECRET = (): string => process.env.NOTION_CLIENT_SECRET ?? '';
 export const NOTION_REDIRECT_BASE_URL = (): string =>
   process.env.NOTION_REDIRECT_BASE_URL ?? `http://localhost:${PORT()}`;
+
+// Email
+export const RESEND_API_KEY = (): string => process.env.RESEND_API_KEY ?? '';
+export const EMAIL_FROM = (): string =>
+  process.env.EMAIL_FROM ?? 'DozalDevs <noreply@dozaldevs.com>';
+export const DASHBOARD_BASE_URL = (): string =>
+  process.env.DASHBOARD_BASE_URL ?? 'http://localhost:7700';
+export const SMTP_URL = (): string => process.env.SMTP_URL ?? 'smtp://localhost:54324';

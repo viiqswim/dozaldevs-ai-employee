@@ -32,6 +32,15 @@ export type InvitationInfo = {
   expiresAt: string;
 };
 
+export type InvitationLookupResult = {
+  email: string;
+  organizationName: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+  isExistingUser: boolean;
+};
+
 export type ModelRecommendation = {
   recommended: ModelRecommendationEntry | null;
   cheaperAlternative: ModelRecommendationEntry | null;
@@ -466,6 +475,31 @@ export async function listInvitations(tenantId: string): Promise<InvitationInfo[
 export async function revokeInvitation(tenantId: string, invitationId: string): Promise<void> {
   await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/invitations/${invitationId}/revoke`, {
     method: 'POST',
+  });
+}
+
+export async function getInvitationByToken(token: string): Promise<InvitationLookupResult> {
+  return gatewayFetch<InvitationLookupResult>(`/invitations/${token}`);
+}
+
+export async function setInvitationPassword(token: string, password: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/set-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+export async function acceptInvitation(token: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function declineInvitation(token: string): Promise<void> {
+  await gatewayFetch<void>('/invitations/decline', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
   });
 }
 
