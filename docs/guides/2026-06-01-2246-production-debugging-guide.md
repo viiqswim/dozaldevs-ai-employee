@@ -75,6 +75,79 @@ Install if missing: `brew install postgresql@17`
 
 ---
 
+## CI Auto-Deploy / Auto-Migrate Pipeline
+
+Every merge to `main` triggers `.github/workflows/deploy.yml`. GitHub Actions is the **single pane of glass** for the entire deploy — no separate Render dashboard polling needed.
+
+### Reading a deploy run
+
+```bash
+# List recent deploy runs
+gh run list --workflow=deploy.yml --branch=main
+
+# View a specific run (logs streamed inline)
+gh run view <run-id> --log
+```
+
+### Job order
+
+```
+test ──────────────────────────────────────────────────────────────────┐
+                                                                        ├─► deploy-gateway
+migrate (needs: test) ─────────────────────────────────────────────────┘
+deploy-worker (needs: test) ─────────────────────────────────────────── (parallel with migrate)
+```
+
+1. **test** — pnpm install (pinned via `packageManager: pnpm@10.24.0` + `pnpm/action-setup@v4`), build, unit tests, integration tests (postgres service container), lint, dashboard tests.
+2. **migrate** (`needs: test`) — runs `pnpm prisma migrate deploy` against prod, then reloads the PostgREST schema cache via `NOTIFY pgrst, 'reload schema'`. Has a guard step that rejects `:6543`/`pgbouncer` URLs.
+3. **deploy-gateway** (`needs: [test, migrate]`) — triggers the Render deploy via the Render API, polls until `live` or failed, and pulls Render's deploy logs into the Actions run output. The job goes red if the deploy doesn't reach `live`.
+4. **deploy-worker** (`needs: test`) — rebuilds and pushes the Fly worker image (`registry.fly.io/ai-employee-workers:latest`, `--platform linux/amd64`). Runs in parallel with `migrate`.
+
+### IPv6 gotcha — why CI uses the session pooler
+
+The direct Supabase host (`db.<ref>.supabase.co:5432`) is **IPv6-only**. GitHub Actions runners are **IPv4-only**. Using the direct host in CI fails every migrate with `P1001`. The `PROD_DATABASE_URL_DIRECT` GitHub secret holds the **session-mode pooler URL** (`aws-1-us-west-2.pooler.supabase.com:5432`) — IPv4, supports DDL-in-transaction, same database.
+
+If a migrate job fails with `P1001`, confirm `PROD_DATABASE_URL_DIRECT` is the pooler URL (contains `pooler.supabase.com:5432`), not the direct host.
+
+### Port-5432 guard
+
+The migrate job intentionally rejects URLs containing `:6543` or `pgbouncer`. This prevents accidentally running `prisma migrate deploy` against the transaction pooler, which doesn't support DDL-in-transaction. The `PROD_DATABASE_URL_DIRECT` secret must be the session pooler (port 5432, no `pgbouncer` param) to pass this guard.
+
+### PostgREST schema reload
+
+After `prisma migrate deploy`, the workflow runs `NOTIFY pgrst, 'reload schema'` via psql. Without this, PostgREST caches the old schema and workers get `PGRST205` errors when querying newly added columns or tables.
+
+### Concurrency
+
+The workflow uses `concurrency: { group: deploy-${{ github.ref }}, cancel-in-progress: false }`. Overlapping merges serialize — a running migrate is never cancelled mid-flight.
+
+### Single trigger — Render autoDeploy is OFF
+
+`autoDeploy: false` is set in both `render.yaml` and on the live Render service. GitHub Actions is the sole gateway-deploy trigger. This eliminates the previous double-deploy race (Render-on-push firing simultaneously with the Actions hook).
+
+### Migrate-failure recovery
+
+If a migrate job fails mid-run, restore from the pre-change backup and investigate before re-merging:
+
+```bash
+# Restore from backup (replace timestamp)
+docker exec -i shared-postgres psql -U postgres -d ai_employee < database-backups/YYYY-MM-DD-HHMM/full-dump.sql
+```
+
+See "Database Backup" in AGENTS.md for the full backup/restore procedure.
+
+### GitHub secrets used
+
+| Secret                     | Value                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `PROD_DATABASE_URL_DIRECT` | Session pooler URL — `*.pooler.supabase.com:5432` (NOT direct host, NOT `:6543`) |
+| `FLY_API_TOKEN`            | Fly.io API token for pushing worker images                                       |
+| `RENDER_API_KEY`           | Render API key — used to trigger deploy, poll status, and fetch logs             |
+
+The old `RENDER_DEPLOY_HOOK_URL` is no longer used.
+
+---
+
 ## Migration Drift — Dashboard 500s (P2022)
 
 **Symptom**: Dashboard reads return `INTERNAL_ERROR` for `/tasks`, `/employee-rules`, `/task-metrics`. The gateway logs flood with Prisma errors every ~5 seconds (dashboard polling interval). The error is masked in the API response — you won't see `P2022` in the browser, only in Render logs.
