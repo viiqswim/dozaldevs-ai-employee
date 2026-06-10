@@ -851,7 +851,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: groups with Wave 3.
 
-- [ ] 13. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 13. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
   **What to do**:
   - After F1–F4 APPROVE and the user gives explicit okay, run: `tsx scripts/telegram-notify.ts "✅ Org invitation flow complete — invite→email→accept→membership working end-to-end (Mailpit local / Resend prod). All tasks done. Come back to review."`
