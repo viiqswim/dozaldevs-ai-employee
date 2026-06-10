@@ -533,7 +533,7 @@ Critical Path: Task 0 → Task 1 → (Tasks 3-6) → Task 7 → Task 8 → Task 
 
   **Commit**: YES (Group C). Message: `ci: serialize deploys via concurrency and order gateway after migrate`. Files: `.github/workflows/deploy.yml`. Pre-commit: YAML check.
 
-- [ ] 9. **Single gateway deploy path — GitHub Actions triggers, watches, and reports the Render deploy (with logs)**
+- [x] 9. **Single gateway deploy path — GitHub Actions triggers, watches, and reports the Render deploy (with logs)** (workflow code done + render.yaml; live Render autoDeploy=no PATCH performed just before Task 12)
 
   **What to do**: Make GitHub Actions the SINGLE source of truth and control panel for the gateway deploy, so the whole story (tests → migrate → deploy triggered → deploy live/failed + logs) is visible in ONE Actions run. Today there are TWO independent triggers (Render `autoDeploy: yes` on push + the GH `deploy-gateway` curl) → double deploy and split visibility. Implement:
   - **Switch OFF Render auto-deploy** so Render no longer reacts to pushes on its own: `PATCH` the live service `srv-d8f1b2gg4nts738dj7jg` setting `autoDeploy: "no"` via the Render API (also reflect `autoDeploy: false` in `render.yaml` so the Blueprint matches reality). This is a settings toggle — nothing is deleted; GitHub Actions becomes the only trigger.
@@ -588,7 +588,7 @@ Critical Path: Task 0 → Task 1 → (Tasks 3-6) → Task 7 → Task 8 → Task 
 
   **Commit**: YES (Group C). Message: `ci: GitHub Actions triggers+watches+reports gateway deploy; disable Render auto-deploy`. Files: `.github/workflows/deploy.yml`, `render.yaml` (+ live Render setting via API, documented). Pre-commit: YAML check.
 
-- [ ] 10. **Add GitHub Actions secrets (human-assisted)**
+- [x] 10. **Add GitHub Actions secrets** (PROD_DATABASE_URL_DIRECT=session-pooler:5432, FLY_API_TOKEN, RENDER_API_KEY set; RENDER_DEPLOY_HOOK_URL eliminated by switching gateway trigger to Render API)
 
   **What to do**: The repo has ZERO Actions secrets. Add (via `gh secret set` or the GitHub UI — REQUIRES the user, as the agent must not invent secret values):
   - `PROD_DATABASE_URL_DIRECT` = prod direct URL on port **5432** (`postgresql://postgres:<pw>@db.gjqrysxpvktmibpkwrvy.supabase.co:5432/postgres`). NOT 6543, no `pgbouncer`.
@@ -625,7 +625,7 @@ Critical Path: Task 0 → Task 1 → (Tasks 3-6) → Task 7 → Task 8 → Task 
 
   **Commit**: NO (secrets live in GitHub, not the repo).
 
-- [ ] 11. **Docs update — pipeline behavior + gotchas**
+- [x] 11. **Docs update — pipeline behavior + gotchas**
 
   **What to do**:
   - AGENTS.md: document that merge-to-`main` now auto-runs CI → migrate (prod, gated) → gateway deploy → Fly worker rebuild; note the `migrate` job uses `PROD_DATABASE_URL_DIRECT` (5432) and runs a PostgREST reload; note the single-deploy decision (Render autoDeploy `no` + gated hook).
