@@ -611,7 +611,7 @@ B5  Notify completion (Telegram)                                                
 
 > Phase B can be STARTED (B1) in parallel with Phase A since DNS propagation is a wait, but B2/B3 require Phase A complete AND B1 verified.
 
-- [ ] B1. USER-ACTION: Resend account + verify `send.dozaldevs.com` + API key
+- [x] B1. USER-ACTION: Resend account + verify `send.dozaldevs.com` + API key
 
   **What to do**:
   - This is a USER-ACTION (external service + DNS). The agent prints the checklist and waits.
@@ -645,7 +645,7 @@ B5  Notify completion (Telegram)                                                
     Evidence: .sisyphus/evidence/deploy-B1-resend.txt (masked)
   ```
 
-- [ ] B2. Render env: add `RESEND_API_KEY` + `EMAIL_FROM` + `DASHBOARD_BASE_URL` + redeploy
+- [x] B2. Render env: add `RESEND_API_KEY` + `EMAIL_FROM` + `DASHBOARD_BASE_URL` + redeploy
 
   **What to do**:
   - Repeat the A7 save-and-verify pattern: GET current full env list (save to `deploy-B2-env-before.json`), append the three new vars, PUT the full array, re-GET and assert nothing else changed.
@@ -684,7 +684,7 @@ B5  Notify completion (Telegram)                                                
     Evidence: deploy-B2-env-before.json, deploy-B2-env-after.json
   ```
 
-- [ ] B3. E2E: invite → Resend message ID → email arrives → accept → membership
+- [x] B3. E2E: invite → Resend message ID → email arrives → accept → membership
 
   **What to do**:
   - As the owner (or via SERVICE_TOKEN), create a real invitation: `POST /admin/tenants/00000000-0000-0000-0000-000000000003/invitations` with a test recipient email and role MEMBER.

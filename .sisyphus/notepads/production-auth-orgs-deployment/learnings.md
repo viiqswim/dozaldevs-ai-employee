@@ -137,3 +137,40 @@ Additionally missing (email features in PR #9):
 
 ### Verdict
 - Login [PASS] | Members [2/2] | Invite E2E [N/A — Phase B/Resend DNS pending] | VERDICT: APPROVE
+
+## [2026-06-10] B3 — Invite E2E (FULL LIFECYCLE PASS)
+
+### Result: APPROVE — full invite→email→accept→membership lifecycle verified in production
+
+### IDs captured
+- Invitation id: `5f7a6665-f98b-4a59-a742-2579054e52e3` (VLRE tenant ...0003, role MEMBER)
+- Invitation token: fetched from PostgREST (POST response does NOT return the token — see gotcha below)
+- New app user id: `3e647ba2-eeb1-4527-ac0c-abfc9d88d8f1` (supabase_id `fe06afd4-af0b-4088-8da8-54e0fca55956`)
+- Resend message id (proof of accepted send): `a0f9b33e-2604-4130-a80c-ac2d9fa1c0e5` → `last_event: delivered`
+
+### GOTCHA 1 — POST /admin/.../invitations does NOT return the token
+- Response shape is `{id, email, role, status, expiresAt}` only (admin-invitations.ts:269-275). No `token` field.
+- The token is emailed to the user. For E2E you must read it from PostgREST:
+  `GET /rest/v1/tenant_invitations?email=eq.<urlenc>&status=eq.pending&select=token` (use SUPABASE_SECRET_KEY)
+- The plan's Step 4 assumed `token` was in the POST response — it is not. Update future runs accordingly.
+
+### GOTCHA 2 (REAL BUG, robustness) — /invitations/accept returned a transient 500 (raw HTML) from the browser
+- The AcceptInvitePage submit does set-password → signInWithPassword → acceptInvitation in one handler (AcceptInvitePage.tsx:50-57).
+- The browser's accept POST hit HTTP 500 with a raw Express HTML body ("<pre>Internal Server Error</pre>"), NOT the JSON sendError shape. This means the error escaped the handler's try/catch.
+- The accept route uses `$transaction(..., { isolationLevel: 'Serializable' })` (admin-invitations.ts:292,366). A Serializable serialization-failure (P2034/40001) thrown by Prisma surfaces as a non-Error-with-code and falls through to the 500 path — but Prisma's connection-pool/serialization error can also bypass the JSON handler entirely under load, yielding Express's default HTML 500.
+- A plain `curl` retry of the SAME token immediately succeeded with 200 `{"message":"Invitation accepted"}`. So the path is correct; the failure was transient.
+- DB state after the browser 500: invitation still `pending` (tx rolled back cleanly — good), app `users` row already created by ensureUserExists during the authed call, NO membership. After the curl retry: invitation `accepted`, membership MEMBER created. No partial/corrupt state — the Serializable tx is atomic.
+- RECOMMENDATION (not in B3 scope, do not fix here): the frontend `acceptInvitation` should retry on 500/40001, or the handler should catch Prisma serialization errors and return a 409/retryable JSON instead of leaking HTML 500. File as a follow-up.
+
+### Verified end-to-end (all green)
+- Resend: message to victor+test@dozaldevs.com, subject "You've been invited to join VLRE", last_event=delivered (independent of "email sent")
+- Invitation status → `accepted`, accepted_at 2026-06-10T13:07:12Z
+- tenant_memberships: new user `3e647ba2` in VLRE ...0003, role=MEMBER, deleted_at=null, joined_at 2026-06-10T13:07:12Z
+- Browser /me proof: signed-in as victor+test@dozaldevs.com, /me 200 (USER/active), /me/tenants shows VLRE tenantRole=MEMBER
+- Negative test: bogus token → 404 NOT_FOUND (clean JSON, not 500); missing token → 400 MISSING_TOKEN
+
+### Note on EMAIL_FROM
+- Confirmed `DozalDevs <noreply@dozaldevs.com>` apex domain is live and delivering in prod (both test sends delivered).
+
+### Evidence: .sisyphus/evidence/deploy-B3-invite-e2e/
+- invite-create.json, resend.json, accept.png, membership.txt, negative.txt — verified no secrets leaked into any file.
