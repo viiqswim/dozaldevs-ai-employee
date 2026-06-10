@@ -700,3 +700,25 @@ Run through this after every fresh deployment to confirm everything is wired up 
 
 [ ] Slack message appears in the configured channel after the task completes
 ```
+
+---
+
+## Production Deployment History
+
+### 2026-06-10: user-auth-orgs feature deployment
+
+**What was deployed**: PR #9 (user auth, RBAC, invitations, members page) + Dockerfile build fix.
+
+**Build foot-gun hit**: `pnpm prune --prod` re-fires the `prepare` → `husky` lifecycle script after devDeps are pruned, causing `sh: husky: not found` → exit 1. Fix: add `ENV HUSKY=0` in the builder stage (after `RUN corepack enable pnpm`) AND use `pnpm prune --prod --ignore-scripts`. Husky v9 respects `HUSKY=0` to skip the prepare hook.
+
+**Steps taken**:
+
+1. Added `ENV HUSKY=0` + `--ignore-scripts` to `Dockerfile.gateway` builder stage → build fixed
+2. Applied migration `20260609000000_add_user_auth_rbac` (already present in cloud DB from prior manual apply; marked in `_prisma_migrations` via INSERT)
+3. Added `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SECRET_KEY`, `SERVICE_TOKEN`, `INNGEST_DEV` to Render env; removed stale `ADMIN_API_KEY`, `COST_LIMIT_USD_PER_DEPT_PER_DAY`, `GATEWAY_URL`
+4. Triggered fresh redeploy → `status: live`, `/health` 200, `/api/config.js` populated with cloud values
+5. Inngest auto-synced on redeploy (7 functions, cloud mode)
+6. Seeded PLATFORM_OWNER `victor@dozaldevs.com` via `pnpm seed-platform-owner` against session pooler
+7. Verified login via Playwright: `/me` = `PLATFORM_OWNER`, members page loads
+
+**Migration note**: The session pooler (port 5432) was reachable from local Mac — `prisma migrate deploy` worked directly. The auth/RBAC guide's claim that the pooler is IPv6-only was incorrect for this project.

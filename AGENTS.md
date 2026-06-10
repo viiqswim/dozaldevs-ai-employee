@@ -276,7 +276,7 @@ Run `scripts/seed-platform-owner.ts` to create the first PLATFORM_OWNER user in 
 BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword tsx scripts/seed-platform-owner.ts
 ```
 
-The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants.
+The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants. This is a **manual, on-demand step** — it is NOT part of `prisma/seed.ts` and NOT run by `pnpm setup`. After a fresh `pnpm setup` the database has tenants but no users, so you must run this once before you can log into the dashboard. Choose your own email/password — do not commit real credentials.
 
 ## Admin API
 
@@ -395,6 +395,8 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee < database-backu
 ## Infrastructure
 
 Uses **Docker Compose** (`docker/docker-compose.yml`) instead of `supabase start` — the CLI hardcodes `database: postgres`, which would break PostgREST. `POSTGRES_DB=ai_employee` in `docker/.env` makes all services use the right database. **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally. Gateway/Inngest code changes take effect immediately via `tsx watch`.
+
+**Dockerfile.gateway build foot-gun**: `pnpm prune --prod` re-fires the `prepare` → `husky` lifecycle script after devDeps are pruned. Fix: `ENV HUSKY=0` in the builder stage + `pnpm prune --prod --ignore-scripts`. Both are required — `HUSKY=0` alone is insufficient because the binary is already gone by the time the hook runs.
 
 ```bash
 docker build -t ai-employee-worker:latest . && pnpm trigger-task
