@@ -887,19 +887,19 @@ Max Concurrent: 5 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for the user's explicit approval before marking work complete.** Never mark F1–F4 checked before getting the user's okay. Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search the codebase for forbidden patterns — reject with file:line if found (especially: any edits to `DELETE/PATCH .../members`, `SUPABASE_SECRET_KEY` in browser bundle or logs, `z.string().uuid()`, token in logs). Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against the plan.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` (tsc) + `pnpm lint` + `pnpm test:unit`. Review all changed files for `as any`/`@ts-ignore`, empty catches, `console.log` in prod paths, commented-out code, unused imports, AI slop (excessive comments, over-abstraction, generic names). Confirm EmailProvider has exactly two impls and no extra abstraction. Confirm config uses `getEnv`/lazy getters (not nonexistent `optionalEnv`).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA — live invite→accept E2E** — `unspecified-high` (+ `playwright`, `feature-verification` skills)
+- [x] F3. **Real Manual QA — live invite→accept E2E** — `unspecified-high` (+ `playwright`, `feature-verification` skills)
       Pre-flight: `curl localhost:7700/health`; confirm Mailpit reachable (`curl http://localhost:54325/api/v1/messages`); single gateway (`pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` == 1). Then from a clean state run the full happy path against VLRE `00000000-0000-0000-0000-000000000003`: invite `qa-invitee-<ts>@dozaldevs.com` (MEMBER) → assert Mailpit message + token link → open `/dashboard/accept-invite?token=…` in Playwright → set password → assert signed in → assert `tenant_memberships` row exists with role MEMBER (psql, zero rows = fail) → assert the new user can `signInWithPassword` (200, not `email_not_confirmed`). Then run failure cases: expired token (410), already-used (410), revoked (410), ADMIN-mints-OWNER (403). Re-invite supersede: invite same email twice, assert old invite `revoked`, new email sent, only the latest token works. Existing-user branch: invite `victor@dozaldevs.com` (existing Supabase user, no membership) → accept page asks for log-in (not set-password) → membership created. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Happy [PASS/FAIL] | Failure cases [N/N] | Supersede [PASS/FAIL] | Existing-user [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff (git log/diff). Verify 1:1 — everything in spec was built, nothing beyond spec. Confirm `MUST NOT` compliance: no member removal/deactivation/role-change code touched, no `AuthCallbackPage` re-implementation, no DECLINE/REVOKE error-code "fix", no extra abstractions. Detect cross-task contamination and unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
