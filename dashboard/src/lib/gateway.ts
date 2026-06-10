@@ -14,7 +14,16 @@ import type {
   PlatformSetting,
   GitHubRepo,
   GitHubInstallation,
+  AdminTenant,
 } from './types';
+
+export type MeResponse = {
+  id: string | null;
+  email: string | null;
+  name: string | null;
+  globalRole: string;
+  status: string;
+};
 
 export type MemberInfo = {
   userId: string;
@@ -76,6 +85,10 @@ export async function gatewayFetch<T>(path: string, options?: RequestInit): Prom
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function getMe(): Promise<MeResponse> {
+  return gatewayFetch<MeResponse>('/me');
 }
 
 export async function triggerEmployee(
@@ -518,4 +531,21 @@ export async function fireHostfullyWebhook(messageUid: string): Promise<void> {
     const text = await response.text();
     throw new Error(`Webhook error ${response.status}: ${text}`);
   }
+}
+
+export async function listAllTenants(includeDeleted?: boolean): Promise<AdminTenant[]> {
+  const query = includeDeleted ? '?include_deleted=true' : '';
+  const data = await gatewayFetch<{ tenants: AdminTenant[] }>(`/admin/tenants${query}`);
+  return data.tenants ?? [];
+}
+
+export async function createTenant(payload: {
+  name: string;
+  slug: string;
+  config?: Record<string, unknown>;
+}): Promise<AdminTenant & { install_link: string }> {
+  return gatewayFetch<AdminTenant & { install_link: string }>('/admin/tenants', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

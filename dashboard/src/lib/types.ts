@@ -398,3 +398,11 @@ export interface GitHubInstallation {
   account: { login: string; type: string; avatar_url: string };
   already_linked: boolean;
 }
+
+export interface AdminTenant {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
