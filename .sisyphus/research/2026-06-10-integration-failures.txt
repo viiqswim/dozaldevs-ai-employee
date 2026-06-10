@@ -1,0 +1,52 @@
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 409 // Object.is equality
+     → expected 401 to be 409 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 'AUTHENTICATION_REQUIRED' to be 'Unauthorized' // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 201 // Object.is equality
+     → expected 401 to be 409 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 400 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+     → expected 401 to be 200 // Object.is equality
+     → expected 401 to be 404 // Object.is equality
+
+## Reconciliation (2026-06-10) — old research vs current
+- pnpm blocker: STILL TRUE (deploy.yml@v3, no packageManager). Latest run 27295314540 fails at "Run pnpm/action-setup@v3".
+- Old "65 failures / 13 files": STALE. Tests reorganized: tests/unit (121), tests/integration (53), src/__tests__ (25), dashboard (9).
+- Current CI test reality:
+  * build: PASS, lint: PASS, test:dashboard: 41/41 PASS
+  * test:unit: 1 FAIL / 1705 pass / 9 skip — tests/unit/gateway/routes/admin-members.test.ts ("MEMBER role" expects 403, gets 200; RBAC drift)
+  * test:integration: 80 FAIL / 380 pass / 18 skip across 8 files — ALL ONE ROOT CAUSE: tests use OLD auth (process.env.ADMIN_API_KEY + X-Admin-Key header, expect "Unauthorized") but authMiddleware now requires Authorization: Bearer <SERVICE_TOKEN> and returns AUTHENTICATION_REQUIRED. Every request → 401.
+    Files: admin-kb-crud (27), admin-tenants (21), admin-projects-update (8), admin-projects-delete (7), admin-projects-read (6), admin-projects-create (6), admin-property-locks-integration (4), jira-webhook-with-new-project (1).
+- GitHub Actions secrets: total_count=0 → RENDER_DEPLOY_HOOK_URL and FLY_API_TOKEN MISSING. deploy-gateway curls empty URL; deploy-worker cannot auth to Fly.
+- Render live service srv-d8f1b2gg4nts738dj7jg: autoDeploy=yes on main, preDeployCommand=(NONE) → migrations NOT auto-applied. render.yaml exists (Blueprint) but defines no preDeploy either.
+- Migrations: 59 in prisma/migrations. No "migrate deploy" npm script (only db:migrate=migrate dev).
