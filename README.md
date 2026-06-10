@@ -8,8 +8,12 @@ A multi-tenant AI Employee Platform. Deploys autonomous AI agents ("digital empl
 
 1. `git clone <repo> && pnpm install`
 2. `pnpm setup` — sets up local Supabase, runs migrations, builds Docker image
-3. `pnpm dev` — starts Gateway (:7700), Inngest (:8288), and Cloudflare tunnel (auto-detected)
-4. Configure tenant secrets via admin API (Slack OAuth, Hostfully credentials) — see [Multi-Tenancy Guide](docs/guides/2026-04-16-1655-multi-tenancy-guide.md)
+3. Create a dashboard login — the seed creates tenants but no users. Run `pnpm seed-platform-owner` with your own credentials to bootstrap the first PLATFORM_OWNER (details in AGENTS.md § Bootstrap — first PLATFORM_OWNER):
+   ```bash
+   BOOTSTRAP_OWNER_EMAIL=you@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword pnpm seed-platform-owner
+   ```
+4. `pnpm dev` — starts Gateway (:7700), Inngest (:8288), and Cloudflare tunnel (auto-detected)
+5. Configure tenant secrets via admin API (Slack OAuth, Hostfully credentials) — see [Multi-Tenancy Guide](docs/guides/2026-04-16-1655-multi-tenancy-guide.md)
 
 ## Local Development (Docker)
 
