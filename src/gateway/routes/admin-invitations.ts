@@ -179,7 +179,7 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
         }
 
         const existingInvite = await db.tenantInvitation.findFirst({
-          where: { tenant_id: tenantId, email, status: 'pending', deleted_at: null },
+          where: { tenant_id: tenantId, email, status: 'pending' },
         });
         if (existingInvite) {
           await db.tenantInvitation.update({
