@@ -62,7 +62,7 @@ export function adminMembersRoutes(opts: AdminMembersRoutesOptions = {}): Router
     '/admin/tenants/:tenantId/members',
     authMiddleware,
     requireAuth,
-    requireTenantRole(TenantRole.ADMIN, TenantRole.OWNER),
+    requireTenantRole(TenantRole.VIEWER),
     async (req, res) => {
       const tenantId = req.params['tenantId'] as string;
       const db = prisma as unknown as PrismaWithMembership;
