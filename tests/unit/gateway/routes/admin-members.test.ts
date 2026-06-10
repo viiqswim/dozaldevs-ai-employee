@@ -137,13 +137,13 @@ describe('GET /admin/tenants/:tenantId/members', () => {
     ]);
   });
 
-  it('returns 403 for a MEMBER role', async () => {
+  it('MEMBER can list members (allowed by VIEWER-minimum gate)', async () => {
     currentAuth = { auth: makeUser() };
     tenantMembershipForAuthz = { role: TenantRole.MEMBER };
     const app = makeApp();
     const res = await request(app).get(`/admin/tenants/${TENANT_ID}/members`);
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('FORBIDDEN');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
   it('returns 401 when unauthenticated', async () => {
