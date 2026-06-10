@@ -32,6 +32,7 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
       - run: pnpm build
       - name: Run unit tests (no DB required)
         run: pnpm test:unit
@@ -60,6 +61,7 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
       - name: Guard — reject pooled/transaction URL (must be port 5432, no pgbouncer)
         env:
           PROD_DB_URL: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
