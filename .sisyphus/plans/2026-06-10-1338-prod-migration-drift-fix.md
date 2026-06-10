@@ -664,7 +664,7 @@ Evidence: .sisyphus/evidence/task-7-phaseb-consistency.txt
 
 **Commit**: NO
 
-- [ ] 8. Document the failure mode and the connection gotcha
+- [x] 8. Document the failure mode and the connection gotcha
 
 **What to do**:
 - Update `docs/guides/2026-06-01-2246-production-debugging-guide.md` with:
@@ -726,7 +726,7 @@ Evidence: .sisyphus/evidence/task-8-commit.txt
 - Files: `docs/guides/2026-06-01-2246-production-debugging-guide.md`, `.sisyphus/plans/2026-06-10-1338-prod-migration-drift-fix.md`
 - Pre-commit: standard hooks (never `--no-verify`)
 
-- [ ] 9. Notify completion
+- [x] 9. Notify completion
 
 **What to do**:
 - Send a Telegram notification summarizing the outcome: incident resolved (Phase A applied), whether Phase B ran or was deferred, and that the user should review.
@@ -774,7 +774,7 @@ Evidence: .sisyphus/evidence/task-9-notify.txt
 
 > Single reviewer (this is an ops fix, not a multi-file code change). The review confirms the incident is actually resolved in production and nothing was left in an inconsistent state. Present results to the user and get explicit "okay" before declaring done. Do NOT auto-proceed.
 
-- [ ] F1. **Production resolution audit** — `oracle`
+- [x] F1. **Production resolution audit** — `oracle`
     Independently verify the incident is closed and the system is consistent. Run, against prod (session pooler :5432) and the live gateway:
 - `SELECT table_name FROM information_schema.columns WHERE column_name='deleted_at' AND table_name IN ('tasks','task_metrics','employee_rules','feedback_events','pending_approvals','executions') ORDER BY 1;` → EXPECT exactly those 6.
 - `curl -s -o /dev/null -w "%{http_code}"` on `/admin/tenants/<prod-tenant>/tasks?order=desc` and `/admin/tenants/<prod-tenant>/employee-rules?limit=50` with a valid Bearer → EXPECT `200` for both.
