@@ -90,6 +90,24 @@ async function getSupabaseUserIdByEmail(email: string): Promise<string | null> {
   return user?.id ?? null;
 }
 
+async function confirmSupabaseUserEmail(supabaseUserId: string): Promise<void> {
+  const url = `${SUPABASE_URL()}/auth/v1/admin/users/${supabaseUserId}`;
+  const secretKey = SUPABASE_SECRET_KEY();
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: secretKey,
+      Authorization: `Bearer ${secretKey}`,
+    },
+    body: JSON.stringify({ email_confirm: true }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Supabase email confirmation failed: ${response.status} ${body}`);
+  }
+}
+
 /**
  * Creates a Supabase Auth user with email_confirm: true (no magic link sent).
  * Returns the Supabase user ID on success, or null if the user already exists (422).
@@ -189,7 +207,13 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
         }
 
         try {
-          await createSupabaseUser(email);
+          const newSupabaseId = await createSupabaseUser(email);
+          if (newSupabaseId === null) {
+            const existingSupabaseId = await getSupabaseUserIdByEmail(email);
+            if (existingSupabaseId) {
+              await confirmSupabaseUserEmail(existingSupabaseId);
+            }
+          }
         } catch (err) {
           logger.error({ err }, 'Supabase user creation failed');
           sendError(res, 500, 'INVITE_FAILED', 'Failed to prepare invitation');
