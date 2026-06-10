@@ -12,6 +12,8 @@ const {
   mockPostMessage,
   mockCreateSlackClient,
   mockLoadTenantEnv,
+  mockRunLocalDockerContainer,
+  mockStopLocalDockerContainer,
 } = vi.hoisted(() => {
   const mockCreateMachine = vi.fn();
   const mockDestroyMachine = vi.fn();
@@ -20,6 +22,8 @@ const {
   const mockPostMessage = vi.fn();
   const mockCreateSlackClient = vi.fn();
   const mockLoadTenantEnv = vi.fn();
+  const mockRunLocalDockerContainer = vi.fn().mockReturnValue({ id: 'mock-delivery-container' });
+  const mockStopLocalDockerContainer = vi.fn();
   return {
     mockCreateMachine,
     mockDestroyMachine,
@@ -28,6 +32,18 @@ const {
     mockPostMessage,
     mockCreateSlackClient,
     mockLoadTenantEnv,
+    mockRunLocalDockerContainer,
+    mockStopLocalDockerContainer,
+  };
+});
+
+vi.mock('../../../src/inngest/lib/lifecycle-helpers.js', async (importActual) => {
+  const actual =
+    await importActual<typeof import('../../../src/inngest/lib/lifecycle-helpers.js')>();
+  return {
+    ...actual,
+    runLocalDockerContainer: mockRunLocalDockerContainer,
+    stopLocalDockerContainer: mockStopLocalDockerContainer,
   };
 });
 
