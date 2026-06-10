@@ -690,19 +690,19 @@ Critical Path: Task 1 → Task 2 → Task 7 → Task 9 → F1-F4 → user okay
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before declaring done. Never mark F1–F4 checked before user approval.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read this plan end-to-end. For each "Must Have": verify implemented (read the file, run the dashboard). For each "Must NOT Have": grep the diff for violations (no `authz.ts`/`permissions.ts` edits, no JWT `app_metadata` role read, no TenantOverview refactor, no Members move, no Preflight server gate). Confirm evidence files exist in `.sisyphus/evidence/owner-section/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm dashboard:build` + dashboard `vitest`. Review changed files for: `as any`/`@ts-ignore`, console.log, dead code, generic names, AI slop. Verify the 3-state loading guard exists and role checks read only from `AuthContext.globalRole`. Confirm SearchableSelect/card-shell/URL-state conventions where applicable.
       Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill)
       From clean browser state: (1) log in as owner → assert "Platform Admin" group shows all 5 items, each route loads. (2) log in as seeded non-owner → assert group ABSENT and each owner route renders the 403 page. (3) Verify no owner-nav/403 flash during load. (4) Tenant Management: list, show-deleted toggle, create-org. Save evidence to `.sisyphus/evidence/owner-section/final-qa/`.
       Output: `Owner sees [5/5] | Non-owner blocked [5/5] | No flash [PASS] | TenantMgmt [PASS] | VERDICT`
 
-- [ ] F4. **Scope & State Fidelity** — `deep`
+- [x] F4. **Scope & State Fidelity** — `deep`
       For each task: read "What to do", read actual diff. Verify 1:1 (nothing missing, nothing beyond spec). Confirm TenantOverview untouched, Members untouched, server middleware untouched, Header switcher untouched. Flag any unaccounted change.
       Output: `Tasks [N/N compliant] | Untouched-guarantees [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
