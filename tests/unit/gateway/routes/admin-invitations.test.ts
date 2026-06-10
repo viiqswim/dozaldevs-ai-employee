@@ -692,3 +692,126 @@ describe('POST /admin/tenants/:tenantId/invitations/:invitationId/revoke', () =>
     expect(res.status).toBe(200);
   });
 });
+
+describe('POST /invitations/set-password', () => {
+  const TOKEN = 'e'.repeat(64);
+  const INVITEE_EMAIL = 'invitee@example.com';
+  const PASSWORD = 'newpassword123';
+
+  beforeEach(() => {
+    currentAuth = {};
+    tenantMembershipForAuthz = null;
+    vi.clearAllMocks();
+  });
+
+  function pendingInvitation(overrides: Record<string, unknown> = {}) {
+    return {
+      id: INVITATION_ID,
+      tenant_id: TENANT_ID,
+      email: INVITEE_EMAIL,
+      role: TenantRole.MEMBER,
+      status: 'pending',
+      expires_at: new Date(Date.now() + 86400000),
+      ...overrides,
+    };
+  }
+
+  it('returns 200 for a valid pending token and password', async () => {
+    const invitationFindFirst = vi.fn().mockResolvedValue(pendingInvitation());
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi
+          .fn()
+          .mockResolvedValue({ users: [{ id: 'supabase-user-id', email: INVITEE_EMAIL }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    const app = makeApp({ invitationFindFirst });
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: PASSWORD });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Password set successfully');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const putCall = mockFetch.mock.calls[1];
+    expect(putCall[0]).toContain('/auth/v1/admin/users/supabase-user-id');
+    expect(putCall[1]).toEqual(
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ password: PASSWORD }),
+      }),
+    );
+  });
+
+  it('returns 404 for an unknown token', async () => {
+    const invitationFindFirst = vi.fn().mockResolvedValue(null);
+    const app = makeApp({ invitationFindFirst });
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: PASSWORD });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 410 for an expired token', async () => {
+    const invitationFindFirst = vi
+      .fn()
+      .mockResolvedValue(pendingInvitation({ expires_at: new Date(Date.now() - 86400000) }));
+    const app = makeApp({ invitationFindFirst });
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: PASSWORD });
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('EXPIRED');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 410 for an already-accepted token', async () => {
+    const invitationFindFirst = vi
+      .fn()
+      .mockResolvedValue(pendingInvitation({ status: 'accepted' }));
+    const app = makeApp({ invitationFindFirst });
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: PASSWORD });
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('ALREADY_USED');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 410 for a revoked token', async () => {
+    const invitationFindFirst = vi.fn().mockResolvedValue(pendingInvitation({ status: 'revoked' }));
+    const app = makeApp({ invitationFindFirst });
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: PASSWORD });
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('ALREADY_USED');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when token is missing', async () => {
+    const app = makeApp();
+    const res = await request(app).post('/invitations/set-password').send({ password: PASSWORD });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_INPUT');
+  });
+
+  it('returns 400 when password is missing', async () => {
+    const app = makeApp();
+    const res = await request(app).post('/invitations/set-password').send({ token: TOKEN });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_INPUT');
+  });
+
+  it('returns 400 when password is shorter than 8 characters', async () => {
+    const app = makeApp();
+    const res = await request(app)
+      .post('/invitations/set-password')
+      .send({ token: TOKEN, password: 'short' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_INPUT');
+  });
+});

@@ -79,32 +79,34 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `Authorization: Bearer $SERVICE_TOKEN` header.
 
-| Method   | Path                                                      | Description                                                                     |
-| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                          |
-| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                               |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                            |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                 |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                 |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                             |
-| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                              |
-| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                  |
-| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)               |
-| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                 |
-| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                           |
-| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                         |
-| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants) |
-| `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                        |
-| `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)              |
-| `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                              |
-| `PATCH`  | `/admin/tenants/:tenantId/members/:userId`                | Update a member's tenant role                                                   |
-| `DELETE` | `/admin/tenants/:tenantId/members/:userId`                | Remove a member (soft-delete; blocks removing the last OWNER)                   |
-| `POST`   | `/admin/tenants/:tenantId/invitations`                    | Create an invitation (sends Supabase magic link; expires in 7 days)             |
-| `POST`   | `/admin/tenants/:tenantId/invitations/:id/revoke`         | Revoke a pending invitation                                                     |
-| `POST`   | `/invitations/accept`                                     | Accept an invitation by token (no auth required)                                |
-| `POST`   | `/invitations/decline`                                    | Decline an invitation by token (no auth required)                               |
+| Method   | Path                                                      | Description                                                                                 |
+| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                                      |
+| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                                           |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                                        |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                            |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                            |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                             |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                             |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                                         |
+| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                                          |
+| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                              |
+| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)                           |
+| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                             |
+| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                                       |
+| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                                     |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants)             |
+| `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                                    |
+| `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)                          |
+| `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                                          |
+| `PATCH`  | `/admin/tenants/:tenantId/members/:userId`                | Update a member's tenant role                                                               |
+| `DELETE` | `/admin/tenants/:tenantId/members/:userId`                | Remove a member (soft-delete; blocks removing the last OWNER)                               |
+| `POST`   | `/admin/tenants/:tenantId/invitations`                    | Create an invitation (custom email + token; expires in 7 days)                              |
+| `POST`   | `/admin/tenants/:tenantId/invitations/:id/revoke`         | Revoke a pending invitation                                                                 |
+| `GET`    | `/invitations/:token`                                     | Look up invitation details by token (public; returns email, org name, role, isExistingUser) |
+| `POST`   | `/invitations/set-password`                               | Set password for a new invitee (public, token-bound, gateway-proxied)                       |
+| `POST`   | `/invitations/accept`                                     | Accept an invitation by token (no auth required)                                            |
+| `POST`   | `/invitations/decline`                                    | Decline an invitation by token (no auth required)                                           |
 
 **Create a project:**
 
@@ -153,7 +155,7 @@ src/
 ├── inngest/      # Universal employee lifecycle, interaction handler, rule extractor, cron triggers
 ├── workers/      # Docker container code — AI agent execution (OpenCode harness)
 ├── worker-tools/ # Shell tools for employees (Slack, Hostfully, locks, KB search, platform reporting)
-└── lib/          # Shared utilities: LLM client, Slack/Fly.io/GitHub clients, encryption, logging, retry
+└── lib/          # Shared utilities: LLM client, Slack/Fly.io/GitHub clients, encryption, logging, retry; `email/` — EmailProvider abstraction (Mailpit local / Resend prod)
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts (setup, trigger, verify, dev tools)
 docker/           # Docker Compose infrastructure (shared PostgreSQL, project-specific services)
@@ -182,6 +184,13 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `FLY_WORKER_APP` — Fly.io app name for worker machines (currently: `ai-employee-workers`)
 
 > **Note**: `SUMMARIZER_VM_SIZE`, `WORKER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table. Use the dashboard at `/dashboard/settings` or `PATCH /admin/platform-settings/:key` to update them.
+
+**Email:**
+
+- `RESEND_API_KEY` — Resend API key for production email delivery. Leave empty to use Mailpit (local dev).
+- `EMAIL_FROM` — Sender address for invitation emails. Default: `DozalDevs <noreply@dozaldevs.com>`.
+- `DASHBOARD_BASE_URL` — Base URL for invitation links in emails. Default: `http://localhost:7700`. Production: `https://ai-employees-laaa.onrender.com`.
+- `SMTP_URL` — SMTP connection URL for local Mailpit. Default: `smtp://localhost:54324`.
 
 **Guest-Messaging (VLRE):**
 
@@ -269,11 +278,12 @@ pnpm build       # TypeScript compile
 7. **AI / OpenRouter** — `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PLAN_VERIFIER_MODEL`
 8. **GitHub** — `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`
 9. **Slack Integration** — `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_REDIRECT_BASE_URL`, `SLACK_CHANNEL_ID`, `VLRE_SLACK_BOT_TOKEN`
-10. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
-11. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-12. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
-13. **TENANT SECRETS** — reference-only comment block; never real values here
-14. **DEPRECATED** — commented-out superseded vars; always at the bottom
+10. **Email** — `RESEND_API_KEY`, `EMAIL_FROM`, `DASHBOARD_BASE_URL`, `SMTP_URL`
+11. **Webhooks** — `JIRA_WEBHOOK_SECRET`, `GITHUB_WEBHOOK_SECRET`, `WEBHOOK_PUBLIC_URL`
+12. **Telegram (Developer Notifications)** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+13. **Cost Control** — `AGENT_VERSION_ID` (note: `COST_LIMIT_USD_PER_DEPT_PER_DAY` moved to `platform_settings` DB table)
+14. **TENANT SECRETS** — reference-only comment block; never real values here
+15. **DEPRECATED** — commented-out superseded vars; always at the bottom
 
 ### Rules
 
