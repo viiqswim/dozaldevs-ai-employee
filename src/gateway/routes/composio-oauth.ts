@@ -8,7 +8,7 @@ import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
-import { COMPOSIO_API_KEY } from '../../lib/config.js';
+import { COMPOSIO_API_KEY, DASHBOARD_BASE_URL } from '../../lib/config.js';
 
 const COMPOSIO_DENIED_TOOLKITS = [
   'github',
@@ -22,11 +22,9 @@ const COMPOSIO_DENIED_TOOLKITS = [
   'azure',
 ];
 
-const NOTION_AUTH_CONFIG_ID = 'ac_Gsqb4UMAQUkD';
-
 export interface ComposioOAuthRouteOptions {
   prisma?: PrismaClient;
-  composio?: Pick<Composio, 'connectedAccounts'>;
+  composio?: Pick<Composio, 'connectedAccounts' | 'authConfigs'>;
 }
 
 export function composioOAuthRoutes(opts: ComposioOAuthRouteOptions = {}): Router {
@@ -67,9 +65,31 @@ export function composioOAuthRoutes(opts: ComposioOAuthRouteOptions = {}): Route
 
       try {
         const composio = opts.composio ?? new Composio({ apiKey });
+
+        // Dynamically resolve the auth config ID for the requested toolkit.
+        // This avoids hardcoding per-toolkit IDs and supports any future toolkit automatically.
+        const authConfigs = await composio.authConfigs.list();
+        const authConfig = authConfigs.items.find(
+          (ac) => ac.toolkit?.slug?.toLowerCase() === toolkit.toLowerCase(),
+        );
+        if (!authConfig) {
+          sendError(
+            res,
+            400,
+            'TOOLKIT_NOT_CONFIGURED',
+            `No auth config found for toolkit: ${toolkit}`,
+          );
+          return;
+        }
+
+        // Build the callback URL so Composio redirects back to our server after OAuth,
+        // which lets the callback route write the connection to the DB.
+        const callbackUrl = `${DASHBOARD_BASE_URL()}/admin/tenants/${tenantId}/composio/callback?toolkit=${encodeURIComponent(toolkit)}`;
+
         const connectionRequest = await composio.connectedAccounts.link(
           `tenant_${tenantId}`,
-          NOTION_AUTH_CONFIG_ID,
+          authConfig.id,
+          { allowMultiple: true, callbackUrl },
         );
         sendSuccess(res, 200, { url: connectionRequest.redirectUrl });
       } catch (err) {
