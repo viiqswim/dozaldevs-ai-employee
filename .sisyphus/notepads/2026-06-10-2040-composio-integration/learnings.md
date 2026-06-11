@@ -110,3 +110,90 @@ Response: { "data": { "markdown": "# System Architecture\nTwo diagrams below..."
 - OAuth completed by user ✓
 - Execute API (NOTION_GET_PAGE_MARKDOWN) → known text found ✓
 - VERDICT: PASS written to .sisyphus/evidence/composio/task-1-spike.txt
+
+## [2026-06-11] Task 2 — Cross-Tenant Isolation Proof (PASS)
+
+### Isolation mechanism: Composio `user_id` namespacing
+
+- Call with `user_id: "tenant_spike-test"` (ACTIVE Notion connection) → HTTP 200, returns full page markdown
+- Call with `user_id: "tenant_OTHER-TENANT"` (no connections) → HTTP 400, error code 1810 `ActionExecute_ConnectedAccountNotFound`
+
+**Error shape for unknown user_id:**
+```json
+{
+  "error": {
+    "message": "No connected account found for user ID tenant_OTHER-TENANT for toolkit notion",
+    "code": 1810,
+    "slug": "ActionExecute_ConnectedAccountNotFound",
+    "status": 400,
+    "suggested_fix": "No active connection exists..."
+  }
+}
+```
+
+### Isolation verdict: PASS
+- HTTP 400 is returned — no cross-tenant data leakage
+- `user_id` namespacing is the isolation boundary — a user_id without a connection for the requested toolkit gets a hard 400 error
+- Safe to use `tenant_${tenantId}` as the Composio user_id namespace for production tenant isolation
+
+### Evidence
+`.sisyphus/evidence/composio/task-2-isolation.txt`
+
+## [2026-06-10] Task 3 — Prisma Schema Migration
+
+### Shadow DB Blocked by RLS Migration
+
+`pnpm prisma migrate dev` fails on this codebase with:
+```
+Error: P3006
+Migration `20260601214116_add_rls_policies` failed to apply cleanly to the shadow database.
+Error code: P1014 — The underlying table for model `public._prisma_migrations` does not exist.
+```
+Root cause: `20260601214116_add_rls_policies` enables RLS on `_prisma_migrations` without granting any policies. When Prisma creates the shadow DB and re-applies all migrations, it hits this RLS block and can no longer read `_prisma_migrations`.
+
+`--create-only` flag also triggers the shadow DB check and fails identically.
+
+### Workaround: Manual Migration + resolve
+
+1. Create migration directory + SQL manually
+2. Apply SQL directly: `psql postgresql://... -f migration.sql`
+3. Register: `pnpm prisma migrate resolve --applied <migration_name>`
+4. Regenerate client: `pnpm prisma generate`
+5. Reload PostgREST: `psql ... -c "NOTIFY pgrst, 'reload schema';"`
+
+This is the established pattern for ALL future migrations in this codebase.
+
+### @@map() is Required
+
+Models without `@@map("snake_case")` would create PascalCase tables. All existing models use explicit `@@map`. Added `@@map("composio_connections")` and `@@map("task_composio_calls")` even though the task spec didn't include it — required for PostgREST compatibility.
+
+### Tables Created
+
+- `composio_connections` — tenant-scoped, one row per toolkit, soft-delete via `deleted_at`
+- `task_composio_calls` — audit log for tool calls made during task execution
+
+## [2026-06-10] Task 4 — ComposioConnectionRepository
+
+### Created
+- `src/repositories/composio-connection-repository.ts` — 6 methods, Prisma-based, follows `tenant-secret-repository.ts` pattern exactly
+- `tests/unit/repositories/composio-connection-repository.test.ts` — 5 tests across 3 methods (getActiveConnections, upsertConnection, disconnectConnection)
+
+### upsert composite-key gotcha
+- Prisma's compound-unique `where` for `@@unique([tenant_id, toolkit])` is keyed as `tenant_id_toolkit: { tenant_id, toolkit }` (underscore-joined field names), NOT `tenant_id, toolkit` flat.
+- Mirror of `tenant-secret-repository.ts` which uses `tenant_id_key`.
+
+### disconnect/softDelete use updateMany (not update)
+- `update` requires a unique `where`; our `where` includes `deleted_at: null` (non-unique filter), so `updateMany` is correct. Returns `{ count }`, method returns `void`.
+
+### Stale LSP after prisma generate
+- After adding a model + `prisma generate`, the in-editor LSP keeps showing `Property 'composioConnection' does not exist` / `no exported member 'ComposioConnection'` from cached types.
+- `prisma generate` DID write the types (verified in `.prisma/client/index.d.ts`). The authoritative check is `pnpm build` (tsc) — it compiled with 0 errors. Ignore stale per-edit LSP diagnostics; trust the tsc build.
+
+### Comment hook
+- Repo convention: every repository file carries a file-level `/** Location rationale... Worker containers MUST NOT import... */` header (see tenant-secret-repository.ts, task-repository.ts). This header is REQUIRED and justified — keep it.
+- Per-method docstrings are NOT used in existing repos — removed them to match convention.
+
+### Verification
+- `pnpm vitest run tests/unit/repositories/composio-connection-repository.test.ts` → 5 passed
+- Full `pnpm test:unit` → 1698 passed, 9 skipped, 0 failures
+- `pnpm build` → 0 errors
