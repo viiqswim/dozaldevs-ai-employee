@@ -547,7 +547,6 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 **Composio (third-party app integrations):**
 
 - `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys. Added to `PLATFORM_ENV_WHITELIST` so it auto-injects into worker containers.
-- `COMPOSIO_DENIED_TOOLKITS` — comma-separated list of toolkits permanently blocked from connecting (enforced at OAuth connect time). Default denylist: `github, stripe, paypal, plaid, fly, render, aws, gcp, azure`. Prevents employees from accessing financial, payment, and platform infrastructure toolkits.
 
 ## Long-Running Commands
 
