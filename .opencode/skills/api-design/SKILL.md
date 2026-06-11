@@ -208,6 +208,10 @@ Auth: every endpoint below requires `Authorization: Bearer $SERVICE_TOKEN` (or a
 | `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant (`installation_id` must be a string).                             |
 | `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants sharing the installation).                 |
 | `DELETE` | `/admin/tenants/:tenantId/integrations/google`            | Disconnect Google from tenant (soft-delete).                                                                              |
+| `GET`    | `/admin/tenants/:tenantId/composio/connect`               | Initiate Composio OAuth for a toolkit (`?toolkit=notion`). Returns `{ url }` for browser redirect. Requires ADMIN role.   |
+| `GET`    | `/admin/tenants/:tenantId/composio/connections`           | List active Composio connections for the tenant. Returns `[{ toolkit, status, connected_at }]`. Requires MEMBER role.     |
+| `DELETE` | `/admin/tenants/:tenantId/composio/connections/:toolkit`  | Disconnect a Composio toolkit (soft-delete). Returns 204. Requires ADMIN role.                                            |
+| `GET`    | `/admin/tenants/:tenantId/composio/usage`                 | List Composio tool call audit log grouped by toolkit and date. Returns `[{ toolkit, date, count }]`. Requires MEMBER.     |
 
 **GitHub OAuth (engineer employee):**
 

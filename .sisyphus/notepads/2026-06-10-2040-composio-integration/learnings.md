@@ -452,3 +452,36 @@ tsx /tools/composio/execute.ts --mock --toolkit notion --action NOTION_GET_PAGE_
 
 ### Gotcha for future tasks
 The task spec's verification command used `node /tools/composio/execute.ts ...` — that command CANNOT work for any tool in this repo because of the `.js`-extension-on-.ts-source ESM pattern. Always invoke worker tools with `tsx`, never `node`. The `--mock` output is byte-identical regardless of runner; only the module resolution differs.
+
+## Task 12 — Live E2E Results (2026-06-11)
+
+### Confirmed End-to-End Flow
+- `composio_connections` row for VLRE tenant is visible via both psql AND PostgREST ✅
+- `agents-md-compiler.mts` correctly injects Connected Apps section into compiled_agents_md ✅
+- Section text: "You have access to the following connected apps: notion." with tsx invocation syntax
+- Worker (deepseek-v4-flash via OpenCodeGo) correctly parsed AGENTS.md and called the tool
+- Task ID: `6a308554-f76a-41fa-9a09-16ff26423f97`, reached Done in ~2 minutes
+
+### Composio Tool Invocation
+- OpenCode permission system grants bash permission for `tsx /tools/composio/execute.ts`
+- Tool ran for ~70 seconds (Composio API latency for NOTION_GET_PAGE_MARKDOWN)
+- Tool requires env vars: `COMPOSIO_API_KEY` + `TASK_TENANT_ID` (not `TENANT_ID`)
+- Returns JSON: `{ "data": { "markdown": "...", "successful": true }, "error": null }`
+- Known text confirmed: "Two diagrams below. The first shows where everything lives."
+
+### task_composio_calls Gap (Known Limitation)
+- Shell tool `execute.ts` does NOT write to `task_composio_calls` — no DB access in worker shell tools
+- Table is empty after successful Composio tool use
+- This is a known architectural gap: shell tools run in Docker without PostgREST creds
+- Future enhancement: add audit logging via the platform submit-output mechanism or a lightweight sidecar
+
+### Recovery Nudge Pattern
+- Employee wrote directly to /tmp/summary.txt via `printf` instead of using `submit-output.ts`
+- Harness sent recovery nudge at 14:07:18 (session idle without submit-output)
+- Task still completed successfully — harness reads /tmp/summary.txt regardless of how it was written
+- Note in AGENTS.md says to use submit-output tool, but enforcement is by convention not hard requirement
+
+### Trigger Prompt Override
+- The trigger endpoint DOES accept a `prompt` field in the body
+- The prompt appears in compiled AGENTS.md as `## Your Assignment` section
+- This allows injecting specific tool-call instructions into any task at trigger time

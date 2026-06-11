@@ -100,6 +100,10 @@ Projects can be registered at runtime via the admin REST API. All endpoints requ
 | `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                                       |
 | `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                                     |
 | `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants)             |
+| `GET`    | `/admin/tenants/:tenantId/composio/connect`               | Initiate Composio OAuth for a toolkit (returns `{ url }` for browser redirect)              |
+| `GET`    | `/admin/tenants/:tenantId/composio/connections`           | List active Composio connections for the tenant                                             |
+| `DELETE` | `/admin/tenants/:tenantId/composio/connections/:toolkit`  | Disconnect a Composio toolkit (soft-delete)                                                 |
+| `GET`    | `/admin/tenants/:tenantId/composio/usage`                 | List Composio tool call audit log grouped by toolkit and date                               |
 | `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                                    |
 | `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)                          |
 | `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                                          |
@@ -206,6 +210,11 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `GITHUB_APP_ID` — GitHub App ID (numeric, from GitHub App settings)
 - `GITHUB_APP_NAME` — GitHub App URL slug (e.g. `my-ai-employee`)
 - `GITHUB_PRIVATE_KEY` — RSA private key downloaded from GitHub App settings (store with literal `\n` escaping)
+
+**Composio (third-party app integrations):**
+
+- `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys.
+- `COMPOSIO_DENIED_TOOLKITS` — comma-separated list of toolkits permanently blocked from connecting. Default denylist: `github, stripe, paypal, plaid, fly, render, aws, gcp, azure`.
 
 **Engineering (deprecated — on hold):**
 

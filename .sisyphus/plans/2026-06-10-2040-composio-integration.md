@@ -540,7 +540,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add Composio "Connect an app" dashboard page`.
 
-- [ ] 11. **Docker image rebuild + end-to-end wiring verification**
+- [x] 11. **Docker image rebuild + end-to-end wiring verification**
 
   **What to do**:
   - Rebuild Docker image: `docker build -t ai-employee-worker:latest .`
@@ -571,7 +571,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: NO (Docker build is not committed).
 
-- [ ] 12. **Live E2E — real worker task reads Notion page via shell tool**
+- [x] 12. **Live E2E — real worker task reads Notion page via shell tool**
 
   **What to do**:
   - Ensure the Notion connection established in Task 1 spike is active for the test tenant
@@ -609,7 +609,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: NO (evidence only).
 
-- [ ] 13. **Notify completion** — `tsx scripts/telegram-notify.ts "✅ composio-integration complete — All tasks done. Come back to review results."`
+- [x] 13. **Notify completion** — `tsx scripts/telegram-notify.ts "✅ composio-integration complete — All tasks done. Come back to review results."`
 
 ---
 
