@@ -156,7 +156,7 @@ F5: Docs Freshness (writing)
 
 ## TODOs
 
-- [ ] 1. **Verify `@composio/core` `link()` → OAuth URL + Execute API → reads Notion page (HARD GATE)**
+- [x] 1. **Verify `@composio/core` `link()` → OAuth URL + Execute API → reads Notion page (HARD GATE)**
 
   **What to do**: Write `scripts/spike-composio-api.ts` (throwaway, delete after):
   1. Install `@composio/core` at exact latest stable version (check npm, pin no `^`): `pnpm add @composio/core@X.Y.Z`
@@ -194,7 +194,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES (just `package.json` + lockfile for SDK install). Message: `chore: install @composio/core SDK (gateway only)`. Delete spike script — do NOT commit it.
 
-- [ ] 2. **Cross-tenant isolation proof via Execute API**
+- [x] 2. **Cross-tenant isolation proof via Execute API**
 
   **What to do**: Using the Notion connection established in Task 1, write a second spike (throwaway):
   1. Make Execute API call with `userId: "tenant_spike-test"` (connected to Notion) → should succeed
@@ -221,7 +221,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: NO (spike only, delete after).
 
-- [ ] 3. **`composio_connections` + `task_composio_calls` Prisma tables + migration**
+- [x] 3. **`composio_connections` + `task_composio_calls` Prisma tables + migration**
 
   **What to do**:
   - Add to `prisma/schema.prisma`:
@@ -275,7 +275,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add composio_connections and task_composio_calls tables`.
 
-- [ ] 4. **`ComposioConnectionRepository`**
+- [x] 4. **`ComposioConnectionRepository`**
 
   **What to do**: Create `src/repositories/composio-connection-repository.ts`:
   - `getActiveConnections(tenantId: string): Promise<ComposioConnection[]>` — filters `deleted_at IS NULL` AND `status = 'active'`
@@ -304,7 +304,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add ComposioConnectionRepository`.
 
-- [ ] 5. **`composio/execute.ts` shell tool (wraps Composio Execute API)**
+- [x] 5. **`composio/execute.ts` shell tool (wraps Composio Execute API)**
 
   **What to do**: Create `src/worker-tools/composio/execute.ts`. This is a standard shell tool following the `adding-shell-tools` skill pattern:
 
@@ -361,7 +361,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add composio/execute.ts shell tool`.
 
-- [ ] 6. **`COMPOSIO_API_KEY` + `TASK_TENANT_ID` in worker env whitelist**
+- [x] 6. **`COMPOSIO_API_KEY` + `TASK_TENANT_ID` in worker env whitelist**
 
   **What to do**:
   - In `src/repositories/tenant-env-loader.ts`, add `'COMPOSIO_API_KEY'` to `PLATFORM_ENV_WHITELIST`
@@ -388,7 +388,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add COMPOSIO_API_KEY to platform env whitelist`.
 
-- [ ] 7. **Gateway connect route + OAuth callback (`link()`)**
+- [x] 7. **Gateway connect route + OAuth callback (`link()`)**
 
   **What to do**: Create `src/gateway/routes/composio-oauth.ts` mirroring `src/gateway/routes/notion-oauth.ts`:
   - `GET /admin/tenants/:tenantId/composio/connect?toolkit=notion`
@@ -423,7 +423,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add Composio OAuth connect/callback routes`.
 
-- [ ] 8. **AGENTS.md compiler injection (available toolkits + usage instructions)**
+- [x] 8. **AGENTS.md compiler injection (available toolkits + usage instructions)**
 
   **What to do**:
   - In `src/workers/lib/agents-md-compiler.mts`, after loading the archetype:
@@ -475,7 +475,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: inject Composio connected apps section into compiled AGENTS.md`.
 
-- [ ] 9. **Admin API — list/connect/disconnect + usage endpoint**
+- [x] 9. **Admin API — list/connect/disconnect + usage endpoint**
 
   **What to do**: Add to `src/gateway/routes/composio-oauth.ts` (or a new `src/gateway/routes/composio-admin.ts`):
   - `GET /admin/tenants/:tenantId/composio/connections` — list active connections: `[{ toolkit, status, connected_at }]`
@@ -507,7 +507,7 @@ F5: Docs Freshness (writing)
 
   **Commit**: YES. Message: `feat: add Composio admin API (list/disconnect/usage)`.
 
-- [ ] 10. **Dashboard "Connect an app" page**
+- [x] 10. **Dashboard "Connect an app" page**
 
   **What to do**: Create `dashboard/src/pages/ComposioConnections.tsx` (or similar path following existing page pattern):
   - **Connected apps list**: card shell, shows each connection (toolkit icon/name, status, connected date, "Disconnect" button)

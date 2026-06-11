@@ -86,7 +86,7 @@ describe('agents-md-compiler — Composio Connected Apps injection', () => {
       expect(result).toContain('## Connected Apps (via Composio)');
       expect(result).toContain('You have access to the following connected apps: notion, linear.');
       expect(result).toContain('Available toolkits: notion, linear');
-      expect(result).toContain('node /tools/composio/execute.ts');
+      expect(result).toContain('tsx /tools/composio/execute.ts');
       expect(result).toContain('--toolkit <toolkit-name>');
     });
 

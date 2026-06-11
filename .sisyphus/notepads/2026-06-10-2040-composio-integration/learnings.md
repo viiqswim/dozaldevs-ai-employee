@@ -384,3 +384,71 @@ Models without `@@map("snake_case")` would create PascalCase tables. All existin
 - Full integration suite → 437 passed | 18 skipped, no regressions.
 - `pnpm eslint` on all 4 changed files → clean.
 - REMINDER for future tasks: after any schema model add, run `pnpm prisma generate` before trusting LSP — in-editor diagnostics lag the generated client.
+
+## [2026-06-11] Task 10 — ComposioConnections Dashboard Page
+
+### What was built
+
+- `dashboard/src/pages/ComposioConnections.tsx` — standalone page at `/dashboard/integrations/composio`
+- `ComposioConnection` type added to `dashboard/src/lib/types.ts`
+- 3 API functions added to `dashboard/src/lib/gateway.ts`:
+  - `listComposioConnections(tenantId)` — GET connections list
+  - `getComposioConnectUrl(tenantId, toolkit)` — GET OAuth redirect URL
+  - `disconnectComposioApp(tenantId, toolkit)` — DELETE (204 response, needs raw `fetch` not `gatewayFetch`)
+- Route added to `App.tsx`: `/dashboard/integrations/composio`
+
+### 204 DELETE pattern
+
+`gatewayFetch` calls `response.json()` unconditionally — fails on 204 (no body). Pattern for 204 DELETE endpoints: use raw `fetch` + `response.ok` check (mirror of `removeMember` in `gateway.ts`). Do NOT use `gatewayFetch` for 204 endpoints.
+
+### Dashboard conventions followed
+
+- `SearchableSelect` for toolkit dropdown (not `<select>`)
+- Card shells: `rounded-lg border bg-card px-5 py-4`
+- URL state: standalone page — URL is the state (no `useSearchParams` needed here)
+- Non-technical copy: "Connected apps", "Connect an app", "Disconnect", "Connected"
+- Never shows `tenant_${tenantId}` or internal IDs in UI
+
+### Pre-existing stale LSP errors
+
+LSP shows `composioConnection`/`taskComposioCall` errors in `composio-connection-repository.ts` and `composio-admin.ts` — pre-existing stale artifact from `pnpm prisma generate` not reflecting in the editor's language server. `pnpm build` (tsc) exits 0 — authoritative.
+
+## [2026-06-11] Task 11 — Docker rebuild + container verification
+
+### CRITICAL BUG FOUND & FIXED: `node` → `tsx` for composio tool invocation
+
+The AGENTS.md compiler (`src/workers/lib/agents-md-compiler.mts`, `buildConnectedAppsSection()`) emitted the wrong runner in the Connected Apps section it injects into every employee's AGENTS.md:
+
+```
+node /tools/composio/execute.ts \   ← BROKEN
+```
+
+Running this inside the actual Docker image fails hard:
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/tools/lib/get-arg.js'
+  imported from /tools/composio/execute.ts
+```
+
+Root cause: every shell tool in `src/worker-tools/` imports siblings with a `.js` extension pointing at `.ts` source files (e.g. `import { getArg } from '../lib/get-arg.js'`). Plain `node` (v22 in the image) does NOT rewrite `.js`→`.ts` for ESM, so resolution fails. `tsx` (installed globally at Dockerfile L53) is the canonical runner used by EVERY other tool reference (`submit-output.ts`, slack tools, etc. — all `tsx /tools/...`). This bug would have made the Composio integration silently broken for real employees — the model would copy the `node ...` command from its AGENTS.md and every Composio call would exit 1.
+
+Fix:
+- `src/workers/lib/agents-md-compiler.mts` line 72: `node` → `tsx`
+- `tests/unit/workers/agents-md-compiler-composio.test.ts` line 89: assertion updated to `tsx /tools/composio/execute.ts`
+
+Verified the FIXED invocation produces the expected output inside the container:
+```
+tsx /tools/composio/execute.ts --mock --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"test"}'
+→ {"data":{"markdown":"# Mock Notion Page\n\nThis is a mock response for testing.","successful":true}}
+```
+
+### Verification results (Task 11)
+- `docker build -t ai-employee-worker:latest .` → EXIT_CODE:0
+- `/tools/composio/` contains `execute.ts` + `__fixtures__/` ✓
+- Container mock mode (via `tsx`) → exact expected JSON, exit 0 ✓
+- `pnpm test:unit` → 1710 passed, 9 skipped, 0 failed
+- `pnpm test:integration` → 437 passed, 18 skipped, 0 failed
+- `pnpm build` (tsc) → exit 0
+- Targeted suites `agents-md-compiler-composio.test.ts` + `composio-execute.test.ts` → 12/12 passed
+
+### Gotcha for future tasks
+The task spec's verification command used `node /tools/composio/execute.ts ...` — that command CANNOT work for any tool in this repo because of the `.js`-extension-on-.ts-source ESM pattern. Always invoke worker tools with `tsx`, never `node`. The `--mock` output is byte-identical regardless of runner; only the module resolution differs.

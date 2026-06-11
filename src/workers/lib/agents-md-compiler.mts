@@ -69,7 +69,7 @@ function buildConnectedAppsSection(toolkits: string[]): string | null {
     'To use them, call the shell tool:',
     '',
     '```bash',
-    'node /tools/composio/execute.ts \\',
+    'tsx /tools/composio/execute.ts \\',
     '  --toolkit <toolkit-name> \\',
     '  --action <ACTION_NAME> \\',
     "  --params '<json-params>'",
