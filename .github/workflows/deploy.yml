@@ -33,6 +33,9 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma generate
+      - name: Install worker-tools dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: src/worker-tools
       - run: pnpm build
       - name: Run unit tests (no DB required)
         run: pnpm test:unit
