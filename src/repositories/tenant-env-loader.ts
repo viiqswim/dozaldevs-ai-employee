@@ -10,18 +10,19 @@ import type { TenantRepository } from './tenant-repository.js';
 import type { TenantSecretRepository } from './tenant-secret-repository.js';
 
 const PLATFORM_ENV_WHITELIST = [
+  'AGENT_VERSION_ID',
+  'COMPOSIO_API_KEY',
   'DATABASE_URL',
-  'SUPABASE_URL',
-  'SUPABASE_SECRET_KEY',
+  'INNGEST_BASE_URL',
   'INNGEST_EVENT_KEY',
   'INNGEST_SIGNING_KEY',
-  'INNGEST_BASE_URL',
-  'OPENROUTER_API_KEY',
-  'OPENCODE_GO_API_KEY',
-  'NODE_ENV',
   'LOG_LEVEL',
-  'AGENT_VERSION_ID',
+  'NODE_ENV',
   'NOTION_MOCK',
+  'OPENCODE_GO_API_KEY',
+  'OPENROUTER_API_KEY',
+  'SUPABASE_SECRET_KEY',
+  'SUPABASE_URL',
 ];
 
 export async function loadTenantEnv(
