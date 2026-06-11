@@ -48,21 +48,9 @@ const CatalogQuerySchema = z.object({
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
-interface CachedPage {
-  page: ComposioToolkitsPage;
-  fetchedAt: number;
-}
-
 interface CachedConnectableSet {
   slugs: Set<string>;
   fetchedAt: number;
-}
-
-const pageCache = new Map<string, CachedPage>();
-let connectableCache: CachedConnectableSet | null = null;
-
-function isExpired(fetchedAt: number): boolean {
-  return Date.now() - fetchedAt > ONE_HOUR_MS;
 }
 
 interface RawToolkitItem {
@@ -74,59 +62,55 @@ interface RawToolkitItem {
   toolsCount: number | null;
 }
 
-interface RawToolkitsResponse {
+interface FullCatalogCache {
   items: RawToolkitItem[];
-  nextCursor: string | null;
+  fetchedAt: number;
 }
 
-interface FetchToolkitsParams {
-  limit: number;
-  sortBy: string;
-  managedBy: string;
-  cursor?: string;
-  category?: string;
+let fullCatalogCache: FullCatalogCache | null = null;
+let connectableCache: CachedConnectableSet | null = null;
+
+function isExpired(fetchedAt: number): boolean {
+  return Date.now() - fetchedAt > ONE_HOUR_MS;
 }
 
-async function fetchToolkitsPage(
+async function getOrFetchAllToolkits(
   composio: Pick<Composio, 'toolkits' | 'authConfigs'>,
-  params: FetchToolkitsParams,
-): Promise<RawToolkitsResponse> {
+): Promise<RawToolkitItem[]> {
+  if (fullCatalogCache && !isExpired(fullCatalogCache.fetchedAt)) {
+    return fullCatalogCache.items;
+  }
+
   type ToolkitsClient = { get: (p: Record<string, unknown>) => Promise<unknown> };
-  const sdkParams: Record<string, unknown> = {
-    limit: params.limit,
-    sortBy: params.sortBy,
-    managedBy: params.managedBy,
-  };
-  if (params.cursor) sdkParams['cursor'] = params.cursor;
-  if (params.category) sdkParams['category'] = params.category;
+  const raw = await (composio.toolkits as unknown as ToolkitsClient).get({
+    limit: 1000,
+    sortBy: 'usage',
+    managedBy: 'all',
+  });
 
-  const raw = (await (composio.toolkits as unknown as ToolkitsClient).get(sdkParams)) as Record<
-    string,
-    unknown
-  >;
-  const rawItems = Array.isArray(raw['items']) ? (raw['items'] as Record<string, unknown>[]) : [];
+  const rawItems = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [];
 
-  return {
-    nextCursor: typeof raw['nextCursor'] === 'string' ? raw['nextCursor'] : null,
-    items: rawItems.map((item) => {
-      const meta = item['meta'] as Record<string, unknown> | undefined;
-      return {
-        slug: typeof item['slug'] === 'string' ? item['slug'] : '',
-        name:
-          typeof item['name'] === 'string'
-            ? item['name']
-            : typeof item['slug'] === 'string'
-              ? item['slug']
-              : '',
-        logo: typeof meta?.['logo'] === 'string' ? meta['logo'] : null,
-        description: typeof meta?.['description'] === 'string' ? meta['description'] : null,
-        categories: Array.isArray(meta?.['categories'])
-          ? (meta['categories'] as ComposioToolkitCategory[])
-          : [],
-        toolsCount: typeof meta?.['toolsCount'] === 'number' ? meta['toolsCount'] : null,
-      };
-    }),
-  };
+  const items: RawToolkitItem[] = rawItems.map((item) => {
+    const meta = item['meta'] as Record<string, unknown> | undefined;
+    return {
+      slug: typeof item['slug'] === 'string' ? item['slug'] : '',
+      name:
+        typeof item['name'] === 'string'
+          ? item['name']
+          : typeof item['slug'] === 'string'
+            ? item['slug']
+            : '',
+      logo: typeof meta?.['logo'] === 'string' ? meta['logo'] : null,
+      description: typeof meta?.['description'] === 'string' ? meta['description'] : null,
+      categories: Array.isArray(meta?.['categories'])
+        ? (meta['categories'] as ComposioToolkitCategory[])
+        : [],
+      toolsCount: typeof meta?.['toolsCount'] === 'number' ? meta['toolsCount'] : null,
+    };
+  });
+
+  fullCatalogCache = { items, fetchedAt: Date.now() };
+  return items;
 }
 
 export interface ComposioCatalogRouteOptions {
@@ -201,82 +185,40 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
       }
       const connectableSet = connectableCache.slugs;
 
-      const cacheKey = `${cursor ?? ''}:${search ?? ''}:${category ?? ''}:${limit}`;
-      const cached = pageCache.get(cacheKey);
-
-      if (cached && !isExpired(cached.fetchedAt)) {
-        const items = cached.page.items.map((item) => ({
-          ...item,
-          connectable: connectableSet.has(item.slug.toLowerCase()),
-          connected: connectedSet.has(item.slug.toLowerCase()),
-        }));
-        sendSuccess(res, 200, {
-          items,
-          nextCursor: cached.page.nextCursor,
-        } as ComposioToolkitsPage);
-        return;
-      }
-
-      let sdkPage: ComposioToolkitsPage;
+      let allToolkits: RawToolkitItem[];
       try {
-        const raw = await fetchToolkitsPage(composio, {
-          limit,
-          sortBy: 'usage',
-          managedBy: 'all',
-          cursor,
-          category,
-        });
-
-        let mappedItems: ComposioToolkit[] = raw.items.map((item: RawToolkitItem) => ({
-          slug: item.slug,
-          name: item.name,
-          logo: item.logo,
-          description: item.description,
-          categories: item.categories,
-          toolsCount: item.toolsCount,
-          connectable: false,
-          connected: false,
-        }));
-
-        if (search) {
-          const q = search.toLowerCase();
-          mappedItems = mappedItems.filter(
-            (item) =>
-              item.name.toLowerCase().includes(q) ||
-              (item.description ?? '').toLowerCase().includes(q),
-          );
-        }
-
-        sdkPage = { nextCursor: raw.nextCursor, items: mappedItems };
-        pageCache.set(cacheKey, { page: sdkPage, fetchedAt: Date.now() });
+        allToolkits = await getOrFetchAllToolkits(composio);
       } catch (err) {
         logger.error({ err }, 'Failed to fetch Composio toolkit catalog');
-
-        if (cached) {
-          logger.warn({ cacheKey }, 'Serving stale Composio catalog page due to SDK error');
-          const items = cached.page.items.map((item) => ({
-            ...item,
-            connectable: connectableSet.has(item.slug.toLowerCase()),
-            connected: connectedSet.has(item.slug.toLowerCase()),
-          }));
-          sendSuccess(res, 200, {
-            items,
-            nextCursor: cached.page.nextCursor,
-          } as ComposioToolkitsPage);
-          return;
-        }
-
         sendError(res, 502, 'EXTERNAL_SERVICE_ERROR', 'Failed to fetch app catalog');
         return;
       }
 
-      const items = sdkPage.items.map((item) => ({
+      let filtered = allToolkits;
+      if (search) {
+        const q = search.toLowerCase();
+        filtered = filtered.filter(
+          (item) =>
+            item.name.toLowerCase().includes(q) ||
+            (item.description ?? '').toLowerCase().includes(q),
+        );
+      }
+      if (category) {
+        filtered = filtered.filter((item) => item.categories.some((c) => c.slug === category));
+      }
+
+      const offset = cursor ? parseInt(cursor, 10) || 0 : 0;
+      const pageItems = filtered.slice(offset, offset + limit);
+      const nextOffset = offset + limit;
+      const nextCursorOut = nextOffset < filtered.length ? String(nextOffset) : null;
+
+      const items = pageItems.map((item) => ({
         ...item,
         connectable: connectableSet.has(item.slug.toLowerCase()),
         connected: connectedSet.has(item.slug.toLowerCase()),
       }));
 
-      sendSuccess(res, 200, { items, nextCursor: sdkPage.nextCursor } as ComposioToolkitsPage);
+      sendSuccess(res, 200, { items, nextCursor: nextCursorOut } as ComposioToolkitsPage);
     },
   );
 

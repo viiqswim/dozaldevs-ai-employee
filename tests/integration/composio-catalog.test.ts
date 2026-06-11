@@ -108,7 +108,7 @@ describe('GET /admin/tenants/:tenantId/composio/toolkits', () => {
         rawItem('plainapp'),
       ];
       const composio: ComposioMock = {
-        toolkits: { get: vi.fn().mockResolvedValue({ items, nextCursor: null }) },
+        toolkits: { get: vi.fn().mockResolvedValue(items) },
         authConfigs: {
           list: vi.fn().mockResolvedValue({
             items: [{ id: 'ac_managed', toolkit: { slug: 'managedapp' } }],
@@ -125,8 +125,6 @@ describe('GET /admin/tenants/:tenantId/composio/toolkits', () => {
       );
 
       expect(bySlug['managedapp'].connectable).toBe(true);
-      // noauthapp has a truthy noAuth catalog flag but is absent from authConfigs:
-      // false here proves authConfigs is the source of truth, not the catalog flag.
       expect(bySlug['noauthapp'].connectable).toBe(false);
       expect(bySlug['plainapp'].connectable).toBe(false);
     });
@@ -136,7 +134,7 @@ describe('GET /admin/tenants/:tenantId/composio/toolkits', () => {
     it('marks a toolkit connected when the tenant has an active connection for it', async () => {
       const items = [rawItem('notion'), rawItem('gmail')];
       const composio: ComposioMock = {
-        toolkits: { get: vi.fn().mockResolvedValue({ items, nextCursor: null }) },
+        toolkits: { get: vi.fn().mockResolvedValue(items) },
         authConfigs: { list: vi.fn().mockResolvedValue({ items: [] }) },
       };
       const app = await makeApp({
@@ -158,26 +156,26 @@ describe('GET /admin/tenants/:tenantId/composio/toolkits', () => {
     });
   });
 
-  describe('pagination — nextCursor passthrough and cursor forwarding', () => {
-    it('returns the SDK nextCursor and forwards ?cursor on the next request', async () => {
-      const items = [rawItem('notion')];
+  describe('pagination — offset-based cursor from the full cached catalog', () => {
+    it('returns a numeric offset cursor and paginates with a single SDK call', async () => {
+      const items = [rawItem('app1'), rawItem('app2'), rawItem('app3')];
       const composio: ComposioMock = {
-        toolkits: { get: vi.fn().mockResolvedValue({ items, nextCursor: 'cursor-abc' }) },
+        toolkits: { get: vi.fn().mockResolvedValue(items) },
         authConfigs: { list: vi.fn().mockResolvedValue({ items: [] }) },
       };
       const app = await makeApp({ composio });
 
-      const first = await authed(app, URL);
+      const first = await authed(app, `${URL}?limit=2`);
       expect(first.status).toBe(200);
-      expect(first.body.nextCursor).toBe('cursor-abc');
+      expect(first.body.items).toHaveLength(2);
+      expect(first.body.nextCursor).toBe('2');
 
-      const second = await authed(app, `${URL}?cursor=cursor-abc`);
+      const second = await authed(app, `${URL}?cursor=2&limit=2`);
       expect(second.status).toBe(200);
+      expect(second.body.items).toHaveLength(1);
+      expect(second.body.nextCursor).toBeNull();
 
-      expect(composio.toolkits.get).toHaveBeenCalledWith(
-        expect.objectContaining({ cursor: 'cursor-abc' }),
-      );
-      expect(composio.toolkits.get).toHaveBeenCalledTimes(2);
+      expect(composio.toolkits.get).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -185,7 +183,7 @@ describe('GET /admin/tenants/:tenantId/composio/toolkits', () => {
     it('invokes toolkits.get exactly once for two identical requests', async () => {
       const items = [rawItem('notion')];
       const composio: ComposioMock = {
-        toolkits: { get: vi.fn().mockResolvedValue({ items, nextCursor: null }) },
+        toolkits: { get: vi.fn().mockResolvedValue(items) },
         authConfigs: { list: vi.fn().mockResolvedValue({ items: [] }) },
       };
       const app = await makeApp({ composio });
