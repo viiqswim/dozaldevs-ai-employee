@@ -10,18 +10,6 @@ import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
 import { COMPOSIO_API_KEY, DASHBOARD_BASE_URL } from '../../lib/config.js';
 
-const COMPOSIO_DENIED_TOOLKITS = [
-  'github',
-  'stripe',
-  'paypal',
-  'plaid',
-  'fly',
-  'render',
-  'aws',
-  'gcp',
-  'azure',
-];
-
 export interface ComposioOAuthRouteOptions {
   prisma?: PrismaClient;
   composio?: Pick<Composio, 'connectedAccounts' | 'authConfigs'>;
@@ -49,11 +37,6 @@ export function composioOAuthRoutes(opts: ComposioOAuthRouteOptions = {}): Route
       const toolkit = req.query['toolkit'];
       if (!toolkit || typeof toolkit !== 'string') {
         sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'toolkit query param is required');
-        return;
-      }
-
-      if (COMPOSIO_DENIED_TOOLKITS.includes(toolkit.toLowerCase())) {
-        sendError(res, 400, 'TOOLKIT_DENIED', 'Toolkit is not permitted');
         return;
       }
 

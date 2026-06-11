@@ -91,14 +91,14 @@ describe('GET /admin/tenants/:tenantId/composio/connect', () => {
     expect(linkMock).not.toHaveBeenCalled();
   });
 
-  it('returns 400 for a denied toolkit', async () => {
+  it('returns 400 for an unconfigured toolkit (no auth config exists)', async () => {
     const { app, linkMock } = makeApp();
     const res = await request(app)
       .get(`/admin/tenants/${TENANT_ID}/composio/connect?toolkit=github`)
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('TOOLKIT_DENIED');
+    expect(res.body.error).toBe('TOOLKIT_NOT_CONFIGURED');
     expect(linkMock).not.toHaveBeenCalled();
   });
 

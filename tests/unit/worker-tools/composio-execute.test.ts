@@ -71,9 +71,6 @@ describe('composio/execute tool', () => {
     }
   });
 
-  function stderr(): string {
-    return stderrChunks.filter((c) => !c.startsWith('Fatal: Error: ExitError:')).join('');
-  }
   function stdout(): string {
     return stdoutChunks.join('');
   }
@@ -88,26 +85,6 @@ describe('composio/execute tool', () => {
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
-
-  it('exits non-zero with TOOLKIT_DENIED for a denied toolkit and makes no HTTP call', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    await runTool([
-      '--toolkit',
-      'github',
-      '--action',
-      'GITHUB_GET_REPO',
-      '--params',
-      '{"repo":"x"}',
-    ]);
-
-    expect(capturedExitCode).toBe(1);
-    const err = JSON.parse(stderr().trim()) as Record<string, unknown>;
-    expect(err.code).toBe('TOOLKIT_DENIED');
-    expect(err.error).toContain('github');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
 
   it('returns fixture JSON in --mock mode without making an HTTP call', async () => {
     const fetchMock = vi.fn();

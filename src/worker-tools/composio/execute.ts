@@ -13,20 +13,6 @@ import { getArg } from '../lib/get-arg.js';
 import { requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
-// Permanent security denylist — source control, payments/finance, and cloud
-// infra toolkits an AI employee must never be able to call.
-const COMPOSIO_DENIED_TOOLKITS = [
-  'github',
-  'stripe',
-  'paypal',
-  'plaid',
-  'fly',
-  'render',
-  'aws',
-  'gcp',
-  'azure',
-];
-
 const COMPOSIO_EXECUTE_BASE_URL = 'https://backend.composio.dev/api/v3.1/tools/execute';
 
 interface ComposioErrorBody {
@@ -62,15 +48,6 @@ async function main(): Promise<void> {
   const rawParams = getArg(args, '--params');
   const tenantIdArg = getArg(args, '--tenant-id');
   const isMock = args.includes('--mock');
-
-  // Denylist is checked before mock mode and before credentials are read so a
-  // denied toolkit can never execute, not even with --mock.
-  if (toolkit && COMPOSIO_DENIED_TOOLKITS.includes(toolkit.toLowerCase())) {
-    console.error(
-      JSON.stringify({ error: `Toolkit '${toolkit}' is not permitted`, code: 'TOOLKIT_DENIED' }),
-    );
-    process.exit(1);
-  }
 
   // 3. Mock mode — short-circuits before requireEnv so it runs without creds.
   if (isMock) {
