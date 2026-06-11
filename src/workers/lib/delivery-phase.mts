@@ -12,7 +12,7 @@
 
 import { createLogger } from '../../lib/logger.js';
 import { type PostgRESTClient } from './postgrest-client.js';
-import { compileAgentsMd } from './agents-md-compiler.mjs';
+import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
 import { markFailed, fireCompletionEvent, writeOpencodeAuth } from './harness-helpers.mjs';
@@ -88,6 +88,10 @@ export async function runDeliveryPhase(
   // 4. Auth setup — required before OpenCode session
   await writeOpencodeAuth(archetype.temperature ?? 1.0);
 
+  // Load active Composio toolkits for the tenant (empty when none connected —
+  // the compiler then omits the Connected Apps section).
+  const connectedToolkits = task.tenant_id ? await loadConnectedToolkits(task.tenant_id) : [];
+
   // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
   try {
     const { writeFile } = await import('node:fs/promises');
@@ -98,6 +102,7 @@ export async function runDeliveryPhase(
       employeeRules: '',
       employeeKnowledge: '',
       platformRulesOverride: archetype.platform_rules_override ?? undefined,
+      connectedToolkits,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');

@@ -322,3 +322,33 @@ Models without `@@map("snake_case")` would create PascalCase tables. All existin
 - `pnpm build` → 0 errors
 - `pnpm vitest run --config vitest.integration.config.ts tests/integration/composio-oauth.test.ts` → 5 passed
 - `pnpm exec eslint <4 changed files>` → 0 errors
+
+## Task 8 — AGENTS.md Compiler Composio Injection (2026-06-11)
+
+### compileAgentsMd is SYNC — keep it sync
+
+- `compileAgentsMd()` has 25 existing sync unit tests + 3 caller sites (`execution-phase.mts`, `delivery-phase.mts`, `admin-brain-preview.ts`). Making it async to fetch connections inline would break all of them.
+- Chosen design: add an OPTIONAL `connectedToolkits?: string[]` field to `CompileAgentsMdInput` (sync, directly unit-testable) + a SEPARATE async `loadConnectedToolkits(tenantId)` PostgREST helper exported from the same file. Callers fetch then pass in. Fully backward compatible — undefined/empty → section omitted.
+
+### PostgREST in compiler — reuse worker `query()` helper
+
+- `agents-md-compiler.mts` imports `query` from `./postgrest-client.js` (the worker PostgREST client, NOT Prisma — worker boundary). `query<T>(table, params)` returns `T[] | null`; null on missing env or HTTP failure → `loadConnectedToolkits` returns `[]` → section absent. Graceful degradation, never throws.
+- Query string: `tenant_id=eq.${tenantId}&status=eq.active&deleted_at=is.null&select=toolkit`.
+
+### Injection point
+
+- Section pushed AFTER the `<delivery-instructions>` block and BEFORE Behavioral Rules / Knowledge Base (the employee-specific sections). Matches plan spec "after shell tools, before employee-specific instructions."
+
+### tenant_id source in callers
+
+- `TaskWithArchetype.tenant_id` (snake_case, optional) is the source. Both phases: `task.tenant_id ? await loadConnectedToolkits(task.tenant_id) : []`.
+
+### Testing — mock the `query` export
+
+- `vi.mock('../../../src/workers/lib/postgrest-client.js', () => ({ query: queryMock }))` with `vi.hoisted`. Drive the two required scenarios (1+ rows / empty array) plus null-failure, de-dup, empty-tenantId, and placement assertions. 10 tests, all green. Existing 25 compiler tests still pass — no regression.
+
+### Verification
+
+- `pnpm vitest run` (new + existing compiler tests) → 35 passed
+- `pnpm build` → EXIT 0
+- Stale LSP on `composio-connection-repository.ts` (Task 4 artifact) + `vitest.config.ts` coverage overload persist in-editor — both pre-existing, unrelated to Task 8; tsc is authoritative.
