@@ -515,6 +515,15 @@ See README.md for docs directory structure and naming conventions.
 
 Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `SERVICE_TOKEN`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`. See `.env.example` for the full list. **Note**: `WORKER_VM_SIZE`, `SUMMARIZER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table — not env vars.
 
+**AI agent rule — new env vars MUST be added to BOTH files (MANDATORY):** Whenever an AI agent introduces a new environment variable — whether referenced via `requireEnv()`/`optionalEnv()`, added to `PLATFORM_ENV_WHITELIST`, or needed by any new feature — it MUST in the same session:
+
+1. Add the var with a full descriptive comment to `.env.example` in the correct section (`.env.example` is the source of truth and is committed to the repo)
+2. Add the var with an empty placeholder value and a brief comment to `.env` in the same section (`.env` is gitignored — the user fills in real values here)
+
+**Why both files:** `.env.example` tells every developer what the var does and where to get it. `.env` puts the empty slot directly in front of the user so they can fill it in without hunting. A var that exists in code but not in both files is a bug — the user cannot know it's needed.
+
+**Placement rule:** Insert new vars into the correct named section (e.g., `# Composio`, `# Fly.io`). Never append to the bottom of either file outside a named section.
+
 **GitHub App — per-environment vars**: `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`, and `GITHUB_WEBHOOK_SECRET` differ between dev and prod. Dev App points to `https://local-ai-employee.dozaldevs.com`; prod App points to `https://ai-employees-laaa.onrender.com`. Each App has its own private key and webhook secret — never shared between environments. See [GitHub Integration Guide](docs/guides/2026-06-02-1727-github-integration.md) § Multi-Environment Setup.
 
 **Google Integration:**
@@ -531,6 +540,10 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `SMTP_URL` — SMTP connection URL for local Mailpit (used when `RESEND_API_KEY` is absent). Default: `smtp://localhost:54324`. Mailpit web UI: `http://localhost:54325`.
 
 **OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts`.
+
+**Composio (third-party app integrations):**
+
+- `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys. Added to `PLATFORM_ENV_WHITELIST` so it auto-injects into worker containers.
 
 ## Long-Running Commands
 
