@@ -9,6 +9,7 @@ export default defineConfig({
       SUPABASE_SECRET_KEY: 'test-supabase-service-role-key',
       SUPABASE_ANON_KEY: 'eyJ-test-anon-key-local-profile',
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001',
+      INNGEST_DEV: '1',
     },
     globalSetup: './tests/helpers/global-setup.ts',
     pool: 'forks',
