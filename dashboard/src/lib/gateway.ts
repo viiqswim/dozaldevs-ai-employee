@@ -16,6 +16,7 @@ import type {
   GitHubInstallation,
   AdminTenant,
   ComposioConnection,
+  ComposioToolkitsPage,
 } from './types';
 
 export type MeResponse = {
@@ -578,4 +579,23 @@ export async function disconnectComposioApp(tenantId: string, toolkit: string): 
     const text = await response.text();
     throw new Error(`Gateway error ${response.status}: ${text}`);
   }
+}
+
+export async function listComposioToolkits(
+  tenantId: string,
+  opts?: {
+    cursor?: string;
+    search?: string;
+    category?: string;
+    limit?: number;
+  },
+): Promise<ComposioToolkitsPage> {
+  const params = new URLSearchParams();
+  if (opts?.cursor) params.set('cursor', opts.cursor);
+  if (opts?.search) params.set('search', opts.search);
+  if (opts?.category) params.set('category', opts.category);
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
+  return gatewayFetch<ComposioToolkitsPage>(url);
 }

@@ -412,3 +412,19 @@ export interface ComposioConnection {
   status: string;
   connected_at: string;
 }
+
+export interface ComposioToolkit {
+  slug: string;
+  name: string;
+  logo: string | null;
+  description: string | null;
+  categories: { slug: string; name: string }[];
+  toolsCount: number | null;
+  connectable: boolean;
+  connected: boolean;
+}
+
+export interface ComposioToolkitsPage {
+  items: ComposioToolkit[];
+  nextCursor: string | null;
+}
