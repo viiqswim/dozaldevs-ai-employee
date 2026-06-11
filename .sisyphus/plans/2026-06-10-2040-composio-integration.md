@@ -617,24 +617,24 @@ F5: Docs Freshness (writing)
 
 > 5 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Verify "Must Have": Wave 1 gates passed; SDK gateway-only; `link()` used; denylist enforced in shell tool; per-tenant isolation; metering works; live E2E succeeded.
       Verify "Must NOT Have": no `@composio/core` in worker image; no MCP injection; no existing tools touched; no `initiate()`; no per-user connections; no other toolkits; no hardcoded keys.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT`
 
-- [ ] F2. **Code Quality + Local CI Green** — `unspecified-high`
+- [x] F2. **Code Quality + Local CI Green** — `unspecified-high`
       Run `pnpm build`, `pnpm test:unit`, `pnpm test:integration`, `pnpm lint` → all 0-fail. LSP diagnostics clean. No `as any` in new code. Repository + shell tool patterns followed. `unescapeShellArg` used in shell tool.
       Output: `Build | Unit [N/N] | Integration [N/N] | Lint | LSP | VERDICT`
 
-- [ ] F3. **Hands-on QA** — `unspecified-high`
+- [x] F3. **Hands-on QA** — `unspecified-high`
       Exercise the full flow: connect Notion via dashboard → connection appears in list → trigger task → shell tool called in logs → `task_composio_calls` row written → Notion content in output → disconnect via dashboard → verify graceful degradation (task runs without Composio section).
       Output: `Connect ✅ | List ✅ | Task shell tool ✅ | Audit ✅ | Disconnect ✅ | Degradation ✅ | VERDICT`
 
-- [ ] F4. **Scope Fidelity** — `deep`
+- [x] F4. **Scope Fidelity** — `deep`
       `git diff --name-only origin/main` — confirm only in-scope files. No existing integration files modified. No `@composio/core` in worker Dockerfile or worker code. No `initiate()`. No per-user logic. No toolkits beyond Notion in any seeded/hardcoded list.
       Output: `Files [N/N in scope] | Protected intact | No forbidden patterns | VERDICT`
 
-- [ ] F5. **Docs Freshness** — `writing`
+- [x] F5. **Docs Freshness** — `writing`
       AGENTS.md updated: `composio_connections` table; `task_composio_calls` table; new admin API endpoints; `COMPOSIO_API_KEY` env var; `COMPOSIO_DENIED_TOOLKITS` constant; shell tool at `/tools/composio/`. README: new admin API endpoints. No stale "Composio not integrated" claims.
       Output: `AGENTS.md ✅ | README ✅ | No stale claims ✅ | VERDICT`
 
@@ -665,8 +665,8 @@ docker run --rm ai-employee-worker:latest \
 
 ## Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Wave 1 spike evidence in `.sisyphus/evidence/composio/`
-- [ ] Live E2E proved Notion read via shell tool
-- [ ] Notify completion (Telegram)
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Wave 1 spike evidence in `.sisyphus/evidence/composio/`
+- [x] Live E2E proved Notion read via shell tool
+- [x] Notify completion (Telegram)
