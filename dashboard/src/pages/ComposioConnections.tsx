@@ -1,174 +1,255 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { SearchableSelect } from '@/components/ui/searchable-select';
-import { ErrorBox } from '@/components/ui/error-box';
 import { usePoll } from '@/hooks/use-poll';
 import { useTenant } from '@/hooks/use-tenant';
-import { formatRelativeTime } from '@/lib/utils';
 import {
   listComposioConnections,
+  listComposioToolkits,
   getComposioConnectUrl,
   disconnectComposioApp,
 } from '@/lib/gateway';
-import type { ComposioConnection } from '@/lib/types';
-
-const TOOLKIT_OPTIONS = [{ value: 'notion', label: 'Notion' }];
-
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-interface ConnectionRowProps {
-  connection: ComposioConnection;
-  disconnecting: boolean;
-  onDisconnect: (toolkit: string) => void;
-}
-
-function ConnectionRow({ connection, disconnecting, onDisconnect }: ConnectionRowProps) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3 border-b last:border-0">
-      <div className="space-y-0.5">
-        <p className="text-sm font-medium">{capitalize(connection.toolkit)}</p>
-        <p className="text-xs text-muted-foreground">
-          Connected {formatRelativeTime(connection.connected_at)}
-        </p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Badge className="border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-          ✓ Connected
-        </Badge>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-          disabled={disconnecting}
-          onClick={() => onDisconnect(connection.toolkit)}
-        >
-          Disconnect
-        </Button>
-      </div>
-    </div>
-  );
-}
+import type { ComposioToolkit } from '@/lib/types';
+import { ConnectedAppsZone } from './composio/ConnectedAppsZone';
+import { IntegrationCard } from './composio/IntegrationCard';
+import { SearchToolbar } from './composio/SearchToolbar';
+import {
+  SkeletonGrid,
+  EmptySearchState,
+  CatalogErrorState,
+  showPopupBlockedToast,
+} from './composio/MarketplaceStates';
 
 export function ComposioConnections() {
   const { tenantId } = useTenant();
-  const [selectedToolkit, setSelectedToolkit] = useState('');
-  const [connecting, setConnecting] = useState(false);
-  const [pendingMessage, setPendingMessage] = useState(false);
-  const [disconnectingToolkit, setDisconnectingToolkit] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const search = searchParams.get('search') ?? '';
+  const category = searchParams.get('category') ?? '';
 
   const fetchConnections = useCallback(() => listComposioConnections(tenantId), [tenantId]);
+  const {
+    data: connections,
+    loading: connectionsLoading,
+    refresh: refreshConnections,
+  } = usePoll(fetchConnections);
 
-  const { data: connections, error, loading, refresh } = usePoll(fetchConnections);
+  const [catalogItems, setCatalogItems] = useState<ComposioToolkit[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<Error | null>(null);
+  const [allCategories, setAllCategories] = useState<{ slug: string; name: string }[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  async function handleConnect() {
-    if (!selectedToolkit) return;
-    setConnecting(true);
-    setPendingMessage(false);
+  const loadCatalog = useCallback(
+    (q: string, cat: string) => {
+      setCatalogLoading(true);
+      setCatalogError(null);
+      setNextCursor(null);
+      listComposioToolkits(tenantId, {
+        limit: 24,
+        search: q || undefined,
+        category: cat || undefined,
+      })
+        .then((page) => {
+          setCatalogItems(page.items);
+          setNextCursor(page.nextCursor);
+          if (!q && !cat) {
+            const catMap = new Map<string, string>();
+            for (const item of page.items) {
+              for (const c of item.categories) catMap.set(c.slug, c.name);
+            }
+            setAllCategories(Array.from(catMap.entries()).map(([slug, name]) => ({ slug, name })));
+          }
+        })
+        .catch((err: unknown) => {
+          setCatalogError(err instanceof Error ? err : new Error(String(err)));
+        })
+        .finally(() => setCatalogLoading(false));
+    },
+    [tenantId],
+  );
+
+  useEffect(() => {
+    setNextCursor(null);
+  }, [search, category]);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => loadCatalog(search, category), search ? 300 : 0);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [loadCatalog, search, category]);
+
+  const loadMore = useCallback(() => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    listComposioToolkits(tenantId, {
+      cursor: nextCursor,
+      limit: 24,
+      search: search || undefined,
+      category: category || undefined,
+    })
+      .then((page) => {
+        setCatalogItems((prev) => [...prev, ...page.items]);
+        setNextCursor(page.nextCursor);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [nextCursor, loadingMore, tenantId, search, category]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const connectedSlugs = new Set((connections ?? []).map((c) => c.toolkit.toLowerCase()));
+
+  const availableItems = catalogItems.filter(
+    (t) => t.connectable && !connectedSlugs.has(t.slug.toLowerCase()),
+  );
+
+  const browseItems = catalogItems.filter((t) => !connectedSlugs.has(t.slug.toLowerCase()));
+
+  const isZone1Loading = connectionsLoading || (catalogLoading && catalogItems.length === 0);
+
+  function updateSearch(value: string) {
+    setSearchParams(
+      (prev) => {
+        if (value) prev.set('search', value);
+        else prev.delete('search');
+        return prev;
+      },
+      { replace: true },
+    );
+  }
+
+  function updateCategory(value: string) {
+    setSearchParams(
+      (prev) => {
+        if (value) prev.set('category', value);
+        else prev.delete('category');
+        return prev;
+      },
+      { replace: true },
+    );
+  }
+
+  async function handleConnect(slug: string) {
     try {
-      const { url } = await getComposioConnectUrl(tenantId, selectedToolkit);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setPendingMessage(true);
+      const { url } = await getComposioConnectUrl(tenantId, slug);
+      const popup = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!popup) showPopupBlockedToast();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to start connection. Please try again.',
-      );
-    } finally {
-      setConnecting(false);
+      toast.error('Could not start the connection. Please try again.');
     }
   }
 
-  function handleDisconnect(toolkit: string) {
-    const confirmed = window.confirm(
-      `Disconnect ${capitalize(toolkit)}? AI employees in this organization will lose access to it.`,
-    );
-    if (!confirmed) return;
-    setDisconnectingToolkit(toolkit);
-    disconnectComposioApp(tenantId, toolkit)
-      .then(() => {
-        toast.success(`${capitalize(toolkit)} disconnected`);
-        refresh();
-      })
-      .catch((err: unknown) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to disconnect. Please try again.');
-      })
-      .finally(() => {
-        setDisconnectingToolkit(null);
-      });
+  async function handleDisconnect(slug: string) {
+    try {
+      await disconnectComposioApp(tenantId, slug);
+      toast.success('App disconnected.');
+      refreshConnections();
+      loadCatalog(search, category);
+    } catch (err) {
+      toast.error('Could not disconnect. Please try again.');
+    }
   }
 
   return (
-    <div className="p-6 max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Connected apps</h1>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="rounded-lg border bg-card px-5 py-4">
+        <h1 className="text-lg font-semibold text-foreground">Connected Apps</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect third-party apps so your AI employees can access them during their work.
+          Connect the tools your team already uses to unlock powerful automations.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card px-5 py-4">
-        <h2 className="text-sm font-medium mb-3">Your connected apps</h2>
+      <ConnectedAppsZone
+        connections={connections ?? []}
+        toolkits={catalogItems}
+        onDisconnect={(slug) => void handleDisconnect(slug)}
+        isLoading={isZone1Loading}
+      />
 
-        {loading ? (
-          <div className="space-y-3 py-2">
-            <div className="h-10 animate-pulse rounded bg-muted" />
-            <div className="h-10 animate-pulse rounded bg-muted" />
-          </div>
-        ) : error ? (
-          <ErrorBox message={error.message} onRetry={refresh} />
-        ) : !connections || connections.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No apps connected yet. Connect your first app below.
+      <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Available to connect now</h2>
+        {availableItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            More apps are coming soon — browse the full list below.
           </p>
         ) : (
-          <div>
-            {connections.map((conn) => (
-              <ConnectionRow
-                key={conn.toolkit}
-                connection={conn}
-                disconnecting={disconnectingToolkit === conn.toolkit}
-                onDisconnect={handleDisconnect}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {availableItems.map((toolkit) => (
+              <IntegrationCard
+                key={toolkit.slug}
+                toolkit={toolkit}
+                onConnect={(slug) => void handleConnect(slug)}
+                onDisconnect={(slug) => void handleDisconnect(slug)}
               />
             ))}
           </div>
         )}
       </div>
 
-      <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
-        <div>
-          <h2 className="text-sm font-medium">Connect an app</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Choose an app and click Connect. A new tab will open where you can sign in and grant
-            access.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <SearchableSelect
-            options={TOOLKIT_OPTIONS}
-            value={selectedToolkit}
-            onValueChange={setSelectedToolkit}
-            placeholder="Choose an app"
-            searchPlaceholder="Search apps..."
-            className="w-48"
-            disabled={connecting}
-          />
-          <Button disabled={!selectedToolkit || connecting} onClick={() => void handleConnect()}>
-            {connecting ? 'Opening…' : 'Connect'}
-          </Button>
-        </div>
-
-        {pendingMessage && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              A new tab has opened. Complete the connection in your browser, then refresh this page.
-            </p>
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Browse all apps</h2>
+        <SearchToolbar
+          search={search}
+          category={category}
+          categories={allCategories}
+          onSearchChange={updateSearch}
+          onCategoryChange={updateCategory}
+        />
+        <div className="rounded-lg border bg-card px-5 py-4">
+          <div aria-live="polite" aria-atomic="false">
+            {catalogLoading ? (
+              <SkeletonGrid count={6} />
+            ) : catalogError ? (
+              <CatalogErrorState onRetry={() => loadCatalog(search, category)} />
+            ) : browseItems.length === 0 && search ? (
+              <EmptySearchState query={search} onClear={() => updateSearch('')} />
+            ) : browseItems.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                All available apps are already connected.
+              </p>
+            ) : (
+              <>
+                <div
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                  style={{ contentVisibility: 'auto' }}
+                >
+                  {browseItems.map((toolkit) => (
+                    <IntegrationCard
+                      key={toolkit.slug}
+                      toolkit={toolkit}
+                      onConnect={(slug) => void handleConnect(slug)}
+                      onDisconnect={(slug) => void handleDisconnect(slug)}
+                    />
+                  ))}
+                </div>
+                <div ref={sentinelRef} className="h-4" aria-hidden="true" />
+                {loadingMore && (
+                  <p className="py-4 text-center text-sm text-muted-foreground" aria-live="polite">
+                    Loading more…
+                  </p>
+                )}
+              </>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
