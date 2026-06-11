@@ -74,7 +74,22 @@ export function setup() {
 
   // prisma.config.ts skips keys already in process.env (line 13: `key in process.env`),
   // so DATABASE_URL from .env will NOT override the test URL we set above.
-  const testEnv = { ...process.env, DATABASE_URL: TEST_DB_URL, DATABASE_URL_DIRECT: TEST_DB_URL };
+  //
+  // The vitest `env:` block (vitest.integration.config.ts) is injected into test WORKERS,
+  // NOT into this globalSetup context. In CI (no .env file) these vars are undefined, so
+  // the seed's AES-256-GCM encryption throws "RangeError: Invalid key length". Provide
+  // safe fallbacks here — `?? default` ensures a real local .env value is never overridden.
+  const testEnv = {
+    ...process.env,
+    DATABASE_URL: TEST_DB_URL,
+    DATABASE_URL_DIRECT: TEST_DB_URL,
+    // Must match the ENCRYPTION_KEY in vitest.integration.config.ts so secrets encrypted
+    // at seed time can be decrypted by integration tests.
+    ENCRYPTION_KEY:
+      process.env.ENCRYPTION_KEY ??
+      '0000000000000000000000000000000000000000000000000000000000000001',
+    VLRE_SLACK_BOT_TOKEN: process.env.VLRE_SLACK_BOT_TOKEN ?? 'xoxb-test-vlre-bot-token',
+  };
 
   if (isMigrationCurrent(projectDir, testEnv)) {
     console.log('✅ Migrations already up to date — skipping migrate deploy');
