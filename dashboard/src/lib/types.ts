@@ -406,3 +406,9 @@ export interface AdminTenant {
   status: string;
   created_at: string;
 }
+
+export interface ComposioConnection {
+  toolkit: string;
+  status: string;
+  connected_at: string;
+}

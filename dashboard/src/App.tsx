@@ -24,6 +24,7 @@ import { TaskLogsPage } from './pages/TaskLogsPage';
 import { PlatformSettingsPage } from './pages/PlatformSettingsPage';
 import { MembersPage } from './pages/MembersPage';
 import { TenantManagementPage } from './pages/TenantManagementPage';
+import { ComposioConnections } from './pages/ComposioConnections';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -101,6 +102,7 @@ export default function App() {
                 <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
                 <Route path="/dashboard/tenants" element={<TenantOverview />} />
                 <Route path="/dashboard/integrations" element={<IntegrationsPage />} />
+                <Route path="/dashboard/integrations/composio" element={<ComposioConnections />} />
                 <Route path="/dashboard/rules" element={<RulesPanel />} />
                 <Route path="/dashboard/members" element={<MembersPage />} />
                 <Route element={<PlatformOwnerRoute />}>

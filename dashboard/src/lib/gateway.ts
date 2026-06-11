@@ -15,6 +15,7 @@ import type {
   GitHubRepo,
   GitHubInstallation,
   AdminTenant,
+  ComposioConnection,
 } from './types';
 
 export type MeResponse = {
@@ -548,4 +549,33 @@ export async function createTenant(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function listComposioConnections(tenantId: string): Promise<ComposioConnection[]> {
+  return gatewayFetch<ComposioConnection[]>(`/admin/tenants/${tenantId}/composio/connections`);
+}
+
+export async function getComposioConnectUrl(
+  tenantId: string,
+  toolkit: string,
+): Promise<{ url: string }> {
+  return gatewayFetch<{ url: string }>(
+    `/admin/tenants/${tenantId}/composio/connect?toolkit=${toolkit}`,
+  );
+}
+
+export async function disconnectComposioApp(tenantId: string, toolkit: string): Promise<void> {
+  const token = getAccessToken();
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/composio/connections/${toolkit}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gateway error ${response.status}: ${text}`);
+  }
 }
