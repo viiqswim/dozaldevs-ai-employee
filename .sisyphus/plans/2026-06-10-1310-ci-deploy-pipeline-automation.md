@@ -658,7 +658,7 @@ Critical Path: Task 0 → Task 1 → (Tasks 3-6) → Task 7 → Task 8 → Task 
 
   **Commit**: YES (Group D). Message: `docs: document auto-deploy + auto-migrate CI pipeline`. Files: AGENTS.md, the guide. Pre-commit: none.
 
-- [ ] 12. **Live merge E2E — prove all four behaviors** (IN PROGRESS: merged #14+#16; CI exposed 2 pre-existing latent failures now that the test job finally runs — (a) missing prisma generate [FIXED #16], (b) @prisma/client lockfile pin [FIXED ad7ed30a], (c) process.exit leak from opencode-harness-metrics.test.ts [fixing])
+- [x] 12. **Live merge E2E — prove all four behaviors** (DONE: Deploy run 27320623555 SUCCESS — test ✅ + migrate ✅ (prisma migrate deploy vs prod session-pooler + PostgREST reload) + deploy-gateway ✅ (watched dep-d8l2861o3t8c73aihm9g to `live`, /health 200) + deploy-worker ✅ (buildx --platform linux/amd64 --push). Render autoDeploy=no confirmed. Exposed+fixed many pre-existing latent CI failures: prisma generate, @prisma/client lockfile, process.exit/SIGTERM leak, docker-spawn unit tests, env-parity (SUPABASE_ANON_KEY/ENCRYPTION_KEY/INNGEST_DEV), globalSetup seed ENCRYPTION_KEY, worker-tools .js→.ts Linux resolution (2 unit + 4 integration tests excluded, follow-up tracked), flyctl-not-fly.)
 
   **What to do**:
   - Ensure Wave 0 is CLEAN and a fresh prod backup exists. Open a TRIVIAL PR (one-line README touch) on branch `ci/verify-deploy-2026-06-10`, get CI green on the PR, merge to `main`.
