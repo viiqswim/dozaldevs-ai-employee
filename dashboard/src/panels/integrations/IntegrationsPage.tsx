@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -318,6 +319,23 @@ export function IntegrationsPage() {
                   }
                   connectLabel="Connect Google"
                 />
+                <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">Composio</p>
+                    <p className="text-xs text-muted-foreground">
+                      Connect 1000+ apps (Notion, Linear, Gmail, and more) to give AI employees more
+                      capabilities.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                      to="/dashboard/integrations/composio"
+                      className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
