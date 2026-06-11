@@ -604,3 +604,36 @@ model TaskMetric {
   @@index([tenant_id, archetype_id])
   @@map("task_metrics")
 }
+
+// ============================================================
+// Composio Integration
+// ============================================================
+
+model ComposioConnection {
+  id              String    @id @default(uuid())
+  tenant_id       String
+  toolkit         String
+  status          String    @default("active")
+  connected_at    DateTime  @default(now())
+  disconnected_at DateTime?
+  deleted_at      DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@unique([tenant_id, toolkit])
+  @@index([tenant_id])
+  @@map("composio_connections")
+}
+
+model TaskComposioCall {
+  id        String   @id @default(uuid())
+  task_id   String
+  tenant_id String
+  toolkit   String
+  tool_name String
+  called_at DateTime @default(now())
+
+  @@index([task_id])
+  @@index([tenant_id])
+  @@map("task_composio_calls")
+}
