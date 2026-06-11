@@ -15,6 +15,8 @@ import type {
   GitHubRepo,
   GitHubInstallation,
   AdminTenant,
+  ComposioConnection,
+  ComposioToolkitsPage,
 } from './types';
 
 export type MeResponse = {
@@ -548,4 +550,52 @@ export async function createTenant(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function listComposioConnections(tenantId: string): Promise<ComposioConnection[]> {
+  return gatewayFetch<ComposioConnection[]>(`/admin/tenants/${tenantId}/composio/connections`);
+}
+
+export async function getComposioConnectUrl(
+  tenantId: string,
+  toolkit: string,
+): Promise<{ url: string }> {
+  return gatewayFetch<{ url: string }>(
+    `/admin/tenants/${tenantId}/composio/connect?toolkit=${toolkit}`,
+  );
+}
+
+export async function disconnectComposioApp(tenantId: string, toolkit: string): Promise<void> {
+  const token = getAccessToken();
+  const url = `${GATEWAY_URL}/admin/tenants/${tenantId}/composio/connections/${toolkit}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gateway error ${response.status}: ${text}`);
+  }
+}
+
+export async function listComposioToolkits(
+  tenantId: string,
+  opts?: {
+    cursor?: string;
+    search?: string;
+    category?: string;
+    limit?: number;
+  },
+): Promise<ComposioToolkitsPage> {
+  const params = new URLSearchParams();
+  if (opts?.cursor) params.set('cursor', opts.cursor);
+  if (opts?.search) params.set('search', opts.search);
+  if (opts?.category) params.set('category', opts.category);
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
+  return gatewayFetch<ComposioToolkitsPage>(url);
 }

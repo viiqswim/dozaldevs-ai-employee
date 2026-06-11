@@ -406,3 +406,25 @@ export interface AdminTenant {
   status: string;
   created_at: string;
 }
+
+export interface ComposioConnection {
+  toolkit: string;
+  status: string;
+  connected_at: string;
+}
+
+export interface ComposioToolkit {
+  slug: string;
+  name: string;
+  logo: string | null;
+  description: string | null;
+  categories: { slug: string; name: string }[];
+  toolsCount: number | null;
+  connectable: boolean;
+  connected: boolean;
+}
+
+export interface ComposioToolkitsPage {
+  items: ComposioToolkit[];
+  nextCursor: string | null;
+}

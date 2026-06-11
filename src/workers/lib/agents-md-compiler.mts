@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { query } from './postgrest-client.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -15,6 +17,67 @@ export interface CompileAgentsMdInput {
   employeeRules?: string;
   employeeKnowledge?: string;
   platformRulesOverride?: string | null;
+  /**
+   * Active Composio toolkit names for this tenant (e.g. ['notion', 'linear']).
+   * When non-empty, a "Connected Apps (via Composio)" section is injected after
+   * the delivery instructions and before any employee-specific instructions.
+   * Load these via loadConnectedToolkits(tenantId) before calling.
+   */
+  connectedToolkits?: string[];
+}
+
+interface ComposioConnectionRow {
+  toolkit: string;
+}
+
+/**
+ * Loads the active Composio toolkit names for a tenant via PostgREST.
+ *
+ * Worker containers read the DB through PostgREST (not Prisma), so this uses the
+ * shared worker postgrest-client. Returns a de-duplicated list of toolkit names
+ * for connections that are active and not soft-deleted. On any failure (missing
+ * env, HTTP error, empty result) it returns an empty array — the compiler then
+ * omits the Connected Apps section entirely.
+ */
+export async function loadConnectedToolkits(tenantId: string): Promise<string[]> {
+  if (!tenantId) return [];
+  const rows = await query<ComposioConnectionRow>(
+    'composio_connections',
+    `tenant_id=eq.${tenantId}&status=eq.active&deleted_at=is.null&select=toolkit`,
+  );
+  if (!rows || rows.length === 0) return [];
+  const toolkits = rows
+    .map((r) => r.toolkit)
+    .filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
+  return [...new Set(toolkits)];
+}
+
+/**
+ * Builds the "Connected Apps (via Composio)" section listing the tenant's active
+ * toolkits and the shell-tool invocation contract. Returns null when there are
+ * no toolkits so the caller can skip injection.
+ */
+function buildConnectedAppsSection(toolkits: string[]): string | null {
+  const clean = toolkits.filter((t) => typeof t === 'string' && t.trim().length > 0);
+  if (clean.length === 0) return null;
+  const list = clean.join(', ');
+  return [
+    '## Connected Apps (via Composio)',
+    '',
+    `You have access to the following connected apps: ${list}.`,
+    '',
+    'To use them, call the shell tool:',
+    '',
+    '```bash',
+    'tsx /tools/composio/execute.ts \\',
+    '  --toolkit <toolkit-name> \\',
+    '  --action <ACTION_NAME> \\',
+    "  --params '<json-params>'",
+    '```',
+    '',
+    `Available toolkits: ${list}`,
+    'The tool returns JSON. On error it exits non-zero with `{ "error": "..." }`.',
+  ].join('\n');
 }
 
 const CRITICAL_DIRECTIVE =
@@ -80,6 +143,16 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
       '</delivery-instructions>',
     ].join('\n'),
   );
+
+  // Connected Apps (via Composio) — injected after the shell-tool/delivery
+  // instructions and before any employee-specific instructions. Absent when the
+  // tenant has no active Composio connections.
+  if (input.connectedToolkits && input.connectedToolkits.length > 0) {
+    const connectedAppsSection = buildConnectedAppsSection(input.connectedToolkits);
+    if (connectedAppsSection) {
+      parts.push(connectedAppsSection);
+    }
+  }
 
   if (input.employeeRules?.trim()) {
     parts.push(

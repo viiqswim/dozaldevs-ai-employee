@@ -12,7 +12,7 @@
 
 import { createLogger } from '../../lib/logger.js';
 import { type PostgRESTClient } from './postgrest-client.js';
-import { compileAgentsMd } from './agents-md-compiler.mjs';
+import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
 import { buildTemplateVars, substituteTemplateVars } from './template-vars.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
@@ -171,6 +171,10 @@ export async function runExecutionPhase(
   const approvalRequired =
     (archetype.risk_model as { approval_required?: boolean } | null)?.approval_required ?? true;
 
+  // Load active Composio toolkits for the tenant (empty when none connected —
+  // the compiler then omits the Connected Apps section).
+  const connectedToolkits = task.tenant_id ? await loadConnectedToolkits(task.tenant_id) : [];
+
   // Compile AGENTS.md using template compiler
   try {
     const { writeFile } = await import('node:fs/promises');
@@ -181,6 +185,7 @@ export async function runExecutionPhase(
       employeeRules,
       employeeKnowledge,
       platformRulesOverride: archetype.platform_rules_override ?? undefined,
+      connectedToolkits,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written (template compiler)');

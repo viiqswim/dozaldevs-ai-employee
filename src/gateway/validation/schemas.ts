@@ -254,6 +254,16 @@ export const SlackOAuthStateSchema = z.object({
   nonce: z.string().length(32),
 });
 
+// URL params for DELETE /admin/tenants/:tenantId/composio/connections/:toolkit
+export const ComposioToolkitParamSchema = z.object({
+  tenantId: uuidField(),
+  toolkit: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9_-]+$/, 'toolkit must be lowercase alphanumeric with hyphens or underscores'),
+});
+
 // ─── Knowledge Base Entry CRUD ────────────────────────────────────────────────
 
 export const CreateKbEntrySchema = z

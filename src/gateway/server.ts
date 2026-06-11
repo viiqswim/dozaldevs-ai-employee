@@ -32,6 +32,9 @@ import { adminPlatformSettingsRoutes } from './routes/admin-platform-settings.js
 import { slackOAuthRoutes } from './routes/slack-oauth.js';
 import { jiraOAuthRoutes } from './routes/jira-oauth.js';
 import { notionOAuthRoutes } from './routes/notion-oauth.js';
+import { composioOAuthRoutes } from './routes/composio-oauth.js';
+import { composioAdminRoutes } from './routes/composio-admin.js';
+import { composioCatalogRoutes } from './routes/composio-catalog.js';
 import { githubOAuthRoutes } from './routes/github-oauth.js';
 import { googleOAuthRoutes } from './routes/google-oauth.js';
 import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
@@ -259,6 +262,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use('/internal', internalGoogleTokenRoutes({ prisma }));
   app.use(adminGithubRoutes({ prisma }));
   app.use(adminGoogleRoutes({ prisma }));
+  app.use(composioOAuthRoutes({ prisma }));
+  app.use(composioAdminRoutes({ prisma }));
+  app.use(composioCatalogRoutes({ prisma }));
   app.use(adminUsersRoutes());
   app.use(adminMembersRoutes({ prisma }));
   app.use(adminInvitationsRoutes({ prisma }));

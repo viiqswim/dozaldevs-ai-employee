@@ -74,17 +74,18 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **AGENTS.md compilation**: `agents-md-compiler.mts` assembles the per-task AGENTS.md from archetype fields (`identity`, `execution_steps`, `delivery_steps`), learned rules, knowledge base entries, and the platform base config (`src/workers/config/agents.md`). The `execution_instructions` field is the platform constant prompt injected as the initial OpenCode message — it is not user-editable.
   **Shell tools** at `/tools/` in Docker image — one directory per service:
 
-| Service        | Directory                | Purpose                                                           |
-| -------------- | ------------------------ | ----------------------------------------------------------------- |
-| Slack          | `/tools/slack/`          | Post messages, read channels, post approval cards                 |
-| Hostfully      | `/tools/hostfully/`      | Messages, properties, reservations, reviews, door codes           |
-| Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics |
-| Jira           | `/tools/jira/`           | Issue lookup, search, comments                                    |
-| Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                   |
-| Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                    |
-| Platform       | `/tools/platform/`       | Report issues, submit task output                                 |
-| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI   |
-| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                      |
+| Service        | Directory                | Purpose                                                                                  |
+| -------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| Slack          | `/tools/slack/`          | Post messages, read channels, post approval cards                                        |
+| Hostfully      | `/tools/hostfully/`      | Messages, properties, reservations, reviews, door codes                                  |
+| Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics                        |
+| Jira           | `/tools/jira/`           | Issue lookup, search, comments                                                           |
+| Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                                          |
+| Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                                           |
+| Platform       | `/tools/platform/`       | Report issues, submit task output                                                        |
+| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI                          |
+| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                                             |
+| Composio       | `/tools/composio/`       | Execute actions across 1000+ app integrations (Notion, Linear, Gmail, etc.) via Composio |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
@@ -339,6 +340,8 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 - **`users` table**: `id, supabase_id (unique, nullable), email, name, role (Role enum), status, created_at, updated_at, deleted_at`. Created/updated via `ensureUserExists()` on every authenticated request. `status = 'disabled'` is the immediate lockout mechanism — checked per-request in `authMiddleware`.
 - **`tenant_memberships` table**: composite PK `[tenant_id, user_id]`. Fields: `tenant_id, user_id, role (TenantRole enum), joined_at, deleted_at`. Soft-delete only. Scoped by `tenant_id` on every query.
 - **`tenant_invitations` table**: `id, tenant_id, email, role (TenantRole), token (unique), status, expires_at, accepted_at, declined_at, revoked_at, inviter_id, created_at`. No `deleted_at` — status transitions (`pending → accepted/declined/revoked`) are the lifecycle. Token is a 32-byte random hex string; expires in 7 days.
+- **`composio_connections` table**: `id, tenant_id, toolkit (e.g. "notion"), status ("active"), composio_connection_id, connected_at, deleted_at`. One row per tenant per toolkit. Soft-delete only. Queried by `agents-md-compiler.mts` via PostgREST to inject the Connected Apps section into compiled AGENTS.md. Managed via `GET/DELETE /admin/tenants/:tenantId/composio/connections` and the OAuth connect flow.
+- **`task_composio_calls` table**: `id, task_id, tenant_id, toolkit, tool_name, called_at` — audit log for Composio tool calls made during task execution. Currently unpopulated (shell tools have no PostgREST access); reserved for future audit logging. Queried by `GET /admin/tenants/:tenantId/composio/usage`.
 - **Enums**: `Role` (PLATFORM_OWNER, ADMIN, EDITOR, USER, VIEWER) — global platform role. `TenantRole` (OWNER, ADMIN, MEMBER, VIEWER) — per-tenant role stored in `tenant_memberships`.
 
 ### Database Backup (MANDATORY before any reseed or wipe)
@@ -515,6 +518,15 @@ See README.md for docs directory structure and naming conventions.
 
 Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `JIRA_WEBHOOK_SECRET`, `SERVICE_TOKEN`, `ENCRYPTION_KEY`. Slack (required for approval cards): `SLACK_SIGNING_SECRET`, `SLACK_APP_TOKEN`, `FLY_WORKER_APP`. See `.env.example` for the full list. **Note**: `WORKER_VM_SIZE`, `SUMMARIZER_VM_SIZE`, and `COST_LIMIT_USD_PER_DEPT_PER_DAY` are now managed via the `platform_settings` DB table — not env vars.
 
+**AI agent rule — new env vars MUST be added to BOTH files (MANDATORY):** Whenever an AI agent introduces a new environment variable — whether referenced via `requireEnv()`/`optionalEnv()`, added to `PLATFORM_ENV_WHITELIST`, or needed by any new feature — it MUST in the same session:
+
+1. Add the var with a full descriptive comment to `.env.example` in the correct section (`.env.example` is the source of truth and is committed to the repo)
+2. Add the var with an empty placeholder value and a brief comment to `.env` in the same section (`.env` is gitignored — the user fills in real values here)
+
+**Why both files:** `.env.example` tells every developer what the var does and where to get it. `.env` puts the empty slot directly in front of the user so they can fill it in without hunting. A var that exists in code but not in both files is a bug — the user cannot know it's needed.
+
+**Placement rule:** Insert new vars into the correct named section (e.g., `# Composio`, `# Fly.io`). Never append to the bottom of either file outside a named section.
+
 **GitHub App — per-environment vars**: `GITHUB_APP_ID`, `GITHUB_APP_NAME`, `GITHUB_PRIVATE_KEY`, and `GITHUB_WEBHOOK_SECRET` differ between dev and prod. Dev App points to `https://local-ai-employee.dozaldevs.com`; prod App points to `https://ai-employees-laaa.onrender.com`. Each App has its own private key and webhook secret — never shared between environments. See [GitHub Integration Guide](docs/guides/2026-06-02-1727-github-integration.md) § Multi-Environment Setup.
 
 **Google Integration:**
@@ -531,6 +543,10 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 - `SMTP_URL` — SMTP connection URL for local Mailpit (used when `RESEND_API_KEY` is absent). Default: `smtp://localhost:54324`. Mailpit web UI: `http://localhost:54325`.
 
 **OpenCode Go (optional)**: `OPENCODE_GO_API_KEY` — when set, the harness automatically routes compatible models through OpenCodeGo ($10/mo flat subscription) instead of OpenRouter. Get a key at https://opencode.ai/auth. Remove the env var to revert all routing to OpenRouter. The Go model list is hardcoded in `src/lib/go-models.ts`.
+
+**Composio (third-party app integrations):**
+
+- `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys. Added to `PLATFORM_ENV_WHITELIST` so it auto-injects into worker containers.
 
 ## Long-Running Commands
 

@@ -83,34 +83,39 @@ Full architecture: [docs/architecture/2026-04-14-0104-full-system-vision.md](doc
 
 Projects can be registered at runtime via the admin REST API. All endpoints require an `Authorization: Bearer $SERVICE_TOKEN` header.
 
-| Method   | Path                                                      | Description                                                                                 |
-| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                                      |
-| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                                           |
-| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                                        |
-| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                            |
-| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                            |
-| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                             |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                             |
-| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                                         |
-| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                                          |
-| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                              |
-| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)                           |
-| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                             |
-| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                                       |
-| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                                     |
-| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants)             |
-| `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                                    |
-| `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)                          |
-| `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                                          |
-| `PATCH`  | `/admin/tenants/:tenantId/members/:userId`                | Update a member's tenant role                                                               |
-| `DELETE` | `/admin/tenants/:tenantId/members/:userId`                | Remove a member (soft-delete; blocks removing the last OWNER)                               |
-| `POST`   | `/admin/tenants/:tenantId/invitations`                    | Create an invitation (custom email + token; expires in 7 days)                              |
-| `POST`   | `/admin/tenants/:tenantId/invitations/:id/revoke`         | Revoke a pending invitation                                                                 |
-| `GET`    | `/invitations/:token`                                     | Look up invitation details by token (public; returns email, org name, role, isExistingUser) |
-| `POST`   | `/invitations/set-password`                               | Set password for a new invitee (public, token-bound, gateway-proxied)                       |
-| `POST`   | `/invitations/accept`                                     | Accept an invitation by token (no auth required)                                            |
-| `POST`   | `/invitations/decline`                                    | Decline an invitation by token (no auth required)                                           |
+| Method   | Path                                                      | Description                                                                                                  |
+| -------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `POST`   | `/admin/tenants/:tenantId/projects`                       | Register a new project                                                                                       |
+| `GET`    | `/admin/tenants/:tenantId/projects`                       | List all projects                                                                                            |
+| `GET`    | `/admin/tenants/:tenantId/projects/:id`                   | Get a single project                                                                                         |
+| `PATCH`  | `/admin/tenants/:tenantId/projects/:id`                   | Update a project                                                                                             |
+| `DELETE` | `/admin/tenants/:tenantId/projects/:id`                   | Delete a project                                                                                             |
+| `POST`   | `/admin/tenants/:tenantId/employees/:slug/trigger`        | Manually trigger an AI employee                                                                              |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id`                      | Get task status                                                                                              |
+| `GET`    | `/admin/tenants/:tenantId/tasks/:id/logs`                 | Stream task execution logs (SSE, local Docker only)                                                          |
+| `GET`    | `/admin/tools`                                            | List all shell tools with metadata                                                                           |
+| `GET`    | `/admin/tools/:service/:toolName`                         | Get metadata for a single tool                                                                               |
+| `GET`    | `/admin/platform-settings`                                | List all platform settings (key, value, description, is_required)                                            |
+| `PATCH`  | `/admin/platform-settings/:key`                           | Update a platform setting value                                                                              |
+| `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant                                                        |
+| `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant                                                      |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants)                              |
+| `GET`    | `/admin/tenants/:tenantId/composio/connect`               | Initiate Composio OAuth for a toolkit (returns `{ url }` for browser redirect)                               |
+| `GET`    | `/admin/tenants/:tenantId/composio/connections`           | List active Composio connections for the tenant                                                              |
+| `DELETE` | `/admin/tenants/:tenantId/composio/connections/:toolkit`  | Disconnect a Composio toolkit (soft-delete)                                                                  |
+| `GET`    | `/admin/tenants/:tenantId/composio/usage`                 | List Composio tool call audit log grouped by toolkit and date                                                |
+| `GET`    | `/admin/tenants/:tenantId/composio/toolkits`              | Browse the Composio app catalog (cursor-paginated; includes `connectable` and `connected` flags per toolkit) |
+| `GET`    | `/me`                                                     | Get current user profile (id, email, globalRole, status)                                                     |
+| `GET`    | `/me/tenants`                                             | List tenants the current user belongs to (PLATFORM_OWNER sees all)                                           |
+| `GET`    | `/admin/tenants/:tenantId/members`                        | List tenant members (requires ADMIN or OWNER role)                                                           |
+| `PATCH`  | `/admin/tenants/:tenantId/members/:userId`                | Update a member's tenant role                                                                                |
+| `DELETE` | `/admin/tenants/:tenantId/members/:userId`                | Remove a member (soft-delete; blocks removing the last OWNER)                                                |
+| `POST`   | `/admin/tenants/:tenantId/invitations`                    | Create an invitation (custom email + token; expires in 7 days)                                               |
+| `POST`   | `/admin/tenants/:tenantId/invitations/:id/revoke`         | Revoke a pending invitation                                                                                  |
+| `GET`    | `/invitations/:token`                                     | Look up invitation details by token (public; returns email, org name, role, isExistingUser)                  |
+| `POST`   | `/invitations/set-password`                               | Set password for a new invitee (public, token-bound, gateway-proxied)                                        |
+| `POST`   | `/invitations/accept`                                     | Accept an invitation by token (no auth required)                                                             |
+| `POST`   | `/invitations/decline`                                    | Decline an invitation by token (no auth required)                                                            |
 
 **Create a project:**
 
@@ -206,6 +211,10 @@ Copy `.env.example` to `.env` and fill in your API keys.
 - `GITHUB_APP_ID` — GitHub App ID (numeric, from GitHub App settings)
 - `GITHUB_APP_NAME` — GitHub App URL slug (e.g. `my-ai-employee`)
 - `GITHUB_PRIVATE_KEY` — RSA private key downloaded from GitHub App settings (store with literal `\n` escaping)
+
+**Composio (third-party app integrations):**
+
+- `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys.
 
 **Engineering (deprecated — on hold):**
 
