@@ -149,7 +149,7 @@ export function ComposioConnections() {
   async function handleConnect(slug: string) {
     try {
       const { url } = await getComposioConnectUrl(tenantId, slug);
-      const popup = window.open(url, '_blank', 'noopener,noreferrer');
+      const popup = window.open(url, '_blank');
       if (!popup) showPopupBlockedToast();
     } catch (err) {
       toast.error('Could not start the connection. Please try again.');
