@@ -18,6 +18,7 @@ export default defineConfig({
       // or convert .js import specifiers to .ts).
       'tests/unit/inngest/supersede-threading.test.ts',
       'src/worker-tools/notion/__tests__/write-tools.test.ts',
+      'tests/unit/worker-tools/composio-execute.test.ts',
     ],
     env: {
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/ai_employee_test',
