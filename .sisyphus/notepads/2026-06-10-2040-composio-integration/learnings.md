@@ -352,3 +352,35 @@ Models without `@@map("snake_case")` would create PascalCase tables. All existin
 - `pnpm vitest run` (new + existing compiler tests) → 35 passed
 - `pnpm build` → EXIT 0
 - Stale LSP on `composio-connection-repository.ts` (Task 4 artifact) + `vitest.config.ts` coverage overload persist in-editor — both pre-existing, unrelated to Task 8; tsc is authoritative.
+
+## [2026-06-11] Task 9 — Composio Admin API (list / disconnect / usage)
+
+### What was built
+
+- New route file `src/gateway/routes/composio-admin.ts` (separate from `composio-oauth.ts`), factory `composioAdminRoutes({ prisma? })`.
+- 3 endpoints:
+  - `GET /admin/tenants/:tenantId/composio/connections` — `requireTenantRole(MEMBER)`; calls `connectionRepo.getActiveConnections(tenantId)`; returns `[{ toolkit, status, connected_at }]` (already filters `deleted_at IS NULL AND status='active'`).
+  - `DELETE /admin/tenants/:tenantId/composio/connections/:toolkit` — `requireTenantRole(ADMIN)`; calls `connectionRepo.softDeleteConnection(tenantId, toolkit.toLowerCase())`; returns 204.
+  - `GET /admin/tenants/:tenantId/composio/usage` — `requireTenantRole(MEMBER)`; `prisma.taskComposioCall.findMany({ where:{tenant_id}, orderBy:{called_at:'desc'} })`, grouped in app code by `(toolkit, YYYY-MM-DD)` via a Map → `[{ toolkit, date, count }]`.
+- Registered in `src/gateway/server.ts` right after `composioOAuthRoutes`.
+- New param schema `ComposioToolkitParamSchema` in `schemas.ts` (toolkit regex `^[a-z0-9_-]+$`). Matches the `// URL params for ...` comment convention of every other schema in that file.
+
+### Security / contract adherence
+
+- Response objects only expose `toolkit`, `status`, `connected_at` — never `id`, `tenant_${tenantId}`, or any Composio session id. Added explicit test asserting `JSON.stringify(body)` contains neither `tenant_<id>` nor the internal row id.
+- Soft-delete only (`softDeleteConnection` → `updateMany ... data:{ deleted_at }`). No hard delete.
+- All responses via `sendSuccess`/`sendError` + `ERROR_CODES` — no inline `res.status().json()`.
+
+### Testing pattern (followed composio-oauth.test.ts)
+
+- SERVICE_TOKEN bypasses `requireTenantRole` (authz.ts line 31 `if (req.isServiceToken) next()`), so tests set `process.env.SERVICE_TOKEN` and inject a mock `prisma` ({ composioConnection:{findMany,updateMany}, taskComposioCall:{findMany} }) into the route factory — no live DB rows needed. This is the established "integration" test style for gateway routes here (mock at the Prisma method boundary).
+- 8 tests: 3 required (empty connections, 204 disconnect, empty usage) + field-shape/no-leak, grouping correctness, and 3× 401-without-token. All green in 31ms.
+- Gotcha: a 204 response yields `res.body === {}` in supertest (not `null`) — assert `toEqual({})`.
+
+### Verification
+
+- `pnpm build` → EXIT 0 (authoritative — resolved the stale-LSP `taskComposioCall`/`composioConnection` errors after `pnpm prisma generate`; the generated client was stale from earlier tasks).
+- `pnpm exec vitest run --config vitest.integration.config.ts tests/integration/composio-admin.test.ts` → 8 passed.
+- Full integration suite → 437 passed | 18 skipped, no regressions.
+- `pnpm eslint` on all 4 changed files → clean.
+- REMINDER for future tasks: after any schema model add, run `pnpm prisma generate` before trusting LSP — in-editor diagnostics lag the generated client.
