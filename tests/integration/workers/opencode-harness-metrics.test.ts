@@ -207,10 +207,15 @@ async function loadHarness(): Promise<void> {
 describe('opencode-harness — execution metrics', () => {
   let sessionManagerMock: ReturnType<typeof buildSessionManagerMock>;
   let exitSpy: ReturnType<typeof vi.spyOn>;
+  let originalSupabaseUrl: string | undefined;
+  let originalSupabaseSecretKey: string | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+
+    originalSupabaseUrl = process.env.SUPABASE_URL;
+    originalSupabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
 
     process.env.TASK_ID = 'test-task-id';
     delete process.env.EMPLOYEE_PHASE;
@@ -257,8 +262,17 @@ describe('opencode-harness — execution metrics', () => {
     vi.unstubAllGlobals();
     delete process.env.TASK_ID;
     delete process.env.EMPLOYEE_PHASE;
-    delete process.env.SUPABASE_URL;
-    delete process.env.SUPABASE_SECRET_KEY;
+    // Restore rather than delete — singleFork shares the process with other test files
+    if (originalSupabaseUrl !== undefined) {
+      process.env.SUPABASE_URL = originalSupabaseUrl;
+    } else {
+      delete process.env.SUPABASE_URL;
+    }
+    if (originalSupabaseSecretKey !== undefined) {
+      process.env.SUPABASE_SECRET_KEY = originalSupabaseSecretKey;
+    } else {
+      delete process.env.SUPABASE_SECRET_KEY;
+    }
     delete process.env.OPENROUTER_API_KEY;
   });
 
