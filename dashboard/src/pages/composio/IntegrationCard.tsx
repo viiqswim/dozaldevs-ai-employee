@@ -8,7 +8,7 @@ import type { ComposioToolkit } from '@/lib/types';
 
 export interface IntegrationCardProps {
   toolkit: ComposioToolkit;
-  onConnect: (slug: string) => void;
+  onConnect: (slug: string) => Promise<void>;
   onDisconnect: (slug: string) => void;
 }
 
@@ -73,11 +73,22 @@ function LogoTile({ toolkit }: LogoTileProps) {
 
 interface ActionAreaProps {
   toolkit: ComposioToolkit;
-  onConnect: (slug: string) => void;
+  onConnect: (slug: string) => Promise<void>;
   onDisconnect: (slug: string) => void;
 }
 
 function ActionArea({ toolkit, onConnect, onDisconnect }: ActionAreaProps) {
+  const [connecting, setConnecting] = useState(false);
+
+  async function handleConnectClick() {
+    setConnecting(true);
+    try {
+      await onConnect(toolkit.slug);
+    } finally {
+      setConnecting(false);
+    }
+  }
+
   if (toolkit.connected) {
     return (
       <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -102,10 +113,11 @@ function ActionArea({ toolkit, onConnect, onDisconnect }: ActionAreaProps) {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onConnect(toolkit.slug)}
+        onClick={() => void handleConnectClick()}
+        disabled={connecting}
         className="text-xs"
       >
-        Connect {toolkit.name}
+        {connecting ? 'Opening…' : `Connect ${toolkit.name}`}
       </Button>
     );
   }

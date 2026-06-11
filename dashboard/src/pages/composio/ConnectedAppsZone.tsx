@@ -78,7 +78,7 @@ export function ConnectedAppsZone({
               <IntegrationCard
                 key={toolkit.slug}
                 toolkit={toolkit}
-                onConnect={() => {}}
+                onConnect={() => Promise.resolve()}
                 onDisconnect={handleDisconnectClick}
               />
             ))}

@@ -195,7 +195,7 @@ export function ComposioConnections() {
               <IntegrationCard
                 key={toolkit.slug}
                 toolkit={toolkit}
-                onConnect={(slug) => void handleConnect(slug)}
+                onConnect={handleConnect}
                 onDisconnect={(slug) => void handleDisconnect(slug)}
               />
             ))}
@@ -234,7 +234,7 @@ export function ComposioConnections() {
                     <IntegrationCard
                       key={toolkit.slug}
                       toolkit={toolkit}
-                      onConnect={(slug) => void handleConnect(slug)}
+                      onConnect={handleConnect}
                       onDisconnect={(slug) => void handleDisconnect(slug)}
                     />
                   ))}
