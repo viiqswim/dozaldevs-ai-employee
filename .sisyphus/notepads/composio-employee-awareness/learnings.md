@@ -200,3 +200,21 @@
 - Evidence: `.sisyphus/evidence/task-10-stale.txt` (exit 1), `.sisyphus/evidence/task-10-fresh.txt` (exit 0)
 - `deploy.yml` validated: prettier parse clean ("All matched files use Prettier code style!") + 8 pure-node structural assertions all PASS
 - Working tree restored clean (`git status --short src/workers/skills/` empty); only `.github/workflows/deploy.yml` touched by this task
+
+## Task 13 — Live E2E Verification (2026-06-12)
+
+### Confirmed working end-to-end
+- **Docker image** bakes in all 4 `composio-*` skill folders (gmail, notion, slack, slackbot) via `COPY src/workers/skills/`.
+- **`filterComposioSkills()`** runs at container boot in BOTH execution-phase.mts AND delivery-phase.mts. For VLRE (only notion connected) it kept `composio-notion`, removed `composio-gmail`/`composio-slack`/`composio-slackbot`. Verified via runtime log line `Composio skill folders filtered` with `kept`/`removed` arrays.
+- **Wizard generate endpoint** (`POST /admin/tenants/:id/archetypes/generate`) returns `connectedToolkits` + `suggestedToolkits` and bakes `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_SEARCH …` into `execution_steps`.
+- **`execute.ts` audit write** populates `task_composio_calls` (one row per Composio call). 4 rows written for the test task. NOTE: `phase` column was NULL — TASK_PHASE env var not injected yet (acceptable per plan).
+- **`GET /composio/usage`** returns grouped counts: `[{"toolkit":"notion","date":"...","count":4}]`.
+
+### Procedural notes for future E2E
+- Create-archetype schema (`CreateArchetypeBodySchema`) has NO `vm_size` field — set `vm_size='performance-1x'` via psql AFTER create (required for opencode runtime or OOM).
+- Build the create payload with `jq` from the generate response to avoid shell-escaping multi-line `instructions`/`execution_steps`. Override `model→deepseek/deepseek-v4-flash`, `risk_model.approval_required→false`, unique kebab `role_name`.
+- `python3` is intercepted by asdf (no version set) — use `jq` for JSON parsing in this repo, not `python3 -c`.
+- Task log persists at `/tmp/employee-{taskId:0:8}.log`; delivery log at `/tmp/employee-delivery-{taskId:0:8}.log`.
+- Soft-delete archetype: `UPDATE archetypes SET deleted_at=NOW(), status='draft'` — trigger endpoint then returns 404 (confirmed isolation).
+- Real delivery proof: query Slack `conversations.replies` with `metadata->>'notify_slack_ts'` as the thread root; the delivered content is a thread reply under the "Task complete" message.
+- deepseek-v4-flash reliably called bash + composio tools (model routed through opencode-go).

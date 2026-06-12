@@ -628,7 +628,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(wizard): make archetype generator aware of connected Composio apps`
 
-- [ ] 10. CI freshness-check for committed skills
+- [x] 10. CI freshness-check for committed skills
 
   **What to do**:
   - Add a CI job/step (in the existing test workflow) that runs the generator into a temp/scratch location (or in-place then `git diff`), and FAILS if the committed `src/workers/skills/composio-*` content differs from freshly generated output.
@@ -676,7 +676,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `ci: fail build when committed composio skills are stale`
 
-- [ ] 11. `COMPOSIO_API_KEY` in machine-provisioner manifest
+- [x] 11. `COMPOSIO_API_KEY` in machine-provisioner manifest
 
   **What to do**:
   - Add `COMPOSIO_API_KEY` to `localCriticalVars` / `flyCriticalVars` in `machine-provisioner.ts` so it appears in `PLATFORM_ENV_MANIFEST` for debug visibility (it already reaches the container via the whitelist; this is observability only).
@@ -711,7 +711,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `chore(worker): surface COMPOSIO_API_KEY in env manifest for debugging`
 
-- [ ] 12. Documentation audit — fix false PostgREST claim + non-existent column
+- [x] 12. Documentation audit — fix false PostgREST claim + non-existent column
 
   **What to do**:
   - Fix the AGENTS.md line stating "shell tools have no PostgREST access" — false; `execute.ts` now writes via PostgREST and `knowledge_base/search.ts` already reads. Reword to reflect reality and the new audit write.
@@ -752,7 +752,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `docs: correct composio PostgREST + schema claims in AGENTS.md`
 
-- [ ] 13. **LIVE END-TO-END VERIFICATION — trigger a real employee that uses a connected Composio app**
+- [x] 13. **LIVE END-TO-END VERIFICATION — trigger a real employee that uses a connected Composio app**
 
   > This is the capstone. It does NOT check that code exists or run unit/integration tests. It triggers a REAL AI employee, watches it actually use Composio against a connected app, and verifies the full chain: skills in container → execution steps → tool call → DB audit row → delivery → Slack. Run this AFTER all of Tasks 1–12 are complete and the Docker image is rebuilt.
 
