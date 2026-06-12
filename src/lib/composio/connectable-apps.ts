@@ -22,7 +22,7 @@ export async function getConnectableToolkits(): Promise<Set<string>> {
   }
 
   const composio = new Composio({ apiKey }) as unknown as Pick<Composio, 'authConfigs'>;
-  const authConfigs = await composio.authConfigs.list();
+  const authConfigs = await composio.authConfigs.list({ limit: 200 });
 
   const slugs = new Set<string>();
   for (const ac of authConfigs.items) {

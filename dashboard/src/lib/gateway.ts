@@ -135,6 +135,12 @@ export async function setSecret(tenantId: string, key: string, value: string): P
   });
 }
 
+export async function deleteSecret(tenantId: string, key: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/secrets/${key}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function patchArchetype(
   tenantId: string,
   archetypeId: string,
@@ -610,6 +616,7 @@ export async function listComposioToolkits(
     search?: string;
     category?: string;
     limit?: number;
+    connectable?: true;
   },
 ): Promise<ComposioToolkitsPage> {
   const params = new URLSearchParams();
@@ -617,6 +624,7 @@ export async function listComposioToolkits(
   if (opts?.search) params.set('search', opts.search);
   if (opts?.category) params.set('category', opts.category);
   if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.connectable) params.set('connectable', 'true');
   const qs = params.toString();
   const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
   return gatewayFetch<ComposioToolkitsPage>(url);

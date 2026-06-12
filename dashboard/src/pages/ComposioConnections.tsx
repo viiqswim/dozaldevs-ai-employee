@@ -40,6 +40,7 @@ export function ComposioConnections() {
   const [allCategories, setAllCategories] = useState<{ slug: string; name: string }[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [connectableItems, setConnectableItems] = useState<ComposioToolkit[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +72,12 @@ export function ComposioConnections() {
     },
     [tenantId],
   );
+
+  useEffect(() => {
+    listComposioToolkits(tenantId, { connectable: true, limit: 200 })
+      .then((page) => setConnectableItems(page.items))
+      .catch(() => {});
+  }, [tenantId]);
 
   useEffect(() => {
     setNextCursor(null);
@@ -116,9 +123,7 @@ export function ComposioConnections() {
 
   const connectedSlugs = new Set((connections ?? []).map((c) => c.toolkit.toLowerCase()));
 
-  const availableItems = catalogItems.filter(
-    (t) => t.connectable && !connectedSlugs.has(t.slug.toLowerCase()),
-  );
+  const availableItems = connectableItems.filter((t) => !connectedSlugs.has(t.slug.toLowerCase()));
 
   const browseItems = catalogItems.filter((t) => !connectedSlugs.has(t.slug.toLowerCase()));
 
@@ -161,6 +166,9 @@ export function ComposioConnections() {
       await disconnectComposioApp(tenantId, slug);
       toast.success('App disconnected.');
       refreshConnections();
+      listComposioToolkits(tenantId, { connectable: true, limit: 200 })
+        .then((page) => setConnectableItems(page.items))
+        .catch(() => {});
       loadCatalog(search, category);
     } catch (err) {
       toast.error('Could not disconnect. Please try again.');
