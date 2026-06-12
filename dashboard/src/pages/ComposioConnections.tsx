@@ -23,7 +23,8 @@ import {
 import { CUSTOM_CREDENTIAL_APPS, CustomCredentialCard } from './composio/CustomCredentialCard';
 
 export function ComposioConnections() {
-  const { tenantId } = useTenant();
+  const { tenantId, tenants } = useTenant();
+  const tenantSlug = tenants.find((t) => t.tenantId === tenantId)?.slug ?? '';
   const [searchParams, setSearchParams] = useSearchParams();
 
   const search = searchParams.get('search') ?? '';
@@ -143,12 +144,15 @@ export function ComposioConnections() {
 
   const isZone1Loading = connectionsLoading || (catalogLoading && catalogItems.length === 0);
 
-  const connectedCustomApps = CUSTOM_CREDENTIAL_APPS.filter((app) =>
-    app.fields.every((f) => existingSecretKeys.has(f.key)),
-  );
-  const availableCustomApps = CUSTOM_CREDENTIAL_APPS.filter(
-    (app) => !app.fields.every((f) => existingSecretKeys.has(f.key)),
-  );
+  function isCustomAppConnected(app: (typeof CUSTOM_CREDENTIAL_APPS)[number]): boolean {
+    if (app.connectType === 'oauth-redirect') {
+      return app.statusKey !== undefined && existingSecretKeys.has(app.statusKey);
+    }
+    return app.fields.every((f) => existingSecretKeys.has(f.key));
+  }
+
+  const connectedCustomApps = CUSTOM_CREDENTIAL_APPS.filter(isCustomAppConnected);
+  const availableCustomApps = CUSTOM_CREDENTIAL_APPS.filter((app) => !isCustomAppConnected(app));
 
   function updateSearch(value: string) {
     setSearchParams(
@@ -216,6 +220,7 @@ export function ComposioConnections() {
             key={app.id}
             app={app}
             tenantId={tenantId}
+            tenantSlug={tenantSlug}
             isConnected={true}
             onUpdated={refreshSecrets}
           />
@@ -235,6 +240,7 @@ export function ComposioConnections() {
                 key={app.id}
                 app={app}
                 tenantId={tenantId}
+                tenantSlug={tenantSlug}
                 isConnected={false}
                 onUpdated={refreshSecrets}
               />

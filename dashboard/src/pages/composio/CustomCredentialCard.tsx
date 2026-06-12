@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { setSecret, deleteSecret } from '@/lib/gateway';
+import { setSecret, deleteSecret, disconnectGitHub, disconnectSlack } from '@/lib/gateway';
+import { showPopupBlockedToast } from './MarketplaceStates';
 
 export interface CustomCredentialField {
   key: string;
@@ -24,7 +25,11 @@ export interface CustomCredentialApp {
   id: string;
   name: string;
   description: string;
+  connectType?: 'credential-form' | 'oauth-redirect';
   fields: CustomCredentialField[];
+  statusKey?: string;
+  connectUrl?: (tenantId: string, tenantSlug: string) => string;
+  disconnectFn?: (tenantId: string) => Promise<void>;
 }
 
 export const CUSTOM_CREDENTIAL_APPS: CustomCredentialApp[] = [
@@ -32,6 +37,7 @@ export const CUSTOM_CREDENTIAL_APPS: CustomCredentialApp[] = [
     id: 'hostfully',
     name: 'Hostfully',
     description: 'Property management platform for vacation rentals',
+    connectType: 'credential-form',
     fields: [
       { key: 'hostfully_api_key', label: 'API Key' },
       { key: 'hostfully_agency_uid', label: 'Agency UID' },
@@ -41,10 +47,32 @@ export const CUSTOM_CREDENTIAL_APPS: CustomCredentialApp[] = [
     id: 'sifely',
     name: 'Sifely',
     description: 'Smart lock management for short-term rentals',
+    connectType: 'credential-form',
     fields: [
       { key: 'sifely_username', label: 'Username' },
       { key: 'sifely_password', label: 'Password', type: 'password' },
     ],
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: 'Connect your GitHub account to enable code automation',
+    connectType: 'oauth-redirect',
+    fields: [],
+    statusKey: 'github_installation_id',
+    connectUrl: (_tenantId: string, tenantSlug: string) =>
+      `/integrations/github/install?tenant=${tenantSlug}`,
+    disconnectFn: (tenantId: string) => disconnectGitHub(tenantId).then(() => undefined),
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Connect your Slack workspace to receive notifications and approvals',
+    connectType: 'oauth-redirect',
+    fields: [],
+    statusKey: 'slack_bot_token',
+    connectUrl: (tenantId: string, _tenantSlug: string) => `/slack/install?tenant=${tenantId}`,
+    disconnectFn: (tenantId: string) => disconnectSlack(tenantId).then(() => undefined),
   },
 ];
 
@@ -69,6 +97,7 @@ function getAvatarClasses(name: string): readonly [string, string] {
 export interface CustomCredentialCardProps {
   app: CustomCredentialApp;
   tenantId: string;
+  tenantSlug: string;
   isConnected: boolean;
   onUpdated: () => void;
 }
@@ -76,6 +105,7 @@ export interface CustomCredentialCardProps {
 export function CustomCredentialCard({
   app,
   tenantId,
+  tenantSlug,
   isConnected,
   onUpdated,
 }: CustomCredentialCardProps) {
@@ -86,9 +116,21 @@ export function CustomCredentialCard({
 
   const [bgColor, textColor] = getAvatarClasses(app.name);
 
+  const isOAuthRedirect = app.connectType === 'oauth-redirect';
+
   function handleOpenDialog() {
     setFieldValues({}); // always start with empty fields — never pre-fill secrets
     setDialogOpen(true);
+  }
+
+  function handleConnect() {
+    if (isOAuthRedirect && app.connectUrl) {
+      const url = app.connectUrl(tenantId, tenantSlug);
+      const popup = window.open(url, '_blank');
+      if (!popup) showPopupBlockedToast();
+      return;
+    }
+    handleOpenDialog();
   }
 
   function handleFieldChange(key: string, value: string) {
@@ -117,7 +159,11 @@ export function CustomCredentialCard({
   async function handleDisconnect() {
     setDisconnecting(true);
     try {
-      await Promise.all(app.fields.map((f) => deleteSecret(tenantId, f.key)));
+      if (isOAuthRedirect && app.disconnectFn) {
+        await app.disconnectFn(tenantId);
+      } else {
+        await Promise.all(app.fields.map((f) => deleteSecret(tenantId, f.key)));
+      }
       toast.success(`${app.name} disconnected.`);
       onUpdated();
     } catch {
@@ -174,51 +220,53 @@ export function CustomCredentialCard({
               </Button>
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={handleOpenDialog} className="text-xs">
+            <Button variant="outline" size="sm" onClick={handleConnect} className="text-xs">
               Connect {app.name}
             </Button>
           )}
         </div>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => !open && setDialogOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Connect {app.name}</DialogTitle>
-            <DialogDescription>
-              Enter your {app.name} credentials. They are stored securely and never shown again.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {app.fields.map((field) => (
-              <div key={field.key} className="space-y-1.5">
-                <label
-                  htmlFor={`cred-${field.key}`}
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  {field.label}
-                </label>
-                <Input
-                  id={`cred-${field.key}`}
-                  type={field.type === 'password' ? 'password' : 'text'}
-                  value={fieldValues[field.key] ?? ''}
-                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                  placeholder={`Enter ${field.label.toLowerCase()}`}
-                  autoComplete="off"
-                />
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Saving…' : 'Save credentials'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {!isOAuthRedirect && (
+        <Dialog open={dialogOpen} onOpenChange={(open) => !open && setDialogOpen(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Connect {app.name}</DialogTitle>
+              <DialogDescription>
+                Enter your {app.name} credentials. They are stored securely and never shown again.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {app.fields.map((field) => (
+                <div key={field.key} className="space-y-1.5">
+                  <label
+                    htmlFor={`cred-${field.key}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {field.label}
+                  </label>
+                  <Input
+                    id={`cred-${field.key}`}
+                    type={field.type === 'password' ? 'password' : 'text'}
+                    value={fieldValues[field.key] ?? ''}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                    placeholder={`Enter ${field.label.toLowerCase()}`}
+                    autoComplete="off"
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving ? 'Saving…' : 'Save credentials'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
