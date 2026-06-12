@@ -28,6 +28,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { UpdatePasswordPage } from './pages/UpdatePasswordPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 
 interface ErrorBoundaryProps {
@@ -76,6 +77,7 @@ export default function App() {
               <Route path="/dashboard/signup" element={<SignupPage />} />
               <Route path="/dashboard/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/dashboard/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/dashboard/auth/update-password" element={<UpdatePasswordPage />} />
               <Route path="/dashboard/accept-invite" element={<AcceptInvitePage />} />
               <Route
                 element={
