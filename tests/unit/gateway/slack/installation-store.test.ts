@@ -5,6 +5,7 @@ const TENANT_A_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 const TENANT_B_ID = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6';
 const TEAM_A_ID = 'T_TEAM_A';
 const TEAM_B_ID = 'T_TEAM_B';
+const TEAM_SHARED = 'T_SHARED';
 const TOKEN_A = 'xoxb-token-a';
 const TOKEN_B = 'xoxb-token-b';
 
@@ -24,6 +25,7 @@ function makeIntegration(tenantId: string, teamId: string) {
 
 function makeStore(overrides: {
   findByExternalId?: ReturnType<typeof vi.fn>;
+  findManyByExternalId?: ReturnType<typeof vi.fn>;
   get?: ReturnType<typeof vi.fn>;
   deleteSecret?: ReturnType<typeof vi.fn>;
   deleteIntegration?: ReturnType<typeof vi.fn>;
@@ -39,6 +41,7 @@ function makeStore(overrides: {
   } as never;
   const integrationRepo = {
     findByExternalId: overrides.findByExternalId ?? vi.fn(),
+    findManyByExternalId: overrides.findManyByExternalId ?? vi.fn().mockResolvedValue([]),
     delete: overrides.deleteIntegration ?? vi.fn(),
   } as never;
   return new TenantInstallationStore(tenantRepo, secretRepo, integrationRepo);
@@ -70,9 +73,9 @@ describe('TenantInstallationStore', () => {
       ).rejects.toThrow('No installation for team');
     });
 
-    it('throws when no integration found for teamId', async () => {
+    it('throws when no integration rows exist for teamId', async () => {
       const store = makeStore({
-        findByExternalId: vi.fn().mockResolvedValue(null),
+        findManyByExternalId: vi.fn().mockResolvedValue([]),
       });
       await expect(
         store.fetchInstallation({
@@ -83,23 +86,9 @@ describe('TenantInstallationStore', () => {
       ).rejects.toThrow('No installation for team: T_UNKNOWN');
     });
 
-    it('throws when bot token not found for tenant', async () => {
+    it('returns installation with correct bot token for a single tenant (case a)', async () => {
       const store = makeStore({
-        findByExternalId: vi.fn().mockResolvedValue(makeIntegration(TENANT_A_ID, TEAM_A_ID)),
-        get: vi.fn().mockResolvedValue(null),
-      });
-      await expect(
-        store.fetchInstallation({
-          teamId: TEAM_A_ID,
-          enterpriseId: undefined,
-          isEnterpriseInstall: false,
-        }),
-      ).rejects.toThrow('No bot token found for team');
-    });
-
-    it('returns installation with correct bot token for known team', async () => {
-      const store = makeStore({
-        findByExternalId: vi.fn().mockResolvedValue(makeIntegration(TENANT_A_ID, TEAM_A_ID)),
+        findManyByExternalId: vi.fn().mockResolvedValue([makeIntegration(TENANT_A_ID, TEAM_A_ID)]),
         get: vi.fn().mockResolvedValue(TOKEN_A),
       });
       const installation = await store.fetchInstallation({
@@ -111,18 +100,80 @@ describe('TenantInstallationStore', () => {
       expect(installation.team?.id).toBe(TEAM_A_ID);
     });
 
+    it('iterates tenants in created_at asc order and returns the second tenant token when the first lacks one (case b)', async () => {
+      const findManyByExternalId = vi
+        .fn()
+        .mockResolvedValue([
+          makeIntegration(TENANT_A_ID, TEAM_SHARED),
+          makeIntegration(TENANT_B_ID, TEAM_SHARED),
+        ]);
+      const get = vi
+        .fn()
+        .mockImplementation(async (tenantId: string) =>
+          tenantId === TENANT_A_ID ? null : TOKEN_B,
+        );
+      const store = makeStore({ findManyByExternalId, get });
+      const installation = await store.fetchInstallation({
+        teamId: TEAM_SHARED,
+        enterpriseId: undefined,
+        isEnterpriseInstall: false,
+      });
+      expect(installation.bot?.token).toBe(TOKEN_B);
+      expect(installation.team?.id).toBe(TEAM_SHARED);
+      expect(get.mock.calls[0]?.[0]).toBe(TENANT_A_ID);
+      expect(get.mock.calls[1]?.[0]).toBe(TENANT_B_ID);
+    });
+
+    it('throws when no tenant sharing the workspace has a bot token, after trying every tenant (case c)', async () => {
+      const findManyByExternalId = vi
+        .fn()
+        .mockResolvedValue([
+          makeIntegration(TENANT_A_ID, TEAM_SHARED),
+          makeIntegration(TENANT_B_ID, TEAM_SHARED),
+        ]);
+      const get = vi.fn().mockResolvedValue(null);
+      const store = makeStore({ findManyByExternalId, get });
+      await expect(
+        store.fetchInstallation({
+          teamId: TEAM_SHARED,
+          enterpriseId: undefined,
+          isEnterpriseInstall: false,
+        }),
+      ).rejects.toThrow('No bot token found for team T_SHARED');
+      expect(get).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns the first live token and stops iterating without querying later tenants', async () => {
+      const findManyByExternalId = vi
+        .fn()
+        .mockResolvedValue([
+          makeIntegration(TENANT_A_ID, TEAM_SHARED),
+          makeIntegration(TENANT_B_ID, TEAM_SHARED),
+        ]);
+      const get = vi.fn().mockResolvedValue(TOKEN_A);
+      const store = makeStore({ findManyByExternalId, get });
+      const installation = await store.fetchInstallation({
+        teamId: TEAM_SHARED,
+        enterpriseId: undefined,
+        isEnterpriseInstall: false,
+      });
+      expect(installation.bot?.token).toBe(TOKEN_A);
+      expect(get).toHaveBeenCalledTimes(1);
+      expect(get.mock.calls[0]?.[0]).toBe(TENANT_A_ID);
+    });
+
     it('returns different tokens for different teams (cross-tenant isolation)', async () => {
-      const findByExternalId = vi
+      const findManyByExternalId = vi
         .fn()
         .mockImplementation((_provider: string, teamId: string) =>
           teamId === TEAM_A_ID
-            ? makeIntegration(TENANT_A_ID, TEAM_A_ID)
-            : makeIntegration(TENANT_B_ID, TEAM_B_ID),
+            ? [makeIntegration(TENANT_A_ID, TEAM_A_ID)]
+            : [makeIntegration(TENANT_B_ID, TEAM_B_ID)],
         );
       const get = vi
         .fn()
         .mockImplementation((tenantId: string) => (tenantId === TENANT_A_ID ? TOKEN_A : TOKEN_B));
-      const store = makeStore({ findByExternalId, get });
+      const store = makeStore({ findManyByExternalId, get });
       const instA = await store.fetchInstallation({
         teamId: TEAM_A_ID,
         enterpriseId: undefined,

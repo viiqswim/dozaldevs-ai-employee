@@ -21,13 +21,20 @@ export class TenantInstallationStore implements InstallationStore {
     if (!teamId) {
       throw new Error('No installation for team: teamId is required');
     }
-    const integration = await this.integrationRepo.findByExternalId('slack', teamId);
-    if (!integration) {
+    // The Slack bot token is workspace-scoped: tenants sharing one workspace all
+    // hold the same xoxb-, so trying any tenant's token (created_at asc order) is
+    // safe and lets a tenant lacking its own copy authorize via an incumbent's.
+    const integrations = await this.integrationRepo.findManyByExternalId('slack', teamId);
+    if (integrations.length === 0) {
       throw new Error(`No installation for team: ${teamId}`);
     }
-    const botToken = await this.secretRepo.get(integration.tenant_id, 'slack_bot_token');
+    let botToken: string | null = null;
+    for (const integration of integrations) {
+      botToken = await this.secretRepo.get(integration.tenant_id, 'slack_bot_token');
+      if (botToken) break;
+    }
     if (!botToken) {
-      throw new Error(`No bot token found for team: ${teamId}`);
+      throw new Error(`No bot token found for team ${teamId}`);
     }
     return {
       team: { id: teamId },
