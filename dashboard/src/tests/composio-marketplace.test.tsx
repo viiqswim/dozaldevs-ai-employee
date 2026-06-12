@@ -392,11 +392,12 @@ describe('ComposioConnections — page-level tab tests', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn().mockImplementation(() => ({
-        observe: vi.fn(),
-        unobserve: vi.fn(),
-        disconnect: vi.fn(),
-      })),
+      class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+        constructor(_cb: unknown, _opts?: unknown) {}
+      },
     );
     vi.stubGlobal('fetch', mockFetch);
     mockFetch.mockResolvedValue(jsonPage([]));

@@ -326,87 +326,77 @@ export function ComposioConnections() {
           </TabsContent>
 
           <TabsContent value="browse">
-            <div className="space-y-6">
-              {availableCustomApps.length > 0 && (
-                <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
-                  <h2 className="text-sm font-semibold text-foreground">
-                    Available to connect now
-                  </h2>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {availableCustomApps.map((app) => (
-                      <CustomCredentialCard
-                        key={app.id}
-                        app={app}
-                        tenantId={tenantId}
-                        tenantSlug={tenantSlug}
-                        isConnected={false}
-                        onUpdated={refreshSecrets}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <section className="space-y-4">
-                <h2 className="text-sm font-semibold text-foreground">Browse all apps</h2>
-                <SearchToolbar
-                  search={search}
-                  category={category}
-                  categories={allCategories}
-                  onSearchChange={updateSearch}
-                  onCategoryChange={updateCategory}
-                />
-                <div className="rounded-lg border bg-card px-5 py-4">
-                  <div aria-live="polite" aria-atomic="false">
-                    {catalogLoading ? (
-                      <SkeletonGrid count={6} />
-                    ) : catalogError ? (
-                      <CatalogErrorState onRetry={() => loadCatalog(search, category)} />
-                    ) : filteredAvailableItems.length === 0 &&
-                      browseItems.length === 0 &&
-                      search ? (
-                      <EmptySearchState query={search} onClear={() => updateSearch('')} />
-                    ) : filteredAvailableItems.length === 0 && browseItems.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-muted-foreground">
-                        All available apps are already connected.
-                      </p>
-                    ) : (
-                      <>
-                        <div
-                          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-                          style={{ contentVisibility: 'auto' }}
+            <div className="space-y-4">
+              <SearchToolbar
+                search={search}
+                category={category}
+                categories={allCategories}
+                onSearchChange={updateSearch}
+                onCategoryChange={updateCategory}
+              />
+              <div className="rounded-lg border bg-card px-5 py-4">
+                <div aria-live="polite" aria-atomic="false">
+                  {catalogLoading ? (
+                    <SkeletonGrid count={6} />
+                  ) : catalogError ? (
+                    <CatalogErrorState onRetry={() => loadCatalog(search, category)} />
+                  ) : availableCustomApps.length === 0 &&
+                    filteredAvailableItems.length === 0 &&
+                    browseItems.length === 0 &&
+                    search ? (
+                    <EmptySearchState query={search} onClear={() => updateSearch('')} />
+                  ) : availableCustomApps.length === 0 &&
+                    filteredAvailableItems.length === 0 &&
+                    browseItems.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      All available apps are already connected.
+                    </p>
+                  ) : (
+                    <>
+                      <div
+                        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                        style={{ contentVisibility: 'auto' }}
+                      >
+                        {availableCustomApps.map((app) => (
+                          <CustomCredentialCard
+                            key={app.id}
+                            app={app}
+                            tenantId={tenantId}
+                            tenantSlug={tenantSlug}
+                            isConnected={false}
+                            onUpdated={refreshSecrets}
+                          />
+                        ))}
+                        {filteredAvailableItems.map((toolkit) => (
+                          <IntegrationCard
+                            key={toolkit.slug}
+                            toolkit={toolkit}
+                            onConnect={handleConnect}
+                            onDisconnect={(slug) => void handleDisconnect(slug)}
+                          />
+                        ))}
+                        {browseItems.map((toolkit) => (
+                          <IntegrationCard
+                            key={toolkit.slug}
+                            toolkit={toolkit}
+                            onConnect={handleConnect}
+                            onDisconnect={(slug) => void handleDisconnect(slug)}
+                          />
+                        ))}
+                      </div>
+                      <div ref={sentinelRef} className="h-4" aria-hidden="true" />
+                      {loadingMore && (
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          aria-live="polite"
                         >
-                          {filteredAvailableItems.map((toolkit) => (
-                            <IntegrationCard
-                              key={toolkit.slug}
-                              toolkit={toolkit}
-                              onConnect={handleConnect}
-                              onDisconnect={(slug) => void handleDisconnect(slug)}
-                            />
-                          ))}
-                          {browseItems.map((toolkit) => (
-                            <IntegrationCard
-                              key={toolkit.slug}
-                              toolkit={toolkit}
-                              onConnect={handleConnect}
-                              onDisconnect={(slug) => void handleDisconnect(slug)}
-                            />
-                          ))}
-                        </div>
-                        <div ref={sentinelRef} className="h-4" aria-hidden="true" />
-                        {loadingMore && (
-                          <p
-                            className="py-4 text-center text-sm text-muted-foreground"
-                            aria-live="polite"
-                          >
-                            Loading more…
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
+                          Loading more…
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
-              </section>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
