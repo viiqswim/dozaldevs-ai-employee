@@ -734,7 +734,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (verification only). Kill all `ai-*` tmux sessions on completion.
 
-- [ ] 12. Production backup + ADDITIVE data repair + live verify
+- [x] 12. Production backup + ADDITIVE data repair + live verify
 
   **What to do**:
   - PRECONDITION: code from Tasks 5-9 must be DEPLOYED to production first (deploy-code → verify → repair sequence). Confirm the prod deploy is `live` before touching data.
@@ -793,7 +793,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (operational). Backup artifacts are gitignored.
 
-- [ ] 13. Notify completion (Telegram)
+- [x] 13. Notify completion (Telegram)
 
   **What to do**: Send Telegram: plan complete, all tasks done, come back to review.
   - `tsx scripts/telegram-notify.ts "✅ Shared Slack workspace multi-tenant routing complete — tenant a17cdcca unblocked in prod. Come back to review results."`
@@ -826,19 +826,19 @@ Max Concurrent: 5 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Do NOT auto-proceed. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. Verify each "Must Have" exists (read file, run test, psql). For each "Must NOT Have": grep for forbidden patterns (new migration on tenant_integrations; changes to server.ts authorize; hard deletes; cross-tenant "oldest archetype" fallback; res.status().json in slack-oauth; modifications to approval/thread-reply paths) — reject with file:line if found. Confirm evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + `pnpm lint` + `pnpm test:unit` + `pnpm test:integration`. Review changed files for `as any`, empty catches, console.log, dead code, generic names. Confirm sendError/sendSuccess usage in slack-oauth.
       Output: `Build | Lint | Tests | Files | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `e2e-testing`, `dev-browser` skills)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `e2e-testing`, `dev-browser` skills)
       From a clean gateway: single-gateway pre-flight, then execute every QA scenario incl. the ambiguity cases (no clear owner, low confidence → disambiguation card + user pick) and zero-employee workspace. Evidence → `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N] | Negatives [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task, read "What to do" vs the actual diff. Confirm 1:1 (nothing missing, nothing beyond spec). Confirm approval/thread-reply paths untouched, no migration added, authorize untouched. Flag contamination.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | VERDICT`
 
