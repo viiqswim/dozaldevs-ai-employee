@@ -74,18 +74,15 @@ docker exec shared-postgres psql -U postgres -d ai_employee \
 
 ## Mock Mode Testing (No Real Jira Credentials Needed)
 
-The Jira shell tools support `JIRA_MOCK=true` for local testing without real credentials:
+The Jira motivation bot now uses Composio for Jira access (`tsx /tools/composio/execute.ts --toolkit jira --action <ACTION>`). The old `/tools/jira/` shell tools have been removed. For local testing without real Jira credentials, connect the Jira toolkit via the Composio OAuth flow:
 
 ```bash
-# Inside the worker container or locally with tsx
-JIRA_MOCK=true tsx /tools/jira/get-issue.ts --issue-key TEST-1
-JIRA_MOCK=true tsx /tools/jira/search-issues.ts --project TEST
-JIRA_MOCK=true tsx /tools/jira/list-comments.ts --issue-key TEST-1
-JIRA_MOCK=true tsx /tools/jira/add-comment.ts --issue-key TEST-1 --body "Great work!"
-
-# validate-env never uses mock mode — always checks real env
-tsx /tools/jira/validate-env.ts
+curl -s "http://localhost:7700/admin/tenants/<tenantId>/composio/connect?toolkit=jira" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" | jq -r .url
+# Open the returned URL to complete Jira OAuth
 ```
+
+Then use `tsx /tools/composio/execute.ts --toolkit jira --action <ACTION_SLUG> --params '<json>'` to test Jira operations. Run `tsx /tools/composio/list-actions.ts --toolkit jira` to discover available action slugs.
 
 ## Verified E2E Flow (2026-05-21)
 
@@ -111,7 +108,7 @@ Execution time: ~2 minutes. Slack notification posted to `C0960S2Q8RL`.
 
 **Webhook payload must include `issue.fields.project`**: The gateway validates that `issue.fields.project` is an object with a `key` string. Webhooks missing this field return 400.
 
-**Jira tools not in Docker image by default**: The Dockerfile must include COPY instructions for `/tools/jira/`. This was added in the jira-integration plan (T18). If you see "file not found" errors in the worker, rebuild the Docker image.
+**Jira tools removed — use Composio**: The `/tools/jira/` shell tools have been removed. The employee now calls Jira via `tsx /tools/composio/execute.ts --toolkit jira --action <ACTION_SLUG>`. The Jira toolkit must be connected via the Composio OAuth flow before the employee can run.
 
 **Per-employee route vs legacy route**: Two Jira webhook routes exist:
 

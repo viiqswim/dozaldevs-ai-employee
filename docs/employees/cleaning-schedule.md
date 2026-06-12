@@ -34,16 +34,22 @@ Replace `YYYY-MM-DD` with the target date (e.g. `2026-06-01`).
 
 ## Setup Checklist
 
-1. **Notion OAuth** — connect via `GET /auth/notion/connect?tenantId=00000000-0000-0000-0000-000000000003`. During the Notion page picker, **select all three cleaning pages** (Directorio Operativo, Manual de Personal, Reporte Financiero). If any page is not selected, the employee cannot read it.
-2. **Verify secrets** — after OAuth, confirm `notion_access_token` is set:
+1. **Notion via Composio** — connect the Notion toolkit for the VLRE tenant via the Composio OAuth flow:
    ```bash
-   curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/secrets" \
-     -H "Authorization: Bearer $SERVICE_TOKEN" | jq '.[] | select(.key == "notion_access_token") | .is_set'
-   # Expected: true
+   curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/composio/connect?toolkit=notion" \
+     -H "Authorization: Bearer $SERVICE_TOKEN" | jq -r .url
+   # Open the returned URL in a browser to complete the Notion OAuth consent
    ```
-3. **Hostfully credentials** — `hostfully_api_key` and `hostfully_agency_uid` must be set as tenant secrets (same as guest-messaging employee).
-4. **Slack channel** — bot must be invited to `#ops-cleaning-schedule` (`C0B71QSMZKQ`).
-5. **Model override for E2E testing** — override model to `deepseek/deepseek-v4-flash` before triggering:
+   Verify the connection is active:
+   ```bash
+   curl -s "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/composio/connections" \
+     -H "Authorization: Bearer $SERVICE_TOKEN" | jq '.[] | select(.toolkit == "notion")'
+   # Expected: a row with status "active"
+   ```
+   The employee reads Notion pages via `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN`. No `notion_access_token` tenant secret is required — Composio manages the credential.
+2. **Hostfully credentials** — `hostfully_api_key` and `hostfully_agency_uid` must be set as tenant secrets (same as guest-messaging employee).
+3. **Slack channel** — bot must be invited to `#ops-cleaning-schedule` (`C0B71QSMZKQ`).
+4. **Model override for E2E testing** — override model to `deepseek/deepseek-v4-flash` before triggering:
    ```bash
    PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d ai_employee \
      -c "UPDATE archetypes SET model = 'deepseek/deepseek-v4-flash' WHERE id = '00000000-0000-0000-0000-000000000019';"
@@ -77,9 +83,9 @@ The trash schedule and cleaning zones pages are written in Spanish. The employee
 
 Hostfully property names use a full code format (e.g. `271-GIN-HOME`). The Notion cleaning zones page uses a shortened format (e.g. `271-GIN`). When matching properties to zones, strip the `-HOME` suffix from the Hostfully name before looking up in Notion.
 
-### Notion page access requires OAuth page picker selection
+### Notion page access requires Composio connection
 
-The Notion integration only has access to pages explicitly selected during OAuth. If `get-page.ts` returns a 404 or "object not found" error, the page was not selected during OAuth setup. Re-run the OAuth flow and select the missing page.
+The employee reads Notion pages via `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"<id>"}'`. If Composio returns a 400 or "not connected" error, the Notion toolkit is not connected for this tenant. Re-run the Composio OAuth flow (see Setup Checklist step 1).
 
 ## E2E Testing
 
@@ -142,7 +148,8 @@ Cost and cleaning time are determined by what's **checking IN**, not what's chec
 
 | Secret key             | Description                                        |
 | ---------------------- | -------------------------------------------------- |
-| `notion_access_token`  | Notion OAuth token (set via OAuth flow)            |
 | `hostfully_api_key`    | Hostfully API key (shared with guest-messaging)    |
 | `hostfully_agency_uid` | Hostfully agency UID (shared with guest-messaging) |
 | `slack_bot_token`      | Slack bot token (shared with other employees)      |
+
+**Notion access** is managed via the Composio connection (not a tenant secret). Connect via `GET /admin/tenants/:tenantId/composio/connect?toolkit=notion`.
