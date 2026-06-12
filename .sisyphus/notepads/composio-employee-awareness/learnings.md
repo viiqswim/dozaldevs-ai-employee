@@ -82,3 +82,48 @@
 - `httpOverride` optional param on `generateComposioSkill` allows injecting a mock HTTP client in tests without mocking the whole module.
 - `pnpm build` exits 0 with the new module (tsconfig.build.json excludes `**/*.test.ts`).
 - Evidence saved to `.sisyphus/evidence/task-2-generator.txt`.
+
+## Task 8 — Document list-actions.ts in agents.md (2026-06-12)
+
+- Added "## Discovering Composio Actions" section to `src/workers/config/agents.md` (platform base config)
+- Section is 5 lines: trigger condition, CLI usage, output shape, and link to execute.ts slug usage
+- Placed AFTER the existing 4 platform rules — no duplication of the runtime-injected "Connected Apps" section
+- Generic language only — no employee-specific or tenant-specific references
+- Evidence saved to `.sisyphus/evidence/task-8-doc.txt`
+
+## Task 7 — Audit row write in composio/execute.ts (2026-06-12)
+
+- Added `writeAuditRow(toolkit, action)` helper + a call to it on the success path, immediately BEFORE `console.log(JSON.stringify(body))` (so the audit happens after `response.ok` is confirmed but the Composio result still prints).
+- The helper is fully fire-and-forget: reads `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TASK_ID`, `TASK_TENANT_ID`, `TASK_PHASE` via `optionalEnv`; if any of the first four are missing it writes a stderr warning and `return`s (skips the write) — never exits. The whole fetch is wrapped in try/catch; both a non-2xx response and a thrown error only emit a stderr `Warning:` line.
+- POST goes to `${SUPABASE_URL}/rest/v1/task_composio_calls` with raw headers `{ apikey, Authorization: Bearer, Content-Type, Prefer: return=minimal }` — NOT `makePostgrestHeaders` (that's a gateway/inngest module; worker tools use raw fetch, per the data-access boundary).
+- Body keys match the Prisma `TaskComposioCall` columns exactly: `id` (`randomUUID()` from `node:crypto`), `task_id`, `tenant_id`, `toolkit`, `tool_name` (= the `--action` slug), `phase` (`TASK_PHASE` or `null`), `called_at` (ISO now).
+- `randomUUID` imported from `node:crypto` — PostgREST/Prisma `@default(uuid())` would also fill it, but supplying it client-side keeps `Prefer: return=minimal` simple and avoids relying on the default.
+- `TASK_PHASE` is a NEW env var (values `'execution'` | `'delivery'`); not yet injected by the harness anywhere, so `?? null` is the expected real-world path until a later task wires it in.
+- `optionalEnv` (graceful) and `requireEnv` (exits) both live in `src/worker-tools/lib/require-env.js` — the existing `requireEnv` import was widened to `{ optionalEnv, requireEnv }`.
+- `pnpm build` (`tsc -p tsconfig.build.json`) exits 0; no `error TS` referencing execute.ts. The pre-existing `import.meta.url` TS1470 false-positive is unaffected (worker-tools aren't in the tsc build).
+- Evidence: `.sisyphus/evidence/task-7-audit-row.txt` (success path + POST body) and `.sisyphus/evidence/task-7-resilient.txt` (optionalEnv guards + try/catch).
+
+## Task 5 — generate-composio-skills.ts script (2026-06-11)
+
+- Composio API base URL: `skill-generator.ts` hardcodes `https://backend.composio.tech` — this host does NOT resolve. The correct URL is `https://backend.composio.dev` (matches SDK's `DEFAULT_BASE_URL`). Workaround: the script injects an `httpOverride` via the `generateComposioSkill(slug, httpOverride)` optional param, pointing at `backend.composio.dev`. Do NOT use `.tech` for new code.
+- `skill-generator.ts` bug fixed (Task 5 scope): `schema.description` in real API responses can be non-string (object/null); added `typeof schema.description === 'string'` guard before calling `.replace()`. Without this, notion/slack/slackbot all fail with `TypeError: (...).replace is not a function`.
+- `getConnectableToolkits()` via Composio SDK successfully returns auth-configured apps from environment: found `gmail, notion, slack, slackbot` (4 apps).
+- Idempotency: second run produces 0 written, 357 unchanged — `git diff src/workers/skills/` is empty. The `writeIfChanged` helper reads existing file and compares; skips the write if content matches.
+- Action counts: gmail=63, notion=48, slack=154, slackbot=88 (357 action files total + 4 SKILL.md = 361 files).
+- Determinism: slugs sorted alphabetically before iteration; `Object.entries(actionFiles).sort(([a],[b]) => a.localeCompare(b))` ensures consistent action file ordering.
+- dotenv loading: script uses `createRequire(import.meta.url)` to `require('dotenv')` inside a try/catch — graceful if dotenv is unavailable, but in this repo it's always present.
+- `tsx scripts/generate-composio-skills.ts` resolves imports relative to the script file; `import '../src/lib/config.js'` works because tsx handles the `.js`→`.ts` extension mapping at runtime.
+
+## Task 6 — filterComposioSkills() in harness-helpers.mts (2026-06-12)
+
+- Added `export function filterComposioSkills(connectedToolkits: string[]): void` to `harness-helpers.mts`. SYNCHRONOUS (uses `readdirSync`/`rmSync` from `node:fs`) — no `await` at the call sites.
+- Boot-order verification (the critical insight): `startOpencodeServer()` is NOT called in either phase file directly. It's called INSIDE `runOpencodeSession` (the injected fn) at `opencode-harness.mts:71`. Both phases invoke `runOpencodeSession` AFTER their `loadConnectedToolkits()` call (execution-phase ~line 238, delivery-phase ~line 144). So inserting `filterComposioSkills(connectedToolkits)` right after `loadConnectedToolkits()` reliably lands before the server boots & scans skills. The MUST-NOT "do not run after server started" is satisfied.
+- Skills dir constant: extracted the hardcoded `/app/.opencode/skills` (was inline at the old skills-log read) into a module-level `const SKILLS_DIR` and reused it in `writeOpencodeAuth`'s existing skills-log block — DRY, single source of truth for the path.
+- App-slug extraction: folder `composio-notion` → slug `notion` via `name.slice('composio-'.length).toLowerCase()`. Connected set is also `.toLowerCase()`'d — DB toolkit slugs vs folder slugs may differ in case (same lesson as Task 4's connectable-apps lowercasing).
+- Non-Composio skills are explicitly skipped (`if (!name.startsWith('composio-')) continue;`) — only `composio-*` folders are ever candidates for deletion.
+- Resilience: a missing `/app/.opencode/skills` dir → `readdirSync` throws → caught → logs + early `return` (no-op, no throw). A per-folder `rmSync` failure is caught per-entry, logged `warn`, and the loop continues (doesn't abort the whole prune).
+- `rmSync(..., { recursive: true, force: true })` is the sync equivalent of `rm -rf` — the task said "`rm -rf` the folder"; used the native fs API instead of shelling out (no new deps, no child_process).
+- Logs `{ connectedToolkits, kept, removed }` in one structured `log.info` — mirrors the existing `log.info({ skills }, ...)` pattern in harness-helpers.
+- These are `.mts` ESM files — used top-of-file `import { readdirSync, rmSync, type Dirent } from 'node:fs'` (NOT dynamic `await import`). `Dirent` type needed for the `entries` array annotation.
+- `pnpm build` (`tsc -p tsconfig.build.json`) exits 0. LSP (`typescript-language-server`) unavailable in this repo (no version in `.tool-versions`) — build is the real verification, consistent with prior tasks.
+- Evidence: `.sisyphus/evidence/task-6-filter.txt` (grep of all 6 `filterComposioSkills` references across the 3 files + build EXIT_CODE:0).

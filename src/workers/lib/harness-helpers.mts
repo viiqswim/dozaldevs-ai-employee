@@ -6,6 +6,9 @@
  * helpers independently testable.
  */
 
+import { readdirSync, rmSync, type Dirent } from 'node:fs';
+import { join } from 'node:path';
+
 import { createLogger } from '../../lib/logger.js';
 import { INNGEST_EVENT_KEY, INNGEST_BASE_URL } from '../../lib/config.js';
 import { type PostgRESTClient } from './postgrest-client.js';
@@ -261,7 +264,7 @@ export async function writeOpencodeAuth(temperature: number = 1.0): Promise<void
   log.info('[opencode-harness] global opencode.json written (autoupdate: false)');
 
   // Log available skills baked into the container image
-  const skillsDir = '/app/.opencode/skills';
+  const skillsDir = SKILLS_DIR;
   try {
     const { readdirSync } = await import('fs');
     const entries = readdirSync(skillsDir, { withFileTypes: true });
@@ -270,4 +273,69 @@ export async function writeOpencodeAuth(temperature: number = 1.0): Promise<void
   } catch {
     log.info('[opencode-harness] No skills directory found — container has no baked-in skills');
   }
+}
+
+// ---------------------------------------------------------------------------
+// filterComposioSkills
+// ---------------------------------------------------------------------------
+
+/** Baked-in OpenCode skills directory inside the worker container image. */
+const SKILLS_DIR = '/app/.opencode/skills';
+
+/** Prefix marking a per-app Composio skill folder (e.g. `composio-notion`). */
+const COMPOSIO_SKILL_PREFIX = 'composio-';
+
+/**
+ * Prune `composio-*` skill folders for apps the tenant has NOT connected.
+ *
+ * The container image bakes in one `composio-<app>` skill folder per supported
+ * app. At runtime only the apps the tenant has actually connected should be
+ * visible to the agent, so we delete the folders whose app slug is absent from
+ * `connectedToolkits`. Non-Composio skills are never touched.
+ *
+ * MUST run AFTER `loadConnectedToolkits()` and BEFORE the OpenCode server boots
+ * — OpenCode scans the skills directory once at startup with no hot reload.
+ *
+ * Never throws: a missing skills directory (or any per-entry error) is a no-op.
+ */
+export function filterComposioSkills(connectedToolkits: string[]): void {
+  // Case-insensitive connected set — DB toolkit slugs and folder slugs may differ in case.
+  const connected = new Set(connectedToolkits.map((t) => t.toLowerCase()));
+
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(SKILLS_DIR, { withFileTypes: true });
+  } catch {
+    // Directory absent (e.g. container without baked-in skills) — nothing to prune.
+    log.info('[opencode-harness] No skills directory found — skipping Composio skill filtering');
+    return;
+  }
+
+  const kept: string[] = [];
+  const removed: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const name = entry.name;
+    if (!name.startsWith(COMPOSIO_SKILL_PREFIX)) continue; // Never touch non-Composio skills.
+
+    const appSlug = name.slice(COMPOSIO_SKILL_PREFIX.length).toLowerCase();
+    if (connected.has(appSlug)) {
+      kept.push(name);
+      continue;
+    }
+
+    try {
+      rmSync(join(SKILLS_DIR, name), { recursive: true, force: true });
+      removed.push(name);
+    } catch (err) {
+      // A failed delete is non-fatal — log and leave the folder in place.
+      log.warn({ err, skill: name }, '[opencode-harness] Failed to remove Composio skill folder');
+    }
+  }
+
+  log.info(
+    { connectedToolkits: [...connected], kept, removed },
+    '[opencode-harness] Composio skill folders filtered',
+  );
 }

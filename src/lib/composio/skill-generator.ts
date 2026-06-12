@@ -128,9 +128,10 @@ function renderActionMd(action: ComposioAction): string {
     lines.push('| Parameter | Type | Required | Description |');
     lines.push('|-----------|------|----------|-------------|');
     for (const [key, schema] of entries) {
-      const type = schema.type ?? 'unknown';
+      const type = typeof schema.type === 'string' ? schema.type : 'unknown';
       const required = schema.required === true ? 'Yes' : 'No';
-      const desc = (schema.description ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      const rawDesc = typeof schema.description === 'string' ? schema.description : '';
+      const desc = rawDesc.replace(/\|/g, '\\|').replace(/\n/g, ' ');
       lines.push(`| ${key} | ${type} | ${required} | ${desc} |`);
     }
     lines.push('');

@@ -15,7 +15,12 @@ import { type PostgRESTClient } from './postgrest-client.js';
 import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
-import { markFailed, fireCompletionEvent, writeOpencodeAuth } from './harness-helpers.mjs';
+import {
+  markFailed,
+  fireCompletionEvent,
+  writeOpencodeAuth,
+  filterComposioSkills,
+} from './harness-helpers.mjs';
 import {
   type ArchetypeRow,
   type TaskWithArchetype,
@@ -91,6 +96,10 @@ export async function runDeliveryPhase(
   // Load active Composio toolkits for the tenant (empty when none connected —
   // the compiler then omits the Connected Apps section).
   const connectedToolkits = task.tenant_id ? await loadConnectedToolkits(task.tenant_id) : [];
+
+  // Prune composio-* skill folders for apps this tenant has NOT connected.
+  // MUST run before runOpencodeSession (OpenCode scans skills once at boot).
+  filterComposioSkills(connectedToolkits);
 
   // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
   try {
