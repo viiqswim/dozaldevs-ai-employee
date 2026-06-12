@@ -39,7 +39,7 @@ export function UpdatePasswordPage() {
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
-        setError('Could not update password. Please try again.');
+        setError(updateError.message ?? 'Could not update password. Please try again.');
         return;
       }
       setSuccess(true);
