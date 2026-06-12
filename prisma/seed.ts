@@ -130,6 +130,9 @@ async function main() {
     'notion_access_token',
     'secret_placeholder_replace_me',
   );
+  // LOCAL-DEV FALLBACK: In production, slack_bot_token is sourced from the Composio Slack connection.
+  // This seed value is only used when Composio is not connected (e.g., fresh local dev setup).
+  // Do NOT remove — required for local E2E testing without a Composio account.
   const vlreSlackBotToken = process.env.VLRE_SLACK_BOT_TOKEN;
   if (!vlreSlackBotToken) {
     console.warn(
