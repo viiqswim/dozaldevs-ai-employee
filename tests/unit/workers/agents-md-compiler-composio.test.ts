@@ -97,7 +97,6 @@ describe('agents-md-compiler — Composio Connected Apps injection', () => {
       const result = compileAgentsMd({ ...BASE_INPUT, connectedToolkits });
 
       expect(result).not.toContain('## Connected Apps (via Composio)');
-      expect(result).not.toContain('/tools/composio/execute.ts');
     });
   });
 

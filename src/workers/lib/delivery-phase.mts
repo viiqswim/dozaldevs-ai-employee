@@ -92,6 +92,8 @@ export async function runDeliveryPhase(
 
   // 4. Auth setup — required before OpenCode session
   await writeOpencodeAuth(archetype.temperature ?? 1.0);
+  // Set phase for Composio audit rows
+  process.env.TASK_PHASE = 'delivery';
 
   // Load active Composio toolkits for the tenant (empty when none connected —
   // the compiler then omits the Connected Apps section).

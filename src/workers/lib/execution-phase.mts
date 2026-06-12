@@ -171,6 +171,8 @@ export async function runExecutionPhase(
   log.info({ taskId }, 'Task status → Executing');
 
   await writeOpencodeAuth(archetype.temperature ?? 1.0);
+  // Set phase for Composio audit rows
+  process.env.TASK_PHASE = 'execution';
 
   // Platform procedures — auto-generated from risk_model (still needed for submitOutputCmd)
   const approvalRequired =
