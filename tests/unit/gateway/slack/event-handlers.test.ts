@@ -403,8 +403,12 @@ describe('app_mention event handler — routing', () => {
       type: string;
     }>;
     expect(elements.length).toBeGreaterThanOrEqual(2);
-    expect(elements[0].action_id).toBe('trigger_disambiguate');
-    expect(elements[1].action_id).toBe('trigger_disambiguate');
+    // Each button must have a UNIQUE action_id (Slack rejects duplicate action_ids
+    // within one message with invalid_blocks). Index suffix guarantees uniqueness.
+    expect(elements[0].action_id).toBe('trigger_disambiguate_0');
+    expect(elements[1].action_id).toBe('trigger_disambiguate_1');
+    const actionIds = elements.map((el) => el.action_id);
+    expect(new Set(actionIds).size).toBe(actionIds.length);
     const valA = JSON.parse(elements[0].value) as { archetypeId: string; tenantId: string };
     const valB = JSON.parse(elements[1].value) as { archetypeId: string; tenantId: string };
     const tenantIds = [valA.tenantId, valB.tenantId];

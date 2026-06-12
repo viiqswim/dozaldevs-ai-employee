@@ -296,7 +296,7 @@ export function registerEventHandlers(
     }
 
     const capped = candidates.slice(0, 5);
-    const buttons = capped.map((c) => {
+    const buttons = capped.map((c, index) => {
       const employeeName = prettifyRoleName(c.archetype.role_name);
       const value = JSON.stringify({
         archetypeId: c.archetype.id,
@@ -309,7 +309,7 @@ export function registerEventHandlers(
       return {
         type: 'button' as const,
         text: { type: 'plain_text' as const, text: employeeName, emoji: true },
-        action_id: SLACK_ACTION_ID.TRIGGER_DISAMBIGUATE,
+        action_id: `${SLACK_ACTION_ID.TRIGGER_DISAMBIGUATE}_${index}`,
         value,
       };
     });
@@ -344,14 +344,13 @@ export function registerEventHandlers(
           blocks: disambigBlocks,
         });
       }
+      log.info(
+        { channel: mention.channel, candidateCount: candidates.length, capped: capped.length },
+        'Disambiguation card posted',
+      );
     } catch (err) {
       log.warn({ err }, 'Failed to post disambiguation card');
     }
-
-    log.info(
-      { channel: mention.channel, candidateCount: candidates.length, capped: capped.length },
-      'Disambiguation card posted',
-    );
   });
 }
 
