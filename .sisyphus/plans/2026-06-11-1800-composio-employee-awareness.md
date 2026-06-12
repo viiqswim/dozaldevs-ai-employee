@@ -854,11 +854,11 @@ Max Concurrent: 4
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specced was built, nothing beyond spec. Confirm no cron/timer/DB-cache/storage-layer crept in. Confirm `execute.ts` is the only shell tool granted PostgREST write.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
-- [ ] F5. **Documentation Freshness** — update AGENTS.md (new shell tool `list-actions.ts`, `phase` column, Composio skill system, corrected PostgREST claim) and README if needed. Per AGENTS.md Documentation Freshness rule.
+- [x] F5. **Documentation Freshness** — update AGENTS.md (new shell tool `list-actions.ts`, `phase` column, Composio skill system, corrected PostgREST claim) and README if needed. Per AGENTS.md Documentation Freshness rule.
 
-- [ ] F6. **Tmux cleanup** — kill all `ai-*` tmux sessions created during execution.
+- [x] F6. **Tmux cleanup** — kill all `ai-*` tmux sessions created during execution.
 
-- [ ] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
 
 ## Commit Strategy
 
