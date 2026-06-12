@@ -1,3 +1,5 @@
+<!-- A multi-tenant platform that deploys autonomous AI agents ("digital employees") for tasks like guest messaging, daily summaries, code engineering, and Google Workspace automation, with human-in-the-loop approval gates. -->
+
 # AI Employee Platform
 
 A multi-tenant AI Employee Platform. Deploys autonomous AI agents ("digital employees"), each with a single job, triggered by webhooks or schedules, with human-in-the-loop approval gates.
