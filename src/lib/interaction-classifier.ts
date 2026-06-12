@@ -131,6 +131,47 @@ export async function resolveArchetypeFromChannel(
   }
 }
 
+export async function resolveEmployeesAcrossTenants(
+  channelId: string,
+  tenantIds: string[],
+): Promise<
+  Array<{
+    archetype: { id: string; role_name: string; notification_channel: string | null };
+    tenantId: string;
+  }>
+> {
+  if (tenantIds.length === 0) {
+    return [];
+  }
+
+  const supabaseUrl = SUPABASE_URL();
+  const headers = getPostgrestHeaders();
+
+  try {
+    const tenantFilter = tenantIds.join(',');
+    const url = `${supabaseUrl}/rest/v1/archetypes?notification_channel=eq.${channelId}&tenant_id=in.(${tenantFilter})&status=eq.active&select=id,role_name,notification_channel,tenant_id`;
+    const res = await fetch(url, { headers });
+    const data = (await res.json()) as Array<{
+      id: string;
+      role_name: string;
+      notification_channel: string | null;
+      tenant_id: string;
+    }>;
+
+    return data.map((row) => ({
+      archetype: {
+        id: row.id,
+        role_name: row.role_name,
+        notification_channel: row.notification_channel,
+      },
+      tenantId: row.tenant_id,
+    }));
+  } catch (err) {
+    log.warn({ channelId, tenantIds, err }, 'Failed to resolve employees across tenants');
+    return [];
+  }
+}
+
 export async function resolveArchetypeFromTask(
   taskId: string,
 ): Promise<{ id: string; role_name: string; tenantId: string } | null> {
