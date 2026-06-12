@@ -2,6 +2,19 @@
 
 > This document is loaded on-demand when working on Slack OAuth or tenant token issues. For Slack message standards and Socket Mode, see AGENTS.md.
 
+## Workspace-to-Tenant Relationship (many:1)
+
+A single Slack workspace can be connected to **multiple tenants**. There is no conflict — each tenant gets its own row in `tenant_integrations` (keyed by `tenant_id + provider`), and all rows for the same workspace share the same `external_id` (the Slack `team_id`).
+
+**Routing is by channel, not by workspace.** When a user @mentions the bot, the gateway:
+
+1. Calls `findManyByExternalId('slack', team_id)` to get all tenants connected to that workspace.
+2. Calls `resolveEmployeesAcrossTenants(channel, tenantIds)` to find which employees are assigned to that channel across all those tenants.
+3. Routes to the single matching employee, or uses LLM routing when multiple candidates exist, or shows a disambiguation card when the LLM isn't confident.
+4. Only workspaces with zero employees assigned to any channel get a "no employees available" response.
+
+**Bot token is workspace-scoped.** All tenants connected to the same Slack app share the same `xoxb-` token. `fetchInstallation` iterates all tenants for the workspace and returns the first live token it finds.
+
 ## Slack OAuth — Per-Tenant Installation
 
 Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenant_integrations` (provider: `slack`, external_id: Slack team ID). The `TenantInstallationStore` (`src/gateway/slack/installation-store.ts`) looks them up by team ID for Bolt authorization.
@@ -22,6 +35,8 @@ Tokens are stored per-tenant: `tenant_secrets` (key: `slack_bot_token`) + `tenan
 | VLRE      | `http://localhost:7700/slack/install?tenant=00000000-0000-0000-0000-000000000003` |
 
 VLRE alternative: run the Slack OAuth flow for VLRE (see install URL above).
+
+**Connecting a second tenant to the same workspace** works the same way — just run the install flow for the second tenant. The callback upserts a new `tenant_integrations` row for that tenant without touching the first tenant's row.
 
 ## Per-Tenant Slack Token Architecture
 

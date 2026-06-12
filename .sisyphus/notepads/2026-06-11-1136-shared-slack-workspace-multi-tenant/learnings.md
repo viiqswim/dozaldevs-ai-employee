@@ -58,3 +58,11 @@
 - handlers-mention-dedup.test.ts needed: `vi.hoisted` for `mockResolveEmployeesAcrossTenants` + `mockRouteToEmployee`, `mockPrismaForDedup` with `findMany`, `makeClient()` helper, `client` arg in all handler calls, and `beforeEach` re-initialization after `vi.clearAllMocks()`
 - `vi.clearAllMocks()` clears `mockResolvedValue` implementations — always re-set in `beforeEach` for any mock that must return a specific value
 - admin-integrations.test.ts: regression test proving DELETE for tenant A only soft-deletes tenant A's integration row (by ID), never touches tenant B
+
+## [2026-06-12] Task 10 — Documentation updates (DONE)
+
+- Updated `docs/guides/2026-05-14-0040-slack-tenant-integration.md`: added "Workspace-to-Tenant Relationship (many:1)" section at the top explaining the routing flow (findManyByExternalId → resolveEmployeesAcrossTenants → single/LLM/disambiguation/no-employees). Added note that connecting a second tenant to the same workspace is just running the install flow again.
+- Updated `docs/guides/2026-06-06-2032-slack-per-dev-app-onboarding.md`: replaced "routes by team_id to the right tenant" with "looks up all tenants connected to that workspace, then resolves which employee owns the channel across all of them".
+- Updated `AGENTS.md` Slack @mention triggering bullet: replaced old single-tenant framing with full many:1 routing description (findManyByExternalId → resolveEmployeesAcrossTenants → single/LLM/disambiguation/zero-employees). Added TRIGGER_DISAMBIGUATE to action IDs list.
+- Updated `AGENTS.md` Tenants section: added "Multiple tenants can share a Slack workspace (many:1)" paragraph with routing summary and pointer to the guide.
+- No snapshot files touched. No volatile facts introduced.

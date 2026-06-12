@@ -231,7 +231,7 @@ If `num_connections: 1` — you're isolated. If it's higher, another process is 
 
 ## Optional: Install Your Dev App into a Second Workspace (e.g. VLRE)
 
-One Slack app can be installed in multiple workspaces. Prod proves this — the single Papi Chulo app serves both Dozal Inc. and VLRE through ONE socket; Slack tags every event with its `team_id` and the gateway routes by `team_id` to the right tenant. So to test VLRE-tenant employees locally with YOUR app, install your existing dev app into the VLRE workspace too.
+One Slack app can be installed in multiple workspaces. Prod proves this — the single Papi Chulo app serves both Dozal Inc. and VLRE through ONE socket. Slack tags every event with its `team_id`; the gateway looks up all tenants connected to that workspace, then resolves which employee owns the channel across all of them. So to test VLRE-tenant employees locally with YOUR app, install your existing dev app into the VLRE workspace too.
 
 This does NOT add a second socket and does NOT recreate round-robin. Still one app = one socket; adding a workspace adds zero sockets.
 
