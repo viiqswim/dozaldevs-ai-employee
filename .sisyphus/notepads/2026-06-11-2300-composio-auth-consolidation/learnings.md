@@ -343,3 +343,59 @@ After `rm -rf` of tool dirs, the LSP/diagnostics tool still reported "Cannot fin
 
 ### Pre-existing (do not "fix")
 `vitest.config.ts:32` LSP error "coverage does not exist in type UserConfigExport" exists at HEAD (verified via `git show HEAD:vitest.config.ts`). Not caused by this task. Build still passes.
+
+## [2026-06-12] Task 9 — seed.ts Verification
+
+**Result**: seed.ts was already clean — T6/T7/T8 had already removed all `/tools/notion/`, `/tools/google/`, and `/tools/jira/` references in prior tasks.
+
+**Actions taken**:
+- `grep -n "/tools/notion/\|/tools/google/\|/tools/jira/" prisma/seed.ts` → zero matches (already clean)
+- Added clarifying comment before the `slack_bot_token` seed block: documents it as a LOCAL-DEV FALLBACK only; production sources from Composio. Prevents accidental deletion by future devs cleaning up after Composio integration.
+- Ran `DATABASE_URL="postgresql://postgres:postgres@localhost:54322/ai_employee_test" pnpm prisma db seed` → exit 0, all 14 models, 7 archetypes upserted cleanly
+- Post-seed psql check: `SELECT count(*) FROM archetypes WHERE execution_steps LIKE '%/tools/notion/%' OR execution_steps LIKE '%/tools/google/%' OR execution_steps LIKE '%/tools/jira/%'` → **0**
+- Committed: `chore(seed): document slack_bot_token as local-dev fallback for Composio`
+
+**Key pattern**: `.sisyphus/evidence/` is gitignored — save evidence locally but don't try to commit it.
+
+## [2026-06-12] Task 10 — Wizard Prompt Cleanup
+
+**Result**: NO CHANGES NEEDED — wizard prompt (`archetype-generator-prompts.ts`) and `archetype-generator.ts` were already clean after T6/T7/T8.
+
+### Verification evidence
+- `grep -n "notion|google|jira" archetype-generator-prompts.ts` → 2 matches, BOTH benign:
+  - L29: `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_CREATE_PAGE` — "notion" is a Composio `--toolkit` ARGUMENT (correct post-migration pattern), NOT a `/tools/notion/` path.
+  - L91: `notion_page_url` — an example input_schema KEY name, not a tool path.
+- `grep -nE "/tools/(notion|google|jira)/"` across both generator files → ZERO matches.
+- No tiebreaker/preference language exists or was added (overlap is gone — nothing to disambiguate).
+
+### Why discoverTools() auto-handles deletion (no code change)
+- `discoverTools(basePath)` (tool-parser.ts L66) = `fs.readdir(basePath, {recursive:true})` on `src/worker-tools/`. Module header: "Never caches — always reads from disk."
+- `buildSystemPrompt()` (archetype-generator.ts L119-149) feeds that live scan into `formatToolCatalog()` → the "## Available Tools" prompt section.
+- Since notion/google/jira dirs were physically deleted in T8, they vanish from the catalog automatically. The LLM is told (formatToolCatalog L96, SYSTEM_PROMPT_POST L292) to use ONLY listed tools → deleted tools cannot be generated.
+- `src/worker-tools/` now contains: _template, composio, github, hostfully, knowledge_base, lib, platform, sifely, slack. (notion/google/jira absent — confirmed.)
+
+### Confirms T8 inherited wisdom
+- The stale LSP "Cannot find module './auth.js'" errors for `src/worker-tools/notion/*.ts` re-appeared this session — exactly the stale-LSP-cache gotcha logged in T8 (learnings L341-342). Files ARE deleted (directory read confirms); `pnpm build` EXIT_CODE:0 is authoritative. Trust tsc, not the LSP cache.
+
+### Build
+- `pnpm build` → EXIT_CODE:0.
+
+### No commit
+- Zero code changes made → no commit created. Evidence at `.sisyphus/evidence/task-10-wizard/result.txt`.
+
+## [2026-06-12] Task 11 — Docs Update
+
+### Files updated
+- `AGENTS.md` — removed Jira, Notion, Google rows from shell-tools table; updated Composio row description to document auth-manager model (Composio manages auth for all connected toolkits; GitHub + Slack use own-app credentials)
+- `docs/employees/cleaning-schedule.md` — replaced Notion OAuth setup with Composio connect flow; updated CRITICAL gotcha; removed `notion_access_token` from Tenant Secrets table; added note that Notion access is via Composio
+- `docs/employees/2026-06-02-1230-engineer.md` — added note in inbound flow and Setup section that GitHub token currently comes from GitHub App installation credentials via `internal-github-token.ts`; noted T4 (Composio GitHub migration) is pending
+- `docs/employees/2026-05-21-1721-jira-motivation-bot.md` — updated Mock Mode Testing section to reflect `/tools/jira/` removal and Composio-based Jira access; updated Docker image gotcha
+- `docs/guides/2026-05-31-2352-cleaning-schedule-verification.md` — replaced 3x `/tools/notion/get-page.ts` calls with `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN` equivalents
+
+### Grep check result
+Remaining `/tools/jira` references after update:
+- `docs/architecture/2026-04-14-0104-full-system-vision.md` — historical architecture examples (not operational instructions, OK to leave)
+- `docs/employees/2026-05-21-1721-jira-motivation-bot.md` — updated references correctly noting tools are removed
+
+### Key pattern
+When removing a shell tool directory, update: AGENTS.md table, employee doc, any verification/testing guides that reference the tool CLI, and the employee's setup checklist + tenant secrets table.

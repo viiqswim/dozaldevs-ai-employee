@@ -543,7 +543,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(cleaning-schedule): migrate Notion calls to Composio`
 
-- [ ] 7. Rewrite `google-workspace-assistant` archetype → Composio Google
+- [x] 7. Rewrite `google-workspace-assistant` archetype → Composio Google
 
   **What to do**:
   - Map each `/tools/google/*` operation the employee uses to the right Composio Google toolkit action (GMAIL / GOOGLEDRIVE / GOOGLEDOCS / GOOGLESHEETS / GOOGLECALENDAR / GOOGLESLIDES) and rewrite its `execution_steps`/`delivery_steps` to `execute.ts --toolkit <googletoolkit> --action <SLUG>`.
@@ -586,7 +586,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(google-assistant): migrate Google calls to Composio`
 
-- [ ] 8. Delete `src/worker-tools/{notion,google,jira}/` + tests + references
+- [x] 8. Delete `src/worker-tools/{notion,google,jira}/` + tests + references
 
   **What to do**:
   - Delete the three tool directories and their `__tests__/`.
@@ -628,7 +628,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `refactor(tools): remove notion/google/jira dedicated tools (replaced by Composio)`
 
-- [ ] 9. Rewrite `prisma/seed.ts` to Composio calls
+- [x] 9. Rewrite `prisma/seed.ts` to Composio calls
 
   **What to do**:
   - Update `prisma/seed.ts` so the seeded `cleaning-schedule` and `google-workspace-assistant` archetypes use Composio `execute.ts` calls (matching Tasks 6 & 7) and so no seeded archetype's `tool_registry`/`execution_steps` references the deleted tools.
@@ -670,7 +670,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `chore(seed): migrate seeded archetypes to Composio tool calls`
 
-- [ ] 10. Wizard prompt Composio-only for migrated services; no tiebreaker rule
+- [x] 10. Wizard prompt Composio-only for migrated services; no tiebreaker rule
 
   **What to do**:
   - Since the dedicated notion/google/jira tools are deleted, `discoverTools()` already drops them from the catalog automatically. Verify that, and ensure the wizard prompt (`archetype-generator-prompts.ts`) cleanly steers the LLM to use Composio `execute.ts` for those services when connected.
@@ -710,7 +710,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(wizard): Composio-only generation for migrated services`
 
-- [ ] 11. Docs + AGENTS.md + employee docs update
+- [x] 11. Docs + AGENTS.md + employee docs update
 
   **What to do**:
   - AGENTS.md: remove notion/google/jira rows from the shell-tools table; note Composio is the auth source for slack/github; update the Composio section to describe the auth-manager model.

@@ -51,7 +51,7 @@ export function composioOAuthRoutes(opts: ComposioOAuthRouteOptions = {}): Route
 
         // Dynamically resolve the auth config ID for the requested toolkit.
         // This avoids hardcoding per-toolkit IDs and supports any future toolkit automatically.
-        const authConfigs = await composio.authConfigs.list();
+        const authConfigs = await composio.authConfigs.list({ limit: 200 });
         const authConfig = authConfigs.items.find(
           (ac) => ac.toolkit?.slug?.toLowerCase() === toolkit.toLowerCase(),
         );
