@@ -4,12 +4,13 @@ import { PrismaClient, TenantRole } from '@prisma/client';
 import { z } from 'zod';
 import { createLogger } from '../../lib/logger.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { requireAuth, requireTenantRole } from '../middleware/authz.js';
+import { requireAuth, requireTenantRole, requirePermission } from '../middleware/authz.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
 import { COMPOSIO_API_KEY } from '../../lib/config.js';
+import { PERMISSIONS } from '../../lib/auth/permissions.js';
 
 interface ComposioToolkitCategory {
   slug: string;
@@ -36,13 +37,14 @@ const CatalogQuerySchema = z.object({
   cursor: z.string().optional(),
   search: z.string().optional(),
   category: z.string().optional(),
+  connectable: z.enum(['true']).optional(),
   limit: z
     .string()
     .optional()
     .transform((v) => {
       const n = v !== undefined ? parseInt(v, 10) : 24;
       if (isNaN(n) || n < 1) return 24;
-      return Math.min(n, 50);
+      return Math.min(n, 200);
     }),
 });
 
@@ -146,7 +148,7 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
         });
         return;
       }
-      const { cursor, search, category, limit } = queryResult.data;
+      const { cursor, search, category, connectable, limit } = queryResult.data;
 
       const apiKey = COMPOSIO_API_KEY();
       if (!apiKey) {
@@ -169,7 +171,7 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
 
       if (!connectableCache || isExpired(connectableCache.fetchedAt)) {
         try {
-          const authConfigs = await composio.authConfigs.list();
+          const authConfigs = await composio.authConfigs.list({ limit: 200 });
           const slugs = new Set<string>();
           for (const ac of authConfigs.items) {
             const slug = ac.toolkit?.slug;
@@ -206,6 +208,9 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
       if (category) {
         filtered = filtered.filter((item) => item.categories.some((c) => c.slug === category));
       }
+      if (connectable) {
+        filtered = filtered.filter((item) => connectableSet.has(item.slug.toLowerCase()));
+      }
 
       const offset = cursor ? parseInt(cursor, 10) || 0 : 0;
       const pageItems = filtered.slice(offset, offset + limit);
@@ -219,6 +224,19 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
       }));
 
       sendSuccess(res, 200, { items, nextCursor: nextCursorOut } as ComposioToolkitsPage);
+    },
+  );
+
+  router.post(
+    '/admin/composio/cache/invalidate',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_PLATFORM_SETTINGS),
+    (_req, res) => {
+      fullCatalogCache = null;
+      connectableCache = null;
+      logger.info('Composio catalog cache invalidated by platform owner');
+      sendSuccess(res, 200, { invalidated: true });
     },
   );
 

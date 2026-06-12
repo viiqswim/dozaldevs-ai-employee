@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TenantProvider } from './hooks/use-tenant';
 import { AuthProvider } from './contexts/AuthContext';
@@ -14,7 +14,6 @@ import { CreateEmployeePage } from './panels/employees/CreateEmployeePage';
 import { EditEmployeePage } from './panels/employees/EditEmployeePage';
 import { TriggerEmployeePage } from './panels/employees/TriggerEmployeePage';
 import { TenantOverview } from './panels/tenants/TenantOverview';
-import { IntegrationsPage } from './panels/integrations/IntegrationsPage';
 import { PreflightPanel } from './panels/preflight/PreflightPanel';
 import { RulesPanel } from './panels/rules/RulesPanel';
 import { ToolList } from './panels/tools/ToolList';
@@ -29,6 +28,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { UpdatePasswordPage } from './pages/UpdatePasswordPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 
 interface ErrorBoundaryProps {
@@ -77,6 +77,7 @@ export default function App() {
               <Route path="/dashboard/signup" element={<SignupPage />} />
               <Route path="/dashboard/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/dashboard/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/dashboard/auth/update-password" element={<UpdatePasswordPage />} />
               <Route path="/dashboard/accept-invite" element={<AcceptInvitePage />} />
               <Route
                 element={
@@ -101,8 +102,11 @@ export default function App() {
                 />
                 <Route path="/dashboard/employees/:archetypeId" element={<EmployeeDetail />} />
                 <Route path="/dashboard/tenants" element={<TenantOverview />} />
-                <Route path="/dashboard/integrations" element={<IntegrationsPage />} />
-                <Route path="/dashboard/integrations/composio" element={<ComposioConnections />} />
+                <Route path="/dashboard/integrations" element={<ComposioConnections />} />
+                <Route
+                  path="/dashboard/integrations/composio"
+                  element={<Navigate to="/dashboard/integrations" replace />}
+                />
                 <Route path="/dashboard/rules" element={<RulesPanel />} />
                 <Route path="/dashboard/members" element={<MembersPage />} />
                 <Route element={<PlatformOwnerRoute />}>

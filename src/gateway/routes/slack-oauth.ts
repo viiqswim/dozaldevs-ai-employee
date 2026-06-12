@@ -116,11 +116,6 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
       const teamId = tokenData.team.id;
       const teamName = tokenData.team.name;
       const accessToken = tokenData.access_token;
-      const existingIntegration = await integrationRepo.findByExternalId('slack', teamId);
-      if (existingIntegration && existingIntegration.tenant_id !== tenantId) {
-        sendError(res, 409, 'CONFLICT', 'Slack workspace already attached to a different tenant');
-        return;
-      }
       await secretRepo.set(tenantId, 'slack_bot_token', accessToken);
       await integrationRepo.upsert(tenantId, 'slack', { external_id: teamId });
       logger.info({ tenantId, teamId }, 'Slack OAuth completed — secret and integration stored');
@@ -130,13 +125,6 @@ export function slackOAuthRoutes(opts: SlackOAuthRouteOptions = {}): Router {
           `<html><body><h2>Connected to ${teamName}. You can close this tab.</h2></body></html>`,
         );
     } catch (err) {
-      if (
-        err instanceof Error &&
-        (err as NodeJS.ErrnoException & { code?: string }).code === 'DUPLICATE_TEAM'
-      ) {
-        sendError(res, 409, 'CONFLICT', 'Slack workspace already attached to a different tenant');
-        return;
-      }
       logger.error({ err }, 'OAuth callback failed');
       sendError(res, 500, 'INTERNAL_ERROR');
     }

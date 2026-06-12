@@ -135,6 +135,12 @@ export async function setSecret(tenantId: string, key: string, value: string): P
   });
 }
 
+export async function deleteSecret(tenantId: string, key: string): Promise<void> {
+  await gatewayFetch<unknown>(`/admin/tenants/${tenantId}/secrets/${key}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function patchArchetype(
   tenantId: string,
   archetypeId: string,
@@ -404,6 +410,10 @@ export async function updatePlatformSetting(key: string, value: string): Promise
   });
 }
 
+export async function invalidateComposioCache(): Promise<void> {
+  await gatewayFetch<unknown>('/admin/composio/cache/invalidate', { method: 'POST' });
+}
+
 export async function fetchGitHubRepos(tenantId: string): Promise<{ repos: GitHubRepo[] }> {
   return gatewayFetch<{ repos: GitHubRepo[] }>(`/admin/tenants/${tenantId}/github/repos`);
 }
@@ -437,6 +447,24 @@ export async function disconnectGitHub(tenantId: string): Promise<{ disconnected
 
 export async function disconnectGoogle(tenantId: string): Promise<{ disconnected: boolean }> {
   return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/google`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectSlack(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/slack`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectJira(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/jira`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectNotion(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/notion`, {
     method: 'DELETE',
   });
 }
@@ -588,6 +616,7 @@ export async function listComposioToolkits(
     search?: string;
     category?: string;
     limit?: number;
+    connectable?: true;
   },
 ): Promise<ComposioToolkitsPage> {
   const params = new URLSearchParams();
@@ -595,6 +624,7 @@ export async function listComposioToolkits(
   if (opts?.search) params.set('search', opts.search);
   if (opts?.category) params.set('category', opts.category);
   if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.connectable) params.set('connectable', 'true');
   const qs = params.toString();
   const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
   return gatewayFetch<ComposioToolkitsPage>(url);

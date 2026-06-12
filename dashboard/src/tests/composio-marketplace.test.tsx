@@ -1,13 +1,26 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { IntegrationCard } from '../pages/composio/IntegrationCard';
 import { SearchToolbar } from '../pages/composio/SearchToolbar';
 import { ConnectedAppsZone } from '../pages/composio/ConnectedAppsZone';
 import { EmptySearchState } from '../pages/composio/MarketplaceStates';
+import { ComposioConnections } from '../pages/ComposioConnections';
 import { listComposioToolkits } from '../lib/gateway';
+import { usePoll } from '../hooks/use-poll';
 import type { ComposioToolkit, ComposioConnection, ComposioToolkitsPage } from '../lib/types';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+// vi.mock is hoisted file-wide; safe because only the page-level block below
+// renders ComposioConnections (the sole caller of usePoll/useTenant).
+vi.mock('../hooks/use-poll');
+vi.mock('../hooks/use-tenant', () => ({
+  useTenant: vi.fn().mockReturnValue({
+    tenantId: 'test-tenant',
+    tenants: [{ tenantId: 'test-tenant', slug: 'test' }],
+  }),
 }));
 
 function makeToolkit(overrides: Partial<ComposioToolkit> = {}): ComposioToolkit {
@@ -221,6 +234,7 @@ function MarketplaceZones({
   connections: ComposioConnection[];
 }) {
   const connectedSlugs = new Set(connections.map((c) => c.toolkit.toLowerCase()));
+  const connectedApps = catalogItems.filter((t) => connectedSlugs.has(t.slug.toLowerCase()));
   const availableItems = catalogItems.filter(
     (t) => t.connectable && !connectedSlugs.has(t.slug.toLowerCase()),
   );
@@ -228,10 +242,14 @@ function MarketplaceZones({
     <>
       <div data-testid="connected-zone">
         <ConnectedAppsZone
-          connections={connections}
-          toolkits={catalogItems}
+          connectedApps={connectedApps}
           onDisconnect={vi.fn()}
           isLoading={false}
+          search=""
+          category=""
+          categories={[]}
+          onSearchChange={vi.fn()}
+          onCategoryChange={vi.fn()}
         />
       </div>
       <div data-testid="available-zone">
@@ -339,5 +357,162 @@ describe('listComposioToolkits', () => {
     expect(calledUrl).toContain('search=noti');
     expect(calledUrl).toContain('category=productivity');
     expect(calledUrl).toContain('limit=24');
+  });
+});
+
+describe('ComposioConnections — page-level tab tests', () => {
+  const mockFetch = vi.fn();
+
+  function setConnections(data: ComposioConnection[]) {
+    vi.mocked(usePoll).mockReturnValue({
+      data,
+      error: null,
+      loading: false,
+      refresh: vi.fn(),
+    } as ReturnType<typeof usePoll>);
+  }
+
+  function jsonPage(items: ComposioToolkit[]): Response {
+    return { ok: true, json: async () => ({ items, nextCursor: null }) } as Response;
+  }
+
+  // listComposioToolkits is invoked twice: connectable-only (connectable=true) and
+  // the paged catalog. Route each independently so connected metadata and the
+  // browse catalog can be controlled per scenario.
+  function routeToolkits(opts: { connectable?: ComposioToolkit[]; catalog?: ComposioToolkit[] }) {
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes('connectable=true')
+          ? jsonPage(opts.connectable ?? [])
+          : jsonPage(opts.catalog ?? []),
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+        constructor(_cb: unknown, _opts?: unknown) {}
+      },
+    );
+    vi.stubGlobal('fetch', mockFetch);
+    mockFetch.mockResolvedValue(jsonPage([]));
+    setConnections([]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    mockFetch.mockReset();
+  });
+
+  function renderPage(initialUrl = '/integrations') {
+    return render(
+      <MemoryRouter initialEntries={[initialUrl]}>
+        <ComposioConnections />
+      </MemoryRouter>,
+    );
+  }
+
+  test('Scenario A — connections present → Connected tab is active by default', async () => {
+    setConnections([makeConnection({ toolkit: 'notion' })]);
+    routeToolkits({
+      connectable: [
+        makeToolkit({ slug: 'notion', name: 'Notion', connectable: true, connected: true }),
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /connected apps/i })).toHaveAttribute(
+        'data-state',
+        'active',
+      );
+    });
+    expect(screen.getByRole('tab', { name: /browse apps/i })).toHaveAttribute(
+      'data-state',
+      'inactive',
+    );
+  });
+
+  test('Scenario B — no connections → Browse tab is active by default', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /browse apps/i })).toHaveAttribute(
+        'data-state',
+        'active',
+      );
+    });
+    expect(screen.getByRole('tab', { name: /connected apps/i })).toHaveAttribute(
+      'data-state',
+      'inactive',
+    );
+  });
+
+  test('Scenario C — connected app stays visible when catalog page is empty', async () => {
+    setConnections([makeConnection({ toolkit: 'notion' })]);
+    routeToolkits({
+      connectable: [
+        makeToolkit({ slug: 'notion', name: 'Notion', connectable: true, connected: true }),
+      ],
+      catalog: [],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Notion')).toBeInTheDocument();
+    });
+  });
+
+  test('Scenario D — connectable and non-connectable apps both appear in Browse', async () => {
+    routeToolkits({
+      connectable: [makeToolkit({ slug: 'notion', name: 'Notion', connectable: true })],
+      catalog: [makeToolkit({ slug: 'gmail', name: 'Gmail', connectable: false })],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /browse apps/i })).toHaveAttribute(
+        'data-state',
+        'active',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Notion')).toBeInTheDocument();
+      expect(screen.getByText('Gmail')).toBeInTheDocument();
+    });
+  });
+
+  test('Scenario E — Connected empty state shows a single "Browse apps" CTA', async () => {
+    renderPage('/integrations?tab=connected');
+
+    await waitFor(() => {
+      expect(screen.getByText(/you haven't connected any apps yet/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /browse apps/i })).toBeInTheDocument();
+  });
+
+  test('Scenario F — csearch filters the connected list', async () => {
+    setConnections([makeConnection({ toolkit: 'notion' }), makeConnection({ toolkit: 'gmail' })]);
+    routeToolkits({
+      connectable: [
+        makeToolkit({ slug: 'notion', name: 'Notion', connectable: true, connected: true }),
+        makeToolkit({ slug: 'gmail', name: 'Gmail', connectable: true, connected: true }),
+      ],
+    });
+
+    renderPage('/integrations?tab=connected&csearch=notion');
+
+    await waitFor(() => {
+      expect(screen.getByText('Notion')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Gmail')).not.toBeInTheDocument();
   });
 });

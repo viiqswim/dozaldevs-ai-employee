@@ -207,7 +207,10 @@ Auth: every endpoint below requires `Authorization: Bearer $SERVICE_TOKEN` (or a
 | `GET`    | `/admin/tenants/:tenantId/github/available-installations` | List GitHub App installations linkable to this tenant (requires App JWT).                                                 |
 | `POST`   | `/admin/tenants/:tenantId/github/link-installation`       | Link an existing GitHub App installation to this tenant (`installation_id` must be a string).                             |
 | `DELETE` | `/admin/tenants/:tenantId/integrations/github`            | Disconnect GitHub from this tenant (soft-delete, does not affect other tenants sharing the installation).                 |
-| `DELETE` | `/admin/tenants/:tenantId/integrations/google`            | Disconnect Google from tenant (soft-delete).                                                                              |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/google`            | Disconnect Google from tenant (soft-delete). Requires OWNER role.                                                         |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/slack`             | Disconnect Slack from tenant (soft-deletes integration record + deletes `slack_bot_token` secret). Requires OWNER role.   |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/jira`              | Disconnect Jira from tenant (soft-deletes integration record + deletes all Jira secrets). Requires OWNER role.            |
+| `DELETE` | `/admin/tenants/:tenantId/integrations/notion`            | Disconnect Notion from tenant (soft-deletes integration record + deletes all Notion secrets). Requires OWNER role.        |
 | `GET`    | `/admin/tenants/:tenantId/composio/connect`               | Initiate Composio OAuth for a toolkit (`?toolkit=notion`). Returns `{ url }` for browser redirect. Requires ADMIN role.   |
 | `GET`    | `/admin/tenants/:tenantId/composio/connections`           | List active Composio connections for the tenant. Returns `[{ toolkit, status, connected_at }]`. Requires MEMBER role.     |
 | `DELETE` | `/admin/tenants/:tenantId/composio/connections/:toolkit`  | Disconnect a Composio toolkit (soft-delete). Returns 204. Requires ADMIN role.                                            |

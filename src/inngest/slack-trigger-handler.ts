@@ -26,7 +26,7 @@ export function prettifyRoleName(roleName: string): string {
     .join(' ');
 }
 
-async function routeToEmployee(
+export async function routeToEmployee(
   text: string,
   archetypes: Array<{ id: string; role_name: string; identity?: string | null }>,
   callLLMFn: typeof callLLM,
@@ -147,17 +147,7 @@ export function createSlackTriggerHandlerFunction(inngest: Inngest): InngestFunc
       const replyTs = threadTs ?? messageTs;
 
       const routedArchetype = await step.run('route-employee', async () => {
-        if (!resolution.archetype || resolution.isExactMatch) {
-          return resolution.archetype;
-        }
-        const routed = await routeToEmployee(text, [resolution.archetype], callLLM);
-        if (routed === null) {
-          log.info(
-            { channelId, tenantId },
-            'route-employee: routing returned null — using resolved archetype',
-          );
-        }
-        return resolution.archetype;
+        return resolution.archetype ?? null;
       });
 
       if (!routedArchetype) {

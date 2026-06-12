@@ -13,6 +13,7 @@ import {
   SYSTEM_PROMPT_PRE,
   SYSTEM_PROMPT_POST,
   REFINE_SYSTEM_PROMPT,
+  buildConnectedAppsBlock,
 } from './prompts/archetype-generator-prompts.js';
 
 const log = createLogger('archetype-generator');
@@ -115,22 +116,35 @@ function formatToolCatalog(tools: ToolMetadata[]): string {
   return lines.join('\n');
 }
 
-async function buildSystemPrompt(): Promise<string> {
+async function buildSystemPrompt(
+  connectedToolkits: string[] = [],
+  connectableToolkits: string[] = [],
+): Promise<string> {
+  const connectedAppsBlock = buildConnectedAppsBlock(connectedToolkits, connectableToolkits);
+
   try {
     const basePath = path.join(process.cwd(), 'src/worker-tools');
     const tools = await discoverTools(basePath);
     const catalogSection = formatToolCatalog(tools);
     if (!catalogSection) {
       log.warn('discoverTools returned no tools — using base system prompt without tool catalog');
-      return SYSTEM_PROMPT_PRE + '\n\n' + SYSTEM_PROMPT_POST;
+      return SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + SYSTEM_PROMPT_POST;
     }
-    return SYSTEM_PROMPT_PRE + '\n\n' + catalogSection + '\n' + SYSTEM_PROMPT_POST;
+    return (
+      SYSTEM_PROMPT_PRE +
+      '\n\n' +
+      connectedAppsBlock +
+      '\n\n' +
+      catalogSection +
+      '\n' +
+      SYSTEM_PROMPT_POST
+    );
   } catch (err) {
     log.warn(
       { err },
       'discoverTools failed — falling back to base system prompt without tool catalog',
     );
-    return SYSTEM_PROMPT_PRE + '\n\n' + SYSTEM_PROMPT_POST;
+    return SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + SYSTEM_PROMPT_POST;
   }
 }
 
@@ -316,10 +330,14 @@ export class ArchetypeGenerator {
   async generate(
     description: string,
     catalog?: ModelCatalogRow[],
+    composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] },
   ): Promise<GenerateArchetypeResponse> {
     log.info({ descriptionLength: description.length }, 'Generating archetype from description');
 
-    const systemPrompt = await buildSystemPrompt();
+    const systemPrompt = await buildSystemPrompt(
+      composioContext?.connectedToolkits ?? [],
+      composioContext?.connectableToolkits ?? [],
+    );
 
     const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [

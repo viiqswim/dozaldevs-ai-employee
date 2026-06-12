@@ -6,17 +6,63 @@
  * connection for the toolkit gets a hard HTTP 400 (no cross-tenant leakage).
  */
 
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { getArg } from '../lib/get-arg.js';
-import { requireEnv } from '../lib/require-env.js';
+import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 
 const COMPOSIO_EXECUTE_BASE_URL = 'https://backend.composio.dev/api/v3.1/tools/execute';
 
 interface ComposioErrorBody {
   error?: { message?: string; code?: number; slug?: string; status?: number };
+}
+
+// Fire-and-forget: a failure here must never change the tool's exit code or stdout.
+async function writeAuditRow(toolkit: string, action: string): Promise<void> {
+  const supabaseUrl = optionalEnv('SUPABASE_URL');
+  const supabaseKey = optionalEnv('SUPABASE_SECRET_KEY');
+  const taskId = optionalEnv('TASK_ID');
+  const tenantId = optionalEnv('TASK_TENANT_ID');
+  const phase = optionalEnv('TASK_PHASE') ?? null;
+
+  if (!supabaseUrl || !supabaseKey || !taskId || !tenantId) {
+    process.stderr.write(
+      'Warning: skipping task_composio_calls audit write — missing SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID, or TASK_TENANT_ID\n',
+    );
+    return;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/task_composio_calls`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        id: randomUUID(),
+        task_id: taskId,
+        tenant_id: tenantId,
+        toolkit,
+        tool_name: action,
+        phase,
+        called_at: new Date().toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      process.stderr.write(
+        `Warning: task_composio_calls audit write returned status ${res.status}: ${errText}\n`,
+      );
+    }
+  } catch (err) {
+    process.stderr.write(`Warning: task_composio_calls audit write failed: ${String(err)}\n`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -117,6 +163,8 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
+
+  await writeAuditRow(toolkit, action);
 
   console.log(JSON.stringify(body));
 }

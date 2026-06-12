@@ -101,10 +101,10 @@ jq '[.leads[] | select(
 Fetch the Directorio Operativo page to verify each property is in the correct ZIP zone:
 
 ```bash
-tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb
+tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b4380809a8ea0c11074f92abb"}'
 ```
 
-Or via the Notion API directly:
+Or via the Notion API directly (requires a valid Notion token):
 
 ```bash
 curl -s "https://api.notion.com/v1/blocks/370d540b4380809a8ea0c11074f92abb/children?page_size=100" \
@@ -122,7 +122,7 @@ For each property with a checkout on the target date:
 ### Step 5 — Look up cleaning times from Reporte Financiero
 
 ```bash
-tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960
+tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
 ```
 
 For each property, find its entry and determine the unit type:
@@ -137,7 +137,7 @@ The cleaning time varies by unit type. Do not assume 60 minutes for all properti
 ### Step 6 — Determine cleaner assignment
 
 ```bash
-tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70
+tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080969a72c16c20defc70"}'
 ```
 
 Apply zone and day-of-week rules from Manual de Personal:

@@ -17,7 +17,12 @@ import { classifyFailure } from './failure-codes.js';
 import { buildTemplateVars, substituteTemplateVars } from './template-vars.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
 import { injectAssignmentSection } from './trigger-payload.mjs';
-import { markFailed, fireCompletionEvent, writeOpencodeAuth } from './harness-helpers.mjs';
+import {
+  markFailed,
+  fireCompletionEvent,
+  writeOpencodeAuth,
+  filterComposioSkills,
+} from './harness-helpers.mjs';
 import { startHeartbeat, type HeartbeatHandle } from './heartbeat.js';
 
 const log = createLogger('opencode-harness');
@@ -166,6 +171,8 @@ export async function runExecutionPhase(
   log.info({ taskId }, 'Task status → Executing');
 
   await writeOpencodeAuth(archetype.temperature ?? 1.0);
+  // Set phase for Composio audit rows
+  process.env.TASK_PHASE = 'execution';
 
   // Platform procedures — auto-generated from risk_model (still needed for submitOutputCmd)
   const approvalRequired =
@@ -174,6 +181,10 @@ export async function runExecutionPhase(
   // Load active Composio toolkits for the tenant (empty when none connected —
   // the compiler then omits the Connected Apps section).
   const connectedToolkits = task.tenant_id ? await loadConnectedToolkits(task.tenant_id) : [];
+
+  // Prune composio-* skill folders for apps this tenant has NOT connected.
+  // MUST run before runOpencodeSession (OpenCode scans skills once at boot).
+  filterComposioSkills(connectedToolkits);
 
   // Compile AGENTS.md using template compiler
   try {

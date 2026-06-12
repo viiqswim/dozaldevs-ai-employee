@@ -1,0 +1,81 @@
+{
+  "items": [
+    {
+      "slug": "NOTION_GET_PAGE_MARKDOWN",
+      "name": "Get Page As Markdown",
+      "description": "Retrieve the full content of a Notion page rendered as markdown.",
+      "input_parameters": {
+        "type": "object",
+        "required": ["page_id"],
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "description": "The UUID of the Notion page to fetch."
+          }
+        }
+      }
+    },
+    {
+      "slug": "NOTION_CREATE_PAGE",
+      "name": "Create Page",
+      "description": "Create a new Notion page under a parent page or database.",
+      "input_parameters": {
+        "type": "object",
+        "required": ["parent_id", "title"],
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "description": "The UUID of the parent page or database."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the new page."
+          },
+          "content": {
+            "type": "string",
+            "description": "Optional markdown body for the page."
+          }
+        }
+      }
+    },
+    {
+      "slug": "NOTION_SEARCH",
+      "name": "Search Workspace",
+      "description": "Search across all pages and databases the integration can access.",
+      "input_parameters": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The text to search for across the workspace."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Maximum number of results to return.",
+            "default": 10
+          }
+        }
+      }
+    },
+    {
+      "slug": "NOTION_APPEND_BLOCK_CHILDREN",
+      "name": "Append Block Children",
+      "description": "Append new block content to the end of an existing Notion page or block.",
+      "input_parameters": {
+        "type": "object",
+        "required": ["block_id", "children"],
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "description": "The UUID of the page or block to append to."
+          },
+          "children": {
+            "type": "array",
+            "description": "An array of block objects to append."
+          }
+        }
+      }
+    }
+  ]
+}

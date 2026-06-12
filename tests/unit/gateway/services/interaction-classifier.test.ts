@@ -4,6 +4,7 @@ import {
   InteractionClassifier,
   resolveArchetypeFromChannel,
   resolveArchetypeFromTask,
+  resolveEmployeesAcrossTenants,
 } from '../../../../src/lib/interaction-classifier.js';
 
 type MockCallLLM = ReturnType<typeof vi.fn>;
@@ -291,5 +292,125 @@ describe('resolveArchetypeFromTask', () => {
     const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('tasks');
     expect(url).toContain('id=eq.my-task-id');
+  });
+});
+
+describe('resolveEmployeesAcrossTenants', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    process.env.SUPABASE_URL = 'http://localhost:54321';
+    process.env.SUPABASE_ANON_KEY = 'anon-key';
+    process.env.SUPABASE_SECRET_KEY = 'secret-key';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_ANON_KEY;
+    delete process.env.SUPABASE_SECRET_KEY;
+  });
+
+  it('returns one candidate with correct tenantId on single explicit match', async () => {
+    mockFetch.mockResolvedValueOnce(
+      makeJsonResponse([
+        {
+          id: 'arch-1',
+          role_name: 'Guest Responder',
+          notification_channel: 'C123',
+          tenant_id: 'tenant-1',
+        },
+      ]),
+    );
+
+    const result = await resolveEmployeesAcrossTenants('C123', ['tenant-1', 'tenant-2']);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      archetype: { id: 'arch-1', role_name: 'Guest Responder', notification_channel: 'C123' },
+      tenantId: 'tenant-1',
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns two candidates when two tenants both match the channel', async () => {
+    mockFetch.mockResolvedValueOnce(
+      makeJsonResponse([
+        {
+          id: 'arch-1',
+          role_name: 'Guest Responder',
+          notification_channel: 'C123',
+          tenant_id: 'tenant-1',
+        },
+        {
+          id: 'arch-2',
+          role_name: 'Support Bot',
+          notification_channel: 'C123',
+          tenant_id: 'tenant-2',
+        },
+      ]),
+    );
+
+    const result = await resolveEmployeesAcrossTenants('C123', ['tenant-1', 'tenant-2']);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      archetype: { id: 'arch-1', role_name: 'Guest Responder', notification_channel: 'C123' },
+      tenantId: 'tenant-1',
+    });
+    expect(result[1]).toEqual({
+      archetype: { id: 'arch-2', role_name: 'Support Bot', notification_channel: 'C123' },
+      tenantId: 'tenant-2',
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns empty array when no channel match — no fallback query', async () => {
+    mockFetch.mockResolvedValueOnce(makeJsonResponse([]));
+
+    const result = await resolveEmployeesAcrossTenants('C_UNASSIGNED', ['tenant-1', 'tenant-2']);
+
+    expect(result).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('never returns employees whose notification_channel is null', async () => {
+    mockFetch.mockResolvedValueOnce(makeJsonResponse([]));
+
+    await resolveEmployeesAcrossTenants('C123', ['tenant-1']);
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('notification_channel=eq.C123');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns empty array immediately for empty tenantIds', async () => {
+    const result = await resolveEmployeesAcrossTenants('C123', []);
+
+    expect(result).toEqual([]);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('uses correct PostgREST URL with channelId and tenantIds filters', async () => {
+    mockFetch.mockResolvedValueOnce(
+      makeJsonResponse([
+        {
+          id: 'arch-1',
+          role_name: 'Guest Responder',
+          notification_channel: 'C456',
+          tenant_id: 'tenant-A',
+        },
+      ]),
+    );
+
+    await resolveEmployeesAcrossTenants('C456', ['tenant-A', 'tenant-B']);
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('notification_channel=eq.C456');
+    expect(url).toContain('tenant-A');
+    expect(url).toContain('tenant-B');
+    expect(url).toContain('status=eq.active');
   });
 });

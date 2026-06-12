@@ -9,6 +9,10 @@ import {
   fetchAvailableInstallations,
   linkGitHubInstallation,
   disconnectGitHub,
+  disconnectGoogle,
+  disconnectSlack,
+  disconnectJira,
+  disconnectNotion,
 } from '@/lib/gateway';
 import { GATEWAY_URL } from '@/lib/constants';
 import { usePoll } from '@/hooks/use-poll';
@@ -35,6 +39,7 @@ interface IntegrationRowProps {
   integration: TenantIntegration | null;
   connectHref?: string;
   connectLabel?: string;
+  onDisconnect?: () => Promise<void>;
 }
 
 function IntegrationRow({
@@ -43,7 +48,24 @@ function IntegrationRow({
   integration,
   connectHref,
   connectLabel = 'Connect',
+  onDisconnect,
 }: IntegrationRowProps) {
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  async function handleDisconnect() {
+    if (!onDisconnect) return;
+    const confirmed = window.confirm(`Disconnect ${name} from this organization?`);
+    if (!confirmed) return;
+    setDisconnecting(true);
+    try {
+      await onDisconnect();
+    } catch {
+      toast.error(`Failed to disconnect ${name}. Please try again.`);
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
       <div className="space-y-0.5">
@@ -71,6 +93,17 @@ function IntegrationRow({
               >
                 Reconnect
               </a>
+            )}
+            {onDisconnect && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                disabled={disconnecting}
+                onClick={() => void handleDisconnect()}
+              >
+                Disconnect
+              </Button>
             )}
           </>
         ) : (
@@ -275,6 +308,10 @@ export function IntegrationsPage() {
                   description="Post messages and receive approvals in Slack channels."
                   integration={integrations?.find((i) => i.provider === 'slack') ?? null}
                   connectHref={`${GATEWAY_URL}/slack/install?tenant=${tenantId}`}
+                  onDisconnect={async () => {
+                    await disconnectSlack(tenantId);
+                    refreshIntegrations();
+                  }}
                 />
                 <IntegrationRow
                   name="Jira"
@@ -286,6 +323,10 @@ export function IntegrationsPage() {
                       : undefined
                   }
                   connectLabel="Connect Jira"
+                  onDisconnect={async () => {
+                    await disconnectJira(tenantId);
+                    refreshIntegrations();
+                  }}
                 />
                 <IntegrationRow
                   name="Notion"
@@ -297,6 +338,10 @@ export function IntegrationsPage() {
                       : undefined
                   }
                   connectLabel="Connect Notion"
+                  onDisconnect={async () => {
+                    await disconnectNotion(tenantId);
+                    refreshIntegrations();
+                  }}
                 />
                 <GitHubIntegrationRow
                   integration={integrations?.find((i) => i.provider === 'github') ?? null}
@@ -318,6 +363,10 @@ export function IntegrationsPage() {
                       : undefined
                   }
                   connectLabel="Connect Google"
+                  onDisconnect={async () => {
+                    await disconnectGoogle(tenantId);
+                    refreshIntegrations();
+                  }}
                 />
                 <div className="flex items-start justify-between gap-4 rounded-lg border bg-card px-5 py-4">
                   <div className="space-y-0.5">

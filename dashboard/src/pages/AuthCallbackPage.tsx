@@ -21,8 +21,25 @@ export function AuthCallbackPage() {
       }
 
       if (accessTokenFromHash) {
-        localStorage.setItem('supabase_access_token', accessTokenFromHash);
-        navigate('/dashboard/');
+        const refreshToken = hashParams.get('refresh_token') ?? '';
+        const type = hashParams.get('type');
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessTokenFromHash,
+          refresh_token: refreshToken,
+        });
+
+        if (sessionError) {
+          setError('Session expired or invalid. Please request a new link.');
+          setTimeout(() => navigate('/dashboard/login'), 3000);
+          return;
+        }
+
+        if (type === 'recovery') {
+          navigate('/dashboard/auth/update-password');
+        } else {
+          navigate('/dashboard/');
+        }
         return;
       }
 
@@ -33,7 +50,6 @@ export function AuthCallbackPage() {
           setTimeout(() => navigate('/dashboard/login'), 3000);
           return;
         }
-        localStorage.setItem('supabase_access_token', data.session.access_token);
         navigate('/dashboard/');
         return;
       }

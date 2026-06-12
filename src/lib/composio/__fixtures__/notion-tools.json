@@ -1,0 +1,56 @@
+{
+  "items": [
+    {
+      "slug": "NOTION_GET_PAGE_MARKDOWN",
+      "name": "Get Page Markdown",
+      "description": "Retrieves the content of a Notion page as Markdown text.",
+      "input_parameters": {
+        "page_id": {
+          "type": "string",
+          "description": "The unique identifier of the Notion page to retrieve.",
+          "required": true
+        }
+      }
+    },
+    {
+      "slug": "NOTION_CREATE_PAGE",
+      "name": "Create Page",
+      "description": "Creates a new Notion page under a specified parent page or database.",
+      "input_parameters": {
+        "parent_id": {
+          "type": "string",
+          "description": "The ID of the parent page or database.",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the new page.",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "Optional Markdown content for the page body.",
+          "required": false
+        }
+      }
+    },
+    {
+      "slug": "NOTION_APPEND_BLOCK",
+      "name": "Append Block",
+      "description": "Appends one or more content blocks to an existing Notion page.",
+      "input_parameters": {
+        "page_id": {
+          "type": "string",
+          "description": "The ID of the Notion page to append blocks to.",
+          "required": true
+        },
+        "blocks": {
+          "type": "array",
+          "description": "Array of Notion block objects to append.",
+          "required": true
+        }
+      }
+    }
+  ],
+  "next_cursor": null
+}

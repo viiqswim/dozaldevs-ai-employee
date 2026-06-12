@@ -337,6 +337,152 @@ export function registerTriggerHandlers(
     }
   });
 
+  boltApp.action(/^trigger_disambiguate/, async ({ ack, body, respond, client }) => {
+    const actionBody = body as ActionBody;
+    const valueStr = actionBody.actions[0]?.value;
+    const user = actionBody.user;
+
+    if (!valueStr) {
+      await ack();
+      log.warn('trigger_disambiguate action received without value');
+      return;
+    }
+
+    let ctx: {
+      archetypeId: string;
+      tenantId: string;
+      userId: string;
+      channelId: string;
+      threadTs: string;
+      text: string;
+      extractedInputs?: Record<string, string>;
+    };
+    try {
+      ctx = JSON.parse(valueStr) as typeof ctx;
+    } catch {
+      await ack();
+      log.warn({ valueStr }, 'trigger_disambiguate: failed to parse button value as JSON');
+      return;
+    }
+
+    await ack();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    log.info(
+      { archetypeId: ctx.archetypeId, tenantId: ctx.tenantId, userId: user.id },
+      'trigger_disambiguate action received — dispatching task',
+    );
+
+    const loadingText = loadingMessage('your request');
+    try {
+      await respond({
+        replace_original: true,
+        text: loadingText,
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: loadingText } }],
+      });
+    } catch (err) {
+      log.warn(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to show pending feedback on trigger_disambiguate',
+      );
+    }
+
+    let dispatched = false;
+
+    try {
+      const archetype = await prisma.archetype.findFirst({
+        where: {
+          id: ctx.archetypeId,
+          tenant_id: ctx.tenantId,
+          status: 'active',
+          deleted_at: null,
+        },
+        select: { id: true, role_name: true, input_schema: true },
+      });
+
+      if (!archetype) {
+        throw new Error(`Archetype not found or inactive: ${ctx.archetypeId}`);
+      }
+
+      const roleName = archetype.role_name ?? archetype.id;
+      const externalId = `slack-trigger-${ctx.threadTs}-${ctx.archetypeId}`;
+
+      const dispatchResult = await dispatchEmployeeById({
+        archetypeId: archetype.id,
+        tenantId: ctx.tenantId,
+        externalId,
+        sourceSystem: 'slack',
+        prisma,
+        inngest,
+        inputs: { prompt: ctx.text },
+      });
+
+      if (dispatchResult.kind === 'error') throw new Error(dispatchResult.message);
+
+      const { taskId } = dispatchResult;
+      dispatched = true;
+
+      log.info(
+        { taskId, archetypeId: archetype.id, tenantId: ctx.tenantId, userId: user.id },
+        'Task dispatched from Slack disambiguation',
+      );
+
+      const successText = successMessage(roleName, user.id);
+      try {
+        await respond({
+          replace_original: true,
+          text: successText,
+          blocks: [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: successText },
+            },
+            {
+              type: 'context',
+              elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }],
+            },
+          ],
+        });
+      } catch (err) {
+        log.warn(
+          { archetypeId: ctx.archetypeId, err },
+          'Failed to show success feedback on trigger_disambiguate',
+        );
+      }
+    } catch (err) {
+      log.error(
+        { archetypeId: ctx.archetypeId, err },
+        'Failed to dispatch task from trigger_disambiguate',
+      );
+      if (!dispatched) {
+        const failText = failureMessage();
+        try {
+          await respond({
+            replace_original: true,
+            text: failText,
+            blocks: [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: failText },
+              },
+              {
+                type: 'context',
+                elements: [{ type: 'mrkdwn', text: `Archetype \`${ctx.archetypeId}\`` }],
+              },
+            ],
+          });
+        } catch (respondErr) {
+          log.warn(
+            { err: respondErr },
+            'Failed to update message after trigger_disambiguate failure',
+          );
+        }
+      }
+    }
+
+    void client;
+  });
+
   boltApp.action(SLACK_ACTION_ID.TRIGGER_CANCEL, async ({ ack, body, respond }) => {
     await ack();
 

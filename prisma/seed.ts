@@ -130,6 +130,9 @@ async function main() {
     'notion_access_token',
     'secret_placeholder_replace_me',
   );
+  // LOCAL-DEV FALLBACK: In production, slack_bot_token is sourced from the Composio Slack connection.
+  // This seed value is only used when Composio is not connected (e.g., fresh local dev setup).
+  // Do NOT remove — required for local E2E testing without a Composio account.
   const vlreSlackBotToken = process.env.VLRE_SLACK_BOT_TOKEN;
   if (!vlreSlackBotToken) {
     console.warn(
@@ -3425,7 +3428,7 @@ Compose an encouraging message that ties the quote to the new ticket and motivat
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/jira/get-issue.ts', '/tools/slack/post-message.ts'] },
+      tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
@@ -3452,7 +3455,7 @@ Compose an encouraging message that ties the quote to the new ticket and motivat
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/jira/get-issue.ts', '/tools/slack/post-message.ts'] },
+      tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
@@ -3509,7 +3512,7 @@ STEP 2 — Get all confirmed checkouts for targetDate:
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
 
 STEP 3 — Look up cleaning times from Reporte Financiero:
-   Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
+   Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
 
    For each checkout in the array from Step 2, find the cleaning time:
    - Match by normalizedAddress (e.g., search for "3505 Banton Rd" in the Reporte content)
@@ -3526,14 +3529,14 @@ STEP 3 — Look up cleaning times from Reporte Financiero:
 STEP 4 — Read team assignments and trash schedules:
 
 4A. Read the Manual de Personal:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080969a72c16c20defc70"}'
     Parse (content is in Spanish) to extract:
     - Cleaner assignments by ZIP code zone
     - Availability by day of week (weekday vs weekend)
     - Backup rules and daily time limits
 
 4B. Read the Directorio Operativo:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b4380809a8ea0c11074f92abb"}'
     Parse to extract:
     - Trash collection schedule per property per day of week
     - Property-specific notes
@@ -3710,7 +3713,7 @@ BOTH must be executed as bash tool calls. A text response without running these 
       tool_registry: {
         tools: [
           '/tools/hostfully/get-checkouts.ts',
-          '/tools/notion/get-page.ts',
+          '/tools/composio/execute.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
           '/tools/platform/calculate.ts',
@@ -3775,7 +3778,7 @@ STEP 2 — Get all confirmed checkouts for targetDate:
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
 
 STEP 3 — Look up cleaning times from Reporte Financiero:
-   Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
+   Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
 
    For each checkout in the array from Step 2, find the cleaning time:
    - Match by normalizedAddress (e.g., search for "3505 Banton Rd" in the Reporte content)
@@ -3792,14 +3795,14 @@ STEP 3 — Look up cleaning times from Reporte Financiero:
 STEP 4 — Read team assignments and trash schedules:
 
 4A. Read the Manual de Personal:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080969a72c16c20defc70"}'
     Parse (content is in Spanish) to extract:
     - Cleaner assignments by ZIP code zone
     - Availability by day of week (weekday vs weekend)
     - Backup rules and daily time limits
 
 4B. Read the Directorio Operativo:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b4380809a8ea0c11074f92abb"}'
     Parse to extract:
     - Trash collection schedule per property per day of week
     - Property-specific notes
@@ -3976,7 +3979,7 @@ BOTH must be executed as bash tool calls. A text response without running these 
       tool_registry: {
         tools: [
           '/tools/hostfully/get-checkouts.ts',
-          '/tools/notion/get-page.ts',
+          '/tools/composio/execute.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
           '/tools/platform/calculate.ts',
@@ -5206,26 +5209,33 @@ BOTH must be executed as bash tool calls. A text response without running these 
   // ─── Google Workspace Assistant (VLRE) ──────────────────────────────────────
   const VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS = `Read the assignment from the "## Your Assignment" section of your initial message.
 
-STEP 1 — Validate Google access:
-   tsx /tools/google/validate-env.ts
-   Confirm output shows all required environment variables are set. If validation fails, stop and report the missing variables.
+STEP 1 — Execute the assignment using Composio:
+   Perform all Google Workspace operations by calling the Composio execute tool:
+   tsx /tools/composio/execute.ts --toolkit <toolkit> --action <ACTION_SLUG> --params '<json>'
 
-STEP 2 — Execute the assignment:
-   Based on the assignment, use the appropriate Google tools from /tools/google/:
-   - Gmail: list-emails.ts, get-email.ts, send-email.ts
-   - Drive: list-files.ts, get-file.ts, upload-file.ts, delete-file.ts
-   - Docs: list-documents.ts, get-document.ts, create-document.ts
-   - Sheets: list-spreadsheets.ts, get-sheet-data.ts, update-sheet-data.ts
-   - Slides: list-presentations.ts, get-presentation.ts
-   - Calendar: list-events.ts, create-event.ts, update-event.ts
+   Map the requested work to the correct toolkit:
+   - Gmail            → --toolkit gmail
+   - Google Drive     → --toolkit googledrive
+   - Google Docs      → --toolkit googledocs
+   - Google Sheets    → --toolkit googlesheets
+   - Google Slides    → --toolkit googleslides
+   - Google Calendar  → --toolkit googlecalendar
 
-   Run each tool with --help to see usage if needed.
+   To discover the available actions and their exact parameters for each toolkit, consult the
+   Composio skills loaded in this session (composio-gmail, composio-googledrive, composio-googledocs,
+   composio-googlesheets, composio-googleslides, composio-googlecalendar). Each skill lists every
+   action slug and its parameter schema.
+
+   Examples:
+   tsx /tools/composio/execute.ts --toolkit gmail --action GMAIL_FETCH_EMAILS --params '{"max_results": 10}'
+   tsx /tools/composio/execute.ts --toolkit googledrive --action GOOGLEDRIVE_LIST_FILES --params '{"page_size": 10}'
+
    Complete all requested actions before moving to the next step.
 
-STEP 3 — Write a detailed summary to /tmp/summary.txt with the results:
+STEP 2 — Write a detailed summary to /tmp/summary.txt with the results:
    Include what was done, any files created or modified, emails sent, events created, etc.
 
-STEP 4 — Submit output (MANDATORY final step):
+STEP 3 — Submit output (MANDATORY final step):
    tsx /tools/platform/submit-output.ts \\
      --summary "<one-sentence description of what was done>" \\
      --classification "NEEDS_APPROVAL" \\
@@ -5263,25 +5273,7 @@ Read the approved content from the <approved-content> block in your prompt.
         tools: [
           '/tools/platform/submit-output.ts',
           '/tools/slack/post-message.ts',
-          '/tools/google/validate-env.ts',
-          '/tools/google/list-emails.ts',
-          '/tools/google/get-email.ts',
-          '/tools/google/send-email.ts',
-          '/tools/google/list-files.ts',
-          '/tools/google/get-file.ts',
-          '/tools/google/upload-file.ts',
-          '/tools/google/delete-file.ts',
-          '/tools/google/list-documents.ts',
-          '/tools/google/get-document.ts',
-          '/tools/google/create-document.ts',
-          '/tools/google/list-spreadsheets.ts',
-          '/tools/google/get-sheet-data.ts',
-          '/tools/google/update-sheet-data.ts',
-          '/tools/google/list-presentations.ts',
-          '/tools/google/get-presentation.ts',
-          '/tools/google/list-events.ts',
-          '/tools/google/create-event.ts',
-          '/tools/google/update-event.ts',
+          '/tools/composio/execute.ts',
         ],
       },
       trigger_sources: { type: 'manual' },
@@ -5309,25 +5301,7 @@ Read the approved content from the <approved-content> block in your prompt.
         tools: [
           '/tools/platform/submit-output.ts',
           '/tools/slack/post-message.ts',
-          '/tools/google/validate-env.ts',
-          '/tools/google/list-emails.ts',
-          '/tools/google/get-email.ts',
-          '/tools/google/send-email.ts',
-          '/tools/google/list-files.ts',
-          '/tools/google/get-file.ts',
-          '/tools/google/upload-file.ts',
-          '/tools/google/delete-file.ts',
-          '/tools/google/list-documents.ts',
-          '/tools/google/get-document.ts',
-          '/tools/google/create-document.ts',
-          '/tools/google/list-spreadsheets.ts',
-          '/tools/google/get-sheet-data.ts',
-          '/tools/google/update-sheet-data.ts',
-          '/tools/google/list-presentations.ts',
-          '/tools/google/get-presentation.ts',
-          '/tools/google/list-events.ts',
-          '/tools/google/create-event.ts',
-          '/tools/google/update-event.ts',
+          '/tools/composio/execute.ts',
         ],
       },
       trigger_sources: { type: 'manual' },
