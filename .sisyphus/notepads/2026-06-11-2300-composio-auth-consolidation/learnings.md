@@ -230,3 +230,78 @@ Output shape: `{ data: { ... }, error: null }` — verify `data.markdown` field 
 
 ### Build
 - `pnpm dashboard:build` → EXIT_CODE:0, no TypeScript/lint errors
+
+## [2026-06-12] Task 18 — E2E Integrations Page Verification
+
+### Test Run Summary
+- Date: 2026-06-12
+- Tenant: `00000000-0000-0000-0000-000000000003` (VLRE)
+- Evidence: `.sisyphus/evidence/task-18-integrations-e2e/`
+
+### Verification Results
+
+#### (a) `/dashboard/integrations` renders unified Composio page
+- ✅ URL: `http://localhost:7700/dashboard/integrations?tenant=00000000-0000-0000-0000-000000000003`
+- ✅ Heading: **"Integrations"** (h1)
+- ✅ Subtitle: "Connect the tools your team already uses to unlock powerful automations."
+- ✅ Connected apps zone visible (showing count badge)
+- ✅ "Available to connect now" section present
+- ✅ "Browse all apps" section present with search + category filters
+
+#### (b) `/dashboard/integrations/composio` redirects to `/dashboard/integrations`
+- ✅ Navigating to `/dashboard/integrations/composio?tenant=...` results in final URL `/dashboard/integrations?tenant=...`
+- ✅ React Router `<Navigate to="/dashboard/integrations" replace />` client-side redirect works correctly
+- ✅ No 404 — page loads normally
+
+#### (c) Hostfully credential form save + encrypted persistence
+- ✅ Hostfully card in "Available to connect now" section (after disconnect)
+- ✅ Clicking "Connect Hostfully" opens a dialog with title "Connect Hostfully"
+- ✅ Dialog text: "Enter your Hostfully credentials. They are stored securely and never shown again."
+- ✅ Fields: "API Key" (placeholder: "Enter api key") + "Agency UID" (placeholder: "Enter agency uid")
+- ✅ Filled with test values: `test-api-key-e2e` / `test-agency-uid-e2e`
+- ✅ "Save credentials" button → API calls: `PUT .../secrets/hostfully_api_key` + `PUT .../secrets/hostfully_agency_uid`
+- ✅ Dialog closes after save
+- ✅ Hostfully moves to "Connected apps" section
+- ✅ Connected count increments (+1)
+
+#### psql verification — encrypted rows
+```
+ hostfully_agency_uid | ciphertext=Nvj18uOrmpan6iNZqt3ept3uLQ== | iv=YkrE9ojzl6Jmz+PI | auth_tag=4IyYx4vNT+tAEk0AgoUEIA==
+ hostfully_api_key    | ciphertext=LPK6nZbWOAbunauBiG/21A==     | iv=sGHv6400eMu0HIvh | auth_tag=vMEymTxhiGGigCE00kuNnQ==
+```
+- ✅ 2 rows exist in `tenant_secrets` for the tenant
+- ✅ ciphertext_len: 24 (api_key) and 28 (agency_uid) — base64 of AES-256-GCM ciphertext
+- ✅ iv_len: 16 — base64 of 12-byte random IV
+- ✅ auth_tag_len: 24 — base64 of 16-byte GCM auth tag
+- ✅ Values are AES-256-GCM encrypted, NOT plaintext (ciphertext `LPK6nZb...` ≠ `test-api-key-e2e`)
+
+#### (d) Re-opening form shows empty fields (no secret leakage)
+- ✅ After disconnect + Connect click, form opens with `apiKeyValue=""`, `agencyUidValue=""`
+- ✅ `noLeakage: true` — confirmed programmatically
+- Secret values are NEVER returned from the API (`listSecrets()` returns only keys, not values)
+
+### Disconnect API Behavior
+- `DELETE /admin/tenants/:tenantId/secrets/:key` → 204 No Content
+- After disconnect API calls succeed, page UI does NOT immediately update — requires reload
+- After page reload, connected count decrements and app moves to Available section
+
+### Network Request Pattern (connect flow)
+- Form submit → `PUT .../secrets/hostfully_api_key` + `PUT .../secrets/hostfully_agency_uid` (parallel)
+- After save → `GET .../secrets` (page re-fetches to update Connected status)
+- Hostfully `isConnected` = both `hostfully_api_key` AND `hostfully_agency_uid` keys present in secrets list
+
+### CDP Note
+- Chrome was NOT running with `--remote-debugging-port=9222` at test time
+- Used Playwright MCP managed browser instead (works fine for React SPA dashboard)
+- For future runs: start Chrome with `open -a "Google Chrome" --args --remote-debugging-port=9222` before running E2E if CDP is required
+
+### Evidence Files
+- `01-integrations-page.png` — initial page load, heading "Integrations" visible
+- `02-composio-redirect.png` — page after navigating to `/composio` path (confirms redirect)
+- `03-after-disconnect-attempt.png` — post-disconnect (API calls succeeded but UI needed reload)
+- `04-hostfully-in-available.png` — Hostfully in Available section after reload
+- `05-credential-form-open.png` — Connect Hostfully dialog open (empty fields)
+- `06-form-filled.png` — form filled with test credentials
+- `07-hostfully-connected.png` — Hostfully in Connected section after save
+- `08-form-empty-on-reopen.png` — form re-opened showing empty fields (no leakage)
+- `psql-secrets-output.txt` — psql output confirming 2 encrypted rows

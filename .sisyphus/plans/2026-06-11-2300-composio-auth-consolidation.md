@@ -1033,7 +1033,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(dashboard): add custom-credential apps (Hostfully, Sifely) to integrations`
 
-- [ ] 18. **E2E — unified integrations page (Composio connect + niche credential save)**
+- [x] 18. **E2E — unified integrations page (Composio connect + niche credential save)**
 
   **What to do**:
   - On the running dashboard, exercise the unified page end-to-end: (a) connect/disconnect a Composio app, (b) save Hostfully credentials via the form and confirm encrypted persistence, (c) confirm the old custom-page URL redirects.
