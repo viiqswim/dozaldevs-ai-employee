@@ -632,6 +632,7 @@ model TaskComposioCall {
   toolkit   String
   tool_name String
   called_at DateTime @default(now())
+  phase     String? // Values: 'execution' | 'delivery'
 
   @@index([task_id])
   @@index([tenant_id])

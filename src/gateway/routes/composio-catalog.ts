@@ -4,12 +4,13 @@ import { PrismaClient, TenantRole } from '@prisma/client';
 import { z } from 'zod';
 import { createLogger } from '../../lib/logger.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { requireAuth, requireTenantRole } from '../middleware/authz.js';
+import { requireAuth, requireTenantRole, requirePermission } from '../middleware/authz.js';
 import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
 import { COMPOSIO_API_KEY } from '../../lib/config.js';
+import { PERMISSIONS } from '../../lib/auth/permissions.js';
 
 interface ComposioToolkitCategory {
   slug: string;
@@ -219,6 +220,19 @@ export function composioCatalogRoutes(opts: ComposioCatalogRouteOptions = {}): R
       }));
 
       sendSuccess(res, 200, { items, nextCursor: nextCursorOut } as ComposioToolkitsPage);
+    },
+  );
+
+  router.post(
+    '/admin/composio/cache/invalidate',
+    authMiddleware,
+    requireAuth,
+    requirePermission(PERMISSIONS.MANAGE_PLATFORM_SETTINGS),
+    (_req, res) => {
+      fullCatalogCache = null;
+      connectableCache = null;
+      logger.info('Composio catalog cache invalidated by platform owner');
+      sendSuccess(res, 200, { invalidated: true });
     },
   );
 

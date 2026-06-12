@@ -404,6 +404,10 @@ export async function updatePlatformSetting(key: string, value: string): Promise
   });
 }
 
+export async function invalidateComposioCache(): Promise<void> {
+  await gatewayFetch<unknown>('/admin/composio/cache/invalidate', { method: 'POST' });
+}
+
 export async function fetchGitHubRepos(tenantId: string): Promise<{ repos: GitHubRepo[] }> {
   return gatewayFetch<{ repos: GitHubRepo[] }>(`/admin/tenants/${tenantId}/github/repos`);
 }

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { listPlatformSettings, updatePlatformSetting } from '@/lib/gateway';
+import {
+  listPlatformSettings,
+  updatePlatformSetting,
+  invalidateComposioCache,
+} from '@/lib/gateway';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { CheckCircle2, XCircle, Pencil, X, Check } from 'lucide-react';
+import { CheckCircle2, XCircle, Pencil, X, Check, RefreshCw } from 'lucide-react';
 import type { PlatformSetting } from '@/lib/types';
 
 function formatKey(key: string): string {
@@ -40,6 +44,7 @@ export function PlatformSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [bustingCache, setBustingCache] = useState(false);
 
   const editingKey = searchParams.get('editing');
 
@@ -93,6 +98,18 @@ export function PlatformSettingsPage() {
     }
   };
 
+  const bustComposioCache = async () => {
+    setBustingCache(true);
+    try {
+      await invalidateComposioCache();
+      toast.success('Composio app catalog refreshed — newly configured apps will now appear');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to refresh cache');
+    } finally {
+      setBustingCache(false);
+    }
+  };
+
   const requiredSettings = (settings ?? []).filter((s) => s.is_required);
   const configuredCount = requiredSettings.filter((s) => s.value.trim() !== '').length;
   const allConfigured = requiredSettings.length > 0 && configuredCount === requiredSettings.length;
@@ -132,6 +149,27 @@ export function PlatformSettingsPage() {
           </p>
         </div>
       )}
+
+      <div className="rounded-lg border bg-card px-5 py-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold">Composio app catalog</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The list of available apps is cached for up to one hour. If you added a new auth config
+            in the Composio dashboard and the app still shows as unavailable, refresh the cache to
+            pick up the change immediately.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void bustComposioCache()}
+          disabled={bustingCache}
+          className="shrink-0"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${bustingCache ? 'animate-spin' : ''}`} />
+          {bustingCache ? 'Refreshing…' : 'Refresh app catalog'}
+        </Button>
+      </div>
 
       <div className="rounded-lg border bg-card">
         {loading ? (
