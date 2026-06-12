@@ -143,9 +143,11 @@ describe('Multi-tenancy integration', () => {
   describe('5. InstallationStore: correct token per team_id', () => {
     it('fetchInstallation returns correct token for team A', async () => {
       const integrationRepo = {
-        findByExternalId: vi
+        findManyByExternalId: vi
           .fn()
-          .mockResolvedValue({ tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID }),
+          .mockResolvedValue([
+            { tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID },
+          ]),
       } as never;
       const secretRepo = {
         get: vi.fn().mockResolvedValue(TOKEN_A),
@@ -160,12 +162,12 @@ describe('Multi-tenancy integration', () => {
     });
 
     it('fetchInstallation returns different tokens for different teams', async () => {
-      const findByExternalId = vi
+      const findManyByExternalId = vi
         .fn()
         .mockImplementation((_provider: string, teamId: string) =>
           teamId === TEAM_A_ID
-            ? { tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID }
-            : { tenant_id: TENANT_B_ID, provider: 'slack', external_id: TEAM_B_ID },
+            ? [{ tenant_id: TENANT_A_ID, provider: 'slack', external_id: TEAM_A_ID }]
+            : [{ tenant_id: TENANT_B_ID, provider: 'slack', external_id: TEAM_B_ID }],
         );
       const get = vi
         .fn()
@@ -173,7 +175,7 @@ describe('Multi-tenancy integration', () => {
       const store = new TenantInstallationStore(
         {} as never,
         { get } as never,
-        { findByExternalId } as never,
+        { findManyByExternalId } as never,
       );
       const instA = await store.fetchInstallation({
         teamId: TEAM_A_ID,
