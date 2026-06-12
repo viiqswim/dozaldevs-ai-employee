@@ -572,7 +572,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `docs(worker): document list-actions discovery tool in platform agents.md`
 
-- [ ] 9. Wizard Composio awareness — generator + prompts + route
+- [x] 9. Wizard Composio awareness — generator + prompts + route
 
   **What to do**:
   - In `admin-archetype-generate.ts`: query the tenant's active connections (`composio_connections`) AND the connectable-apps set (Task 4). Pass both to the generator.

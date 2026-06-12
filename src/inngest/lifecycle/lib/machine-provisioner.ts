@@ -205,6 +205,7 @@ export async function provisionWorkerMachine(params: ProvisionMachineParams): Pr
       'REPLY_BROADCAST',
       'EMPLOYEE_RULES',
       'EMPLOYEE_KNOWLEDGE',
+      'COMPOSIO_API_KEY',
       ...Object.keys(rawEventEnv),
     ].filter((k) => localWorkerEnv[k]);
     if (localWorkerEnv['PLATFORM_ENV_MANIFEST']) {
@@ -259,6 +260,7 @@ export async function provisionWorkerMachine(params: ProvisionMachineParams): Pr
     'REPLY_BROADCAST',
     'EMPLOYEE_RULES',
     'EMPLOYEE_KNOWLEDGE',
+    'COMPOSIO_API_KEY',
     ...Object.keys(rawEventEnv),
   ].filter((k) => flyWorkerEnv[k]);
   if (flyWorkerEnv['PLATFORM_ENV_MANIFEST']) {

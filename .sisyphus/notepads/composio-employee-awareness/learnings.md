@@ -143,3 +143,60 @@
 - Verified: VLRE with notion soft-deleted → `connectedToolkits: []`, all 4 apps in `suggestedToolkits`, no composio execute.ts calls
 - `pnpm build` exits 0
 - Evidence: `.sisyphus/evidence/task-9-wizard.txt`, `.sisyphus/evidence/task-9-none.txt`
+
+## Task 11 — COMPOSIO_API_KEY in critical-vars manifest (2026-06-11)
+
+- Added `'COMPOSIO_API_KEY'` to BOTH `localCriticalVars` (line ~209) and `flyCriticalVars` (line ~263) in `machine-provisioner.ts`.
+- The `.filter((k) => localWorkerEnv[k])` / `.filter((k) => flyWorkerEnv[k])` guards mean the key only appears in `PLATFORM_ENV_MANIFEST` when it is actually present in the env — no false positives when the key is absent.
+- This is observability only — the key already reaches containers via `PLATFORM_ENV_WHITELIST` in `tenant-env-loader.ts`. The manifest is used for debug logging, not injection.
+- `pnpm build` exits 0.
+- Evidence: `.sisyphus/evidence/task-11-manifest.txt` (two matching grep lines, one per array).
+
+## Task 12 — Documentation audit: fix false PostgREST claim and non-existent column (2026-06-11)
+
+### False claims found and fixed in AGENTS.md
+
+**Claim 1 — Non-existent column `composio_connection_id`:**
+
+- AGENTS.md listed `composio_connection_id` as a column in `composio_connections`
+- Prisma schema (`ComposioConnection` model) has NO such column
+- Actual columns: `id, tenant_id, toolkit, status, connected_at, disconnected_at, deleted_at, created_at, updated_at`
+- Fix: replaced the column list with the accurate set from the schema
+
+**Claim 2 — "Currently unpopulated (shell tools have no PostgREST access)":**
+
+- AGENTS.md said `task_composio_calls` was unpopulated because shell tools lack PostgREST access
+- This was doubly wrong: (a) `execute.ts` now writes audit rows via PostgREST (Task 7), (b) `knowledge_base/search.ts` also reads via PostgREST
+- Also: AGENTS.md omitted the `phase` column added in Task 1
+- Fix: updated to "Written by `execute.ts` via PostgREST on the success path; `phase` is `'execution'` or `'delivery'`"
+
+### Verification
+
+- `grep -n "composio_connection_id" AGENTS.md` → 0 matches
+- `grep -n "no PostgREST access\|unpopulated" AGENTS.md` → 0 matches
+- Evidence: `.sisyphus/evidence/task-12-docs.txt`
+
+## [2026-06-12] Task 10 — CI freshness-check for Composio skills
+
+### What was added
+
+- New step in the **existing `test` job** of `.github/workflows/deploy.yml` (NOT a new job): "Check Composio skills freshness"
+- Runs `pnpm generate-composio-skills` then `git diff --exit-code src/workers/skills/`; explicit `exit 1` + `::error::` annotation on drift
+- `env: COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}` on the step. Read-only — no git add/commit/push.
+
+### CRITICAL gotcha — local simulation mechanism (cost me one bad run)
+
+- `tsx` auto-loads `.env` (via the script's `dotenv` try/catch — but even without the pkg, **tsx itself injects `.env`**), so locally `COMPOSIO_API_KEY` IS present → the generator calls the LIVE Composio API and `writeIfChanged` **self-heals the working tree**, overwriting any plain unstaged hand-edit. A naive "edit file → run check" therefore shows CLEAN (false negative).
+- The check's real baseline is the **git index**. In CI a fresh checkout loads the index from the (stale) commit, so regen→canonical working tree ≠ stale index → fails.
+- Faithful local repro of "committed-but-stale": hand-edit the action file **then `git add` it** (index = stale-commit proxy), then run the exact check command. Regen restores canonical to the working tree; `git diff` (worktree vs stale index) is non-empty → exit 1. ✓
+- Fresh repro: `git restore --staged --worktree src/workers/skills/` then run check → "0 written, 357 unchanged", diff clean → exit 0. ✓
+
+### Graceful-no-op caveat
+
+- `COMPOSIO_API_KEY()` returns `''` when unset → generator exits 0 with a warning. So if the CI secret is missing, the step PASSES (cannot detect drift without the API). Documented inline in the step comment. This is the accepted/inherited behavior.
+
+### Verification
+
+- Evidence: `.sisyphus/evidence/task-10-stale.txt` (exit 1), `.sisyphus/evidence/task-10-fresh.txt` (exit 0)
+- `deploy.yml` validated: prettier parse clean ("All matched files use Prettier code style!") + 8 pure-node structural assertions all PASS
+- Working tree restored clean (`git status --short src/workers/skills/` empty); only `.github/workflows/deploy.yml` touched by this task

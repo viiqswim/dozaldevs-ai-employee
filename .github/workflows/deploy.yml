@@ -37,6 +37,18 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: src/worker-tools
       - run: pnpm build
+      - name: Check Composio skills freshness
+        # Read-only drift check (no commit, no mutation): a non-empty diff means committed
+        # skills are stale. When COMPOSIO_API_KEY is absent the generator exits 0 as a no-op,
+        # so this step passes — drift cannot be detected without the API.
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: |
+          pnpm generate-composio-skills
+          if ! git diff --exit-code src/workers/skills/; then
+            echo "::error::Committed Composio skills are stale. Run 'pnpm generate-composio-skills' locally and commit the result."
+            exit 1
+          fi
       - name: Run unit tests (no DB required)
         run: pnpm test:unit
       - name: Set up integration test DB
