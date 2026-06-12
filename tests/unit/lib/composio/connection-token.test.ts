@@ -184,6 +184,24 @@ describe('getComposioConnectionToken', () => {
       );
     });
 
+    it('throws ComposioMaskedTokenError when token is bare REDACTED (Composio github/gmail form)', async () => {
+      mockList.mockResolvedValue(makeListResult());
+      mockGet.mockResolvedValue(makeDetail('REDACTED'));
+
+      await expect(getComposioConnectionToken(TENANT_ID, TOOLKIT)).rejects.toThrow(
+        ComposioMaskedTokenError,
+      );
+    });
+
+    it('throws ComposioMaskedTokenError when token is too short to be real', async () => {
+      mockList.mockResolvedValue(makeListResult());
+      mockGet.mockResolvedValue(makeDetail('xoxp...'));
+
+      await expect(getComposioConnectionToken(TENANT_ID, TOOLKIT)).rejects.toThrow(
+        ComposioMaskedTokenError,
+      );
+    });
+
     it('error message instructs to disable masking in Composio settings', async () => {
       mockList.mockResolvedValue(makeListResult());
       mockGet.mockResolvedValue(makeDetail('gho_abc...'));

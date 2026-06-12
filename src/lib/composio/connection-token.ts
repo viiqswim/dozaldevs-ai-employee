@@ -60,7 +60,12 @@ interface ConnectedAccountDetail {
 }
 
 function isMaskedToken(token: string): boolean {
-  return token.endsWith('...') || token.includes('***') || token.includes('[REDACTED]');
+  return (
+    token.endsWith('...') ||
+    token.includes('***') ||
+    token.includes('REDACTED') ||
+    token.length < 10
+  );
 }
 
 export async function getComposioConnectionToken(
