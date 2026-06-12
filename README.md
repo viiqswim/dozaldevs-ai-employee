@@ -1,5 +1,7 @@
 # AI Employee Platform
 
+<!-- This project is a multi-tenant platform that deploys autonomous AI agents ("digital employees") — each with a single job, triggered by webhooks or schedules, with human-in-the-loop approval gates. -->
+
 A multi-tenant AI Employee Platform. Deploys autonomous AI agents ("digital employees"), each with a single job, triggered by webhooks or schedules, with human-in-the-loop approval gates.
 
 ## Quick Start
