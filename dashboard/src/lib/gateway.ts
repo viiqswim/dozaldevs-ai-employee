@@ -445,6 +445,24 @@ export async function disconnectGoogle(tenantId: string): Promise<{ disconnected
   });
 }
 
+export async function disconnectSlack(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/slack`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectJira(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/jira`, {
+    method: 'DELETE',
+  });
+}
+
+export async function disconnectNotion(tenantId: string): Promise<{ disconnected: boolean }> {
+  return gatewayFetch<{ disconnected: boolean }>(`/admin/tenants/${tenantId}/integrations/notion`, {
+    method: 'DELETE',
+  });
+}
+
 export async function listMembers(tenantId: string): Promise<MemberInfo[]> {
   return gatewayFetch<MemberInfo[]>(`/admin/tenants/${tenantId}/members`);
 }
