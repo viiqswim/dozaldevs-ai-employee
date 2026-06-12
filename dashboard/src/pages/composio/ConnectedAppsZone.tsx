@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +17,8 @@ export interface ConnectedAppsZoneProps {
   toolkits: ComposioToolkit[];
   onDisconnect: (slug: string) => void;
   isLoading: boolean;
+  customConnectedCards?: ReactNode;
+  customConnectedCount?: number;
 }
 
 export function ConnectedAppsZone({
@@ -24,6 +26,8 @@ export function ConnectedAppsZone({
   toolkits,
   onDisconnect,
   isLoading,
+  customConnectedCards,
+  customConnectedCount = 0,
 }: ConnectedAppsZoneProps) {
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
 
@@ -53,14 +57,14 @@ export function ConnectedAppsZone({
       <section className="rounded-lg border bg-card px-5 py-4">
         <div className="mb-4 flex items-center gap-2">
           <h2 className="text-sm font-semibold text-foreground">Connected apps</h2>
-          {!isLoading && connections.length > 0 && (
+          {!isLoading && connections.length + customConnectedCount > 0 && (
             <span
               className={cn(
                 'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5',
                 'bg-primary/10 text-xs font-medium text-primary',
               )}
             >
-              {connections.length}
+              {connections.length + customConnectedCount}
             </span>
           )}
         </div>
@@ -70,7 +74,7 @@ export function ConnectedAppsZone({
             <div className="animate-pulse rounded-lg border bg-muted h-24" />
             <div className="animate-pulse rounded-lg border bg-muted h-24" />
           </div>
-        ) : connectedToolkits.length === 0 ? (
+        ) : connectedToolkits.length === 0 && customConnectedCount === 0 ? (
           <p className="text-sm text-muted-foreground">Connect the tools you already use.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,6 +86,7 @@ export function ConnectedAppsZone({
                 onDisconnect={handleDisconnectClick}
               />
             ))}
+            {customConnectedCards}
           </div>
         )}
       </section>

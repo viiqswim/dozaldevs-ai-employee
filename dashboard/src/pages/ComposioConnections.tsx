@@ -8,6 +8,7 @@ import {
   listComposioToolkits,
   getComposioConnectUrl,
   disconnectComposioApp,
+  listSecrets,
 } from '@/lib/gateway';
 import type { ComposioToolkit } from '@/lib/types';
 import { ConnectedAppsZone } from './composio/ConnectedAppsZone';
@@ -19,6 +20,7 @@ import {
   CatalogErrorState,
   showPopupBlockedToast,
 } from './composio/MarketplaceStates';
+import { CUSTOM_CREDENTIAL_APPS, CustomCredentialCard } from './composio/CustomCredentialCard';
 
 export function ComposioConnections() {
   const { tenantId } = useTenant();
@@ -33,6 +35,18 @@ export function ComposioConnections() {
     loading: connectionsLoading,
     refresh: refreshConnections,
   } = usePoll(fetchConnections);
+
+  const [existingSecretKeys, setExistingSecretKeys] = useState<Set<string>>(new Set());
+
+  const refreshSecrets = useCallback(() => {
+    listSecrets(tenantId)
+      .then((list) => setExistingSecretKeys(new Set(list.map((s) => s.key))))
+      .catch(() => {});
+  }, [tenantId]);
+
+  useEffect(() => {
+    refreshSecrets();
+  }, [refreshSecrets]);
 
   const [catalogItems, setCatalogItems] = useState<ComposioToolkit[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -129,6 +143,13 @@ export function ComposioConnections() {
 
   const isZone1Loading = connectionsLoading || (catalogLoading && catalogItems.length === 0);
 
+  const connectedCustomApps = CUSTOM_CREDENTIAL_APPS.filter((app) =>
+    app.fields.every((f) => existingSecretKeys.has(f.key)),
+  );
+  const availableCustomApps = CUSTOM_CREDENTIAL_APPS.filter(
+    (app) => !app.fields.every((f) => existingSecretKeys.has(f.key)),
+  );
+
   function updateSearch(value: string) {
     setSearchParams(
       (prev) => {
@@ -189,16 +210,35 @@ export function ComposioConnections() {
         toolkits={catalogItems}
         onDisconnect={(slug) => void handleDisconnect(slug)}
         isLoading={isZone1Loading}
+        customConnectedCount={connectedCustomApps.length}
+        customConnectedCards={connectedCustomApps.map((app) => (
+          <CustomCredentialCard
+            key={app.id}
+            app={app}
+            tenantId={tenantId}
+            isConnected={true}
+            onUpdated={refreshSecrets}
+          />
+        ))}
       />
 
       <div className="rounded-lg border bg-card px-5 py-4 space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Available to connect now</h2>
-        {availableItems.length === 0 ? (
+        {availableItems.length === 0 && availableCustomApps.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             More apps are coming soon — browse the full list below.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {availableCustomApps.map((app) => (
+              <CustomCredentialCard
+                key={app.id}
+                app={app}
+                tenantId={tenantId}
+                isConnected={false}
+                onUpdated={refreshSecrets}
+              />
+            ))}
             {availableItems.map((toolkit) => (
               <IntegrationCard
                 key={toolkit.slug}
