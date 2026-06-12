@@ -799,7 +799,7 @@ Max Concurrent: 4
 
   **Commit**: NO (verification; evidence under `.sisyphus/`)
 
-- [ ] 13. **LIVE E2E — google-workspace-assistant (Google via Composio)**
+- [x] 13. **LIVE E2E — google-workspace-assistant (Google via Composio)**
 
   **What to do**:
   - Trigger `google-workspace-assistant` (tenant `…0003`) after rebuild. Verify it calls a Composio Google toolkit, writes an audit row, reaches `Done`, and delivers.
@@ -1178,27 +1178,27 @@ Max Concurrent: 4
 
 > Runs AFTER Tasks 12-15 (live E2E) pass. 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Never mark F1-F4 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command, psql query). For each "Must NOT Have": search the codebase for forbidden patterns (deleted hostfully/sifely/knowledge_base/platform; changes to SLACK_APP_TOKEN/Socket Mode listener; wizard tiebreaker rule; `main` referencing a deleted tool) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit` + `pnpm dashboard:build` + dashboard tests. Review changed files for `as any`/`@ts-ignore`, empty catches, leaked tokens in logs, AI slop. Verify the Composio token helper handles errors (connection missing, masked value) and never logs the token. Verify no dangling imports/refs to deleted tools. Verify the dashboard niche-credential forms never render secret values back and use the encrypted secrets API only.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Live E2E Evidence Audit** — `unspecified-high` (+ `e2e-testing`)
+- [x] F3. **Live E2E Evidence Audit** — `unspecified-high` (+ `e2e-testing`)
       Audit Tasks 12-15 evidence in `.sisyphus/evidence/` for sufficiency: real task IDs, `task_status_log` traces to `Done`, `task_composio_calls` rows (re-verify live via psql), GitHub PR URL, Slack button round-trip proof. If any evidence is missing/stale, REJECT and require re-run.
       Output: `Notion E2E [Y/N] | Google E2E [Y/N] | GitHub E2E [Y/N] | Slack E2E [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specced was built, nothing beyond spec. Confirm only notion/google/jira tools deleted; slack/github tools byte-unchanged; gateway Slack listener untouched; gateway OAuth install routes NOT deleted (UI-only removal); niche credentials stored only via the encrypted secrets API; no per-tenant migration tooling crept in.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
-- [ ] F5. **Documentation Freshness** — update AGENTS.md (shell-tool table: remove notion/google/jira rows; note GitHub + Slack auth now via Composio with own-app creds; `xapp-` SLACK_APP_TOKEN remains the only self-held Slack token), employee docs (`cleaning-schedule.md`, `google-assistant.md`, `engineer.md`), the GitHub integration guide (`docs/guides/2026-06-02-1727-github-integration.md` — App-install flow removed, now Composio), the Slack integration guide (`docs/guides/2026-05-14-0040-slack-tenant-integration.md` — bot token now from Composio, xapp- still in env), the dashboard/integrations docs (unified page; Slack native + Hostfully/Sifely as credential cards), and any guide referencing the deleted tools, removed endpoints, or the old integrations page. Per AGENTS.md Documentation Freshness rule.
+- [x] F5. **Documentation Freshness** — update AGENTS.md (shell-tool table: remove notion/google/jira rows; note GitHub + Slack auth now via Composio with own-app creds; `xapp-` SLACK_APP_TOKEN remains the only self-held Slack token), employee docs (`cleaning-schedule.md`, `google-assistant.md`, `engineer.md`), the GitHub integration guide (`docs/guides/2026-06-02-1727-github-integration.md` — App-install flow removed, now Composio), the Slack integration guide (`docs/guides/2026-05-14-0040-slack-tenant-integration.md` — bot token now from Composio, xapp- still in env), the dashboard/integrations docs (unified page; Slack native + Hostfully/Sifely as credential cards), and any guide referencing the deleted tools, removed endpoints, or the old integrations page. Per AGENTS.md Documentation Freshness rule.
 
-- [ ] F6. **Tmux cleanup** — kill all `ai-*` tmux sessions created during execution.
+- [x] F6. **Tmux cleanup** — kill all `ai-*` tmux sessions created during execution.
 
-- [ ] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
 
 ## Commit Strategy
 
