@@ -41,6 +41,7 @@ import { internalGithubTokenRoutes } from './routes/internal-github-token.js';
 import { internalGoogleTokenRoutes } from './routes/internal-google-token.js';
 import { adminGithubRoutes } from './routes/admin-github.js';
 import { adminGoogleRoutes } from './routes/admin-google.js';
+import { adminIntegrationsRoutes } from './routes/admin-integrations.js';
 import { adminUsersRoutes } from './routes/admin-users.js';
 import { adminMembersRoutes } from './routes/admin-members.js';
 import { adminInvitationsRoutes } from './routes/admin-invitations.js';
@@ -262,6 +263,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use('/internal', internalGoogleTokenRoutes({ prisma }));
   app.use(adminGithubRoutes({ prisma }));
   app.use(adminGoogleRoutes({ prisma }));
+  app.use(adminIntegrationsRoutes({ prisma }));
   app.use(composioOAuthRoutes({ prisma }));
   app.use(composioAdminRoutes({ prisma }));
   app.use(composioCatalogRoutes({ prisma }));
