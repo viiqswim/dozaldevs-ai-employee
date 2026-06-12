@@ -74,18 +74,18 @@ All non-deprecated employees use the OpenCode-based harness on Fly.io:
 - **AGENTS.md compilation**: `agents-md-compiler.mts` assembles the per-task AGENTS.md from archetype fields (`identity`, `execution_steps`, `delivery_steps`), learned rules, knowledge base entries, and the platform base config (`src/workers/config/agents.md`). The `execution_instructions` field is the platform constant prompt injected as the initial OpenCode message — it is not user-editable.
   **Shell tools** at `/tools/` in Docker image — one directory per service:
 
-| Service        | Directory                | Purpose                                                                                  |
-| -------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
-| Slack          | `/tools/slack/`          | Post messages, read channels, post approval cards                                        |
-| Hostfully      | `/tools/hostfully/`      | Messages, properties, reservations, reviews, door codes                                  |
-| Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics                        |
-| Jira           | `/tools/jira/`           | Issue lookup, search, comments                                                           |
-| Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                                          |
-| Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                                           |
-| Platform       | `/tools/platform/`       | Report issues, submit task output                                                        |
-| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI                          |
-| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                                             |
-| Composio       | `/tools/composio/`       | Execute actions across 1000+ app integrations (Notion, Linear, Gmail, etc.) via Composio |
+| Service        | Directory                | Purpose                                                                                                         |
+| -------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Slack          | `/tools/slack/`          | Post messages, read channels, post approval cards                                                               |
+| Hostfully      | `/tools/hostfully/`      | Messages, properties, reservations, reviews, door codes                                                         |
+| Sifely         | `/tools/sifely/`         | Lock management, passcode CRUD, code rotation, access diagnostics                                               |
+| Jira           | `/tools/jira/`           | Issue lookup, search, comments                                                                                  |
+| Knowledge Base | `/tools/knowledge_base/` | Semantic search over employee knowledge entries                                                                 |
+| Notion         | `/tools/notion/`         | Get page content, append blocks, update blocks                                                                  |
+| Platform       | `/tools/platform/`       | Report issues, submit task output                                                                               |
+| GitHub         | `/tools/github/`         | Fetch short-lived GitHub App installation tokens for git/gh CLI                                                 |
+| Google         | `/tools/google/`         | Gmail, Drive, Docs, Sheets, Slides, Calendar                                                                    |
+| Composio       | `/tools/composio/`       | `execute.ts` — run any Composio action; `list-actions.ts` — discover available actions for a toolkit at runtime |
 
 All tools support `--help`. For detailed CLI syntax, load the `tool-usage-reference` skill.
 Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides/2026-05-04-1645-adding-a-shell-tool.md) guide.
@@ -130,10 +130,11 @@ Skills are on-demand knowledge modules loaded by OpenCode agents. Before any non
 
 **Employee skills** (baked into Docker image via `COPY src/workers/skills/ /app/.opencode/skills/`):
 
-| Skill                  | Description                                                                                                                                                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tool-usage-reference` | Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container (`/tools/slack/`, `/tools/hostfully/`, `/tools/sifely/`, `/tools/knowledge_base/`, `/tools/platform/`) |
-| `uuid-disambiguation`  | All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value           |
+| Skill                  | Description                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool-usage-reference` | Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container (`/tools/slack/`, `/tools/hostfully/`, `/tools/sifely/`, `/tools/knowledge_base/`, `/tools/platform/`)                                                                                                                                       |
+| `uuid-disambiguation`  | All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value                                                                                                                                                 |
+| `composio-<app>`       | Per-app Composio skill (one per connected app: `composio-gmail`, `composio-notion`, `composio-slack`, `composio-slackbot`). Action index + per-action parameter schemas. Generated by `pnpm generate-composio-skills`; committed to `src/workers/skills/`. Boot-time filtered to only the tenant's connected apps by `filterComposioSkills()` in the harness. |
 
 **Dev skills** (project-level at `.opencode/skills/`):
 
@@ -156,6 +157,8 @@ Skills are on-demand knowledge modules loaded by OpenCode agents. Before any non
 | `long-running-commands`   | tmux launch+poll pattern, 5 mandatory cleanup rules, session naming (`ai-e2e`, `ai-dev`, `ai-build`), and macOS vnode-exhaustion risk                                                                                           |
 
 New skill: create `src/workers/skills/{name}/SKILL.md` (employee — rebuild Docker) or `.opencode/skills/{name}/SKILL.md` (dev — commit). Pattern: `^[a-z0-9]+(-[a-z0-9]+)*$`.
+
+**Composio skill system**: Per-app skills (`composio-<toolkit>/`) are committed artifacts generated by `pnpm generate-composio-skills` (calls Composio API, writes `SKILL.md` action index + `actions/<SLUG>.md` per action). Run the script and commit when a new app becomes connectable. CI fails if committed skills are stale. At container boot, `filterComposioSkills(connectedToolkits)` in `harness-helpers.mts` deletes `composio-*` folders for apps the tenant has NOT connected — OpenCode only sees skills for connected apps. `TASK_PHASE` env var (`'execution'` | `'delivery'`) is set by the harness before the OpenCode session starts so `execute.ts` can write the correct phase to `task_composio_calls`.
 
 ## Feedback Pipeline
 
@@ -306,6 +309,7 @@ The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `
 | Docker status              | `pnpm docker:status`               |
 | Dashboard build            | `pnpm dashboard:build`             |
 | Full E2E run               | `pnpm dev:e2e`                     |
+| Regenerate Composio skills | `pnpm generate-composio-skills`    |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
