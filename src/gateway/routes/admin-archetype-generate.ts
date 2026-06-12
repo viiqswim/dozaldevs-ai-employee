@@ -9,6 +9,8 @@ import { TenantIdParamSchema } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ArchetypeGenerator } from '../services/archetype-generator.js';
+import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
+import { getConnectableToolkits } from '../../lib/composio/connectable-apps.js';
 
 export interface AdminArchetypeGenerateRouteOptions {
   callLLM: typeof callLLM;
@@ -35,6 +37,7 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
   const logger = createLogger('admin-archetype-generate');
   const prisma = opts.prisma ?? new PrismaClient();
   const generator = new ArchetypeGenerator(opts.callLLM);
+  const composioRepo = new ComposioConnectionRepository(prisma);
 
   router.post(
     '/admin/tenants/:tenantId/archetypes/generate',
@@ -58,12 +61,29 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
         return;
       }
 
+      const { tenantId } = paramResult.data;
       const { description, previous_config, refinement_instruction } = bodyResult.data;
 
       try {
         const catalog = await prisma.modelCatalog.findMany({
           where: { deleted_at: null, is_active: true },
         });
+
+        const activeConnections = await composioRepo.getActiveConnections(tenantId);
+        const connectedToolkits = activeConnections.map((c) => c.toolkit);
+
+        let connectableToolkits: string[] = [];
+        try {
+          const connectable = await getConnectableToolkits();
+          connectableToolkits = Array.from(connectable);
+        } catch (composioErr) {
+          logger.warn(
+            { err: composioErr },
+            'getConnectableToolkits failed — proceeding with empty connectable set',
+          );
+        }
+
+        const suggestedToolkits = connectableToolkits.filter((t) => !connectedToolkits.includes(t));
 
         let result;
 
@@ -82,10 +102,13 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
             catalog,
           );
         } else {
-          result = await generator.generate(description, catalog);
+          result = await generator.generate(description, catalog, {
+            connectedToolkits,
+            connectableToolkits,
+          });
         }
 
-        sendSuccess(res, 200, result);
+        sendSuccess(res, 200, { ...result, connectedToolkits, suggestedToolkits });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 

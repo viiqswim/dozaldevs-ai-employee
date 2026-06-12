@@ -242,7 +242,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(db): add phase column to task_composio_calls`
 
-- [ ] 2. Composio actions client + skill generator core
+- [x] 2. Composio actions client + skill generator core
 
   **What to do**:
   - Build a reusable module that, given a toolkit slug, fetches its actions WITH input schemas from Composio (`GET /api/v3.1/tools?toolkit_slug=<x>&limit=1000`) and renders a skill folder in memory: a `SKILL.md` action index (action slug + one-line purpose, ultra-specific frontmatter `description` so the right app-skill loads only when that app is relevant) and one `actions/<SLUG>.md` per action containing the full parameter schema (field name, type, required/optional).
@@ -293,7 +293,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(composio): skill-folder generator core`
 
-- [ ] 3. `list-actions.ts` runtime discovery shell tool
+- [x] 3. `list-actions.ts` runtime discovery shell tool
 
   **What to do**:
   - Add `src/worker-tools/composio/list-actions.ts` following the shell-tool conventions. `--toolkit <name>` (required) → calls Composio `GET /api/v3.1/tools?toolkit_slug=<name>` and prints a JSON list of `{ slug, name, description, input_parameters }`. Support `--help`, `--mock` (fixture), and exit codes (1 on missing `--toolkit`, non-zero on HTTP error).
@@ -343,7 +343,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(composio): add list-actions runtime discovery tool`
 
-- [ ] 4. Connectable-apps resolver
+- [x] 4. Connectable-apps resolver
 
   **What to do**:
   - Extract/expose a reusable function that returns the set of `connectable: true` toolkit slugs (apps with a Composio auth config set up) — the same computation `composio-catalog.ts` already performs via `authConfigs.list()`.
@@ -381,7 +381,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(composio): connectable-apps resolver`
 
-- [ ] 5. `pnpm generate-composio-skills` script + commit generated folders
+- [x] 5. `pnpm generate-composio-skills` script + commit generated folders
 
   **What to do**:
   - Add a script (e.g. `scripts/generate-composio-skills.ts`, wired as `pnpm generate-composio-skills`) that: resolves connectable apps (Task 4) → for each, runs the generator core (Task 2) → writes `src/workers/skills/composio-<app>/SKILL.md` + `src/workers/skills/composio-<app>/actions/<SLUG>.md`.
@@ -431,7 +431,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(composio): generate-composio-skills script + generated skill folders`
 
-- [ ] 6. Harness boot-time skill filtering — `filterComposioSkills()`
+- [x] 6. Harness boot-time skill filtering — `filterComposioSkills()`
 
   **What to do**:
   - Add a harness helper `filterComposioSkills(connectedToolkits: string[])` that lists `/app/.opencode/skills/`, finds all `composio-*` directories, and `rm -rf`s any whose `<app>` is NOT in `connectedToolkits`.
@@ -481,7 +481,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(worker): filter composio skills to connected apps at boot`
 
-- [ ] 7. `execute.ts` audit write — phase + DB row
+- [x] 7. `execute.ts` audit write — phase + DB row
 
   **What to do**:
   - After a successful Composio execute call, `execute.ts` POSTs a row to `task_composio_calls` via PostgREST: `task_id` (from `TASK_ID` env), `tenant_id` (from `TASK_TENANT_ID`), `toolkit`, `tool_name` (the action slug), `phase`.
@@ -534,7 +534,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(composio): log execute calls to task_composio_calls with phase`
 
-- [ ] 8. Platform AGENTS.md — document `list-actions.ts` fallback
+- [x] 8. Platform AGENTS.md — document `list-actions.ts` fallback
 
   **What to do**:
   - In the PLATFORM-LEVEL worker base config (`src/workers/config/agents.md`), document the `list-actions.ts` runtime discovery tool as the way an employee finds available actions for a connected app on demand (cache-miss fallback). Keep it concise.

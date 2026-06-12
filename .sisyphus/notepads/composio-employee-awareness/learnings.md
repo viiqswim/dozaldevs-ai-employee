@@ -127,3 +127,19 @@
 - These are `.mts` ESM files — used top-of-file `import { readdirSync, rmSync, type Dirent } from 'node:fs'` (NOT dynamic `await import`). `Dirent` type needed for the `entries` array annotation.
 - `pnpm build` (`tsc -p tsconfig.build.json`) exits 0. LSP (`typescript-language-server`) unavailable in this repo (no version in `.tool-versions`) — build is the real verification, consistent with prior tasks.
 - Evidence: `.sisyphus/evidence/task-6-filter.txt` (grep of all 6 `filterComposioSkills` references across the 3 files + build EXIT_CODE:0).
+
+## Task 9 — Wizard Composio awareness (2026-06-12)
+
+- Three files modified: `admin-archetype-generate.ts`, `archetype-generator.ts`, `archetype-generator-prompts.ts`
+- `buildConnectedAppsBlock(connectedToolkits, connectableToolkits)` added to prompts file — self-contained, computes `suggestedToolkits` internally for the prompt text
+- `buildSystemPrompt()` now takes `(connectedToolkits: string[] = [], connectableToolkits: string[] = [])` and injects the Connected Apps block between SYSTEM_PROMPT_PRE and the tool catalog section
+- `generate()` signature widened: third optional param `composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] }` — backward-compatible (defaults to empty arrays)
+- Route: `ComposioConnectionRepository` + `getConnectableToolkits()` called in the handler. `getConnectableToolkits()` is wrapped in its own try/catch so a Composio API failure does NOT block archetype generation.
+- Route response: `{ ...result, connectedToolkits, suggestedToolkits }` — Composio metadata merged into the JSON response alongside archetype fields
+- `suggestedToolkits` = `connectableToolkits.filter(t => !connectedToolkits.includes(t))` — computed in both the route (for the response) and in the prompt builder (for the LLM instruction)
+- `refine()` path intentionally does NOT pass composio context — the route was not updated for refine because the task spec only requires the `generate` path, and refine is a re-edit of an existing archetype where context would already have been applied at initial generation
+- `COMPOSIO_API_KEY()` is called inside `getConnectableToolkits()` — no direct env access in the route
+- Verified: VLRE tenant (notion connected) → `connectedToolkits: ["notion"]`, `suggestedToolkits: ["slackbot","slack","gmail"]`, no composio execute.ts in execution_steps
+- Verified: VLRE with notion soft-deleted → `connectedToolkits: []`, all 4 apps in `suggestedToolkits`, no composio execute.ts calls
+- `pnpm build` exits 0
+- Evidence: `.sisyphus/evidence/task-9-wizard.txt`, `.sisyphus/evidence/task-9-none.txt`
