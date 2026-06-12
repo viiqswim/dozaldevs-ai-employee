@@ -3509,7 +3509,7 @@ STEP 2 — Get all confirmed checkouts for targetDate:
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
 
 STEP 3 — Look up cleaning times from Reporte Financiero:
-   Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
+   Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
 
    For each checkout in the array from Step 2, find the cleaning time:
    - Match by normalizedAddress (e.g., search for "3505 Banton Rd" in the Reporte content)
@@ -3526,14 +3526,14 @@ STEP 3 — Look up cleaning times from Reporte Financiero:
 STEP 4 — Read team assignments and trash schedules:
 
 4A. Read the Manual de Personal:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080969a72c16c20defc70"}'
     Parse (content is in Spanish) to extract:
     - Cleaner assignments by ZIP code zone
     - Availability by day of week (weekday vs weekend)
     - Backup rules and daily time limits
 
 4B. Read the Directorio Operativo:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b4380809a8ea0c11074f92abb"}'
     Parse to extract:
     - Trash collection schedule per property per day of week
     - Property-specific notes
@@ -3710,7 +3710,7 @@ BOTH must be executed as bash tool calls. A text response without running these 
       tool_registry: {
         tools: [
           '/tools/hostfully/get-checkouts.ts',
-          '/tools/notion/get-page.ts',
+          '/tools/composio/execute.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
           '/tools/platform/calculate.ts',
@@ -3775,7 +3775,7 @@ STEP 2 — Get all confirmed checkouts for targetDate:
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
 
 STEP 3 — Look up cleaning times from Reporte Financiero:
-   Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080ca8676e61856488960 --fixture reporte-financiero
+   Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
 
    For each checkout in the array from Step 2, find the cleaning time:
    - Match by normalizedAddress (e.g., search for "3505 Banton Rd" in the Reporte content)
@@ -3792,14 +3792,14 @@ STEP 3 — Look up cleaning times from Reporte Financiero:
 STEP 4 — Read team assignments and trash schedules:
 
 4A. Read the Manual de Personal:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b438080969a72c16c20defc70 --fixture manual-personal
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080969a72c16c20defc70"}'
     Parse (content is in Spanish) to extract:
     - Cleaner assignments by ZIP code zone
     - Availability by day of week (weekday vs weekend)
     - Backup rules and daily time limits
 
 4B. Read the Directorio Operativo:
-    Run: tsx /tools/notion/get-page.ts --page-id 370d540b4380809a8ea0c11074f92abb --fixture directorio-operativo
+    Run: tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b4380809a8ea0c11074f92abb"}'
     Parse to extract:
     - Trash collection schedule per property per day of week
     - Property-specific notes
@@ -3976,7 +3976,7 @@ BOTH must be executed as bash tool calls. A text response without running these 
       tool_registry: {
         tools: [
           '/tools/hostfully/get-checkouts.ts',
-          '/tools/notion/get-page.ts',
+          '/tools/composio/execute.ts',
           '/tools/slack/post-message.ts',
           '/tools/platform/submit-output.ts',
           '/tools/platform/calculate.ts',
