@@ -66,3 +66,74 @@
 - Updated `AGENTS.md` Slack @mention triggering bullet: replaced old single-tenant framing with full many:1 routing description (findManyByExternalId → resolveEmployeesAcrossTenants → single/LLM/disambiguation/zero-employees). Added TRIGGER_DISAMBIGUATE to action IDs list.
 - Updated `AGENTS.md` Tenants section: added "Multiple tenants can share a Slack workspace (many:1)" paragraph with routing summary and pointer to the guide.
 - No snapshot files touched. No volatile facts introduced.
+
+## [2026-06-12] Task 11 — Live E2E Results
+
+### Pre-flight (PASS)
+- "1 logical gateway" = count NODE leaf running server.ts, NOT the 3-process tsx-watch chain. `ps aux | grep server.ts` shows 3 (npm exec wrapper -> tsx cli watch -> node leaf); only the node leaf (PID 97978) is the server. Authoritative check: `lsof -nP -iTCP:7700 -sTCP:LISTEN` => exactly one PID.
+- Stale /tmp/ai-dev.log referenced an OLD dead gateway (PID 82726, exited 22:17 "WS closed cleanly"). The live gateway writes to /tmp/ai-gateway.log and runs in tmux `ai-gateway`. Always reconcile which log the LIVE pid writes to before trusting log tails.
+- python3 has no version set in this repo (.tool-versions) — `python3 -c` fails. Use `jq` or `node -e` for JSON parsing in bash, never python3.
+
+### Browser approach
+- CDP port 9222 was NOT available (user's Chrome runs without --remote-debugging-port; do NOT kill it). The Playwright MCP browser already had an authenticated VLRE Slack session — used it as the live equivalent (real Slack web -> real Socket Mode -> live gateway).
+- Slack compose is a rich contenteditable with mention chips. Playwright `fill()` WIPES it / bypasses autocomplete. MUST use: click -> `pressSequentially('@REMI')` -> wait -> `keyboard.press('Enter')` to accept the mention suggestion -> `pressSequentially(' rest of text')` -> `press('Enter')` to send. Verify innerText before sending.
+
+### Happy path / single-candidate (PASS)
+- Channel C0B71QSMZKQ (#ops-cleaning-schedule) has exactly 1 employee (cleaning-schedule, archetype ...019) — exercises the single-candidate branch.
+- Log proof of NEW code: "Interaction event sent from mention (single candidate)" tenantId=...003.
+- cleaning-schedule has a REQUIRED `date` input — include a checkout date in the @mention so pre-extract pulls it (`extractedInputs={"date":"2026-06-13"}`) and it dispatches cleanly instead of diverting to input-collection.
+- Task 0d71781d-cef5-4683-89b3-3e32f6be4ab4 reached Done in ~2min. approval_required=false short-circuit: Received->Triaging->AwaitingInput->Ready->Executing->Submitting->Validating->Submitting->Done (no Reviewing).
+
+### Ambiguity / disambiguation path (FAIL — BLOCKING BUG)
+- BUG: event-handlers.ts lines 309-314 give EVERY disambiguation button the SAME action_id ('trigger_disambiguate'). Slack Block Kit REQUIRES unique action_id per message. With 2+ candidates the card is rejected with `invalid_blocks`:
+    [ERROR] `action_id` "trigger_disambiguate" already exists [json-pointer:/blocks/1/elements/1/action_id]
+- The disambiguation card therefore NEVER posts. User is stuck at the "On it — one moment…" ack with no buttons. Path cannot reach Done. This is the core multi-tenant feature (pick among candidates) — it is 100% broken.
+- MISLEADING LOG: "Disambiguation card posted" (info) is emitted UNCONDITIONALLY after the try/catch, even when chat.update threw invalid_blocks. The real failure is the level-40 WARN "Failed to post disambiguation card" immediately before it. Don't trust the info log.
+- Routing logic itself is CORRECT: resolveEmployeesAcrossTenants returned candidateCount=3, routeToEmployee fell back to null on the vague message (only role_name is passed to the LLM, no identity), correctly reaching the disambiguation branch.
+- Reproduced 3 ways: (1) live gateway invalid_blocks log on a real @mention, (2) empty Slack thread (only ack, no card), (3) direct chat.postMessage repro returning the exact "action_id already exists" validation messages.
+- FIX (for a future task, NOT done here): unique action_id per button (suffix index/archetypeId) + register the Bolt handler with a RegExp matcher (e.g. /^trigger_disambiguate/) so all unique ids route to one handler; and move the success log INSIDE the try after the API call succeeds.
+
+### Environment limitation (documented, not a defect)
+- True "two tenants sharing one workspace" is NOT seeded locally: DozalDevs=T0601SMSVEU, VLRE=T06KFDGLHS6 (distinct team_ids; 0 rows share a team_id). The multi-candidate code is identical for one-tenant-3-employees vs many-tenants, so C0960S2Q8RL (3 VLRE employees) exercises the same branch — and that branch is where the bug lives.
+- Dev/prod shared SLACK_APP_TOKEN round-robin drops ~50% of app_mention events locally (AGENTS.md known issue). First 2 disambiguation @mentions were dropped (posted to Slack but no gateway app_mention log); the 3rd landed. Just retry — it is not a feature defect. Re-confirm single :7700 listener before each retry to rule out local split-brain.
+
+### Evidence files written
+- .sisyphus/evidence/task-11-preflight.txt
+- .sisyphus/evidence/task-11-live-happy.txt
+- .sisyphus/evidence/task-11-live-disambiguation.txt (documents the blocking bug)
+
+## [2026-06-12] T11 Bug Fix — Disambiguation card unique action_ids
+- Fixed: each button now gets action_id `trigger_disambiguate_${index}` (unique per message)
+- Fixed: handler now uses regex /^trigger_disambiguate/ to match all variants
+- Fixed: "Disambiguation card posted" log moved inside try block (only fires on success)
+- Test updated: event-handlers.test.ts:406-407 asserted the OLD buggy contract (all buttons
+  share 'trigger_disambiguate'). Updated to assert 'trigger_disambiguate_0'/'_1' plus a
+  uniqueness check (new Set(actionIds).size === actionIds.length) so the bug can't regress.
+- Verification: all 7 slack test files pass (69 passed, 1 pre-existing skip). tsc --noEmit
+  CLEAN on both changed handler files + the test file. Remaining tsc errors are pre-existing
+  and dashboard/scripts-only (not from this change).
+- SLACK_ACTION_ID import in trigger-handlers.ts stays — still used by TRIGGER_CONFIRM and
+  TRIGGER_CANCEL (only TRIGGER_DISAMBIGUATE switched to the regex matcher).
+- Bolt detail: boltApp.action() accepts a RegExp constraint; all unique suffixed action_ids
+  (trigger_disambiguate_0..N) route to the single handler via /^trigger_disambiguate/.
+
+## [2026-06-12] T11 Re-run — Disambiguation E2E after bug fix (PASS)
+- Fix commit d440047e verified LIVE end-to-end. The disambiguation path that failed last run
+  with invalid_blocks now works completely.
+- Gateway log contrast (same channel C0960S2Q8RL, same vague-message scenario):
+    22:46 pre-fix (PID 97978): WARN "Failed to post disambiguation card" + invalid_blocks
+                               (`action_id "trigger_disambiguate" already exists`)
+    22:57 post-fix (PID 30418): clean "Disambiguation card posted" candidateCount=3, NO error.
+- Slack API confirmed the card now has 3 UNIQUE action_ids: trigger_disambiguate_0 (Code Rotation),
+  _1 (Daily Real Estate Inspiration 2 Copy), _2 (Real Estate Motivation Bot 2).
+- Browser: card visibly rendered with 3 buttons; clicked "Real Estate Motivation Bot 2".
+- Regex handler /^trigger_disambiguate/ matched the suffixed action_id and dispatched to the
+  CHOSEN employee: "trigger_disambiguate action received" + "Task dispatched from Slack disambiguation".
+- Task 3ecc8913-ccdd-4cf1-89cd-bf77be011d14 -> archetype 561439b9 (real-estate-motivation-bot-2,
+  the picked one) -> reached Done in ~4min. Full trace: Received->Triaging->AwaitingInput->Ready->
+  Executing->Submitting->Validating->Submitting->Delivering->Done. Delivered "Task complete" to channel.
+- The success log moved inside the try block is confirmed: it only fires on a real successful post
+  (no false "posted" log when the API would have errored).
+- Env note unchanged: no two tenants share a team_id locally, but the 3-employee single-tenant
+  channel exercises the identical multi-candidate branch the fix targets. No round-robin drop this run.
+- Evidence: .sisyphus/evidence/task-11-live-disambiguation.txt (overwrote the prior FAIL writeup with the PASS result).

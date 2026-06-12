@@ -7,7 +7,7 @@
 > **Deliverables**:
 >
 > - Removal of the OAuth 409 conflict check (`slack-oauth.ts`) so a workspace can attach to N tenants
-> - Cross-tenant `app_mention` routing (gather employees across all tenants on the workspace, channel-match + LLM route, decline on ambiguity)
+> - Cross-tenant `app_mention` routing (gather employees across all tenants on the workspace, channel-match + LLM route, and on ambiguity ask the user to pick via a disambiguation card — never silently drop)
 > - A cross-tenant channel→employee resolver that NEVER uses the "oldest archetype" fallback (data-leak guard)
 > - Split `deleteInstallation` semantics (single-tenant dashboard disconnect vs workspace-wide Slack revoke)
 > - `fetchInstallation` robustness (iterate to a tenant with a live token, deterministic order)
@@ -38,7 +38,7 @@ for tenant `a17cdcca-1911-4138-b6dc-48b6e6393702`. Desired end state: every tena
 **Key Discussions**:
 
 - Direction: **Option A — workspace → all employees routing** (user's refinement: "find all employees on this workspace, regardless of tenant"). Option C (per-tenant Slack apps / multiple Socket Mode connections) is OUT.
-- Channel collision tiebreaker: gather ALL candidate employees across all tenants on the channel/workspace and let the existing `routeToEmployee()` LLM pick; decline on low confidence.
+- Channel collision tiebreaker: gather ALL candidate employees across all tenants on the channel/workspace and let the existing `routeToEmployee()` LLM pick. If the LLM is NOT confident (or no clear channel owner), DO NOT decline — instead post a Slack disambiguation card offering the most likely candidate employees as buttons and let the user pick which one to run. Only if there are genuinely ZERO candidate employees anywhere on the workspace do we post a "no employees available" message.
 - Test strategy: **TDD** (Vitest; affected files already well-tested).
 - Scope: code change + **production data repair** to unblock the teammate now.
 
@@ -59,7 +59,7 @@ for tenant `a17cdcca-1911-4138-b6dc-48b6e6393702`. Desired end state: every tena
 - 🔴 `deleteInstallation` fan-out must NOT blindly mirror GitHub: dashboard single-tenant disconnect ≠ Slack workspace-wide revoke. Verify the caller; split behavior.
 - Employees with no `notification_channel` → define explicit contract (NOT a channel-routing candidate; decline).
 - `fetchInstallation` must iterate deterministically to a tenant with a live token.
-- Negative/decline paths (no-owner channel, only-fallbacks, low LLM confidence) are release-blockers.
+- Ambiguity paths (no clear channel owner, low LLM confidence) MUST ask the user to pick via a disambiguation card — NOT decline. Only a workspace with zero employees gets a "no employees available" message. These are release-blockers.
 - Prod repair: backup first; additive only; NEVER touch the incumbent tenant row; deploy code before repairing data; verify live (not code-only).
 
 ---
@@ -68,7 +68,7 @@ for tenant `a17cdcca-1911-4138-b6dc-48b6e6393702`. Desired end state: every tena
 
 ### Core Objective
 
-Permit N tenants to attach one Slack workspace and route each inbound @mention to the correct employee across all those tenants — safely, with decline-on-ambiguity — and unblock the existing production tenant.
+Permit N tenants to attach one Slack workspace and route each inbound @mention to the correct employee across all those tenants — safely, asking the user to pick when ambiguous — and unblock the existing production tenant.
 
 ### Concrete Deliverables
 
@@ -84,7 +84,7 @@ Permit N tenants to attach one Slack workspace and route each inbound @mention t
 ### Definition of Done
 
 - [ ] Two tenants can OAuth the same workspace (no 409); both rows present.
-- [ ] @mention routes to the correct employee/tenant; decline paths produce zero tasks.
+- [ ] @mention routes to the correct employee/tenant; ambiguous cases show a pick-an-employee card; zero-employee workspaces show a clear message.
 - [ ] All new + existing Slack tests pass (`pnpm test:unit`, `pnpm test:integration`).
 - [ ] Live @mention → Confirm → Done E2E passes with single-gateway pre-flight.
 - [ ] Production tenant `a17cdcca-…` connected and verified live.
@@ -92,7 +92,7 @@ Permit N tenants to attach one Slack workspace and route each inbound @mention t
 ### Must Have
 
 - Cross-tenant routing with explicit-channel-match-only (no cross-tenant fallback).
-- Decline-on-ambiguity (low LLM confidence → no task).
+- Ask-on-ambiguity: low LLM confidence → disambiguation card, never a silent drop.
 - Additive-only prod repair with prior backup.
 
 ### Must NOT Have (Guardrails)
@@ -155,7 +155,7 @@ Wave 3 (After Wave 2 — wire routing):
 └── Task 10: Documentation updates                                       [depends 5,6,8,9]
 
 Wave 4 (After ALL code — verification + prod):
-├── Task 11: Single-gateway pre-flight + live @mention E2E (decline + happy) [depends 9]
+├── Task 11: Single-gateway pre-flight + live @mention E2E (ambiguity-pick + happy) [depends 9]
 ├── Task 12: Production backup + additive data repair + live verify        [depends 11]
 └── Task 13: Notify completion (Telegram)                                  [depends 12]
 
@@ -197,11 +197,12 @@ Max Concurrent: 5 (Wave 1)
 
 ## TODOs
 
-- [ ] 1. VERIFY `deleteInstallation` caller/trigger semantics (read-only spike)
+- [x] 1. VERIFY `deleteInstallation` caller/trigger semantics (read-only spike)
 
   **What to do**:
   - Trace EVERY caller of `installationStore.deleteInstallation` and the Slack events that trigger it (search `deleteInstallation`, `app_uninstalled`, `tokens_revoked` in `src/gateway/`).
   - Determine: is it fired by (a) a per-tenant dashboard "disconnect" action, (b) a workspace-wide Slack revoke event, or (c) both/neither?
+  - **KNOWN (verified 2026-06-12 during plan re-validation)**: A per-tenant dashboard disconnect route exists at `src/gateway/routes/admin-integrations.ts:22-50` — `DELETE /admin/tenants/:tenantId/integrations/slack` (OWNER-gated). It is ALREADY single-tenant safe: `integrationRepo.delete(tenantId, 'slack')` + `secretRepo.delete(tenantId, 'slack_bot_token')`, both scoped by `tenant_id`, soft-delete. It does NOT call `installationStore.deleteInstallation`. So the dashboard disconnect path is confirmed correct & additive-safe for shared workspaces. The spike's remaining job is ONLY to confirm what triggers `installationStore.deleteInstallation` (the Slack-event path) — likely no live trigger.
   - Record findings as a short note in the task's evidence file. This DECIDES Task 8's behavior (single-tenant soft-delete vs fan-out).
 
   **Must NOT do**: Modify any file. Read-only.
@@ -213,12 +214,13 @@ Max Concurrent: 5 (Wave 1)
   **Parallelization**: Can Run In Parallel: YES | Wave 1 | Blocks: 7, 8 | Blocked By: None
 
   **References**:
-  - `src/gateway/slack/installation-store.ts:51-56` — current `deleteInstallation` (single-tenant via `findByExternalId`).
+  - `src/gateway/routes/admin-integrations.ts:22-50` — CONFIRMED per-tenant dashboard disconnect (single-tenant, scoped by tenant_id, soft-delete). Already safe.
+  - `src/gateway/slack/installation-store.ts:50-57` — current `deleteInstallation` (single-tenant via `findByExternalId`); confirm its caller/trigger (Slack-event path).
   - `src/gateway/routes/github.ts:70-101` — GitHub fan-out (CONTRAST: per-installation, not workspace-wide).
   - WHY: Metis Assumption #4 — GitHub uninstall ≠ Slack revoke. Blind mirroring could wipe all tenants' tokens.
 
   **Acceptance Criteria**:
-  - [ ] Evidence file states the exact caller(s) and trigger event(s) of `deleteInstallation`.
+  - [ ] Evidence file states the exact caller(s) and trigger event(s) of `installationStore.deleteInstallation` AND confirms `admin-integrations.ts` disconnect stays single-tenant.
   - [ ] Explicit recommendation: Task 8 = single-tenant soft-delete, fan-out, or both (split).
 
   **QA Scenarios**:
@@ -235,7 +237,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (spike note only).
 
-- [ ] 2. VERIFY `resolveArchetypeFromChannel` exact fallback code (read-only spike)
+- [x] 2. VERIFY `resolveArchetypeFromChannel` exact fallback code (read-only spike)
 
   **What to do**:
   - Read `resolveArchetypeFromChannel` fully and document the EXACT fallback query (the "oldest active archetype for tenant" branch) and its return shape.
@@ -272,7 +274,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (spike note only).
 
-- [ ] 3. VERIFY repair-row token need + encryption parity (read-only spike)
+- [x] 3. VERIFY repair-row token need + encryption parity (read-only spike)
 
   **What to do**:
   - Determine whether the second tenant's `tenant_integrations` row needs its OWN `slack_bot_token` in `tenant_secrets`, OR whether `fetchInstallation`'s any-tenant-token fallback (Task 7) makes a token unnecessary for the second tenant.
@@ -310,7 +312,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (spike note only).
 
-- [ ] 4. `findManyByExternalId` slack coverage (TDD)
+- [x] 4. `findManyByExternalId` slack coverage (TDD)
 
   **What to do**:
   - RED: Add an integration test asserting `findManyByExternalId('slack', teamId)` returns BOTH rows when two tenants share a `team_id`, ordered by `created_at asc`, excluding soft-deleted rows.
@@ -356,7 +358,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: YES (groups with 5) — `test(slack): cover findManyByExternalId for shared workspace`.
 
-- [ ] 5. Remove OAuth 409 conflict check + NEW callback test (TDD)
+- [x] 5. Remove OAuth 409 conflict check + NEW callback test (TDD)
 
   **What to do**:
   - RED: Add a NEW route test for `GET /slack/oauth_callback` asserting that when the workspace `team_id` is already attached to a DIFFERENT tenant, the callback now SUCCEEDS (200) and upserts the second tenant's integration — instead of returning 409.
@@ -405,7 +407,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: YES (groups with 4) — `fix(slack): allow multiple tenants to attach one workspace`.
 
-- [ ] 6. Cross-tenant channel→employee resolver (NO fallback) (TDD)
+- [x] 6. Cross-tenant channel→employee resolver (NO fallback) (TDD)
 
   **What to do**:
   - RED: Write tests for a NEW cross-tenant resolver that accepts a `channelId` + an array of `tenantId`s (the tenants sharing the workspace) and returns candidate employees with their `tenant_id`, matching ONLY by explicit `notification_channel = channelId`. Tests must assert: (a) single explicit match returns one candidate; (b) two tenants matching the channel return TWO candidates; (c) NO channel match returns EMPTY (NOT the "oldest archetype" fallback); (d) employees with NULL `notification_channel` are never candidates.
@@ -463,7 +465,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: YES — `feat(slack): cross-tenant channel resolver without fallback`.
 
-- [ ] 7. `fetchInstallation` token robustness (deterministic) (TDD)
+- [x] 7. `fetchInstallation` token robustness (deterministic) (TDD)
 
   **What to do**:
   - RED: Test that when the first tenant (by deterministic order, e.g. `created_at asc`) on a shared workspace has NO/soft-deleted `slack_bot_token`, `fetchInstallation` iterates to the next tenant that DOES have a live token and returns it. Test that with a single tenant behavior is unchanged.
@@ -480,7 +482,7 @@ Max Concurrent: 5 (Wave 1)
 
   **References**:
   - `src/gateway/slack/installation-store.ts:17-48` — current `fetchInstallation`.
-  - `src/gateway/server.ts:129-138` — authorize callback (DO NOT CHANGE; context only).
+  - `src/gateway/server.ts:125-138` — authorize callback `authorize: async ({ teamId }) => { ... fetchInstallation({ teamId }) ... }` (DO NOT CHANGE; context only). (Line shifted from 129 → 125 after recent server.ts edits; verified 2026-06-12.)
   - WHY: Metis Assumption #2 — any-tenant token works, but must iterate deterministically to a live one.
 
   **Acceptance Criteria**:
@@ -511,16 +513,16 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: YES — `fix(slack): fetchInstallation resolves a live token across tenants`.
 
-- [ ] 8. `deleteInstallation` split semantics (TDD)
+- [x] 8. `deleteInstallation` split semantics (TDD)
 
   **What to do**:
-  - Based on Task 1's findings, implement the CORRECT semantics:
-    - If `deleteInstallation` is called by a per-tenant dashboard disconnect → soft-delete ONLY that tenant's integration + secret (single-tenant).
-    - If called by a workspace-wide Slack revoke (`app_uninstalled`/`tokens_revoked`) → fan-out soft-delete across ALL tenants (mirror GitHub `github.ts:70-101`).
-    - If Task 1 finds only ONE trigger exists, implement only that path and document why the other is N/A.
+  - **CONFIRMED (plan re-validation 2026-06-12)**: The per-tenant dashboard disconnect already lives at `src/gateway/routes/admin-integrations.ts:22-50` and is ALREADY single-tenant safe (scoped by tenant_id, soft-delete). Task 8's primary job is therefore: (1) ADD a regression test confirming `admin-integrations.ts` disconnect leaves OTHER tenants on a shared workspace intact; (2) handle the `installationStore.deleteInstallation` Slack-event path per Task 1's finding.
+  - Based on Task 1's findings, implement the CORRECT semantics for `installationStore.deleteInstallation`:
+    - If it is reachable via a workspace-wide Slack revoke (`app_uninstalled`/`tokens_revoked`) → fan-out soft-delete across ALL tenants (mirror GitHub `github.ts:70-101`).
+    - If Task 1 finds `installationStore.deleteInstallation` has NO live trigger, leave it as-is (or add a guarding comment) and document why fan-out is N/A; do NOT add a new Slack event handler.
   - RED first: write tests for whichever path(s) Task 1 confirmed. Continue-on-error per tenant for fan-out; soft-delete only.
 
-  **Must NOT do**: Wipe tokens of tenants that did not disconnect in the single-tenant path. Hard-delete. Add a new Slack event handler if none exists (note it as out of scope instead).
+  **Must NOT do**: Wipe tokens of tenants that did not disconnect in the single-tenant (`admin-integrations.ts`) path. Hard-delete. Add a new Slack event handler if none exists (note it as out of scope instead). Change the OWNER role gate on the disconnect route.
 
   **Recommended Agent Profile**:
   - **Category**: `deep` — Reason: opposite-behavior risk; correctness-critical.
@@ -529,46 +531,48 @@ Max Concurrent: 5 (Wave 1)
   **Parallelization**: Can Run In Parallel: YES | Wave 2 | Blocks: 10 | Blocked By: 1
 
   **References**:
-  - `src/gateway/slack/installation-store.ts:51-56` — current single-tenant delete.
-  - `src/gateway/routes/github.ts:70-101` — fan-out template (apply ONLY to the revoke path).
+  - `src/gateway/routes/admin-integrations.ts:22-50` — CONFIRMED per-tenant dashboard disconnect (already single-tenant safe). Add a shared-workspace regression test here.
+  - `src/gateway/slack/installation-store.ts:50-57` — `deleteInstallation` Slack-event path; handle per Task 1.
+  - `src/gateway/routes/github.ts:70-101` — fan-out template (apply ONLY to a confirmed workspace-revoke path).
   - WHY: Metis Assumption #4 (🔴) — blind fan-out would wipe all tenants on a single disconnect.
 
   **Acceptance Criteria**:
-  - [ ] Behavior matches Task 1's confirmed trigger(s); soft-delete only; per-tenant continue-on-error for fan-out.
-  - [ ] Single-tenant disconnect leaves OTHER tenants' tokens intact (tested).
-  - [ ] `pnpm test:unit -- installation-store` → PASS (including the previously-skipped delete test, now un-skipped & rewritten).
+  - [ ] Behavior matches Task 1's confirmed trigger(s); soft-delete only; per-tenant continue-on-error for any fan-out.
+  - [ ] `admin-integrations.ts` single-tenant disconnect leaves OTHER tenants' tokens intact on a shared workspace (NEW regression test).
+  - [ ] `pnpm test:unit -- installation-store` and the admin-integrations route test → PASS (including the previously-skipped delete test, now un-skipped & rewritten if applicable).
 
   **QA Scenarios**:
 
   ```
-  Scenario: Single-tenant disconnect preserves others [NEGATIVE-SAFETY]
-    Tool: Bash (vitest)
-    Preconditions: Two tenants on 'T_SHARED'.
+  Scenario: Single-tenant dashboard disconnect preserves others [NEGATIVE-SAFETY]
+    Tool: Bash (vitest, admin-integrations route test)
+    Preconditions: Two tenants A,B both attached to 'T_SHARED'.
     Steps:
-      1. Disconnect tenant A only.
-      2. Assert A soft-deleted; B integration + token intact.
-    Expected Result: B still resolvable.
+      1. DELETE /admin/tenants/{A}/integrations/slack.
+      2. Assert A's integration + slack_bot_token soft-deleted; B's integration + token intact.
+    Expected Result: B still resolvable via findManyByExternalId.
     Evidence: .sisyphus/evidence/task-8-single-disconnect.txt
 
-  Scenario: Workspace revoke fans out (if applicable)
+  Scenario: installationStore.deleteInstallation Slack-revoke path (if applicable)
     Tool: Bash (vitest)
     Steps:
-      1. Trigger workspace-wide revoke path.
-      2. Assert all tenants soft-deleted; continue-on-error works.
-    Expected Result: all deleted_at set.
+      1. Per Task 1: if a workspace-wide revoke trigger exists, exercise it; else assert N/A documented.
+      2. If applicable: assert all tenants soft-deleted; continue-on-error works.
+    Expected Result: all deleted_at set (or documented N/A).
     Evidence: .sisyphus/evidence/task-8-fanout-revoke.txt
   ```
 
   **Commit**: YES — `fix(slack): correct deleteInstallation semantics for shared workspace`.
 
-- [ ] 9. `app_mention` cross-tenant routing + widen `routeToEmployee` pool (TDD)
+- [x] 9. `app_mention` cross-tenant routing + widen `routeToEmployee` pool (TDD)
 
   **What to do**:
-  - RED: Tests for the updated `app_mention` handler: (a) resolve ALL tenants on `mention.team` via `findManyByExternalId`; (b) gather candidate employees across those tenants via the Task 6 resolver; (c) if exactly one candidate → route to it (its `tenant_id` becomes the resolved tenant); (d) if multiple candidates → call `routeToEmployee()` with the FULL cross-tenant candidate list, LLM picks; (e) if zero candidates OR LLM confidence below threshold → DECLINE (no task, polite message), zero events emitted; (f) a tenant on the workspace with zero active employees is simply skipped.
+  - RED: Tests for the updated `app_mention` handler: (a) resolve ALL tenants on `mention.team` via `findManyByExternalId`; (b) gather candidate employees across those tenants via the Task 6 resolver; (c) if exactly one candidate → route to it (its `tenant_id` becomes the resolved tenant); (d) if multiple candidates → call `routeToEmployee()` with the FULL cross-tenant candidate list; if the LLM picks confidently → route to the winner; (e) if the LLM is NOT confident (multiple plausible) → DO NOT decline: post a Slack disambiguation card listing the most likely candidate employees as buttons so the user picks; no task is created until they pick; (f) if there are genuinely ZERO candidate employees on the whole workspace → post a brief "no employees available" message; (g) a tenant on the workspace with zero active employees is simply skipped (it just contributes no candidates).
   - GREEN: Update `event-handlers.ts` app_mention (`:171-178`) to use the new resolver + multi-candidate `routeToEmployee`. Widen the `routeToEmployee` call site in `slack-trigger-handler.ts` to pass the union candidate list (remove the dead single-element path). The resolved `tenant_id` must flow into the dispatched event so downstream `loadTenantEnv(tenantId)` and task creation use the WINNER's tenant.
-  - Ensure the resolved tenant's bot token is what posts the confirmation/reply.
+  - GREEN (disambiguation card): when the LLM is not confident, build a Slack Block Kit card that lists the top candidate employees (each as a button carrying its archetype id + tenant id), following the existing trigger-confirmation card pattern. Add a button-click handler that, when the user picks an employee, dispatches the task to THAT employee's tenant — reuse the existing trigger-confirm dispatch path so input-collection and the lifecycle behave identically. Cap the card at a sensible number of buttons (e.g. top 3-5 by LLM ranking).
+  - Ensure the resolved tenant's bot token is what posts the confirmation/disambiguation/reply.
 
-  **Must NOT do**: Touch thread-reply resolution or approval-card handlers (already tenant-safe). Redesign the LLM prompt. Use any cross-tenant fallback. Change `authorize`.
+  **Must NOT do**: Touch thread-reply resolution or approval-card handlers (already tenant-safe). Redesign the LLM prompt. Use any cross-tenant fallback. Change `authorize`. Silently drop an ambiguous mention (no "do nothing" — always either route, ask, or say no-employees-available).
 
   **Recommended Agent Profile**:
   - **Category**: `deep` — Reason: the integration heart of the feature; multi-file, correctness + safety critical.
@@ -585,9 +589,10 @@ Max Concurrent: 5 (Wave 1)
 
   **Acceptance Criteria**:
   - [ ] Single-owner channel routes to correct employee/tenant.
-  - [ ] Two-owner channel → LLM picks; exactly one task; winner's `tenant_id` recorded.
-  - [ ] No-owner channel / low confidence → DECLINE, zero tasks/events. [NEGATIVE — release-blocker]
-  - [ ] Tenant with zero active employees skipped without crash.
+  - [ ] Two-owner channel, confident LLM → picks; exactly one task; winner's `tenant_id` recorded.
+  - [ ] Ambiguous (LLM not confident) → disambiguation card posted with candidate buttons; NO task until user picks; picking a button dispatches to that employee's tenant. [release-blocker]
+  - [ ] Zero candidate employees on the whole workspace → brief "no employees available" message; no task.
+  - [ ] Tenant with zero active employees contributes no candidates and never crashes routing.
   - [ ] `pnpm test:unit -- event-handlers slack-trigger-handler` → PASS.
 
   **QA Scenarios**:
@@ -611,26 +616,27 @@ Max Concurrent: 5 (Wave 1)
     Expected Result: one task; B.
     Evidence: .sisyphus/evidence/task-9-collision.txt
 
-  Scenario: No-owner channel → decline [NEGATIVE — release-blocker]
+  Scenario: Ambiguous mention → disambiguation card (NOT decline) [release-blocker]
     Tool: Bash (vitest)
     Steps:
-      1. Fire app_mention on channel no tenant owns.
-      2. Assert ZERO inngest.send calls; polite decline path taken.
-    Expected Result: zero tasks.
-    Evidence: .sisyphus/evidence/task-9-decline.txt
+      1. Two+ candidates; mock LLM confidence < threshold.
+      2. Assert a disambiguation card is posted with candidate-employee buttons; ZERO tasks created yet.
+      3. Simulate a button click; assert task dispatched to that employee's tenant.
+    Expected Result: card shown, then exactly one task on pick.
+    Evidence: .sisyphus/evidence/task-9-disambiguation.txt
 
-  Scenario: Low LLM confidence → decline [NEGATIVE — release-blocker]
+  Scenario: Zero employees anywhere on workspace → no-employees message [release-blocker]
     Tool: Bash (vitest)
     Steps:
-      1. Two candidates; mock LLM confidence < threshold.
-      2. Assert decline; zero tasks.
-    Expected Result: zero tasks.
+      1. No tenant on the workspace has any active employee.
+      2. Assert a brief "no employees available" message; zero tasks.
+    Expected Result: zero tasks; informative message.
     Evidence: .sisyphus/evidence/task-9-lowconf.txt
   ```
 
   **Commit**: YES — `feat(slack): route mentions to correct employee across tenants on a shared workspace`.
 
-- [ ] 10. Documentation updates (durable, non-volatile)
+- [x] 10. Documentation updates (durable, non-volatile)
 
   **What to do**:
   - Update `docs/guides/2026-05-14-0040-slack-tenant-integration.md`: replace the 1:1 framing with many:1 — a workspace can attach to multiple tenants; routing is by channel→employee across all tenants; bot token is workspace-scoped.
@@ -669,14 +675,14 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: YES — `docs(slack): document multi-tenant shared workspace routing`.
 
-- [ ] 11. Single-gateway pre-flight + LIVE @mention E2E (decline + happy)
+- [x] 11. Single-gateway pre-flight + LIVE @mention E2E (ambiguity-pick + happy)
 
   **What to do**:
   - MANDATORY pre-flight: `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` MUST return `1`. If more, kill zombies before proceeding (a stale socket silently absorbs ~50% of events).
   - Confirm services live: `curl localhost:7700/health`, `curl localhost:8288/health`, `tail /tmp/ai-dev.log | grep "Socket Mode"`.
   - Set up a LOCAL shared-workspace scenario: two tenants attached to the same dev workspace `team_id` (use the dev OAuth flow per the slack-tenant-integration guide for both tenants).
   - Run the happy path: real @mention in a channel owned by exactly one tenant's employee → click Confirm on the card → verify `tasks.status = Done` in DB; record task ID + full `task_status_log` trace.
-  - Run a decline path: @mention in a channel no tenant owns → verify NO task created and a decline message posted.
+  - Run an ambiguity path: @mention where two tenants both have a plausible employee → verify a disambiguation card appears with candidate buttons, click one, verify the task dispatches to the chosen employee's tenant and reaches Done.
   - Use Playwright/CDP per the `e2e-testing` and `dev-browser` skills.
 
   **Must NOT do**: Claim "verified from code" — live path is mandatory. Run against production. Skip the pre-flight.
@@ -695,7 +701,7 @@ Max Concurrent: 5 (Wave 1)
   **Acceptance Criteria**:
   - [ ] Pre-flight returns exactly 1 gateway.
   - [ ] Happy path: task reaches `Done`; task ID + status trace recorded.
-  - [ ] Decline path: zero tasks; decline message observed. [NEGATIVE — release-blocker]
+  - [ ] Ambiguity path: disambiguation card observed; clicking a candidate dispatches one task to the chosen employee's tenant; reaches Done. [release-blocker]
 
   **QA Scenarios**:
 
@@ -716,13 +722,14 @@ Max Concurrent: 5 (Wave 1)
     Expected Result: Done; tenant_id === A.
     Evidence: .sisyphus/evidence/task-11-live-happy.png + .txt
 
-  Scenario: Live @mention in unowned channel → decline [NEGATIVE]
+  Scenario: Live ambiguous @mention → disambiguation card → pick → Done
     Tool: Playwright/CDP + psql
     Steps:
-      1. @mention bot in a channel no tenant owns.
-      2. Assert no new task row; decline message present.
-    Expected Result: zero tasks.
-    Evidence: .sisyphus/evidence/task-11-live-decline.png + .txt
+      1. @mention bot where two tenants both have a plausible employee.
+      2. Assert a disambiguation card with candidate buttons appears; no task yet.
+      3. Click a candidate; assert one task dispatched to that employee's tenant; reaches Done.
+    Expected Result: card → pick → one task Done.
+    Evidence: .sisyphus/evidence/task-11-live-disambiguation.png + .txt
   ```
 
   **Commit**: NO (verification only). Kill all `ai-*` tmux sessions on completion.
@@ -828,7 +835,7 @@ Max Concurrent: 5 (Wave 1)
       Output: `Build | Lint | Tests | Files | VERDICT`
 
 - [ ] F3. **Real Manual QA** — `unspecified-high` (+ `e2e-testing`, `dev-browser` skills)
-      From a clean gateway: single-gateway pre-flight, then execute every QA scenario incl. negatives (no-owner channel, only-fallbacks, low confidence). Evidence → `.sisyphus/evidence/final-qa/`.
+      From a clean gateway: single-gateway pre-flight, then execute every QA scenario incl. the ambiguity cases (no clear owner, low confidence → disambiguation card + user pick) and zero-employee workspace. Evidence → `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N] | Negatives [N/N] | VERDICT`
 
 - [ ] F4. **Scope Fidelity Check** — `deep`
