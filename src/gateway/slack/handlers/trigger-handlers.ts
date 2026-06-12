@@ -337,7 +337,7 @@ export function registerTriggerHandlers(
     }
   });
 
-  boltApp.action(/^trigger_disambiguate/, async ({ ack, body, respond, client }) => {
+  boltApp.action(/^trigger_disambiguate/, async ({ ack, body, respond }) => {
     const actionBody = body as ActionBody;
     const valueStr = actionBody.actions[0]?.value;
     const user = actionBody.user;
@@ -479,8 +479,6 @@ export function registerTriggerHandlers(
         }
       }
     }
-
-    void client;
   });
 
   boltApp.action(SLACK_ACTION_ID.TRIGGER_CANCEL, async ({ ack, body, respond }) => {
