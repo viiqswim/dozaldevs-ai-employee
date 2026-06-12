@@ -170,7 +170,7 @@ export function ComposioConnections() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="rounded-lg border bg-card px-5 py-4">
-        <h1 className="text-lg font-semibold text-foreground">Connected Apps</h1>
+        <h1 className="text-lg font-semibold text-foreground">Integrations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Connect the tools your team already uses to unlock powerful automations.
         </p>
