@@ -9,4 +9,5 @@ export const SLACK_ACTION_ID = {
   RULE_REPHRASE: 'rule_rephrase',
   TRIGGER_CONFIRM: 'trigger_confirm',
   TRIGGER_CANCEL: 'trigger_cancel',
+  TRIGGER_DISAMBIGUATE: 'trigger_disambiguate',
 } as const;

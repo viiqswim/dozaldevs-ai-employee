@@ -14,14 +14,29 @@ import {
 // shared.ts holds a module-level `new PrismaClient()` (used by findTaskIdByThreadTs).
 // Mocking the constructor makes both that singleton and the injected param below
 // resolve to the same controllable instance.
-const { mockPrismaInstance, mockResolveArchetypeFromChannel } = vi.hoisted(() => ({
+const {
+  mockPrismaInstance,
+  mockResolveArchetypeFromChannel,
+  mockResolveEmployeesAcrossTenants,
+  mockRouteToEmployee,
+} = vi.hoisted(() => ({
   mockPrismaInstance: {
     deliverable: { findFirst: vi.fn() },
     task: { findFirst: vi.fn() },
-    tenantIntegration: { findFirst: vi.fn() },
+    tenantIntegration: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    tenantSecret: {
+      findUnique: vi.fn(),
+      delete: vi.fn(),
+    },
     employeeRule: { update: vi.fn(), count: vi.fn(), findFirst: vi.fn() },
   },
   mockResolveArchetypeFromChannel: vi.fn(),
+  mockResolveEmployeesAcrossTenants: vi.fn(),
+  mockRouteToEmployee: vi.fn(),
 }));
 
 vi.mock('@prisma/client', () => ({
@@ -30,9 +45,19 @@ vi.mock('@prisma/client', () => ({
 
 vi.mock('../../../../src/lib/interaction-classifier.js', () => ({
   resolveArchetypeFromChannel: mockResolveArchetypeFromChannel,
+  resolveEmployeesAcrossTenants: mockResolveEmployeesAcrossTenants,
 }));
 
-type EventHandler = (args: { event: unknown; client?: unknown }) => Promise<void>;
+vi.mock('../../../../src/inngest/slack-trigger-handler.js', () => ({
+  routeToEmployee: mockRouteToEmployee,
+  prettifyRoleName: (name: string) =>
+    name
+      .split('-')
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' '),
+}));
+
+type EventHandler = (args: { event: unknown; client?: unknown; body?: unknown }) => Promise<void>;
 
 function makeMockBoltApp() {
   const eventHandlers = new Map<string, EventHandler>();
@@ -88,10 +113,13 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321';
   process.env.SUPABASE_SECRET_KEY = 'test-key';
 
-  // Defaults: no deliverable, no task, no integration.  mockPrismaInstance.deliverable.findFirst.mockResolvedValue(null);
+  // Defaults: no deliverable, no task, no integration.
   mockPrismaInstance.task.findFirst.mockResolvedValue(null);
   mockPrismaInstance.tenantIntegration.findFirst.mockResolvedValue(null);
+  mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([]);
   mockResolveArchetypeFromChannel.mockResolvedValue({ archetype: null, isExactMatch: false });
+  mockResolveEmployeesAcrossTenants.mockResolvedValue([]);
+  mockRouteToEmployee.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -276,12 +304,14 @@ describe('app_mention event handler — routing', () => {
     };
   }
 
-  it('tenant resolved + archetype assigned → posts ack and sends interaction.received (source mention)', async () => {
-    mockPrismaInstance.tenantIntegration.findFirst.mockResolvedValue({ tenant_id: 'tenant-1' });
-    mockResolveArchetypeFromChannel.mockResolvedValue({
-      archetype: { id: 'arch-1', role_name: 'Reporter', notification_channel: 'C-MENTION' },
-      isExactMatch: true,
-    });
+  it('single-owner channel: one candidate → posts ack and sends interaction.received with that tenantId', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([{ tenant_id: 'tenant-1' }]);
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([
+      {
+        archetype: { id: 'arch-1', role_name: 'Reporter', notification_channel: 'C-MENTION' },
+        tenantId: 'tenant-1',
+      },
+    ]);
 
     const { boltApp, inngest } = register();
     const handler = boltApp._getEvent('app_mention');
@@ -301,20 +331,123 @@ describe('app_mention event handler — routing', () => {
     expect(sent.data.text).toBe('please run the report');
   });
 
-  it('tenant resolved but NO archetype assigned → declines via chat.update, no interaction.received', async () => {
-    mockPrismaInstance.tenantIntegration.findFirst.mockResolvedValue({ tenant_id: 'tenant-1' });
-    mockResolveArchetypeFromChannel.mockResolvedValue({ archetype: null, isExactMatch: false });
+  it('two-owner channel, confident LLM → picks winner; winner tenantId in dispatched event', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([
+      { tenant_id: 'tenant-A' },
+      { tenant_id: 'tenant-B' },
+    ]);
+    const candidateA = {
+      archetype: { id: 'arch-a', role_name: 'reporter-bot', notification_channel: 'C-MENTION' },
+      tenantId: 'tenant-A',
+    };
+    const candidateB = {
+      archetype: {
+        id: 'arch-b',
+        role_name: 'summarizer-bot',
+        notification_channel: 'C-MENTION',
+      },
+      tenantId: 'tenant-B',
+    };
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([candidateA, candidateB]);
+    mockRouteToEmployee.mockResolvedValue({ archetype: candidateB.archetype, confidence: 90 });
 
     const { boltApp, inngest } = register();
     const handler = boltApp._getEvent('app_mention');
-
     const client = makeClient();
-    await handler({ event: mention({ channel: 'C-UNASSIGNED' }), client });
+    await handler({ event: mention(), client });
+
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    const sent = inngest.send.mock.calls[0][0] as { name: string; data: Record<string, unknown> };
+    expect(sent.name).toBe('employee/interaction.received');
+    expect(sent.data.tenantId).toBe('tenant-B');
+    expect(sent.data.source).toBe('mention');
+  });
+
+  it('ambiguous (LLM not confident) → disambiguation card posted with candidate buttons; ZERO interaction.received', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([
+      { tenant_id: 'tenant-A' },
+      { tenant_id: 'tenant-B' },
+    ]);
+    const candidateA = {
+      archetype: { id: 'arch-a', role_name: 'reporter-bot', notification_channel: 'C-MENTION' },
+      tenantId: 'tenant-A',
+    };
+    const candidateB = {
+      archetype: {
+        id: 'arch-b',
+        role_name: 'summarizer-bot',
+        notification_channel: 'C-MENTION',
+      },
+      tenantId: 'tenant-B',
+    };
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([candidateA, candidateB]);
+    mockRouteToEmployee.mockResolvedValue(null);
+
+    const { boltApp, inngest } = register();
+    const handler = boltApp._getEvent('app_mention');
+    const client = makeClient();
+    await handler({ event: mention(), client });
+
+    expect(inngest.send).not.toHaveBeenCalled();
+    expect(client.chat.update).toHaveBeenCalledTimes(1);
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      blocks?: Array<{ type: string; elements?: unknown[] }>;
+      text: string;
+    };
+    const actionsBlock = updateCall.blocks?.find((b) => b.type === 'actions');
+    expect(actionsBlock).toBeDefined();
+    expect(Array.isArray(actionsBlock?.elements)).toBe(true);
+    const elements = actionsBlock?.elements as Array<{
+      action_id: string;
+      value: string;
+      type: string;
+    }>;
+    expect(elements.length).toBeGreaterThanOrEqual(2);
+    expect(elements[0].action_id).toBe('trigger_disambiguate');
+    expect(elements[1].action_id).toBe('trigger_disambiguate');
+    const valA = JSON.parse(elements[0].value) as { archetypeId: string; tenantId: string };
+    const valB = JSON.parse(elements[1].value) as { archetypeId: string; tenantId: string };
+    const tenantIds = [valA.tenantId, valB.tenantId];
+    expect(tenantIds).toContain('tenant-A');
+    expect(tenantIds).toContain('tenant-B');
+  });
+
+  it('zero candidates on workspace → "no employees" message; no interaction.received', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([{ tenant_id: 'tenant-1' }]);
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([]);
+
+    const { boltApp, inngest } = register();
+    const handler = boltApp._getEvent('app_mention');
+    const client = makeClient();
+    await handler({ event: mention({ channel: 'C-EMPTY' }), client });
 
     expect(inngest.send).not.toHaveBeenCalled();
     expect(client.chat.update).toHaveBeenCalledTimes(1);
     const updateArgs = client.chat.update.mock.calls[0][0] as { text: string };
     expect(updateArgs.text).toContain("don't have any employees");
+  });
+
+  it('tenant with zero active employees contributes no candidates (no crash)', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([
+      { tenant_id: 'tenant-A' },
+      { tenant_id: 'tenant-B' },
+    ]);
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([
+      {
+        archetype: { id: 'arch-a', role_name: 'reporter-bot', notification_channel: 'C-MENTION' },
+        tenantId: 'tenant-A',
+      },
+    ]);
+
+    const { boltApp, inngest } = register();
+    const handler = boltApp._getEvent('app_mention');
+    const client = makeClient();
+
+    await expect(handler({ event: mention(), client })).resolves.not.toThrow();
+
+    expect(inngest.send).toHaveBeenCalledTimes(1);
+    const sent = inngest.send.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(sent.data.tenantId).toBe('tenant-A');
   });
 
   it('bot-authored mention (bot_id present) → ignored entirely', async () => {
@@ -369,8 +502,8 @@ describe('app_mention event handler — routing', () => {
     const client = makeClient();
     await handler({ event: mention({ team: undefined }), client });
 
-    expect(mockPrismaInstance.tenantIntegration.findFirst).not.toHaveBeenCalled();
-    expect(mockResolveArchetypeFromChannel).not.toHaveBeenCalled();
+    expect(mockPrismaInstance.tenantIntegration.findMany).not.toHaveBeenCalled();
+    expect(mockResolveEmployeesAcrossTenants).not.toHaveBeenCalled();
     expect(inngest.send).toHaveBeenCalledTimes(1);
     const sent = inngest.send.mock.calls[0][0] as { name: string; data: Record<string, unknown> };
     expect(sent.name).toBe('employee/interaction.received');
@@ -378,11 +511,13 @@ describe('app_mention event handler — routing', () => {
   });
 
   it('ack postMessage failure does not abort routing (still sends interaction.received)', async () => {
-    mockPrismaInstance.tenantIntegration.findFirst.mockResolvedValue({ tenant_id: 'tenant-1' });
-    mockResolveArchetypeFromChannel.mockResolvedValue({
-      archetype: { id: 'arch-1', role_name: 'Reporter', notification_channel: 'C-MENTION' },
-      isExactMatch: true,
-    });
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([{ tenant_id: 'tenant-1' }]);
+    mockResolveEmployeesAcrossTenants.mockResolvedValue([
+      {
+        archetype: { id: 'arch-1', role_name: 'Reporter', notification_channel: 'C-MENTION' },
+        tenantId: 'tenant-1',
+      },
+    ]);
 
     const { boltApp, inngest } = register();
     const handler = boltApp._getEvent('app_mention');
@@ -392,5 +527,38 @@ describe('app_mention event handler — routing', () => {
 
     await expect(handler({ event: mention(), client })).resolves.not.toThrow();
     expect(inngest.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('disambiguation card: cap at 5 buttons even when more candidates exist', async () => {
+    mockPrismaInstance.tenantIntegration.findMany.mockResolvedValue([
+      { tenant_id: 'tenant-1' },
+      { tenant_id: 'tenant-2' },
+      { tenant_id: 'tenant-3' },
+      { tenant_id: 'tenant-4' },
+      { tenant_id: 'tenant-5' },
+      { tenant_id: 'tenant-6' },
+    ]);
+    const manyCandidates = [1, 2, 3, 4, 5, 6].map((n) => ({
+      archetype: {
+        id: `arch-${n}`,
+        role_name: `employee-${n}`,
+        notification_channel: 'C-MENTION',
+      },
+      tenantId: `tenant-${n}`,
+    }));
+    mockResolveEmployeesAcrossTenants.mockResolvedValue(manyCandidates);
+    mockRouteToEmployee.mockResolvedValue(null); // ambiguous
+
+    const { boltApp, inngest } = register();
+    const handler = boltApp._getEvent('app_mention');
+    const client = makeClient();
+    await handler({ event: mention(), client });
+
+    expect(inngest.send).not.toHaveBeenCalled();
+    const updateCall = client.chat.update.mock.calls[0][0] as {
+      blocks: Array<{ type: string; elements?: unknown[] }>;
+    };
+    const actionsBlock = updateCall.blocks.find((b) => b.type === 'actions');
+    expect(actionsBlock?.elements?.length).toBeLessThanOrEqual(5);
   });
 });
