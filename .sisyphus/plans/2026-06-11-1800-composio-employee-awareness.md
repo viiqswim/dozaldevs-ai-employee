@@ -838,19 +838,19 @@ Max Concurrent: 4
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Never mark F1–F4 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command, psql query). For each "Must NOT Have": search the codebase for forbidden patterns (DB cache table, cron registration, S3/storage layer, hardcoded skill names in instructions, full action catalogs in AGENTS.md) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit`. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log in prod paths, AI slop (over-abstraction, generic names). Verify shell tools use `requireEnv`/`optionalEnv` and `unescapeShellArg`.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Live E2E Evidence Audit** — `unspecified-high` (+ `e2e-testing`)
+- [x] F3. **Live E2E Evidence Audit** — `unspecified-high` (+ `e2e-testing`)
       The live end-to-end run is Task 13 (the capstone). F3 does NOT re-run it — it AUDITS Task 13's evidence in `.sisyphus/evidence/task-13-live-e2e/` for sufficiency: confirm a real task ID, a `task_status_log` trace to `Done`, in-container skill-filtering proof, a `task_composio_calls` audit row (via psql, not just the saved file), a non-empty `/composio/usage` response, the `execute.ts --toolkit notion` log line, and a delivery artifact. If any evidence is missing or stale, REJECT and require Task 13 be re-run. Re-verify the audit row live with a fresh psql query.
       Output: `Evidence complete [Y/N] | Audit row live-verified [Y/N] | Delivery confirmed [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specced was built, nothing beyond spec. Confirm no cron/timer/DB-cache/storage-layer crept in. Confirm `execute.ts` is the only shell tool granted PostgREST write.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
