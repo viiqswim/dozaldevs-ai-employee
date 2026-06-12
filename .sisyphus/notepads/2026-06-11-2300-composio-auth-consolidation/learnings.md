@@ -399,3 +399,108 @@ Remaining `/tools/jira` references after update:
 
 ### Key pattern
 When removing a shell tool directory, update: AGENTS.md table, employee doc, any verification/testing guides that reference the tool CLI, and the employee's setup checklist + tenant secrets table.
+
+## [2026-06-12] Task 12 — cleaning-schedule Live E2E — ✅ PASS
+
+**Task ID:** `0dabde55-32ca-4864-95ae-a1b80bb67af7` · runtime ~2.5 min · status `Done`
+
+### Result
+Full E2E verified the Composio auth consolidation works on a real task. All 4 acceptance criteria met:
+- Task reached `Done` (Received→...→Executing→Submitting→Validating→Submitting→Done; no Reviewing — `approval_required: false`)
+- Harness log shows 3× `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN`
+- `task_composio_calls`: 3 rows, `toolkit=notion`, `tool_name=NOTION_GET_PAGE_MARKDOWN`, `phase=execution`
+- Deliverable: Spanish cleaning schedule posted to Slack `C0B71QSMZKQ` (9 properties, 3 cleaners), classification `NO_ACTION_NEEDED`
+
+### Gotchas discovered
+1. **Trigger payload key is `inputs` (plural), not `input`.** `{"input":{...}}` → `422 MISSING_REQUIRED_INPUTS`. Correct: `{"inputs":{"date":"2026-06-13"}}`. Schema source: `admin-employee-trigger.ts` line 22 (`inputs: z.record(...)`).
+2. **`task_status_log` column is `to_status`/`from_status`, not `status`.** `SELECT status` errors.
+3. **`tasks` table has only `status` + `metadata` columns** for output — no `output`/`result`/`summary` columns. Deliverable lives in Slack (channel/ts in `metadata.notify_slack_channel` / `notify_slack_ts`); audit in `task_composio_calls`.
+4. **execute.ts notion calls are NOT visible via `docker logs`** — they run inside the OpenCode bash tool. Find them in the harness log file `/tmp/employee-{taskId:0:8}.log` via `grep -oE "tsx /tools/[^\"]*"`. docker-logs grep for "notion"/"composio" returns only the boot-time skill-filter lines.
+5. Container boot log (`harness-helpers`) confirms `connectedToolkits: ["notion","slack","github"]` and keeps `composio-notion`/`composio-slack` skills, removes unconnected ones — the boot-time `filterComposioSkills()` works.
+
+### Leftover-files observation (NOT modified — out of scope for this task)
+LSP reports stale files still present: `src/worker-tools/notion/{get-page,append-blocks,update-block}.ts` import `./auth.js` and `./lib/notion-types.js` which T8 deleted → unresolved-module errors. These leftover notion tool files were not fully removed by T8 (only `auth.ts`/`lib` deleted, not the consumers). They don't affect runtime (cleaning-schedule uses `/tools/composio/execute.ts`, not these), but they're dead code with broken imports. Flag for cleanup follow-up.
+
+### Evidence
+`.sisyphus/evidence/task-12-cleaning-e2e/` — SUMMARY.md, task-id.txt, status-log-trace.txt, composio-calls.txt, tool-invocations.txt, container-composio-init.txt, slack-deliverable.txt
+
+## [2026-06-12] Task 13 — google-workspace-assistant Live E2E (BLOCKED, environmental)
+
+**Outcome**: ❌ Cannot satisfy success criteria — no Google toolkit connected for VLRE. Two tasks triggered; both reached `Submitting` with `NO_ACTION_NEEDED`. Zero Google `task_composio_calls` rows possible without an OAuth connect first.
+
+### Finding A — task brief's trigger key was wrong
+- Brief said `{"inputs":{"task":"..."}}`. Harness `extractTriggerPrompt()` in `src/workers/lib/trigger-payload.mts` reads **only `prompt`** key.
+- `inputs.task` → silently dropped → empty `## Your Assignment` → model: "No assignment found in initial message - no action taken".
+- Correct key is `inputs.prompt` (confirmed by `docs/employees/2026-06-03-0243-google-assistant.md` L14/32/36).
+- Trigger-key cheat sheet: `input` (singular) → 422; `inputs.task` → 200 but no-op; `inputs.prompt` → 200 + assignment injected ✅.
+
+### Finding B — NO Google toolkit connected for VLRE (hard blocker)
+- Direct probes vs `https://backend.composio.dev/api/v3.1/tools/execute/<ACTION>` with `user_id=tenant_00000000-0000-0000-0000-000000000003` (exact path execute.ts uses, key `ak_b6ci2Ba-Oz60ZZn4qQ6I`):
+  - `SLACK_TEST_AUTH` → `successful:true` (control passes)
+  - `GMAIL_FETCH_EMAILS` → "No connected account found ... for toolkit gmail"
+  - `GOOGLEDRIVE_LIST_FILES` → "No connected account found ... for toolkit googledrive"
+  - googledocs/googlesheets/googlecalendar → all NOT CONNECTED
+- `composio_connections` (VLRE) = github, notion, slack only.
+- Harness `filterComposioSkills(["notion","slack","github"])` removed `composio-gmail` at boot (logged both tasks). Task #2 model STILL attempted `GMAIL_FETCH_EMAILS` from its execution_steps examples → Composio HTTP 400.
+- **Inherited wisdom WRONG**: brief claimed Gmail ACTIVE `ca_OuCJhllG504D` under tenant_...0003 — verified false.
+
+### Audit-row gotcha
+`execute.ts` writes `task_composio_calls` ONLY on the HTTP-success path (after `if (!response.ok)` exit at L156-165; write at L167). A 400 "no connected account" → no audit row. So a failed Google call leaves zero rows even though it was attempted. Slack calls succeeded → 5 audit rows on task #1.
+
+### Secondary (orthogonal) — NO_ACTION_NEEDED tasks stuck in Submitting
+Both tasks sat in `Submitting` 12+ min instead of short-circuiting Submitting→Done. No lifecycle error in available logs. Possible follow-up; not related to the Composio-Google verification goal.
+
+### Remediation to pass this E2E
+1. `GET /admin/tenants/00000000-0000-0000-0000-000000000003/composio/connect?toolkit=gmail` → open URL → complete Google OAuth (live URL this run: https://connect.composio.dev/link/lk_5WzxYtcYGNVJ).
+2. Verify connection active via `/composio/connections`.
+3. Re-trigger with `{"inputs":{"prompt":"..."}}` (NOT `task`).
+4. Expect gmail row in `task_composio_calls` → Reviewing → approve → Done.
+
+### Task IDs
+- `170799e7-a6f3-4ef7-9e41-66af9fef6d43` (inputs.task, no assignment)
+- `e4f42387-edcc-4262-8a2d-5474c6c8d382` (inputs.prompt, attempted Gmail)
+- Evidence: `.sisyphus/evidence/task-13-google-e2e/` (SUMMARY.md + 5 raw files)
+
+## [2026-06-12] Task 13 — google-workspace-assistant Live E2E (retry with Gmail connected) — ✅ PASS
+
+**Outcome**: PASS. Gmail Composio integration verified end-to-end after Gmail OAuth was completed.
+
+**Task ID**: `40dd4bfe-4edc-413f-b7f0-6b47e5d7041f` (VLRE `...0003`, archetype `00000000-0000-0000-0001-000000000001`)
+
+**Evidence (all 4 criteria met)**:
+- Task reached `Done` — full trace: Received→Triaging→AwaitingInput→Ready→Executing→Validating→Submitting→Done
+- `task_composio_calls`: 2 rows `gmail | GMAIL_FETCH_EMAILS | execution` (zero-rows-is-failure rule satisfied)
+- Deliverable contains 3 REAL inbox emails (Leadpages migration, 2 Turno cleaning alerts) — live API access proven
+- Model `deepseek/deepseek-v4-flash` routed via OpenCodeGo, called Gmail reliably. promptTokens 24990 / completionTokens 2054 / $0.0052
+
+**Key learnings / gotchas confirmed**:
+1. **Trigger key is `inputs.prompt`** (plural inputs, key=prompt) — CONFIRMED working. Harness `extractTriggerPrompt()` reads ONLY the `prompt` key; `inputs.task` silently dropped, `input` (singular) → 422.
+2. **NO_ACTION_NEEDED + approval_required=true parks in Submitting, NOT Reviewing.** A read-only "list emails" request is correctly classified NO_ACTION_NEEDED. The lifecycle (`override-card.ts` `runOverrideCardPath`) posts an FYI override card and parks on `step.waitForEvent('wait-for-override', timeout: 24h)`. Task stays `Submitting` up to 24h until override or timeout→Done. This is EXPECTED, not a stall. To finish E2E cleanly, send: `employee/override.requested` with `direction: null` → drives Submitting→Done (override-dismiss path). Inngest run shows "Completed" even while parked because waitForEvent yields the run.
+3. **Archetype `notification_channel` is null** → `channel_not_found` Slack error at notify-received (non-fatal, swallowed). Does not affect Composio verification. Set `notification_channel` if Slack delivery is wanted for this employee.
+4. **Harness log location**: `/tmp/employee-{id8}.log` is correct for Composio/classification lines. Filter out `permission`/`ruleset` noise — opencode-server emits huge permission-eval JSON blobs. Use `grep '"component":"opencode-harness"'` for clean lifecycle.
+5. **Dual-gateway footgun observed**: two independent `tsx watch` gateway supervisors were running. The one owning port 7700 (PID logging to `/tmp/ai-gateway.log`) ran the lifecycle — NOT the `pnpm dev` gateway (`/tmp/ai-dev.log`). When debugging lifecycle on a Slack-trigger workflow, run the single-gateway pre-flight (`pgrep -f '.*src/gateway/server.ts' | wc -l` must be 1) or you'll read the wrong log and chase phantom stalls.
+6. Boot-time `filterComposioSkills(["notion","slack","github","gmail"])` kept composio-gmail (gmail now connected); removed composio-slackbot.
+
+**Resolves** the prior BLOCKED T13 attempt (no Google toolkit connected). Gmail active since 2026-06-12T16:32:27Z.
+
+**Evidence dir**: `.sisyphus/evidence/task-13-google-e2e/` (SUMMARY.md, status-log-trace.txt, composio-calls.txt, deliverable.txt, harness-log-excerpt.txt, harness-component-log.txt)
+
+## [2026-06-12] Task 14 — engineer Live E2E (GitHub App token flow) — ✅ PASS
+
+**Verifies**: engineer employee unaffected by Composio consolidation (T8 tool deletes, T19 OAuth-route removal). It uses the GitHub App installation-token flow (`get-token.ts` → `internal-github-token.ts` → `generateInstallationToken()` → `github_installation_id` secret), which was NOT touched.
+
+### Results — 2 runs, both produced real PRs
+- Run 1: task `44e77b7a-8d69-410e-ac8f-974c8ec11de1` → PR #30, reached harness "Submitting" but DB hung at `Executing`.
+- Run 2: task `92afa961-a19d-4ef9-bf28-39b3edb599f2` → PR #31, **clean pass to `Reviewing`** (full trace Received→Triaging→AwaitingInput→Ready→Executing→Submitting→Validating→Submitting→Reviewing).
+- Both PRs authored by GitHub App bot `app/dozaldevs-ai-employee-dev`, branch `ai/<id8>-engineer` → proves installation token is valid (can't open a PR as the App without it).
+
+### Key gotchas / findings
+1. **`xiaomi/mimo-v2.5-pro` works fine for the engineer** — no model override to deepseek needed. AGENTS.md confirms it reliably calls bash tools in engineer context. It called get-token.ts, git, gh all correctly. (The "override to deepseek" advice is only for models that fail bash — mimo-v2.5-pro is NOT one of them.)
+2. **DB-status-stuck-at-Executing is usually INFRA, not the employee.** Run 1's harness logged "OpenCode harness complete" + created PR #30, but `PATCH tasks`/`POST deliverables` got **HTTP 503** from local PostgREST (`ai-employee-rest` at host.docker.internal:54331) during the 17:14-17:15 writeback window. The work succeeded; only the status writeback failed. PostgREST recovered on its own (container up 12d, RestartCount=0). ALWAYS grep the harness log for `HTTP 503`/`postgrest-client.*failed` before blaming the employee when status is stuck but a PR exists.
+3. **Worker writeback path (local docker mode)**: harness uses `${SUPABASE_URL}/rest/v1`, and machine-provisioner.ts rewrites `localhost`→`host.docker.internal`. So worker hits `host.docker.internal:54331/rest/v1`, NOT the cloudflare tunnel (tunnel is fly-mode only). A 503 here = local PostgREST flake.
+4. **engineer `notification_channel` is null** → no Slack approval card → `pending_approvals` empty even in `Reviewing`. Same as google-workspace-assistant (T13). Not a blocker for PR verification; drive approval via manual `employee/approval.received` Inngest event if needed.
+5. **Dual-supervisor footgun (confirmed again)**: two `tsx watch` gateway supervisors existed (PID 12998 stale w/ no children; PID 62386→38418 owns port 7700). `lsof -i :7700` + `ps -o ppid=` traces the real one. Stale one serves nothing — left alone (don't kill).
+6. **Trigger key `inputs.prompt`** confirmed working for engineer (200 + assignment injected). Matches T12/T13.
+
+### Evidence
+`.sisyphus/evidence/task-14-engineer-e2e/` — SUMMARY.md, task-id.txt (+run2), trigger-response*.json, status-log-trace.txt (run2 full trace), pr-url.txt (both PRs), token-log.txt (git command sequence both runs).

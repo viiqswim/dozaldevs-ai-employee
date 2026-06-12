@@ -387,7 +387,7 @@ Max Concurrent: 4
 
   **Commit**: NO (analysis; mapping committed under `.sisyphus/`)
 
-- [ ] 4. Re-source GitHub token endpoint to Composio
+- [x] 4. Re-source GitHub token endpoint to Composio
 
   **What to do**:
   - Rewrite `src/gateway/routes/internal-github-token.ts` so that, instead of reading `github_installation_id` + calling `generateInstallationToken()`, it fetches the GitHub token from Composio via the Task 1 helper (`getComposioConnectionToken(tenantId, 'github')`).
@@ -442,7 +442,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `feat(github): source installation token from Composio connection`
 
-- [ ] 5. Re-source Slack `xoxb` bot token from Composio (keep `xapp-` Socket Mode token in env)
+- [x] 5. Re-source Slack `xoxb` bot token from Composio (keep `xapp-` Socket Mode token in env)
 
   > **Model (confirmed):** Composio manages the Slack connection using the user's OWN Slack app credentials (so the bot name is the user's), including the `xoxb-` bot token. The `xapp-` app-level token (Socket Mode WebSocket) is NOT an OAuth token and cannot be issued by Composio — it stays in `.env` as `SLACK_APP_TOKEN`. So Slack IS a Composio-managed connection like the others; only the one architecturally-unprovidable token (`xapp-`) is self-held.
 
@@ -752,7 +752,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `docs: reflect Composio auth-manager model and tool removals`
 
-- [ ] 12. **LIVE E2E — cleaning-schedule (Notion via Composio)**
+- [x] 12. **LIVE E2E — cleaning-schedule (Notion via Composio)**
 
   > Rebuild the Docker image first (deleted tools + rewritten archetype only ship via rebuild). Trigger the real employee; verify it reads Notion through Composio and completes.
 
@@ -839,7 +839,7 @@ Max Concurrent: 4
 
   **Commit**: NO
 
-- [ ] 14. **LIVE E2E — engineer (GitHub clone/push/PR via Composio token)**
+- [x] 14. **LIVE E2E — engineer (GitHub clone/push/PR via Composio token)**
 
   > The riskiest verification: proves the Composio-sourced GitHub token has `repo` scope and works for the full git workflow.
 
@@ -882,7 +882,7 @@ Max Concurrent: 4
 
   **Commit**: NO
 
-- [ ] 15. **LIVE E2E — approval-flow employee (Slack via Composio token + button round-trip)**
+- [x] 15. **LIVE E2E — approval-flow employee (Slack via Composio token + button round-trip)**
 
   > Proves the Composio-sourced `xoxb-` bot token (your own Slack app) posts a Block Kit approval card AND that Approve/Reject buttons still round-trip via Socket Mode (`xapp-` in env). ALSO serves as the post-endpoint-removal regression check (runs after Task 19).
 
@@ -1071,7 +1071,7 @@ Max Concurrent: 4
 
   **Commit**: NO
 
-- [ ] 19. Remove dead credential endpoints (Notion/Jira/Google OAuth + GitHub App flow + disconnect routes)
+- [x] 19. Remove dead credential endpoints (Notion/Jira/Google OAuth + GitHub App flow + disconnect routes)
 
   **What to do**:
   - Now that Notion/Google/Jira/GitHub/Slack all go through Composio and the custom UI page is gone, remove the dead gateway endpoints:
@@ -1125,7 +1125,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `refactor(gateway): remove dead Notion/Jira/Google/GitHub credential endpoints`
 
-- [ ] 20. Prune obsolete tenant secrets (notion*\*, google*\_, jira\_\_, github_installation_id)
+- [x] 20. Prune obsolete tenant secrets (notion*\*, google*\_, jira\_\_, github_installation_id)
 
   > Runs LAST, after the migrated employees' live E2Es (Tasks 12-14) prove nothing reads these secrets. Irreversible data change — gated behind proof.
 
