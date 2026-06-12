@@ -75,13 +75,13 @@ Transform the integrations page into a two-tab (Connected | Browse) interface th
 
 ### Definition of Done
 
-- [ ] Two tabs render with count badges; `?tab=` reflects active tab (default omitted)
-- [ ] Smart default works with no flicker and no URL pollution
-- [ ] Connected tab sources from `connections` poll + secrets (pagination bug fixed)
-- [ ] Both tabs have working search + category filtering
-- [ ] Connectable apps globally pinned to top of Browse
-- [ ] `pnpm lint` clean, dashboard `tsc` build clean, `pnpm test -- --run` green
-- [ ] All Playwright QA scenarios pass with evidence captured
+- [x] Two tabs render with count badges; `?tab=` reflects active tab (default omitted)
+- [x] Smart default works with no flicker and no URL pollution
+- [x] Connected tab sources from `connections` poll + secrets (pagination bug fixed)
+- [x] Both tabs have working search + category filtering
+- [x] Connectable apps globally pinned to top of Browse
+- [x] `pnpm lint` clean, dashboard `tsc` build clean, `pnpm test -- --run` green
+- [x] All Playwright QA scenarios pass with evidence captured
 
 ### Must Have
 
@@ -430,7 +430,7 @@ Critical Path: Task 1 → Task 2 → Task 5 → Task 7 → F1-F4
 
   **Commit**: groups with Wave 2 — `feat(dashboard): unify Browse catalog with globally pinned connectable apps`
 
-- [ ] 5. Empty states + per-tab loading skeletons
+- [x] 5. Empty states + per-tab loading skeletons
 
   **What to do**:
   - Connected tab empty state (zero connections): a card-shell with plain-language copy and a SINGLE CTA button "Browse apps" that switches to the Browse tab (Hick's Law — one action). Copy example: heading "You haven't connected any apps yet", one sentence on value ("Connect the tools you already use so your AI employees can work with them."), then the button. Reuse the existing empty copy concept from `ConnectedAppsZone.tsx` if present, upgraded to a button that calls `updateTab('browse')`.
@@ -478,7 +478,7 @@ Critical Path: Task 1 → Task 2 → Task 5 → Task 7 → F1-F4
 
   **Commit**: groups with Wave 3 — `feat(dashboard): add per-tab empty states and loading skeletons for integrations`
 
-- [ ] 6. Connected-tab category derivation + responsive/mobile
+- [x] 6. Connected-tab category derivation + responsive/mobile
 
   **What to do**:
   - Derive Connected-tab categories client-side from the connected apps' own `categories` (union of `categories` across `connectedComposioApps`; custom apps may have a synthetic category like "Platform" or none). Feed this into the Connected `SearchToolbar` `categories` prop so chips reflect only what's actually connected. If a tenant has 0-1 categories, render no chips (or just "All") — avoid meaningless single-chip filters.
@@ -577,7 +577,7 @@ Critical Path: Task 1 → Task 2 → Task 5 → Task 7 → F1-F4
 
   **Commit**: groups with Wave 4 — `test(dashboard): add page-level tab tests for integrations redesign`
 
-- [ ] 8. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 8. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
@@ -585,19 +585,19 @@ Critical Path: Task 1 → Task 2 → Task 5 → Task 7 → F1-F4
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists in `ComposioConnections.tsx` (read file). For each "Must NOT Have": grep the diff for forbidden patterns (backend edits, new hooks/abstractions, removed redirect, jargon copy) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality + Build** — `unspecified-high`
+- [x] F2. **Code Quality + Build** — `unspecified-high`
       Run `pnpm lint`, dashboard `tsc` (via `pnpm build` or `pnpm dashboard:build`), and `pnpm test -- --run`. Review changed files for: `as any`, dead code, leftover console.log, duplicated grid markup, over-abstraction. Confirm URL-state style is consistent file-wide.
       Output: `Lint [PASS/FAIL] | Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Live Playwright QA** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Live Playwright QA** — `unspecified-high` (+ `playwright` skill)
       Connect via CDP to real Chrome. Execute EVERY QA scenario from Tasks 2-6 against `localhost:7700/dashboard/integrations?tenant=00000000-0000-0000-0000-000000000003`. Capture all evidence to `.sisyphus/evidence/final-qa/`. Test cross-tab integration: connect a custom app from Browse → assert it moves to Connected; disconnect from Connected → assert it returns to Browse.
       Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specified was built, nothing beyond spec. Confirm only `ComposioConnections.tsx`, `composio/` sub-components, and the test file changed. Flag any backend/gateway/data-model edits or contamination of unrelated files.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -625,9 +625,9 @@ pnpm dashboard:build      # Expected: tsc + vite build clean
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Two tabs with counts, URL-synced, smart default, no flicker
-- [ ] Connected sourced from poll (bug fixed); both tabs filterable; connectables pinned global
-- [ ] All Playwright scenarios pass with evidence
-- [ ] Telegram completion notification sent
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Two tabs with counts, URL-synced, smart default, no flicker
+- [x] Connected sourced from poll (bug fixed); both tabs filterable; connectables pinned global
+- [x] All Playwright scenarios pass with evidence
+- [x] Telegram completion notification sent
