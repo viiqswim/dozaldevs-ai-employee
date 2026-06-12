@@ -5206,26 +5206,33 @@ BOTH must be executed as bash tool calls. A text response without running these 
   // ─── Google Workspace Assistant (VLRE) ──────────────────────────────────────
   const VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS = `Read the assignment from the "## Your Assignment" section of your initial message.
 
-STEP 1 — Validate Google access:
-   tsx /tools/google/validate-env.ts
-   Confirm output shows all required environment variables are set. If validation fails, stop and report the missing variables.
+STEP 1 — Execute the assignment using Composio:
+   Perform all Google Workspace operations by calling the Composio execute tool:
+   tsx /tools/composio/execute.ts --toolkit <toolkit> --action <ACTION_SLUG> --params '<json>'
 
-STEP 2 — Execute the assignment:
-   Based on the assignment, use the appropriate Google tools from /tools/google/:
-   - Gmail: list-emails.ts, get-email.ts, send-email.ts
-   - Drive: list-files.ts, get-file.ts, upload-file.ts, delete-file.ts
-   - Docs: list-documents.ts, get-document.ts, create-document.ts
-   - Sheets: list-spreadsheets.ts, get-sheet-data.ts, update-sheet-data.ts
-   - Slides: list-presentations.ts, get-presentation.ts
-   - Calendar: list-events.ts, create-event.ts, update-event.ts
+   Map the requested work to the correct toolkit:
+   - Gmail            → --toolkit gmail
+   - Google Drive     → --toolkit googledrive
+   - Google Docs      → --toolkit googledocs
+   - Google Sheets    → --toolkit googlesheets
+   - Google Slides    → --toolkit googleslides
+   - Google Calendar  → --toolkit googlecalendar
 
-   Run each tool with --help to see usage if needed.
+   To discover the available actions and their exact parameters for each toolkit, consult the
+   Composio skills loaded in this session (composio-gmail, composio-googledrive, composio-googledocs,
+   composio-googlesheets, composio-googleslides, composio-googlecalendar). Each skill lists every
+   action slug and its parameter schema.
+
+   Examples:
+   tsx /tools/composio/execute.ts --toolkit gmail --action GMAIL_FETCH_EMAILS --params '{"max_results": 10}'
+   tsx /tools/composio/execute.ts --toolkit googledrive --action GOOGLEDRIVE_LIST_FILES --params '{"page_size": 10}'
+
    Complete all requested actions before moving to the next step.
 
-STEP 3 — Write a detailed summary to /tmp/summary.txt with the results:
+STEP 2 — Write a detailed summary to /tmp/summary.txt with the results:
    Include what was done, any files created or modified, emails sent, events created, etc.
 
-STEP 4 — Submit output (MANDATORY final step):
+STEP 3 — Submit output (MANDATORY final step):
    tsx /tools/platform/submit-output.ts \\
      --summary "<one-sentence description of what was done>" \\
      --classification "NEEDS_APPROVAL" \\
@@ -5263,25 +5270,7 @@ Read the approved content from the <approved-content> block in your prompt.
         tools: [
           '/tools/platform/submit-output.ts',
           '/tools/slack/post-message.ts',
-          '/tools/google/validate-env.ts',
-          '/tools/google/list-emails.ts',
-          '/tools/google/get-email.ts',
-          '/tools/google/send-email.ts',
-          '/tools/google/list-files.ts',
-          '/tools/google/get-file.ts',
-          '/tools/google/upload-file.ts',
-          '/tools/google/delete-file.ts',
-          '/tools/google/list-documents.ts',
-          '/tools/google/get-document.ts',
-          '/tools/google/create-document.ts',
-          '/tools/google/list-spreadsheets.ts',
-          '/tools/google/get-sheet-data.ts',
-          '/tools/google/update-sheet-data.ts',
-          '/tools/google/list-presentations.ts',
-          '/tools/google/get-presentation.ts',
-          '/tools/google/list-events.ts',
-          '/tools/google/create-event.ts',
-          '/tools/google/update-event.ts',
+          '/tools/composio/execute.ts',
         ],
       },
       trigger_sources: { type: 'manual' },
@@ -5309,25 +5298,7 @@ Read the approved content from the <approved-content> block in your prompt.
         tools: [
           '/tools/platform/submit-output.ts',
           '/tools/slack/post-message.ts',
-          '/tools/google/validate-env.ts',
-          '/tools/google/list-emails.ts',
-          '/tools/google/get-email.ts',
-          '/tools/google/send-email.ts',
-          '/tools/google/list-files.ts',
-          '/tools/google/get-file.ts',
-          '/tools/google/upload-file.ts',
-          '/tools/google/delete-file.ts',
-          '/tools/google/list-documents.ts',
-          '/tools/google/get-document.ts',
-          '/tools/google/create-document.ts',
-          '/tools/google/list-spreadsheets.ts',
-          '/tools/google/get-sheet-data.ts',
-          '/tools/google/update-sheet-data.ts',
-          '/tools/google/list-presentations.ts',
-          '/tools/google/get-presentation.ts',
-          '/tools/google/list-events.ts',
-          '/tools/google/create-event.ts',
-          '/tools/google/update-event.ts',
+          '/tools/composio/execute.ts',
         ],
       },
       trigger_sources: { type: 'manual' },

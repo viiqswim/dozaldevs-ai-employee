@@ -44,57 +44,50 @@ The `inputs.prompt` field is injected into the worker as the `## Your Assignment
 
 ## Available Google Tools
 
-All tools live at `/tools/google/` in the worker container:
-
-| Tool                    | Purpose                                     |
-| ----------------------- | ------------------------------------------- |
-| `validate-env.ts`       | Verify Google credentials are configured    |
-| `list-emails.ts`        | List emails from Gmail                      |
-| `get-email.ts`          | Get full content of a specific email        |
-| `send-email.ts`         | Send an email via Gmail                     |
-| `list-files.ts`         | List files in Google Drive                  |
-| `get-file.ts`           | Get metadata or content of a Drive file     |
-| `upload-file.ts`        | Upload a file to Google Drive               |
-| `delete-file.ts`        | Delete a file from Google Drive             |
-| `list-documents.ts`     | List Google Docs documents                  |
-| `get-document.ts`       | Get content of a Google Doc                 |
-| `create-document.ts`    | Create a new Google Doc                     |
-| `list-spreadsheets.ts`  | List Google Sheets spreadsheets             |
-| `get-sheet-data.ts`     | Read data from a Google Sheet               |
-| `update-sheet-data.ts`  | Write data to a Google Sheet                |
-| `list-presentations.ts` | List Google Slides presentations            |
-| `get-presentation.ts`   | Get content of a Google Slides presentation |
-| `list-events.ts`        | List Google Calendar events                 |
-| `create-event.ts`       | Create a new calendar event                 |
-| `update-event.ts`       | Update an existing calendar event           |
-
-Run any tool with `--help` to see required flags and options.
-
-## Required Tenant Secrets
-
-Google OAuth credentials must be stored as tenant secrets before the employee can run:
-
-| Secret Key             | Description                                      |
-| ---------------------- | ------------------------------------------------ |
-| `google_client_id`     | OAuth 2.0 Client ID from Google Cloud Console    |
-| `google_client_secret` | OAuth 2.0 Client Secret                          |
-| `google_refresh_token` | Long-lived refresh token from OAuth consent flow |
-
-Store via admin API:
+All Google Workspace operations run through the Composio execute tool at `/tools/composio/execute.ts`:
 
 ```bash
-curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_client_id" \
-  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
-  -d '{"value":"<client_id>"}'
-
-curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_client_secret" \
-  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
-  -d '{"value":"<client_secret>"}'
-
-curl -X PUT "http://localhost:7700/admin/tenants/$TENANT/secrets/google_refresh_token" \
-  -H "Authorization: Bearer $SERVICE_TOKEN" -H "Content-Type: application/json" \
-  -d '{"value":"<refresh_token>"}'
+tsx /tools/composio/execute.ts --toolkit <toolkit> --action <ACTION_SLUG> --params '<json>'
 ```
+
+Map the requested work to the correct Composio toolkit:
+
+| Toolkit slug     | Covers                                     |
+| ---------------- | ------------------------------------------ |
+| `gmail`          | Read, send, search, label, and manage mail |
+| `googledrive`    | List, get, upload, and delete Drive files  |
+| `googledocs`     | List, get, and create Google Docs          |
+| `googlesheets`   | List, read, and update Google Sheets       |
+| `googleslides`   | List and get Google Slides presentations   |
+| `googlecalendar` | List, create, and update calendar events   |
+
+Available action slugs and their parameter schemas are documented in the Composio skills loaded
+into the worker session (`composio-gmail`, `composio-googledrive`, `composio-googledocs`,
+`composio-googlesheets`, `composio-googleslides`, `composio-googlecalendar`). The employee
+consults these skills at runtime to discover the right action for the assignment.
+
+Examples:
+
+```bash
+tsx /tools/composio/execute.ts --toolkit gmail --action GMAIL_FETCH_EMAILS --params '{"max_results": 10}'
+tsx /tools/composio/execute.ts --toolkit googledrive --action GOOGLEDRIVE_LIST_FILES --params '{"page_size": 10}'
+```
+
+## Authentication (Composio)
+
+Google access is authorized through Composio's OAuth connect flow, not via tenant secrets. Connect
+each required Google toolkit for the tenant before the employee can run:
+
+```bash
+# Returns { url } — open it in a browser to complete the Google OAuth consent
+curl -s "http://localhost:7700/admin/tenants/$TENANT/composio/connect?toolkit=gmail" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" | jq -r .url
+```
+
+Repeat for each toolkit the employee needs: `gmail`, `googledrive`, `googledocs`, `googlesheets`,
+`googleslides`, `googlecalendar`. Verify active connections via
+`GET /admin/tenants/$TENANT/composio/connections`. The worker authenticates per-tenant via the
+`tenant_${TENANT}` Composio namespace — no `google_*` secrets are required.
 
 ## Checking Task Status
 
@@ -112,12 +105,10 @@ docker logs -f employee-${TASK_ID:0:8}
 
 ## Known Gotchas
 
-**GCP must be in Production mode**: All OAuth scopes used by this employee are Sensitive or Basic (none are Restricted). However, the GCP project must still be in Production mode — Testing mode causes refresh tokens to expire after 7 days, breaking the connection weekly.
+**Toolkit must be connected in Composio**: A Google operation fails with an HTTP 400 from Composio if the tenant has not connected the relevant toolkit (e.g. calling a `gmail` action without a `gmail` connection). Connect the toolkit via the OAuth flow above before triggering.
 
-**Testing mode 7-day token expiry**: In GCP Testing mode, refresh tokens expire after 7 days. If the `google_refresh_token` secret starts returning `invalid_grant` errors, re-run the OAuth consent flow to get a new refresh token and update the tenant secret.
+**Composio skills are filtered at boot**: The harness deletes `composio-*` skill folders for toolkits the tenant has NOT connected. If the employee can't find an action slug for a toolkit, confirm that toolkit is connected — its skill is only loaded when connected.
 
-**Token expiry during long tasks**: Google access tokens expire after 1 hour. Tools must handle automatic token refresh via the refresh token. If a task takes more than an hour (unusual), it may encounter 401 errors mid-execution. Retriggering with a fresh token should resolve this.
-
-**Read-only vs write scopes**: Read-only operations (list files, get email) require minimal scopes. Write operations (send email, upload to Drive, create events) require broader scopes that must be explicitly approved in the OAuth consent screen. The `validate-env.ts` tool checks that the correct scopes are authorized.
+**Read-only vs write actions**: Read-only actions (list files, fetch emails) are low-risk. Write actions (send email, upload to Drive, create events) make real changes — this is why `approval_required` is `true`. The PM reviews every change before it is delivered.
 
 **`vm_size` is mandatory**: Without `performance-1x`, the Fly.io machine defaults to `shared-cpu-1x` (256MB RAM). The OpenCode binary OOM-kills within 45 seconds. Always verify `vm_size` is set in the DB.

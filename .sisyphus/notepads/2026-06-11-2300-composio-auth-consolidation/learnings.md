@@ -305,3 +305,17 @@ Output shape: `{ data: { ... }, error: null }` — verify `data.markdown` field 
 - `07-hostfully-connected.png` — Hostfully in Connected section after save
 - `08-form-empty-on-reopen.png` — form re-opened showing empty fields (no leakage)
 - `psql-secrets-output.txt` — psql output confirming 2 encrypted rows
+
+## [2026-06-12] Task 7 — google-workspace-assistant Rewrite
+
+- Migrated `google-workspace-assistant` archetype off `/tools/google/*` (21 scripts + `validate-env.ts`) to `tsx /tools/composio/execute.ts --toolkit <slug> --action <SLUG> --params '<json>'`.
+- Toolkit slug map used: gmail / googledrive / googledocs / googlesheets / googleslides / googlecalendar.
+- Employee is GENERAL-PURPOSE — rewrote execution_steps to tell it to discover action slugs dynamically via the composio-<app> skills loaded in the session, rather than hardcoding operations.
+- seed.ts pattern confirmed: `execution_steps` is a single shared const (`VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS`) referenced by BOTH create+update — one Edit covers both. `tool_registry` IS duplicated inline in both blocks — used `replaceAll: true` to hit both.
+- New tool_registry: only 3 entries — `/tools/platform/submit-output.ts`, `/tools/slack/post-message.ts`, `/tools/composio/execute.ts`.
+- Dropped the validate-env STEP entirely (Composio handles auth; no google_* tenant secrets needed — auth is via OAuth connect flow + `tenant_${tenantId}` namespace).
+- Live DB UPDATE done via `psql -f` with dollar-quoting ($STEPS$ / $REG$) to avoid shell/quote escaping of the JSON `--params '<json>'` examples. Clean approach for multi-line text with embedded single quotes.
+- GOTCHA: JS template `\\` in seed.ts resolves to a single `\` in the stored DB value — the SQL file must use single backslashes for the line-continuation chars to match seed output.
+- Verification: count of google-workspace-assistant rows with `/tools/google/` in execution_steps = 0; `pnpm build` exit 0; grep `/tools/google/` in seed.ts = zero matches.
+- Doc freshness: updated docs/employees/2026-06-03-0243-google-assistant.md (Available Tools, Authentication→Composio, Known Gotchas) per the mandatory discrepancy rule.
+- LSP diagnostics unavailable locally (typescript-language-server not installed via asdf) — `tsc -p tsconfig.build.json` (pnpm build) is the authoritative TS check and passed.
