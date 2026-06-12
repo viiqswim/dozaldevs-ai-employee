@@ -12,7 +12,6 @@ export default tseslint.config(
       '.sisyphus/**',
       'supabase/**',
       'prisma/migrations/**',
-      'src/worker-tools/notion/lib/**',
     ],
   },
   js.configs.recommended,

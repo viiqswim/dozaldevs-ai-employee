@@ -11,7 +11,6 @@ export default defineConfig({
       // resolution (pnpm workspace member / separate project / convert .js specifiers).
       'tests/integration/worker-tools/platform/report-issue.test.ts',
       'tests/integration/worker-tools/platform/submit-output.test.ts',
-      'tests/integration/worker-tools/jira/add-comment.test.ts',
       'tests/integration/worker-tools/hostfully/send-message.test.ts',
     ],
     env: {

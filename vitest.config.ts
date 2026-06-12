@@ -17,7 +17,6 @@ export default defineConfig({
       // resolution (e.g. add pnpm workspace member, separate vitest project,
       // or convert .js import specifiers to .ts).
       'tests/unit/inngest/supersede-threading.test.ts',
-      'src/worker-tools/notion/__tests__/write-tools.test.ts',
       'tests/unit/worker-tools/composio-execute.test.ts',
     ],
     env: {
@@ -41,7 +40,6 @@ export default defineConfig({
       'src/**/*.test.mts',
       'src/worker-tools/lib/**',
       'src/worker-tools/*/lib/**',
-      'src/worker-tools/notion/lib/**',
     ],
   },
 });

@@ -319,3 +319,27 @@ Output shape: `{ data: { ... }, error: null }` — verify `data.markdown` field 
 - Verification: count of google-workspace-assistant rows with `/tools/google/` in execution_steps = 0; `pnpm build` exit 0; grep `/tools/google/` in seed.ts = zero matches.
 - Doc freshness: updated docs/employees/2026-06-03-0243-google-assistant.md (Available Tools, Authentication→Composio, Known Gotchas) per the mandatory discrepancy rule.
 - LSP diagnostics unavailable locally (typescript-language-server not installed via asdf) — `tsc -p tsconfig.build.json` (pnpm build) is the authoritative TS check and passed.
+
+## [2026-06-12] Task 8 — Delete notion/google/jira tools
+
+Deleted `src/worker-tools/{notion,google,jira}/` + tests. Build + tests clean (147 files, 1737 passed, 9 skipped, 0 fail).
+
+### Reference cleanup beyond the directories (the non-obvious part)
+Deleting the dirs is trivial; the references that break the build/test are spread across config:
+- **vitest.config.ts** — had a notion test in `exclude` (`src/worker-tools/notion/__tests__/write-tools.test.ts`) AND a coverage exclude (`src/worker-tools/notion/lib/**`). Both removed.
+- **vitest.integration.config.ts** — had `tests/integration/worker-tools/jira/add-comment.test.ts` in `exclude`. Removed.
+- **eslint.config.mjs** — had `src/worker-tools/notion/lib/**` in `ignores`. Removed.
+- **tests/integration/worker-tools/jira/** — 5 integration test files testing the deleted jira source. These are NOT under the tool dir, so `rm -rf src/worker-tools/jira` alone leaves them dangling (they `path.resolve` to the deleted source). Must delete `tests/integration/worker-tools/jira/` too.
+- **prisma/seed.ts** — `jira-motivation-bot` archetype `tool_registry` listed `/tools/jira/get-issue.ts`. Its `execution_steps` read from `triage_result`, NOT the tool, so removing the advisory entry is behavior-safe. Identical line in BOTH create+update blocks → `replaceAll: true`.
+
+### Flaky-test gotcha (important for all Wave-3/4 tasks)
+A live `pnpm dev` gateway running on the host causes 2 unit tests to flake under parallel run:
+- `tests/unit/gateway/socket-mode-lock.test.ts` — the live gateway holds/contends the socket-mode lock file; the "blocked-live" assertion sees `acquired:true` instead of `false`.
+- `tests/unit/gateway/routes/admin-tasks.test.ts` — "socket hang up" network flake.
+Both PASS in isolation on clean HEAD (`git stash` → `npx vitest run <2 files>` → 13 passed) and PASS on full re-run. Neither imports any worker-tool. Verdict: environmental, not a regression. When you see these two fail, re-run before assuming breakage.
+
+### Stale LSP cache after bulk delete
+After `rm -rf` of tool dirs, the LSP/diagnostics tool still reported "Cannot find module './auth.js'" errors for the just-deleted notion files. These are stale — `ls` confirms the files are gone and `tsc -p tsconfig.build.json` exits 0. Trust the tsc build, not the LSP cache, immediately after bulk deletes.
+
+### Pre-existing (do not "fix")
+`vitest.config.ts:32` LSP error "coverage does not exist in type UserConfigExport" exists at HEAD (verified via `git show HEAD:vitest.config.ts`). Not caused by this task. Build still passes.
