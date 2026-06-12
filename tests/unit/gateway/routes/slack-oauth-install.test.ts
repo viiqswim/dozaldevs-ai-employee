@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { slackOAuthRoutes } from '../../../../src/gateway/routes/slack-oauth.js';
+import { signState } from '../../../../src/gateway/lib/oauth-state.js';
 
 const TENANT_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+const OTHER_TENANT_ID = 'b2c3d4e5-f6a7-4b8c-9d0e-f1a2b3c4d5e6';
+const TEAM_ID = 'T_SHARED_123';
+const ENC_KEY = 'a'.repeat(64);
 const NOW = new Date('2026-01-01T00:00:00Z');
 
 function makeTenant() {
@@ -21,8 +25,9 @@ function makeTenant() {
 }
 
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
-  process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+  process.env.ENCRYPTION_KEY = ENC_KEY;
   process.env.SLACK_CLIENT_ID = 'test-client-id';
+  process.env.SLACK_CLIENT_SECRET = 'test-client-secret';
   process.env.SLACK_REDIRECT_BASE_URL = 'http://localhost:3000';
   const app = express();
   app.use(express.json());
@@ -38,11 +43,46 @@ function makeApp(prismaOverrides: Record<string, unknown> = {}) {
           upsert: vi.fn(),
           ...((prismaOverrides.tenantSecret as Record<string, unknown>) ?? {}),
         },
+        tenantIntegration: {
+          findFirst: vi.fn(),
+          upsert: vi.fn(),
+          ...((prismaOverrides.tenantIntegration as Record<string, unknown>) ?? {}),
+        },
         $transaction: vi.fn(),
       } as never,
     }),
   );
   return app;
+}
+
+function makeIntegration(tenantId: string) {
+  return {
+    id: `int-${tenantId}`,
+    tenant_id: tenantId,
+    provider: 'slack',
+    external_id: TEAM_ID,
+    config: null,
+    status: 'active',
+    created_at: NOW,
+    updated_at: NOW,
+    deleted_at: null,
+  };
+}
+
+function mockSlackTokenExchange(
+  team: { id: string; name: string } = { id: TEAM_ID, name: 'Shared Workspace' },
+) {
+  global.fetch = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ ok: true, access_token: 'xoxb-new-token', team }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  );
+}
+
+function callbackUrl(tenantId: string): string {
+  const state = signState(JSON.stringify({ tenant_id: tenantId, nonce: 'n'.repeat(32) }), ENC_KEY);
+  return `/slack/oauth_callback?code=test-code&state=${encodeURIComponent(state)}`;
 }
 
 describe('GET /slack/install', () => {
@@ -96,5 +136,52 @@ describe('GET /slack/install', () => {
     };
     expect(decoded.tenant_id).toBe(TENANT_ID);
     expect(decoded.nonce).toHaveLength(32);
+  });
+});
+
+describe('GET /slack/oauth_callback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('200 and upserts when a second tenant attaches a workspace already owned by another tenant', async () => {
+    mockSlackTokenExchange();
+    const secretUpsert = vi.fn().mockResolvedValue({ key: 'slack_bot_token', updated_at: NOW });
+    const integrationUpsert = vi.fn().mockResolvedValue(makeIntegration(TENANT_ID));
+    const app = makeApp({
+      tenantSecret: { upsert: secretUpsert },
+      tenantIntegration: {
+        findFirst: vi.fn().mockResolvedValue(makeIntegration(OTHER_TENANT_ID)),
+        upsert: integrationUpsert,
+      },
+    });
+
+    const res = await request(app).get(callbackUrl(TENANT_ID)).redirects(0);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Connected to Shared Workspace');
+    expect(secretUpsert).toHaveBeenCalledTimes(1);
+    expect(secretUpsert.mock.calls[0][0].where.tenant_id_key.tenant_id).toBe(TENANT_ID);
+    expect(integrationUpsert).toHaveBeenCalledTimes(1);
+    expect(integrationUpsert.mock.calls[0][0].where.tenant_id_provider.tenant_id).toBe(TENANT_ID);
+  });
+
+  it('200 and upserts (idempotent) when the same tenant re-connects the same workspace', async () => {
+    mockSlackTokenExchange();
+    const secretUpsert = vi.fn().mockResolvedValue({ key: 'slack_bot_token', updated_at: NOW });
+    const integrationUpsert = vi.fn().mockResolvedValue(makeIntegration(TENANT_ID));
+    const app = makeApp({
+      tenantSecret: { upsert: secretUpsert },
+      tenantIntegration: {
+        findFirst: vi.fn().mockResolvedValue(makeIntegration(TENANT_ID)),
+        upsert: integrationUpsert,
+      },
+    });
+
+    const res = await request(app).get(callbackUrl(TENANT_ID)).redirects(0);
+
+    expect(res.status).toBe(200);
+    expect(integrationUpsert).toHaveBeenCalledTimes(1);
+    expect(integrationUpsert.mock.calls[0][0].where.tenant_id_provider.tenant_id).toBe(TENANT_ID);
   });
 });

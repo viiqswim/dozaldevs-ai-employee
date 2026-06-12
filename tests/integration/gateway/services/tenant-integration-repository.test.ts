@@ -115,4 +115,49 @@ describe('TenantIntegrationRepository', () => {
   it('no hardDelete method exists', () => {
     expect((repo as unknown as Record<string, unknown>).hardDelete).toBeUndefined();
   });
+
+  describe('findManyByExternalId: shared slack team_id across tenants', () => {
+    let secondTenantId: string;
+
+    beforeEach(async () => {
+      const prisma = getPrisma();
+      const secondTenant = await new TenantRepository(prisma).create({
+        name: 'Integration Test Org 2',
+        slug: `int-test-2-${Date.now()}`,
+      });
+      secondTenantId = secondTenant.id;
+    });
+
+    afterEach(async () => {
+      const prisma = getPrisma();
+      await prisma.tenantIntegration.deleteMany({ where: { tenant_id: secondTenantId } });
+      await prisma.tenant.deleteMany({ where: { id: secondTenantId } });
+    });
+
+    it('returns both rows when two tenants share the same external_id, ordered by created_at asc', async () => {
+      await repo.upsert(testTenantId, 'slack', { external_id: 'T_SHARED_TEAM' });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await repo.upsert(secondTenantId, 'slack', { external_id: 'T_SHARED_TEAM' });
+
+      const results = await repo.findManyByExternalId('slack', 'T_SHARED_TEAM');
+
+      expect(results).toHaveLength(2);
+      expect(results[0].tenant_id).toBe(testTenantId);
+      expect(results[1].tenant_id).toBe(secondTenantId);
+      expect(results[0].external_id).toBe('T_SHARED_TEAM');
+      expect(results[1].external_id).toBe('T_SHARED_TEAM');
+    });
+
+    it('excludes soft-deleted rows from results', async () => {
+      await repo.upsert(testTenantId, 'slack', { external_id: 'T_SHARED_SOFTDEL' });
+      await repo.upsert(secondTenantId, 'slack', { external_id: 'T_SHARED_SOFTDEL' });
+
+      await repo.delete(testTenantId, 'slack');
+
+      const results = await repo.findManyByExternalId('slack', 'T_SHARED_SOFTDEL');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].tenant_id).toBe(secondTenantId);
+    });
+  });
 });
