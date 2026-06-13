@@ -60,3 +60,12 @@ export function computeCostTierLabel(
   if (avg < 3.0) return 'standard';
   return 'premium';
 }
+
+export const toSlug = (s: string): string =>
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');

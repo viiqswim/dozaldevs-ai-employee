@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listAllTenants, createTenant } from '@/lib/gateway';
+import { toSlug } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -53,6 +54,7 @@ export function TenantManagementPage() {
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -87,6 +89,7 @@ export function TenantManagementPage() {
   const openDialog = () => {
     setName('');
     setSlug('');
+    setSlugTouched(false);
     setFormError(null);
     setDialogOpen(true);
   };
@@ -94,6 +97,7 @@ export function TenantManagementPage() {
   const closeDialog = () => {
     setDialogOpen(false);
     setFormError(null);
+    setSlugTouched(false);
   };
 
   const handleCreate = async () => {
@@ -241,7 +245,10 @@ export function TenantManagementPage() {
                 id="org-name"
                 placeholder="Acme Corp"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!slugTouched) setSlug(toSlug(e.target.value));
+                }}
                 disabled={saving}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleCreate();
@@ -257,7 +264,10 @@ export function TenantManagementPage() {
                 id="org-slug"
                 placeholder="acme-corp"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                onChange={(e) => {
+                  setSlugTouched(true);
+                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                }}
                 disabled={saving}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleCreate();
