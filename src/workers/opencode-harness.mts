@@ -8,7 +8,11 @@ import { getPlatformSetting } from '../lib/platform-settings.js';
 import { checkOutputFiles, readOutputContract } from './lib/output-contract.mjs';
 import { resolveModelProvider } from './lib/model-provider.mjs';
 import { tryAutoPostApprovalCard } from './lib/harness-helpers.mjs';
-import { runExecutionPhase } from './lib/execution-phase.mjs';
+import {
+  runExecutionPhase,
+  type ArchetypeRow,
+  type TaskWithArchetype,
+} from './lib/execution-phase.mjs';
 import { runDeliveryPhase } from './lib/delivery-phase.mjs';
 
 const log = createLogger('opencode-harness');
@@ -257,34 +261,6 @@ async function runOpencodeSession(
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
-
-interface ArchetypeRow {
-  id: string;
-  role_name?: string | null;
-  instructions?: string | null;
-  execution_instructions?: string | null;
-  identity?: string | null;
-  execution_steps?: string | null;
-  delivery_steps?: string | null;
-  temperature?: number | null;
-  model?: string | null;
-  deliverable_type?: string | null;
-  runtime?: string | null;
-  delivery_instructions?: string | null;
-  enrichment_adapter?: string | null;
-  risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
-  tool_registry?: { tools?: string[] } | null;
-  platform_rules_override?: string | null;
-}
-
-interface TaskWithArchetype {
-  id: string;
-  status: string;
-  tenant_id?: string | null;
-  archetype_id?: string | null;
-  archetypes?: ArchetypeRow | ArchetypeRow[] | null;
-  [key: string]: unknown;
-}
 
 async function main(): Promise<void> {
   // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
