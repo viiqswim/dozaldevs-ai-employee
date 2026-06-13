@@ -8,6 +8,11 @@ import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
+import {
+  EXECUTION_PROMPT,
+  SUMMARY_PATH,
+  APPROVAL_MESSAGE_PATH,
+} from '../../lib/output-contract-constants.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
@@ -284,9 +289,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           employeeKnowledge: employeeKnowledgeStr,
         });
 
-        const EXECUTION_PROMPT = assembleTaskPrompt({
-          instructions:
-            'Follow the instructions in <execution-instructions> within the AGENTS.md file',
+        const executionPromptPreview = assembleTaskPrompt({
+          instructions: EXECUTION_PROMPT,
           taskId: '<task-id-injected-at-runtime>',
         });
         const DELIVERY_PROMPT = assembleTaskPrompt({
@@ -312,7 +316,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
 
         sendSuccess(res, 200, {
           compiled_agents_md: compiledAgentsMd,
-          execution_prompt: EXECUTION_PROMPT,
+          execution_prompt: executionPromptPreview,
           delivery_prompt: DELIVERY_PROMPT,
           archetype_fields: {
             identity: archetype.identity,
@@ -346,13 +350,13 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           output_contract: {
             required_files: [
               {
-                path: '/tmp/summary.txt',
+                path: SUMMARY_PATH,
                 description:
                   'Free-text summary of what was done. In delivery phase must be valid JSON with {"delivered": true}',
                 required: false,
               },
               {
-                path: '/tmp/approval-message.json',
+                path: APPROVAL_MESSAGE_PATH,
                 description:
                   'JSON with ts, channel, and optionally conversationRef — Slack message metadata for the approval card',
                 required: false,

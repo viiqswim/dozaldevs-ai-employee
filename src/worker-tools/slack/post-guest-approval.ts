@@ -7,6 +7,7 @@ import { WebClient } from '@slack/web-api';
 import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import type { ToolDescriptor } from '../lib/types.js';
+import { SUMMARY_PATH, APPROVAL_MESSAGE_PATH } from '../lib/output-contract-paths.generated.js';
 
 export const descriptor: ToolDescriptor = {
   id: 'post-guest-approval',
@@ -82,7 +83,7 @@ export const descriptor: ToolDescriptor = {
     {
       name: '--dry-run',
       required: false,
-      description: 'Skip Slack post; still writes /tmp/summary.txt',
+      description: `Skip Slack post; still writes ${SUMMARY_PATH}`,
       type: 'boolean',
     },
   ],
@@ -195,7 +196,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
         'Usage: tsx post-guest-approval.ts [options]\n\n' +
           'Post a guest message approval card to Slack.\n' +
           'Channel is read from NOTIFICATION_CHANNEL env var.\n' +
-          'Automatically writes /tmp/summary.txt via submit-output.ts before posting.\n\n' +
+          `Automatically writes ${SUMMARY_PATH} via submit-output.ts before posting.\n\n` +
           'Environment variables:\n' +
           '  NOTIFICATION_CHANNEL  (required) Slack channel to post to\n' +
           '  NOTIFY_MSG_TS         (auto-read) Thread timestamp; used to reply under task notification\n' +
@@ -222,7 +223,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
           '  --lead-status <string>     Lead status (BOOKED, INQUIRY, CLOSED, NEW)\n' +
           '  --thread-ts <ts>           Override thread timestamp (default: $NOTIFY_MSG_TS env var)\n' +
           '  --reply-broadcast [bool]   Also send thread reply to main channel\n' +
-          '  --dry-run                  Skip Slack post; still writes /tmp/summary.txt\n' +
+          `  --dry-run                  Skip Slack post; still writes ${SUMMARY_PATH}\n` +
           '  --help                     Show this help message\n',
       );
       process.exit(0);
@@ -418,7 +419,6 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
 }
 
 function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
-  const SUMMARY_PATH = '/tmp/summary.txt';
   if (existsSync(SUMMARY_PATH)) return; // already written — idempotency
 
   const submitOutputPath = path.join(__dirname, '../platform/submit-output.ts');
@@ -477,10 +477,9 @@ export async function main(): Promise<void> {
   }
 
   // Idempotency guard: prevent double-posting if model calls this tool twice
-  const APPROVAL_OUTPUT_PATH = '/tmp/approval-message.json';
-  if (existsSync(APPROVAL_OUTPUT_PATH)) {
+  if (existsSync(APPROVAL_MESSAGE_PATH)) {
     try {
-      const existing = JSON.parse(readFileSync(APPROVAL_OUTPUT_PATH, 'utf8')) as Record<
+      const existing = JSON.parse(readFileSync(APPROVAL_MESSAGE_PATH, 'utf8')) as Record<
         string,
         unknown
       >;
@@ -489,11 +488,11 @@ export async function main(): Promise<void> {
         existing.ts.length > 0 &&
         !/PLACEHOLDER/i.test(existing.ts)
       ) {
-        // Parse args so we can ensure /tmp/summary.txt is written even on guard path
+        // Parse args so we can ensure SUMMARY_PATH is written even on guard path
         const guardParams = parseArgs(process.argv);
         callSubmitOutputIfNeeded(guardParams);
         process.stderr.write(
-          `Idempotency guard: ${APPROVAL_OUTPUT_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
+          `Idempotency guard: ${APPROVAL_MESSAGE_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
         );
         process.stdout.write(JSON.stringify({ ts: existing.ts, channel: existing.channel }) + '\n');
         return;
@@ -545,7 +544,7 @@ export async function main(): Promise<void> {
     );
   }
 
-  // Write /tmp/summary.txt BEFORE posting to Slack (and before dry-run return)
+  // Write SUMMARY_PATH BEFORE posting to Slack (and before dry-run return)
   callSubmitOutputIfNeeded(params);
 
   const blocks = buildGuestApprovalBlocks(params);
@@ -604,7 +603,7 @@ export async function main(): Promise<void> {
     urgency: params.urgency,
     lead_status: params.leadStatus ?? null,
   };
-  writeFileSync(APPROVAL_OUTPUT_PATH, JSON.stringify(approvalOutput));
+  writeFileSync(APPROVAL_MESSAGE_PATH, JSON.stringify(approvalOutput));
 
   const output: PostResult = { ts: result.ts, channel: result.channel };
   process.stdout.write(JSON.stringify(output) + '\n');

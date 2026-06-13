@@ -1,5 +1,6 @@
 import { createLogger } from '../../lib/logger.js';
 import { parseStandardOutput, isApprovalRequired, type StandardOutput } from './output-schema.mjs';
+import { SUMMARY_PATH, APPROVAL_MESSAGE_PATH } from '../../lib/output-contract-constants.js';
 
 const log = createLogger('output-contract');
 
@@ -16,7 +17,7 @@ export interface CheckOutputFilesOptions {
 }
 
 /**
- * Read /tmp/summary.txt and /tmp/approval-message.json.
+ * Read SUMMARY_PATH and APPROVAL_MESSAGE_PATH output contract files.
  * Validates that approval-message.json does not contain PLACEHOLDER values.
  * If NEEDS_APPROVAL and no approval card exists, calls onNeedsApproval callback.
  */
@@ -30,10 +31,10 @@ export async function checkOutputFiles(
   let extraMetadata: Record<string, unknown> = {};
 
   try {
-    const summaryText = await readFile('/tmp/summary.txt', 'utf8');
+    const summaryText = await readFile(SUMMARY_PATH, 'utf8');
     if (summaryText.trim()) {
       content = summaryText.trim();
-      log.info({ taskId }, '[opencode-harness] Read summary from /tmp/summary.txt');
+      log.info({ taskId }, `[opencode-harness] Read summary from ${SUMMARY_PATH}`);
     }
   } catch {
     // not written
@@ -41,7 +42,7 @@ export async function checkOutputFiles(
 
   let approvalJsonExists = false;
   try {
-    const approvalJson = await readFile('/tmp/approval-message.json', 'utf8');
+    const approvalJson = await readFile(APPROVAL_MESSAGE_PATH, 'utf8');
     const approvalData = JSON.parse(approvalJson) as Record<string, unknown>;
     const PLACEHOLDER_PATTERN = /PLACEHOLDER/i;
     const tsVal = String(approvalData.ts ?? '');
@@ -65,10 +66,7 @@ export async function checkOutputFiles(
       }),
     };
     approvalJsonExists = true;
-    log.info(
-      { taskId },
-      '[opencode-harness] Read approval metadata from /tmp/approval-message.json',
-    );
+    log.info({ taskId }, `[opencode-harness] Read approval metadata from ${APPROVAL_MESSAGE_PATH}`);
   } catch (err) {
     if (err instanceof Error && err.message.startsWith('[opencode-harness] Invalid')) {
       throw err; // re-throw validation errors
@@ -108,7 +106,7 @@ export async function readOutputContract(
   const result = await checkOutputFiles(taskId, options);
   if (result.content === 'completed' && Object.keys(result.extraMetadata).length === 0) {
     throw new Error(
-      '[opencode-harness] Model did not produce content — /tmp/summary.txt and /tmp/approval-message.json were not written. This is a model reliability issue; retry the task.',
+      `[opencode-harness] Model did not produce content — ${SUMMARY_PATH} and ${APPROVAL_MESSAGE_PATH} were not written. This is a model reliability issue; retry the task.`,
     );
   }
   return result;

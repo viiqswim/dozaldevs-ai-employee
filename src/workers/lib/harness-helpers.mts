@@ -11,6 +11,7 @@ import { join } from 'node:path';
 
 import { createLogger } from '../../lib/logger.js';
 import { INNGEST_EVENT_KEY, INNGEST_BASE_URL } from '../../lib/config.js';
+import { APPROVAL_MESSAGE_PATH } from '../../lib/output-contract-constants.js';
 import { type PostgRESTClient } from './postgrest-client.js';
 import { type StandardOutput } from './output-schema.mjs';
 import { postApprovalCard } from './approval-card-poster.mjs';
@@ -187,11 +188,11 @@ export async function tryAutoPostApprovalCard(
     };
 
     const { writeFile } = await import('fs/promises');
-    await writeFile('/tmp/approval-message.json', JSON.stringify(approvalMeta), 'utf8');
+    await writeFile(APPROVAL_MESSAGE_PATH, JSON.stringify(approvalMeta), 'utf8');
 
     log.info(
       { taskId, ts: result.ts, channel: result.channel },
-      '[opencode-harness] Auto-posted approval card and wrote /tmp/approval-message.json',
+      `[opencode-harness] Auto-posted approval card and wrote ${APPROVAL_MESSAGE_PATH}`,
     );
 
     return approvalMeta;

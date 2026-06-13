@@ -11,6 +11,7 @@
  */
 
 import { createLogger } from '../../lib/logger.js';
+import { EXECUTION_PROMPT } from '../../lib/output-contract-constants.js';
 import { type PostgRESTClient } from './postgrest-client.js';
 import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
@@ -93,8 +94,6 @@ export async function runExecutionPhase(
   const employeeKnowledge = process.env.EMPLOYEE_KNOWLEDGE ?? '';
   const overrideDirection = process.env.OVERRIDE_DIRECTION ?? '';
   // Platform constant execution prompt — points employee to XML tag in compiled AGENTS.md
-  const EXECUTION_PROMPT =
-    'Follow the instructions in <execution-instructions> within the AGENTS.md file';
   const instructions = overrideDirection
     ? `OVERRIDE DIRECTION FROM HUMAN:\n${overrideDirection}\n\n---\n${EXECUTION_PROMPT}`
     : EXECUTION_PROMPT;

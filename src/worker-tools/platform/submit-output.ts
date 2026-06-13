@@ -1,10 +1,10 @@
 /**
  * submit-output.ts
  *
- * Shell tool for AI employees to write the platform output contract file /tmp/summary.txt.
+ * Shell tool for AI employees to write the platform output contract file (SUMMARY_PATH).
  *
  * When to use: Call this tool at the end of every task to declare the outcome.
- * The harness reads /tmp/summary.txt and calls parseStandardOutput() to determine
+ * The harness reads SUMMARY_PATH and calls parseStandardOutput() to determine
  * whether approval is required and what to deliver.
  *
  * Classification values:
@@ -19,11 +19,12 @@ import fs from 'fs';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
 import type { ToolDescriptor } from '../lib/types.js';
+import { SUMMARY_PATH, DRAFT_PATH } from '../lib/output-contract-paths.generated.js';
 
 export const descriptor: ToolDescriptor = {
   id: 'submit-output',
   service: 'platform',
-  description: 'Write the platform output contract to /tmp/summary.txt to declare task outcome',
+  description: `Write the platform output contract to ${SUMMARY_PATH} to declare task outcome`,
   envVars: [],
   args: [
     {
@@ -78,7 +79,7 @@ export const descriptor: ToolDescriptor = {
 };
 
 const VALID_CLASSIFICATIONS = ['NEEDS_APPROVAL', 'NO_ACTION_NEEDED'] as const;
-const OUTPUT_PATH = '/tmp/summary.txt';
+const OUTPUT_PATH = SUMMARY_PATH;
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -86,7 +87,7 @@ async function main(): Promise<void> {
   if (args.includes('--help')) {
     process.stdout.write(
       'Usage: tsx submit-output.ts --summary <text> --classification <value> [options]\n\n' +
-        'Writes the platform output contract to /tmp/summary.txt.\n' +
+        `Writes the platform output contract to ${OUTPUT_PATH}.\n` +
         'Call this at the end of every task to declare the outcome.\n\n' +
         'Required flags:\n' +
         '  --summary <text>              Human-readable summary of what was done\n' +
@@ -102,10 +103,10 @@ async function main(): Promise<void> {
         'Environment variables:\n' +
         '  (none required)\n\n' +
         'Output:\n' +
-        '  JSON written to /tmp/summary.txt\n' +
+        `  JSON written to ${OUTPUT_PATH}\n` +
         '  Same JSON echoed to stdout\n\n' +
         'Exit codes:\n' +
-        '  0 — success, /tmp/summary.txt written\n' +
+        `  0 — success, ${OUTPUT_PATH} written\n` +
         '  1 — missing required flag, invalid value, or file write failure\n',
     );
     process.exit(0);
@@ -166,8 +167,8 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     draft = fs.readFileSync(draftFile, 'utf-8').trim();
-  } else if (draft === null && fs.existsSync('/tmp/draft.txt')) {
-    draft = fs.readFileSync('/tmp/draft.txt', 'utf-8').trim();
+  } else if (draft === null && fs.existsSync(DRAFT_PATH)) {
+    draft = fs.readFileSync(DRAFT_PATH, 'utf-8').trim();
   }
 
   const output: Record<string, unknown> = {
