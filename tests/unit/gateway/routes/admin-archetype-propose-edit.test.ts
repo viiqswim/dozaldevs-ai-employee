@@ -41,7 +41,7 @@ vi.mock('../../../../src/gateway/services/archetype-generator.js', () => ({
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const ARCHETYPE_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
-const VALID_TOOL = 'tsx /tools/platform/submit-output.ts';
+const VALID_TOOL = '/tools/platform/submit-output.ts';
 
 function makeArchetype(overrides: Record<string, unknown> = {}) {
   return {
@@ -224,7 +224,7 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
   it('422 — unavailable tool rejected with plain-language reason', async () => {
     const prisma = makePrisma();
     mockRefine.mockResolvedValue(
-      makeRefineResult({ tool_registry: { tools: ['tsx /tools/nonexistent/tool.ts'] } }),
+      makeRefineResult({ tool_registry: { tools: ['/tools/nonexistent/tool.ts'] } }),
     );
     const app = makeApp(prisma);
 
@@ -234,17 +234,17 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
 
     expect(res.status).toBe(422);
     const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.reason.includes('tsx /tools/nonexistent/tool.ts'))).toBe(true);
+    expect(errors.some((e) => e.reason.includes('/tools/nonexistent/tool.ts'))).toBe(true);
   });
 
   it('200 — tool_delta computed (added/removed)', async () => {
     const prisma = makePrisma(
-      makeArchetype({ tool_registry: { tools: ['tsx /tools/platform/submit-output.ts'] } }),
+      makeArchetype({ tool_registry: { tools: ['/tools/platform/submit-output.ts'] } }),
     );
     mockRefine.mockResolvedValue(
       makeRefineResult({
         tool_registry: {
-          tools: ['tsx /tools/platform/submit-output.ts', 'tsx /tools/slack/post-message.ts'],
+          tools: ['/tools/platform/submit-output.ts', '/tools/slack/post-message.ts'],
         },
       }),
     );
@@ -256,7 +256,7 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
 
     expect(res.status).toBe(200);
     expect(res.body.tool_delta).toMatchObject({
-      added: ['tsx /tools/slack/post-message.ts'],
+      added: ['/tools/slack/post-message.ts'],
       removed: [],
     });
   });

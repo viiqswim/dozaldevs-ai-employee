@@ -78,7 +78,12 @@ interface ToolValidationResult {
 }
 
 function validateTools(proposedTools: string[], connectedToolkits: string[]): ToolValidationResult {
-  const shellToolPaths = new Set(ALL_TOOL_DESCRIPTORS.map((d) => toolInvocationPath(d)));
+  // Archetypes store bare container paths (e.g. /tools/slack/post-message.ts).
+  // toolInvocationPath() returns "tsx /tools/..." — strip the "tsx " prefix so
+  // the Set matches the format both the DB and the LLM generator produce.
+  const shellToolPaths = new Set(
+    ALL_TOOL_DESCRIPTORS.map((d) => toolInvocationPath(d).replace(/^tsx /, '')),
+  );
   const composioSet = new Set(connectedToolkits);
 
   const validTools: string[] = [];
@@ -90,7 +95,7 @@ function validateTools(proposedTools: string[], connectedToolkits: string[]): To
     } else if (composioSet.has(tool)) {
       validTools.push(tool);
     } else {
-      const composioToolPattern = /^tsx \/tools\/composio\//;
+      const composioToolPattern = /^\/tools\/composio\//;
       if (composioToolPattern.test(tool)) {
         if (connectedToolkits.length === 0) {
           rejectedTools.push({

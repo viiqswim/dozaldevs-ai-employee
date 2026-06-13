@@ -2,10 +2,6 @@ import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useUnsavedChangesGuard } from '../hooks/use-unsaved-changes-guard';
 
-vi.mock('react-router-dom', () => ({
-  useBlocker: vi.fn(() => ({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() })),
-}));
-
 describe('useUnsavedChangesGuard', () => {
   beforeEach(() => {
     vi.spyOn(window, 'addEventListener');
