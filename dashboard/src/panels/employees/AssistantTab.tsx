@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { proposeEdit, patchArchetype, recordEditHistory } from '@/lib/gateway';
 import type { Archetype, ProposalResponse, RecordEditHistoryPayload } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
+import { EditHistoryList } from './sections/EditHistoryList';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 
 interface AssistantTabProps {
@@ -32,6 +33,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingProposalId, setPendingProposalId] = useState<string | null>(null);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -201,6 +203,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
       setPendingProposalId(null);
       toast.success('Change applied to your employee.');
       onSaved();
+      setHistoryRefreshTrigger((t) => t + 1);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setMessages((prev) => [
@@ -330,6 +333,19 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         <Button onClick={() => void handleSubmit()} disabled={!inputText.trim() || isLoading}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
         </Button>
+      </div>
+
+      <div className="border-t pt-4 space-y-3">
+        <h3 className="text-sm font-medium text-foreground">Change History</h3>
+        <EditHistoryList
+          archetypeId={archetype.id}
+          tenantId={tenantId}
+          onReverted={() => {
+            onSaved();
+            setHistoryRefreshTrigger((t) => t + 1);
+          }}
+          refreshTrigger={historyRefreshTrigger}
+        />
       </div>
     </div>
   );
