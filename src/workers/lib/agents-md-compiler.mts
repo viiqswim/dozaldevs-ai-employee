@@ -52,6 +52,69 @@ export async function loadConnectedToolkits(tenantId: string): Promise<string[]>
   return [...new Set(toolkits)];
 }
 
+interface TenantSecretKeyRow {
+  key: string;
+}
+
+interface TenantIntegrationIdRow {
+  id: string;
+}
+
+/**
+ * Detects which custom-code integrations a tenant has connected.
+ *
+ * Mirrors loadConnectedToolkits() but for the platform's hand-written shell
+ * tools (Hostfully, Sifely, Slack, GitHub) instead of Composio apps. Detection
+ * is signal-based and reads only secret KEYS (never ciphertext) plus the
+ * tenant_integrations provider rows:
+ *
+ *   - hostfully — any tenant_secrets key prefixed `hostfully_`
+ *   - sifely    — any tenant_secrets key prefixed `sifely_`
+ *   - slack     — tenant_secrets key `slack_bot_token` (Slack-via-Composio is
+ *                 disabled; composio_connections is intentionally NOT consulted)
+ *   - github    — a non-soft-deleted tenant_integrations row with provider
+ *                 `github`, OR a tenant_secrets key `github_installation_id`
+ *
+ * Returns a de-duplicated list. On any failure (missing env, HTTP error) the
+ * underlying query() returns null and that signal is simply skipped — the
+ * function never throws and returns [] when nothing is detected.
+ */
+export async function loadCustomIntegrations(tenantId: string): Promise<string[]> {
+  if (!tenantId) return [];
+
+  const integrations = new Set<string>();
+
+  // Secret KEYS only — never select ciphertext/iv/auth_tag. tenant_secrets has
+  // no soft-delete column, so no deleted_at filter is applied here.
+  const secretRows = await query<TenantSecretKeyRow>(
+    'tenant_secrets',
+    `tenant_id=eq.${tenantId}&select=key`,
+  );
+  if (secretRows) {
+    for (const row of secretRows) {
+      const key = typeof row.key === 'string' ? row.key.trim().toLowerCase() : '';
+      if (!key) continue;
+      if (key.startsWith('hostfully_')) integrations.add('hostfully');
+      if (key.startsWith('sifely_')) integrations.add('sifely');
+      if (key === 'slack_bot_token') integrations.add('slack');
+      if (key === 'github_installation_id') integrations.add('github');
+    }
+  }
+
+  // GitHub also connects via a tenant_integrations row (provider=github).
+  // Queried regardless of the secret signal — github is added if either source
+  // has rows. Soft-deleted rows are excluded via deleted_at=is.null.
+  const githubRows = await query<TenantIntegrationIdRow>(
+    'tenant_integrations',
+    `tenant_id=eq.${tenantId}&provider=eq.github&deleted_at=is.null&select=id`,
+  );
+  if (githubRows && githubRows.length > 0) {
+    integrations.add('github');
+  }
+
+  return [...integrations];
+}
+
 /**
  * Builds the "Connected Apps (via Composio)" section listing the tenant's active
  * toolkits and the shell-tool invocation contract. Returns null when there are
