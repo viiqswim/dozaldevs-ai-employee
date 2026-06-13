@@ -306,11 +306,46 @@ export class ArchetypeGenerator {
     },
   ): Promise<string> {
     const result = await this.callLLMFn({ ...options, messages });
+    // DIAGNOSE-REFINE: log raw LLM response details for JSON failure diagnosis
+    log.info(
+      {
+        'DIAGNOSE-REFINE': true,
+        contentLength: result.content.length,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        contentIsEmpty: result.content.length === 0,
+        rawContentFirst500: result.content.slice(0, 500),
+        rawContentLast200: result.content.slice(-200),
+      },
+      'DIAGNOSE-REFINE: raw LLM response',
+    );
     const raw = stripFences(result.content);
     try {
       JSON.parse(raw);
       return raw;
     } catch (firstError) {
+      // DIAGNOSE-REFINE: log error position details
+      const errPosition =
+        firstError instanceof SyntaxError
+          ? (() => {
+              const posMatch = /position (\d+)/i.exec(firstError.message);
+              const pos = posMatch ? parseInt(posMatch[1], 10) : -1;
+              return {
+                errorMessage: firstError.message,
+                errorPosition: pos,
+                charAtPosition: pos >= 0 ? raw.charCodeAt(pos) : null,
+                charAtPositionChar: pos >= 0 ? JSON.stringify(raw[pos]) : null,
+                contextAroundError: pos >= 0 ? raw.slice(Math.max(0, pos - 40), pos + 40) : null,
+                rawLength: raw.length,
+                rawFirst500: raw.slice(0, 500),
+                rawLast200: raw.slice(-200),
+              };
+            })()
+          : { errorMessage: String(firstError) };
+      log.warn(
+        { 'DIAGNOSE-REFINE': true, ...errPosition },
+        'DIAGNOSE-REFINE: JSON parse failed — error position details',
+      );
       log.warn({ error: firstError }, 'JSON parse failed on first attempt — retrying with nudge');
       const retryMessages = [
         ...messages,
@@ -323,6 +358,16 @@ export class ArchetypeGenerator {
       ];
       const retryResult = await this.callLLMFn({ ...options, messages: retryMessages });
       const retryRaw = stripFences(retryResult.content);
+      // DIAGNOSE-REFINE: log retry response details
+      log.info(
+        {
+          'DIAGNOSE-REFINE': true,
+          retryContentLength: retryResult.content.length,
+          retryCompletionTokens: retryResult.completionTokens,
+          retryFirst500: retryResult.content.slice(0, 500),
+        },
+        'DIAGNOSE-REFINE: retry LLM response',
+      );
       JSON.parse(retryRaw); // throws if still invalid
       return retryRaw;
     }
@@ -393,6 +438,36 @@ export class ArchetypeGenerator {
     const result = postProcess(parsed, description);
     await this.applyModelAndEstimate(result, catalog);
     return result;
+  }
+
+  async interpretRequest(
+    requestText: string,
+    archetype: GenerateArchetypeResponse,
+  ): Promise<string> {
+    log.info({ roleName: archetype.role_name }, 'Interpreting user request in plain English');
+
+    const systemPrompt =
+      'You are a plain-English summariser for a non-technical user. ' +
+      'Restate, in one or two plain sentences, what change the user is asking to make to this AI employee. ' +
+      'Do not output JSON. Do not make the change. Do not use technical jargon.';
+
+    const userContent =
+      `Current employee configuration:\n` +
+      `Role: ${archetype.role_name}\n` +
+      `Identity: ${archetype.identity}\n\n` +
+      `User request: ${requestText}`;
+
+    const result = await this.callLLMFn({
+      taskType: 'review',
+      temperature: 0.3,
+      maxTokens: 500,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+    });
+
+    return result.content.trim();
   }
 
   async refine(

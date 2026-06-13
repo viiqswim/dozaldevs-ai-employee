@@ -429,6 +429,10 @@ export interface ComposioToolkitsPage {
   nextCursor: string | null;
 }
 
+export interface InterpretResponse {
+  understanding: string;
+}
+
 export interface ProposalResponse {
   baseline: Record<string, unknown>;
   proposal: Record<string, unknown>;

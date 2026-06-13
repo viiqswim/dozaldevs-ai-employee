@@ -18,6 +18,7 @@ import type {
   ComposioConnection,
   ComposioToolkitsPage,
   ProposalResponse,
+  InterpretResponse,
   RecordEditHistoryPayload,
   EditHistoryRow,
 } from './types';
@@ -633,6 +634,20 @@ export async function listComposioToolkits(
   const qs = params.toString();
   const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
   return gatewayFetch<ComposioToolkitsPage>(url);
+}
+
+export async function interpretRequest(
+  tenantId: string,
+  archetypeId: string,
+  requestText: string,
+): Promise<InterpretResponse> {
+  return gatewayFetch<InterpretResponse>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/interpret-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ request_text: requestText }),
+    },
+  );
 }
 
 export async function proposeEdit(
