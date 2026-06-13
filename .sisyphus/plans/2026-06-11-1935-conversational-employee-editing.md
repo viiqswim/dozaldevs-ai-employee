@@ -833,7 +833,7 @@ Max Concurrent: 4
 
   **Commit**: YES — `docs: document AI assistant edit feature`; Pre-commit: none.
 
-- [ ] 15. **Notify completion** — Send Telegram: `tsx scripts/telegram-notify.ts "✅ Conversational Employee Editing complete — all tasks done, final wave passed. Come back to review results."` (run AFTER user gives explicit okay in the Final Wave).
+- [x] 15. **Notify completion** — Send Telegram: `tsx scripts/telegram-notify.ts "✅ Conversational Employee Editing complete — all tasks done, final wave passed. Come back to review results."` (run AFTER user gives explicit okay in the Final Wave).
 
 ---
 
