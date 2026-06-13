@@ -192,6 +192,75 @@ function stripFences(raw: string): string {
     .trim();
 }
 
+/**
+ * Repair raw control characters (newline, tab, CR) inside JSON string values.
+ *
+ * LLMs sometimes emit literal newlines/tabs inside JSON string values without
+ * escaping them, causing `SyntaxError: Unterminated string`. This function
+ * walks the raw JSON with a state machine that tracks whether the cursor is
+ * inside a JSON string, and replaces unescaped control characters with their
+ * proper JSON escape sequences (`\n`, `\t`, `\r`).
+ *
+ * Conservative: never alters content outside string values (keys, numbers,
+ * punctuation). If the repaired string still fails to parse, the caller
+ * receives the original — no false "success".
+ *
+ * Exported so unit tests (T5) can import it directly.
+ */
+export function repairJsonStrings(raw: string): string {
+  if (raw.length === 0) return raw;
+
+  const out: string[] = [];
+  let inString = false;
+  let i = 0;
+
+  while (i < raw.length) {
+    const ch = raw[i];
+
+    if (inString) {
+      if (ch === '\\') {
+        // Escape sequence — copy the backslash and the next char verbatim, then skip both.
+        // This handles \" (escaped quote, does NOT end the string) and \\ (escaped backslash).
+        out.push(ch);
+        if (i + 1 < raw.length) {
+          out.push(raw[i + 1]);
+          i += 2;
+        } else {
+          i += 1;
+        }
+        continue;
+      } else if (ch === '"') {
+        // Unescaped quote — end of string value.
+        inString = false;
+        out.push(ch);
+      } else if (ch === '\n') {
+        // Raw newline inside a JSON string — replace with escape sequence.
+        out.push('\\n');
+      } else if (ch === '\r') {
+        // Raw carriage return inside a JSON string — replace with escape sequence.
+        out.push('\\r');
+      } else if (ch === '\t') {
+        // Raw tab inside a JSON string — replace with escape sequence.
+        out.push('\\t');
+      } else {
+        out.push(ch);
+      }
+    } else {
+      if (ch === '"') {
+        // Start of a JSON string value (or key).
+        inString = true;
+        out.push(ch);
+      } else {
+        out.push(ch);
+      }
+    }
+
+    i += 1;
+  }
+
+  return out.join('');
+}
+
 function toKebabCase(input: string): string {
   return input
     .toLowerCase()
@@ -347,6 +416,22 @@ export class ArchetypeGenerator {
         { 'DIAGNOSE-REFINE': true, ...errPosition },
         'DIAGNOSE-REFINE: JSON parse failed — error position details',
       );
+
+      // Attempt repair before spending tokens on an LLM retry. repairJsonStrings
+      // escapes raw newlines/tabs/CRs inside string values — the tertiary failure
+      // mode (~10%) identified in diagnosis. Skip repair when raw is empty (empty
+      // content = primary/secondary failure modes that repair cannot fix).
+      if (raw.length > 0) {
+        try {
+          const repaired = repairJsonStrings(raw);
+          JSON.parse(repaired);
+          log.info('JSON parse succeeded after repairJsonStrings — skipping LLM retry');
+          return repaired;
+        } catch {
+          // Repair did not produce valid JSON — fall through to LLM retry.
+        }
+      }
+
       log.warn({ error: firstError }, 'JSON parse failed on first attempt — retrying with nudge');
       const retryMessages = [
         ...messages,
@@ -369,8 +454,19 @@ export class ArchetypeGenerator {
         },
         'DIAGNOSE-REFINE: retry LLM response',
       );
-      JSON.parse(retryRaw); // throws if still invalid
-      return retryRaw;
+      try {
+        JSON.parse(retryRaw);
+        return retryRaw;
+      } catch {
+        // Attempt repair on the retry result before giving up.
+        if (retryRaw.length > 0) {
+          const repairedRetry = repairJsonStrings(retryRaw);
+          JSON.parse(repairedRetry); // throws if still invalid → GENERATION_FAILED
+          log.info('JSON parse succeeded after repairJsonStrings on retry result');
+          return repairedRetry;
+        }
+        throw new Error('JSON parse failed on retry result');
+      }
     }
   }
 
