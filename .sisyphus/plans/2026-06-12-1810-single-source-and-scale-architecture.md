@@ -302,7 +302,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(lib): authored output-contract + phase constants` — Files: `src/lib/output-contract-constants.ts` — Pre-commit: `pnpm build`
 
-- [ ] 4. Generate the World-B constants (no sync test)
+- [x] 4. Generate the World-B constants (no sync test)
 
   > **Oracle change**: replace "duplicate constant + sync test" with "one authored source + generated copy + CI diff gate."
 
