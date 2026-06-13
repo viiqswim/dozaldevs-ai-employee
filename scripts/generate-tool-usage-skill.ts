@@ -32,7 +32,11 @@ try {
   // dotenv unavailable — process.env must already be populated (none required here)
 }
 
-import { ALL_TOOL_DESCRIPTORS, type ToolDescriptor } from '../src/lib/tool-registry.js';
+import {
+  ALL_TOOL_DESCRIPTORS,
+  toolInvocationPath,
+  type ToolDescriptor,
+} from '../src/lib/tool-registry.js';
 
 const SKILL_PATH = join(repoRoot, 'src', 'workers', 'skills', 'tool-usage-reference', 'SKILL.md');
 
@@ -91,11 +95,13 @@ function extractHandWritten(content: string): string {
   return `${SENTINEL}\n\n${content.slice(headingIdx)}`;
 }
 
-function renderTool(descriptor: ToolDescriptor): string[] {
+export function renderTool(descriptor: ToolDescriptor): string[] {
   const lines: string[] = [];
   lines.push(`## ${descriptor.service}/${descriptor.id}`);
   lines.push('');
   lines.push(`**Description**: ${descriptor.description}`);
+  lines.push('');
+  lines.push(`**Invocation**: \`${toolInvocationPath(descriptor)} [flags]\``);
   lines.push('');
   const envVars = descriptor.envVars.length > 0 ? descriptor.envVars.join(', ') : 'None';
   lines.push(`**Environment variables**: ${envVars}`);
@@ -156,4 +162,6 @@ function main(): void {
   );
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}

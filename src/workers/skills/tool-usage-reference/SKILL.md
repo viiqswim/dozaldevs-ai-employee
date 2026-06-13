@@ -1,6 +1,6 @@
 ---
 name: tool-usage-reference
-description: 'Use when calling any shell tool available in the container (/tools/slack/, /tools/hostfully/, /tools/locks/, /tools/knowledge_base/, /tools/platform/). Contains exact CLI syntax, required flags, output JSON shapes, and critical warnings about common mistakes.'
+description: 'Use when calling any shell tool available in the container (/tools/slack/, /tools/hostfully/, /tools/sifely/, /tools/knowledge_base/, /tools/platform/). Contains exact CLI syntax, required flags, output JSON shapes, and critical warnings about common mistakes.'
 ---
 
 # Tool Usage Reference
@@ -14,6 +14,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Execute any Composio action (Notion, Google, Jira, and more)
 
+**Invocation**: `tsx /tools/composio/execute.ts [flags]`
+
 **Environment variables**: COMPOSIO_API_KEY, TENANT_ID
 
 **Arguments**:
@@ -25,6 +27,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Discover available Composio actions for a toolkit at runtime
 
+**Invocation**: `tsx /tools/composio/list-actions.ts [flags]`
+
 **Environment variables**: COMPOSIO_API_KEY
 
 **Arguments**:
@@ -34,6 +38,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## github/get-token
 
 **Description**: Fetch a short-lived GitHub App installation token for git/gh CLI operations
+
+**Invocation**: `tsx /tools/github/get-token.ts [flags]`
 
 **Environment variables**: GITHUB_APP_ID, GITHUB_PRIVATE_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID
 
@@ -45,6 +51,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: List upcoming checkouts for Hostfully properties
 
+**Invocation**: `tsx /tools/hostfully/get-checkouts.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -54,6 +62,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## hostfully/get-door-code
 
 **Description**: Retrieve the door code custom data field for a Hostfully property
+
+**Invocation**: `tsx /tools/hostfully/get-door-code.ts [flags]`
 
 **Environment variables**: HOSTFULLY_API_KEY
 
@@ -65,6 +75,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Retrieve inbox messages for a Hostfully lead/thread
 
+**Invocation**: `tsx /tools/hostfully/get-messages.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -74,6 +86,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## hostfully/get-properties
 
 **Description**: List all Hostfully properties for the agency
+
+**Invocation**: `tsx /tools/hostfully/get-properties.ts [flags]`
 
 **Environment variables**: HOSTFULLY_API_KEY
 
@@ -85,6 +99,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Get details for a single Hostfully property by UID
 
+**Invocation**: `tsx /tools/hostfully/get-property.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -94,6 +110,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## hostfully/get-reservations
 
 **Description**: List reservations for a Hostfully property
+
+**Invocation**: `tsx /tools/hostfully/get-reservations.ts [flags]`
 
 **Environment variables**: HOSTFULLY_API_KEY
 
@@ -105,6 +123,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: List guest reviews for a Hostfully property
 
+**Invocation**: `tsx /tools/hostfully/get-reviews.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -114,6 +134,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## hostfully/register-webhook
 
 **Description**: Register a webhook endpoint with Hostfully for a specific event type
+
+**Invocation**: `tsx /tools/hostfully/register-webhook.ts [flags]`
 
 **Environment variables**: HOSTFULLY_API_KEY
 
@@ -126,6 +148,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Send a reply message to a Hostfully guest thread
 
+**Invocation**: `tsx /tools/hostfully/send-message.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -136,6 +160,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## hostfully/update-door-code
 
 **Description**: Update the door code custom data field for a Hostfully property
+
+**Invocation**: `tsx /tools/hostfully/update-door-code.ts [flags]`
 
 **Environment variables**: HOSTFULLY_API_KEY
 
@@ -148,6 +174,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Validate that all required Hostfully environment variables are set
 
+**Invocation**: `tsx /tools/hostfully/validate-env.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -157,6 +185,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## knowledge_base/search
 
 **Description**: Semantic search over the employee knowledge base entries
+
+**Invocation**: `tsx /tools/knowledge_base/search.ts [flags]`
 
 **Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID, OPENROUTER_API_KEY
 
@@ -169,6 +199,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Evaluate a mathematical expression and return the numeric result
 
+**Invocation**: `tsx /tools/platform/calculate.ts [flags]`
+
 **Environment variables**: None
 
 **Arguments**:
@@ -178,6 +210,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## platform/report-issue
 
 **Description**: Report a platform issue or error to the issues Slack channel
+
+**Invocation**: `tsx /tools/platform/report-issue.ts [flags]`
 
 **Environment variables**: SLACK_BOT_TOKEN
 
@@ -189,6 +223,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## platform/submit-output
 
 **Description**: Submit task output (summary and optional draft file) to the platform
+
+**Invocation**: `tsx /tools/platform/submit-output.ts [flags]`
 
 **Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID
 
@@ -202,6 +238,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Create a new permanent passcode on a Sifely smart lock
 
+**Invocation**: `tsx /tools/sifely/create-passcode.ts [flags]`
+
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
 **Arguments**:
@@ -214,6 +252,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Delete a passcode from a Sifely smart lock by passcode ID
 
+**Invocation**: `tsx /tools/sifely/delete-passcode.ts [flags]`
+
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
 **Arguments**:
@@ -225,6 +265,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Cross-references Hostfully door codes against Sifely smart lock passcodes and recent access records to diagnose guest lock access issues.
 
+**Invocation**: `tsx /tools/sifely/diagnose-access.ts [flags]`
+
 **Environment variables**: HOSTFULLY_API_KEY, SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD, SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID
 
 **Arguments**:
@@ -234,6 +276,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## sifely/generate-code
 
 **Description**: Generates a memorable 4–6 digit lock code using mirror (ABBA) or rhythm (ABAB) patterns, excluding weak or previously used codes.
+
+**Invocation**: `tsx /tools/sifely/generate-code.ts [flags]`
 
 **Environment variables**: None
 
@@ -245,6 +289,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## sifely/list-access-records
 
 **Description**: List recent access records (unlock/lock events) for a Sifely lock
+
+**Invocation**: `tsx /tools/sifely/list-access-records.ts [flags]`
 
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
@@ -258,6 +304,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: List all Sifely smart locks accessible to the authenticated account
 
+**Invocation**: `tsx /tools/sifely/list-locks.ts [flags]`
+
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
 **Arguments**:
@@ -267,6 +315,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## sifely/list-passcodes
 
 **Description**: List all passcodes on a Sifely smart lock
+
+**Invocation**: `tsx /tools/sifely/list-passcodes.ts [flags]`
 
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
@@ -278,6 +328,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Rotates the lock code for a single Hostfully property and all its associated Sifely locks, updating both Sifely passcodes and the Hostfully door code field.
 
+**Invocation**: `tsx /tools/sifely/rotate-property-code.ts [flags]`
+
 **Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID, SIFELY_USERNAME, SIFELY_PASSWORD, HOSTFULLY_API_KEY
 
 **Arguments**:
@@ -288,6 +340,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## sifely/update-passcode
 
 **Description**: Update the code value of an existing Sifely passcode
+
+**Invocation**: `tsx /tools/sifely/update-passcode.ts [flags]`
 
 **Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
 
@@ -301,6 +355,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Post a guest-reply approval card to Slack for PM review
 
+**Invocation**: `tsx /tools/slack/post-guest-approval.ts [flags]`
+
 **Environment variables**: SLACK_BOT_TOKEN
 
 **Arguments**:
@@ -312,6 +368,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 ## slack/post-message
 
 **Description**: Post a message to a Slack channel
+
+**Invocation**: `tsx /tools/slack/post-message.ts [flags]`
 
 **Environment variables**: SLACK_BOT_TOKEN
 
@@ -325,6 +383,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Description**: Read recent messages from one or more Slack channels
 
+**Invocation**: `tsx /tools/slack/read-channels.ts [flags]`
+
 **Environment variables**: SLACK_BOT_TOKEN
 
 **Arguments**:
@@ -335,6 +395,8 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 <!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->
 
 ## ⚠️ CRITICAL WARNINGS — Read Before Every Tool Call
+
+> Canonical invocation paths for every tool are listed in the auto-generated section above (the `**Invocation**` line under each `service/id` heading). Never hand-type a `/tools/...` path — copy it from the generated section so it can never go stale on a rename.
 
 ### 1. `lead_uid` ≠ `thread_uid` — NEVER pass the same value to both
 
@@ -347,11 +409,7 @@ They are **never the same value**. Passing the same UUID to both `--lead-uid` an
 
 ### 2. `NODE_NO_WARNINGS=1` prefix required for `post-message.ts`
 
-Always prefix the call with `NODE_NO_WARNINGS=1` to suppress Node.js deprecation noise that corrupts JSON parsing by the harness.
-
-```bash
-NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts --channel "C123" --text "msg" > /tmp/approval-message.json
-```
+Always prefix the `post-message.ts` invocation with `NODE_NO_WARNINGS=1` to suppress Node.js deprecation noise that corrupts JSON parsing by the harness. Redirect stdout to `/tmp/approval-message.json`.
 
 ### 3. `get-messages.ts` uses `--lead-id` (not `--lead-uid`)
 
@@ -363,29 +421,13 @@ Messages sent via `send-message.ts` are delivered immediately to the guest throu
 
 ### 5. Sifely HTTP 200 ≠ success — always check `body.code`
 
-The Sifely API returns HTTP 200 even on authentication failure. You must check the response body `code` field. `sifely-client.ts` handles this internally — but know why it matters if debugging raw API calls.
+The Sifely API returns HTTP 200 even on authentication failure. You must check the response body `code` field. The Sifely tools handle this internally — but know why it matters if debugging raw API calls.
 
 ---
 
 ## Slack Tools (`/tools/slack/`)
 
 ### `post-message.ts` — Post a Slack message
-
-```bash
-NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
-  --channel "C123456" \
-  --text "Message text" \
-  [--task-id "uuid"]                \
-  [--title "Custom card title"]     \
-  [--blocks '[...]']                \
-  [--conversation-ref "thread-uid"] \
-  > /tmp/approval-message.json
-```
-
-**Required flags:**
-
-- `--channel <id>` — Slack channel ID (e.g. `$NOTIFICATION_CHANNEL`)
-- `--text <string>` — Message text (plain text fallback for notifications)
 
 **Automatic behaviors (no flags needed):**
 
@@ -423,45 +465,13 @@ Or with `--conversation-ref`:
 }
 ```
 
-**Example:**
-
-```bash
-# Threading is automatic — NOTIFY_MSG_TS and INNGEST_RUN_ID are read from env automatically
-NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
-  --channel "$NOTIFICATION_CHANNEL" \
-  --text "Daily summary ready for review" \
-  --task-id "$TASK_ID" \
-  > /tmp/approval-message.json
-
-# Override thread (explicit --thread-ts) or suppress threading (--no-thread):
-NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
-  --channel "$NOTIFICATION_CHANNEL" \
-  --text "Standalone message" \
-  --no-thread \
-  > /tmp/approval-message.json
-```
+**Worked example:** Threading is automatic — `NOTIFY_MSG_TS` and `INNGEST_RUN_ID` are read from env. A typical approval post uses `--channel "$NOTIFICATION_CHANNEL" --text "..." --task-id "$TASK_ID"` and redirects stdout to `/tmp/approval-message.json`. To post a standalone top-level message, add `--no-thread`; to thread under a specific message, add `--thread-ts <ts>`.
 
 ---
 
 ### `read-channels.ts` — Read Slack channel history
 
-```bash
-tsx /tools/slack/read-channels.ts \
-  --channels "C123,C456" \
-  [--lookback-hours 24]
-```
-
-**Required flags:**
-
-- `--channels <ids>` — Comma-separated Slack channel IDs
-
-**Optional flags:**
-
-- `--lookback-hours <n>` — How far back to read (default: `24`)
-
-**Environment variables:**
-
-- `SLACK_BOT_TOKEN` (required)
+**Note on flags:** the generated section lists `--channels` and `--limit`. The tool also accepts `--lookback-hours <n>` (default: `24`) to bound how far back to read.
 
 **Output (stdout):**
 
@@ -502,39 +512,11 @@ tsx /tools/slack/read-channels.ts \
 - Thread replies are fetched for all parent messages with `reply_count > 0`.
 - Channel fetch failures are non-fatal — failed channels return `{channelId, messages:[], threadReplies:{}}`.
 
-**Example:**
-
-```bash
-tsx /tools/slack/read-channels.ts \
-  --channels "C092BJ04HUG,C0AUBMXKVNU" \
-  --lookback-hours 48 \
-  > /tmp/channels.json
-```
+**Worked example:** read two channels for the last 48 hours with `--channels "C092BJ04HUG,C0AUBMXKVNU" --lookback-hours 48`.
 
 ---
 
 ### `post-guest-approval.ts` — Post a guest message approval card
-
-```bash
-tsx /tools/slack/post-guest-approval.ts \
-  --task-id "uuid" \
-  --guest-name "Jane Smith" \
-  --property-name "Ocean View Condo" \
-  --check-in "2026-06-01T15:00:00" \
-  --check-out "2026-06-05T11:00:00" \
-  --booking-channel "AIRBNB" \
-  --original-message "What time is check-in?" \
-  --draft-response "Check-in is at 3 PM." \
-  --confidence 0.92 \
-  --category "check-in-info" \
-  --lead-uid "37f5f58f-d308-42bf-8ed3-f0c2d70f16fb" \
-  --thread-uid "2f18249a-9523-4acd-a512-20ff06d5c3fa" \
-  --message-uid "msg-uid-here" \
-  [--lead-status "BOOKED"] \
-  [--urgency] \
-  [--conversation-summary "Guest asking about check-in time"] \
-  [--conversation-ref "2f18249a-9523-4acd-a512-20ff06d5c3fa"]
-```
 
 **Channel:** Always reads from the `NOTIFICATION_CHANNEL` environment variable (injected by the lifecycle). No `--channel` flag — the tool hard-fails if `NOTIFICATION_CHANNEL` is not set.
 
@@ -590,15 +572,6 @@ tsx /tools/slack/post-guest-approval.ts \
 
 ### `get-messages.ts` — Fetch guest conversation threads
 
-```bash
-tsx /tools/hostfully/get-messages.ts \
-  [--lead-id <uid>] \
-  [--property-id <uid>] \
-  [--unresponded-only] \
-  [--limit 30] \
-  [--fallback-property-uid <uid>]
-```
-
 **⚠️ Flag name:** `--lead-id` (NOT `--lead-uid`). This differs from `post-guest-approval.ts`.
 
 **Mutually exclusive:**
@@ -648,14 +621,7 @@ tsx /tools/hostfully/get-messages.ts \
 - `sender` values: `"guest"` or `"host"` (normalized from Hostfully's `GUEST`/`AGENCY`)
 - `threadUid` is populated from the `THREAD_UID` env var (set by the lifecycle)
 
-**Example:**
-
-```bash
-tsx /tools/hostfully/get-messages.ts \
-  --lead-id "$LEAD_UID" \
-  --fallback-property-uid "$PROPERTY_UID" \
-  > /tmp/messages.json
-```
+**Worked example:** the common guest-messaging call is `--lead-id "$LEAD_UID" --fallback-property-uid "$PROPERTY_UID"`.
 
 ---
 
@@ -663,21 +629,11 @@ tsx /tools/hostfully/get-messages.ts \
 
 ⚠️ **IRREVERSIBLE** — Delivered immediately through the booking channel. Cannot be recalled.
 
-```bash
-tsx /tools/hostfully/send-message.ts \
-  --lead-id <uid> \
-  --message "Your message text here" \
-  [--thread-id <uid>]
-```
+**Flags:**
 
-**Required flags:**
-
-- `--lead-id <uid>` — Hostfully lead/reservation UID
-- `--message <text>` — Message text to send
-
-**Optional flags:**
-
-- `--thread-id <uid>` — Hostfully thread UID. When provided, sends as a reply in that thread.
+- `--lead-id <uid>` (required) — Hostfully lead/reservation UID
+- `--message <text>` (required) — Message text to send
+- `--thread-id <uid>` (optional) — Hostfully thread UID. When provided, sends as a reply in that thread.
 
 **Environment variables:**
 
@@ -698,17 +654,9 @@ tsx /tools/hostfully/send-message.ts \
 
 ### `get-property.ts` — Fetch property details
 
-```bash
-tsx /tools/hostfully/get-property.ts --property-id <uid>
-```
+**Required flags:** `--property-id <uid>` — Hostfully property UID
 
-**Required flags:**
-
-- `--property-id <uid>` — Hostfully property UID
-
-**Environment variables:**
-
-- `HOSTFULLY_API_KEY` (required)
+**Environment variables:** `HOSTFULLY_API_KEY` (required)
 
 **Output (stdout):**
 
@@ -743,13 +691,7 @@ tsx /tools/hostfully/get-property.ts --property-id <uid>
 
 ### `get-checkouts.ts` — Fetch all confirmed checkouts for a date (agency-wide)
 
-```bash
-tsx /tools/hostfully/get-checkouts.ts --date YYYY-MM-DD
-```
-
-**Required flags:**
-
-- `--date <YYYY-MM-DD>` — Target checkout date
+**Required flags:** `--date <YYYY-MM-DD>` — Target checkout date
 
 **Environment variables:**
 
@@ -789,27 +731,11 @@ tsx /tools/hostfully/get-checkouts.ts --date YYYY-MM-DD
 - Property detail failures are non-fatal (warning to stderr, listing name used as fallback).
 - Returns `[]` when no checkouts found (exits 0, not an error).
 
-**Example:**
-
-```bash
-tsx /tools/hostfully/get-checkouts.ts --date 2026-06-01
-```
-
 ---
 
 ### `get-reservations.ts` — Fetch reservations for a property
 
-```bash
-tsx /tools/hostfully/get-reservations.ts \
-  --property-id <uid> \
-  [--status confirmed|cancelled|inquiry] \
-  [--from YYYY-MM-DD] \
-  [--to YYYY-MM-DD]
-```
-
-**Required flags:**
-
-- `--property-id <uid>` — Hostfully property UID
+**Required flags:** `--property-id <uid>` — Hostfully property UID
 
 **Optional flags:**
 
@@ -821,9 +747,7 @@ tsx /tools/hostfully/get-reservations.ts \
 - `--from <YYYY-MM-DD>` — Check-in from date
 - `--to <YYYY-MM-DD>` — Check-in to date
 
-**Environment variables:**
-
-- `HOSTFULLY_API_KEY` (required)
+**Environment variables:** `HOSTFULLY_API_KEY` (required)
 
 **Output (stdout) — JSON array:**
 
@@ -842,45 +766,26 @@ tsx /tools/hostfully/get-reservations.ts \
 ]
 ```
 
-**Example — reservations checking out today:**
-
-```bash
-TODAY=$(date +%Y-%m-%d)
-tsx /tools/hostfully/get-reservations.ts \
-  --property-id "$PROPERTY_UID" \
-  --status confirmed \
-  --from "$TODAY" \
-  --to "$TODAY"
-```
+**Worked example — reservations checking out today:** set `TODAY=$(date +%Y-%m-%d)` and pass `--property-id "$PROPERTY_UID" --status confirmed --from "$TODAY" --to "$TODAY"`.
 
 ---
 
-## Lock Tools (`/tools/locks/`)
+## Sifely Lock Tools (`/tools/sifely/`)
 
-### `sifely-client.ts` — Sifely smart lock management
+> Each Sifely operation is its own tool (`sifely/list-locks`, `sifely/list-passcodes`, `sifely/create-passcode`, `sifely/update-passcode`, `sifely/delete-passcode`, `sifely/list-access-records`, `sifely/generate-code`, `sifely/diagnose-access`, `sifely/rotate-property-code`). Copy each invocation path from the generated section above.
 
-```bash
-tsx /tools/locks/sifely-client.ts --action <action> [flags]
-```
-
-**Environment variables:**
+**Environment variables (Sifely lock tools):**
 
 - `SIFELY_USERNAME` (required)
 - `SIFELY_PASSWORD` (required)
 - `SIFELY_CLIENT_ID` (optional, default: `VLRE`)
 - `SIFELY_BASE_URL` (optional, default: `https://app-smart-server.sifely.com`)
 
-**⚠️ API quirk:** Sifely returns HTTP 200 even on auth failure. The tool checks `body.code` internally. For list operations, success omits the `code` field — presence of `code` indicates an error.
+**⚠️ API quirk:** Sifely returns HTTP 200 even on auth failure. The tools check `body.code` internally. For list operations, success omits the `code` field — presence of `code` indicates an error.
 
----
+### `sifely/list-locks`
 
-#### Action: `list-locks`
-
-```bash
-tsx /tools/locks/sifely-client.ts --action list-locks
-```
-
-Output (stdout) — JSON array:
+**Output (stdout) — JSON array:**
 
 ```json
 [
@@ -895,17 +800,11 @@ Output (stdout) — JSON array:
 ]
 ```
 
----
-
-#### Action: `list-passcodes`
-
-```bash
-tsx /tools/locks/sifely-client.ts --action list-passcodes --lock-id <id>
-```
+### `sifely/list-passcodes`
 
 Required: `--lock-id <id>` — Sifely numeric lock ID
 
-Output (stdout) — JSON array:
+**Output (stdout) — JSON array:**
 
 ```json
 [
@@ -924,20 +823,11 @@ Output (stdout) — JSON array:
 
 `keyboardPwdType`: 1=ONE_TIME, 2=PERMANENT, 3=TIMED
 
----
-
-#### Action: `list-access-records`
-
-```bash
-tsx /tools/locks/sifely-client.ts --action list-access-records \
-  --lock-id <id> \
-  --start-date <epoch-ms> \
-  --end-date <epoch-ms>
-```
+### `sifely/list-access-records`
 
 Required: `--lock-id`, `--start-date` (epoch ms), `--end-date` (epoch ms)
 
-Output (stdout) — JSON array:
+**Output (stdout) — JSON array:**
 
 ```json
 [
@@ -955,24 +845,11 @@ Output (stdout) — JSON array:
 
 `success`: 1=success, 0=failed. `recordType`: 4=passcode entry.
 
----
+### `sifely/create-passcode`
 
-#### Action: `create-passcode`
+Required: `--lock-id`, `--name`, `--code` (4–9 numeric digits). Optional: `--type` (default: `permanent`); for `timed`, `--start-date` and `--end-date` are required.
 
-```bash
-tsx /tools/locks/sifely-client.ts --action create-passcode \
-  --lock-id <id> \
-  --name "Passcode Name" \
-  --code "1221" \
-  [--type permanent|timed] \
-  [--start-date <epoch-ms>] \
-  [--end-date <epoch-ms>]
-```
-
-Required: `--lock-id`, `--name`, `--code` (4–9 numeric digits)
-Optional: `--type` (default: `permanent`). For `timed`, `--start-date` and `--end-date` required.
-
-Output (stdout):
+**Output (stdout):**
 
 ```json
 { "keyboardPwdId": 99 }
@@ -984,56 +861,27 @@ Or if a passcode with the same `--name` already exists:
 { "keyboardPwdId": 99, "existed": true }
 ```
 
----
+### `sifely/update-passcode`
 
-#### Action: `update-passcode`
+Required: `--lock-id`, `--passcode-id`. Optional: `--code` (change the code digits), `--name`, `--start-date`, `--end-date`.
 
-```bash
-tsx /tools/locks/sifely-client.ts --action update-passcode \
-  --lock-id <id> \
-  --passcode-id <id> \
-  [--code "4321"] \
-  [--name "New Name"] \
-  [--start-date <epoch-ms>] \
-  [--end-date <epoch-ms>]
-```
-
-Required: `--lock-id`, `--passcode-id`
-Optional: `--code` (change the code digits), `--name`, `--start-date`, `--end-date`
-
-Output (stdout):
+**Output (stdout):**
 
 ```json
 { "ok": true }
 ```
 
----
+### `sifely/delete-passcode`
 
-#### Action: `delete-passcode`
+Required: `--lock-id`, `--passcode-id`.
 
-```bash
-tsx /tools/locks/sifely-client.ts --action delete-passcode \
-  --lock-id <id> \
-  --passcode-id <id>
-```
-
-Required: `--lock-id`, `--passcode-id`
-
-Output (stdout):
+**Output (stdout):**
 
 ```json
 { "ok": true }
 ```
 
----
-
-### `generate-code.ts` — Generate a memorable lock code
-
-```bash
-tsx /tools/locks/generate-code.ts \
-  [--length 4|5|6] \
-  [--exclude-codes "1221,2332"]
-```
+### `sifely/generate-code` — Generate a memorable lock code
 
 **Optional flags:**
 
@@ -1060,65 +908,13 @@ tsx /tools/locks/generate-code.ts \
 
 Never generates all-same digits or strict sequential sequences (e.g., 1234, 9876).
 
----
-
-### `update-door-code.ts` — Update Hostfully property door code field
-
-```bash
-tsx /tools/locks/update-door-code.ts \
-  --property-id <hostfully-property-uid> \
-  --code <digits>
-```
-
-**Required flags:**
-
-- `--property-id <uid>` — Hostfully property UID
-- `--code <digits>` — New door code to set
-
-**Environment variables:**
-
-- `HOSTFULLY_API_KEY` (required)
-
-**Output (stdout):**
-
-```json
-{ "success": true, "propertyId": "c960c8d2-...", "previousCode": "1221", "newCode": "4334" }
-```
-
-**Exit codes:**
-
-- `0` — Success
-- `1` — General error (API failure, missing args, etc.)
-- `2` — `door_code` custom data field not found on the property
-
----
-
-### `rotate-property-code.ts` — Full code rotation for a property
+### `sifely/rotate-property-code` — Full code rotation for a property
 
 Generates a new memorable code, updates Hostfully's `door_code`, and rotates the matching Sifely passcode for all linked locks in one operation.
 
-```bash
-tsx /tools/locks/rotate-property-code.ts \
-  --property-id <hostfully-property-uid> \
-  [--code <specific-code>]
-```
+**Required flags:** `--property-id <uid>` — Hostfully property UID. **Optional:** `--code <digits>` — Use this specific code instead of generating a new one.
 
-**Required flags:**
-
-- `--property-id <uid>` — Hostfully property UID
-
-**Optional flags:**
-
-- `--code <digits>` — Use this specific code instead of generating a new one
-
-**Environment variables:**
-
-- `SUPABASE_URL` (required)
-- `SUPABASE_SECRET_KEY` (required)
-- `TENANT_ID` (required)
-- `SIFELY_USERNAME` (required)
-- `SIFELY_PASSWORD` (required)
-- `HOSTFULLY_API_KEY` (required)
+**Environment variables:** `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TENANT_ID`, `SIFELY_USERNAME`, `SIFELY_PASSWORD`, `HOSTFULLY_API_KEY` (all required).
 
 **Output (stdout):**
 
@@ -1154,13 +950,6 @@ tsx /tools/locks/rotate-property-code.ts \
 
 ### `search.ts` — Fetch knowledge base content for an entity
 
-```bash
-tsx /tools/knowledge_base/search.ts \
-  --entity-type <type> \
-  --entity-id <id> \
-  [--tenant-id <uuid>]
-```
-
 **Required flags:**
 
 - `--entity-type <type>` — Entity type (e.g. `property`, `restaurant`)
@@ -1194,15 +983,6 @@ tsx /tools/knowledge_base/search.ts \
 - No keyword filtering — returns all content; the LLM interprets relevance.
 - Exit code 0 even when no rows found (`content` will be empty string, `entityFound`/`commonFound` will be `false`).
 
-**Example:**
-
-```bash
-tsx /tools/knowledge_base/search.ts \
-  --entity-type property \
-  --entity-id "c960c8d2-9a51-49d8-bb48-355a7bfbe7e2" \
-  > /tmp/kb.json
-```
-
 ---
 
 ## Platform Tools (`/tools/platform/`)
@@ -1210,14 +990,6 @@ tsx /tools/knowledge_base/search.ts \
 ### `report-issue.ts` — Report a tool issue
 
 Call this when a tool returns an unexpected error, behaves differently from its documentation, or you patch a `.ts` file in `/tools/` to work around a bug.
-
-```bash
-tsx /tools/platform/report-issue.ts \
-  --task-id <uuid> \
-  --tool-name <name> \
-  --description "Description of what went wrong" \
-  [--patch-diff "<unified diff string>"]
-```
 
 **Required flags:**
 
@@ -1248,32 +1020,11 @@ tsx /tools/platform/report-issue.ts \
 - `0` — DB write succeeded (Slack alert failure is non-fatal — logged to stderr)
 - `1` — DB write failed, missing required arg, or missing required env var
 
-**Example:**
-
-```bash
-tsx /tools/platform/report-issue.ts \
-  --task-id "$TASK_ID" \
-  --tool-name "get-messages.ts" \
-  --description "API returned 404 for lead $LEAD_UID — lead may have been deleted"
-```
-
 ---
 
 ### `submit-output.ts` — Submit task output and classification
 
 Call this at the end of every task to write the output files the harness expects. This is the final step before the lifecycle transitions out of `Executing`.
-
-```bash
-tsx /tools/platform/submit-output.ts \
-  --summary "Task complete — drafted reply sent for approval" \
-  --classification "NEEDS_APPROVAL" \
-  [--draft "Your message text here"] \
-  [--confidence 0.9] \
-  [--reasoning "High confidence based on property KB match"] \
-  [--urgency] \
-  [--metadata '{"key":"value"}'] \
-  [--help]
-```
 
 **Required flags:**
 
@@ -1316,43 +1067,34 @@ tsx /tools/platform/submit-output.ts \
 - `0` — Files written successfully
 - `1` — Missing required flag (`--summary` or `--classification`), invalid `--classification` value, or file write error
 
-**Examples:**
+**Worked examples:**
 
-```bash
-# Minimal — task complete, no deliverable needed:
-tsx /tools/platform/submit-output.ts \
-  --summary "No unresponded guest messages found" \
-  --classification "NO_ACTION_NEEDED"
-
-# With approval draft:
-tsx /tools/platform/submit-output.ts \
-  --summary "Drafted reply to guest check-in question" \
-  --classification "NEEDS_APPROVAL" \
-  --draft "Check-in is at 3 PM. The door code is 1221." \
-  --confidence 0.9 \
-  --reasoning "Clear check-in question with matching KB entry" \
-  --urgency \
-  --metadata '{"leadUid":"37f5f58f-d308-42bf-8ed3-f0c2d70f16fb"}'
-```
+- Minimal (task complete, no deliverable): `--summary "No unresponded guest messages found" --classification "NO_ACTION_NEEDED"`.
+- With approval draft: `--summary "..." --classification "NEEDS_APPROVAL" --draft "Check-in is at 3 PM. The door code is 1221." --confidence 0.9 --reasoning "..." --urgency --metadata '{"leadUid":"37f5f58f-..."}'`.
 
 ---
 
 ## Quick Reference Table
 
-| Tool                      | Container Path           | Required Flags                              | Output Shape                                                                                                                          |
-| ------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `post-message.ts`         | `/tools/slack/`          | `--channel`, `--text`                       | `{ts, channel}`                                                                                                                       |
-| `read-channels.ts`        | `/tools/slack/`          | `--channels`                                | `{channels:[{channelId, messages, threadReplies}]}`                                                                                   |
-| `post-guest-approval.ts`  | `/tools/slack/`          | 13 flags (see above)                        | `{ts, channel}` + writes `/tmp/approval-message.json`                                                                                 |
-| `get-messages.ts`         | `/tools/hostfully/`      | `--lead-id` OR `--property-id`              | `[{leadUid, threadUid, propertyUid, guestName, channel, checkIn, checkOut, leadStatus, unresponded, messages}]`                       |
-| `send-message.ts`         | `/tools/hostfully/`      | `--lead-id`, `--message`                    | `{sent, messageId, timestamp}`                                                                                                        |
-| `get-property.ts`         | `/tools/hostfully/`      | `--property-id`                             | `{uid, name, address, amenities, houseRules, ...}`                                                                                    |
-| `get-checkouts.ts`        | `/tools/hostfully/`      | `--date`                                    | `[{propertyUid, listingName, normalizedAddress, roomId, zipCode, city, checkIn, checkOut, checkOutTime, guestName, status, channel}]` |
-| `get-reservations.ts`     | `/tools/hostfully/`      | `--property-id`                             | `[{uid, guestName, checkIn, checkOut, channel, numberOfGuests, status}]`                                                              |
-| `sifely-client.ts`        | `/tools/locks/`          | `--action`, `--lock-id` (most)              | Varies by action (array for list, `{ok:true}` for mutations)                                                                          |
-| `generate-code.ts`        | `/tools/locks/`          | (none required)                             | `{code, pattern, length, description}`                                                                                                |
-| `update-door-code.ts`     | `/tools/locks/`          | `--property-id`, `--code`                   | `{success, propertyId, previousCode, newCode}`                                                                                        |
-| `rotate-property-code.ts` | `/tools/locks/`          | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                                                   |
-| `search.ts`               | `/tools/knowledge_base/` | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                                           |
-| `report-issue.ts`         | `/tools/platform/`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                                      |
-| `submit-output.ts`        | `/tools/platform/`       | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`                         |
+Container invocation paths for each tool are in the auto-generated section above (`**Invocation**` line per `service/id`). This table summarizes required flags and output shapes only.
+
+| Tool                          | Required Flags                              | Output Shape                                                                                                                          |
+| ----------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `slack/post-message`          | `--channel`, `--text`                       | `{ts, channel}`                                                                                                                       |
+| `slack/read-channels`         | `--channels`                                | `{channels:[{channelId, messages, threadReplies}]}`                                                                                   |
+| `slack/post-guest-approval`   | 13 flags (see above)                        | `{ts, channel}` + writes `/tmp/approval-message.json`                                                                                 |
+| `hostfully/get-messages`      | `--lead-id` OR `--property-id`              | `[{leadUid, threadUid, propertyUid, guestName, channel, checkIn, checkOut, leadStatus, unresponded, messages}]`                       |
+| `hostfully/send-message`      | `--lead-id`, `--message`                    | `{sent, messageId, timestamp}`                                                                                                        |
+| `hostfully/get-property`      | `--property-id`                             | `{uid, name, address, amenities, houseRules, ...}`                                                                                    |
+| `hostfully/get-checkouts`     | `--date`                                    | `[{propertyUid, listingName, normalizedAddress, roomId, zipCode, city, checkIn, checkOut, checkOutTime, guestName, status, channel}]` |
+| `hostfully/get-reservations`  | `--property-id`                             | `[{uid, guestName, checkIn, checkOut, channel, numberOfGuests, status}]`                                                              |
+| `sifely/list-locks`           | (none required)                             | array of `{lockId, lockName, lockAlias, lockMac, electricQuantity, hasGateway}`                                                       |
+| `sifely/list-passcodes`       | `--lock-id`                                 | array of `{keyboardPwdId, lockId, keyboardPwd, keyboardPwdName, keyboardPwdType, ...}`                                                |
+| `sifely/create-passcode`      | `--lock-id`, `--name`, `--code`             | `{keyboardPwdId}` (or `{keyboardPwdId, existed:true}`)                                                                                |
+| `sifely/update-passcode`      | `--lock-id`, `--passcode-id`                | `{ok:true}`                                                                                                                           |
+| `sifely/delete-passcode`      | `--lock-id`, `--passcode-id`                | `{ok:true}`                                                                                                                           |
+| `sifely/generate-code`        | (none required)                             | `{code, pattern, length, description}`                                                                                                |
+| `sifely/rotate-property-code` | `--property-id`                             | `{success, newCode, expectedPasscodeName, hostfullyUpdated, hostfullyError, locks}`                                                   |
+| `knowledge_base/search`       | `--entity-type`, `--entity-id`              | `{content, entityFound, commonFound, entityType, entityId}`                                                                           |
+| `platform/report-issue`       | `--task-id`, `--tool-name`, `--description` | `{ok, event_id}`                                                                                                                      |
+| `platform/submit-output`      | `--summary`, `--classification`             | `{summary, classification, draft?, confidence?, reasoning?, urgency?, metadata?}` + writes `/tmp/summary.txt`                         |
