@@ -376,47 +376,11 @@ export class ArchetypeGenerator {
     },
   ): Promise<string> {
     const result = await this.callLLMFn({ ...options, messages });
-    // DIAGNOSE-REFINE: log raw LLM response details for JSON failure diagnosis
-    log.info(
-      {
-        'DIAGNOSE-REFINE': true,
-        contentLength: result.content.length,
-        promptTokens: result.promptTokens,
-        completionTokens: result.completionTokens,
-        contentIsEmpty: result.content.length === 0,
-        rawContentFirst500: result.content.slice(0, 500),
-        rawContentLast200: result.content.slice(-200),
-      },
-      'DIAGNOSE-REFINE: raw LLM response',
-    );
     const raw = stripFences(result.content);
     try {
       JSON.parse(raw);
       return raw;
     } catch (firstError) {
-      // DIAGNOSE-REFINE: log error position details
-      const errPosition =
-        firstError instanceof SyntaxError
-          ? (() => {
-              const posMatch = /position (\d+)/i.exec(firstError.message);
-              const pos = posMatch ? parseInt(posMatch[1], 10) : -1;
-              return {
-                errorMessage: firstError.message,
-                errorPosition: pos,
-                charAtPosition: pos >= 0 ? raw.charCodeAt(pos) : null,
-                charAtPositionChar: pos >= 0 ? JSON.stringify(raw[pos]) : null,
-                contextAroundError: pos >= 0 ? raw.slice(Math.max(0, pos - 40), pos + 40) : null,
-                rawLength: raw.length,
-                rawFirst500: raw.slice(0, 500),
-                rawLast200: raw.slice(-200),
-              };
-            })()
-          : { errorMessage: String(firstError) };
-      log.warn(
-        { 'DIAGNOSE-REFINE': true, ...errPosition },
-        'DIAGNOSE-REFINE: JSON parse failed — error position details',
-      );
-
       // Attempt repair before spending tokens on an LLM retry. repairJsonStrings
       // escapes raw newlines/tabs/CRs inside string values — the tertiary failure
       // mode (~10%) identified in diagnosis. Skip repair when raw is empty (empty
@@ -444,16 +408,6 @@ export class ArchetypeGenerator {
       ];
       const retryResult = await this.callLLMFn({ ...options, messages: retryMessages });
       const retryRaw = stripFences(retryResult.content);
-      // DIAGNOSE-REFINE: log retry response details
-      log.info(
-        {
-          'DIAGNOSE-REFINE': true,
-          retryContentLength: retryResult.content.length,
-          retryCompletionTokens: retryResult.completionTokens,
-          retryFirst500: retryResult.content.slice(0, 500),
-        },
-        'DIAGNOSE-REFINE: retry LLM response',
-      );
       try {
         JSON.parse(retryRaw);
         return retryRaw;

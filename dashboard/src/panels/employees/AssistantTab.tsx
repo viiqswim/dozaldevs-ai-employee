@@ -27,7 +27,9 @@ function getProposalErrorMessage(err: unknown): string {
           .join('\n');
         if (reasons) return `I wasn't able to make that change:\n${reasons}`;
       }
-    } catch {}
+    } catch {
+      // JSON parse error from gateway body — fall through to friendly fallback
+    }
   }
 
   return PROPOSAL_ERROR_FALLBACK;
