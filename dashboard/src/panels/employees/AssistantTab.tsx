@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { proposeEdit, patchArchetype, recordEditHistory } from '@/lib/gateway';
+import { proposeEdit, patchArchetype, recordEditHistory, interpretRequest } from '@/lib/gateway';
 import type { Archetype, ProposalResponse, RecordEditHistoryPayload } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
@@ -40,7 +40,7 @@ interface AssistantTabProps {
 }
 
 type MessageRole = 'user' | 'assistant';
-type MessageKind = 'text' | 'proposal';
+type MessageKind = 'text' | 'proposal' | 'restatement';
 
 interface ChatMessage {
   id: string;
@@ -49,6 +49,8 @@ interface ChatMessage {
   text?: string;
   proposal?: ProposalResponse;
   proposalActed?: boolean;
+  understanding?: string;
+  pendingRequestText?: string;
 }
 
 export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps) {
@@ -56,28 +58,75 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingProposalId, setPendingProposalId] = useState<string | null>(null);
+  const [pendingRestatementId, setPendingRestatementId] = useState<string | null>(null);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const hasPendingProposal = pendingProposalId !== null;
-  useUnsavedChangesGuard(hasPendingProposal || isLoading);
+  const hasPendingRestatement = pendingRestatementId !== null;
+  useUnsavedChangesGuard(hasPendingProposal || hasPendingRestatement || isLoading);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const runInterpret = async (text: string) => {
+    setIsLoading(true);
+    try {
+      const result = await interpretRequest(tenantId, archetype.id, text);
+      const restatementMsgId = crypto.randomUUID();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: restatementMsgId,
+          role: 'assistant' as const,
+          kind: 'restatement' as const,
+          understanding: result.understanding,
+          pendingRequestText: text,
+        },
+      ]);
+      setPendingRestatementId(restatementMsgId);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant' as const,
+          kind: 'text' as const,
+          text: getProposalErrorMessage(err),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const text = inputText.trim();
     if (!text || isLoading) return;
 
+    if (pendingRestatementId) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === pendingRestatementId ? { ...m, proposalActed: true } : m)),
+      );
+      setPendingRestatementId(null);
+    }
+
     const userMsgId = crypto.randomUUID();
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', kind: 'text', text }]);
     setInputText('');
+
+    await runInterpret(text);
+  };
+
+  const handleConfirm = async (msgId: string, requestText: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
+    setPendingRestatementId(null);
     setIsLoading(true);
 
     try {
-      const proposal = await proposeEdit(tenantId, archetype.id, text);
+      const proposal = await proposeEdit(tenantId, archetype.id, requestText);
       const assistantMsgId = crypto.randomUUID();
 
       if (proposal.no_change) {
@@ -85,8 +134,8 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
           ...prev,
           {
             id: assistantMsgId,
-            role: 'assistant',
-            kind: 'text',
+            role: 'assistant' as const,
+            kind: 'text' as const,
             text: 'It looks like no change is needed for that.',
           },
         ]);
@@ -95,8 +144,8 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
           ...prev,
           {
             id: assistantMsgId,
-            role: 'assistant',
-            kind: 'proposal',
+            role: 'assistant' as const,
+            kind: 'proposal' as const,
             proposal,
           },
         ]);
@@ -107,8 +156,8 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         ...prev,
         {
           id: crypto.randomUUID(),
-          role: 'assistant',
-          kind: 'text',
+          role: 'assistant' as const,
+          kind: 'text' as const,
           text: getProposalErrorMessage(err),
         },
       ]);
@@ -274,6 +323,31 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
                 <div key={msg.id} className="flex justify-end">
                   <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2 max-w-[80%] text-sm">
                     {msg.text}
+                  </div>
+                </div>
+              );
+            }
+
+            if (msg.kind === 'restatement') {
+              const acted = msg.proposalActed ?? false;
+              return (
+                <div key={msg.id} className="flex justify-start">
+                  <div className="rounded-2xl rounded-tl-sm border bg-card px-4 py-3 max-w-[80%] space-y-3">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Here&rsquo;s what I understood — click Confirm to proceed, or type a
+                      correction below.
+                    </p>
+                    <p className="text-sm">{msg.understanding}</p>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleConfirm(msg.id, msg.pendingRequestText ?? '')}
+                      disabled={acted || isLoading}
+                    >
+                      {isLoading && !acted ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : null}
+                      Confirm
+                    </Button>
                   </div>
                 </div>
               );
