@@ -688,19 +688,19 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
 > 4 review agents in PARALLEL. ALL must APPROVE. Present results; get explicit user okay before completing. Never check F1–F4 before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Verify each "Must Have" exists (read file / run test). Verify each "Must NOT Have" absent (grep: no sync-test-pair where generation exists; no request-time disk read in handlers; no EMPLOYEE_PHASE/TASK_PHASE merge; enforcement flag defaults OFF; no deprecated-file edits). Confirm generated artifacts have `// @generated` headers and CI diff gates. Confirm enforcement was preceded by registry validation/backfill.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | VERDICT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       `pnpm build` + `pnpm lint` + `pnpm test -- --run`. Review for `as any`/`@ts-ignore`, empty catches, dead code. Verify `discoverTools()` no longer regex-scans (typed aggregation) and is startup-cached. Verify both CI diff gates pass.
       Output: `Build|Lint|Tests|Gates | VERDICT`
 
-- [ ] F3. **Live E2E** — `unspecified-high`
+- [x] F3. **Live E2E** — `unspecified-high`
       `docker build -t ai-employee-worker:latest .`. Re-run `pnpm test:unit -- golden` (GREEN for drift tasks). Trigger `real-estate-motivation-bot-2` (model `deepseek/deepseek-v4-flash`): verify `tasks.status = Done` via PostgREST + `task_status_log` + `/tmp/summary.txt`. **Enforcement check**: with the flag ON for a test archetype, attempt a tool NOT in its registry → confirm it is BLOCKED and logged, while an authorized tool succeeds. **Versioning check**: simulate a contract written with an older/newer `version` → confirm harness handles it gracefully (no crash). Evidence → `.sisyphus/evidence/final-qa/`.
       Output: `Docker|Golden|Task=Done(id)|Enforcement blocked unauthorized|Version mismatch handled | VERDICT`
 
-- [ ] F4. **Scope Fidelity** — `deep`
+- [x] F4. **Scope Fidelity** — `deep`
       Per task: spec vs diff 1:1. Confirm drift tasks are byte-identical (golden) and only T12/T13 changed behavior (with deliberate golden updates). No creep into deferred clusters B/D/F or backlog items. No cross-task contamination. No deprecated-file edits.
       Output: `Tasks [N/N] | Contamination [CLEAN/N] | VERDICT`
 
@@ -708,12 +708,12 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
 ## Post-Verification (after F1–F4 APPROVE + user okay)
 
-- [ ] T14. **Documentation updates** — `writing`
+- [x] T14. **Documentation updates** — `writing`
       Update `AGENTS.md` + `README.md`: the `src/lib/output-contract-constants.ts` single source; the generate-not-sync World-B pattern (`// @generated`); typed `ToolDescriptor` + startup-cached discovery; `src/lib/skill-registry.ts`; capability-enforcement flag + semantics; output-contract `version` field. Add the drift-audit doc to reference tables. Record the backlog items (AGENTS.md typed schema, versioned prompt templates) as future work. No volatile counts.
       **QA**: `grep -c "output-contract-constants\|ToolDescriptor\|capability\|version" AGENTS.md` ≥ 4. Evidence: `.sisyphus/evidence/task-14-docs.txt`.
       **Commit**: `docs(agents): document single-source + capability + versioning conventions`
 
-- [ ] T15. **Notify completion** — `quick`
+- [x] T15. **Notify completion** — `quick`
       `tsx scripts/telegram-notify.ts "✅ Single-source-of-truth + scale-hardening complete — drift eliminated, typed discovery, capability enforcement + contract versioning live, E2E passed. Come back to review."`
       **Commit**: NO
 
@@ -729,5 +729,5 @@ pnpm test:unit -- "tool-descriptors|env-enforcement|tool-registry-paths|skill-re
 pnpm build && pnpm lint                                     # PASS
 ```
 
-- [ ] All Must Have present; all Must NOT Have absent
+- [x] All Must Have present; all Must NOT Have absent
 - [ ] Live E2E: employee Done + unauthorized tool blocked + version mismatch handled
