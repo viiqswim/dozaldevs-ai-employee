@@ -78,7 +78,16 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         setPendingProposalId(assistantMsgId);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          kind: 'text',
+          text: `I wasn't able to make that change: ${errMsg}`,
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +129,16 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         setPendingProposalId(assistantMsgId);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          kind: 'text',
+          text: `I wasn't able to make that change: ${errMsg}`,
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }

@@ -139,4 +139,52 @@ describe('AssistantTab', () => {
       expect(screen.getByText(/discarded/i)).toBeInTheDocument();
     });
   });
+
+  it('surfaces error as assistant message when proposeEdit rejects', async () => {
+    const { proposeEdit } = await import('@/lib/gateway');
+    vi.mocked(proposeEdit).mockRejectedValue(new Error('Tool not available'));
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
+      target: { value: 'add a new tool' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/I wasn't able to make that change: Tool not available/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('refine produces a new proposal card', async () => {
+    const { proposeEdit } = await import('@/lib/gateway');
+    vi.mocked(proposeEdit).mockResolvedValue({
+      baseline: { identity: 'old identity' },
+      proposal: { identity: 'new identity' },
+      changed_fields: { identity: { before: 'old identity', after: 'new identity' } },
+      no_change: false,
+    } as never);
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
+      target: { value: 'make it friendlier' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+
+    fireEvent.click(screen.getByRole('button', { name: /ask for more changes/i }));
+
+    fireEvent.change(screen.getByLabelText(/refinement request/i), {
+      target: { value: 'also make it shorter' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Proposed changes')).toHaveLength(2);
+    });
+  });
 });
