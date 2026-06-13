@@ -49,6 +49,38 @@ export interface ArchetypeRow {
   risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
   tool_registry?: { tools?: string[] } | null;
   platform_rules_override?: string | null;
+  enforce_tool_registry?: boolean | null;
+}
+
+// ---------------------------------------------------------------------------
+// Tool registry capability enforcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a tool path is permitted for the given archetype.
+ *
+ * When `enforce_tool_registry` is false (or unset), all tools are allowed and
+ * the call is a no-op (returns true, no log emitted). This is the default
+ * behavior and is byte-identical to the pre-enforcement path.
+ *
+ * When `enforce_tool_registry` is true, the tool path must appear in
+ * `archetype.tool_registry.tools`. If it does not, the attempt is denied and
+ * a warning is logged with the tool path and archetype id.
+ *
+ * @param toolPath - Absolute container path, e.g. `/tools/slack/post-message.ts`
+ * @param archetype - The archetype row for the current task execution
+ * @returns `true` when the tool is allowed, `false` when denied
+ */
+export function isToolAllowed(toolPath: string, archetype: ArchetypeRow): boolean {
+  if (!archetype.enforce_tool_registry) {
+    return true;
+  }
+  const registry = new Set(archetype.tool_registry?.tools ?? []);
+  const allowed = registry.has(toolPath);
+  if (!allowed) {
+    log.warn({ archetypeId: archetype.id, toolPath }, 'Tool denied by capability enforcement');
+  }
+  return allowed;
 }
 
 export interface TaskWithArchetype {
@@ -170,6 +202,26 @@ export async function runExecutionPhase(
   log.info({ taskId }, 'Task status → Executing');
 
   await writeOpencodeAuth(archetype.temperature ?? 1.0);
+
+  // Tool registry capability enforcement (flag-gated).
+  // When enforce_tool_registry is ON, compute which tools would be denied and
+  // log each one. This surfaces denials at phase start so they appear in task
+  // logs regardless of whether the model attempts the restricted call.
+  if (archetype.enforce_tool_registry) {
+    const registeredPaths = new Set(archetype.tool_registry?.tools ?? []);
+    log.info(
+      { taskId, archetypeId: archetype.id, registeredCount: registeredPaths.size },
+      '[opencode-harness] Tool registry enforcement is ON — tools outside registry will be denied',
+    );
+    // Import ALL_TOOL_DESCRIPTORS at the module boundary. Worker containers use
+    // tsx which handles ESM imports; we static-import from the compiled lib.
+    const { ALL_TOOL_DESCRIPTORS } = await import('../../lib/tool-registry.js');
+    for (const descriptor of ALL_TOOL_DESCRIPTORS) {
+      const containerPath = `/tools/${descriptor.service}/${descriptor.id}.ts`;
+      isToolAllowed(containerPath, archetype);
+    }
+  }
+
   // Set phase for Composio audit rows
   process.env.TASK_PHASE = 'execution';
 

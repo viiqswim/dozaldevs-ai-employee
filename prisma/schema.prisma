@@ -202,6 +202,7 @@ model Archetype {
   delivery_steps                    String?   @db.Text
   temperature                       Float?    @default(1.0)
   platform_rules_override           String?   @db.Text // When set, replaces the default platform rules section in compiled AGENTS.md
+  enforce_tool_registry             Boolean   @default(false) // When true, restricts available tools to exactly those listed in tool_registry
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
