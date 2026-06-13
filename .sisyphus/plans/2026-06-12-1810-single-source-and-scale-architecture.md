@@ -374,7 +374,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(workers): dedup ArchetypeRow` — Files: `src/workers/opencode-harness.mts` — Pre-commit: `pnpm build`
 
-- [ ] 6. Wire World-A + World-B consumers to the single source
+- [x] 6. Wire World-A + World-B consumers to the single source
 
   **What to do**:
   - Use `lsp_find_references` on each contract-path literal + `EXECUTION_PROMPT` before editing.
