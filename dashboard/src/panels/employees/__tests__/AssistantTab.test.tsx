@@ -5,6 +5,8 @@ import type { Archetype } from '@/lib/types';
 
 vi.mock('@/lib/gateway', () => ({
   proposeEdit: vi.fn(),
+  patchArchetype: vi.fn().mockResolvedValue({}),
+  recordEditHistory: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -154,6 +156,61 @@ describe('AssistantTab', () => {
       expect(
         screen.getByText(/I wasn't able to make that change: Tool not available/),
       ).toBeInTheDocument();
+    });
+  });
+
+  it('approve calls patchArchetype and recordEditHistory', async () => {
+    const { proposeEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
+    vi.mocked(proposeEdit).mockResolvedValue({
+      baseline: { identity: 'old identity' },
+      proposal: { identity: 'new identity' },
+      changed_fields: { identity: { before: 'old identity', after: 'new identity' } },
+      no_change: false,
+    } as never);
+    vi.mocked(patchArchetype).mockResolvedValue({} as never);
+    vi.mocked(recordEditHistory).mockResolvedValue({} as never);
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
+      target: { value: 'make it friendlier' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+
+    await waitFor(() => {
+      expect(patchArchetype).toHaveBeenCalledWith(
+        'tenant-1',
+        'arch-1',
+        expect.objectContaining({ identity: 'new identity' }),
+      );
+      expect(recordEditHistory).toHaveBeenCalledOnce();
+      expect(onSaved).toHaveBeenCalled();
+    });
+  });
+
+  it('deny does not call patchArchetype or recordEditHistory', async () => {
+    const { proposeEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
+    vi.mocked(proposeEdit).mockResolvedValue({
+      baseline: { identity: 'old' },
+      proposal: { identity: 'new' },
+      changed_fields: { identity: { before: 'old', after: 'new' } },
+      no_change: false,
+    } as never);
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
+      target: { value: 'make it shorter' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+    fireEvent.click(screen.getByRole('button', { name: /deny/i }));
+
+    await waitFor(() => {
+      expect(patchArchetype).not.toHaveBeenCalled();
+      expect(recordEditHistory).not.toHaveBeenCalled();
     });
   });
 

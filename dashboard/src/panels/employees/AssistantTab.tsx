@@ -4,8 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { proposeEdit } from '@/lib/gateway';
-import type { Archetype, ProposalResponse } from '@/lib/types';
+import { proposeEdit, patchArchetype, recordEditHistory } from '@/lib/gateway';
+import type { Archetype, ProposalResponse, RecordEditHistoryPayload } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 
@@ -144,11 +144,77 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
     }
   };
 
-  const handleApprove = async (msgId: string, _proposal: ProposalResponse) => {
-    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
-    setPendingProposalId(null);
-    toast.success('Change applied to your employee.');
-    onSaved();
+  const handleApprove = async (msgId: string, proposal: ProposalResponse) => {
+    setIsLoading(true);
+    try {
+      const ALLOWED_PATCH_KEYS = [
+        'identity',
+        'execution_steps',
+        'delivery_steps',
+        'overview',
+        'risk_model',
+        'tool_registry',
+        'trigger_sources',
+        'input_schema',
+      ] as const;
+
+      const patchBody: Record<string, unknown> = {};
+      for (const key of ALLOWED_PATCH_KEYS) {
+        if (proposal.proposal[key] !== undefined) {
+          patchBody[key] = proposal.proposal[key];
+        }
+      }
+
+      const archetypeRecord = archetype as unknown as Record<string, unknown>;
+      const beforeJson: Record<string, unknown> = {};
+      for (const key of ALLOWED_PATCH_KEYS) {
+        if (archetypeRecord[key] !== undefined) {
+          beforeJson[key] = archetypeRecord[key];
+        }
+      }
+
+      await patchArchetype(
+        tenantId,
+        archetype.id,
+        patchBody as Parameters<typeof patchArchetype>[2],
+      );
+
+      const proposalIndex = messages.findIndex((m) => m.id === msgId);
+      const requestText =
+        proposalIndex > 0
+          ? ([...messages]
+              .slice(0, proposalIndex)
+              .reverse()
+              .find((m) => m.role === 'user')?.text ?? 'AI assistant edit')
+          : 'AI assistant edit';
+
+      const historyPayload: RecordEditHistoryPayload = {
+        request_text: requestText,
+        before_json: beforeJson,
+        after_json: patchBody,
+        changed_fields: Object.keys(proposal.changed_fields),
+        kind: 'edit',
+      };
+      await recordEditHistory(tenantId, archetype.id, historyPayload);
+
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
+      setPendingProposalId(null);
+      toast.success('Change applied to your employee.');
+      onSaved();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant' as const,
+          kind: 'text' as const,
+          text: `I wasn't able to apply that change: ${errMsg}`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeny = (msgId: string) => {
