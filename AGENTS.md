@@ -96,7 +96,7 @@ Source: `src/worker-tools/{service}/`. See the [Adding a Shell Tool](docs/guides
 - **Lifecycle**: `src/inngest/employee-lifecycle.ts` — states: Received → Triaging → AwaitingInput → Ready → Executing → Validating (auto-pass) → Submitting → Reviewing → Approved → Delivering → Done. Terminal: `Failed`, `Cancelled`. Two delivery paths: (1) `approval_required: true` → Submitting → Reviewing → Approved → Delivering → Done; (2) `approval_required: false` → Submitting → Delivering → Done (delivery container always spawns when `delivery_instructions` is set; skips only when `NO_ACTION_NEEDED` AND no `delivery_instructions`).
 - **Inngest functions** (active, each registered in `src/gateway/inngest/serve.ts`): `employee/universal-lifecycle`, `employee/interaction-handler` (intent classification, `feedback_events`), `employee/rule-extractor` (`employee_rules`), `employee/rule-synthesizer` (`SYNTHESIS_THRESHOLD` = 5), `trigger/reviewing-watchdog` (15-min cron, marks stuck `Reviewing` → `Failed` after 30 min), `employee/slack-trigger-handler` (handles `employee/task.requested` from Slack @mentions — resolves channel → employee, posts confirmation card, dispatches task), `employee/slack-input-collector` (handles `employee/trigger.input-received` — collects required inputs from thread replies before dispatching).
 - **Slack @mention triggering**: Users can trigger AI employees by @mentioning the bot in a Slack channel. The `app_mention` handler fires `employee/interaction.received` → classified as `task` intent → emits `employee/task.requested` → `slack-trigger-handler` resolves the employee. **Routing is by channel across all tenants on the workspace**: `findManyByExternalId('slack', team_id)` returns all tenants connected to that workspace, then `resolveEmployeesAcrossTenants(channel, tenantIds)` finds candidates. Single candidate → direct dispatch. Multiple candidates → LLM routing via `routeToEmployee()`; confident result → dispatch, null → disambiguation card with employee buttons (`TRIGGER_DISAMBIGUATE`). Zero candidates → "no employees available" message. Posts a Block Kit confirmation card in thread. User clicks Confirm → task dispatched (or input collection starts if employee has required `input_schema` fields). Cancel → no task. Action IDs: `SLACK_ACTION_ID.TRIGGER_CONFIRM` / `TRIGGER_CANCEL` / `TRIGGER_DISAMBIGUATE` in `src/lib/slack-action-ids.ts`. In-memory `pendingInputCollections` Map tracks threads awaiting input (keyed by `channelId:threadTs`).
-- **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed.
+- **Output contract**: OpenCode writes `/tmp/summary.txt` and `/tmp/approval-message.json` via the `submit-output.ts` tool (`--draft-file` for full content, `--classification` for routing: `NEEDS_APPROVAL` or `NO_ACTION_NEEDED`). Absence of BOTH is a hard failure. If only a short summary appears in delivery (no actual content), `--draft-file` was missing from the generated `submit-output` call in `execution_steps` — the archetype generator has regressed. **Output-contract paths are single-sourced** in `src/lib/output-contract-constants.ts` (World-A); worker-tools consume a generated copy at `src/worker-tools/lib/output-contract-paths.generated.ts` (World-B, `// @generated` header). Never edit the generated file directly — run `pnpm generate-worker-constants` to regenerate. **Output-contract versioning**: `StandardOutput` carries an optional `version` field. Absent = v1 (legacy backward compat). Future-unknown versions are warned but not thrown — additive-only within a major version guarantees degraded read safety.
 - **Container naming**: Execution container: `employee-{taskId.slice(0,8)}`. Delivery container: `employee-delivery-{taskId.slice(0,8)}`. Find both with `docker ps --filter name=employee-`.
 - **CRITICAL — Rebuild after every worker change**: Changes to `src/workers/` require a Docker image rebuild. `src/worker-tools/` is bind-mounted in local Docker mode — no rebuild needed for tool changes locally.
 - **Multi-provider routing**: When `OPENCODE_GO_API_KEY` is set, `writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo subscription); others fall back to OpenRouter. Provider selection is logged at task start. See `src/lib/go-models.ts` for the hardcoded Go model list (moved from `src/workers/lib/` — now shared between gateway and worker). **OpenCodeGo usage limits**: $12/5hr, $30/week, $60/month metered on top of the $10/mo subscription. Gateway calls are negligible (~$0.50/mo). Track usage at https://opencode.ai/auth. **Go two-endpoint formats**: Go models use two API formats — OpenAI-compatible (`/zen/go/v1/chat/completions`) and Anthropic-compatible (`/zen/go/v1/messages`). `call-llm.ts` gateway routing only works with OpenAI-compatible models on Go. Worker harness handles both formats via OpenCode internally.
@@ -154,6 +154,10 @@ Skills are on-demand knowledge modules loaded by OpenCode agents. Before any non
 | `long-running-commands`   | tmux launch+poll pattern, 5 mandatory cleanup rules, session naming (`ai-e2e`, `ai-dev`, `ai-build`), and macOS vnode-exhaustion risk                                                                                           |
 
 New skill: create `src/workers/skills/{name}/SKILL.md` (employee — rebuild Docker) or `.opencode/skills/{name}/SKILL.md` (dev — commit). Pattern: `^[a-z0-9]+(-[a-z0-9]+)*$`.
+
+**Skill registry** (`src/lib/skill-registry.ts`): `getWorkerSkills(skillsDir?)` reads `src/workers/skills/*/SKILL.md` frontmatter (name + description) and returns `WorkerSkill[]` sorted by name. The gateway uses this to build the brain-preview skill list — no hardcoded skill arrays anywhere. Adding a new skill folder makes it appear automatically with no code change.
+
+**`tool-usage-reference` skill generation**: The body of `src/workers/skills/tool-usage-reference/SKILL.md` is generated from `ALL_TOOL_DESCRIPTORS` via `pnpm generate-tool-usage-skill` (`scripts/generate-tool-usage-skill.ts`). A sentinel comment `<!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->` preserves curated warnings and gotchas below the generated section. Run the script and commit when adding or changing a tool descriptor.
 
 **Composio skill system**: Per-app skills (`composio-<toolkit>/`) are committed artifacts generated by `pnpm generate-composio-skills` (calls Composio API, writes `SKILL.md` action index + `actions/<SLUG>.md` per action). Run the script and commit when a new app becomes connectable. CI fails if committed skills are stale. At container boot, `filterComposioSkills(connectedToolkits)` in `harness-helpers.mts` deletes `composio-*` folders for apps the tenant has NOT connected — OpenCode only sees skills for connected apps. `TASK_PHASE` env var (`'execution'` | `'delivery'`) is set by the harness before the OpenCode session starts so `execute.ts` can write the correct phase to `task_composio_calls`.
 
@@ -287,28 +291,30 @@ The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `
 
 ## Commands
 
-| Action                     | Command                            |
-| -------------------------- | ---------------------------------- |
-| First-time setup           | `pnpm setup`                       |
-| Start services             | `pnpm dev`                         |
-| Run unit tests (watch)     | `pnpm test`                        |
-| Run unit tests (one-shot)  | `pnpm test -- --run`               |
-| Run unit tests (explicit)  | `pnpm test:unit`                   |
-| Run integration tests (DB) | `pnpm test:integration`            |
-| Run all tests (unit + DB)  | `pnpm test:all`                    |
-| Setup test DB              | `pnpm test:db:setup`               |
-| Lint                       | `pnpm lint`                        |
-| Build                      | `pnpm build`                       |
-| Trigger E2E task           | `pnpm trigger-task`                |
-| Verify E2E                 | `pnpm verify:e2e --task-id <uuid>` |
-| Stress test                | `pnpm stress-test`                 |
-| Docker start               | `pnpm docker:start`                |
-| Docker stop                | `pnpm docker:stop`                 |
-| Docker reset               | `pnpm docker:reset`                |
-| Docker status              | `pnpm docker:status`               |
-| Dashboard build            | `pnpm dashboard:build`             |
-| Full E2E run               | `pnpm dev:e2e`                     |
-| Regenerate Composio skills | `pnpm generate-composio-skills`    |
+| Action                      | Command                            |
+| --------------------------- | ---------------------------------- |
+| First-time setup            | `pnpm setup`                       |
+| Start services              | `pnpm dev`                         |
+| Run unit tests (watch)      | `pnpm test`                        |
+| Run unit tests (one-shot)   | `pnpm test -- --run`               |
+| Run unit tests (explicit)   | `pnpm test:unit`                   |
+| Run integration tests (DB)  | `pnpm test:integration`            |
+| Run all tests (unit + DB)   | `pnpm test:all`                    |
+| Setup test DB               | `pnpm test:db:setup`               |
+| Lint                        | `pnpm lint`                        |
+| Build                       | `pnpm build`                       |
+| Trigger E2E task            | `pnpm trigger-task`                |
+| Verify E2E                  | `pnpm verify:e2e --task-id <uuid>` |
+| Stress test                 | `pnpm stress-test`                 |
+| Docker start                | `pnpm docker:start`                |
+| Docker stop                 | `pnpm docker:stop`                 |
+| Docker reset                | `pnpm docker:reset`                |
+| Docker status               | `pnpm docker:status`               |
+| Dashboard build             | `pnpm dashboard:build`             |
+| Full E2E run                | `pnpm dev:e2e`                     |
+| Regenerate Composio skills  | `pnpm generate-composio-skills`    |
+| Regenerate worker constants | `pnpm generate-worker-constants`   |
+| Regenerate tool-usage skill | `pnpm generate-tool-usage-skill`   |
 
 Prerequisites: Node ≥20, pnpm, Docker (with Compose plugin).
 
@@ -447,10 +453,10 @@ src/
 │   ├── lib/          # Shared: create-task-and-dispatch, poll-completion, pending-approvals, quiet-hours, reminder-blocks, `interaction-helpers.ts` (extracted from `interaction-handler.ts`), `postgrest-headers.ts` (`makePostgrestHeaders` — canonical PostgREST header factory, import from here)
 │   └── events.ts     # Typed Inngest event schemas (`EventPayload`, `InngestStep`) — import from here, never inline event types
 ├── workers/      # Docker container code — runs inside the worker machine
-│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes), `harness-helpers.mts` (extracted harness utilities: container naming, log helpers), `execution-phase.mts` (execution phase logic extracted from harness), `delivery-phase.mts` (delivery phase logic extracted from harness)
+│   └── lib/          # `agents-md-compiler.mts` (template compiler), `postgrest-client.ts` (shared DB client), `postgrest-types.ts` (typed PostgREST row interfaces — snake_case, use for all PostgREST reads/writes), `harness-helpers.mts` (extracted harness utilities: container naming, log helpers), `execution-phase.mts` (execution phase logic + `isToolAllowed()` capability enforcement), `delivery-phase.mts` (delivery phase logic extracted from harness), `output-schema.mts` (Zod schema for `StandardOutput` — includes optional `version` field)
 ├── repositories/ # Tenant-scoped data access layer (relocated from `src/gateway/services/`); `TaskRepository` (task lookups by ID/thread_ts/approval_ts), `EmployeeRuleRepository` (rule CRUD: get, countConfirmed, patchConfirm/Reject/Archive/Rephrase), `UserRepository` (user list/softDelete/restore — no create, users come from ensureUserExists)
 ├── worker-tools/ # Shell tools (TypeScript, executed via tsx in Docker at /tools/)
-└── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), email abstraction (`email/` — `SmtpEmailProvider` (nodemailer→Mailpit, local dev) and `ResendEmailProvider` (official `resend` SDK, production), selected by `RESEND_API_KEY` presence; factory: `createEmailProvider()`, singleton: `getEmailProvider()`), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
+└── lib/          # Shared: LLM client (`call-llm.ts` — $50/day cost circuit breaker, model enforcement), encryption (`encryption.ts` — AES-256-GCM for tenant secrets), model-selection engine (`model-selection/`), task terminal state sets (`task-status.ts` — `TERMINAL_STATUSES` and related constants), central config (`config.ts` — env vars as named constants for the top-3 high-churn files), shared HTTP client factory (`http-client.ts` — `createHttpClient`), email abstraction (`email/` — `SmtpEmailProvider` (nodemailer→Mailpit, local dev) and `ResendEmailProvider` (official `resend` SDK, production), selected by `RESEND_API_KEY` presence; factory: `createEmailProvider()`, singleton: `getEmailProvider()`), **output-contract single source** (`output-contract-constants.ts` — canonical paths, phase values, version constant, and `OutputClassification` re-export; World-A consumers import from here directly), **typed tool registry** (`tool-registry.ts` — exports `ToolDescriptor` interface and `ALL_TOOL_DESCRIPTORS` static aggregator; no disk reads, no regex), **skill registry** (`skill-registry.ts` — `getWorkerSkills()` reads `src/workers/skills/*/SKILL.md` frontmatter; returns `WorkerSkill[]` sorted by name), plus logging, retry utilities, and type definitions. Browse `src/lib/` for the full list.
 prisma/           # Schema, migrations, seed
 scripts/          # TypeScript scripts run via tsx (setup, trigger, verify)
 tests/
@@ -485,6 +491,12 @@ tests/
 - **`requireEnv()`/`optionalEnv()` in worker tools, never raw `process.env`** — All shell tools in `src/worker-tools/` must read environment variables via `requireEnv(name)` (throws if missing) or `optionalEnv(name)` (returns `string | undefined`). Never access `process.env.FOO` directly — missing vars fail silently and produce cryptic errors at runtime.
 - **`pnpm test` = fast unit suite; `pnpm test:integration` = DB suite** — `pnpm test` (alias: `pnpm test:unit`) runs the unit suite in `tests/unit/` — no DB required, completes in seconds. `pnpm test:integration` runs `tests/integration/` against the test DB (`ai_employee_test`). Run `pnpm test:db:setup` once before integration tests. `pnpm test:all` runs both suites sequentially.
 
+- **Output-contract single source (World-A / World-B split)** — All output-contract paths, phase values, version constant, and `OutputClassification` type are authored once in `src/lib/output-contract-constants.ts` (World-A). Worker-tools run in a tsx-isolated environment and cannot import World-A modules, so they consume a generated copy at `src/worker-tools/lib/output-contract-paths.generated.ts` (World-B). The generated file carries a `// @generated by scripts/generate-worker-constants.ts — do not edit` header. Run `pnpm generate-worker-constants` to regenerate; CI has a diff gate that fails if the committed copy is stale. Never edit the generated file directly and never duplicate these constants elsewhere.
+
+- **Typed `ToolDescriptor` + startup-cached discovery** — Every shell tool under `src/worker-tools/` exports a `descriptor: ToolDescriptor` object (type defined in `src/worker-tools/lib/types.ts`). `src/lib/tool-registry.ts` exports `ALL_TOOL_DESCRIPTORS` as a static typed array — no disk reads, no regex. `discoverTools()` in `src/gateway/services/tool-parser.ts` maps `ALL_TOOL_DESCRIPTORS` to `ToolMetadata` and caches the result at first call (startup). This eliminates the production bug where `src/worker-tools/` was not present in the gateway image. When adding a new shell tool, export a `descriptor` from the tool file and add it to `ALL_TOOL_DESCRIPTORS` in `tool-registry.ts`.
+
+- **`enforce_tool_registry` capability flag** — `archetypes.enforce_tool_registry Boolean @default(false)`. When `false` (default), all tools are available — byte-identical to pre-enforcement behavior. When `true`, `isToolAllowed(toolPath, archetype)` in `src/workers/lib/execution-phase.mts` restricts the worker to only the paths listed in `archetype.tool_registry.tools`; denied attempts are logged with `archetypeId` and `toolPath`. Do NOT enable this flag on any employee without first validating that every path in its `tool_registry` resolves to a real file with a descriptor.
+
 ### Documentation Freshness (MANDATORY)
 
 **Plan completion rule:** When a plan is fully complete (all tasks `[x]`, final wave passed, user has approved), update AGENTS.md and any other relevant documentation to capture new components, changed conventions, new admin API endpoints, and new DB models before declaring the plan done. This is the last step of every plan.
@@ -516,6 +528,13 @@ See README.md for docs directory structure and naming conventions.
 **Allowed exception — semantic constants**: Named constants that define platform behavior are NOT volatile and MUST be kept: `SYNTHESIS_THRESHOLD = 5`, `MAX_EMPLOYEE_RULES_CHARS = 8000`, `MAX_EMPLOYEE_KNOWLEDGE_CHARS = 32000`, DB ports (`5432`/`6543`), the 30-minute `Reviewing` watchdog threshold, version pins (OpenCode `1.14.31`). These are contracts — a deliberate code change would intentionally update them, not incidentally invalidate them.
 
 **One-question heuristic**: "If someone adds or removes one of these tomorrow, does this sentence become a lie? If yes → volatile, enumerate/describe instead. If the number is a configured threshold or contract that a code change would deliberately change (not incidentally invalidate) → semantic constant, keep it."
+
+### Future Work (Backlog — Not in Current Plan)
+
+The following improvements were identified during the single-source-and-scale-architecture plan but deferred:
+
+- **AGENTS.md typed-section schema** — a machine-readable schema for AGENTS.md sections so tooling can validate structure and detect drift automatically.
+- **Prompts as versioned template objects** — replace raw string fields (`execution_steps`, `delivery_steps`) with structured template objects that carry named slots, a version number, and a changelog. This would make prompt evolution auditable and enable automated regression detection.
 
 ## Environment Variables
 
