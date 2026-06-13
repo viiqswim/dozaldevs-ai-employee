@@ -258,6 +258,7 @@ export async function runExecutionPhase(
       employeeKnowledge,
       platformRulesOverride: archetype.platform_rules_override ?? undefined,
       connectedToolkits,
+      connectedServices,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written (template compiler)');

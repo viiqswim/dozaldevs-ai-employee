@@ -205,9 +205,9 @@ Updated golden test to use fallback-path construction; regenerated `refine-promp
   `TenantIntegrationIdRow {id}`.
 - Detection (all verified by tests):
   - hostfully → `tenant_secrets.key` startsWith `hostfully_`
-  - sifely    → `tenant_secrets.key` startsWith `sifely_`
-  - slack     → `tenant_secrets.key === 'slack_bot_token'` (composio_connections NEVER queried)
-  - github    → `tenant_integrations?provider=eq.github&deleted_at=is.null` rows OR `key === 'github_installation_id'`
+  - sifely → `tenant_secrets.key` startsWith `sifely_`
+  - slack → `tenant_secrets.key === 'slack_bot_token'` (composio_connections NEVER queried)
+  - github → `tenant_integrations?provider=eq.github&deleted_at=is.null` rows OR `key === 'github_installation_id'`
 - 14 unit tests in `tests/unit/workers/agents-md-compiler-custom-integrations.test.ts` mirroring
   the composio test's `vi.hoisted` + `vi.mock('postgrest-client.js')` pattern.
 
@@ -232,3 +232,93 @@ Updated golden test to use fallback-path construction; regenerated `refine-promp
 - full unit suite: 158 files, 1824 passed, 9 skipped, 0 fail (TEST_EXIT:0)
 - eslint changed files: LINT_EXIT:0
 - Evidence: .sisyphus/evidence/custom-skills/task-6-detect.txt, task-6-github.txt
+
+## [2026-06-13] Task 7 Complete — filterCustomSkills() boot-time pruning
+
+### What was done
+
+- Added `filterCustomSkills(connectedServices, skillsDir = SKILLS_DIR)` to `harness-helpers.mts`
+  directly after `filterComposioSkills`. Exported two `readonly string[]` constants:
+  `CUSTOM_SKILL_ALLOWLIST = ['hostfully','sifely','github','slack']` and
+  `CUSTOM_SKILL_ALWAYS_KEEP = ['knowledge-base','platform']`.
+- EXPLICIT ALLOWLIST (NOT prefix match): `if (!allowlist.has(slug)) continue;` — so always-keep,
+  `composio-*`, `tool-usage-reference`, `uuid-disambiguation` are never even considered. Mirrors
+  filterComposioSkills' readdirSync/rmSync/try-catch/log structure exactly; never throws.
+- Added an optional `skillsDir` param (defaults to the hardcoded `SKILLS_DIR`) — this is the ONLY
+  divergence from filterComposioSkills and it's what makes the function unit-testable without
+  touching the real `/app/.opencode/skills`.
+- Wired into BOTH execution-phase.mts and delivery-phase.mts: two lines immediately after
+  `filterComposioSkills(connectedToolkits)`, before `compileAgentsMd`:
+  `const connectedServices = task.tenant_id ? await loadCustomIntegrations(task.tenant_id) : [];`
+  `filterCustomSkills(connectedServices);`
+  Added `loadCustomIntegrations` to the existing `agents-md-compiler.mjs` import and `filterCustomSkills`
+  to the existing `harness-helpers.mjs` import in both phase files.
+
+### Key patterns / gotchas
+
+- Tests use the REAL function over a temp dir (`fs.mkdtempSync`) + `skillsDir` param — same pattern as
+  `skill-registry.test.ts`. No fs mocking needed. Cleaner and exercises real readdirSync/rmSync.
+- Only mock needed: `vi.mock('../../../src/lib/logger.js')` to silence info/warn output. All other
+  harness-helpers imports (config.ts INNGEST\_\* with safe defaults, approval-card-poster, slack-notifier)
+  are side-effect-free at module load → importing the real harness-helpers.mts in a unit test is safe.
+- LIST-SYNC INVARIANT: imports real `ALL_TOOL_DESCRIPTORS`, derives unique services, asserts each
+  (after `serviceToSkillName` normalization) is in `(allowlist ∪ always-keep)`. `composio` is the one
+  service intentionally excluded (HANDLED_ELSEWHERE set) — pruned by filterComposioSkills prefix match.
+  Verified the tripwire FAILS for a hypothetical new 'jira' service (unaccounted=['jira']).
+- 7 unique services in registry: slack, platform, github, knowledge_base, composio, hostfully, sifely.
+  All except composio map cleanly into the union.
+
+### Verification
+
+- pnpm build: BUILD_EXIT:0
+- targeted: filter-custom-skills.test.ts → 9 tests pass
+- full unit suite: 159 files, 1833 passed, 9 skipped, 0 failures (one more file than Task 6 = my new test)
+- eslint changed files: LINT_EXIT:0
+- Tripwire proof: simulated new service 'jira' → unaccounted=['jira'], would FAIL (correct)
+- Evidence: .sisyphus/evidence/custom-skills/task-7-{filter,zero,invariant}.txt
+
+## [2026-06-13] Task 8 Complete — Custom Integrations section in compiled AGENTS.md
+
+### What was done
+
+- Added `buildCustomIntegrationsSection(services: string[]): string | null` to
+  `agents-md-compiler.mts` directly before `CRITICAL_DIRECTIVE`. Exact mirror of
+  `buildConnectedAppsSection`: filters blanks, returns null when empty so the
+  caller skips injection. Renders `## Custom Integrations` + intro line + one
+  bullet per service: `- **<DisplayName>** — load the \`<skill>\` skill for exact CLI usage.`
+- Added `CUSTOM_INTEGRATION_DISPLAY_NAMES` map (hostfully→Hostfully, sifely→Sifely,
+  github→GitHub, slack→Slack) + `customIntegrationDisplayName()` fallback (capitalize).
+  Skill name via the SHARED `serviceToSkillName()` from `src/lib/custom-skills/skill-generator.ts`
+  (NOT re-implemented) — so `knowledge_base`→`knowledge-base` mapping stays single-sourced.
+- Added `connectedServices?: string[]` to `CompileAgentsMdInput`. Injected in
+  `compileAgentsMd` immediately AFTER the Composio block, BEFORE Behavioral Rules.
+- Wired `connectedServices` into BOTH phase files' `compileAgentsMd({...})` calls.
+  Both already computed `const connectedServices = ... await loadCustomIntegrations(...)`
+  in Task 7 (for filterCustomSkills) — so the value was already in scope; just added
+  one line to each compile call. Zero new imports needed in the phase files.
+
+### Key patterns / gotchas
+
+- The "split PRE/POST and inject between" pattern from Task 1 didn't apply here —
+  `compileAgentsMd` uses a `parts: string[]` array with `.push()` + `.join('\n\n')`,
+  so injection = a conditional `parts.push(section)` between Composio and Rules.
+- GOLDEN TEST NEEDED NO REGENERATION. `FIXED_COMPILE_INPUT` in golden-prompts.test.ts
+  omits `connectedServices` (just as it omits `connectedToolkits`) → the new section
+  is correctly absent on the bare path → byte-identical baseline. Confirmed by running
+  `GENERATE_GOLDEN=true` → `git status --short tests/fixtures/golden/` empty. This is the
+  CORRECT backward-compat outcome, matching the Composio precedent — NOT a missed update.
+- A `.mjs` ESM path can't be loaded via `tsx -e "import ... .mjs"` inline eval
+  (MODULE_NOT_FOUND on `.mjs` resolution) — don't bother with inline render proofs;
+  the unit-test `toContain` assertions already prove the exact rendered strings.
+- Extended the existing `agents-md-compiler-custom-integrations.test.ts` with a second
+  describe block (7 tests) rather than a new file — keeps loadCustomIntegrations +
+  section-render coverage co-located. 14 existing + 7 new = 21 in that file.
+
+### Verification
+
+- pnpm build: BUILD_EXIT:0
+- targeted (custom-integrations + golden): 24 passed
+- full unit suite: 159 files, 1840 passed, 9 skipped, 0 fail (TEST_EXIT:0)
+- eslint changed files: LINT_EXIT:0
+- golden regen: zero diff (backward-compatible)
+- Evidence: .sisyphus/evidence/custom-skills/task-8-section.txt

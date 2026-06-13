@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { serviceToSkillName } from '../../lib/custom-skills/skill-generator.js';
 import { query } from './postgrest-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +25,14 @@ export interface CompileAgentsMdInput {
    * Load these via loadConnectedToolkits(tenantId) before calling.
    */
   connectedToolkits?: string[];
+  /**
+   * Connected custom-code integration service names for this tenant
+   * (e.g. ['hostfully', 'sifely']). When non-empty, a "Custom Integrations"
+   * section is injected listing each connected integration and pointing the
+   * employee at the matching per-service skill. Load these via
+   * loadCustomIntegrations(tenantId) before calling.
+   */
+  connectedServices?: string[];
 }
 
 interface ComposioConnectionRow {
@@ -143,6 +152,47 @@ function buildConnectedAppsSection(toolkits: string[]): string | null {
   ].join('\n');
 }
 
+/**
+ * Human-readable display names for custom-integration service slugs. Falls back
+ * to a capitalized slug for any service not listed here.
+ */
+const CUSTOM_INTEGRATION_DISPLAY_NAMES: Record<string, string> = {
+  hostfully: 'Hostfully',
+  sifely: 'Sifely',
+  github: 'GitHub',
+  slack: 'Slack',
+};
+
+function customIntegrationDisplayName(service: string): string {
+  return (
+    CUSTOM_INTEGRATION_DISPLAY_NAMES[service] ?? service.charAt(0).toUpperCase() + service.slice(1)
+  );
+}
+
+/**
+ * Builds the "Custom Integrations" section listing the tenant's connected
+ * custom-code integrations (Hostfully, Sifely, GitHub, Slack) and pointing the
+ * employee at the matching per-service skill for exact CLI usage. Mirrors
+ * buildConnectedAppsSection: returns null when there are no connected services
+ * so the caller can skip injection.
+ */
+function buildCustomIntegrationsSection(services: string[]): string | null {
+  const clean = services.filter((s) => typeof s === 'string' && s.trim().length > 0);
+  if (clean.length === 0) return null;
+  const lines: string[] = [
+    '## Custom Integrations',
+    '',
+    'You have access to these integrations:',
+    '',
+  ];
+  for (const service of clean) {
+    const skillName = serviceToSkillName(service);
+    const displayName = customIntegrationDisplayName(service);
+    lines.push(`- **${displayName}** — load the \`${skillName}\` skill for exact CLI usage.`);
+  }
+  return lines.join('\n');
+}
+
 const CRITICAL_DIRECTIVE =
   '**CRITICAL: You MUST use the bash tool to execute every command in your instructions. Do NOT describe what you would do — EXECUTE it. A text-only response is a failure.**';
 
@@ -214,6 +264,17 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
     const connectedAppsSection = buildConnectedAppsSection(input.connectedToolkits);
     if (connectedAppsSection) {
       parts.push(connectedAppsSection);
+    }
+  }
+
+  // Custom Integrations — hand-written shell-tool integrations (Hostfully,
+  // Sifely, GitHub, Slack). Injected alongside the Composio section; lists each
+  // connected integration and points at its per-service skill. Absent when the
+  // tenant has no connected custom integrations.
+  if (input.connectedServices && input.connectedServices.length > 0) {
+    const customIntegrationsSection = buildCustomIntegrationsSection(input.connectedServices);
+    if (customIntegrationsSection) {
+      parts.push(customIntegrationsSection);
     }
   }
 

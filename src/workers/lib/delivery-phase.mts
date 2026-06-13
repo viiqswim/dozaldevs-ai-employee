@@ -125,6 +125,7 @@ export async function runDeliveryPhase(
       employeeKnowledge: '',
       platformRulesOverride: archetype.platform_rules_override ?? undefined,
       connectedToolkits,
+      connectedServices,
     });
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');

@@ -5,9 +5,18 @@ vi.mock('../../../src/workers/lib/postgrest-client.js', () => ({
   query: queryMock,
 }));
 
-import { loadCustomIntegrations } from '../../../src/workers/lib/agents-md-compiler.mjs';
+import {
+  compileAgentsMd,
+  loadCustomIntegrations,
+} from '../../../src/workers/lib/agents-md-compiler.mjs';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000003';
+
+const BASE_INPUT = {
+  identity: 'You are a test employee.',
+  executionSteps: '1. Do the thing.\n2. Submit output.',
+  deliverySteps: '1. Post to Slack.\n2. Confirm.',
+};
 
 function mockTables(opts: { secrets?: unknown; github?: unknown }): void {
   queryMock.mockImplementation((table: string) => {
@@ -181,5 +190,76 @@ describe('agents-md-compiler — loadCustomIntegrations', () => {
     const result = await loadCustomIntegrations(TENANT_ID);
 
     expect(result).toEqual(['sifely']);
+  });
+});
+
+describe('agents-md-compiler — Custom Integrations injection', () => {
+  it('includes the section listing both services with skill pointers', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      connectedServices: ['hostfully', 'sifely'],
+    });
+
+    expect(result).toContain('## Custom Integrations');
+    expect(result).toContain('**Hostfully** — load the `hostfully` skill for exact CLI usage.');
+    expect(result).toContain('**Sifely** — load the `sifely` skill for exact CLI usage.');
+  });
+
+  it('uses human-readable display names and kebab-case skill names', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      connectedServices: ['github', 'slack'],
+    });
+
+    expect(result).toContain('**GitHub** — load the `github` skill for exact CLI usage.');
+    expect(result).toContain('**Slack** — load the `slack` skill for exact CLI usage.');
+  });
+
+  it('omits the section when connectedServices is undefined (backward compatible)', () => {
+    const result = compileAgentsMd({ ...BASE_INPUT });
+
+    expect(result).not.toContain('## Custom Integrations');
+  });
+
+  it('omits the section when connectedServices is an empty array', () => {
+    const result = compileAgentsMd({ ...BASE_INPUT, connectedServices: [] });
+
+    expect(result).not.toContain('## Custom Integrations');
+  });
+
+  it('omits the section when connectedServices contains only blank entries', () => {
+    const result = compileAgentsMd({ ...BASE_INPUT, connectedServices: ['', '   '] });
+
+    expect(result).not.toContain('## Custom Integrations');
+  });
+
+  it('does NOT inline the full action catalog — only a skill pointer', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      connectedServices: ['hostfully'],
+    });
+
+    expect(result).toContain('load the `hostfully` skill');
+    expect(result).not.toContain('tsx /tools/hostfully/');
+  });
+
+  it('places the section after the Composio section and before Behavioral Rules', () => {
+    const result = compileAgentsMd({
+      ...BASE_INPUT,
+      connectedToolkits: ['notion'],
+      connectedServices: ['hostfully'],
+      employeeRules: 'Always be polite.',
+      employeeKnowledge: 'Knowledge entry.',
+    });
+
+    const composioPos = result.indexOf('## Connected Apps (via Composio)');
+    const customPos = result.indexOf('## Custom Integrations');
+    const rulesPos = result.indexOf('## Behavioral Rules (Learned)');
+    const knowledgePos = result.indexOf('## Knowledge Base');
+
+    expect(composioPos).toBeGreaterThanOrEqual(0);
+    expect(customPos).toBeGreaterThan(composioPos);
+    expect(rulesPos).toBeGreaterThan(customPos);
+    expect(knowledgePos).toBeGreaterThan(customPos);
   });
 });
