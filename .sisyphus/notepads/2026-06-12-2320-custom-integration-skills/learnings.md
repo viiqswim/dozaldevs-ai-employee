@@ -322,3 +322,67 @@ Updated golden test to use fallback-path construction; regenerated `refine-promp
 - eslint changed files: LINT_EXIT:0
 - golden regen: zero diff (backward-compatible)
 - Evidence: .sisyphus/evidence/custom-skills/task-8-section.txt
+
+## [2026-06-13] Task 9 Complete — CI freshness gate for 6 custom skill folders
+
+### What was done
+
+- Added `Check custom-skills freshness` step to `.github/workflows/deploy.yml`, inserted in the
+  `test` job immediately AFTER `Check tool-usage-skill freshness` and BEFORE `Run unit tests`.
+- Mirrors the existing tool-usage step EXACTLY (no comment, same `run: |` + `git diff --exit-code`
+  + `::error::` + `exit 1` structure). Runs `pnpm generate-skills` then diffs the 6 folders:
+  hostfully sifely github slack knowledge-base platform.
+
+### Key patterns / gotchas
+
+- No secrets needed: `generate-skills` Step 3 (Composio) no-ops without `COMPOSIO_API_KEY`. The
+  6-folder diff scope EXCLUDES `composio-*`, `tool-usage-reference`, `uuid-disambiguation` — so even
+  when Composio DOES run locally (key in .env), the scoped diff stays exit 0. CI without the key is
+  identical for the 6 descriptor-driven folders (deterministic).
+- The deploy.yml comment-hook fired on my first edit (I added a 5-line explanatory comment). Priority-4
+  removal: the spec's mirror-target step has NO comment, so the comment was unnecessary noise. Removed
+  it → step now byte-matches the existing pattern.
+- Stale-detection sim (faithful): inject drift into a committed action file → `git add` it (index now
+  holds stale content) → run the exact CI run-block. `generate-skills` rewrites the working tree to
+  canonical → `git diff --exit-code` vs the stale index fires exit 1 + ::error::. Restore: `git reset`
+  + `git checkout --`. Confirmed PASS (CI_STEP_EXIT:1) and clean restore (zero residue).
+- YAML validation: no `yaml`/`js-yaml` at top-level node_modules root for `require()`; use
+  `npx tsx -e "import { parse } from 'yaml'"` (tsx resolves the pnpm symlink tree). Parsed clean,
+  step lands at test-job index 4 (after tool-usage @3, before unit tests @5).
+
+### Verification
+
+- pnpm build: BUILD_EXIT:0 (no TS changes, confirmed)
+- Freshness on current HEAD: generate-skills exit 0, 6-folder diff exit 0 (FRESH)
+- YAML parse: valid, step ordering correct
+- Stale sim: CI_STEP_EXIT:1 (gate correctly fails), restored clean
+- git status: only deploy.yml modified (intended)
+- Evidence: .sisyphus/evidence/custom-skills/task-9-stale.txt
+
+## [2026-06-13] Task 10 Complete — Live E2E verification
+
+### What was proven (all via real Docker, not "code looks right")
+1. **Image proof**: `docker run --rm ai-employee-worker:latest ls /app/.opencode/skills/` →
+   all 6 custom (github,hostfully,knowledge-base,platform,sifely,slack) + tool-usage-reference +
+   uuid-disambiguation + 36 composio-* present. Image rebuilt fresh (new sha256).
+2. **Connected-tenant (VLRE)**: live `docker exec` during Executing → sifely/slack/github present,
+   hostfully FILTERED, knowledge-base/platform present, tool-usage-reference/uuid-disambiguation
+   untouched. Matches VLRE's REAL secrets exactly. Compiled AGENTS.md `## Custom Integrations`
+   section lists Slack/GitHub/Sifely (not Hostfully). VLRE task reached Done (full status_log captured).
+3. **Zero-secret (snobahn)**: harness log (3 runs) → connectedServices=[], removed all 4 allowlist.
+   Single-secret variant (added slack_bot_token) → connectedServices=[slack], kept=[slack],
+   removed=[github,hostfully,sifely]; live container dir confirmed slack+knowledge-base+platform+
+   tool-usage-reference+uuid-disambiguation. Proves filter is dynamic & per-secret precise.
+4. **Endpoints**: GET /admin/tools → 200, 30 tools, all 30 with descriptions. brain-preview →
+   200 (route is /admin/tenants/:t/archetypes/:a/brain-preview — PATH PARAM, not ?archetypeId=).
+
+### Key gotchas for live container inspection
+- `filterCustomSkills` runs at BOOT before OpenCode → for fast-exiting containers (minimax/
+  unauthed models) you can't `docker exec` in time; use the HARNESS LOG line
+  `"Custom-integration skill folders filtered"` (component=harness-helpers) which always prints
+  connectedServices/kept/removed. This is the canonical proof, container-exit-independent.
+- `docker inspect <cid> --format '{{range .Config.Env}}...'` reads the INJECTED env even after
+  the container exits (Config.Env is static) — best way to verify which platform keys flowed.
+- Local Docker harness log path: /tmp/employee-{taskId.slice(0,8)}.log (persists after exit).
+- OPENCODE_GO_API_KEY present in gateway process.env does NOT guarantee it reaches the worker —
+  the env-assembly path can drop it (see issues.md loadTenantSlack bug).
