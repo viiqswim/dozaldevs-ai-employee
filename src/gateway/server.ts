@@ -20,6 +20,7 @@ import { adminTenantSecretsRoutes } from './routes/admin-tenant-secrets.js';
 import { adminTenantConfigRoutes } from './routes/admin-tenant-config.js';
 import { adminArchetypesRoutes } from './routes/admin-archetypes.js';
 import { adminArchetypeGenerateRoutes } from './routes/admin-archetype-generate.js';
+import { adminArchetypeProposeEditRoutes } from './routes/admin-archetype-propose-edit.js';
 import { adminSlackChannelsRoutes } from './routes/admin-slack-channels.js';
 import { callLLM } from '../lib/call-llm.js';
 import { adminBrainPreviewRoutes } from './routes/admin-brain-preview.js';
@@ -240,6 +241,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
   app.use(adminTenantSecretsRoutes({ prisma }));
   app.use(adminTenantConfigRoutes({ prisma }));
   app.use(adminArchetypeGenerateRoutes({ callLLM, prisma }));
+  app.use(adminArchetypeProposeEditRoutes({ callLLM, prisma }));
   app.use(adminArchetypesRoutes({ prisma }));
   app.use(adminSlackChannelsRoutes({ prisma }));
   app.use(adminBrainPreviewRoutes({ prisma }));
