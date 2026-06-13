@@ -210,3 +210,25 @@ All World-B consumers now import from `src/worker-tools/lib/output-contract-path
 - `pnpm exec vitest run tests/unit/env-enforcement.test.ts` → 3/3 GREEN
 - related: tool-descriptors.test.ts (11) + tenant-env-loader.test.ts (21) → all pass
 - `pnpm build` → exit 0 · eslint clean · prettier clean
+
+## [2026-06-13] T11 Complete — tool-usage-reference SKILL.md generated from descriptors
+
+### What was done
+- Created `scripts/generate-tool-usage-skill.ts` (mirrors `generate-worker-constants.ts`/`generate-composio-skills.ts`): imports `ALL_TOOL_DESCRIPTORS` from `src/lib/tool-registry.js`, generates per-tool CLI reference, writes ABOVE a sentinel. Uses `writeIfChanged` + `normaliseLf` for idempotency.
+- Inserted sentinel `<!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->` into SKILL.md. Generator BOOTSTRAPS the sentinel on first run by locating `## ⚠️ CRITICAL WARNINGS` heading and prepending it — no manual edit of SKILL.md needed.
+- Generated section: frontmatter (preserved verbatim via regex extract) + `# Tool Usage Reference` intro + auto-gen HTML comment + per-tool `## {service}/{id}` sections sorted by service then id.
+- Hand-written section (sentinel → EOF) preserved byte-for-byte: ALL the rich curated per-service docs that were originally below CRITICAL WARNINGS are kept — only the generator REPLACES the top portion.
+- Added `package.json` script + CI gate "Check tool-usage-skill freshness" in deploy.yml (after worker-constants step).
+- Created `tests/unit/tool-usage-skill-sentinel.test.ts` (3 tests): sentinel exactly once, warnings preserved below, generated sections above.
+
+### Key facts / gotchas
+- **Prettier on generated skill markdown is intentionally unclean** — DO NOT run `prettier --write` on SKILL.md. Precedent: `composio-*/SKILL.md` are also prettier-unclean. The original committed SKILL.md was ALSO prettier-unclean. CI runs `pnpm lint` (eslint) NOT prettier; lint-staged only covers `*.{ts,tsx}`. Prettier wants to escape `2 + 2 * 3` → `2 + 2 \* 3` (from the `calculate` descriptor example) which would BREAK idempotency (generator re-emits unescaped → next run diffs). Generated skill md is correctly outside prettier enforcement.
+- **First-run bootstrap pattern**: `extractHandWritten()` checks for sentinel first; if absent, finds the bootstrap heading and prepends `${SENTINEL}\n\n`. Throws if neither found (refuses to overwrite). This makes the generator self-installing — running it once does Step 2 (insert sentinel) AND Step 3 (generate body) atomically.
+- Idempotency proof requires staging first: `git add SKILL.md && pnpm generate && git diff --exit-code` → exit 0. A bare `git diff` against the un-generated HEAD will show the full insertion (expected).
+- LSP (`typescript-language-server`) unavailable in this env (asdf "No version is set") — verified via `pnpm build` (tsc) + eslint instead.
+
+### Verification
+- `pnpm generate-tool-usage-skill && git diff --exit-code` (after staging) → exit 0 (idempotent)
+- `pnpm exec vitest run tool-usage-skill-sentinel` → 3/3 GREEN
+- `pnpm build` → exit 0 · eslint (script+test) → 0 · prettier (script+test) → clean
+- golden-prompts + skill-registry + tool-descriptors → 23/23 GREEN (no regressions)

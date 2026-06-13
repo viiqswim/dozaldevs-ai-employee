@@ -526,7 +526,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `test(env): typed whitelist/descriptor parity` — Files: `tests/unit/env-enforcement.test.ts`, `.env.example`, `.env` (if vars added) — Pre-commit: `pnpm test:unit -- env-enforcement`
 
-- [ ] 10. Generator prompt interpolation (Cluster E + A)
+- [x] 10. Generator prompt interpolation (Cluster E + A)
 
   **What to do**:
   - **Cluster E**: remove the inline duplicate of `CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE` in `archetype-generator-prompts.ts`; import the constant from `archetype-generator.ts`.
@@ -564,7 +564,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(generator): interpolate shared constants (cluster E+A)` — Files: `src/gateway/services/prompts/archetype-generator-prompts.ts` — Pre-commit: `pnpm test:unit -- golden-prompts`
 
-- [ ] 11. Generate `tool-usage-reference/SKILL.md` from descriptors
+- [x] 11. Generate `tool-usage-reference/SKILL.md` from descriptors
 
   > Now sourced from T2 descriptors (not regex), preserving hand-written warnings.
 
