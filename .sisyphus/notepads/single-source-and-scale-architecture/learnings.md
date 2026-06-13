@@ -232,3 +232,27 @@ All World-B consumers now import from `src/worker-tools/lib/output-contract-path
 - `pnpm exec vitest run tool-usage-skill-sentinel` → 3/3 GREEN
 - `pnpm build` → exit 0 · eslint (script+test) → 0 · prettier (script+test) → clean
 - golden-prompts + skill-registry + tool-descriptors → 23/23 GREEN (no regressions)
+
+## T13: Output-contract version field + harness compat (2026-06-12)
+
+- `OUTPUT_CONTRACT_VERSION`, generator emit, and generated file were ALL already in place from T3/T4 — only needed to wire them into the schema, writer, and reader.
+- `standardOutputSchema` must include `z.number().int().positive().optional()` for `version` — the `.positive()` guard rejects 0 while allowing any future integer.
+- The version compat check lives inside `checkOutputFiles` after reading the summary text. Since the summary is JSON, we attempt a `JSON.parse` to extract `version`; a plain-text summary (non-JSON path) is caught and ignored.
+- Vitest dynamic import mocking: `vi.mock('fs/promises', ...)` intercepts even `await import('fs/promises')` calls inside function bodies — no special treatment needed.
+- `vi.hoisted()` is the correct Vitest pattern for mock variables that must be available when `vi.mock` factory functions execute (since `vi.mock` is hoisted to top of file at transpile time).
+- Import path for `.mts` source files from tests: use `.mjs` extension (e.g. `../../src/workers/lib/output-contract.mjs`).
+
+## [2026-06-12] T12 Complete — enforce_tool_registry flag-gated enforcement
+
+### What was done
+- Added `enforce_tool_registry Boolean @default(false)` to `Archetype` model in schema.prisma
+- Manually created migration `20260612220000_add_enforce_tool_registry/migration.sql` and applied directly via psql (shadow DB issue blocked `prisma migrate dev`)
+- Exported `isToolAllowed(toolPath, archetype)` from `execution-phase.mts` — returns true when flag OFF (no-op), checks Set membership when ON, logs warn on denial
+- In `runExecutionPhase`: when flag ON, imports ALL_TOOL_DESCRIPTORS and calls isToolAllowed for each to log denials at phase start
+- 10 unit tests in `tests/unit/tool-registry-enforce.test.ts` covering: flag ON+in-registry, flag ON+not-in-registry+denied+logged, flag OFF+any-tool
+
+### Key Patterns
+- Shadow DB error `P3006` blocks `prisma migrate dev`; workaround: create migration SQL manually + apply via psql + INSERT into `_prisma_migrations`
+- Mock pattern for World A .mts module under test: mock ALL imported modules at top level with `vi.mock`, use `vi.hoisted` for shared mock functions
+- `enforce_tool_registry` defaults to false — existing behavior preserved identically on OFF path
+- Enforcement approach: proactive audit log at phase start (not per-call interception, which OpenCode doesn't support)

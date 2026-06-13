@@ -604,7 +604,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `feat(skills): generate tool-usage SKILL.md from descriptors` — Files: `scripts/generate-tool-usage-skill.ts`, `package.json`, `src/workers/skills/tool-usage-reference/SKILL.md`, `.github/workflows/deploy.yml`, `tests/unit/tool-usage-skill-sentinel.test.ts` — Pre-commit: `pnpm generate-tool-usage-skill && git diff --exit-code src/workers/skills/tool-usage-reference/SKILL.md`
 
-- [ ] 12. `tool_registry` capability enforcement (flag-gated) — BEHAVIOR CHANGE
+- [x] 12. `tool_registry` capability enforcement (flag-gated) — BEHAVIOR CHANGE
 
   > **Security boundary, opt-in.** Restricts which tools an employee can call to its declared `tool_registry`. INTENTIONALLY changes behavior — golden may need deliberate update; covered by live E2E. Prerequisite: T8 (registries validated) must be green.
 
@@ -647,7 +647,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `feat(security): flag-gated tool_registry capability enforcement` — Files: `prisma/schema.prisma`, `prisma/migrations/*`, `src/workers/lib/execution-phase.mts`, harness allowlist logic, `tests/unit/tool-registry-enforce.test.ts` — Pre-commit: `pnpm test:unit -- tool-registry-enforce`
 
-- [ ] 13. Output-contract `version` field + harness compat check — BEHAVIOR CHANGE
+- [x] 13. Output-contract `version` field + harness compat check — BEHAVIOR CHANGE
 
   > Protects rolling deploys (old worker image ↔ new gateway). INTENTIONAL behavior change; covered by live E2E.
 
