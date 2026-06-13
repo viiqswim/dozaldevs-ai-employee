@@ -10,6 +10,29 @@ import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 
+const PROPOSAL_ERROR_FALLBACK =
+  "I couldn't turn that into a change just now — the request may have been too complex to process. Try rephrasing it a bit, or breaking it into smaller changes.";
+
+function getProposalErrorMessage(err: unknown): string {
+  if (!(err instanceof Error)) return PROPOSAL_ERROR_FALLBACK;
+
+  // gatewayFetch error format: "Gateway error <status> on <path>: <body>"
+  const bodyMatch = /Gateway error \d+ on [^:]+: (.*)$/s.exec(err.message);
+  if (bodyMatch) {
+    try {
+      const parsed = JSON.parse(bodyMatch[1]) as Record<string, unknown>;
+      if (parsed.reasons && typeof parsed.reasons === 'object' && !Array.isArray(parsed.reasons)) {
+        const reasons = Object.entries(parsed.reasons as Record<string, string>)
+          .map(([field, reason]) => `• ${field}: ${reason}`)
+          .join('\n');
+        if (reasons) return `I wasn't able to make that change:\n${reasons}`;
+      }
+    } catch {}
+  }
+
+  return PROPOSAL_ERROR_FALLBACK;
+}
+
 interface AssistantTabProps {
   archetype: Archetype;
   tenantId: string;
@@ -80,14 +103,13 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         setPendingProposalId(assistantMsgId);
       }
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
           kind: 'text',
-          text: `I wasn't able to make that change: ${errMsg}`,
+          text: getProposalErrorMessage(err),
         },
       ]);
     } finally {
@@ -131,14 +153,13 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         setPendingProposalId(assistantMsgId);
       }
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
           kind: 'text',
-          text: `I wasn't able to make that change: ${errMsg}`,
+          text: getProposalErrorMessage(err),
         },
       ]);
     } finally {
