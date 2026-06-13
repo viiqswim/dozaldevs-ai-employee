@@ -303,6 +303,7 @@ export class ArchetypeGenerator {
       taskType: 'triage' | 'execution' | 'review';
       temperature: number;
       maxTokens: number;
+      responseFormat?: { type: 'json_object' };
     },
   ): Promise<string> {
     const result = await this.callLLMFn({ ...options, messages });
@@ -486,7 +487,12 @@ export class ArchetypeGenerator {
       composioContext?.connectableToolkits ?? [],
     );
 
-    const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
+    const llmOptions = {
+      taskType: 'review' as const,
+      temperature: 0.3,
+      maxTokens: 16000,
+      responseFormat: { type: 'json_object' as const },
+    };
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
       { role: 'system', content: systemPrompt },
       {

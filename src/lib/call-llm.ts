@@ -25,6 +25,7 @@ export interface CallLLMOptions {
   temperature?: number; // default: 0
   maxTokens?: number;
   timeoutMs?: number; // default: 120_000
+  responseFormat?: { type: 'json_object' }; // Optional — passed as response_format when set; not all providers honour it
 }
 
 export interface CallLLMResult {
@@ -253,6 +254,7 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
     messages,
     temperature: temperature ?? 0,
     ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
+    ...(options.responseFormat !== undefined ? { response_format: options.responseFormat } : {}),
   };
 
   const fetchOptions: RequestInit = {
@@ -294,6 +296,15 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   const data = (await response.json()) as OpenRouterResponse;
 
   const content = data.choices[0]?.message.content ?? '';
+
+  if (content === '' && data.choices[0] !== undefined) {
+    createLogger('call-llm').warn(
+      { component: 'call-llm', model: effectiveModel, promptTokens: data.usage?.prompt_tokens },
+      'LLM returned empty content — possible reasoning-only response; triggering retry',
+    );
+    throw new Error('LLM returned empty content — possible reasoning-only response');
+  }
+
   const actualModel = data.model;
   const promptTokens = data.usage.prompt_tokens;
   const completionTokens = data.usage.completion_tokens;
