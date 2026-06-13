@@ -60,6 +60,7 @@ const PatchArchetypeBodySchema = z
     input_schema: InputSchemaSchema.optional(),
     worker_env: z.record(z.string(), z.string()).nullish(),
     estimated_manual_minutes_override: z.number().int().min(1).max(1440).nullable().optional(),
+    identity: z.string().max(10000).nullable().optional(),
     execution_steps: z.string().nullable().optional(),
     delivery_steps: z.string().nullable().optional(),
     temperature: z.number().min(0).max(2).optional(),
