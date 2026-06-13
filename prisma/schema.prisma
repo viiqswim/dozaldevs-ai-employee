@@ -212,9 +212,10 @@ model Archetype {
   knowledgeBases KnowledgeBase[]
   riskModels     RiskModel[]
   agentVersions  AgentVersion[]  @relation("ArchetypeVersions")
-  feedbackEvents FeedbackEvent[]
-  employeeRules  EmployeeRule[]
-  taskMetrics    TaskMetric[]
+  feedbackEvents      FeedbackEvent[]
+  employeeRules       EmployeeRule[]
+  taskMetrics         TaskMetric[]
+  archetypeEditHistory ArchetypeEditHistory[]
 
   @@map("archetypes")
 }
@@ -638,4 +639,25 @@ model TaskComposioCall {
   @@index([task_id])
   @@index([tenant_id])
   @@map("task_composio_calls")
+}
+
+model ArchetypeEditHistory {
+  id             String    @id @default(uuid()) @db.Uuid
+  archetype_id   String    @db.Uuid
+  tenant_id      String    @db.Uuid
+  request_text   String    @db.Text
+  before_json    Json
+  after_json     Json
+  changed_fields Json
+  kind           String // Values: 'edit' | 'revert'
+  actor_user_id  String?   @db.Uuid
+  created_at     DateTime  @default(now())
+  deleted_at     DateTime?
+
+  // Relations
+  archetype Archetype @relation(fields: [archetype_id], references: [id], onDelete: Restrict)
+
+  @@index([archetype_id, created_at])
+  @@index([tenant_id])
+  @@map("archetype_edit_history")
 }
