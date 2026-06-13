@@ -106,6 +106,7 @@ Projects can be registered at runtime via the admin REST API. All endpoints requ
 | `GET`    | `/admin/tenants/:tenantId/composio/usage`                                         | List Composio tool call audit log grouped by toolkit and date                                                |
 | `GET`    | `/admin/tenants/:tenantId/composio/toolkits`                                      | Browse the Composio app catalog (cursor-paginated; includes `connectable` and `connected` flags per toolkit) |
 | `POST`   | `/admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit`                   | Preview a plain-English change request as a diff proposal (does not persist)                                 |
+| `POST`   | `/admin/tenants/:tenantId/archetypes/:archetypeId/interpret-request`              | Return a plain-English restatement of a change request (does not persist or modify anything)                 |
 | `POST`   | `/admin/tenants/:tenantId/archetypes/:archetypeId/edit-history`                   | Record an approved archetype change in the edit history                                                      |
 | `GET`    | `/admin/tenants/:tenantId/archetypes/:archetypeId/edit-history`                   | List the edit history for an archetype (ordered newest first)                                                |
 | `POST`   | `/admin/tenants/:tenantId/archetypes/:archetypeId/edit-history/:historyId/revert` | Revert an archetype to a prior state (appends a new history row)                                             |
