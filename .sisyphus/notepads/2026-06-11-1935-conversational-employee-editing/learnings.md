@@ -127,3 +127,64 @@ Listener registered only when `active=true`; cleanup runs on `active→false` or
 **Error handling**: 422 `PROPOSAL_INVALID` with `errors: [{ field, reason }]` array for all validation failures collected before returning. Generator errors with `GENERATION_FAILED` message → 422. Other errors → 500.
 
 **Unit test mocking pattern**: mock `ArchetypeGenerator` at module level with `vi.fn()`, control `mockRefine` per-test. `ComposioConnectionRepository` mocked to return `[]` by default (no connected toolkits). Auth middleware bypassed entirely.
+
+## [2026-06-13] T6 — Edit-History Record + List Endpoints
+
+### Pattern: new tenant-scoped admin route
+- File: `src/gateway/routes/admin-archetype-edit-history.ts` — factory `adminArchetypeEditHistoryRoutes({ prisma })`.
+- Registered in `src/gateway/server.ts`: import after `admin-archetype-propose-edit`, `app.use(...)` after `adminArchetypesRoutes`.
+- Guard chain copied verbatim from `admin-archetypes.ts`: `authMiddleware, requireAuth, requireTenantRole(TenantRole.ADMIN)`.
+- Param schema: `TenantIdParamSchema.extend({ archetypeId: uuidField() })` — reuse `uuidField()` (NOT `z.string().uuid()`).
+
+### actor_user_id resolution (the crux)
+- `const actorUserId = req.auth?.id ?? null;`
+- SERVICE_TOKEN callers: `authMiddleware` sets `req.isServiceToken = true` and leaves `req.auth` undefined → null actor. Verified by unit test.
+- JWT callers: `req.auth.id` is the app `users.id` (not supabaseId).
+
+### Prisma model access after T2 schema add
+- Model `ArchetypeEditHistory` → client accessor `prisma.archetypeEditHistory` (camelCase).
+- **GOTCHA**: After a schema change in a sibling task, the editor/LSP TypeScript cache is stale and reports `Property 'archetypeEditHistory' does not exist on PrismaClient`. Fix: `pnpm prisma generate`. The OpenCode LSP diagnostic stays stale even after generate, but `pnpm build` (tsc) is authoritative and passes — trust the build, not the inline LSP hint.
+- JSONB columns (`before_json`, `after_json`, `changed_fields`) take `as Prisma.InputJsonValue`. Body Zod types: objects → `z.record(z.string(), z.unknown())`, changed_fields → `z.array(z.string())`.
+
+### Query limit pattern
+- `?limit=N` via `z.coerce.number().int().min(1).max(50).optional()` (Express delivers query as strings → `coerce`). Default 50, hard cap 50, `take: limit`.
+
+### Test mocking — configurable auth state
+- To test both SERVICE_TOKEN and JWT in one file: hoist a mutable `let authState` and have the mocked `authMiddleware` do `Object.assign(req, authState)`. Reset in `beforeEach`. Mock `prisma` as `{ archetype: { findFirst }, archetypeEditHistory: { create, findMany } }`.
+- Result: 11/11 tests pass; full unit suite 1870 passed | 9 skipped; lint + build clean.
+
+## [2026-06-13] T7 — Edit-History Revert Endpoint
+
+### Route: POST /admin/tenants/:tenantId/archetypes/:archetypeId/edit-history/:historyId/revert
+- Added to existing T6 file `admin-archetype-edit-history.ts` (factory already registered in server.ts — no server.ts change needed).
+- Param schema: `EditHistoryParamSchema.extend({ historyId: uuidField() })` → `RevertParamSchema`.
+
+### Revert semantics (the crux)
+- `before_json` of the NEW revert row = snapshot of CURRENT archetype (state BEFORE the revert).
+- `after_json` of the NEW revert row = the restored values (extracted from target row's `before_json`).
+- `changed_fields` = allowlisted keys where `!deepEqual(currentSnapshot[k], restored[k])` (JSON.stringify compare, same as propose-edit).
+- Target history row is NEVER touched (append-only) — verified by asserting `update`/`delete` mocks not called.
+- `request_text = "Revert to change from <target.created_at ISO>"`.
+
+### Allowlist extraction helpers (two pure functions)
+- `extractAllowlistedFields(source)` — picks identity, execution_steps, delivery_steps, overview,
+  risk_model→{approval_required}, tool_registry→{tools}, trigger_sources, input_schema. Used for BOTH
+  current-snapshot and target-restore so the diff compares like-for-like.
+- `buildRevertUpdateData(restored, currentRiskModel)` — maps to prisma update data with JSON-null handling.
+  **risk_model merge**: restored `approval_required` is spread onto CURRENT risk_model so operational
+  `timeout_hours` is preserved (only approval_required is in the allowlist).
+- Disallowed fields (model, temperature, role_name, vm_size, concurrency_limit) are structurally impossible
+  to restore because the extract helper never copies them — even when target.before_json contains them.
+
+### Stale Prisma LSP cache (same gotcha as T6)
+- OpenCode LSP reports `Property 'archetypeEditHistory' does not exist on PrismaClient` on every edit.
+- This is the stale client cache. `pnpm prisma generate` + `pnpm build` (tsc) is authoritative and passes.
+- Trust the build, not the inline LSP hint.
+
+### Comment hook
+- Kept ONE security-boundary comment (the revert allowlist / forbidden-fields list) — Priority 3 (security-related).
+- Removed the second docstring on buildRevertUpdateData as non-essential.
+
+### Results
+- 8 new revert tests (happy path + snapshot/changed_fields + actor JWT/SERVICE_TOKEN + 3 negative: cross-tenant 404, archetype 404, bad UUID 400).
+- File total: 19/19 pass. Full suite: 162 files, 1878 passed, 9 skipped. Lint clean. Build clean.
