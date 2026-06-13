@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { createLogger } from '../../lib/logger.js';
 import { PrismaClient, TenantRole } from '@prisma/client';
 import { z } from 'zod';
-import path from 'path';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
@@ -14,7 +13,7 @@ import {
   APPROVAL_MESSAGE_PATH,
 } from '../../lib/output-contract-constants.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
-import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
+import { discoverTools } from '../services/tool-parser.js';
 import { getWorkerSkills } from '../../lib/skill-registry.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
 import { buildEnvManifestFromVars } from '../../workers/lib/env-manifest-builder.mjs';
@@ -300,15 +299,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           taskId: '<task-id-injected-at-runtime>',
         });
 
-        const basePath = path.join(process.cwd(), 'src/worker-tools');
-        const skillPath = path.join(
-          process.cwd(),
-          'src/workers/skills/tool-usage-reference/SKILL.md',
-        );
-        const rawTools = await discoverTools(basePath);
-        const enrichments = await parseSkillMd(skillPath);
-        const enrichedTools = enrichTools(rawTools, enrichments);
-        const tools = enrichedTools.map((t) => ({
+        const discoveredTools = await discoverTools();
+        const tools = discoveredTools.map((t) => ({
           name: t.name,
           service: t.service,
           description: t.description,

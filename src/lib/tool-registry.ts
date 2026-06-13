@@ -13,6 +13,13 @@ export interface ToolDescriptor {
   args: ToolArg[];
 }
 
+// Single source of truth for tool command paths. Both the tool-usage-reference
+// generator and the per-service skill generator derive paths from this one rule,
+// so a renamed/moved tool updates everywhere with no hand-typed drift.
+export function toolInvocationPath(descriptor: Pick<ToolDescriptor, 'service' | 'id'>): string {
+  return `tsx /tools/${descriptor.service}/${descriptor.id}.ts`;
+}
+
 export const ALL_TOOL_DESCRIPTORS: ToolDescriptor[] = [
   {
     id: 'post-message',

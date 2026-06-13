@@ -33,6 +33,7 @@
     "seed-platform-owner": "tsx scripts/seed-platform-owner.ts",
     "dev:e2e": "tsx scripts/dev-e2e.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
+    "generate-skills": "tsx scripts/generate-skills.ts",
     "generate-composio-skills": "tsx scripts/generate-composio-skills.ts",
     "generate-worker-constants": "tsx scripts/generate-worker-constants.ts",
     "generate-tool-usage-skill": "tsx scripts/generate-tool-usage-skill.ts",

@@ -298,7 +298,7 @@ For tool_registry.tools: List tools ONLY from the 'Available Tools' section prov
 For delivery_instructions: set to the SAME VALUE as delivery_steps for backwards compatibility. If delivery_steps is null, delivery_instructions must also be null.
 `;
 
-export const REFINE_SYSTEM_PROMPT = `You are an expert AI employee architect. You will be given an existing archetype configuration and a refinement instruction. Apply the refinement to improve the configuration.
+export const REFINE_SYSTEM_PROMPT_PRE = `You are an expert AI employee architect. You will be given an existing archetype configuration and a refinement instruction. Apply the refinement to improve the configuration.
 
 ${INJECTION_BOUNDARY}
 
@@ -320,7 +320,10 @@ ${INJECTION_BOUNDARY}
 - \`delivery_steps\` = HOW TO DELIVER (actions after approval)
 Never put procedural steps in \`identity\`. Never put persona description in \`execution_steps\`.
 
-The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
+The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.`;
 
+export const REFINE_SYSTEM_PROMPT_POST = `
 Return ONLY valid JSON with the same shape as the input configuration (no markdown fences, no prose).
 `;
+
+export const REFINE_SYSTEM_PROMPT = REFINE_SYSTEM_PROMPT_PRE + REFINE_SYSTEM_PROMPT_POST;

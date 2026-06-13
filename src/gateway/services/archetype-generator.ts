@@ -12,7 +12,8 @@ import { discoverTools, type ToolMetadata } from './tool-parser.js';
 import {
   SYSTEM_PROMPT_PRE,
   SYSTEM_PROMPT_POST,
-  REFINE_SYSTEM_PROMPT,
+  REFINE_SYSTEM_PROMPT_PRE,
+  REFINE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
 } from './prompts/archetype-generator-prompts.js';
@@ -144,6 +145,42 @@ async function buildSystemPrompt(
       'discoverTools failed — falling back to base system prompt without tool catalog',
     );
     return SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + SYSTEM_PROMPT_POST;
+  }
+}
+
+async function buildRefineSystemPrompt(
+  connectedToolkits: string[] = [],
+  connectableToolkits: string[] = [],
+): Promise<string> {
+  const connectedAppsBlock = buildConnectedAppsBlock(connectedToolkits, connectableToolkits);
+
+  try {
+    const basePath = path.join(process.cwd(), 'src/worker-tools');
+    const tools = await discoverTools(basePath);
+    const catalogSection = formatToolCatalog(tools);
+    if (!catalogSection) {
+      log.warn('discoverTools returned no tools — using base refine prompt without tool catalog');
+      return (
+        REFINE_SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + REFINE_SYSTEM_PROMPT_POST
+      );
+    }
+    return (
+      REFINE_SYSTEM_PROMPT_PRE +
+      '\n\n' +
+      connectedAppsBlock +
+      '\n\n' +
+      catalogSection +
+      '\n' +
+      REFINE_SYSTEM_PROMPT_POST
+    );
+  } catch (err) {
+    log.warn(
+      { err },
+      'discoverTools failed — falling back to base refine prompt without tool catalog',
+    );
+    return (
+      REFINE_SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + REFINE_SYSTEM_PROMPT_POST
+    );
   }
 }
 
@@ -362,15 +399,21 @@ export class ArchetypeGenerator {
     previousConfig: GenerateArchetypeResponse,
     refinementInstruction: string,
     catalog?: ModelCatalogRow[],
+    composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] },
   ): Promise<GenerateArchetypeResponse> {
     log.info(
       { roleName: previousConfig.role_name, instructionLength: refinementInstruction.length },
       'Refining archetype config',
     );
 
+    const systemPrompt = await buildRefineSystemPrompt(
+      composioContext?.connectedToolkits ?? [],
+      composioContext?.connectableToolkits ?? [],
+    );
+
     const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
-      { role: 'system', content: REFINE_SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       {
         role: 'user',
         content: `Current configuration:\n${JSON.stringify(previousConfig, null, 2)}\n\nRefinement instruction:\n<user_description>${refinementInstruction}</user_description>`,

@@ -63,6 +63,13 @@ jobs:
             echo "::error::tool-usage-reference SKILL.md is stale. Run 'pnpm generate-tool-usage-skill' locally and commit the result."
             exit 1
           fi
+      - name: Check custom-skills freshness
+        run: |
+          pnpm generate-skills
+          if ! git diff --exit-code src/workers/skills/hostfully src/workers/skills/sifely src/workers/skills/github src/workers/skills/slack src/workers/skills/knowledge-base src/workers/skills/platform; then
+            echo "::error::Custom skill files are stale. Run 'pnpm generate-skills' and commit."
+            exit 1
+          fi
       - name: Run unit tests (no DB required)
         run: pnpm test:unit
       - name: Set up integration test DB

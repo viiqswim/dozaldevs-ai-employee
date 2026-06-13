@@ -22,4 +22,18 @@ Never put procedural steps in `identity`. Never put persona description in `exec
 
 The overview field is written FOR HUMANS reviewing the configuration — use plain English, no variable references like $ENV_VARS, no shell commands, no technical syntax. It should explain the employee's job to a non-technical business owner.
 
+## Composio Connected Apps
+
+The tenant's Composio-connected apps control which third-party integrations the employee can access at runtime via `tsx /tools/composio/execute.ts`.
+
+**Connected apps: NONE**
+
+⚠️  CRITICAL: The tenant has NO Composio apps connected. Do NOT generate any `tsx /tools/composio/execute.ts` calls in execution_steps — they will fail at runtime with HTTP 400.
+
+**CRITICAL RULES for Composio:**
+- ONLY generate composio execute calls for apps listed in "Connected apps" above.
+- NEVER generate a composio execute call for any app that is NOT in the connected list — it will fail at runtime.
+- If no apps are connected, do NOT include any composio execute calls anywhere in execution_steps or delivery_steps.
+
+
 Return ONLY valid JSON with the same shape as the input configuration (no markdown fences, no prose).

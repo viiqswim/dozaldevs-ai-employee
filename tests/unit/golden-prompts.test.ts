@@ -28,7 +28,8 @@ vi.mock('../../src/workers/lib/postgrest-client.js', () => ({
 import {
   SYSTEM_PROMPT_PRE,
   SYSTEM_PROMPT_POST,
-  REFINE_SYSTEM_PROMPT,
+  REFINE_SYSTEM_PROMPT_PRE,
+  REFINE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
 } from '../../src/gateway/services/prompts/archetype-generator-prompts.js';
 
@@ -84,8 +85,10 @@ describe('golden-prompts', () => {
     expect(actual).toBe(expected);
   });
 
-  it('refine-prompt matches golden fixture', () => {
-    const actual = REFINE_SYSTEM_PROMPT;
+  it('refine-prompt (empty tool catalog) matches golden fixture', () => {
+    const connectedAppsBlock = buildConnectedAppsBlock([], []);
+    const actual =
+      REFINE_SYSTEM_PROMPT_PRE + '\n\n' + connectedAppsBlock + '\n\n' + REFINE_SYSTEM_PROMPT_POST;
 
     if (GENERATE) {
       writeFixture('refine-prompt.txt', actual);

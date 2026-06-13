@@ -100,6 +100,7 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
             previous_config as unknown as Parameters<typeof generator.refine>[0],
             refinement_instruction,
             catalog,
+            { connectedToolkits, connectableToolkits },
           );
         } else {
           result = await generator.generate(description, catalog, {
