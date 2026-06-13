@@ -1,3 +1,38 @@
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-reviews',
+  service: 'hostfully',
+  description: 'Fetch guest reviews for a Hostfully property or all properties in an agency',
+  envVars: ['HOSTFULLY_API_KEY', 'HOSTFULLY_AGENCY_UID'],
+  args: [
+    {
+      name: '--property-id',
+      required: false,
+      description: 'Property UID; omit to fetch all properties',
+      type: 'string',
+    },
+    {
+      name: '--since',
+      required: false,
+      description: 'Filter by updatedSince date (ISO 8601)',
+      type: 'string',
+    },
+    {
+      name: '--unresponded-only',
+      required: false,
+      description: 'Filter to reviews without a host response',
+      type: 'boolean',
+    },
+    {
+      name: '--limit',
+      required: false,
+      description: 'Max reviews to return per property',
+      type: 'number',
+    },
+  ],
+};
+
 /**
  * Fetches guest reviews for a Hostfully property or all properties in an agency.
  *

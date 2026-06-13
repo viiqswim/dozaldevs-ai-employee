@@ -1,6 +1,22 @@
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';
 import { resolveHostfullyClient } from './lib/client.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-property',
+  service: 'hostfully',
+  description: 'Fetch details for a single Hostfully property by UID',
+  envVars: ['HOSTFULLY_API_KEY'],
+  args: [
+    {
+      name: '--property-id',
+      required: true,
+      description: 'Hostfully property UID',
+      type: 'string',
+    },
+  ],
+};
 
 function parseArgs(argv: string[]): { propertyId: string; help: boolean } {
   const args = argv.slice(2);

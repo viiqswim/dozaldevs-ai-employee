@@ -12,6 +12,28 @@ import { fileURLToPath } from 'node:url';
 import { getArg } from '../lib/get-arg.js';
 import { requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'list-actions',
+  service: 'composio',
+  description: "List a Composio toolkit's available actions for runtime discovery",
+  envVars: ['COMPOSIO_API_KEY'],
+  args: [
+    {
+      name: '--toolkit',
+      required: true,
+      description: 'Composio toolkit slug (e.g. "notion", "linear")',
+      type: 'string',
+    },
+    {
+      name: '--mock',
+      required: false,
+      description: 'Return fixture JSON without making an HTTP call',
+      type: 'boolean',
+    },
+  ],
+};
 
 const COMPOSIO_TOOLS_BASE_URL = 'https://backend.composio.tech/api/v3.1/tools';
 

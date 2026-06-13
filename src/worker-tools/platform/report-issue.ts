@@ -18,6 +18,35 @@
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'report-issue',
+  service: 'platform',
+  description: 'Report a tool issue to system_events and send a Slack alert to engineers',
+  envVars: ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'TENANT_ID', 'SLACK_BOT_TOKEN'],
+  args: [
+    { name: '--task-id', required: true, description: 'Current task ID', type: 'string' },
+    {
+      name: '--tool-name',
+      required: true,
+      description: 'Name of the tool that had the issue',
+      type: 'string',
+    },
+    {
+      name: '--description',
+      required: true,
+      description: 'Description of what went wrong',
+      type: 'string',
+    },
+    {
+      name: '--patch-diff',
+      required: false,
+      description: 'The patch applied to work around the issue',
+      type: 'string',
+    },
+  ],
+};
 
 interface PostgRestRecord {
   id: string;

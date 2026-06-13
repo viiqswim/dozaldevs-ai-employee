@@ -32,6 +32,46 @@ import { paginateCursor } from './lib/paginate.js';
 import { formatGuestName } from './lib/format.js';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-messages',
+  service: 'hostfully',
+  description: 'Fetch guest message threads for a Hostfully property from the unified inbox',
+  envVars: ['HOSTFULLY_API_KEY', 'HOSTFULLY_AGENCY_UID'],
+  args: [
+    {
+      name: '--lead-id',
+      required: false,
+      description: 'Fetch messages for a single lead/reservation thread',
+      type: 'string',
+    },
+    {
+      name: '--property-id',
+      required: false,
+      description: 'Property UID to fetch messages for',
+      type: 'string',
+    },
+    {
+      name: '--unresponded-only',
+      required: false,
+      description: 'Filter to threads where the last message is from the guest',
+      type: 'boolean',
+    },
+    {
+      name: '--limit',
+      required: false,
+      description: 'Max messages to fetch per conversation thread (default: 30)',
+      type: 'number',
+    },
+    {
+      name: '--fallback-property-uid',
+      required: false,
+      description: 'Property UID to use when API returns null for propertyUid',
+      type: 'string',
+    },
+  ],
+};
 
 type RawLead = {
   uid: string;

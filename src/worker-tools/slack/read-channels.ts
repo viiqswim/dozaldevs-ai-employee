@@ -1,6 +1,28 @@
 import { WebClient } from '@slack/web-api';
 
 import { requireEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'read-channels',
+  service: 'slack',
+  description: 'Read messages from one or more Slack channels within a lookback window',
+  envVars: ['SLACK_BOT_TOKEN'],
+  args: [
+    {
+      name: '--channels',
+      required: true,
+      description: 'Comma-separated Slack channel IDs',
+      type: 'string',
+    },
+    {
+      name: '--lookback-hours',
+      required: false,
+      description: 'Hours to look back (default: 24)',
+      type: 'number',
+    },
+  ],
+};
 
 interface SlackMessage {
   ts: string;

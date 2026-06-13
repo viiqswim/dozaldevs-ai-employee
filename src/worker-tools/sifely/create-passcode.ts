@@ -21,6 +21,25 @@
  *         { "keyboardPwdId": <number>, "existed": true }
  */
 
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'create-passcode',
+  service: 'sifely',
+  description: 'Create a permanent passcode for a given Sifely lock',
+  envVars: ['SIFELY_USERNAME', 'SIFELY_PASSWORD'],
+  args: [
+    { name: '--lock-id', required: true, description: 'Sifely lock ID', type: 'string' },
+    {
+      name: '--name',
+      required: true,
+      description: 'Human-readable name for the passcode',
+      type: 'string',
+    },
+    { name: '--code', required: true, description: 'Numeric passcode, 4–9 digits', type: 'string' },
+  ],
+};
+
 import {
   login,
   resolveConfig,

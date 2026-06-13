@@ -26,6 +26,31 @@ import type {
 } from './lib/api.js';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'diagnose-access',
+  service: 'sifely',
+  description:
+    'Cross-references Hostfully door codes against Sifely smart lock passcodes and recent access records to diagnose guest lock access issues.',
+  envVars: [
+    'HOSTFULLY_API_KEY',
+    'SIFELY_CLIENT_ID',
+    'SIFELY_USERNAME',
+    'SIFELY_PASSWORD',
+    'SUPABASE_URL',
+    'SUPABASE_SECRET_KEY',
+    'TENANT_ID',
+  ],
+  args: [
+    {
+      name: '--property-id',
+      required: true,
+      description: 'Hostfully property UID to diagnose',
+      type: 'string',
+    },
+  ],
+};
 
 interface PropertyLock {
   id: string;

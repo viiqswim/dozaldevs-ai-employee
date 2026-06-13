@@ -22,6 +22,15 @@ type PropertySummary = {
 import { resolveHostfullyClient } from './lib/client.js';
 import { paginateCursor } from './lib/paginate.js';
 import { requireEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-properties',
+  service: 'hostfully',
+  description: 'List all active properties for a Hostfully agency',
+  envVars: ['HOSTFULLY_API_KEY', 'HOSTFULLY_AGENCY_UID'],
+  args: [],
+};
 
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);

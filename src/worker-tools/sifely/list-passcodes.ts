@@ -20,6 +20,15 @@
 import { login, resolveConfig, withRetry, assertListSuccess } from './lib/api.js';
 import type { LockPasscode, SifelyListResponse, SifelyPasscodeRaw } from './lib/api.js';
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'list-passcodes',
+  service: 'sifely',
+  description: 'List all passcodes for a given Sifely lock',
+  envVars: ['SIFELY_USERNAME', 'SIFELY_PASSWORD'],
+  args: [{ name: '--lock-id', required: true, description: 'Sifely lock ID', type: 'string' }],
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

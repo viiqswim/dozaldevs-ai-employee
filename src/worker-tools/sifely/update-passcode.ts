@@ -25,6 +25,37 @@
 import { login, resolveConfig, withRetry, assertMutationSuccess } from './lib/api.js';
 import type { SifelyMutationResponse } from './lib/api.js';
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'update-passcode',
+  service: 'sifely',
+  description: 'Update an existing passcode on a Sifely lock',
+  envVars: ['SIFELY_USERNAME', 'SIFELY_PASSWORD'],
+  args: [
+    { name: '--lock-id', required: true, description: 'Sifely lock ID', type: 'string' },
+    {
+      name: '--passcode-id',
+      required: true,
+      description: 'Sifely keyboard password ID to update',
+      type: 'string',
+    },
+    { name: '--name', required: false, description: 'New name for the passcode', type: 'string' },
+    { name: '--code', required: false, description: 'New passcode digits', type: 'string' },
+    {
+      name: '--start-date',
+      required: false,
+      description: 'New start date as epoch milliseconds',
+      type: 'number',
+    },
+    {
+      name: '--end-date',
+      required: false,
+      description: 'New end date as epoch milliseconds',
+      type: 'number',
+    },
+  ],
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

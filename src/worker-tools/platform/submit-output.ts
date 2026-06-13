@@ -18,6 +18,64 @@ import fs from 'fs';
 
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'submit-output',
+  service: 'platform',
+  description: 'Write the platform output contract to /tmp/summary.txt to declare task outcome',
+  envVars: [],
+  args: [
+    {
+      name: '--summary',
+      required: true,
+      description: 'Human-readable summary of what was done',
+      type: 'string',
+    },
+    {
+      name: '--classification',
+      required: true,
+      description: 'NEEDS_APPROVAL | NO_ACTION_NEEDED',
+      type: 'string',
+    },
+    {
+      name: '--draft',
+      required: false,
+      description: 'Draft message/content for PM review',
+      type: 'string',
+    },
+    {
+      name: '--draft-file',
+      required: false,
+      description: 'Read draft from file at path',
+      type: 'string',
+    },
+    {
+      name: '--confidence',
+      required: false,
+      description: 'Confidence score between 0 and 1',
+      type: 'number',
+    },
+    {
+      name: '--reasoning',
+      required: false,
+      description: 'Explanation of the classification decision',
+      type: 'string',
+    },
+    {
+      name: '--urgency',
+      required: false,
+      description: 'Flag presence marks urgency=true',
+      type: 'boolean',
+    },
+    {
+      name: '--metadata',
+      required: false,
+      description: 'JSON object with additional structured data',
+      type: 'string',
+    },
+  ],
+};
 
 const VALID_CLASSIFICATIONS = ['NEEDS_APPROVAL', 'NO_ACTION_NEEDED'] as const;
 const OUTPUT_PATH = '/tmp/summary.txt';
