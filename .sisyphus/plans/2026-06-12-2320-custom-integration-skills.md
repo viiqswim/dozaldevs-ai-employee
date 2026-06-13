@@ -803,7 +803,7 @@ Max Concurrent: 4
 
 - [x] F6. **Tmux cleanup** — kill all `ai-*` tmux sessions created during execution.
 
-- [ ] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] F7. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
 
 ## Commit Strategy
 
