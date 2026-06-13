@@ -159,3 +159,54 @@ All World-B consumers now import from `src/worker-tools/lib/output-contract-path
 - `pnpm test:unit -- golden-prompts` → 3/3 GREEN (byte-identical output confirmed)
 - `grep -r '/tmp/summary.txt\|/tmp/approval-message.json' src/` → only the two constant source files
 - Commit: cb80a171
+
+## [2026-06-13] T7 Complete — skill-registry single source
+
+### What was done
+- Created `src/lib/skill-registry.ts` (World A, mirrors `go-models.ts` style): `getWorkerSkills(skillsDir?)` reads `src/workers/skills/*/SKILL.md`, parses `---`-delimited frontmatter for `name`+`description`, returns `WorkerSkill[]` sorted by name.
+- `admin-brain-preview.ts` `skills: [...]` hardcoded 2-item list → `skills: getWorkerSkills()`. Now returns ALL 6 on-disk skills (composio-gmail/notion/slack/slackbot, tool-usage-reference, uuid-disambiguation) instead of 2 — preview is now truthful.
+- `tests/unit/skill-registry.test.ts` — 6 tests incl. temp-dir add + quoted/unquoted parse.
+
+### Key facts
+- SKILL.md frontmatter descriptions are MIXED quoting: composio-* + tool-usage-reference use single-quotes; uuid-disambiguation is UNQUOTED. Parser must `stripQuotes` (handles both ' and ") AND accept bare values.
+- Reads FRESH from disk each call (no module cache) — required for the temp-file test and so new skills appear without restart. Cheap (6 small files).
+- `getWorkerSkills(dir)` takes optional dir param → enables isolated temp-dir testing without touching real skills.
+- Pre-existing failing test (NOT mine): `tests/unit/gateway/socket-mode-lock.test.ts > blocked-live` — fails even with my changes stashed (detects live gateway PID in dev env). Ignore.
+
+### Verification
+- `pnpm vitest run tests/unit/skill-registry.test.ts` → 6/6 GREEN
+- `pnpm build` → exit 0 · eslint → 0 · prettier → clean
+- `node -e require dist/lib/skill-registry → count: 6`
+
+## [2026-06-13] T9 Complete — env-enforcement parity test
+
+### What was done
+
+- Created `tests/unit/env-enforcement.test.ts` (3 assertions) — proves every platform env var in `ALL_TOOL_DESCRIPTORS[].envVars` is in `PLATFORM_ENV_WHITELIST`.
+- `export`ed `PLATFORM_ENV_WHITELIST` from `tenant-env-loader.ts` (was private). Test IMPORTS the real source rather than hardcoding a 4th copy — true drift-proof parity, matches the plan's single-source theme.
+- NO `.env`/`.env.example` changes needed: all 4 platform vars referenced by descriptors (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `OPENROUTER_API_KEY`, `COMPOSIO_API_KEY`) were ALREADY whitelisted AND already in `.env.example`.
+
+### Key findings (drift discovered, not introduced)
+
+- **`get-token` descriptor in `src/lib/tool-registry.ts` is STALE**: it lists `GITHUB_APP_ID, GITHUB_PRIVATE_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID`, but the REAL tool file `src/worker-tools/github/get-token.ts` exports `descriptor.envVars: ['TASK_ID']` only. The tool delegates token minting to the gateway (`POST /internal/tasks/:id/github-token`), so it never reads the App creds itself.
+- `GITHUB_APP_ID`/`GITHUB_PRIVATE_KEY` are platform-level but **gateway-consumed** (`github-token-manager.ts > generateAppJwt`). They MUST NOT be whitelisted — injecting the platform's GitHub App private key into every worker container is a tenant-isolation regression. Modeled as a distinct `GATEWAY_ONLY_VARS` exemption set (3rd security category beyond tenant-secret / task-scoped).
+- `loadTenantEnv()` builds `PLATFORM_ENV_MANIFEST` from `PLATFORM_ENV_WHITELIST` + tenant secrets ONLY. Descriptor `envVars` arrays are informational/docs — NOT an injection source. So the stale `get-token` descriptor is a doc-drift bug, not an active injection bug. (Did NOT fix the descriptor here — out of T9 scope; the registry is T2's artifact. Flagged for backlog.)
+
+### Exemption sets (enumerated, no catch-all)
+
+- TENANT_SECRET_VARS: SLACK_BOT_TOKEN, HOSTFULLY_API_KEY, SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+- TASK_SCOPED_VARS: TASK_ID, TENANT_ID
+- GATEWAY_ONLY_VARS: GITHUB_APP_ID, GITHUB_PRIVATE_KEY
+- Only vars ACTUALLY present in descriptor envVars are exempted. A 3rd test assertion ("every exempted var is actually referenced") rejects stale exemptions — kept me from copying the task example's phantom vars (HOSTFULLY_AGENCY_UID, WEBHOOK_PUBLIC_URL, SIFELY_CLIENT_SECRET, NOTIFICATION_CHANNEL, EMPLOYEE_PHASE, TASK_PHASE, TASK_TENANT_ID — none appear in real descriptors).
+
+### Gotchas
+
+- `as const` on the exported whitelist BROKE the build: line 91 `PLATFORM_ENV_WHITELIST.includes(k: string)` rejects a generic string against the narrowed literal-union element type (TS2345). Keep it a plain `string[]` — `new Set<string>(PLATFORM_ENV_WHITELIST)` in the test works fine without `as const`.
+- `socket-mode-lock.test.ts > blocked-live` is a PRE-EXISTING flaky PID-race fail (confirmed on clean `git stash`: 5 pass / 1 fail). Not a T9 regression.
+- `pnpm test:unit -- env-enforcement` does NOT filter — runs the full suite. Use `pnpm exec vitest run tests/unit/env-enforcement.test.ts` to isolate.
+
+### Verification
+
+- `pnpm exec vitest run tests/unit/env-enforcement.test.ts` → 3/3 GREEN
+- related: tool-descriptors.test.ts (11) + tenant-env-loader.test.ts (21) → all pass
+- `pnpm build` → exit 0 · eslint clean · prettier clean
