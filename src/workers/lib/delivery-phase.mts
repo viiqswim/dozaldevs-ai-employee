@@ -13,7 +13,11 @@
 import { createLogger } from '../../lib/logger.js';
 import { SUMMARY_PATH } from '../../lib/output-contract-constants.js';
 import { type PostgRESTClient } from './postgrest-client.js';
-import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
+import {
+  compileAgentsMd,
+  loadConnectedToolkits,
+  loadCustomIntegrations,
+} from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
 import {
@@ -21,6 +25,7 @@ import {
   fireCompletionEvent,
   writeOpencodeAuth,
   filterComposioSkills,
+  filterCustomSkills,
 } from './harness-helpers.mjs';
 import {
   type ArchetypeRow,
@@ -103,6 +108,11 @@ export async function runDeliveryPhase(
   // Prune composio-* skill folders for apps this tenant has NOT connected.
   // MUST run before runOpencodeSession (OpenCode scans skills once at boot).
   filterComposioSkills(connectedToolkits);
+
+  // Prune custom-integration skill folders (hostfully/sifely/github/slack) for
+  // services this tenant has NOT connected. Same boot-time constraint as above.
+  const connectedServices = task.tenant_id ? await loadCustomIntegrations(task.tenant_id) : [];
+  filterCustomSkills(connectedServices);
 
   // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
   try {

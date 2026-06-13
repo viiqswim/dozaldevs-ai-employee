@@ -340,3 +340,94 @@ export function filterComposioSkills(connectedToolkits: string[]): void {
     '[opencode-harness] Composio skill folders filtered',
   );
 }
+
+// ---------------------------------------------------------------------------
+// filterCustomSkills
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-service custom-integration skill folders eligible for connection-based
+ * pruning. Explicit allowlist — NOT a prefix match. A folder is removed only
+ * when its name appears here AND the service is absent from `connectedServices`.
+ */
+export const CUSTOM_SKILL_ALLOWLIST: readonly string[] = ['hostfully', 'sifely', 'github', 'slack'];
+
+/**
+ * Per-service skill folders always kept regardless of which services the tenant
+ * has connected. These are platform-wide tools every employee may use.
+ */
+export const CUSTOM_SKILL_ALWAYS_KEEP: readonly string[] = ['knowledge-base', 'platform'];
+
+/**
+ * Prune custom-integration skill folders for services the tenant has NOT
+ * connected.
+ *
+ * The container image bakes in one per-service skill folder for each
+ * hand-written shell-tool integration (Hostfully, Sifely, GitHub, Slack). At
+ * runtime only the services the tenant has actually connected should be visible
+ * to the agent, so we delete the folders whose service slug is in the explicit
+ * allowlist but absent from `connectedServices`.
+ *
+ * Unlike `filterComposioSkills` (prefix match), this uses an EXPLICIT ALLOWLIST:
+ * only `CUSTOM_SKILL_ALLOWLIST` folders are ever considered for removal. The
+ * always-keep set (`knowledge-base`, `platform`), all `composio-*` folders, and
+ * cross-cutting skills (`tool-usage-reference`, `uuid-disambiguation`) are never
+ * touched — they fall outside the allowlist.
+ *
+ * MUST run AFTER `loadCustomIntegrations()` and BEFORE the OpenCode server boots
+ * — OpenCode scans the skills directory once at startup with no hot reload.
+ *
+ * Never throws: a missing skills directory (or any per-entry error) is a no-op.
+ */
+export function filterCustomSkills(
+  connectedServices: string[],
+  skillsDir: string = SKILLS_DIR,
+): void {
+  // Case-insensitive connected set — service slugs may differ in case.
+  const connected = new Set(connectedServices.map((s) => s.toLowerCase()));
+  const allowlist = new Set(CUSTOM_SKILL_ALLOWLIST);
+
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(skillsDir, { withFileTypes: true });
+  } catch {
+    // Directory absent (e.g. container without baked-in skills) — nothing to prune.
+    log.info(
+      '[opencode-harness] No skills directory found — skipping custom-integration skill filtering',
+    );
+    return;
+  }
+
+  const kept: string[] = [];
+  const removed: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const name = entry.name;
+    const slug = name.toLowerCase();
+    // Explicit allowlist only — never touch always-keep, composio-*, or any
+    // other skill folder outside the allowlist.
+    if (!allowlist.has(slug)) continue;
+
+    if (connected.has(slug)) {
+      kept.push(name);
+      continue;
+    }
+
+    try {
+      rmSync(join(skillsDir, name), { recursive: true, force: true });
+      removed.push(name);
+    } catch (err) {
+      // A failed delete is non-fatal — log and leave the folder in place.
+      log.warn(
+        { err, skill: name },
+        '[opencode-harness] Failed to remove custom-integration skill folder',
+      );
+    }
+  }
+
+  log.info(
+    { connectedServices: [...connected], kept, removed },
+    '[opencode-harness] Custom-integration skill folders filtered',
+  );
+}
