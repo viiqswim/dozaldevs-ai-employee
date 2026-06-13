@@ -428,3 +428,36 @@ export interface ComposioToolkitsPage {
   items: ComposioToolkit[];
   nextCursor: string | null;
 }
+
+export interface ProposalResponse {
+  baseline: Record<string, unknown>;
+  proposal: Record<string, unknown>;
+  changed_fields: Record<string, unknown>;
+  tool_delta?: { added: string[]; removed: string[] };
+  trigger_change?: { before: string; after: string };
+  input_change?: { added: string[]; removed: string[] };
+  approval_warning?: boolean;
+  no_change?: boolean;
+}
+
+export interface RecordEditHistoryPayload {
+  request_text: string;
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  changed_fields: string[];
+  kind: 'edit' | 'revert';
+}
+
+export interface EditHistoryRow {
+  id: string;
+  archetype_id: string;
+  tenant_id: string;
+  request_text: string;
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  changed_fields: string[];
+  kind: 'edit' | 'revert';
+  actor_user_id: string | null;
+  created_at: string;
+  deleted_at: string | null;
+}

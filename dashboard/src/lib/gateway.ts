@@ -17,6 +17,9 @@ import type {
   AdminTenant,
   ComposioConnection,
   ComposioToolkitsPage,
+  ProposalResponse,
+  RecordEditHistoryPayload,
+  EditHistoryRow,
 } from './types';
 
 export type MeResponse = {
@@ -165,6 +168,8 @@ export async function patchArchetype(
       | 'execution_steps'
       | 'delivery_steps'
       | 'temperature'
+      | 'tool_registry'
+      | 'trigger_sources'
     > & { risk_model?: Record<string, unknown> }
   >,
 ): Promise<Archetype> {
@@ -628,4 +633,52 @@ export async function listComposioToolkits(
   const qs = params.toString();
   const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
   return gatewayFetch<ComposioToolkitsPage>(url);
+}
+
+export async function proposeEdit(
+  tenantId: string,
+  archetypeId: string,
+  requestText: string,
+): Promise<ProposalResponse> {
+  return gatewayFetch<ProposalResponse>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/propose-edit`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ request_text: requestText }),
+    },
+  );
+}
+
+export async function recordEditHistory(
+  tenantId: string,
+  archetypeId: string,
+  payload: RecordEditHistoryPayload,
+): Promise<EditHistoryRow> {
+  return gatewayFetch<EditHistoryRow>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function listEditHistory(
+  tenantId: string,
+  archetypeId: string,
+): Promise<EditHistoryRow[]> {
+  return gatewayFetch<EditHistoryRow[]>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history`,
+  );
+}
+
+export async function revertEdit(
+  tenantId: string,
+  archetypeId: string,
+  historyId: string,
+): Promise<{ archetype: Archetype; history: EditHistoryRow }> {
+  return gatewayFetch<{ archetype: Archetype; history: EditHistoryRow }>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history/${historyId}/revert`,
+    { method: 'POST' },
+  );
 }
