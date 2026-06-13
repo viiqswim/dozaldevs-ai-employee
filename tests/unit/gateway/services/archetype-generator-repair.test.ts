@@ -188,7 +188,7 @@ describe('refine() — empty-content handling', () => {
   });
 });
 
-describe('interpretRequest()', () => {
+describe('interpretRequest() — happy path', () => {
   it('returns the trimmed plain-text restatement', async () => {
     const fn = vi
       .fn()
@@ -210,5 +210,65 @@ describe('interpretRequest()', () => {
 
     expect(out).toBe(nonJson.trim());
     expect(fn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('interpretRequest() — retry path', () => {
+  it('retries when the LLM throws and succeeds on the second attempt', async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('LLM returned empty content'))
+      .mockResolvedValueOnce(makeResult('  The AI will add Mermaid diagrams to each PR.  '));
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const out = await gen.interpretRequest('add mermaid diagrams', makeConfig());
+
+    expect(out).toBe('The AI will add Mermaid diagrams to each PR.');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries up to 3 times and re-throws the last error when all attempts fail', async () => {
+    const llmError = new Error('LLM returned empty content');
+    const fn = vi.fn().mockRejectedValue(llmError);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    await expect(gen.interpretRequest('do something', makeConfig())).rejects.toThrow(
+      'LLM returned empty content',
+    );
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
+
+const UNCHANGED_REFINE_JSON = JSON.stringify({
+  role_name: 'test-employee',
+  identity: 'You are a helpful assistant.',
+  execution_steps: 'Do the task.',
+  delivery_steps: null,
+  instructions: 'Do the task.',
+  tool_registry: { tools: ['/tools/platform/submit-output.ts'] },
+  overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
+});
+
+describe('refine() — no-change retry path', () => {
+  it('retries with a nudge when the first result leaves all prose fields identical to input', async () => {
+    const { fn, generationCalls } = makeRoutingMock([UNCHANGED_REFINE_JSON, VALID_REFINE_JSON]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+    const baseline = makeConfig();
+
+    const result = await gen.refine(baseline, 'make it more concise');
+
+    expect(result.identity).toBe('You are a refined, concise assistant.');
+    expect(generationCalls.length).toBe(2);
+  });
+
+  it('returns the result as-is when both attempts produce identical prose — no infinite loop', async () => {
+    const { fn, generationCalls } = makeRoutingMock([UNCHANGED_REFINE_JSON, UNCHANGED_REFINE_JSON]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+    const baseline = makeConfig();
+
+    const result = await gen.refine(baseline, 'attempt an impossible change');
+
+    expect(result.identity).toBe(baseline.identity);
+    expect(generationCalls.length).toBe(2);
   });
 });

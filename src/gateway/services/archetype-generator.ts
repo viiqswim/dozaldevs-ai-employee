@@ -497,28 +497,48 @@ export class ArchetypeGenerator {
   ): Promise<string> {
     log.info({ roleName: archetype.role_name }, 'Interpreting user request in plain English');
 
-    const systemPrompt =
-      'You are a plain-English summariser for a non-technical user. ' +
-      'Restate, in one or two plain sentences, what change the user is asking to make to this AI employee. ' +
-      'Do not output JSON. Do not make the change. Do not use technical jargon.';
-
-    const userContent =
-      `Current employee configuration:\n` +
-      `Role: ${archetype.role_name}\n` +
-      `Identity: ${archetype.identity}\n\n` +
-      `User request: ${requestText}`;
-
-    const result = await this.callLLMFn({
-      taskType: 'review',
+    const callOptions = {
+      taskType: 'review' as const,
       temperature: 0.3,
       maxTokens: 500,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent },
+        {
+          role: 'system' as const,
+          content:
+            'You are a plain-English summariser for a non-technical user. ' +
+            'Restate, in one or two plain sentences, what change the user is asking to make to this AI employee. ' +
+            'Do not output JSON. Do not make the change. Do not use technical jargon.',
+        },
+        {
+          role: 'user' as const,
+          content:
+            `Current employee configuration:\n` +
+            `Role: ${archetype.role_name}\n` +
+            `Identity: ${archetype.identity}\n\n` +
+            `User request: ${requestText}`,
+        },
       ],
-    });
+    };
 
-    return result.content.trim();
+    // Retry up to 3 times: OpenCodeGo occasionally returns empty content on
+    // reasoning-only responses. Each failed attempt is a recoverable LLM error,
+    // not a logic error — so we retry rather than surface the failure to the user.
+    const maxAttempts = 3;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await this.callLLMFn(callOptions);
+        if (result.content.trim().length > 0) {
+          return result.content.trim();
+        }
+        lastError = new Error('LLM returned empty content');
+        log.warn({ attempt, maxAttempts }, 'interpretRequest: empty content — retrying');
+      } catch (err) {
+        lastError = err;
+        log.warn({ err, attempt, maxAttempts }, 'interpretRequest: LLM call failed — retrying');
+      }
+    }
+    throw lastError ?? new Error('interpretRequest: all attempts returned empty content');
   }
 
   async refine(
@@ -543,7 +563,26 @@ export class ArchetypeGenerator {
       maxTokens: 16000,
       responseFormat: { type: 'json_object' as const },
     };
-    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+
+    type Message = { role: 'user' | 'assistant' | 'system'; content: string };
+
+    const runRefineCall = async (msgs: Message[]): Promise<GenerateArchetypeResponse> => {
+      let parsed: unknown;
+      try {
+        const stripped = await this.callLLMWithJsonRetry(msgs, llmOptions);
+        parsed = JSON.parse(stripped);
+      } catch (err) {
+        log.error({ err }, 'GENERATION_FAILED: JSON parse error during refine');
+        throw new Error(
+          `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${String(err)}`,
+        );
+      }
+      const r = postProcess(parsed, previousConfig.role_name);
+      await this.applyModelAndEstimate(r, catalog);
+      return r;
+    };
+
+    const baseMessages: Message[] = [
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
@@ -551,19 +590,35 @@ export class ArchetypeGenerator {
       },
     ];
 
-    let parsed: unknown;
-    try {
-      const stripped = await this.callLLMWithJsonRetry(messages, llmOptions);
-      parsed = JSON.parse(stripped);
-    } catch (err) {
-      log.error({ err }, 'GENERATION_FAILED: JSON parse error during refine');
-      throw new Error(
-        `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${String(err)}`,
+    const result = await runRefineCall(baseMessages);
+
+    // Guard: if the LLM returned prose fields identical to the input, it failed to
+    // apply the change. Retry once with an explicit nudge so the model understands it
+    // must modify the requested fields. This covers the ~10% of calls where the model
+    // echoes back the original config unchanged.
+    const proseFields = ['identity', 'execution_steps', 'delivery_steps'] as const;
+    const proseUnchanged = proseFields.every(
+      (f) => JSON.stringify(result[f]) === JSON.stringify(previousConfig[f]),
+    );
+
+    if (proseUnchanged) {
+      log.warn(
+        { roleName: previousConfig.role_name },
+        'refine: prose fields identical to input — retrying with explicit change nudge',
       );
+      const nudgeMessages: Message[] = [
+        ...baseMessages,
+        { role: 'assistant', content: '{}' },
+        {
+          role: 'user',
+          content:
+            'Your previous response made no changes to execution_steps, delivery_steps, or identity. ' +
+            'You MUST modify the relevant fields to incorporate the requested change. Please try again and make the specific changes the user asked for.',
+        },
+      ];
+      return runRefineCall(nudgeMessages);
     }
 
-    const result = postProcess(parsed, previousConfig.role_name);
-    await this.applyModelAndEstimate(result, catalog);
     return result;
   }
 }
