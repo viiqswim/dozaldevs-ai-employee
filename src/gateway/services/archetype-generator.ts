@@ -14,7 +14,9 @@ import {
   SYSTEM_PROMPT_POST,
   REFINE_SYSTEM_PROMPT,
   buildConnectedAppsBlock,
+  CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
 } from './prompts/archetype-generator-prompts.js';
+export { CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE };
 
 const log = createLogger('archetype-generator');
 
@@ -80,9 +82,6 @@ const CODE_PHRASE_PATTERNS: RegExp[] = [
   /\bcodebase\b/i,
   /\bwrite.*code\b/i,
 ];
-
-export const CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE =
-  'You are authorized to read and write files anywhere in /tmp/workspace/. This is a code-writing employee. Your workspace IS /tmp/workspace/. The restriction about not modifying files outside /tools/ does NOT apply to you.';
 
 export function isCodeWritingEmployee(description: string): boolean {
   return CODE_PHRASE_PATTERNS.some((pattern) => pattern.test(description));
