@@ -51,8 +51,5 @@ dashboard/vite.config.js
 # Database backups (contain production data + encrypted secrets)
 database-backups/
 
-# Generated constants for World-B (do not edit — run pnpm generate-worker-constants)
-src/worker-tools/lib/output-contract-paths.generated.ts
-
 # Coverage reports
 coverage/
