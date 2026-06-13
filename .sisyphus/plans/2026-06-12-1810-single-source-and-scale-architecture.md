@@ -415,7 +415,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(workers): wire consumers to single output-contract source` — Files: (all listed) — Pre-commit: `pnpm build && pnpm test:unit -- golden-prompts`
 
-- [ ] 7. Skill-registry from frontmatter
+- [x] 7. Skill-registry from frontmatter
 
   **What to do**:
   - Create `src/lib/skill-registry.ts` reading each `src/workers/skills/*/SKILL.md` frontmatter (name + description) from disk (mirror the correct pattern in `admin-tools.ts`).
@@ -452,7 +452,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(gateway): single-source skill registry from frontmatter` — Files: `src/lib/skill-registry.ts`, `src/gateway/routes/admin-brain-preview.ts`, `tests/unit/skill-registry.test.ts` — Pre-commit: `pnpm test:unit -- skill-registry`
 
-- [ ] 8. `tool_registry` path-validation test (prerequisite for enforcement)
+- [x] 8. `tool_registry` path-validation test (prerequisite for enforcement)
 
   **What to do**:
   - `tests/unit/tool-registry-paths.test.ts`: read every `tool_registry.tools[]` path from `prisma/seed.ts`, assert each `/tools/{service}/{name}.ts` maps to an existing file under `src/worker-tools/`. With T2's descriptors available, also assert each path corresponds to a tool that exports a `descriptor`.
@@ -488,7 +488,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `test(seed): validate tool_registry paths + descriptors` — Files: `tests/unit/tool-registry-paths.test.ts`, `prisma/seed.ts` (if stale) — Pre-commit: `pnpm test:unit -- tool-registry-paths`
 
-- [ ] 9. env enforcement as a typed assertion over descriptors
+- [x] 9. env enforcement as a typed assertion over descriptors
 
   > **Oracle change**: replace the string-scanning env test with a type-checked assertion using T2 descriptors.
 
