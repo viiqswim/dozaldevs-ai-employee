@@ -175,7 +175,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
 > Implementation + Test = ONE task. Every task: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Golden-snapshot baseline + relocate drift-audit doc
+- [x] 1. Golden-snapshot baseline + relocate drift-audit doc
 
   > **RESEARCH PRE-DONE.** Full audit content at `.sisyphus/drafts/2026-06-12-1804-drift-audit-FINAL.md` (all file:line verified). This is relocate + snapshot, not research.
 
@@ -217,7 +217,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `test(golden): baseline prompt/compiler snapshots + drift audit` — Files: `tests/fixtures/golden/*`, `tests/unit/golden-prompts.test.ts`, `docs/guides/*-drift-audit.md`, `README.md`, `AGENTS.md` — Pre-commit: `pnpm test:unit -- golden-prompts`
 
-- [ ] 2. Typed `ToolDescriptor` + per-tool descriptors + typed discovery + startup cache
+- [x] 2. Typed `ToolDescriptor` + per-tool descriptors + typed discovery + startup cache
 
   > **HIGHEST-LEVERAGE TASK (Oracle).** Converts tool metadata from regex-recovered to type-checked, and discovery from request-time disk read to startup cache. Touches every tool file → its own wave.
 
@@ -269,7 +269,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `refactor(tools): typed ToolDescriptor + typed startup-cached discovery` — Files: `src/worker-tools/lib/types.ts`, `src/worker-tools/**/*.ts`, `src/gateway/services/tool-parser.ts`, `src/gateway/services/archetype-generator.ts`, `tests/unit/tool-descriptors.test.ts` — Pre-commit: `pnpm test:unit -- "tool-descriptors|golden-prompts"`
 
-- [ ] 3. `src/lib/output-contract-constants.ts` — single authored source
+- [x] 3. `src/lib/output-contract-constants.ts` — single authored source
 
   **What to do**:
   - Create `src/lib/output-contract-constants.ts` exporting (byte-identical to current values): `SUMMARY_PATH='/tmp/summary.txt'`, `APPROVAL_MESSAGE_PATH='/tmp/approval-message.json'`, `DRAFT_PATH='/tmp/draft.txt'`, the classification union re-exported from `src/workers/lib/output-schema.mts` (`APPROVED|NEEDS_APPROVAL|NO_ACTION_NEEDED`), `EXECUTION_PROMPT` (exact string from `execution-phase.mts`), `DELIVERY_PHASE_VALUE='delivery'`, `EXECUTION_PHASE_VALUE='execution'`.
@@ -345,7 +345,7 @@ Critical Path: T1 → T2 → T3/T4 → T6 → T10/T11 → T12/T13 → F3 → oka
 
   **Commit**: YES — `feat(tools): generate World-B output-contract constants from src/lib source` — Files: `scripts/generate-worker-constants.ts`, `package.json`, `src/worker-tools/lib/output-contract-paths.generated.ts`, `.github/workflows/deploy.yml` — Pre-commit: `pnpm generate-worker-constants && git diff --exit-code src/worker-tools/lib/output-contract-paths.generated.ts`
 
-- [ ] 5. Dedup `ArchetypeRow` interface
+- [x] 5. Dedup `ArchetypeRow` interface
 
   **What to do**: Delete the byte-identical duplicate `ArchetypeRow` in `src/workers/opencode-harness.mts` and import it from `src/workers/lib/execution-phase.mts` (already exported; `delivery-phase.mts` already does this). Leave the minimal `guest-message-poll.ts` shape (different purpose, deprecated trigger).
 
