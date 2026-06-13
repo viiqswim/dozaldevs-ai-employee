@@ -43,6 +43,7 @@ Plan: 2026-06-12-1810-single-source-and-scale-architecture
 ## [2026-06-13] T1 Complete — Golden Snapshot Baseline + Drift Audit Relocation
 
 ### What was done
+
 - Relocated `.sisyphus/drafts/2026-06-12-1804-drift-audit-FINAL.md` → `docs/guides/2026-06-12-2030-drift-audit.md`
   - Removed the "Status: FINAL" blockquote banner from the top
   - Added "## Backlog (Future Work)" section at end
@@ -54,6 +55,7 @@ Plan: 2026-06-12-1810-single-source-and-scale-architecture
 - Added drift-audit row to README.md Documentation table and AGENTS.md Reference Documents table
 
 ### Key patterns learned
+
 - `agents-md-compiler.mts` reads `agents.md` from disk at MODULE LOAD TIME (line 10: `readFileSync`)
   → must mock `postgrest-client.js` via `vi.hoisted` BEFORE import, even if you're not using `loadConnectedToolkits`
 - `buildSystemPrompt()` in `archetype-generator.ts` is NOT exported — golden test replicates its fallback path using the exported `SYSTEM_PROMPT_PRE`, `SYSTEM_PROMPT_POST`, `buildConnectedAppsBlock`
@@ -61,6 +63,7 @@ Plan: 2026-06-12-1810-single-source-and-scale-architecture
 - The failing `admin-employee-trigger.test.ts > 401 when X-Admin-Key header missing` is a pre-existing flaky test — not introduced by T1
 
 ### Why the safety net matters
+
 Every subsequent task (T2–T10) adds `pnpm test:unit -- golden-prompts` to its pre-commit check. A red golden test means the refactor changed LLM inputs — requires human review before proceeding.
 
 ## T5 — ArchetypeRow dedup (2026-06-12)
@@ -73,24 +76,86 @@ Every subsequent task (T2–T10) adds `pnpm test:unit -- golden-prompts` to its 
 ## [2026-06-13] T3 Complete
 
 ### What was done
+
 Created `src/lib/output-contract-constants.ts` (World A authored source). Additive only — no consumers wired (T6 does that). Exports:
+
 - `SUMMARY_PATH = '/tmp/summary.txt'`, `APPROVAL_MESSAGE_PATH = '/tmp/approval-message.json'`, `DRAFT_PATH = '/tmp/draft.txt'`
 - `OutputClassification` — re-exported as `StandardOutput['classification']` (indexed access), NOT redefined
 - `EXECUTION_PROMPT` — byte-identical to `execution-phase.mts` const (`'Follow the instructions in <execution-instructions> within the AGENTS.md file'`)
 - `DELIVERY_PHASE_VALUE = 'delivery'`, `EXECUTION_PHASE_VALUE = 'execution'`, `OUTPUT_CONTRACT_VERSION = 1`
 
 ### Key facts confirmed from source
+
 - `output-schema.mts` has NO standalone `OutputClassification` type — only the `StandardOutput` interface with `classification: 'APPROVED' | 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED'`. Re-export via indexed access `StandardOutput['classification']` is the correct single-source approach (no redefinition).
 - submit-output.ts `VALID_CLASSIFICATIONS` is only `['NEEDS_APPROVAL','NO_ACTION_NEEDED']` (a subset) — the schema union is the superset (adds `APPROVED`). Re-exporting from the schema preserves the full union.
 - `DRAFT_PATH` value `/tmp/draft.txt` confirmed at submit-output.ts:169 (the implicit fallback read).
 - `EXECUTION_PROMPT` lives at execution-phase.mts:96-97 as a local `const` inside `runExecutionPhase` (not module-scoped/exported) — T6 will need to replace that local with an import.
 
 ### Module-boundary mechanics (World A)
+
 - Import the schema with `.mjs` specifier: `import type { StandardOutput } from '../workers/lib/output-schema.mjs';` (NodeNext + `"type":"module"`). `type`-only import → erased at compile, zero runtime dep.
 - Compiled output is ESM (`export const ...`). `node -e "require(...)"` STILL works on this file because it has no runtime imports — pure const exports transpile to a CJS-interop-compatible shape under Node's ESM/CJS bridge. (Don't assume require() works for World A files with runtime imports.)
 - `tsconfig.build.json` excludes `src/worker-tools/**/*` and `tests` — this file is under `src/lib` so it compiles to `dist/lib/output-contract-constants.js`.
 
 ### Verification
+
 - `pnpm build` → exit 0
 - `node -e require dist → /tmp/summary.txt execution` (expected match)
 - Evidence: `.sisyphus/evidence/task-3-constants.txt`
+
+## [2026-06-13] T4 Complete — World-B generated constants + CI diff gate
+
+### What was done
+
+- Created `scripts/generate-worker-constants.ts` (mirrors `generate-composio-skills.ts`): imports authored VALUES from `src/lib/output-contract-constants.js`, emits `src/worker-tools/lib/output-contract-paths.generated.ts` via `writeIfChanged` (content-change check → stable mtime → clean git diff on re-run).
+- `OutputClassification` is emitted as a LITERAL UNION string, not a runtime read — it's a type, unreadable at runtime, and World B can't import it from World A. The CI diff gate is the only sync guarantee (no Vitest sync test by design).
+- Added `package.json` script + CI step "Check worker-constants freshness" in `deploy.yml` (after Composio freshness, before unit tests).
+- Removed the gitignore line for the generated file — it MUST be committed for the CI diff gate to function. The c0ea64cc-era narrowing was reverted for this specific file.
+
+### Key facts
+
+- Generator imports only the VALUES (paths/phase/version) from World A — NOT the type. Values via `import { SUMMARY_PATH, ... } from '../src/lib/output-contract-constants.js'`.
+- The generated `.ts` lands in World B but is a pure-const + type file: `pnpm build` excludes `src/worker-tools/**` so tsc never compiles it; eslint/prettier DO cover it (passes clean).
+- zsh: use `$?` after a redirect, not bash `$PIPESTATUS` (renders empty in this shell).
+
+### Verification
+
+- `pnpm generate-worker-constants && git diff --exit-code <generated>` → exit 0 (idempotent)
+- `pnpm build` → exit 0 · eslint → exit 0 · prettier --check → clean
+- `git check-ignore <generated>` → exit 1 (NOT ignored, committable)
+- Committed: a108f3c5
+
+## [2026-06-13] T6 Complete — Wire World-A and World-B consumers to single output-contract source
+
+### What was done
+
+All World-A consumers now import from `src/lib/output-contract-constants.ts`:
+- `src/workers/lib/output-contract.mts` — SUMMARY_PATH, APPROVAL_MESSAGE_PATH (5 occurrences)
+- `src/workers/lib/delivery-phase.mts` — SUMMARY_PATH
+- `src/workers/opencode-harness.mts` — SUMMARY_PATH, APPROVAL_MESSAGE_PATH, DELIVERY_PHASE_VALUE
+- `src/workers/lib/harness-helpers.mts` — APPROVAL_MESSAGE_PATH
+- `src/workers/lib/execution-phase.mts` — EXECUTION_PROMPT (removed local const)
+- `src/inngest/lifecycle/steps/delivery-retry.ts` — DELIVERY_PHASE_VALUE (both local + Fly env objects)
+- `src/gateway/routes/admin-brain-preview.ts` — EXECUTION_PROMPT, SUMMARY_PATH, APPROVAL_MESSAGE_PATH
+- `src/gateway/services/prompts/archetype-generator-prompts.ts` — SUMMARY_PATH, APPROVAL_MESSAGE_PATH
+
+All World-B consumers now import from `src/worker-tools/lib/output-contract-paths.generated.ts`:
+- `src/worker-tools/platform/submit-output.ts` — SUMMARY_PATH, DRAFT_PATH
+- `src/worker-tools/slack/post-guest-approval.ts` — SUMMARY_PATH, APPROVAL_MESSAGE_PATH
+
+### Key discoveries
+
+1. **`archetype-generator-prompts.ts` is safe to use constant interpolation**: The golden test imports the EXPORTED VALUES (SYSTEM_PROMPT_PRE, SYSTEM_PROMPT_POST, REFINE_SYSTEM_PROMPT) and tests their evaluated output — not source text. Using `${SUMMARY_PATH}` in the template literal produces byte-identical output since the value is the same string.
+
+2. **`agents-md-compiler.test.ts` reads source text**: The nudge message test reads the raw source of `opencode-harness.mts` via `readFileSync` and pattern-matches for `const nudgeMessage`. After changing the nudge message to use `${SUMMARY_PATH}`, the test assertion was updated from `toContain('/tmp/summary.txt')` to `toContain('SUMMARY_PATH')`.
+
+3. **`APPROVAL_OUTPUT_PATH` local variable in `post-guest-approval.ts`**: Three references existed beyond the `const` declaration — all updated to `APPROVAL_MESSAGE_PATH` after removing the local const.
+
+4. **Test fixture strings**: Three test files had `/tmp/summary.txt` in archetype instruction fixture strings — simplified to remove the path (not needed for test coverage).
+
+### Verification
+
+- `pnpm build` → exit 0
+- `pnpm test:unit -- golden-prompts` → 3/3 GREEN (byte-identical output confirmed)
+- `grep -r '/tmp/summary.txt\|/tmp/approval-message.json' src/` → only the two constant source files
+- Commit: cb80a171
