@@ -1,6 +1,10 @@
 import { createLogger } from '../../lib/logger.js';
 import { parseStandardOutput, isApprovalRequired, type StandardOutput } from './output-schema.mjs';
-import { SUMMARY_PATH, APPROVAL_MESSAGE_PATH } from '../../lib/output-contract-constants.js';
+import {
+  SUMMARY_PATH,
+  APPROVAL_MESSAGE_PATH,
+  OUTPUT_CONTRACT_VERSION,
+} from '../../lib/output-contract-constants.js';
 
 const log = createLogger('output-contract');
 
@@ -35,6 +39,26 @@ export async function checkOutputFiles(
     if (summaryText.trim()) {
       content = summaryText.trim();
       log.info({ taskId }, `[opencode-harness] Read summary from ${SUMMARY_PATH}`);
+
+      // Version compat check:
+      //   absent / undefined → treat as v1 (legacy files pre-date versioning, backward compat)
+      //   known version       → normal path
+      //   future-unknown      → warn + degrade gracefully (do NOT throw — additive fields are safe)
+      try {
+        const parsed: unknown = JSON.parse(summaryText.trim());
+        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const record = parsed as Record<string, unknown>;
+          const fileVersion = typeof record['version'] === 'number' ? record['version'] : 1;
+          if (fileVersion > OUTPUT_CONTRACT_VERSION) {
+            log.warn(
+              { taskId, version: fileVersion, known: OUTPUT_CONTRACT_VERSION },
+              'Output contract version newer than harness — degrading gracefully',
+            );
+          }
+        }
+      } catch {
+        // Non-JSON summary (plain text path) — no version to check
+      }
     }
   } catch {
     // not written

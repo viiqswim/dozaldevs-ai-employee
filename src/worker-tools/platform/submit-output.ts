@@ -19,7 +19,11 @@ import fs from 'fs';
 import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
 import type { ToolDescriptor } from '../lib/types.js';
-import { SUMMARY_PATH, DRAFT_PATH } from '../lib/output-contract-paths.generated.js';
+import {
+  SUMMARY_PATH,
+  DRAFT_PATH,
+  OUTPUT_CONTRACT_VERSION,
+} from '../lib/output-contract-paths.generated.js';
 
 export const descriptor: ToolDescriptor = {
   id: 'submit-output',
@@ -172,6 +176,7 @@ async function main(): Promise<void> {
   }
 
   const output: Record<string, unknown> = {
+    version: OUTPUT_CONTRACT_VERSION,
     summary,
     classification,
   };
