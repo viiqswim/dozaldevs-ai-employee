@@ -62,3 +62,35 @@ Plan: 2026-06-12-1810-single-source-and-scale-architecture
 
 ### Why the safety net matters
 Every subsequent task (T2–T10) adds `pnpm test:unit -- golden-prompts` to its pre-commit check. A red golden test means the refactor changed LLM inputs — requires human review before proceeding.
+
+## T5 — ArchetypeRow dedup (2026-06-12)
+
+- `execution-phase.mts` exports both `ArchetypeRow` and `TaskWithArchetype` — both were duplicated byte-for-byte in `opencode-harness.mts`
+- Import pattern: `import { runExecutionPhase, type ArchetypeRow, type TaskWithArchetype } from './lib/execution-phase.mjs';`
+- Note: delivery-phase.mts does NOT import `ArchetypeRow` from execution-phase — it uses its own local type or receives it via function params; check before assuming it's a pattern to follow
+- `.sisyphus/evidence/` is gitignored — evidence files stay local only
+
+## [2026-06-13] T3 Complete
+
+### What was done
+Created `src/lib/output-contract-constants.ts` (World A authored source). Additive only — no consumers wired (T6 does that). Exports:
+- `SUMMARY_PATH = '/tmp/summary.txt'`, `APPROVAL_MESSAGE_PATH = '/tmp/approval-message.json'`, `DRAFT_PATH = '/tmp/draft.txt'`
+- `OutputClassification` — re-exported as `StandardOutput['classification']` (indexed access), NOT redefined
+- `EXECUTION_PROMPT` — byte-identical to `execution-phase.mts` const (`'Follow the instructions in <execution-instructions> within the AGENTS.md file'`)
+- `DELIVERY_PHASE_VALUE = 'delivery'`, `EXECUTION_PHASE_VALUE = 'execution'`, `OUTPUT_CONTRACT_VERSION = 1`
+
+### Key facts confirmed from source
+- `output-schema.mts` has NO standalone `OutputClassification` type — only the `StandardOutput` interface with `classification: 'APPROVED' | 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED'`. Re-export via indexed access `StandardOutput['classification']` is the correct single-source approach (no redefinition).
+- submit-output.ts `VALID_CLASSIFICATIONS` is only `['NEEDS_APPROVAL','NO_ACTION_NEEDED']` (a subset) — the schema union is the superset (adds `APPROVED`). Re-exporting from the schema preserves the full union.
+- `DRAFT_PATH` value `/tmp/draft.txt` confirmed at submit-output.ts:169 (the implicit fallback read).
+- `EXECUTION_PROMPT` lives at execution-phase.mts:96-97 as a local `const` inside `runExecutionPhase` (not module-scoped/exported) — T6 will need to replace that local with an import.
+
+### Module-boundary mechanics (World A)
+- Import the schema with `.mjs` specifier: `import type { StandardOutput } from '../workers/lib/output-schema.mjs';` (NodeNext + `"type":"module"`). `type`-only import → erased at compile, zero runtime dep.
+- Compiled output is ESM (`export const ...`). `node -e "require(...)"` STILL works on this file because it has no runtime imports — pure const exports transpile to a CJS-interop-compatible shape under Node's ESM/CJS bridge. (Don't assume require() works for World A files with runtime imports.)
+- `tsconfig.build.json` excludes `src/worker-tools/**/*` and `tests` — this file is under `src/lib` so it compiles to `dist/lib/output-contract-constants.js`.
+
+### Verification
+- `pnpm build` → exit 0
+- `node -e require dist → /tmp/summary.txt execution` (expected match)
+- Evidence: `.sisyphus/evidence/task-3-constants.txt`
