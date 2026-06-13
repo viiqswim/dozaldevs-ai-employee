@@ -299,8 +299,8 @@ describe('opencode-harness — recovery nudge message content', () => {
     return match[1];
   }
 
-  it('nudge message contains /tmp/summary.txt as the success condition', () => {
-    expect(extractNudgeMessage()).toContain('/tmp/summary.txt');
+  it('nudge message references the summary path constant as the success condition', () => {
+    expect(extractNudgeMessage()).toContain('SUMMARY_PATH');
   });
 
   it('nudge message contains execution-instructions reference so the agent re-reads its steps', () => {

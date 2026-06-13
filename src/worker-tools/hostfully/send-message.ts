@@ -33,6 +33,34 @@ import { unescapeShellArg } from '../lib/unescape-args.js';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv } from '../lib/require-env.js';
 import { resolveHostfullyClient } from './lib/client.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'send-message',
+  service: 'hostfully',
+  description: 'Send a message to a guest via the Hostfully unified inbox API (irreversible)',
+  envVars: ['HOSTFULLY_API_KEY'],
+  args: [
+    {
+      name: '--lead-id',
+      required: true,
+      description: 'Hostfully lead/reservation UID',
+      type: 'string',
+    },
+    {
+      name: '--message',
+      required: true,
+      description: 'Message text to send to the guest',
+      type: 'string',
+    },
+    {
+      name: '--thread-id',
+      required: false,
+      description: 'Hostfully thread UID to reply within a specific thread',
+      type: 'string',
+    },
+  ],
+};
 
 type RawCreatedMessage = {
   uid?: string;

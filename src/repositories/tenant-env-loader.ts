@@ -9,7 +9,10 @@ import { resolveNotificationChannel } from './notification-channel.js';
 import type { TenantRepository } from './tenant-repository.js';
 import type { TenantSecretRepository } from './tenant-secret-repository.js';
 
-const PLATFORM_ENV_WHITELIST = [
+// Security boundary: platform vars only (gateway process.env → all workers).
+// NOT tenant secrets (encrypted, per-tenant) and NOT task-scoped vars (set per-task).
+// Exported for the env-enforcement parity test, not for runtime use elsewhere.
+export const PLATFORM_ENV_WHITELIST = [
   'AGENT_VERSION_ID',
   'COMPOSIO_API_KEY',
   'DATABASE_URL',

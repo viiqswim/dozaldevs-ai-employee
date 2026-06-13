@@ -15,6 +15,15 @@
 import fs from 'fs';
 
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-token',
+  service: 'github',
+  description: 'Fetch a short-lived GitHub installation token from the gateway for git/gh CLI use',
+  envVars: ['TASK_ID'],
+  args: [],
+};
 
 const TOKEN_FILE = '/tmp/github-token';
 

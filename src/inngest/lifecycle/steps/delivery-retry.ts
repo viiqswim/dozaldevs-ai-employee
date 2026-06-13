@@ -11,6 +11,7 @@ import {
   WORKER_RUNTIME,
   FLY_WORKER_IMAGE,
 } from '../../../lib/config.js';
+import { DELIVERY_PHASE_VALUE } from '../../../lib/output-contract-constants.js';
 import { getTunnelUrl } from '../../../lib/tunnel-client.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
 import type { KnownBlock } from '@slack/web-api';
@@ -118,7 +119,7 @@ export async function runDeliveryWithRetry(
         env: {
           ...tenantEnvForDelivery,
           TASK_ID: taskId,
-          EMPLOYEE_PHASE: 'delivery',
+          EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
           APPROVAL_REQUIRED: String(approvalRequired),
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
@@ -144,7 +145,7 @@ export async function runDeliveryWithRetry(
         env: {
           ...tenantEnvForDelivery,
           TASK_ID: taskId,
-          EMPLOYEE_PHASE: 'delivery',
+          EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
           EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
           APPROVAL_REQUIRED: String(approvalRequired),
           NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',

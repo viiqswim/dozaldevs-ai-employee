@@ -6,9 +6,18 @@ import { type HeartbeatHandle } from './lib/heartbeat.js';
 import { applyResourceCaps } from './lib/resource-caps.js';
 import { getPlatformSetting } from '../lib/platform-settings.js';
 import { checkOutputFiles, readOutputContract } from './lib/output-contract.mjs';
+import {
+  SUMMARY_PATH,
+  APPROVAL_MESSAGE_PATH,
+  DELIVERY_PHASE_VALUE,
+} from '../lib/output-contract-constants.js';
 import { resolveModelProvider } from './lib/model-provider.mjs';
 import { tryAutoPostApprovalCard } from './lib/harness-helpers.mjs';
-import { runExecutionPhase } from './lib/execution-phase.mjs';
+import {
+  runExecutionPhase,
+  type ArchetypeRow,
+  type TaskWithArchetype,
+} from './lib/execution-phase.mjs';
 import { runDeliveryPhase } from './lib/delivery-phase.mjs';
 
 const log = createLogger('opencode-harness');
@@ -154,7 +163,7 @@ async function runOpencodeSession(
         };
       }
       throw new Error(
-        '[opencode-harness] opencode serve exited before producing output — neither /tmp/summary.txt nor /tmp/approval-message.json was found',
+        `[opencode-harness] opencode serve exited before producing output — neither ${SUMMARY_PATH} nor ${APPROVAL_MESSAGE_PATH} was found`,
       );
     }
 
@@ -190,7 +199,7 @@ async function runOpencodeSession(
     const summaryExistsCheck = await (async () => {
       try {
         const { readFile } = await import('fs/promises');
-        await readFile('/tmp/summary.txt', 'utf8');
+        await readFile(SUMMARY_PATH, 'utf8');
         return true;
       } catch {
         return false;
@@ -202,7 +211,7 @@ async function runOpencodeSession(
         { taskId: TASK_ID, sessionId },
         '[opencode-harness] submit-output not found after session idle — sending recovery nudge',
       );
-      const nudgeMessage = `Your session went idle without producing the required output. Re-read your <execution-instructions> in AGENTS.md and complete ALL remaining steps you have not yet executed. You are not done until /tmp/summary.txt exists.`;
+      const nudgeMessage = `Your session went idle without producing the required output. Re-read your <execution-instructions> in AGENTS.md and complete ALL remaining steps you have not yet executed. You are not done until ${SUMMARY_PATH} exists.`;
       await sessionManager.injectTaskPrompt(sessionId!, nudgeMessage);
       await sessionManager.monitorSession(sessionId!, {
         timeoutMs: 5 * 60 * 1000,
@@ -258,34 +267,6 @@ async function runOpencodeSession(
 // Entry point
 // ---------------------------------------------------------------------------
 
-interface ArchetypeRow {
-  id: string;
-  role_name?: string | null;
-  instructions?: string | null;
-  execution_instructions?: string | null;
-  identity?: string | null;
-  execution_steps?: string | null;
-  delivery_steps?: string | null;
-  temperature?: number | null;
-  model?: string | null;
-  deliverable_type?: string | null;
-  runtime?: string | null;
-  delivery_instructions?: string | null;
-  enrichment_adapter?: string | null;
-  risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
-  tool_registry?: { tools?: string[] } | null;
-  platform_rules_override?: string | null;
-}
-
-interface TaskWithArchetype {
-  id: string;
-  status: string;
-  tenant_id?: string | null;
-  archetype_id?: string | null;
-  archetypes?: ArchetypeRow | ArchetypeRow[] | null;
-  [key: string]: unknown;
-}
-
 async function main(): Promise<void> {
   // Fetch bash timeout from platform_settings DB and set into env before applyResourceCaps().
   // applyResourceCaps() respects already-set values (if (!env[key]) guard), so the DB value
@@ -320,7 +301,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === 'delivery';
+  const isDeliveryPhase = process.env.EMPLOYEE_PHASE === DELIVERY_PHASE_VALUE;
   if (isDeliveryPhase) {
     await runDeliveryPhase(task, archetype, TASK_ID, db, runOpencodeSession);
     return;

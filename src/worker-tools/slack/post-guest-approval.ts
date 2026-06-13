@@ -6,6 +6,88 @@ import { WebClient } from '@slack/web-api';
 
 import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import type { ToolDescriptor } from '../lib/types.js';
+import { SUMMARY_PATH, APPROVAL_MESSAGE_PATH } from '../lib/output-contract-paths.generated.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'post-guest-approval',
+  service: 'slack',
+  description: 'Post a guest message approval card to Slack for PM review',
+  envVars: ['NOTIFICATION_CHANNEL', 'SLACK_BOT_TOKEN'],
+  args: [
+    { name: '--task-id', required: true, description: 'Task ID', type: 'string' },
+    { name: '--guest-name', required: true, description: 'Guest name', type: 'string' },
+    { name: '--property-name', required: true, description: 'Property name', type: 'string' },
+    { name: '--check-in', required: true, description: 'Check-in date', type: 'string' },
+    { name: '--check-out', required: true, description: 'Check-out date', type: 'string' },
+    {
+      name: '--booking-channel',
+      required: true,
+      description: 'Booking channel (e.g. AIRBNB)',
+      type: 'string',
+    },
+    {
+      name: '--original-message',
+      required: true,
+      description: 'Guest original message',
+      type: 'string',
+    },
+    {
+      name: '--draft-response',
+      required: true,
+      description: 'Proposed reply to guest',
+      type: 'string',
+    },
+    { name: '--confidence', required: true, description: 'Confidence score 0-1', type: 'number' },
+    { name: '--category', required: true, description: 'Message category', type: 'string' },
+    { name: '--lead-uid', required: true, description: 'Hostfully lead UID', type: 'string' },
+    { name: '--thread-uid', required: true, description: 'Hostfully thread UID', type: 'string' },
+    { name: '--message-uid', required: true, description: 'Hostfully message UID', type: 'string' },
+    {
+      name: '--urgency',
+      required: false,
+      description: 'Flag presence marks urgency=true',
+      type: 'boolean',
+    },
+    {
+      name: '--conversation-summary',
+      required: false,
+      description: 'Summary of conversation so far',
+      type: 'string',
+    },
+    { name: '--diagnosis', required: false, description: 'Lock diagnosis JSON', type: 'string' },
+    {
+      name: '--conversation-ref',
+      required: false,
+      description: 'Hostfully thread UID for superseding detection',
+      type: 'string',
+    },
+    {
+      name: '--lead-status',
+      required: false,
+      description: 'Lead status (BOOKED, INQUIRY, CLOSED, NEW)',
+      type: 'string',
+    },
+    {
+      name: '--thread-ts',
+      required: false,
+      description: 'Override thread timestamp',
+      type: 'string',
+    },
+    {
+      name: '--reply-broadcast',
+      required: false,
+      description: 'Also send thread reply to main channel',
+      type: 'boolean',
+    },
+    {
+      name: '--dry-run',
+      required: false,
+      description: `Skip Slack post; still writes ${SUMMARY_PATH}`,
+      type: 'boolean',
+    },
+  ],
+};
 
 interface GuestApprovalParams {
   taskId: string;
@@ -114,7 +196,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
         'Usage: tsx post-guest-approval.ts [options]\n\n' +
           'Post a guest message approval card to Slack.\n' +
           'Channel is read from NOTIFICATION_CHANNEL env var.\n' +
-          'Automatically writes /tmp/summary.txt via submit-output.ts before posting.\n\n' +
+          `Automatically writes ${SUMMARY_PATH} via submit-output.ts before posting.\n\n` +
           'Environment variables:\n' +
           '  NOTIFICATION_CHANNEL  (required) Slack channel to post to\n' +
           '  NOTIFY_MSG_TS         (auto-read) Thread timestamp; used to reply under task notification\n' +
@@ -141,7 +223,7 @@ function parseArgs(argv: string[]): GuestApprovalParams {
           '  --lead-status <string>     Lead status (BOOKED, INQUIRY, CLOSED, NEW)\n' +
           '  --thread-ts <ts>           Override thread timestamp (default: $NOTIFY_MSG_TS env var)\n' +
           '  --reply-broadcast [bool]   Also send thread reply to main channel\n' +
-          '  --dry-run                  Skip Slack post; still writes /tmp/summary.txt\n' +
+          `  --dry-run                  Skip Slack post; still writes ${SUMMARY_PATH}\n` +
           '  --help                     Show this help message\n',
       );
       process.exit(0);
@@ -337,7 +419,6 @@ export function buildGuestApprovalBlocks(params: GuestApprovalParams): unknown[]
 }
 
 function callSubmitOutputIfNeeded(params: GuestApprovalParams): void {
-  const SUMMARY_PATH = '/tmp/summary.txt';
   if (existsSync(SUMMARY_PATH)) return; // already written — idempotency
 
   const submitOutputPath = path.join(__dirname, '../platform/submit-output.ts');
@@ -396,10 +477,9 @@ export async function main(): Promise<void> {
   }
 
   // Idempotency guard: prevent double-posting if model calls this tool twice
-  const APPROVAL_OUTPUT_PATH = '/tmp/approval-message.json';
-  if (existsSync(APPROVAL_OUTPUT_PATH)) {
+  if (existsSync(APPROVAL_MESSAGE_PATH)) {
     try {
-      const existing = JSON.parse(readFileSync(APPROVAL_OUTPUT_PATH, 'utf8')) as Record<
+      const existing = JSON.parse(readFileSync(APPROVAL_MESSAGE_PATH, 'utf8')) as Record<
         string,
         unknown
       >;
@@ -408,11 +488,11 @@ export async function main(): Promise<void> {
         existing.ts.length > 0 &&
         !/PLACEHOLDER/i.test(existing.ts)
       ) {
-        // Parse args so we can ensure /tmp/summary.txt is written even on guard path
+        // Parse args so we can ensure SUMMARY_PATH is written even on guard path
         const guardParams = parseArgs(process.argv);
         callSubmitOutputIfNeeded(guardParams);
         process.stderr.write(
-          `Idempotency guard: ${APPROVAL_OUTPUT_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
+          `Idempotency guard: ${APPROVAL_MESSAGE_PATH} already exists with ts=${existing.ts} — skipping Slack post\n`,
         );
         process.stdout.write(JSON.stringify({ ts: existing.ts, channel: existing.channel }) + '\n');
         return;
@@ -464,7 +544,7 @@ export async function main(): Promise<void> {
     );
   }
 
-  // Write /tmp/summary.txt BEFORE posting to Slack (and before dry-run return)
+  // Write SUMMARY_PATH BEFORE posting to Slack (and before dry-run return)
   callSubmitOutputIfNeeded(params);
 
   const blocks = buildGuestApprovalBlocks(params);
@@ -523,7 +603,7 @@ export async function main(): Promise<void> {
     urgency: params.urgency,
     lead_status: params.leadStatus ?? null,
   };
-  writeFileSync(APPROVAL_OUTPUT_PATH, JSON.stringify(approvalOutput));
+  writeFileSync(APPROVAL_MESSAGE_PATH, JSON.stringify(approvalOutput));
 
   const output: PostResult = { ts: result.ts, channel: result.channel };
   process.stdout.write(JSON.stringify(output) + '\n');

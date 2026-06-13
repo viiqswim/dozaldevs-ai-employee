@@ -5,6 +5,40 @@ import { formatGuestName } from './lib/format.js';
 import { CONFIRMED_STATUSES } from './lib/constants.js';
 import { getArg } from '../lib/get-arg.js';
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-checkouts',
+  service: 'hostfully',
+  description: 'Fetch upcoming checkouts for a Hostfully property or agency within a date window',
+  envVars: [
+    'HOSTFULLY_API_KEY',
+    'HOSTFULLY_AGENCY_UID',
+    'SUPABASE_URL',
+    'SUPABASE_SECRET_KEY',
+    'TENANT_ID',
+  ],
+  args: [
+    {
+      name: '--property-id',
+      required: false,
+      description: 'Property UID; omit to fetch all properties',
+      type: 'string',
+    },
+    {
+      name: '--days-ahead',
+      required: false,
+      description: 'Number of days ahead to look for checkouts (default: 3)',
+      type: 'number',
+    },
+    {
+      name: '--date',
+      required: false,
+      description: 'Specific checkout date (YYYY-MM-DD)',
+      type: 'string',
+    },
+  ],
+};
 
 type RawProperty = {
   uid: string;

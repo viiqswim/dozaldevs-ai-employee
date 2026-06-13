@@ -1,3 +1,39 @@
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'get-reservations',
+  service: 'hostfully',
+  description: 'Fetch reservations (leads) for a Hostfully property or agency',
+  envVars: ['HOSTFULLY_API_KEY', 'HOSTFULLY_AGENCY_UID'],
+  args: [
+    {
+      name: '--property-id',
+      required: false,
+      description: 'Property UID to fetch reservations for',
+      type: 'string',
+    },
+    {
+      name: '--status',
+      required: false,
+      description: 'Filter by lead status (e.g. BOOKED, INQUIRY)',
+      type: 'string',
+    },
+    {
+      name: '--check-in-from',
+      required: false,
+      description: 'Filter by check-in date from (YYYY-MM-DD)',
+      type: 'string',
+    },
+    {
+      name: '--check-in-to',
+      required: false,
+      description: 'Filter by check-in date to (YYYY-MM-DD)',
+      type: 'string',
+    },
+    { name: '--limit', required: false, description: 'Max reservations to return', type: 'number' },
+  ],
+};
+
 /**
  * Fetches reservations for a Hostfully property.
  *

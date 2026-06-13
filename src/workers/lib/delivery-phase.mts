@@ -11,6 +11,7 @@
  */
 
 import { createLogger } from '../../lib/logger.js';
+import { SUMMARY_PATH } from '../../lib/output-contract-constants.js';
 import { type PostgRESTClient } from './postgrest-client.js';
 import { compileAgentsMd, loadConnectedToolkits } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
@@ -197,12 +198,12 @@ export async function runDeliveryPhase(
     }
   }
 
-  // 7. Verify delivery confirmation from /tmp/summary.txt
+  // 7. Verify delivery confirmation from SUMMARY_PATH
   {
     const { readFile: deliveryReadFile } = await import('fs/promises');
     let summaryRaw: string;
     try {
-      summaryRaw = await deliveryReadFile('/tmp/summary.txt', 'utf8');
+      summaryRaw = await deliveryReadFile(SUMMARY_PATH, 'utf8');
     } catch {
       await markFailed(
         taskId,

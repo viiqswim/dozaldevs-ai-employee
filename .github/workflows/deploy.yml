@@ -49,6 +49,20 @@ jobs:
             echo "::error::Committed Composio skills are stale. Run 'pnpm generate-composio-skills' locally and commit the result."
             exit 1
           fi
+      - name: Check worker-constants freshness
+        run: |
+          pnpm generate-worker-constants
+          if ! git diff --exit-code src/worker-tools/lib/output-contract-paths.generated.ts; then
+            echo "::error::Generated worker constants are stale. Run 'pnpm generate-worker-constants' locally and commit the result."
+            exit 1
+          fi
+      - name: Check tool-usage-skill freshness
+        run: |
+          pnpm generate-tool-usage-skill
+          if ! git diff --exit-code src/workers/skills/tool-usage-reference/SKILL.md; then
+            echo "::error::tool-usage-reference SKILL.md is stale. Run 'pnpm generate-tool-usage-skill' locally and commit the result."
+            exit 1
+          fi
       - name: Run unit tests (no DB required)
         run: pnpm test:unit
       - name: Set up integration test DB

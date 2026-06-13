@@ -8,7 +8,331 @@ description: 'Use when calling any shell tool available in the container (/tools
 Exact CLI syntax for every shell tool pre-installed in the worker container.
 All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
----
+<!-- The sections below are auto-generated from src/lib/tool-registry.ts (ALL_TOOL_DESCRIPTORS). Run `pnpm generate-tool-usage-skill` to regenerate. Edit the registry, not this section. -->
+
+## composio/execute
+
+**Description**: Execute any Composio action (Notion, Google, Jira, and more)
+
+**Environment variables**: COMPOSIO_API_KEY, TENANT_ID
+
+**Arguments**:
+
+- `--action` (required): Composio action slug (e.g. NOTION_CREATE_PAGE)
+- `--params` (optional): JSON string of action parameters
+
+## composio/list-actions
+
+**Description**: Discover available Composio actions for a toolkit at runtime
+
+**Environment variables**: COMPOSIO_API_KEY
+
+**Arguments**:
+
+- `--toolkit` (required): Toolkit name (e.g. notion, gmail, jira)
+
+## github/get-token
+
+**Description**: Fetch a short-lived GitHub App installation token for git/gh CLI operations
+
+**Environment variables**: GITHUB_APP_ID, GITHUB_PRIVATE_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID
+
+**Arguments**:
+
+- `--installation-id` (optional): GitHub App installation ID (resolved from tenant if omitted)
+
+## hostfully/get-checkouts
+
+**Description**: List upcoming checkouts for Hostfully properties
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--days` (optional): Number of days ahead to look (default: 1)
+
+## hostfully/get-door-code
+
+**Description**: Retrieve the door code custom data field for a Hostfully property
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-id` (required): Hostfully property UID
+
+## hostfully/get-messages
+
+**Description**: Retrieve inbox messages for a Hostfully lead/thread
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--lead-uid` (required): Hostfully lead UID
+
+## hostfully/get-properties
+
+**Description**: List all Hostfully properties for the agency
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- _(no arguments)_
+
+## hostfully/get-property
+
+**Description**: Get details for a single Hostfully property by UID
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-uid` (required): Hostfully property UID
+
+## hostfully/get-reservations
+
+**Description**: List reservations for a Hostfully property
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-uid` (required): Hostfully property UID
+
+## hostfully/get-reviews
+
+**Description**: List guest reviews for a Hostfully property
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-uid` (required): Hostfully property UID
+
+## hostfully/register-webhook
+
+**Description**: Register a webhook endpoint with Hostfully for a specific event type
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--url` (required): Public URL to receive webhook events
+- `--event-type` (required): Hostfully event type (e.g. NEW_INBOX_MESSAGE)
+
+## hostfully/send-message
+
+**Description**: Send a reply message to a Hostfully guest thread
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--lead-uid` (required): Hostfully lead UID
+- `--body` (required): Message body to send
+
+## hostfully/update-door-code
+
+**Description**: Update the door code custom data field for a Hostfully property
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-id` (required): Hostfully property UID
+- `--code` (required): New door code value to set
+
+## hostfully/validate-env
+
+**Description**: Validate that all required Hostfully environment variables are set
+
+**Environment variables**: HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- _(no arguments)_
+
+## knowledge_base/search
+
+**Description**: Semantic search over the employee knowledge base entries
+
+**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID, OPENROUTER_API_KEY
+
+**Arguments**:
+
+- `--query` (required): Natural language search query
+- `--limit` (optional): Max results to return (default: 5)
+
+## platform/calculate
+
+**Description**: Evaluate a mathematical expression and return the numeric result
+
+**Environment variables**: None
+
+**Arguments**:
+
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
+
+## platform/report-issue
+
+**Description**: Report a platform issue or error to the issues Slack channel
+
+**Environment variables**: SLACK_BOT_TOKEN
+
+**Arguments**:
+
+- `--message` (required): Issue description to report
+- `--task-id` (optional): Task ID associated with the issue
+
+## platform/submit-output
+
+**Description**: Submit task output (summary and optional draft file) to the platform
+
+**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID
+
+**Arguments**:
+
+- `--summary` (required): Short summary of what was done
+- `--classification` (required): NEEDS_APPROVAL or NO_ACTION_NEEDED
+- `--draft-file` (optional): Path to file containing the full draft deliverable
+
+## sifely/create-passcode
+
+**Description**: Create a new permanent passcode on a Sifely smart lock
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- `--lock-id` (required): Sifely lock ID
+- `--name` (required): Passcode name (e.g. permanent-visitor-home)
+- `--code` (required): Numeric passcode to set
+
+## sifely/delete-passcode
+
+**Description**: Delete a passcode from a Sifely smart lock by passcode ID
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- `--lock-id` (required): Sifely lock ID
+- `--passcode-id` (required): Passcode ID to delete
+
+## sifely/diagnose-access
+
+**Description**: Cross-references Hostfully door codes against Sifely smart lock passcodes and recent access records to diagnose guest lock access issues.
+
+**Environment variables**: HOSTFULLY_API_KEY, SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD, SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID
+
+**Arguments**:
+
+- `--property-id` (required): Hostfully property UID to diagnose
+
+## sifely/generate-code
+
+**Description**: Generates a memorable 4–6 digit lock code using mirror (ABBA) or rhythm (ABAB) patterns, excluding weak or previously used codes.
+
+**Environment variables**: None
+
+**Arguments**:
+
+- `--length` (optional): Constrain output to a specific code length (4, 5, or 6)
+- `--exclude-codes` (optional): Comma-separated list of codes to exclude (for rotation)
+
+## sifely/list-access-records
+
+**Description**: List recent access records (unlock/lock events) for a Sifely lock
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- `--lock-id` (required): Sifely lock ID
+- `--start-date` (optional): Start timestamp in ms (default: 2 hours ago)
+- `--end-date` (optional): End timestamp in ms (default: now)
+
+## sifely/list-locks
+
+**Description**: List all Sifely smart locks accessible to the authenticated account
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- _(no arguments)_
+
+## sifely/list-passcodes
+
+**Description**: List all passcodes on a Sifely smart lock
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- `--lock-id` (required): Sifely lock ID
+
+## sifely/rotate-property-code
+
+**Description**: Rotates the lock code for a single Hostfully property and all its associated Sifely locks, updating both Sifely passcodes and the Hostfully door code field.
+
+**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TENANT_ID, SIFELY_USERNAME, SIFELY_PASSWORD, HOSTFULLY_API_KEY
+
+**Arguments**:
+
+- `--property-id` (required): Hostfully property UID to rotate the code for
+- `--code` (optional): Use this specific code instead of generating a new one
+
+## sifely/update-passcode
+
+**Description**: Update the code value of an existing Sifely passcode
+
+**Environment variables**: SIFELY_CLIENT_ID, SIFELY_USERNAME, SIFELY_PASSWORD
+
+**Arguments**:
+
+- `--lock-id` (required): Sifely lock ID
+- `--passcode-id` (required): Passcode ID to update
+- `--code` (required): New numeric passcode value
+
+## slack/post-guest-approval
+
+**Description**: Post a guest-reply approval card to Slack for PM review
+
+**Environment variables**: SLACK_BOT_TOKEN
+
+**Arguments**:
+
+- `--channel` (required): Slack channel ID
+- `--task-id` (required): Task ID for the approval action
+- `--draft-reply` (required): Draft reply text to show in the card
+
+## slack/post-message
+
+**Description**: Post a message to a Slack channel
+
+**Environment variables**: SLACK_BOT_TOKEN
+
+**Arguments**:
+
+- `--channel` (required): Slack channel ID
+- `--text` (required): Message text to post
+- `--thread-ts` (optional): Thread timestamp to reply to
+
+## slack/read-channels
+
+**Description**: Read recent messages from one or more Slack channels
+
+**Environment variables**: SLACK_BOT_TOKEN
+
+**Arguments**:
+
+- `--channels` (required): Comma-separated list of channel IDs
+- `--limit` (optional): Max messages per channel (default: 10)
+
+<!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->
 
 ## ⚠️ CRITICAL WARNINGS — Read Before Every Tool Call
 

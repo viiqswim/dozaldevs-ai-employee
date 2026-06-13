@@ -23,6 +23,35 @@
 import { login, resolveConfig, withRetry, assertListSuccess } from './lib/api.js';
 import type { AccessRecord, SifelyListResponse, SifelyAccessRecordRaw } from './lib/api.js';
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'list-access-records',
+  service: 'sifely',
+  description: 'List access records for a given Sifely lock within a date range',
+  envVars: ['SIFELY_USERNAME', 'SIFELY_PASSWORD'],
+  args: [
+    { name: '--lock-id', required: true, description: 'Sifely lock ID', type: 'string' },
+    {
+      name: '--start-date',
+      required: false,
+      description: 'Start of date range in epoch milliseconds (default: 7 days ago)',
+      type: 'number',
+    },
+    {
+      name: '--end-date',
+      required: false,
+      description: 'End of date range in epoch milliseconds (default: now)',
+      type: 'number',
+    },
+    {
+      name: '--human',
+      required: false,
+      description: 'Add recordTypeLabel field with human-readable record type name',
+      type: 'boolean',
+    },
+  ],
+};
 
 const MAX_PAGES = 100;
 const PAGE_SIZE = 100;

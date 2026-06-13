@@ -21,7 +21,7 @@ function makeArchetype(overrides: Record<string, unknown> = {}) {
     role_name: 'daily-digest',
     model: 'minimax/minimax-m2.7',
     runtime: 'opencode',
-    instructions: 'Step 1.\nStep 2.\nStep 3. Write to /tmp/summary.txt',
+    instructions: 'Step 1.\nStep 2.\nStep 3.',
     agents_md: 'You are a digest bot.',
     system_prompt: '',
     delivery_instructions: null,
@@ -67,7 +67,7 @@ const VALID_BODY = {
   role_name: 'daily-digest',
   model: 'minimax/minimax-m2.7',
   runtime: 'opencode',
-  instructions: 'Step 1.\nStep 2.\nStep 3. Write to /tmp/summary.txt',
+  instructions: 'Step 1.\nStep 2.\nStep 3.',
   agents_md: 'You are a daily digest bot.\n\nWORKFLOW:\n1. Fetch data.\n2. Post to Slack.',
   notification_channel: '#test-channel',
 };

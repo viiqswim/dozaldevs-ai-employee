@@ -16,6 +16,15 @@
 
 import { login, resolveConfig, withRetry, assertMutationSuccess } from './lib/api.js';
 import type { SifelyLock, SifelyLockListResponse } from './lib/api.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'list-locks',
+  service: 'sifely',
+  description: 'List all Sifely smart locks for the configured account',
+  envVars: ['SIFELY_USERNAME', 'SIFELY_PASSWORD'],
+  args: [],
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

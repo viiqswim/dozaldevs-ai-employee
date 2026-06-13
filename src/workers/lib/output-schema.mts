@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 export interface StandardOutput {
+  // version is optional for backward compatibility with legacy files that pre-date
+  // output-contract versioning. Absent = v1. Future-unknown versions are warned but
+  // not thrown — additive-only within a major version guarantees degraded read safety.
+  version?: number;
   summary: string;
   classification: 'APPROVED' | 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED';
   draft?: string;
@@ -11,6 +15,7 @@ export interface StandardOutput {
 }
 
 export const standardOutputSchema = z.object({
+  version: z.number().int().positive().optional(),
   summary: z.string(),
   classification: z.enum(['APPROVED', 'NEEDS_APPROVAL', 'NO_ACTION_NEEDED']),
   draft: z.string().optional(),

@@ -27,7 +27,7 @@ const FAILURE_CODES = {
  * Returns 'unknown' if no pattern matches.
  */
 export function classifyFailure(reason: string): string {
-  // output_contract_missing — worker did not write /tmp/summary.txt
+  // output_contract_missing — worker did not write the summary output contract file
   if (reason.includes('did not produce content') || reason.includes('summary.txt')) {
     return FAILURE_CODES.output_contract_missing;
   }

@@ -8,8 +8,14 @@ import { requireAuth, requireTenantRole } from '../middleware/authz.js';
 import { TenantIdParamSchema, uuidField } from '../validation/schemas.js';
 import { sendError, sendSuccess } from '../lib/http-response.js';
 import { getPlatformSetting } from '../../lib/platform-settings.js';
+import {
+  EXECUTION_PROMPT,
+  SUMMARY_PATH,
+  APPROVAL_MESSAGE_PATH,
+} from '../../lib/output-contract-constants.js';
 import { TenantSecretRepository } from '../../repositories/tenant-secret-repository.js';
 import { discoverTools, parseSkillMd, enrichTools } from '../services/tool-parser.js';
+import { getWorkerSkills } from '../../lib/skill-registry.js';
 import { compileAgentsMd } from '../../workers/lib/agents-md-compiler.mjs';
 import { buildEnvManifestFromVars } from '../../workers/lib/env-manifest-builder.mjs';
 import { assembleTaskPrompt } from '../../workers/lib/prompt-assembler.mjs';
@@ -284,9 +290,8 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           employeeKnowledge: employeeKnowledgeStr,
         });
 
-        const EXECUTION_PROMPT = assembleTaskPrompt({
-          instructions:
-            'Follow the instructions in <execution-instructions> within the AGENTS.md file',
+        const executionPromptPreview = assembleTaskPrompt({
+          instructions: EXECUTION_PROMPT,
           taskId: '<task-id-injected-at-runtime>',
         });
         const DELIVERY_PROMPT = assembleTaskPrompt({
@@ -312,7 +317,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
 
         sendSuccess(res, 200, {
           compiled_agents_md: compiledAgentsMd,
-          execution_prompt: EXECUTION_PROMPT,
+          execution_prompt: executionPromptPreview,
           delivery_prompt: DELIVERY_PROMPT,
           archetype_fields: {
             identity: archetype.identity,
@@ -324,18 +329,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           env_vars,
           env_manifest: envManifestStr,
           tools,
-          skills: [
-            {
-              name: 'tool-usage-reference',
-              description:
-                'Exact CLI syntax, required flags, output JSON shapes, and critical warnings for all shell tools in the container',
-            },
-            {
-              name: 'uuid-disambiguation',
-              description:
-                'All UUID types in the system (lead_uid, thread_uid, property_uid, message_uid, task_id, tenant_id), their sources, env var names, and the critical rule that lead_uid and thread_uid are never the same value',
-            },
-          ],
+          skills: getWorkerSkills(),
           config: {
             model: archetype.model ?? 'minimax/minimax-m2.7',
             runtime: archetype.runtime ?? 'opencode',
@@ -346,13 +340,13 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           output_contract: {
             required_files: [
               {
-                path: '/tmp/summary.txt',
+                path: SUMMARY_PATH,
                 description:
                   'Free-text summary of what was done. In delivery phase must be valid JSON with {"delivered": true}',
                 required: false,
               },
               {
-                path: '/tmp/approval-message.json',
+                path: APPROVAL_MESSAGE_PATH,
                 description:
                   'JSON with ts, channel, and optionally conversationRef — Slack message metadata for the approval card',
                 required: false,

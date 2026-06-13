@@ -12,6 +12,22 @@
  */
 
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'calculate',
+  service: 'platform',
+  description: 'Safely evaluate an arithmetic expression and return the numeric result',
+  envVars: [],
+  args: [
+    {
+      name: '--expression',
+      required: true,
+      description: 'Arithmetic expression (supports +, -, *, /, (, ), decimal numbers)',
+      type: 'string',
+    },
+  ],
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

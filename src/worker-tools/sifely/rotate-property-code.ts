@@ -3,6 +3,36 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv, requireEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'rotate-property-code',
+  service: 'sifely',
+  description:
+    'Rotates the lock code for a single Hostfully property and all its associated Sifely locks, updating both Sifely passcodes and the Hostfully door code field.',
+  envVars: [
+    'SUPABASE_URL',
+    'SUPABASE_SECRET_KEY',
+    'TENANT_ID',
+    'SIFELY_USERNAME',
+    'SIFELY_PASSWORD',
+    'HOSTFULLY_API_KEY',
+  ],
+  args: [
+    {
+      name: '--property-id',
+      required: true,
+      description: 'Hostfully property UID to rotate the code for',
+      type: 'string',
+    },
+    {
+      name: '--code',
+      required: false,
+      description: 'Use this specific code instead of generating a new one',
+      type: 'string',
+    },
+  ],
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,21 +1,21 @@
 /**
- * tool-parser — Static analysis module for discovering shell tools in src/worker-tools/
+ * tool-parser — Typed tool discovery for shell tools in src/worker-tools/
  *
- * Reads TypeScript source files and extracts structured metadata via regex.
- * Also provides SKILL.md enrichment parsing to merge documentation.
+ * Primary path: aggregates ToolDescriptor exports from each tool file into a
+ * startup-cached ToolMetadata catalog (no per-request disk reads).
+ *
+ * Legacy path: regex-based parseToolFile / getToolByPath retained for callers
+ * that need sourceLength or SKILL.md enrichment.
  *
  * Design constraints:
- *   - Never executes tool files — source text only
- *   - Never uses AST parsing — regex only
- *   - Never caches — always reads from disk
+ *   - discoverTools() is startup-cached — call it freely; first call populates cache
+ *   - Never executes tool files — imports descriptor via static registry
  *   - Never throws on missing/broken files — logs warning and skips
  */
 
 import fs from 'fs/promises';
 import path from 'path';
-import { createLogger } from '../../lib/logger.js';
-
-const logger = createLogger('tool-parser');
+import { ALL_TOOL_DESCRIPTORS, type ToolDescriptor } from '../../lib/tool-registry.js';
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -54,57 +54,46 @@ export interface SkillEnrichment {
 }
 
 // ---------------------------------------------------------------------------
-// discoverTools
+// discoverTools — startup-cached typed aggregator
 // ---------------------------------------------------------------------------
 
+let _toolCache: ToolMetadata[] | null = null;
+
+function descriptorToMetadata(d: ToolDescriptor): ToolMetadata {
+  return {
+    name: d.id,
+    service: d.service,
+    containerPath: `/tools/${d.service}/${d.id}.ts`,
+    description: d.description,
+    flags: d.args.map((a) => ({
+      name: a.name,
+      type: (a.type ?? 'string') as 'string' | 'number' | 'boolean',
+      required: a.required,
+      description: a.description,
+    })),
+    envVars: d.envVars.map((name) => ({ name, required: true })),
+    sourceLength: 0,
+  };
+}
+
 /**
- * Discover all shell tools in the given base directory.
- * Excludes files in /lib/ or /fixtures/ subdirectories.
- * Returns sorted array (by service then name).
+ * Returns the full tool catalog, building it once from the static descriptor
+ * registry on first call and returning the cached result on subsequent calls.
+ *
+ * The basePath parameter is accepted for backward compatibility but ignored —
+ * discovery is now driven by the static import registry above.
  */
-export async function discoverTools(basePath: string): Promise<ToolMetadata[]> {
-  const entries = await fs.readdir(basePath, { recursive: true, withFileTypes: true });
+export async function discoverTools(_basePath?: string): Promise<ToolMetadata[]> {
+  if (_toolCache !== null) return _toolCache;
 
-  const toolFiles: string[] = [];
-  for (const dirent of entries) {
-    if (!dirent.isFile()) continue;
+  const results: ToolMetadata[] = ALL_TOOL_DESCRIPTORS.map(descriptorToMetadata);
 
-    // Safe: both properties exist at runtime on Node 20+ Dirent (parentPath is
-    // newer, path is the legacy alias); the @types/node Dirent lags the runtime.
-    const parentDir =
-      'parentPath' in dirent
-        ? (dirent as unknown as { parentPath: string }).parentPath
-        : (dirent as unknown as { path: string }).path;
-    const relativePath = path.relative(basePath, path.join(parentDir, dirent.name));
-
-    if (!relativePath.endsWith('.ts') || relativePath.endsWith('.d.ts')) continue;
-    if (relativePath.includes('/node_modules/') || relativePath.startsWith('node_modules/'))
-      continue;
-    if (relativePath.includes('/lib/') || relativePath.startsWith('lib/')) continue;
-    if (relativePath.includes('/fixtures/') || relativePath.startsWith('fixtures/')) continue;
-
-    toolFiles.push(path.join(basePath, relativePath));
-  }
-
-  const results: ToolMetadata[] = [];
-  for (const filePath of toolFiles) {
-    try {
-      const metadata = await parseToolFile(filePath);
-      results.push(metadata);
-    } catch (err) {
-      logger.warn(
-        { filePath, err: err instanceof Error ? err.message : String(err) },
-        'tool-parser: failed to parse',
-      );
-    }
-  }
-
-  // Sort by service then name
   results.sort((a, b) => {
     if (a.service !== b.service) return a.service.localeCompare(b.service);
     return a.name.localeCompare(b.name);
   });
 
+  _toolCache = results;
   return results;
 }
 

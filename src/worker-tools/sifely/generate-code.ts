@@ -1,4 +1,27 @@
 import { getArg } from '../lib/get-arg.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'generate-code',
+  service: 'sifely',
+  description:
+    'Generates a memorable 4–6 digit lock code using mirror (ABBA) or rhythm (ABAB) patterns, excluding weak or previously used codes.',
+  envVars: [],
+  args: [
+    {
+      name: '--length',
+      required: false,
+      description: 'Constrain output to a specific code length (4, 5, or 6)',
+      type: 'number',
+    },
+    {
+      name: '--exclude-codes',
+      required: false,
+      description: 'Comma-separated list of codes to exclude (for rotation)',
+      type: 'string',
+    },
+  ],
+};
 
 /**
  * Generates memorable 4–6 digit lock codes using mirror (ABBA) and rhythm (ABAB) patterns.

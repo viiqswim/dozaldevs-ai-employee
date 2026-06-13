@@ -16,6 +16,15 @@ interface WebhookRecord {
 
 import { requireEnv, optionalEnv } from '../lib/require-env.js';
 import { resolveHostfullyClient } from './lib/client.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'register-webhook',
+  service: 'hostfully',
+  description: 'Register a NEW_INBOX_MESSAGE webhook with the Hostfully API (idempotent)',
+  envVars: ['HOSTFULLY_API_KEY', 'HOSTFULLY_AGENCY_UID', 'WEBHOOK_PUBLIC_URL'],
+  args: [],
+};
 
 function parseArgs(argv: string[]): { help: boolean } {
   const args = argv.slice(2);

@@ -28,6 +28,34 @@
  */
 
 import { requireEnv } from '../lib/require-env.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'search',
+  service: 'knowledge_base',
+  description: 'Fetch all knowledge base content for a given entity from PostgREST',
+  envVars: ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'TENANT_ID'],
+  args: [
+    {
+      name: '--entity-type',
+      required: true,
+      description: 'Entity type (e.g. property, restaurant)',
+      type: 'string',
+    },
+    {
+      name: '--entity-id',
+      required: true,
+      description: 'Entity ID — normalized to lowercase before querying',
+      type: 'string',
+    },
+    {
+      name: '--tenant-id',
+      required: false,
+      description: 'Tenant UUID; falls back to TENANT_ID env var',
+      type: 'string',
+    },
+  ],
+};
 
 interface Args {
   entityType: string;

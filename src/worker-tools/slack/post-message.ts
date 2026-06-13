@@ -5,6 +5,59 @@ import { WebClient } from '@slack/web-api';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'post-message',
+  service: 'slack',
+  description: 'Post a message to a Slack channel with optional Block Kit blocks',
+  envVars: ['SLACK_BOT_TOKEN'],
+  args: [
+    {
+      name: '--channel',
+      required: true,
+      description: 'Slack channel ID to post to',
+      type: 'string',
+    },
+    {
+      name: '--text',
+      required: false,
+      description: 'Message text (markdown auto-converted to Slack mrkdwn)',
+      type: 'string',
+    },
+    {
+      name: '--text-file',
+      required: false,
+      description: 'Read message text from file at path',
+      type: 'string',
+    },
+    {
+      name: '--blocks',
+      required: false,
+      description: 'Optional Block Kit blocks JSON array',
+      type: 'string',
+    },
+    {
+      name: '--task-id',
+      required: false,
+      description: 'Task ID — auto-generates context block',
+      type: 'string',
+    },
+    {
+      name: '--conversation-ref',
+      required: false,
+      description: 'Hostfully thread UID for superseding detection',
+      type: 'string',
+    },
+    { name: '--title', required: false, description: 'Approval card header title', type: 'string' },
+    {
+      name: '--thread-ts',
+      required: false,
+      description: 'Slack message timestamp to reply in thread',
+      type: 'string',
+    },
+  ],
+};
 
 interface PostResult {
   ts: string;

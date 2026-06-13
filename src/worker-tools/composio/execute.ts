@@ -13,6 +13,46 @@ import { fileURLToPath } from 'node:url';
 import { getArg } from '../lib/get-arg.js';
 import { optionalEnv, requireEnv } from '../lib/require-env.js';
 import { unescapeShellArg } from '../lib/unescape-args.js';
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  id: 'execute',
+  service: 'composio',
+  description: 'Execute any Composio action for a connected toolkit (Notion, Linear, Gmail, etc.)',
+  envVars: ['COMPOSIO_API_KEY', 'TASK_TENANT_ID'],
+  args: [
+    {
+      name: '--toolkit',
+      required: true,
+      description: 'Composio toolkit name (e.g. "notion", "linear")',
+      type: 'string',
+    },
+    {
+      name: '--action',
+      required: true,
+      description: 'Action/tool slug (e.g. "NOTION_GET_PAGE_MARKDOWN")',
+      type: 'string',
+    },
+    {
+      name: '--params',
+      required: false,
+      description: 'JSON string of action input params',
+      type: 'string',
+    },
+    {
+      name: '--tenant-id',
+      required: false,
+      description: 'Tenant ID (defaults to TASK_TENANT_ID env var)',
+      type: 'string',
+    },
+    {
+      name: '--mock',
+      required: false,
+      description: 'Return fixture JSON without making an HTTP call',
+      type: 'boolean',
+    },
+  ],
+};
 
 const COMPOSIO_EXECUTE_BASE_URL = 'https://backend.composio.dev/api/v3.1/tools/execute';
 
