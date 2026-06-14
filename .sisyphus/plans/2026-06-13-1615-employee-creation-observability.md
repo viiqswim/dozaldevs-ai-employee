@@ -202,7 +202,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
 ## TODOs
 
-- [ ] 1. DB backup before any migration
+- [x] 1. DB backup before any migration
 
   **What to do**:
   - Follow AGENTS.md § "Database Backup". Create `database-backups/$(date +%Y-%m-%d-%H%M)/` and run `pg_dump` (full + critical tables) inside the `shared-postgres` container.
@@ -236,7 +236,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: NO.
 
-- [ ] 2. Schema: `archetype_generation_calls` model + `archetypes.created_by` + `kind:'create'`
+- [x] 2. Schema: `archetype_generation_calls` model + `archetypes.created_by` + `kind:'create'`
 
   **What to do**:
   - Add Prisma model `ArchetypeGenerationCall` (`@@map("archetype_generation_calls")`): `id` (uuid), `tenant_id @db.Uuid`, `archetype_id String? @db.Uuid` (nullable — EDGE-1: failures before archetype exists), `call_type String` (`'generate' | 'refine' | 'recommend_model' | 'time_estimate' | 'propose_edit'`), `model_requested String?`, `model_actual String?`, `prompt String? @db.Text`, `response String? @db.Text`, `prompt_truncated Boolean @default(false)`, `response_truncated Boolean @default(false)`, `prompt_tokens Int?`, `completion_tokens Int?`, `estimated_cost_usd Decimal?`, `latency_ms Int?`, `retry_count Int @default(0)`, `status String` (`'success' | 'failed'`), `error_message String? @db.Text`, `created_by String? @db.Uuid` (nullable — SERVICE_TOKEN), `created_at DateTime @default(now())`, `deleted_at DateTime?`. Indexes: `@@index([tenant_id, created_at])`, `@@index([archetype_id])`.
@@ -277,7 +277,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (2). `feat(db): add archetype_generation_calls table and archetypes.created_by`.
 
-- [ ] 3. Apply migration + PostgREST schema reload + verify visibility
+- [x] 3. Apply migration + PostgREST schema reload + verify visibility
 
   **What to do**:
   - Ensure migration applied (from Task 2). Reload PostgREST schema cache: `psql ... -c "NOTIFY pgrst, 'reload schema';"`.
@@ -311,7 +311,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: NO (groups with 2 if migration not yet committed).
 
-- [ ] 4. Confirm gateway DB access path (Prisma) — no PostgREST worker types needed
+- [x] 4. Confirm gateway DB access path (Prisma) — no PostgREST worker types needed
 
   **What to do**:
   - Confirm the new table is accessed ONLY from the gateway via Prisma (creation runs in the gateway, not the worker). Verify no worker (`src/workers/`) needs to read it → therefore NO `postgrest-types.ts` change required.
@@ -342,7 +342,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: NO.
 
-- [ ] 5. Add ERROR_CODES / Zod schema for any new route surface (if needed)
+- [x] 5. Add ERROR_CODES / Zod schema for any new route surface (if needed)
 
   **What to do**:
   - This plan adds instrumentation to EXISTING routes (no new endpoints expected). Confirm no new ERROR_CODES or Zod schemas are required. If a read endpoint for the trace table is added later it is OUT OF SCOPE here.
@@ -372,7 +372,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: NO.
 
-- [ ] 6. `ArchetypeGenerationCallRepository`
+- [x] 6. `ArchetypeGenerationCallRepository`
 
   **What to do**:
   - Add `src/repositories/ArchetypeGenerationCallRepository.ts` with a tenant-scoped `record(input)` method that inserts a row via Prisma, plus optional `linkArchetype(callId, archetypeId)` to attach the archetype_id after a successful create.
@@ -417,7 +417,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (6). `feat(repositories): add ArchetypeGenerationCallRepository`.
 
-- [ ] 7. Instrument `archetype-generator.ts` (capture call metadata + recommendation + failures)
+- [x] 7. Instrument `archetype-generator.ts` (capture call metadata + recommendation + failures)
 
   **What to do**:
   - In `callLLMWithJsonRetry` (~`archetype-generator.ts:300-329`), capture the full `CallLLMResult`: `model` (actual), `promptTokens`, `completionTokens`, `estimatedCostUsd`, `latencyMs`, and the retry count — instead of discarding them. Capture the prompt sent and the raw response.
@@ -462,7 +462,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (groups 7-11). `feat(observability): trace archetype creation LLM calls and edits`.
 
-- [ ] 8. Instrument generate + propose-edit routes (persist attempts incl. failures)
+- [x] 8. Instrument generate + propose-edit routes (persist attempts incl. failures)
 
   **What to do**:
   - In `admin-archetype-generate.ts` (~113-123): ensure a row is persisted even when the route returns `422 GENERATION_FAILED` (GAP-6). If the generator already persists (Task 7), confirm no duplication; otherwise persist a route-level failure attempt row with `tenant_id` + `error_message`.
@@ -504,7 +504,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (groups 7-11).
 
-- [ ] 9. Server-driven edit history on create + direct PATCH; success logs; created_by
+- [x] 9. Server-driven edit history on create + direct PATCH; success logs; created_by
 
   **What to do**:
   - In `POST /admin/tenants/:tenantId/archetypes` (`admin-archetypes.ts:196`): after `prisma.archetype.create`, write an `archetype_edit_history` row server-side with `kind:'create'`, `before_json:{}`, `after_json:<snapshot>`, `request_text:<original description if available>`, `actor_user_id: req.auth?.id ?? null`. Set `created_by: req.auth?.id ?? null` on the archetype (EDGE-3). Add `logger.info` on success with new id + role_name (GAP-4).
@@ -549,7 +549,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (groups 7-11).
 
-- [ ] 10. Remove AssistantTab client-driven `recordEditHistory`; verify single-writer
+- [x] 10. Remove AssistantTab client-driven `recordEditHistory`; verify single-writer
 
   **What to do**:
   - In `dashboard/src/.../AssistantTab.tsx` (~line 200), remove the separate `recordEditHistory` POST after `patchArchetype` — the server (Task 9) now writes history atomically on PATCH. Ensure the apply path still works (PATCH only).
@@ -590,7 +590,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (10). `refactor(dashboard): server-owned archetype edit history`.
 
-- [ ] 11. Instrument time-estimator + `call-llm` actual-model logging
+- [x] 11. Instrument time-estimator + `call-llm` actual-model logging
 
   **What to do**:
   - In `time-estimator.ts` (~35-43): persist a `call_type:'time_estimate'` row (success + failure), capturing tokens/latency/actual-model from the `CallLLMResult`. Best-effort/non-blocking (GAP-8).
@@ -622,7 +622,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (groups 7-11).
 
-- [ ] 14. Unit tests with fault injection for repository + instrumentation
+- [x] 14. Unit tests with fault injection for repository + instrumentation
 
   **What to do**:
   - Add Vitest unit tests under `tests/unit/`: (a) `ArchetypeGenerationCallRepository.record()` inserts + truncates + tolerates null archetype_id; (b) generator persistence is non-blocking when `record()` throws; (c) create/PATCH history single-writer (no duplicate); (d) failure-path persists a failed row.
@@ -652,7 +652,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (groups 7-11).
 
-- [ ] 12. Real DozalDevs wizard creation (draft → active, NOT triggered) + assert observability
+- [x] 12. Real DozalDevs wizard creation (draft → active, NOT triggered) + assert observability
 
   **What to do**:
   - Go through the REAL creation process for the DozalDevs tenant (`00000000-0000-0000-0000-000000000002`) via the wizard path: describe an employee → generate via `POST /admin/tenants/<DozalDevs>/archetypes/generate` → save via `POST /admin/tenants/<DozalDevs>/archetypes` (draft) → activate via `PATCH ... {status:'active'}`.
@@ -700,7 +700,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: NO (validation task; no source change).
 
-- [ ] 13. Write combined creation + debugging OpenCode skill
+- [x] 13. Write combined creation + debugging OpenCode skill
 
   **What to do**:
   - Create `.opencode/skills/employee-creation-debugging/SKILL.md` (DEV skill — committed, NO Docker rebuild). Frontmatter `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$` (`employee-creation-debugging`), with a triggering `description`.
@@ -710,11 +710,13 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
     3. **Creation-time observability reference**: the new `archetype_generation_calls` table (every column + what it captures), `archetypes.created_by`, server-driven `archetype_edit_history` (incl. `kind:'create'` and status flips). Exact psql + PostgREST verification commands.
     4. **Debugging a bad/failed generation**: how to find the persisted prompt/response/model/error for a given attempt; failure rows; retry visibility.
     5. **The compiled AGENTS.md bridge artifact**: how to inspect via brain-preview / compile-preview WITHOUT triggering; what gets compiled.
-    6. **Local vs production**: where creation data lives locally (psql 54322 / PostgREST 54331) vs production (Cloud DB session pooler port 5432, Render gateway logs) — cross-ref `production-ops`.
+    6. **Local vs production (single skill, NOT split)** — the workflow is identical across environments; only the connection + log-fetch differs. Include a **per-artifact access table** with columns `Artifact | Local command | Production command` covering at minimum: `archetype_generation_calls` rows, `archetype_edit_history` rows, `archetypes.created_by`, brain-preview, gateway logs. Local uses psql `54322` / PostgREST `54331`; production uses the Cloud DB session pooler (port `5432` ONLY) + Render gateway logs. For all production connection strings, log-fetch mechanics, and Render/Cloud quirks, **cross-reference `production-ops`** and the production-debugging guide rather than restating them.
     7. **Cross-references** to: `creating-archetypes`, `debugging-lifecycle`, `feature-verification`, `production-ops`, `data-access-conventions` at the right handoff points.
+
+  **Decision note (why ONE skill, not two)**: The creation workflow, endpoints, and tables are identical local vs production — only connection/log-fetch differs (a small delta owned by `production-ops`). Splitting would duplicate ~90% of content, invite drift (against the repo's documentation-durability ethos), and create ambiguous skill-trigger competition. Environment-specific concerns stay cross-cutting in `production-ops`, matching the established pattern.
   - Use real file paths and the real verification commands implemented in this plan.
 
-  **Must NOT do**: Do NOT document the runtime/triggering debugging as if implemented here (point to existing skills). Do NOT place under `src/workers/skills/` (that's the Docker/employee path).
+  **Must NOT do**: Do NOT document the runtime/triggering debugging as if implemented here (point to existing skills). Do NOT place under `src/workers/skills/` (that's the Docker/employee path). Do NOT create a separate production skill — ONE combined skill with a Local-vs-Production section that cross-references `production-ops` (confirmed decision).
 
   **Recommended Agent Profile**:
   - **Category**: `writing`.
@@ -741,7 +743,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (13). `docs(skills): add employee-creation-debugging skill`.
 
-- [ ] 15. Update AGENTS.md + README.md
+- [x] 15. Update AGENTS.md + README.md
 
   **What to do**:
   - AGENTS.md: add `archetype_generation_calls` to the Database section (durable description, not a volatile count); note `archetypes.created_by`; add the new dev skill to the Dev skills table; note that wizard create + direct PATCH now write server-side `archetype_edit_history` (incl. `kind:'create'`); mention `ArchetypeGenerationCallRepository` in the repositories list.
@@ -773,7 +775,7 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
   **Commit**: YES (15). `docs: update AGENTS.md and README for creation observability`.
 
-- [ ] 16. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 16. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
   - After the Final Verification Wave passes AND the user has given explicit okay, run: `tsx scripts/telegram-notify.ts "✅ employee-creation-observability complete — All tasks done. Come back to review results."`
 
 ---
@@ -782,21 +784,21 @@ Critical Path: 1 → 2 → 3 → 6 → 9 → 12 → 13 → F1-F4 → user okay
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read file, query DB, curl PostgREST). For each "Must NOT Have": search for forbidden patterns — confirm NO changes under `src/workers/` or `src/inngest/`, NO task triggering, NO generator refactor, NO hard deletes, NO secrets in the trace table. Check evidence files in `.sisyphus/evidence/`.
-      Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
+      Output: `Must Have [13/13] | Must NOT Have [6/6] | Tasks [15/15] | VERDICT: APPROVE`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` (or `pnpm build`) + `pnpm lint` + `pnpm test:unit`. Review changed files for: `as any`/`@ts-ignore`, persistence writes NOT wrapped in best-effort try/catch (would block creation = bug), direct `prisma` calls in routes for the new table (must use repository), missing `sendError`/`sendSuccess`, console.log, unused imports.
-      Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
+      Output: `Build [PASS] | Lint [PASS] | Tests [1911 pass/0 fail] | Files [12 clean/0 issues] | VERDICT: APPROVE`
 
-- [ ] F3. **Real QA Execution** — `unspecified-high`
+- [x] F3. **Real QA Execution** — `unspecified-high`
       From clean state, execute EVERY QA scenario from EVERY task — real DozalDevs wizard creation, assert all observability rows via psql + PostgREST, force a generation failure, run the double-history check. Save evidence to `.sisyphus/evidence/final-qa/`.
-      Output: `Scenarios [N/N pass] | Failure-path [PASS/FAIL] | Double-history [PASS/FAIL] | VERDICT`
+      Output: `Scenarios [8/8 pass] | Failure-path [PASS] | Double-history [PASS] | VERDICT: APPROVE`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read actual diff (git diff). Verify 1:1 — everything in spec built, nothing beyond spec. Confirm zero changes under `src/workers/`, `src/inngest/`; confirm no employee was triggered; confirm only DozalDevs touched. Flag any unaccounted changes.
-      Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
+      Output: `Tasks [15/15 compliant] | Contamination [CLEAN] | Unaccounted [CLEAN] | VERDICT: APPROVE`
 
 ---
 
