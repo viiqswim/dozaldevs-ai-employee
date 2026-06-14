@@ -4,10 +4,9 @@ import { AssistantTab } from '../AssistantTab';
 import type { Archetype } from '@/lib/types';
 
 vi.mock('@/lib/gateway', () => ({
-  proposeEdit: vi.fn(),
+  converseEdit: vi.fn(),
   patchArchetype: vi.fn().mockResolvedValue({}),
   recordEditHistory: vi.fn().mockResolvedValue({}),
-  interpretRequest: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -50,20 +49,14 @@ const mockArchetype: Archetype = {
   updated_at: '2026-01-01T00:00:00Z',
 } as unknown as Archetype;
 
-async function submitAndConfirm(requestText: string) {
-  const { interpretRequest, proposeEdit } = await import('@/lib/gateway');
-  vi.mocked(interpretRequest).mockResolvedValue({
-    understanding: 'I understand the request.',
-  } as never);
+async function submitMessage(requestText: string) {
+  const { converseEdit } = await import('@/lib/gateway');
 
   const textarea = screen.getByPlaceholderText(/ask me to change/i);
   fireEvent.change(textarea, { target: { value: requestText } });
   fireEvent.click(screen.getByRole('button', { name: /send/i }));
 
-  await waitFor(() => screen.getByRole('button', { name: /confirm/i }));
-  fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
-
-  return { proposeEdit };
+  return { converseEdit };
 }
 
 describe('AssistantTab', () => {
@@ -81,10 +74,8 @@ describe('AssistantTab', () => {
   });
 
   it('appends user message on submit', async () => {
-    const { interpretRequest } = await import('@/lib/gateway');
-    vi.mocked(interpretRequest).mockResolvedValue({
-      understanding: 'Make replies shorter.',
-    } as never);
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({ kind: 'question', question: 'What do you mean?' });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
     const textarea = screen.getByPlaceholderText(/ask me to change/i);
@@ -94,34 +85,29 @@ describe('AssistantTab', () => {
     expect(screen.getByText('make replies shorter')).toBeInTheDocument();
   });
 
-  it('shows proposal card when proposeEdit returns changes', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old identity' },
-      proposal: { identity: 'new identity' },
-      changed_fields: { identity: { before: 'old identity', after: 'new identity' } },
-      no_change: false,
-    } as never);
+  it('shows proposal card when converseEdit returns proposal', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('make it friendlier');
+    await submitMessage('make it friendlier');
 
     await waitFor(() => {
       expect(screen.getByText('Proposed changes')).toBeInTheDocument();
     });
   });
 
-  it('shows no-change message when proposal has no_change=true', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: {},
-      proposal: {},
-      changed_fields: {},
-      no_change: true,
-    } as never);
+  it('shows no-change message when converseEdit returns no_change', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({ kind: 'no_change' });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('test');
+    await submitMessage('test');
 
     await waitFor(() => {
       expect(screen.getByText(/no change is needed/i)).toBeInTheDocument();
@@ -129,16 +115,16 @@ describe('AssistantTab', () => {
   });
 
   it('deny adds discarded message and disarms guard', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old' },
-      proposal: { identity: 'new' },
-      changed_fields: { identity: { before: 'old', after: 'new' } },
-      no_change: false,
-    } as never);
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old' } as never,
+      proposal: { identity: 'new' } as never,
+      changed_fields: { identity: { from: 'old', to: 'new' } },
+    });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('test');
+    await submitMessage('test');
 
     await waitFor(() => screen.getByText('Proposed changes'));
     fireEvent.click(screen.getByRole('button', { name: /deny/i }));
@@ -148,12 +134,12 @@ describe('AssistantTab', () => {
     });
   });
 
-  it('surfaces error as assistant message when proposeEdit rejects', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockRejectedValue(new Error('Tool not available'));
+  it('surfaces error as assistant message when converseEdit rejects', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockRejectedValue(new Error('Tool not available'));
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('add a new tool');
+    await submitMessage('add a new tool');
 
     await waitFor(() => {
       expect(screen.getByText(/couldn't turn that into a change/i)).toBeInTheDocument();
@@ -161,17 +147,17 @@ describe('AssistantTab', () => {
   });
 
   it('approve calls patchArchetype and onSaved', async () => {
-    const { proposeEdit, patchArchetype } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old identity' },
-      proposal: { identity: 'new identity' },
-      changed_fields: { identity: { before: 'old identity', after: 'new identity' } },
-      no_change: false,
-    } as never);
+    const { converseEdit, patchArchetype } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
     vi.mocked(patchArchetype).mockResolvedValue({} as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('make it friendlier');
+    await submitMessage('make it friendlier');
 
     await waitFor(() => screen.getByText('Proposed changes'));
     await waitFor(() =>
@@ -190,16 +176,16 @@ describe('AssistantTab', () => {
   });
 
   it('deny does not call patchArchetype or recordEditHistory', async () => {
-    const { proposeEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old' },
-      proposal: { identity: 'new' },
-      changed_fields: { identity: { before: 'old', after: 'new' } },
-      no_change: false,
-    } as never);
+    const { converseEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old' } as never,
+      proposal: { identity: 'new' } as never,
+      changed_fields: { identity: { from: 'old', to: 'new' } },
+    });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('make it shorter');
+    await submitMessage('make it shorter');
 
     await waitFor(() => screen.getByText('Proposed changes'));
     fireEvent.click(screen.getByRole('button', { name: /deny/i }));
@@ -211,16 +197,16 @@ describe('AssistantTab', () => {
   });
 
   it('proposal card has no refine textarea and no "Ask for more changes" button', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old identity' },
-      proposal: { identity: 'new identity' },
-      changed_fields: { identity: { before: 'old identity', after: 'new identity' } },
-      no_change: false,
-    } as never);
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('make it friendlier');
+    await submitMessage('make it friendlier');
 
     await waitFor(() => screen.getByText('Proposed changes'));
 
@@ -229,19 +215,20 @@ describe('AssistantTab', () => {
   });
 
   it('proposal card approval-off confirm gates Approve button', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old', risk_model: { approval_required: true } },
-      proposal: { identity: 'new', risk_model: { approval_required: false } },
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old', risk_model: { approval_required: true } } as never,
+      proposal: { identity: 'new', risk_model: { approval_required: false } } as never,
       changed_fields: {
-        identity: { before: 'old', after: 'new' },
+        identity: { from: 'old', to: 'new' },
         approval_required: { from: true, to: false },
       },
-      no_change: false,
-    } as never);
+      approval_warning: true,
+    });
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    await submitAndConfirm('disable approval');
+    await submitMessage('disable approval');
 
     await waitFor(() => screen.getByText('Proposed changes'));
 

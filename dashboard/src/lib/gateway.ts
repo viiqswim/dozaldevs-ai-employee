@@ -19,6 +19,8 @@ import type {
   ComposioToolkitsPage,
   ProposalResponse,
   InterpretResponse,
+  ConverseMessage,
+  ConverseResponse,
   RecordEditHistoryPayload,
   EditHistoryRow,
 } from './types';
@@ -650,16 +652,16 @@ export async function interpretRequest(
   );
 }
 
-export async function proposeEdit(
+export async function converseEdit(
   tenantId: string,
   archetypeId: string,
-  requestText: string,
-): Promise<ProposalResponse> {
-  return gatewayFetch<ProposalResponse>(
+  transcript: ConverseMessage[],
+): Promise<ConverseResponse> {
+  return gatewayFetch<ConverseResponse>(
     `/admin/tenants/${tenantId}/archetypes/${archetypeId}/propose-edit`,
     {
       method: 'POST',
-      body: JSON.stringify({ request_text: requestText }),
+      body: JSON.stringify({ transcript }),
     },
   );
 }
