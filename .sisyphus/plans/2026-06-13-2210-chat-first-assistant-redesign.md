@@ -860,7 +860,7 @@ Max Concurrent: 5
 
   **Commit**: YES — `docs: update assistant-tab flow and retire interpret-request from docs`; Pre-commit: `pnpm lint`.
 
-- [ ] 15. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review. `tsx scripts/telegram-notify.ts "✅ Chat-first AI Assistant redesign complete — all tasks done, final wave passed. Come back to review."`
+- [x] 15. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review. `tsx scripts/telegram-notify.ts "✅ Chat-first AI Assistant redesign complete — all tasks done, final wave passed. Come back to review."`
 
 ---
 
@@ -868,23 +868,23 @@ Max Concurrent: 5
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed. Never mark F1-F4 checked before the user's okay.
 
-- [ ] F1. **Plan compliance audit** — `oracle`
+- [x] F1. **Plan compliance audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read file / curl / psql). For each "Must NOT Have": grep the codebase for the forbidden pattern — reject with file:line if found (esp. any second input box, any `interpret-request` reference, any new DB table/migration, any edit to disallowed fields). Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code quality review** — `unspecified-high`
+- [x] F2. **Code quality review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit` + `pnpm --dir dashboard test`. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log, dead code (orphaned `onRefineSubmit`/`showRefine`/`interpretRequest`), unused imports, AI slop (over-abstraction, generic names). Confirm the union discriminant is type-safe end-to-end.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real manual QA** — `unspecified-high` (+ `playwright`/`e2e-testing` skills)
+- [x] F3. **Real manual QA** — `unspecified-high` (+ `playwright`/`e2e-testing` skills)
       Live browser on `localhost:7700/dashboard/employees/<real-estate-motivation-bot-2 id>?tab=assistant`. Execute EVERY QA scenario. MUST include: (a) an ambiguous request → assert a question bubble + answer in the SAME box → proposal card with Approve/Deny only and NO refine textarea in the DOM; (b) Approve a prose edit → trigger the employee → psql-assert the new task's `compiled_agents_md` contains the approved text. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N pass] | Question-turn [PASS/FAIL] | Approve-no-op [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope fidelity check** — `deep`
+- [x] F4. **Scope fidelity check** — `deep`
       For each task: read "What to do", read the actual diff (git). Verify 1:1 — everything specified built, nothing beyond spec (esp. NO atomic apply endpoint, NO session store, NO new editable fields, NO new DB table). Confirm allowlist/approval-off/edit-history invariants survived. Detect cross-task contamination + unaccounted changes.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | Unaccounted [CLEAN/N] | VERDICT`
 
-- [ ] F5. **E2E prerequisites** — Confirm services live: `curl localhost:7700/health`, `curl localhost:8288/health`, gateway stable (`pgrep -f "src/gateway/server.ts" | wc -l` ≤ 2), Docker worker image built.
+- [x] F5. **E2E prerequisites** — Confirm services live: `curl localhost:7700/health`, `curl localhost:8288/health`, gateway stable (`pgrep -f "src/gateway/server.ts" | wc -l` ≤ 2), Docker worker image built.
 
 ---
 
