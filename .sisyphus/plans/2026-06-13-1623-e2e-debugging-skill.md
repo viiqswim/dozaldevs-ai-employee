@@ -590,7 +590,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: `docs(skills): add end-to-end execution trace & debugging skill` — SKILL.md + AGENTS.md; pre-commit `pnpm lint`.
 
-- [ ] 10. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 10. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
   **What to do** (only after F1–F4 pass and the user gives explicit okay):
   - Run: `tsx scripts/telegram-notify.ts "✅ e2e-debugging-skill complete — End-to-end debugging skill written, 5 logging gaps closed and verified. Come back to review."`
@@ -606,19 +606,19 @@ Max Concurrent: 5 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Never mark F1–F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read SKILL.md; read each changed source file). For each "Must NOT Have": search for violations — skill NOT under `src/workers/skills/` or any Docker COPY path (`grep -rn "skills" Dockerfile`); no logger.ts config change (`git diff src/lib/logger.ts` empty); no poll-loop refactor; no SSE endpoint code change. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint`. Review all changed source files: confirm log messages are employee-agnostic (no guest/summary/Hostfully), correct levels (debug for poll loops, info otherwise), no dollar amounts (`grep -nE '\$[0-9]'`), no raw headers/env/secrets logged, scalar IDs only. Check for AI slop (over-logging, generic var names).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       Start from clean state. Re-run Task 6's live trigger; confirm each of the 5 new logs emits (poll logs with `LOG_LEVEL=debug`). Then execute EVERY local fenced bash block and EVERY SQL query in the skill — capture output. Confirm the delivery-log gap statement is accurate (`docker logs employee-delivery-*` works; SSE does not serve it). Confirm the Production Incident Playbook is present and complete (topology, numbered triage order, per-tier commands, prod failure modes, no-`/tmp`-in-prod) and that every prod command is cited to `production-ops`/the prod-debugging-guide (not invented). Save to `.sisyphus/evidence/final-qa/`.
       Output: `Logs emitted [5/5] | Local cmds [N/N pass] | SQL [N/N pass] | Prod playbook [complete/incomplete + cited] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specced was built, nothing beyond spec. Confirm exactly 5 source files changed for logging (plus SKILL.md + AGENTS.md). Detect contamination (no unrelated file touched). Verify durability: `grep -nE ':[0-9]+|\([0-9]+ (states|tables|tools|files)\)' SKILL.md` returns nothing (semantic constants excepted).
       Output: `Tasks [N/N compliant] | Files changed [exact list] | Contamination [CLEAN/N] | Durability [PASS/FAIL] | VERDICT`
 
