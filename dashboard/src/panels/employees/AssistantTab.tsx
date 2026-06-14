@@ -4,36 +4,14 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { converseEdit, getArchetype, patchArchetype, recordEditHistory } from '@/lib/gateway';
-import type { Archetype, ConverseMessage, ConverseResponse } from '@/lib/types';
+import { getArchetype, patchArchetype, recordEditHistory } from '@/lib/gateway';
+import type { Archetype } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
+import { CollapsibleSection } from './components/CollapsibleSection';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
-
-const PROPOSAL_ERROR_FALLBACK =
-  "I couldn't turn that into a change just now — the request may have been too complex to process. Try rephrasing it a bit, or breaking it into smaller changes.";
-
-function getProposalErrorMessage(err: unknown): string {
-  if (!(err instanceof Error)) return PROPOSAL_ERROR_FALLBACK;
-
-  // gatewayFetch error format: "Gateway error <status> on <path>: <body>"
-  const bodyMatch = /Gateway error \d+ on [^:]+: (.*)$/s.exec(err.message);
-  if (bodyMatch) {
-    try {
-      const parsed = JSON.parse(bodyMatch[1]) as Record<string, unknown>;
-      if (parsed.reasons && typeof parsed.reasons === 'object' && !Array.isArray(parsed.reasons)) {
-        const reasons = Object.entries(parsed.reasons as Record<string, string>)
-          .map(([field, reason]) => `• ${field}: ${reason}`)
-          .join('\n');
-        if (reasons) return `I wasn't able to make that change:\n${reasons}`;
-      }
-    } catch {
-      // JSON parse error from gateway body — fall through to friendly fallback
-    }
-  }
-
-  return PROPOSAL_ERROR_FALLBACK;
-}
+import { useChatConversation } from './use-chat-conversation';
+import type { ProposalData } from './use-chat-conversation';
 
 interface AssistantTabProps {
   archetype: Archetype;
@@ -41,128 +19,33 @@ interface AssistantTabProps {
   onSaved: () => void;
 }
 
-type MessageRole = 'user' | 'assistant';
-type MessageKind = 'text' | 'proposal';
-
-interface ProposalData {
-  baseline: Record<string, unknown>;
-  proposal: Record<string, unknown>;
-  changed_fields: Record<string, unknown>;
-  tool_delta?: { added: string[]; removed: string[] };
-  trigger_change?: { before: string; after: string };
-  input_change?: { added: string[]; removed: string[] };
-  approval_warning?: boolean;
-  no_change?: boolean;
-}
-
-interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  kind: MessageKind;
-  text?: string;
-  proposal?: ProposalData;
-  proposalActed?: boolean;
-}
-
 export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [pendingProposalId, setPendingProposalId] = useState<string | null>(null);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+
+  const {
+    messages,
+    isLoading,
+    hasPendingProposal,
+    submit,
+    markProposalActed,
+    setIsLoading,
+    appendAssistantMessage,
+  } = useChatConversation(tenantId, archetype.id);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const hasPendingProposal = pendingProposalId !== null;
   useUnsavedChangesGuard(hasPendingProposal || isLoading);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  const buildTranscript = (
-    currentMessages: ChatMessage[],
-    newUserText: string,
-  ): ConverseMessage[] => {
-    const transcript: ConverseMessage[] = currentMessages
-      .filter((m) => m.kind === 'text')
-      .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.text ?? '',
-      }));
-    transcript.push({ role: 'user', content: newUserText });
-    return transcript;
-  };
-
   const handleSubmit = async () => {
     const text = inputText.trim();
     if (!text || isLoading) return;
-
-    const userMsgId = crypto.randomUUID();
-    const newUserMsg: ChatMessage = { id: userMsgId, role: 'user', kind: 'text', text };
-    setMessages((prev) => [...prev, newUserMsg]);
     setInputText('');
-    setIsLoading(true);
-
-    try {
-      const transcript = buildTranscript(messages, text);
-      const result: ConverseResponse = await converseEdit(tenantId, archetype.id, transcript);
-      const assistantMsgId = crypto.randomUUID();
-
-      if (result.kind === 'question') {
-        setMessages((prev) => [
-          ...prev,
-          { id: assistantMsgId, role: 'assistant', kind: 'text', text: result.question },
-        ]);
-      } else if (result.kind === 'no_change') {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantMsgId,
-            role: 'assistant',
-            kind: 'text',
-            text: 'It looks like no change is needed for that.',
-          },
-        ]);
-      } else if (result.kind === 'too_long') {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantMsgId,
-            role: 'assistant',
-            kind: 'text',
-            text: 'The conversation is getting too long. Please start a new session to continue making changes.',
-          },
-        ]);
-      } else if (result.kind === 'proposal') {
-        const proposalData: ProposalData = {
-          baseline: result.baseline as unknown as Record<string, unknown>,
-          proposal: result.proposal as unknown as Record<string, unknown>,
-          changed_fields: result.changed_fields as Record<string, unknown>,
-          tool_delta: result.tool_delta,
-          trigger_change: result.trigger_change as { before: string; after: string } | undefined,
-          input_change: result.input_change as { added: string[]; removed: string[] } | undefined,
-          approval_warning: result.approval_warning,
-        };
-        setMessages((prev) => [
-          ...prev,
-          { id: assistantMsgId, role: 'assistant', kind: 'proposal', proposal: proposalData },
-        ]);
-        setPendingProposalId(assistantMsgId);
-      }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant' as const,
-          kind: 'text' as const,
-          text: getProposalErrorMessage(err),
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+    await submit(text);
   };
 
   const handleApprove = async (msgId: string, proposal: ProposalData) => {
@@ -209,39 +92,21 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         kind: 'edit',
       });
 
-      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
-      setPendingProposalId(null);
+      markProposalActed(msgId);
       toast.success('Change applied to your employee.');
       onSaved();
       setHistoryRefreshTrigger((t) => t + 1);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant' as const,
-          kind: 'text' as const,
-          text: `I wasn't able to apply that change: ${errMsg}`,
-        },
-      ]);
+      appendAssistantMessage(`I wasn't able to apply that change: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeny = (msgId: string) => {
-    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
-    setPendingProposalId(null);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        kind: 'text',
-        text: 'Discarded. Feel free to ask for a different change.',
-      },
-    ]);
+    markProposalActed(msgId);
+    appendAssistantMessage('Discarded. Feel free to ask for a different change.');
   };
 
   return (
@@ -344,8 +209,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         </Button>
       </div>
 
-      <div className="border-t pt-4 space-y-3">
-        <h3 className="text-sm font-medium text-foreground">Change History</h3>
+      <CollapsibleSection title="Change history" defaultOpen={false}>
         <EditHistoryList
           archetypeId={archetype.id}
           tenantId={tenantId}
@@ -355,7 +219,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
           }}
           refreshTrigger={historyRefreshTrigger}
         />
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }

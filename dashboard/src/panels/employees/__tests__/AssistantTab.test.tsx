@@ -8,6 +8,8 @@ vi.mock('@/lib/gateway', () => ({
   getArchetype: vi.fn().mockResolvedValue({}),
   patchArchetype: vi.fn().mockResolvedValue({}),
   recordEditHistory: vi.fn().mockResolvedValue({}),
+  listEditHistory: vi.fn().mockResolvedValue([]),
+  revertEdit: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -266,5 +268,72 @@ describe('AssistantTab', () => {
     fireEvent.click(confirmBox);
 
     expect(approveBtn).not.toBeDisabled();
+  });
+  describe('Change history collapsible', () => {
+    it('is collapsed by default — EditHistoryList not fetched', async () => {
+      const { listEditHistory } = await import('@/lib/gateway');
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // The header button must be present
+      expect(screen.getByText('Change history')).toBeInTheDocument();
+
+      // With defaultOpen={false}, CollapsibleSection hides children — listEditHistory never called
+      expect(vi.mocked(listEditHistory)).not.toHaveBeenCalled();
+    });
+
+    it('expands when header is clicked and fetches history', async () => {
+      const { listEditHistory } = await import('@/lib/gateway');
+      vi.mocked(listEditHistory).mockResolvedValue([]);
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // Click the title button to expand
+      fireEvent.click(screen.getByText('Change history'));
+
+      await waitFor(() => {
+        expect(vi.mocked(listEditHistory)).toHaveBeenCalledWith('tenant-1', 'arch-1');
+      });
+    });
+
+    it('revert calls revertEdit after confirm', async () => {
+      const { listEditHistory, revertEdit } = await import('@/lib/gateway');
+      vi.mocked(listEditHistory).mockResolvedValue([
+        {
+          id: 'hist-1',
+          archetype_id: 'arch-1',
+          tenant_id: 'tenant-1',
+          kind: 'edit' as const,
+          request_text: 'Made it friendlier',
+          changed_fields: ['identity'],
+          before_json: {},
+          after_json: {},
+          actor_user_id: null,
+          created_at: '2026-01-01T00:00:00Z',
+          deleted_at: null,
+        },
+      ]);
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // Expand the section
+      fireEvent.click(screen.getByText('Change history'));
+
+      // Wait for history item to appear
+      await waitFor(() => {
+        expect(screen.getByText('Made it friendlier')).toBeInTheDocument();
+      });
+
+      // Click Revert → confirm step appears
+      fireEvent.click(screen.getByRole('button', { name: /revert/i }));
+      await waitFor(() => screen.getByText('Revert?'));
+
+      // Confirm revert
+      fireEvent.click(screen.getByRole('button', { name: /yes/i }));
+
+      await waitFor(() => {
+        expect(vi.mocked(revertEdit)).toHaveBeenCalledWith('tenant-1', 'arch-1', 'hist-1');
+      });
+    });
   });
 });
