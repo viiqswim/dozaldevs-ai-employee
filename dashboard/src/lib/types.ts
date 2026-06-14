@@ -429,6 +429,7 @@ export interface ComposioToolkitsPage {
   nextCursor: string | null;
 }
 
+// @deprecated — removed in T6
 export interface InterpretResponse {
   understanding: string;
 }
@@ -443,6 +444,26 @@ export interface ProposalResponse {
   approval_warning?: boolean;
   no_change?: boolean;
 }
+
+export interface ConverseMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export type ConverseResponse =
+  | { kind: 'question'; question: string }
+  | {
+      kind: 'proposal';
+      baseline: Archetype;
+      proposal: Archetype;
+      changed_fields: Record<string, { from: unknown; to: unknown }>;
+      tool_delta?: { added: string[]; removed: string[] };
+      trigger_change?: { from: unknown; to: unknown };
+      input_change?: { from: unknown; to: unknown };
+      approval_warning?: boolean;
+    }
+  | { kind: 'no_change' }
+  | { kind: 'too_long' };
 
 export interface RecordEditHistoryPayload {
   request_text: string;

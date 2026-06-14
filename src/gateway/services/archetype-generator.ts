@@ -23,6 +23,30 @@ import type {
 } from '../../repositories/ArchetypeGenerationCallRepository.js';
 export { CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE };
 
+// ---------------------------------------------------------------------------
+// Converse types
+// ---------------------------------------------------------------------------
+
+export interface ConverseMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export type ConverseResult =
+  | { kind: 'question'; question: string }
+  | {
+      kind: 'proposal';
+      baseline: GenerateArchetypeResponse;
+      proposal: GenerateArchetypeResponse;
+      changed_fields: Record<string, { from: unknown; to: unknown }>;
+      tool_delta?: { added: string[]; removed: string[] };
+      trigger_change?: { from: unknown; to: unknown };
+      input_change?: { from: unknown; to: unknown };
+      approval_warning?: boolean;
+    }
+  | { kind: 'no_change' }
+  | { kind: 'too_long' };
+
 const log = createLogger('archetype-generator');
 
 export interface GenerateArchetypeResponse {
