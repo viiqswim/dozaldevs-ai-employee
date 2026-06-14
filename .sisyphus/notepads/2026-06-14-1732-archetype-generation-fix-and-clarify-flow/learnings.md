@@ -144,3 +144,44 @@ The success-path `_persistCall` at lines 493-510 records the LLM call result (mo
 ### Evidence files
 - `.sisyphus/evidence/task-4-trace-success.txt` — empty-then-success scenario
 - `.sisyphus/evidence/task-4-trace-failed.txt` — both-empty scenario
+
+## Task 5 — Friendly Generation Errors (2026-06-14)
+
+### Three-layer change (single goal)
+1. **Route** `src/gateway/routes/admin-archetype-generate.ts`: added exported const `GENERATION_FAILED_FRIENDLY_MESSAGE` and passed it as the `message` arg to `sendError(res, 422, 'GENERATION_FAILED', GENERATION_FAILED_FRIENDLY_MESSAGE, { details: message })`. `details` (technical) is preserved for debugging. `sendError` body shape = `{ error, message?, ...extra }`, so the friendly text lands in `body.message` and technical in `body.details`.
+2. **gateway.ts** `generateArchetype`: stopped using shared `gatewayFetch` (which throws raw `Gateway error <status>: <text>`). Inlined a `fetch` + on `!ok` throws `friendlyGenerationError(response)` which parses the JSON body, extracts `body.message` if it's a string, else falls back to `GENERIC_GENERATION_ERROR`. `.json().catch(() => null)` guards non-JSON bodies (e.g. HTML 502).
+3. **CreateEmployeePage.tsx**: added `friendlyGenerationMessage(err)` sanitizer used in the `handleGenerate` catch. Regex `/gateway error|\b\d{3}\b|[{}]|GENERATION_FAILED|invalid JSON|\bLLM\b|<[^>]+>/i` detects technical leakage and substitutes a generic friendly string. This is defense-in-depth: even if some other path throws a raw error, the UI never shows it.
+
+### Why sanitize in BOTH gateway.ts and the component
+The component test mocks `generateArchetype` to reject with a raw `Gateway error 422 ... {json}` directly, so the component cannot rely solely on gateway.ts producing clean errors. Belt-and-suspenders: gateway.ts produces friendly errors for the real path; the component sanitizes anything technical-looking regardless of source.
+
+### Test approach
+- Backend: supertest + mocked `ArchetypeGenerator.generate` rejecting with `GENERATION_FAILED: ...`. Asserted `body.message` is friendly (matches /try again/, NOT /GENERATION_FAILED|invalid JSON|LLM|SyntaxError/) AND `body.details` === technical string. Also a 500 non-generation case unchanged. Mock pattern mirrors `admin-archetype-propose-edit.test.ts` (auth/authz/composio/ArchetypeGenerationCallRepository all mocked).
+- Dashboard gateway.ts: `vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify(body),{status}))`. Covered: friendly from body, no leakage, no-message fallback, non-JSON-body fallback.
+- Dashboard component: mocked `@/lib/gateway`, `react-router-dom` (useNavigate only), all 3 hooks, `WizardEditStep`, `MarkdownPreview`. Drove describe→generate, asserted error step renders friendly text and NOT "Gateway error"/"422"/braces.
+
+### Gotchas
+- `vitest.config.ts` has a PRE-EXISTING LSP error (`coverage` not in UserConfigExport type) — not mine, do not touch.
+- LSP `mcp_Lsp_diagnostics` unavailable in this env (no typescript-language-server version set) — used `cd dashboard && pnpm exec tsc -b` (exit 0) for dashboard typecheck instead; backend covered by full unit suite.
+- Comment hook flagged 2 self-documenting test comments — removed them (assertions are self-explanatory).
+
+### Results
+- Backend route test: 3/3 pass. Full backend: 169 files, 1942 passed, 9 skipped, 0 fail.
+- Dashboard: full suite 18 files, 105 passed; `tsc -b` exit 0.
+- Evidence: `.sisyphus/evidence/task-5-friendly.txt`
+
+## Task 6: Tenant URL Convention Fix (New Employee Navigation)
+
+### Pattern
+When state components (Loading, Empty, Error) need tenant context for navigation, add `useTenant()` directly inside the component rather than prop-drilling from the parent. This keeps components self-contained.
+
+### Files Fixed
+- `EmployeeList.tsx:94` — navigate to `/dashboard/employees/new?tenant=${tenantId}`
+- `EmployeeListStates.tsx` — added `useTenant` import; fixed 3 navigate calls in `EmployeeListLoading` and `EmployeeListEmpty`
+- `CreateEmployeePage.tsx:165` — back-nav now preserves `?tenant=${tenantId}`
+
+### Key Insight
+`useTenant()` reads `searchParams.get('tenant')` first (line 42 of use-tenant.ts), so adding `?tenant=` to the URL is sufficient — no other changes needed for the tenant to be correctly resolved on the destination page.
+
+### Pre-existing LSP Error
+`vitest.config.ts` has a pre-existing `coverage` type error — unrelated to these changes.

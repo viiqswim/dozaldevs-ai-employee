@@ -247,14 +247,42 @@ export async function compilePreview(
   );
 }
 
+const GENERIC_GENERATION_ERROR =
+  "We couldn't generate your employee right now. Please try again in a moment, or add more detail to your description.";
+
+async function friendlyGenerationError(response: Response): Promise<Error> {
+  const friendly = await response
+    .json()
+    .then((body: unknown) =>
+      body &&
+      typeof body === 'object' &&
+      typeof (body as { message?: unknown }).message === 'string'
+        ? (body as { message: string }).message
+        : null,
+    )
+    .catch(() => null);
+  return new Error(friendly ?? GENERIC_GENERATION_ERROR);
+}
+
 export async function generateArchetype(
   tenantId: string,
   description: string,
 ): Promise<GenerateArchetypeResponse> {
-  return gatewayFetch<GenerateArchetypeResponse>(`/admin/tenants/${tenantId}/archetypes/generate`, {
+  const token = getAccessToken();
+  const response = await fetch(`${GATEWAY_URL}/admin/tenants/${tenantId}/archetypes/generate`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ description }),
   });
+
+  if (!response.ok) {
+    throw await friendlyGenerationError(response);
+  }
+
+  return response.json() as Promise<GenerateArchetypeResponse>;
 }
 
 export async function refineArchetype(

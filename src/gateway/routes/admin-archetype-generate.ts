@@ -18,6 +18,9 @@ export interface AdminArchetypeGenerateRouteOptions {
   prisma?: PrismaClient;
 }
 
+export const GENERATION_FAILED_FRIENDLY_MESSAGE =
+  "We couldn't generate your employee from that description. Please try again, or add more detail about what you want it to do.";
+
 const GenerateBodySchema = z.object({
   description: z.string().min(10).max(2000),
   previous_config: z.record(z.string(), z.unknown()).optional(),
@@ -123,7 +126,9 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
         const message = err instanceof Error ? err.message : String(err);
 
         if (message.includes('GENERATION_FAILED')) {
-          sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
+          sendError(res, 422, 'GENERATION_FAILED', GENERATION_FAILED_FRIENDLY_MESSAGE, {
+            details: message,
+          });
           return;
         }
 

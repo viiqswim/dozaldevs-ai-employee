@@ -345,7 +345,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 1
 
-- [ ] 5. Non-technical user-facing generation error (route + dashboard)
+- [x] 5. Non-technical user-facing generation error (route + dashboard)
 
   **What to do**:
   - Route (`src/gateway/routes/admin-archetype-generate.ts:122-132`): keep raw message in `details` (logs/debug), but return a non-technical user-facing message field for `GENERATION_FAILED` (e.g. "We couldn't generate your employee from that description. Please try again or add more detail.").
@@ -382,7 +382,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 2
 
-- [ ] 6. Tenant-URL convention fix (5 sites + create reads URL)
+- [x] 6. Tenant-URL convention fix (5 sites + create reads URL)
 
   **What to do**:
   - Append `?tenant=${tenantId}` to all New Employee navigations: `EmployeeList.tsx:94`, `EmployeeListStates.tsx:30,78,85`.

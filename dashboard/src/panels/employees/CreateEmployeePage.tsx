@@ -19,6 +19,16 @@ type WizardStep =
   | 'saving'
   | 'error';
 
+const GENERIC_GENERATION_ERROR =
+  "We couldn't generate your employee right now. Please try again in a moment, or add more detail to your description.";
+
+function friendlyGenerationMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const looksTechnical =
+    /gateway error|\b\d{3}\b|[{}]|GENERATION_FAILED|invalid JSON|\bLLM\b|<[^>]+>/i.test(raw);
+  return !raw.trim() || looksTechnical ? GENERIC_GENERATION_ERROR : raw;
+}
+
 export function CreateEmployeePage() {
   const navigate = useNavigate();
   const { tenantId } = useTenant();
@@ -70,7 +80,7 @@ export function CreateEmployeePage() {
       setInputSchemaItems(result.input_schema ?? []);
       setStep('edit');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyGenerationMessage(err));
       setStep('error');
     }
   };
@@ -152,7 +162,7 @@ export function CreateEmployeePage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/dashboard/employees')}
+          onClick={() => navigate(`/dashboard/employees?tenant=${tenantId}`)}
           className="text-muted-foreground hover:text-foreground"
         >
           ← Employees
