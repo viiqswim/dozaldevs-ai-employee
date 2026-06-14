@@ -25,7 +25,6 @@ export interface ProposalDiffCardProps {
   inputChange?: { added: string[]; removed: string[] };
   onApprove: () => void;
   onDeny: () => void;
-  onRefineSubmit?: (text: string) => void;
   busy?: boolean;
 }
 
@@ -37,13 +36,10 @@ export function ProposalDiffCard({
   inputChange,
   onApprove,
   onDeny,
-  onRefineSubmit,
   busy = false,
 }: ProposalDiffCardProps) {
   const [splitView, setSplitView] = useState(false);
   const [approvalConfirmed, setApprovalConfirmed] = useState(false);
-  const [showRefine, setShowRefine] = useState(false);
-  const [refineText, setRefineText] = useState('');
 
   const requiresApprovalConfirm = approvalChange?.to === false;
   const approveDisabled = busy || (requiresApprovalConfirm && !approvalConfirmed);
@@ -179,35 +175,6 @@ export function ProposalDiffCard({
 
       {!hasChanges && <p className="text-sm text-muted-foreground italic">No changes proposed.</p>}
 
-      {showRefine && (
-        <div className="space-y-2">
-          <textarea
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring min-h-[80px]"
-            placeholder="Describe what you'd like changed…"
-            value={refineText}
-            onChange={(e) => setRefineText(e.target.value)}
-            disabled={busy}
-            aria-label="Refinement request"
-          />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={busy || !refineText.trim()}
-              onClick={() => {
-                onRefineSubmit?.(refineText.trim());
-                setRefineText('');
-                setShowRefine(false);
-              }}
-            >
-              Submit
-            </Button>
-            <Button variant="ghost" size="sm" disabled={busy} onClick={() => setShowRefine(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center gap-2 pt-1 border-t">
         <Button onClick={onApprove} disabled={approveDisabled}>
           Approve
@@ -215,11 +182,6 @@ export function ProposalDiffCard({
         <Button variant="outline" onClick={onDeny} disabled={busy}>
           Deny
         </Button>
-        {onRefineSubmit && !showRefine && (
-          <Button variant="ghost" onClick={() => setShowRefine(true)} disabled={busy}>
-            Ask for more changes
-          </Button>
-        )}
       </div>
     </div>
   );

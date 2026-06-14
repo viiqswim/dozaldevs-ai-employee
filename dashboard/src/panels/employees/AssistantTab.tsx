@@ -168,56 +168,6 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
     }
   };
 
-  const handleRefine = async (refineText: string) => {
-    if (pendingProposalId) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === pendingProposalId ? { ...m, proposalActed: true } : m)),
-      );
-      setPendingProposalId(null);
-    }
-
-    const userMsgId = crypto.randomUUID();
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, role: 'user', kind: 'text', text: refineText },
-    ]);
-    setIsLoading(true);
-
-    try {
-      const proposal = await proposeEdit(tenantId, archetype.id, refineText);
-      const assistantMsgId = crypto.randomUUID();
-      if (proposal.no_change) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantMsgId,
-            role: 'assistant',
-            kind: 'text',
-            text: 'It looks like no change is needed for that.',
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { id: assistantMsgId, role: 'assistant', kind: 'proposal', proposal },
-        ]);
-        setPendingProposalId(assistantMsgId);
-      }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          kind: 'text',
-          text: getProposalErrorMessage(err),
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleApprove = async (msgId: string, proposal: ProposalResponse) => {
     setIsLoading(true);
     try {
@@ -359,7 +309,6 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
                     inputChange={proposal.input_change}
                     onApprove={() => void handleApprove(msg.id, proposal)}
                     onDeny={() => handleDeny(msg.id)}
-                    onRefineSubmit={(text) => void handleRefine(text)}
                     busy={isLoading || (msg.proposalActed ?? false)}
                   />
                 </div>

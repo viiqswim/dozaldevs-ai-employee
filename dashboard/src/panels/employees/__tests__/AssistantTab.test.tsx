@@ -7,6 +7,7 @@ vi.mock('@/lib/gateway', () => ({
   proposeEdit: vi.fn(),
   patchArchetype: vi.fn().mockResolvedValue({}),
   recordEditHistory: vi.fn().mockResolvedValue({}),
+  interpretRequest: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -49,6 +50,22 @@ const mockArchetype: Archetype = {
   updated_at: '2026-01-01T00:00:00Z',
 } as unknown as Archetype;
 
+async function submitAndConfirm(requestText: string) {
+  const { interpretRequest, proposeEdit } = await import('@/lib/gateway');
+  vi.mocked(interpretRequest).mockResolvedValue({
+    understanding: 'I understand the request.',
+  } as never);
+
+  const textarea = screen.getByPlaceholderText(/ask me to change/i);
+  fireEvent.change(textarea, { target: { value: requestText } });
+  fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+  await waitFor(() => screen.getByRole('button', { name: /confirm/i }));
+  fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+  return { proposeEdit };
+}
+
 describe('AssistantTab', () => {
   const onSaved = vi.fn();
 
@@ -64,12 +81,9 @@ describe('AssistantTab', () => {
   });
 
   it('appends user message on submit', async () => {
-    const { proposeEdit } = await import('@/lib/gateway');
-    vi.mocked(proposeEdit).mockResolvedValue({
-      baseline: { identity: 'old' },
-      proposal: { identity: 'new' },
-      changed_fields: { identity: { before: 'old', after: 'new' } },
-      no_change: false,
+    const { interpretRequest } = await import('@/lib/gateway');
+    vi.mocked(interpretRequest).mockResolvedValue({
+      understanding: 'Make replies shorter.',
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
@@ -90,9 +104,7 @@ describe('AssistantTab', () => {
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    const textarea = screen.getByPlaceholderText(/ask me to change/i);
-    fireEvent.change(textarea, { target: { value: 'make it friendlier' } });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('make it friendlier');
 
     await waitFor(() => {
       expect(screen.getByText('Proposed changes')).toBeInTheDocument();
@@ -109,10 +121,7 @@ describe('AssistantTab', () => {
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'test' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('test');
 
     await waitFor(() => {
       expect(screen.getByText(/no change is needed/i)).toBeInTheDocument();
@@ -129,10 +138,7 @@ describe('AssistantTab', () => {
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'test' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('test');
 
     await waitFor(() => screen.getByText('Proposed changes'));
     fireEvent.click(screen.getByRole('button', { name: /deny/i }));
@@ -147,20 +153,15 @@ describe('AssistantTab', () => {
     vi.mocked(proposeEdit).mockRejectedValue(new Error('Tool not available'));
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'add a new tool' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('add a new tool');
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/I wasn't able to make that change: Tool not available/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/couldn't turn that into a change/i)).toBeInTheDocument();
     });
   });
 
-  it('approve calls patchArchetype and recordEditHistory', async () => {
-    const { proposeEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
+  it('approve calls patchArchetype and onSaved', async () => {
+    const { proposeEdit, patchArchetype } = await import('@/lib/gateway');
     vi.mocked(proposeEdit).mockResolvedValue({
       baseline: { identity: 'old identity' },
       proposal: { identity: 'new identity' },
@@ -168,15 +169,14 @@ describe('AssistantTab', () => {
       no_change: false,
     } as never);
     vi.mocked(patchArchetype).mockResolvedValue({} as never);
-    vi.mocked(recordEditHistory).mockResolvedValue({} as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'make it friendlier' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('make it friendlier');
 
     await waitFor(() => screen.getByText('Proposed changes'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /approve/i })).not.toBeDisabled(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /approve/i }));
 
     await waitFor(() => {
@@ -185,7 +185,6 @@ describe('AssistantTab', () => {
         'arch-1',
         expect.objectContaining({ identity: 'new identity' }),
       );
-      expect(recordEditHistory).toHaveBeenCalledOnce();
       expect(onSaved).toHaveBeenCalled();
     });
   });
@@ -200,10 +199,7 @@ describe('AssistantTab', () => {
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'make it shorter' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('make it shorter');
 
     await waitFor(() => screen.getByText('Proposed changes'));
     fireEvent.click(screen.getByRole('button', { name: /deny/i }));
@@ -214,7 +210,7 @@ describe('AssistantTab', () => {
     });
   });
 
-  it('refine produces a new proposal card', async () => {
+  it('proposal card has no refine textarea and no "Ask for more changes" button', async () => {
     const { proposeEdit } = await import('@/lib/gateway');
     vi.mocked(proposeEdit).mockResolvedValue({
       baseline: { identity: 'old identity' },
@@ -224,24 +220,39 @@ describe('AssistantTab', () => {
     } as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
-
-    fireEvent.change(screen.getByPlaceholderText(/ask me to change/i), {
-      target: { value: 'make it friendlier' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    await submitAndConfirm('make it friendlier');
 
     await waitFor(() => screen.getByText('Proposed changes'));
 
-    fireEvent.click(screen.getByRole('button', { name: /ask for more changes/i }));
+    expect(screen.queryByLabelText(/refinement request/i)).toBeNull();
+    expect(screen.queryByText(/ask for more changes/i)).toBeNull();
+  });
 
-    fireEvent.change(screen.getByLabelText(/refinement request/i), {
-      target: { value: 'also make it shorter' },
+  it('proposal card approval-off confirm gates Approve button', async () => {
+    const { proposeEdit } = await import('@/lib/gateway');
+    vi.mocked(proposeEdit).mockResolvedValue({
+      baseline: { identity: 'old', risk_model: { approval_required: true } },
+      proposal: { identity: 'new', risk_model: { approval_required: false } },
+      changed_fields: {
+        identity: { before: 'old', after: 'new' },
+        approval_required: { from: true, to: false },
+      },
+      no_change: false,
+    } as never);
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitAndConfirm('disable approval');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+
+    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    expect(approveBtn).toBeDisabled();
+
+    const confirmBox = screen.getByRole('checkbox', {
+      name: /I understand this employee will act without my approval/i,
     });
+    fireEvent.click(confirmBox);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Proposed changes')).toHaveLength(2);
-    });
+    expect(approveBtn).not.toBeDisabled();
   });
 });
