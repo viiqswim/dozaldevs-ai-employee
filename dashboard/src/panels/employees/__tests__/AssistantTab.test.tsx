@@ -5,6 +5,7 @@ import type { Archetype } from '@/lib/types';
 
 vi.mock('@/lib/gateway', () => ({
   converseEdit: vi.fn(),
+  getArchetype: vi.fn().mockResolvedValue({}),
   patchArchetype: vi.fn().mockResolvedValue({}),
   recordEditHistory: vi.fn().mockResolvedValue({}),
 }));
@@ -146,15 +147,21 @@ describe('AssistantTab', () => {
     });
   });
 
-  it('approve calls patchArchetype and onSaved', async () => {
-    const { converseEdit, patchArchetype } = await import('@/lib/gateway');
+  it('approve calls getArchetype then patchArchetype then recordEditHistory and onSaved', async () => {
+    const { converseEdit, getArchetype, patchArchetype, recordEditHistory } =
+      await import('@/lib/gateway');
     vi.mocked(converseEdit).mockResolvedValue({
       kind: 'proposal',
       baseline: { identity: 'old identity' } as never,
       proposal: { identity: 'new identity' } as never,
       changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
     });
+    vi.mocked(getArchetype).mockResolvedValue({
+      ...mockArchetype,
+      identity: 'CURRENT identity from DB',
+    } as never);
     vi.mocked(patchArchetype).mockResolvedValue({} as never);
+    vi.mocked(recordEditHistory).mockResolvedValue({} as never);
 
     render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
     await submitMessage('make it friendlier');
@@ -166,12 +173,30 @@ describe('AssistantTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve/i }));
 
     await waitFor(() => {
+      expect(getArchetype).toHaveBeenCalledWith('tenant-1', 'arch-1');
       expect(patchArchetype).toHaveBeenCalledWith(
         'tenant-1',
         'arch-1',
         expect.objectContaining({ identity: 'new identity' }),
       );
+      expect(recordEditHistory).toHaveBeenCalledWith(
+        'tenant-1',
+        'arch-1',
+        expect.objectContaining({
+          before_json: expect.objectContaining({ identity: 'CURRENT identity from DB' }),
+          after_json: expect.objectContaining({ identity: 'new identity' }),
+          changed_fields: ['identity'],
+          kind: 'edit',
+          request_text: 'make it friendlier',
+        }),
+      );
       expect(onSaved).toHaveBeenCalled();
+
+      const getOrder = vi.mocked(getArchetype).mock.invocationCallOrder[0];
+      const patchOrder = vi.mocked(patchArchetype).mock.invocationCallOrder[0];
+      const histOrder = vi.mocked(recordEditHistory).mock.invocationCallOrder[0];
+      expect(getOrder).toBeLessThan(patchOrder);
+      expect(patchOrder).toBeLessThan(histOrder);
     });
   });
 

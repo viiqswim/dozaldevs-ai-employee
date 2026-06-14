@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { converseEdit, patchArchetype } from '@/lib/gateway';
+import { converseEdit, getArchetype, patchArchetype, recordEditHistory } from '@/lib/gateway';
 import type { Archetype, ConverseMessage, ConverseResponse } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
@@ -186,11 +186,28 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         }
       }
 
+      const currentArchetype = await getArchetype(tenantId, archetype.id);
+      const before_json: Record<string, unknown> = {};
+      for (const key of ALLOWED_PATCH_KEYS) {
+        before_json[key] = (currentArchetype as unknown as Record<string, unknown>)[key];
+      }
+
       await patchArchetype(
         tenantId,
         archetype.id,
         patchBody as Parameters<typeof patchArchetype>[2],
       );
+
+      const firstUserMessage = messages.find((m) => m.role === 'user' && m.kind === 'text');
+      const request_text = firstUserMessage?.text ?? '';
+
+      await recordEditHistory(tenantId, archetype.id, {
+        request_text,
+        before_json,
+        after_json: patchBody,
+        changed_fields: Object.keys(proposal.changed_fields),
+        kind: 'edit',
+      });
 
       setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
       setPendingProposalId(null);

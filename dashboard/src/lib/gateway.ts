@@ -146,6 +146,10 @@ export async function deleteSecret(tenantId: string, key: string): Promise<void>
   });
 }
 
+export async function getArchetype(tenantId: string, archetypeId: string): Promise<Archetype> {
+  return gatewayFetch<Archetype>(`/admin/tenants/${tenantId}/archetypes/${archetypeId}`);
+}
+
 export async function patchArchetype(
   tenantId: string,
   archetypeId: string,
