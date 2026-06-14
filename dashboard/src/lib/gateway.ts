@@ -17,7 +17,6 @@ import type {
   AdminTenant,
   ComposioConnection,
   ComposioToolkitsPage,
-  ProposalResponse,
   ConverseMessage,
   ConverseResponse,
   RecordEditHistoryPayload,

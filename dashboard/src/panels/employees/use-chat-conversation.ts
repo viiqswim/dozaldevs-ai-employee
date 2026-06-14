@@ -134,8 +134,8 @@ export function useChatConversation(
           proposal: result.proposal as unknown as Record<string, unknown>,
           changed_fields: result.changed_fields as Record<string, unknown>,
           tool_delta: result.tool_delta,
-          trigger_change: result.trigger_change as { before: string; after: string } | undefined,
-          input_change: result.input_change as { added: string[]; removed: string[] } | undefined,
+          trigger_change: result.trigger_change,
+          input_change: result.input_change,
           approval_warning: result.approval_warning,
         };
         setMessages((prev) => [

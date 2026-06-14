@@ -429,17 +429,6 @@ export interface ComposioToolkitsPage {
   nextCursor: string | null;
 }
 
-export interface ProposalResponse {
-  baseline: Record<string, unknown>;
-  proposal: Record<string, unknown>;
-  changed_fields: Record<string, unknown>;
-  tool_delta?: { added: string[]; removed: string[] };
-  trigger_change?: { before: string; after: string };
-  input_change?: { added: string[]; removed: string[] };
-  approval_warning?: boolean;
-  no_change?: boolean;
-}
-
 export interface ConverseMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -453,8 +442,8 @@ export type ConverseResponse =
       proposal: Archetype;
       changed_fields: Record<string, { from: unknown; to: unknown }>;
       tool_delta?: { added: string[]; removed: string[] };
-      trigger_change?: { from: unknown; to: unknown };
-      input_change?: { from: unknown; to: unknown };
+      trigger_change?: { before: string; after: string };
+      input_change?: { added: string[]; removed: string[] };
       approval_warning?: boolean;
     }
   | { kind: 'no_change' }

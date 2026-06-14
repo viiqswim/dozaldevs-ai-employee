@@ -110,14 +110,10 @@ function validateTools(
             reason: `Composio tool "${tool}" requires a connected Composio app, but none are connected for this employee.`,
           });
         } else {
-          if (shellToolPaths.has(tool)) {
-            validTools.push(tool);
-          } else {
-            rejectedTools.push({
-              tool,
-              reason: `Tool "${tool}" is not a recognised shell tool or connected Composio toolkit.`,
-            });
-          }
+          rejectedTools.push({
+            tool,
+            reason: `Tool "${tool}" is not a recognised shell tool or connected Composio toolkit.`,
+          });
         }
       } else {
         rejectedTools.push({
