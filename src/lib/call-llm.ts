@@ -306,6 +306,10 @@ export async function callLLM(options: CallLLMOptions): Promise<CallLLMResult> {
   }
 
   const actualModel = data.model;
+  createLogger('call-llm').info(
+    { actualModel, requestedModel: effectiveModel },
+    'Gateway LLM call — actual model',
+  );
   const promptTokens = data.usage.prompt_tokens;
   const completionTokens = data.usage.completion_tokens;
 

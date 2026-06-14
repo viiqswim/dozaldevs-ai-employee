@@ -15,6 +15,7 @@ import {
 import { recommendModels } from '../../lib/model-selection/matcher.js';
 import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
+import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -160,7 +161,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   const logger = createLogger('admin-archetypes');
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new ArchetypeRepository(prisma);
-  const estimator = new TimeEstimator(callLLM);
+  const callGenerationRepo = new ArchetypeGenerationCallRepository(prisma);
 
   router.post(
     '/admin/tenants/:tenantId/archetypes',
@@ -218,6 +219,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
         let resultArchetype = newArchetype;
         try {
+          const estimator = new TimeEstimator(callLLM, callGenerationRepo, tenantId);
           const estimated = await estimator.estimate(newArchetype);
           if (estimated !== null) {
             const reEstimated = await prisma.archetype.update({
@@ -419,6 +421,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         let resultArchetype = updated;
         if (shouldReEstimate(Object.keys(bodyResult.data))) {
           try {
+            const estimator = new TimeEstimator(callLLM, callGenerationRepo, tenantId);
             const estimated = await estimator.estimate(updated);
             if (estimated !== null) {
               const reEstimated = await prisma.archetype.update({
