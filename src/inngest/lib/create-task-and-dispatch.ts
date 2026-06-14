@@ -3,6 +3,9 @@ import type { Inngest } from 'inngest';
 import type { InngestStep } from '../events.js';
 import { requireEnv } from '../../lib/config.js';
 import { makePostgrestHeaders } from './postgrest-headers.js';
+import { createLogger } from '../../lib/logger.js';
+
+const log = createLogger('task-dispatch');
 
 const supabaseUrl = requireEnv('SUPABASE_URL');
 const supabaseKey = requireEnv('SUPABASE_SECRET_KEY');
@@ -45,6 +48,10 @@ export async function createTaskAndDispatch(
     );
     const duplicates = (await dupRes.json()) as Array<{ id: string }>;
     if (duplicates.length > 0) {
+      log.info(
+        { externalId, tenantId, archetypeSlug },
+        'Duplicate task suppressed — skipping dispatch',
+      );
       return { taskId: null, archetypeId: null };
     }
 
@@ -63,12 +70,14 @@ export async function createTaskAndDispatch(
     });
     const tasks = (await createRes.json()) as Array<{ id: string }>;
     const taskId = tasks[0].id;
+    log.info({ taskId, tenantId, archetypeSlug }, 'Task created');
 
     await inngest.send({
       name: 'employee/task.dispatched',
       data: { taskId, archetypeId },
       id: `employee-dispatch-${externalId}`,
     });
+    log.info({ taskId, tenantId }, 'task.dispatched event sent');
 
     return { taskId, archetypeId };
   });

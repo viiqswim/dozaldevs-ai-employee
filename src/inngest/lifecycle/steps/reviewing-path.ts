@@ -406,6 +406,7 @@ export async function runReviewingPath(
 
   await step.run('track-pending-approval', () => trackPendingApprovalStep(ctx));
 
+  log.info({ taskId, tenantId, timeoutHours }, 'Awaiting approval event');
   const approvalEvent = await step.waitForEvent('wait-for-approval', {
     event: 'employee/approval.received',
     match: 'data.taskId',

@@ -107,9 +107,15 @@ export function registerEventHandlers(
       'app_mention event received',
     );
 
-    if (mention.bot_id) return;
+    if (mention.bot_id) {
+      log.info({ channel: mention.channel }, 'Ignoring app_mention from bot');
+      return;
+    }
 
-    if (mention.channel.startsWith('D')) return;
+    if (mention.channel.startsWith('D')) {
+      log.info({ channel: mention.channel }, 'Ignoring app_mention in DM channel');
+      return;
+    }
 
     const dedupKey = `${mention.ts}:${mention.channel}`;
     const now = Date.now();
