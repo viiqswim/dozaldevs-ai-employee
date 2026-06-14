@@ -653,56 +653,6 @@ export class ArchetypeGenerator {
     return result;
   }
 
-  async interpretRequest(
-    requestText: string,
-    archetype: GenerateArchetypeResponse,
-  ): Promise<string> {
-    log.info({ roleName: archetype.role_name }, 'Interpreting user request in plain English');
-
-    const callOptions = {
-      taskType: 'review' as const,
-      temperature: 0.3,
-      maxTokens: 500,
-      messages: [
-        {
-          role: 'system' as const,
-          content:
-            'You are a plain-English summariser for a non-technical user. ' +
-            'Restate, in one or two plain sentences, what change the user is asking to make to this AI employee. ' +
-            'Do not output JSON. Do not make the change. Do not use technical jargon.',
-        },
-        {
-          role: 'user' as const,
-          content:
-            `Current employee configuration:\n` +
-            `Role: ${archetype.role_name}\n` +
-            `Identity: ${archetype.identity}\n\n` +
-            `User request: ${requestText}`,
-        },
-      ],
-    };
-
-    // Retry up to 3 times: OpenCodeGo occasionally returns empty content on
-    // reasoning-only responses. Each failed attempt is a recoverable LLM error,
-    // not a logic error — so we retry rather than surface the failure to the user.
-    const maxAttempts = 3;
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const result = await this.callLLMFn(callOptions);
-        if (result.content.trim().length > 0) {
-          return result.content.trim();
-        }
-        lastError = new Error('LLM returned empty content');
-        log.warn({ attempt, maxAttempts }, 'interpretRequest: empty content — retrying');
-      } catch (err) {
-        lastError = err;
-        log.warn({ err, attempt, maxAttempts }, 'interpretRequest: LLM call failed — retrying');
-      }
-    }
-    throw lastError ?? new Error('interpretRequest: all attempts returned empty content');
-  }
-
   async refine(
     previousConfig: GenerateArchetypeResponse,
     refinementInstruction: string,

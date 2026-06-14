@@ -132,3 +132,74 @@ In production this is fine because `applyAllowlist(rawProposal)` always populate
 
 ### Commit
 `refactor(dashboard): remove ProposalDiffCard secondary input, keep approval gate`
+
+## T7: converseEdit client (gateway.ts)
+
+- `converseEdit` replaces `proposeEdit` — POSTs `{ transcript: ConverseMessage[] }` to `/propose-edit`
+- `ConverseResponse` has `kind: 'question' | 'proposal' | 'no_change' | 'too_long'`
+- `AssistantTab.tsx` refactored from two-step flow (interpretRequest → proposeEdit) to single-step (converseEdit with full transcript)
+- `buildTranscript()` helper filters `kind === 'text'` messages to build the transcript array
+- `patchArchetype` Pick<> already covers all required fields (identity, execution_steps, delivery_steps, overview, risk_model, tool_registry, trigger_sources, input_schema)
+- Test file updated: mock `converseEdit` instead of `proposeEdit`/`interpretRequest`; `submitAndConfirm` helper replaced with `submitMessage` (no confirm step needed in new flow)
+- `Archetype` type needs double cast (`as unknown as Record<string, unknown>`) when used as `ProposalData.baseline/proposal`
+
+## Task 5 — propose-edit transcript endpoint (2026-06-14)
+
+### converse() vs refine() return shape
+- `refine()` returns `GenerateArchetypeResponse` directly
+- `converse()` returns `ConverseResult` discriminated union — route must branch on `result.kind`
+- For `'proposal'` kind, `result.proposal` is a full `GenerateArchetypeResponse` — apply allowlist before using
+
+### Proposal pipeline: converse() changed_fields NOT reused
+- `converse()` computes its own `changed_fields` on the raw proposal
+- Route DISCARDS those and recomputes changed_fields after applying allowlist + validation
+- This ensures disallowed fields never sneak into the diff
+
+### Test mock pattern for converse()
+```typescript
+mockConverse.mockResolvedValue({
+  kind: 'proposal',
+  baseline: makeBaseline(),     // GenerateArchetypeResponse
+  proposal: makeProposalConfig(), // GenerateArchetypeResponse (gets allowlisted by route)
+  changed_fields: {},            // route ignores these, recomputes
+});
+```
+
+### no_change has two sources
+1. `converse()` returns `{ kind: 'no_change' }` directly
+2. `converse()` returns `{ kind: 'proposal' }` but after allowlist + diff, nothing changed → route returns `{ kind: 'no_change' }`
+
+### body validation
+- `transcript: []` → 400 INVALID_REQUEST (min(1) fails)
+- Old `{ request_text }` body → 400 INVALID_REQUEST (missing transcript)
+- max 50 messages enforced
+
+### Best-effort instrumentation
+- `generationCallRepo.record()` only called on `'proposal'` kind (not on question/too_long/no_change)
+- Still wrapped in try/catch; failures are logged as warnings only
+
+## [2026-06-14] T6 Complete — interpret-request fully retired
+
+### What was removed
+- `src/gateway/routes/admin-archetype-interpret-request.ts` — DELETED
+- `server.ts` — import + `app.use(adminArchetypeInterpretRequestRoutes(...))` registration
+- `ArchetypeGenerator.interpretRequest()` method in `archetype-generator.ts`
+- `dashboard/src/lib/gateway.ts` — `interpretRequest()` fn + `InterpretResponse` import
+- `dashboard/src/lib/types.ts` — `InterpretResponse` interface (was tagged `@deprecated — removed in T6`)
+- `README.md` — interpret-request admin endpoint table row
+- `tests/unit/gateway/services/archetype-generator-repair.test.ts` — both `interpretRequest()` describe blocks (happy path + retry path)
+
+### Key gotchas
+- **The interpret system prompt was INLINE in the `interpretRequest()` method body** (system+user message strings), NOT a named export in `archetype-generator-prompts.ts`. Grep that file for `interpret|restate` returned zero — so the method removal fully removed the prompt. No separate prompt edit needed.
+- **LSP was unavailable** (`typescript-language-server exited 126: No version is set` — `.tool-versions` lacks an LSP entry). Used exhaustive `grep -rn` across `src/ dashboard/src/ README.md tests/` as the authoritative reference finder instead.
+- **Repo state shifts under you during parallel waves**: at T6 start, `AssistantTab.tsx` still imported `interpretRequest` (the restatement/Confirm gate) and gateway.ts had uncommitted edits. Mid-task, T7 (`converseEdit` client, commit `dc19cbab`) and the AssistantTab rebuild landed — AssistantTab migrated to `converseEdit`, removing it as an interpretRequest consumer. **Always re-grep + re-read immediately before editing** when other waves are active; do not trust an early snapshot.
+- `callLLMFn` (the private `ArchetypeGenerator` LLM fn) is still referenced at 4 other sites — removing `interpretRequest()` left no orphan.
+- The `makeResult`/`makeConfig` test helpers in `archetype-generator-repair.test.ts` are shared with the `refine()` describe blocks — kept them; only removed the two interpret describes.
+
+### Verification
+- `grep -rn "interpret-request|interpretRequest|InterpretResponse" src/ dashboard/src/ README.md tests/` → zero matches
+- `pnpm build && pnpm --dir dashboard build && pnpm test:unit` → BUILD_OK, DASH_OK, 167 files / 1929 passed / 9 skipped / 0 failed, EXIT_CODE:0
+- Evidence: `.sisyphus/evidence/task-6-retire.txt`
+
+### Commit
+`refactor(archetypes): retire interpret-request endpoint and restatement gate`
