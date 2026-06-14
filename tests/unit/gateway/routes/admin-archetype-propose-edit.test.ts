@@ -32,16 +32,17 @@ vi.mock('../../../../src/repositories/composio-connection-repository.js', () => 
   })),
 }));
 
-const mockRefine = vi.fn();
+const mockConverse = vi.fn();
 vi.mock('../../../../src/gateway/services/archetype-generator.js', () => ({
   ArchetypeGenerator: vi.fn().mockImplementation(() => ({
-    refine: mockRefine,
+    converse: mockConverse,
   })),
 }));
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const ARCHETYPE_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 const VALID_TOOL = '/tools/platform/submit-output.ts';
+const TRANSCRIPT = [{ role: 'user' as const, content: 'make replies shorter' }];
 
 function makeArchetype(overrides: Record<string, unknown> = {}) {
   return {
@@ -85,7 +86,7 @@ function makeArchetype(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeRefineResult(overrides: Record<string, unknown> = {}) {
+function makeProposalConfig(overrides: Record<string, unknown> = {}) {
   return {
     role_name: 'test-employee',
     model: 'deepseek/deepseek-v4-flash',
@@ -117,6 +118,13 @@ function makeRefineResult(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeBaseline() {
+  return makeProposalConfig({
+    identity: 'You are a helpful assistant.',
+    execution_steps: 'Do the task.',
+  });
+}
+
 function makeApp(prismaOverrides: Record<string, unknown> = {}) {
   const app = express();
   app.use(express.json());
@@ -145,19 +153,63 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     vi.clearAllMocks();
   });
 
-  it('200 — allowlist strips model/temperature/role_name from refine result', async () => {
+  it('200 — question kind returns {kind, question}, no proposal pipeline runs', async () => {
     const prisma = makePrisma();
-    mockRefine.mockResolvedValue(makeRefineResult());
+    mockConverse.mockResolvedValue({ kind: 'question', question: 'What tone should I use?' });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'make replies shorter and friendlier' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(200);
+    expect(res.body).toEqual({ kind: 'question', question: 'What tone should I use?' });
+  });
+
+  it('200 — too_long kind returns {kind:too_long}', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({ kind: 'too_long' });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ kind: 'too_long' });
+  });
+
+  it('200 — no_change kind from converse returns {kind:no_change}', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({ kind: 'no_change' });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ kind: 'no_change' });
+  });
+
+  it('200 — proposal kind: allowlist strips model/role_name/concurrency_limit from converse proposal', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig(),
+      changed_fields: {},
+    });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
     const proposal = res.body.proposal as Record<string, unknown>;
     expect(proposal).not.toHaveProperty('model');
-    expect(proposal).not.toHaveProperty('temperature');
     expect(proposal).not.toHaveProperty('role_name');
     expect(proposal).not.toHaveProperty('concurrency_limit');
     expect(proposal).not.toHaveProperty('vm_size');
@@ -167,16 +219,107 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     expect(proposal).toHaveProperty('tool_registry');
   });
 
-  it('200 — changed_fields tracks identity change', async () => {
+  it('422 — proposal kind: blanking non-empty execution_steps rejected as PROPOSAL_INVALID', async () => {
     const prisma = makePrisma();
-    mockRefine.mockResolvedValue(makeRefineResult({ identity: 'A completely new persona' }));
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({ execution_steps: '' }),
+      changed_fields: {},
+    });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'change persona' });
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('PROPOSAL_INVALID');
+    const errors = res.body.errors as Array<{ field: string; reason: string }>;
+    expect(errors.some((e) => e.field === 'execution_steps')).toBe(true);
+  });
+
+  it('422 — proposal kind: unavailable tool rejected with PROPOSAL_INVALID', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({ tool_registry: { tools: ['/tools/nonexistent/tool.ts'] } }),
+      changed_fields: {},
+    });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('PROPOSAL_INVALID');
+    const errors = res.body.errors as Array<{ field: string; reason: string }>;
+    expect(errors.some((e) => e.reason.includes('/tools/nonexistent/tool.ts'))).toBe(true);
+  });
+
+  it('200 — proposal kind: approval_required true→false sets approval_warning', async () => {
+    const prisma = makePrisma(
+      makeArchetype({ risk_model: { approval_required: true, timeout_hours: 2 } }),
+    );
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({ risk_model: { approval_required: false, timeout_hours: 2 } }),
+      changed_fields: {},
+    });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
+    expect(res.body.approval_warning).toBe(true);
+  });
+
+  it('200 — proposal kind: {kind:no_change} when proposal is identical to baseline', async () => {
+    const archetype = makeArchetype();
+    const prisma = makePrisma(archetype);
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({
+        identity: archetype.identity,
+        execution_steps: archetype.execution_steps,
+        trigger_sources: archetype.trigger_sources,
+        tool_registry: archetype.tool_registry,
+      }),
+      changed_fields: {},
+    });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ kind: 'no_change' });
+  });
+
+  it('200 — proposal kind: changed_fields tracks identity change', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({ identity: 'A completely new persona' }),
+      changed_fields: {},
+    });
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
+      .send({ transcript: TRANSCRIPT });
+
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
     expect(res.body.changed_fields).toHaveProperty('identity');
     expect(res.body.changed_fields.identity).toMatchObject({
       before: 'You are a helpful assistant.',
@@ -184,75 +327,25 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     });
   });
 
-  it('200 — no_change true when nothing differs', async () => {
-    const archetype = makeArchetype();
-    const prisma = makePrisma(archetype);
-    mockRefine.mockResolvedValue(
-      makeRefineResult({
-        identity: archetype.identity,
-        execution_steps: archetype.execution_steps,
-        tool_registry: archetype.tool_registry,
-        trigger_sources: archetype.trigger_sources,
-      }),
-    );
-    const app = makeApp(prisma);
-
-    const res = await request(app)
-      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'no changes please' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.no_change).toBe(true);
-    expect(res.body.changed_fields).toEqual({});
-  });
-
-  it('422 — empty identity rejected when baseline is non-empty', async () => {
-    const prisma = makePrisma();
-    mockRefine.mockResolvedValue(makeRefineResult({ identity: '' }));
-    const app = makeApp(prisma);
-
-    const res = await request(app)
-      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'wipe the identity' });
-
-    expect(res.status).toBe(422);
-    expect(res.body.error).toBe('PROPOSAL_INVALID');
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.field === 'identity')).toBe(true);
-  });
-
-  it('422 — unavailable tool rejected with plain-language reason', async () => {
-    const prisma = makePrisma();
-    mockRefine.mockResolvedValue(
-      makeRefineResult({ tool_registry: { tools: ['/tools/nonexistent/tool.ts'] } }),
-    );
-    const app = makeApp(prisma);
-
-    const res = await request(app)
-      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'add a broken tool' });
-
-    expect(res.status).toBe(422);
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.reason.includes('/tools/nonexistent/tool.ts'))).toBe(true);
-  });
-
-  it('200 — tool_delta computed (added/removed)', async () => {
+  it('200 — proposal kind: tool_delta computed (added/removed)', async () => {
     const prisma = makePrisma(
       makeArchetype({ tool_registry: { tools: ['/tools/platform/submit-output.ts'] } }),
     );
-    mockRefine.mockResolvedValue(
-      makeRefineResult({
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({
         tool_registry: {
           tools: ['/tools/platform/submit-output.ts', '/tools/slack/post-message.ts'],
         },
       }),
-    );
+      changed_fields: {},
+    });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'add slack posting' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(200);
     expect(res.body.tool_delta).toMatchObject({
@@ -261,49 +354,21 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     });
   });
 
-  it('200 — approval_warning true when approval_required goes from true to false', async () => {
-    const prisma = makePrisma(
-      makeArchetype({ risk_model: { approval_required: true, timeout_hours: 2 } }),
-    );
-    mockRefine.mockResolvedValue(
-      makeRefineResult({ risk_model: { approval_required: false, timeout_hours: 2 } }),
-    );
-    const app = makeApp(prisma);
-
-    const res = await request(app)
-      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'turn off approval' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.approval_warning).toBe(true);
-  });
-
-  it('422 — invalid trigger_sources rejected with plain-language reason', async () => {
+  it('200 — proposal kind: trigger_change summary in response', async () => {
     const prisma = makePrisma(makeArchetype({ trigger_sources: { type: 'manual' } }));
-    mockRefine.mockResolvedValue(makeRefineResult({ trigger_sources: { type: 'scheduled' } }));
-    const app = makeApp(prisma);
-
-    const res = await request(app)
-      .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'make it scheduled but omit cron' });
-
-    expect(res.status).toBe(422);
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.field === 'trigger_sources')).toBe(true);
-  });
-
-  it('200 — valid trigger_sources passes with trigger_change summary', async () => {
-    const prisma = makePrisma(makeArchetype({ trigger_sources: { type: 'manual' } }));
-    mockRefine.mockResolvedValue(
-      makeRefineResult({
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({
         trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'America/New_York' },
       }),
-    );
+      changed_fields: {},
+    });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'run on weekday mornings' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(200);
     expect(res.body.trigger_change).toMatchObject({
@@ -312,52 +377,43 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     });
   });
 
-  it('422 — invalid input_schema rejected', async () => {
-    const prisma = makePrisma(makeArchetype({ input_schema: null }));
-    mockRefine.mockResolvedValue(
-      makeRefineResult({
-        input_schema: [
-          { key: 'INVALID KEY', label: 'x', type: 'text', frequency: 'once', required: true },
-        ],
-      }),
-    );
+  it('422 — invalid trigger_sources rejected with PROPOSAL_INVALID', async () => {
+    const prisma = makePrisma(makeArchetype({ trigger_sources: { type: 'manual' } }));
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig({ trigger_sources: { type: 'scheduled' } }),
+      changed_fields: {},
+    });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'add an input with a bad key' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(422);
     const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.field === 'input_schema')).toBe(true);
+    expect(errors.some((e) => e.field === 'trigger_sources')).toBe(true);
   });
 
-  it('200 — valid input_schema passes with input_change summary', async () => {
-    const prisma = makePrisma(makeArchetype({ input_schema: null }));
-    mockRefine.mockResolvedValue(
-      makeRefineResult({
-        input_schema: [
-          {
-            key: 'report_date',
-            label: 'Report Date',
-            type: 'date',
-            frequency: 'every_run',
-            required: true,
-          },
-        ],
-      }),
-    );
+  it('200 — proposal kind: risk_model in response contains only approval_required', async () => {
+    const prisma = makePrisma();
+    mockConverse.mockResolvedValue({
+      kind: 'proposal',
+      baseline: makeBaseline(),
+      proposal: makeProposalConfig(),
+      changed_fields: {},
+    });
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'add a report date input' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(200);
-    expect(res.body.input_change).toMatchObject({
-      added: ['report_date'],
-      removed: [],
-    });
+    const riskModel = res.body.proposal?.risk_model as Record<string, unknown>;
+    expect(riskModel).toHaveProperty('approval_required');
+    expect(riskModel).not.toHaveProperty('timeout_hours');
   });
 
   it('404 — archetype not found', async () => {
@@ -366,25 +422,25 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'anything' });
+      .send({ transcript: TRANSCRIPT });
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('NOT_FOUND');
   });
 
-  it('400 — empty request_text rejected', async () => {
+  it('400 — empty transcript rejected', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: '' });
+      .send({ transcript: [] });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_REQUEST');
   });
 
-  it('400 — missing request_text rejected', async () => {
+  it('400 — missing transcript rejected', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
 
@@ -396,18 +452,15 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     expect(res.body.error).toBe('INVALID_REQUEST');
   });
 
-  it('200 — risk_model in proposal contains only approval_required (no timeout_hours)', async () => {
+  it('400 — old request_text body shape rejected', async () => {
     const prisma = makePrisma();
-    mockRefine.mockResolvedValue(makeRefineResult());
     const app = makeApp(prisma);
 
     const res = await request(app)
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
-      .send({ request_text: 'minor tweak' });
+      .send({ request_text: 'make replies shorter' });
 
-    expect(res.status).toBe(200);
-    const riskModel = res.body.proposal.risk_model as Record<string, unknown>;
-    expect(riskModel).toHaveProperty('approval_required');
-    expect(riskModel).not.toHaveProperty('timeout_hours');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_REQUEST');
   });
 });

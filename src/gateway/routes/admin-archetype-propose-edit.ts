@@ -35,7 +35,15 @@ const ProposeEditParamsSchema = z.object({
 });
 
 const ProposeEditBodySchema = z.object({
-  request_text: z.string().min(1).max(500),
+  transcript: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      }),
+    )
+    .min(1)
+    .max(50),
 });
 
 function applyAllowlist(raw: GenerateArchetypeResponse): StrippedProposal {
@@ -105,7 +113,7 @@ export function adminArchetypeProposeEditRoutes(
       }
 
       const { tenantId, archetypeId } = paramResult.data;
-      const { request_text } = bodyResult.data;
+      const { transcript } = bodyResult.data;
 
       try {
         const archetype = await prisma.archetype.findFirst({
@@ -135,18 +143,32 @@ export function adminArchetypeProposeEditRoutes(
         }
 
         const baseline = mapArchetypeRowToConfig(archetype as Record<string, unknown>);
-        const rawProposal = await generator.refine(baseline, request_text, catalog, {
+        const result = await generator.converse(transcript, baseline, catalog, {
           connectedToolkits,
           connectableToolkits,
         });
 
-        // Best-effort instrumentation — never block the route on a failed audit insert.
+        if (result.kind === 'question') {
+          sendSuccess(res, 200, { kind: 'question', question: result.question });
+          return;
+        }
+
+        if (result.kind === 'too_long') {
+          sendSuccess(res, 200, { kind: 'too_long' });
+          return;
+        }
+
+        if (result.kind === 'no_change') {
+          sendSuccess(res, 200, { kind: 'no_change' });
+          return;
+        }
+
         try {
           await generationCallRepo.record({
             tenant_id: tenantId,
             archetype_id: archetypeId,
             call_type: 'propose_edit',
-            model_actual: rawProposal.model ?? null,
+            model_actual: result.proposal.model ?? null,
             status: 'success',
             created_by: req.auth?.id ?? null,
           });
@@ -154,7 +176,7 @@ export function adminArchetypeProposeEditRoutes(
           logger.warn({ err: persistErr }, 'Failed to persist propose-edit call');
         }
 
-        const stripped = applyAllowlist(rawProposal);
+        const stripped = applyAllowlist(result.proposal);
         const currentTools = baseline.tool_registry?.tools ?? [];
 
         const validation = validateProposalFields(
@@ -235,15 +257,18 @@ export function adminArchetypeProposeEditRoutes(
         }
 
         const noChange = Object.keys(changedFields).length === 0;
+
+        if (noChange) {
+          sendSuccess(res, 200, { kind: 'no_change' });
+          return;
+        }
+
         const response: Record<string, unknown> = {
+          kind: 'proposal',
           baseline: applyAllowlist(baseline),
           proposal: stripped,
           changed_fields: changedFields,
         };
-
-        if (noChange) {
-          response['no_change'] = true;
-        }
 
         if (toolDelta.added.length > 0 || toolDelta.removed.length > 0) {
           response['tool_delta'] = toolDelta;
