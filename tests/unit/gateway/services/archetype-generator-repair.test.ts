@@ -174,17 +174,70 @@ describe('refine() — empty-content handling', () => {
     expect(generationCalls.length).toBe(2);
   });
 
-  // The empty-content guard lives in call-llm.ts (T2): it THROWS on empty content.
-  // The first generation call sits outside callLLMWithJsonRetry's try/catch, so a
-  // thrown guard propagates straight to GENERATION_FAILED with no retry — distinct
-  // from the empty-string-return case above, which does retry.
-  it('surfaces a thrown empty-content guard error as GENERATION_FAILED without retrying', async () => {
+  // The empty-content guard lives in call-llm.ts: it THROWS on empty content.
+  // callLLMWithJsonRetry catches this on the FIRST call and retries exactly once.
+  it('retries once when first callLLMFn throws empty-content, resolves on success (2 calls total)', async () => {
     const guardError = new Error('LLM returned empty content — possible reasoning-only response');
     const { fn, generationCalls } = makeRoutingMock([guardError, VALID_REFINE_JSON]);
     const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
 
+    const result = await gen.refine(makeConfig(), 'change it');
+
+    expect(result.identity).toBe('You are a refined, concise assistant.');
+    expect(generationCalls.length).toBe(2);
+  });
+
+  it('rejects as GENERATION_FAILED after exactly 2 calls when both first and retry throw empty-content', async () => {
+    const guardError = new Error('LLM returned empty content — possible reasoning-only response');
+    const { fn, generationCalls } = makeRoutingMock([guardError, guardError]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
     await expect(gen.refine(makeConfig(), 'change it')).rejects.toThrow('GENERATION_FAILED');
-    expect(generationCalls.length).toBe(1);
+    expect(generationCalls.length).toBe(2);
+  });
+});
+
+describe('generate() — error classification', () => {
+  it('throws GENERATION_FAILED with "no usable content" (NOT "invalid JSON") when both calls return empty-content error', async () => {
+    const guardError = new Error('LLM returned empty content — possible reasoning-only response');
+    const { fn } = makeRoutingMock([guardError, guardError]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const rejection = gen.generate('build me an employee');
+    await expect(rejection).rejects.toThrow('GENERATION_FAILED');
+    await expect(rejection).rejects.toThrow(/no usable content/i);
+    await expect(rejection).rejects.not.toThrow(/invalid JSON/i);
+  });
+
+  it('throws GENERATION_FAILED with "invalid JSON" when JSON.parse fails on both attempts', async () => {
+    const { fn } = makeRoutingMock([STRUCTURALLY_BROKEN, STRUCTURALLY_BROKEN]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const rejection = gen.generate('build me an employee');
+    await expect(rejection).rejects.toThrow('GENERATION_FAILED');
+    await expect(rejection).rejects.toThrow(/invalid JSON/i);
+  });
+});
+
+describe('refine() — error classification', () => {
+  it('throws GENERATION_FAILED with "no usable content" (NOT "invalid JSON") when both calls return empty-content error', async () => {
+    const guardError = new Error('LLM returned empty content — possible reasoning-only response');
+    const { fn } = makeRoutingMock([guardError, guardError]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const rejection = gen.refine(makeConfig(), 'change it');
+    await expect(rejection).rejects.toThrow('GENERATION_FAILED');
+    await expect(rejection).rejects.toThrow(/no usable content/i);
+    await expect(rejection).rejects.not.toThrow(/invalid JSON/i);
+  });
+
+  it('throws GENERATION_FAILED with "invalid JSON" when JSON.parse fails on both attempts', async () => {
+    const { fn } = makeRoutingMock([STRUCTURALLY_BROKEN, STRUCTURALLY_BROKEN]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const rejection = gen.refine(makeConfig(), 'change it');
+    await expect(rejection).rejects.toThrow('GENERATION_FAILED');
+    await expect(rejection).rejects.toThrow(/invalid JSON/i);
   });
 });
 

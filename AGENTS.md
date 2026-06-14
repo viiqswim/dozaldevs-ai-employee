@@ -481,6 +481,8 @@ tests/
 
 - **AI employee injection — exactly two things, use exact names**: When an AI employee runs, exactly two things are injected into it: (1) **the prompt** — the initial message sent to the employee, and (2) **the AGENTS.md file** — a literal markdown file written to `/app/AGENTS.md` in the worker container. Never use vague synonyms like "instructions," "knowledge base," "instruction manual," or "context" when referring to these. Always say "the prompt" or "the AGENTS.md file." Any other framing is imprecise and confusing.
 
+- **Discover before you build** — Before writing anything new — a utility, a client, an abstraction, a shared pattern — the first step is to search the existing codebase. Duplicate implementations are the silent tax every codebase pays: two HTTP clients with subtly different retry logic, two encryption wrappers with different IV assumptions, two PostgREST header builders producing slightly different shapes. Each diverges imperceptibly under maintenance until they contradict one another. Search `src/lib/`, `src/gateway/`, `src/inngest/lib/`, `src/workers/lib/`, and `src/worker-tools/` before writing. If a precedent exists — reuse it, extend it, or compose on top of it. Author something new only after satisfying yourself that no existing piece can be made to serve the purpose.
+
 - Worker branch naming: `ai/{ticketId}-{slug}`
 - Inngest functions register in the gateway process (not a separate service)
 - Worker containers communicate with Supabase via PostgREST REST API (not direct Prisma)

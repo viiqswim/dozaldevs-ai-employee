@@ -468,7 +468,27 @@ export class ArchetypeGenerator {
       createdBy?: string | null;
     },
   ): Promise<string> {
-    const result = await this.callLLMFn({ ...options, messages });
+    let result: Awaited<ReturnType<typeof this.callLLMFn>>;
+    let emptyContentRetried = false;
+    try {
+      result = await this.callLLMFn({ ...options, messages });
+    } catch (firstCallErr) {
+      if (firstCallErr instanceof Error && firstCallErr.message.includes('empty content')) {
+        emptyContentRetried = true;
+        log.warn('LLM returned empty content on first call — retrying once with nudge');
+        const nudgeMessages = [
+          ...messages,
+          {
+            role: 'user' as const,
+            content:
+              'Your previous response was empty. Please provide a complete, valid JSON response matching the required schema.',
+          },
+        ];
+        result = await this.callLLMFn({ ...options, messages: nudgeMessages });
+      } else {
+        throw firstCallErr;
+      }
+    }
 
     if (callContext) {
       void this._persistCall({
@@ -483,7 +503,7 @@ export class ArchetypeGenerator {
         completion_tokens: result.completionTokens,
         estimated_cost_usd: result.estimatedCostUsd,
         latency_ms: result.latencyMs,
-        retry_count: 0,
+        retry_count: emptyContentRetried ? 1 : 0,
         status: 'success',
         created_by: callContext.createdBy ?? null,
       });
@@ -619,7 +639,12 @@ export class ArchetypeGenerator {
       composioContext?.connectableToolkits ?? [],
     );
 
-    const llmOptions = { taskType: 'review' as const, temperature: 0.3, maxTokens: 6000 };
+    const llmOptions = {
+      taskType: 'review' as const,
+      temperature: 0.3,
+      maxTokens: 6000,
+      responseFormat: { type: 'json_object' as const },
+    };
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `<user_description>${description}</user_description>` },
@@ -634,18 +659,26 @@ export class ArchetypeGenerator {
       const stripped = await this.callLLMWithJsonRetry(messages, llmOptions, callContext);
       parsed = JSON.parse(stripped);
     } catch (err) {
-      log.error({ err }, 'GENERATION_FAILED: JSON parse error');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isEmptyContent = errMsg.includes('LLM returned empty content');
+      log.error(
+        { err },
+        isEmptyContent ? 'GENERATION_FAILED: empty content' : 'GENERATION_FAILED: JSON parse error',
+      );
       if (generationContext) {
         void this._persistCall({
           tenant_id: generationContext.tenantId,
           archetype_id: null,
           call_type: 'generate',
           status: 'failed',
-          error_message: err instanceof Error ? err.message : String(err),
+          error_message: errMsg,
           created_by: generationContext.createdBy ?? null,
         });
       }
-      throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${String(err)}`);
+      if (isEmptyContent) {
+        throw new Error(`GENERATION_FAILED: LLM returned no usable content — ${errMsg}`);
+      }
+      throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${errMsg}`);
     }
 
     const result = postProcess(parsed, description);
@@ -689,19 +722,31 @@ export class ArchetypeGenerator {
         const stripped = await this.callLLMWithJsonRetry(msgs, llmOptions, refineCallContext);
         parsed = JSON.parse(stripped);
       } catch (err) {
-        log.error({ err }, 'GENERATION_FAILED: JSON parse error during refine');
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const isEmptyContent = errMsg.includes('LLM returned empty content');
+        log.error(
+          { err },
+          isEmptyContent
+            ? 'GENERATION_FAILED: empty content during refine'
+            : 'GENERATION_FAILED: JSON parse error during refine',
+        );
         if (generationContext) {
           void this._persistCall({
             tenant_id: generationContext.tenantId,
             archetype_id: null,
             call_type: 'refine',
             status: 'failed',
-            error_message: err instanceof Error ? err.message : String(err),
+            error_message: errMsg,
             created_by: generationContext.createdBy ?? null,
           });
         }
+        if (isEmptyContent) {
+          throw new Error(
+            `GENERATION_FAILED: LLM returned no usable content during refinement — ${errMsg}`,
+          );
+        }
         throw new Error(
-          `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${String(err)}`,
+          `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${errMsg}`,
         );
       }
       const r = postProcess(parsed, previousConfig.role_name);

@@ -171,7 +171,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
 
             return (
               <div key={msg.id} className="flex justify-start">
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm max-w-[80%]">
+                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm text-foreground [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text ?? ''}</ReactMarkdown>
                 </div>
               </div>

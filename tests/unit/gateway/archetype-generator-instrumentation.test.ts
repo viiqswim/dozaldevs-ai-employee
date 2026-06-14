@@ -42,6 +42,23 @@ function makeRoutingLLM(generationContent: string | Error) {
   });
 }
 
+// Multi-step routing LLM: each generation call consumes the next step in the array.
+// Estimator calls always return '15' and do not consume a step.
+type GenStep = string | Error;
+function makeMultiStepRoutingLLM(genSteps: GenStep[]) {
+  let genCallIdx = 0;
+  return vi.fn(async (opts: { messages: Array<{ role: string; content: string }> }) => {
+    const systemContent = opts.messages?.[0]?.content ?? '';
+    if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
+      return makeResult('15');
+    }
+    const step = genSteps[genCallIdx] ?? genSteps[genSteps.length - 1];
+    genCallIdx++;
+    if (step instanceof Error) throw step;
+    return makeResult(step);
+  });
+}
+
 function makeRepo() {
   return {
     record: vi.fn(async (_input: RecordInput) => ({ id: 'call-1' })),
@@ -130,5 +147,41 @@ describe('ArchetypeGenerator instrumentation — non-blocking persistence', () =
     ).rejects.toThrow('GENERATION_FAILED');
 
     expect(repo.record).toHaveBeenCalled();
+  });
+
+  it('empty-then-success: persists retry_count:1 and status:success when first call throws empty-content and retry succeeds', async () => {
+    const emptyErr = new Error('LLM returned empty content — possible reasoning-only response');
+    const llm = makeMultiStepRoutingLLM([emptyErr, VALID_GENERATION_JSON]);
+    const gen = new ArchetypeGenerator(llm as unknown as typeof callLLM, repo as never);
+
+    await gen.generate('A test employee that does X', undefined, undefined, GEN_CONTEXT);
+
+    const successRow = repo.record.mock.calls
+      .map((c) => c[0])
+      .find((row) => row.call_type === 'generate' && row.status === 'success');
+    expect(successRow).toBeDefined();
+    expect(successRow?.retry_count).toBe(1);
+    expect(successRow?.status).toBe('success');
+  });
+
+  it('both-empty: persists status:failed with non-empty error_message and no success row for the failed call', async () => {
+    const emptyErr = new Error('LLM returned empty content — possible reasoning-only response');
+    const llm = makeMultiStepRoutingLLM([emptyErr, emptyErr]);
+    const gen = new ArchetypeGenerator(llm as unknown as typeof callLLM, repo as never);
+
+    await expect(
+      gen.generate('A test employee that does X', undefined, undefined, GEN_CONTEXT),
+    ).rejects.toThrow('GENERATION_FAILED');
+
+    const allRows = repo.record.mock.calls.map((c) => c[0]);
+    const failedRow = allRows.find((row) => row.status === 'failed');
+    expect(failedRow).toBeDefined();
+    expect(failedRow?.error_message).toBeTruthy();
+    expect(failedRow?.error_message).toContain('LLM returned empty content');
+
+    const successRow = allRows.find(
+      (row) => row.call_type === 'generate' && row.status === 'success',
+    );
+    expect(successRow).toBeUndefined();
   });
 });
