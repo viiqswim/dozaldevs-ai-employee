@@ -449,7 +449,7 @@ export interface RecordEditHistoryPayload {
   before_json: Record<string, unknown>;
   after_json: Record<string, unknown>;
   changed_fields: string[];
-  kind: 'edit' | 'revert';
+  kind: 'edit' | 'revert' | 'create';
 }
 
 export interface EditHistoryRow {
@@ -460,7 +460,7 @@ export interface EditHistoryRow {
   before_json: Record<string, unknown>;
   after_json: Record<string, unknown>;
   changed_fields: string[];
-  kind: 'edit' | 'revert';
+  kind: 'edit' | 'revert' | 'create';
   actor_user_id: string | null;
   created_at: string;
   deleted_at: string | null;

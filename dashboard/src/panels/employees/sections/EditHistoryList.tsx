@@ -85,6 +85,7 @@ export function EditHistoryList({
         const isReverting = revertingId === row.id;
         const isConfirming = confirmRevertId === row.id;
         const isRevert = row.kind === 'revert';
+        const isCreate = row.kind === 'create';
         const changedLabels = row.changed_fields.map((f) => FIELD_LABELS[f] ?? f).join(', ');
 
         return (
@@ -94,7 +95,7 @@ export function EditHistoryList({
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">
-                {isRevert ? '↩ Reverted: ' : ''}
+                {isRevert ? '↩ Reverted: ' : isCreate ? '✦ ' : ''}
                 {row.request_text}
               </p>
               {changedLabels && (
@@ -105,7 +106,7 @@ export function EditHistoryList({
               </p>
             </div>
 
-            {!isRevert && (
+            {!isRevert && !isCreate && (
               <div className="shrink-0">
                 {isConfirming ? (
                   <div className="flex items-center gap-1.5">

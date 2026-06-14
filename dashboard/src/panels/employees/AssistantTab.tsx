@@ -4,8 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { proposeEdit, patchArchetype, recordEditHistory, interpretRequest } from '@/lib/gateway';
-import type { Archetype, ProposalResponse, RecordEditHistoryPayload } from '@/lib/types';
+import { proposeEdit, patchArchetype, interpretRequest } from '@/lib/gateway';
+import type { Archetype, ProposalResponse } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
@@ -239,37 +239,11 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
         }
       }
 
-      const archetypeRecord = archetype as unknown as Record<string, unknown>;
-      const beforeJson: Record<string, unknown> = {};
-      for (const key of ALLOWED_PATCH_KEYS) {
-        if (archetypeRecord[key] !== undefined) {
-          beforeJson[key] = archetypeRecord[key];
-        }
-      }
-
       await patchArchetype(
         tenantId,
         archetype.id,
         patchBody as Parameters<typeof patchArchetype>[2],
       );
-
-      const proposalIndex = messages.findIndex((m) => m.id === msgId);
-      const requestText =
-        proposalIndex > 0
-          ? ([...messages]
-              .slice(0, proposalIndex)
-              .reverse()
-              .find((m) => m.role === 'user')?.text ?? 'AI assistant edit')
-          : 'AI assistant edit';
-
-      const historyPayload: RecordEditHistoryPayload = {
-        request_text: requestText,
-        before_json: beforeJson,
-        after_json: patchBody,
-        changed_fields: Object.keys(proposal.changed_fields),
-        kind: 'edit',
-      };
-      await recordEditHistory(tenantId, archetype.id, historyPayload);
 
       setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, proposalActed: true } : m)));
       setPendingProposalId(null);
