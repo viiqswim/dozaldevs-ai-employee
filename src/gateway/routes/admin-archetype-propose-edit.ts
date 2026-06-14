@@ -13,6 +13,7 @@ import {
   type GenerateArchetypeResponse,
 } from '../services/archetype-generator.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
+import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 import { getConnectableToolkits } from '../../lib/composio/connectable-apps.js';
 import { ALL_TOOL_DESCRIPTORS, toolInvocationPath } from '../../lib/tool-registry.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
@@ -200,6 +201,7 @@ export function adminArchetypeProposeEditRoutes(
   const prisma = opts.prisma ?? new PrismaClient();
   const generator = new ArchetypeGenerator(opts.callLLM);
   const composioRepo = new ComposioConnectionRepository(prisma);
+  const generationCallRepo = new ArchetypeGenerationCallRepository(prisma);
 
   router.post(
     '/admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit',
@@ -258,6 +260,20 @@ export function adminArchetypeProposeEditRoutes(
           connectedToolkits,
           connectableToolkits,
         });
+
+        // Best-effort instrumentation — never block the route on a failed audit insert.
+        try {
+          await generationCallRepo.record({
+            tenant_id: tenantId,
+            archetype_id: archetypeId,
+            call_type: 'propose_edit',
+            model_actual: rawProposal.model ?? null,
+            status: 'success',
+            created_by: req.auth?.id ?? null,
+          });
+        } catch (persistErr) {
+          logger.warn({ err: persistErr }, 'Failed to persist propose-edit call');
+        }
 
         const stripped = applyAllowlist(rawProposal);
         const errors: Array<{ field: string; reason: string }> = [];
@@ -408,6 +424,19 @@ export function adminArchetypeProposeEditRoutes(
         sendSuccess(res, 200, response);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+
+        try {
+          await generationCallRepo.record({
+            tenant_id: tenantId,
+            archetype_id: archetypeId,
+            call_type: 'propose_edit',
+            status: 'failed',
+            error_message: message,
+            created_by: req.auth?.id ?? null,
+          });
+        } catch (persistErr) {
+          logger.warn({ err: persistErr }, 'Failed to persist propose-edit failure');
+        }
 
         if (message.includes('GENERATION_FAILED')) {
           sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });

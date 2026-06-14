@@ -17,6 +17,10 @@ import {
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
 } from './prompts/archetype-generator-prompts.js';
+import type {
+  ArchetypeGenerationCallRepository,
+  RecordInput,
+} from '../../repositories/ArchetypeGenerationCallRepository.js';
 export { CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE };
 
 const log = createLogger('archetype-generator');
@@ -364,7 +368,19 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
 }
 
 export class ArchetypeGenerator {
-  constructor(private readonly callLLMFn: typeof callLLM) {}
+  constructor(
+    private readonly callLLMFn: typeof callLLM,
+    private readonly repo?: ArchetypeGenerationCallRepository,
+  ) {}
+
+  private async _persistCall(input: RecordInput): Promise<void> {
+    if (!this.repo) return;
+    try {
+      await this.repo.record(input);
+    } catch (err) {
+      log.warn({ err }, 'Failed to persist archetype generation call');
+    }
+  }
 
   private async callLLMWithJsonRetry(
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
@@ -374,25 +390,46 @@ export class ArchetypeGenerator {
       maxTokens: number;
       responseFormat?: { type: 'json_object' };
     },
+    callContext?: {
+      callType: 'generate' | 'refine';
+      tenantId: string;
+      createdBy?: string | null;
+    },
   ): Promise<string> {
     const result = await this.callLLMFn({ ...options, messages });
+
+    if (callContext) {
+      void this._persistCall({
+        tenant_id: callContext.tenantId,
+        archetype_id: null,
+        call_type: callContext.callType,
+        model_requested: null,
+        model_actual: result.model,
+        prompt: JSON.stringify(messages),
+        response: result.content,
+        prompt_tokens: result.promptTokens,
+        completion_tokens: result.completionTokens,
+        estimated_cost_usd: result.estimatedCostUsd,
+        latency_ms: result.latencyMs,
+        retry_count: 0,
+        status: 'success',
+        created_by: callContext.createdBy ?? null,
+      });
+    }
+
     const raw = stripFences(result.content);
     try {
       JSON.parse(raw);
       return raw;
     } catch (firstError) {
-      // Attempt repair before spending tokens on an LLM retry. repairJsonStrings
-      // escapes raw newlines/tabs/CRs inside string values — the tertiary failure
-      // mode (~10%) identified in diagnosis. Skip repair when raw is empty (empty
-      // content = primary/secondary failure modes that repair cannot fix).
       if (raw.length > 0) {
         try {
           const repaired = repairJsonStrings(raw);
           JSON.parse(repaired);
           log.info('JSON parse succeeded after repairJsonStrings — skipping LLM retry');
           return repaired;
-        } catch {
-          // Repair did not produce valid JSON — fall through to LLM retry.
+        } catch (_e) {
+          // repairJsonStrings did not produce valid JSON — fall through to LLM retry
         }
       }
 
@@ -407,15 +444,34 @@ export class ArchetypeGenerator {
         },
       ];
       const retryResult = await this.callLLMFn({ ...options, messages: retryMessages });
+
+      if (callContext) {
+        void this._persistCall({
+          tenant_id: callContext.tenantId,
+          archetype_id: null,
+          call_type: callContext.callType,
+          model_requested: null,
+          model_actual: retryResult.model,
+          prompt: JSON.stringify(retryMessages),
+          response: retryResult.content,
+          prompt_tokens: retryResult.promptTokens,
+          completion_tokens: retryResult.completionTokens,
+          estimated_cost_usd: retryResult.estimatedCostUsd,
+          latency_ms: retryResult.latencyMs,
+          retry_count: 1,
+          status: 'success',
+          created_by: callContext.createdBy ?? null,
+        });
+      }
+
       const retryRaw = stripFences(retryResult.content);
       try {
         JSON.parse(retryRaw);
         return retryRaw;
       } catch {
-        // Attempt repair on the retry result before giving up.
         if (retryRaw.length > 0) {
           const repairedRetry = repairJsonStrings(retryRaw);
-          JSON.parse(repairedRetry); // throws if still invalid → GENERATION_FAILED
+          JSON.parse(repairedRetry);
           log.info('JSON parse succeeded after repairJsonStrings on retry result');
           return repairedRetry;
         }
@@ -427,6 +483,7 @@ export class ArchetypeGenerator {
   private async applyModelAndEstimate(
     result: GenerateArchetypeResponse,
     catalog?: ModelCatalogRow[],
+    generationContext?: { tenantId: string; createdBy?: string | null },
   ): Promise<void> {
     if (catalog && catalog.length > 0) {
       try {
@@ -439,6 +496,24 @@ export class ArchetypeGenerator {
         result.modelRecommendation = recommendation;
         if (recommendation.recommended) {
           result.model = recommendation.recommended.modelId;
+          log.info(
+            {
+              model: recommendation.recommended.modelId,
+              totalScore: recommendation.recommended.totalScore,
+            },
+            'Model recommendation selected',
+          );
+        }
+        if (generationContext) {
+          void this._persistCall({
+            tenant_id: generationContext.tenantId,
+            archetype_id: null,
+            call_type: 'recommend_model',
+            model_requested: null,
+            model_actual: recommendation.recommended?.modelId ?? null,
+            status: 'success',
+            created_by: generationContext.createdBy ?? null,
+          });
         }
       } catch (err) {
         log.warn({ err }, 'Model recommendation failed — using LLM default model');
@@ -463,6 +538,7 @@ export class ArchetypeGenerator {
     description: string,
     catalog?: ModelCatalogRow[],
     composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] },
+    generationContext?: { tenantId: string; createdBy?: string | null },
   ): Promise<GenerateArchetypeResponse> {
     log.info({ descriptionLength: description.length }, 'Generating archetype from description');
 
@@ -477,17 +553,31 @@ export class ArchetypeGenerator {
       { role: 'user', content: `<user_description>${description}</user_description>` },
     ];
 
+    const callContext = generationContext
+      ? { callType: 'generate' as const, ...generationContext }
+      : undefined;
+
     let parsed: unknown;
     try {
-      const stripped = await this.callLLMWithJsonRetry(messages, llmOptions);
+      const stripped = await this.callLLMWithJsonRetry(messages, llmOptions, callContext);
       parsed = JSON.parse(stripped);
     } catch (err) {
       log.error({ err }, 'GENERATION_FAILED: JSON parse error');
+      if (generationContext) {
+        void this._persistCall({
+          tenant_id: generationContext.tenantId,
+          archetype_id: null,
+          call_type: 'generate',
+          status: 'failed',
+          error_message: err instanceof Error ? err.message : String(err),
+          created_by: generationContext.createdBy ?? null,
+        });
+      }
       throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${String(err)}`);
     }
 
     const result = postProcess(parsed, description);
-    await this.applyModelAndEstimate(result, catalog);
+    await this.applyModelAndEstimate(result, catalog, generationContext);
     return result;
   }
 
@@ -546,6 +636,7 @@ export class ArchetypeGenerator {
     refinementInstruction: string,
     catalog?: ModelCatalogRow[],
     composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] },
+    generationContext?: { tenantId: string; createdBy?: string | null },
   ): Promise<GenerateArchetypeResponse> {
     log.info(
       { roleName: previousConfig.role_name, instructionLength: refinementInstruction.length },
@@ -566,19 +657,33 @@ export class ArchetypeGenerator {
 
     type Message = { role: 'user' | 'assistant' | 'system'; content: string };
 
+    const refineCallContext = generationContext
+      ? { callType: 'refine' as const, ...generationContext }
+      : undefined;
+
     const runRefineCall = async (msgs: Message[]): Promise<GenerateArchetypeResponse> => {
       let parsed: unknown;
       try {
-        const stripped = await this.callLLMWithJsonRetry(msgs, llmOptions);
+        const stripped = await this.callLLMWithJsonRetry(msgs, llmOptions, refineCallContext);
         parsed = JSON.parse(stripped);
       } catch (err) {
         log.error({ err }, 'GENERATION_FAILED: JSON parse error during refine');
+        if (generationContext) {
+          void this._persistCall({
+            tenant_id: generationContext.tenantId,
+            archetype_id: null,
+            call_type: 'refine',
+            status: 'failed',
+            error_message: err instanceof Error ? err.message : String(err),
+            created_by: generationContext.createdBy ?? null,
+          });
+        }
         throw new Error(
           `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${String(err)}`,
         );
       }
       const r = postProcess(parsed, previousConfig.role_name);
-      await this.applyModelAndEstimate(r, catalog);
+      await this.applyModelAndEstimate(r, catalog, generationContext);
       return r;
     };
 

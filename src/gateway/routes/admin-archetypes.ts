@@ -197,6 +197,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           data: {
             ...rest,
             tenant_id: tenantId,
+            created_by: req.auth?.id ?? null,
             execution_instructions: instructions,
             risk_model: risk_model as Prisma.InputJsonValue,
             ...(trigger_sources !== null && {
@@ -230,6 +231,31 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
             { err: estimateErr },
             'Time estimation failed after create — returning archetype without estimate',
           );
+        }
+
+        logger.info(
+          { id: resultArchetype.id, role_name: resultArchetype.role_name },
+          'Archetype created',
+        );
+
+        // Best-effort history write — never block the create response
+        try {
+          await prisma.archetypeEditHistory.create({
+            data: {
+              archetype_id: resultArchetype.id,
+              tenant_id: tenantId,
+              request_text: bodyResult.data.identity
+                ? `Wizard creation: ${bodyResult.data.role_name}`
+                : 'Wizard creation',
+              before_json: {} as Prisma.InputJsonValue,
+              after_json: resultArchetype as unknown as Prisma.InputJsonValue,
+              changed_fields: Object.keys(resultArchetype) as Prisma.InputJsonValue,
+              kind: 'create',
+              actor_user_id: req.auth?.id ?? null,
+            },
+          });
+        } catch (histErr) {
+          logger.warn({ err: histErr }, 'Failed to write create history row');
         }
 
         sendSuccess(res, 201, resultArchetype);
@@ -407,6 +433,27 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
               'Time re-estimation failed after update — returning archetype without re-estimate',
             );
           }
+        }
+
+        const patchedKeys = Object.keys(bodyResult.data);
+        logger.info({ id: archetypeId, changed_fields: patchedKeys }, 'Archetype updated');
+
+        // Best-effort history write — never block the patch response
+        try {
+          await prisma.archetypeEditHistory.create({
+            data: {
+              archetype_id: archetypeId,
+              tenant_id: tenantId,
+              request_text: 'Direct PATCH',
+              before_json: existing as unknown as Prisma.InputJsonValue,
+              after_json: resultArchetype as unknown as Prisma.InputJsonValue,
+              changed_fields: patchedKeys as Prisma.InputJsonValue,
+              kind: 'edit',
+              actor_user_id: req.auth?.id ?? null,
+            },
+          });
+        } catch (histErr) {
+          logger.warn({ err: histErr }, 'Failed to write PATCH history row');
         }
 
         sendSuccess(res, 200, resultArchetype);
