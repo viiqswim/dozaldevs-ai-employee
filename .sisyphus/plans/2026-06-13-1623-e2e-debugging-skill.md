@@ -76,7 +76,9 @@ Make the entire AI-employee execution path fully debuggable: one authoritative s
 ### Must Have
 
 - Forward trace covering all 8 steps with per-step log/DB/Slack locations for local AND prod.
-- Reverse "stuck in state X → look here" lookup table (Failed / failure_reason / failure_code / reviewing-watchdog).
+- Side-by-side local|prod log-location matrix and local+prod DB queries (same question, both environments).
+- A dedicated, deep **Production Incident Playbook**: topology orientation, numbered triage order, per-tier inspection commands (Render / Fly Machines REST / Supabase Cloud port 5432 / Inngest Cloud), prod-specific failure modes (Inngest retry loop, Render env gotchas, IPv6-vs-pooler, raising LOG_LEVEL in prod), and the no-`/tmp`/no-SSE-in-prod reality.
+- Reverse "stuck in state X → look here" lookup table (Failed / failure_reason / failure_code / reviewing-watchdog), local AND prod.
 - The 5 logging additions, each emitting verified output at the correct level.
 - Documentation of the delivery-log SSE gap and all caveats Metis listed.
 
@@ -174,7 +176,7 @@ Max Concurrent: 5 (Wave 1)
 
 > Each Wave-1 task is a single surgical logging addition. Logging only — NO behavior change, NO refactor.
 
-- [ ] 1. Add logging to `create-task-and-dispatch.ts` (Gap 1 — zero logging)
+- [x] 1. Add logging to `create-task-and-dispatch.ts` (Gap 1 — zero logging)
 
   **What to do**:
   - In `src/inngest/lib/create-task-and-dispatch.ts`, add `import { createLogger } from '<the logger module path used elsewhere in src/inngest>'` and instantiate `const log = createLogger('task-dispatch')` (file currently has NO logger import).
@@ -221,7 +223,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Tasks 2–5 (single observability commit).
 
-- [ ] 2. Add per-poll `debug` log to `execute.ts` completion poll loop (Gap 2)
+- [x] 2. Add per-poll `debug` log to `execute.ts` completion poll loop (Gap 2)
 
   **What to do**:
   - In `src/inngest/lifecycle/steps/execute.ts`, inside the poll-completion loop (the loop that polls the DB up to ~120 times every ~15s while the task is Executing), add a single `log.debug` line each iteration: `'Polling for completion'`, fields `{ taskId, poll: <iteration>, status: <current status> }`.
@@ -262,7 +264,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Tasks 1,3,4,5.
 
-- [ ] 3. Add per-poll `debug` log to `delivery-retry.ts` poll loop (Gap 3)
+- [x] 3. Add per-poll `debug` log to `delivery-retry.ts` poll loop (Gap 3)
 
   **What to do**:
   - In `src/inngest/lifecycle/steps/delivery-retry.ts`, inside the delivery-machine poll loop (polls the DB while the delivery container runs), add a single `log.debug` per iteration: `'Polling delivery for completion'`, fields `{ taskId, attempt, poll, status }`.
@@ -301,7 +303,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Tasks 1,2,4,5.
 
-- [ ] 4. Add wait-begin `info` log to `reviewing-path.ts` (Gap 4)
+- [x] 4. Add wait-begin `info` log to `reviewing-path.ts` (Gap 4)
 
   **What to do**:
   - In `src/inngest/lifecycle/steps/reviewing-path.ts`, immediately BEFORE the `step.waitForEvent(...)` call that blocks for human approval, add an `info` log: `'Awaiting approval event'`, fields `{ taskId, tenantId, timeoutHours }` (use the timeout value already computed for the `waitForEvent` timeout).
@@ -340,7 +342,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Tasks 1,2,3,5.
 
-- [ ] 5. Add early-return reason logs to `event-handlers.ts` app_mention (Gap 5 — partial)
+- [x] 5. Add early-return reason logs to `event-handlers.ts` app_mention (Gap 5 — partial)
 
   **What to do**:
   - In `src/gateway/slack/handlers/event-handlers.ts`, the `app_mention` handler already logs receipt. Add an `info` log at EACH silent early-return: (a) the bot-ID guard (`if (mention.bot_id) return;`) → `'Ignoring app_mention from bot'` with `{ channel }`; (b) the DM guard (channel starts with `D`) → `'Ignoring app_mention in DM channel'` with `{ channel }`.
@@ -379,7 +381,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Tasks 1,2,3,4.
 
-- [ ] 6. Gate + live proof — `pnpm build`/`lint` + trigger a real local task, prove all 5 logs emit
+- [x] 6. Gate + live proof — `pnpm build`/`lint` + trigger a real local task, prove all 5 logs emit
 
   **What to do**:
   - Run `pnpm build` and `pnpm lint`; both must exit 0.
@@ -439,22 +441,29 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (verification task).
 
-- [ ] 7. Author the SKILL.md (forward trace + reverse lookup + log matrix, local + prod)
+- [x] 7. Author the SKILL.md (forward trace + reverse lookup + log matrix, local + prod)
 
   **What to do**:
   - Create `.opencode/skills/<slug>/SKILL.md` (choose a durable kebab-case slug matching `^[a-z0-9]+(-[a-z0-9]+)*$`, e.g. `execution-trace-debugging`; directory name MUST equal the `name` frontmatter).
   - Frontmatter: `name:` (kebab-case) + `description:` single-quoted, starting "Use when…" then "Covers…", with strong trigger phrases (debug a task end-to-end, trace a Slack @mention to delivery, find where a step is logged, task disappeared/stuck/silently failed).
   - Body sections:
     1. **Forward trace** — all 8 steps (Slack @mention → interaction classification → trigger handling → input collection → task creation/dispatch → lifecycle states → execution phase → delivery phase). For each step name the responsible file(s) by SYMBOL/FILE (no line numbers), what it logs, and WHERE the log goes.
-    2. **Log-location matrix (local vs production)** — table: for each surface, local command AND prod command. Local: gateway/inngest `/tmp/ai-dev.log`; worker `/tmp/employee-{taskId8}.log`; delivery `/tmp/employee-delivery-{taskId8}.log`; `docker logs employee-{first8}` (note `-delivery-` infix disambiguates both containers); SSE viewer route + dashboard `/dashboard/tasks/:taskId/logs`. Prod: Render API gateway logs, Fly Machines REST API worker logs, Inngest Cloud, Supabase Cloud DB (port 5432) — each cross-referenced to `production-ops` / prod-debugging-guide.
-    3. **DB observability** — queryable tables with example SQL: `task_status_log` (state transitions + actor), `tasks` (status/failure_reason/failure_code/compiled_agents_md/metadata/raw_event), `executions` (session_transcript), `pending_approvals`, `feedback_events`, `task_metrics`, `task_composio_calls`. Column names MUST match `prisma/schema.prisma`.
-    4. **Reverse "stuck-in-state → look here" lookup** — for each blocking state (Executing, Submitting, Reviewing, Delivering, Failed): what it means, where to look, the diagnostic query/command. Include reviewing-watchdog behavior and `failure_reason`/`failure_code`.
-    5. **Caveats** (all from Metis): delivery log NOT served by SSE (use `docker logs employee-delivery-{id}` or `cat /tmp/employee-delivery-{id}.log`); `/tmp` logs exist only in local Docker mode (Fly mode → Fly REST logs); Inngest step memoization means per-poll logs appear once per step execution not per replay; `LOG_LEVEL=debug` required to see poll logs (and how to raise it in prod via Render env).
-    6. **Cross-links** — point to `debugging-lifecycle` (state machine detail), `production-ops` (Render/Fly commands), `e2e-testing` (triggering), `feature-verification` (PostgREST-vs-psql, zero-rows rule), `long-running-commands` (tmux). Do NOT duplicate their content.
+    2. **Log-location matrix (local vs production)** — table: for each surface, local command AND prod command, SIDE BY SIDE so each "where do I read X" question shows both answers. Local: gateway/inngest `/tmp/ai-dev.log`; worker `/tmp/employee-{taskId8}.log`; delivery `/tmp/employee-delivery-{taskId8}.log`; `docker logs employee-{first8}` (note `-delivery-` infix disambiguates both containers); SSE viewer route + dashboard `/dashboard/tasks/:taskId/logs`. Prod: Render API gateway logs, Fly Machines REST API worker logs, Inngest Cloud, Supabase Cloud DB (port 5432).
+    3. **DB observability** — queryable tables with example SQL: `task_status_log` (state transitions + actor), `tasks` (status/failure_reason/failure_code/compiled_agents_md/metadata/raw_event), `executions` (session_transcript), `pending_approvals`, `feedback_events`, `task_metrics`, `task_composio_calls`. Column names MUST match `prisma/schema.prisma`. Show the SAME query against local (`psql ...:54322/ai_employee`) and prod (Supabase Cloud pooler, port 5432) so a debugger can run it in either environment.
+    4. **Reverse "stuck-in-state → look here" lookup** — for each blocking state (Executing, Submitting, Reviewing, Delivering, Failed): what it means, where to look (local AND prod), the diagnostic query/command. Include reviewing-watchdog behavior and `failure_reason`/`failure_code`.
+    5. **PRODUCTION INCIDENT PLAYBOOK (dedicated, deep section — not a thin matrix)** — a self-contained "you got paged, the stack is in the cloud" runbook. MUST cover:
+       - **Topology orientation**: where each piece runs in prod (gateway → Render; worker/delivery containers → Fly machines; queue/lifecycle → Inngest Cloud; DB → Supabase Cloud). One-line "if symptom is X, the suspect tier is Y" map.
+       - **Triage order**: the exact sequence to run when a prod task misbehaves — (1) find the task row + last `task_status_log` transition in Supabase Cloud (port 5432, session pooler — NOT 6543), (2) read gateway logs via Render API for the dispatch/lifecycle trace, (3) inspect the Fly worker/delivery machine state via the Machines REST API, (4) inspect the Inngest Cloud run for retry loops / stuck steps.
+       - **Per-tier inspection commands**: concrete, copy-runnable — Render runtime-log fetch; Fly Machines REST list/state/logs for `ai-employee-workers`; Supabase Cloud psql connection string shape (port 5432) and the postgresql@17 client note; how to open the right Inngest Cloud run and read its step timeline.
+       - **Prod-specific failure modes**: Inngest retry loop diagnosis, Render env-var gotchas, the IPv6-only direct-DB host vs IPv4 session pooler distinction, raising `LOG_LEVEL` in prod (Render env var) so the new poll/debug logs surface — and the restart caveat.
+       - **No-`/tmp` reality**: in prod (`WORKER_RUNTIME=fly`) there is NO local worker log file and NO SSE viewer — worker logs come ONLY from Fly. State this prominently.
+       - Every prod command MUST be sourced verbatim/cited from `production-ops` SKILL.md and `docs/guides/2026-06-01-2246-production-debugging-guide.md` (Task 9 verifies). Do NOT invent endpoints; where the prod-debugging-guide is the authority, cross-reference it explicitly rather than copying stale specifics.
+    6. **Caveats** (all from Metis): delivery log NOT served by SSE (use `docker logs employee-delivery-{id}` or `cat /tmp/employee-delivery-{id}.log` locally; Fly logs in prod); `/tmp` logs exist only in local Docker mode; Inngest step memoization means per-poll logs appear once per step execution not per replay; `LOG_LEVEL=debug` required to see poll logs.
+    7. **Cross-links** — point to `debugging-lifecycle` (state machine detail), `production-ops` (Render/Fly command reference), `e2e-testing` (triggering), `feature-verification` (PostgREST-vs-psql, zero-rows rule), `long-running-commands` (tmux). Cross-link, do NOT duplicate — the incident playbook ORCHESTRATES these into a triage sequence rather than restating their raw command tables.
   - Use the verified log names/levels from Tasks 1–5 and the real commands proven in Task 6.
 
   **Must NOT do**:
-  - NO line numbers, NO volatile counts (durability rule; semantic constants like `SYNTHESIS_THRESHOLD = 5` allowed). NO duplication of cross-linked skills' content. NO inventing prod commands. NOT placed under `src/workers/skills/`.
+  - NO line numbers, NO volatile counts (durability rule; semantic constants like `SYNTHESIS_THRESHOLD = 5` allowed). NO duplication of cross-linked skills' content (the incident playbook references them, doesn't restate their command catalogs). NO inventing prod commands/endpoints. NOT placed under `src/workers/skills/`.
 
   **Recommended Agent Profile**:
   - **Category**: `writing` — technical documentation.
@@ -472,7 +481,8 @@ Max Concurrent: 5 (Wave 1)
 
   **Acceptance Criteria**:
   - [ ] File exists at `.opencode/skills/<slug>/SKILL.md` with directory name == `name` frontmatter.
-  - [ ] Contains all 6 body sections including forward trace, log matrix (local+prod), DB queries, reverse lookup, caveats, cross-links.
+  - [ ] Contains all 7 body sections: forward trace, log matrix (side-by-side local|prod), DB queries (local+prod), reverse lookup, the dedicated Production Incident Playbook, caveats, cross-links.
+  - [ ] Production Incident Playbook is a self-contained runbook with: topology orientation, a numbered triage order, per-tier inspection commands (Render / Fly Machines REST / Supabase Cloud port 5432 / Inngest Cloud), prod-specific failure modes (Inngest retry loop, Render env gotchas, IPv6-vs-pooler, raising LOG_LEVEL in prod), and the no-`/tmp`/no-SSE-in-prod statement.
   - [ ] `head -5` shows valid frontmatter (`name` kebab-case, `description` "Use when… Covers…").
 
   **QA Scenarios**:
@@ -492,7 +502,7 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: Groups with Task 9 (docs commit).
 
-- [ ] 8. Verify every LOCAL command + SQL query in the skill executes
+- [x] 8. Verify every LOCAL command + SQL query in the skill executes
 
   **What to do**:
   - Extract every fenced bash block in the skill that targets LOCAL and run it (dry-run/echo any destructive one). Confirm: `docker ps --filter name=employee-` runs; the `/tmp/employee-{id8}.log` pattern matches a real file from Task 6's run; the SSE route `GET /admin/tenants/:tenantId/tasks/:id/logs` returns a stream.
@@ -539,11 +549,11 @@ Max Concurrent: 5 (Wave 1)
 
   **Commit**: NO (verification; any fixes fold into Task 9's docs commit).
 
-- [ ] 9. Cross-reference PROD commands + register skill in AGENTS.md (both dev-skill tables)
+- [x] 9. Cross-reference PROD commands + register skill in AGENTS.md (both dev-skill tables)
 
   **What to do**:
-  - For every PRODUCTION command in the skill (Render API gateway logs, Fly Machines REST API worker logs, Inngest Cloud, Supabase Cloud port 5432), confirm it matches `production-ops` SKILL.md and/or `docs/guides/2026-06-01-2246-production-debugging-guide.md` verbatim or via explicit citation. Replace any invented/mismatched command with the documented form (or a cross-reference).
-  - Register the new skill in AGENTS.md in BOTH dev-skill locations: (a) the "If you are about to… / Load this skill" table, and (b) the "Dev skills (project-level at `.opencode/skills/`)" table — with an accurate one-line description.
+  - For every PRODUCTION command in the skill — including the full Production Incident Playbook (Render runtime-log fetch, Fly Machines REST list/state/logs, Supabase Cloud psql on port 5432, Inngest Cloud run inspection) — confirm it matches `production-ops` SKILL.md and/or `docs/guides/2026-06-01-2246-production-debugging-guide.md` verbatim or via explicit citation. Replace any invented/mismatched command with the documented form (or a cross-reference). Verify the prod-specific failure-mode guidance (Inngest retry loop, Render env gotchas, IPv6-direct-host vs IPv4-session-pooler port-5432 distinction, raising LOG_LEVEL in prod + restart caveat) matches the prod-debugging-guide.
+  - Register the new skill in AGENTS.md in BOTH dev-skill locations: (a) the "If you are about to… / Load this skill" table, and (b) the "Dev skills (project-level at `.opencode/skills/`)" table — with an accurate one-line description that mentions BOTH local trace and production incident debugging.
   - Per Documentation Freshness rule, this is part of the same docs commit as the skill.
 
   **Must NOT do**:
@@ -605,8 +615,8 @@ Max Concurrent: 5 (Wave 1)
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
 - [ ] F3. **Real Manual QA** — `unspecified-high`
-      Start from clean state. Re-run Task 6's live trigger; confirm each of the 5 new logs emits (poll logs with `LOG_LEVEL=debug`). Then execute EVERY local fenced bash block and EVERY SQL query in the skill — capture output. Confirm the delivery-log gap statement is accurate (`docker logs employee-delivery-*` works; SSE does not serve it). Save to `.sisyphus/evidence/final-qa/`.
-      Output: `Logs emitted [5/5] | Local cmds [N/N pass] | SQL [N/N pass] | VERDICT`
+      Start from clean state. Re-run Task 6's live trigger; confirm each of the 5 new logs emits (poll logs with `LOG_LEVEL=debug`). Then execute EVERY local fenced bash block and EVERY SQL query in the skill — capture output. Confirm the delivery-log gap statement is accurate (`docker logs employee-delivery-*` works; SSE does not serve it). Confirm the Production Incident Playbook is present and complete (topology, numbered triage order, per-tier commands, prod failure modes, no-`/tmp`-in-prod) and that every prod command is cited to `production-ops`/the prod-debugging-guide (not invented). Save to `.sisyphus/evidence/final-qa/`.
+      Output: `Logs emitted [5/5] | Local cmds [N/N pass] | SQL [N/N pass] | Prod playbook [complete/incomplete + cited] | VERDICT`
 
 - [ ] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — everything specced was built, nothing beyond spec. Confirm exactly 5 source files changed for logging (plus SKILL.md + AGENTS.md). Detect contamination (no unrelated file touched). Verify durability: `grep -nE ':[0-9]+|\([0-9]+ (states|tables|tools|files)\)' SKILL.md` returns nothing (semantic constants excepted).
