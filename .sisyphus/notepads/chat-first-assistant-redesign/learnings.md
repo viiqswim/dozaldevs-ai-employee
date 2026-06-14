@@ -203,3 +203,33 @@ mockConverse.mockResolvedValue({
 
 ### Commit
 `refactor(archetypes): retire interpret-request endpoint and restatement gate`
+
+## [Task 11] Approve flow re-fetch fix
+
+- `getArchetype` did not exist in `dashboard/src/lib/gateway.ts` — added as `GET /admin/tenants/:tenantId/archetypes/:archetypeId`
+- `recordEditHistory` was already in gateway.ts (line 654) and mocked in tests — just needed to be called
+- Cast pattern for Archetype → Record<string,unknown>: must go through `unknown` first: `(obj as unknown as Record<string, unknown>)`
+- Test mock requires `getArchetype` in the vi.mock factory alongside converseEdit/patchArchetype/recordEditHistory
+- `invocationCallOrder` on vi.fn() mocks lets you assert strict ordering (GET < PATCH < history)
+- `request_text` is extracted from `messages.find(m => m.role === 'user' && m.kind === 'text')` — first user message in state
+- `before_json` snapshots all 8 allowlisted keys from the re-fetched archetype (identity, execution_steps, delivery_steps, overview, risk_model, tool_registry, trigger_sources, input_schema)
+- `after_json` = patchBody (only the keys present in the proposal, not the full archetype)
+- `changed_fields` = `Object.keys(proposal.changed_fields)` (the top-level changed field names)
+
+## Task 12: CollapsibleSection for history (2026-06-14)
+
+- `CollapsibleSection` at `dashboard/src/panels/employees/components/CollapsibleSection.tsx`
+  - Props: title, subtitle, defaultOpen (default true), children, actions, badge, id
+  - Card shell baked in: `rounded-lg border bg-card px-5 py-4`
+  - Children only rendered when open (`{open && <div className="mt-3">{children}</div>}`)
+  - This makes lazy-loading free — `EditHistoryList` fetches only after expansion
+
+- **File modification race**: `AssistantTab.tsx` was being modified by another process (git stash/unstash
+  from lint-staged). Use Python `open(path, 'r')` + string replace + `open(path, 'w')` to avoid
+  the "modified since last read" errors from the Read/Edit tools.
+
+- **Vitest ESM**: Don't use `require()` inside tests — use `await import('@/lib/gateway')` consistently,
+  which works because `vi.mock` makes the module a shared mocked singleton.
+
+- Gateway mock needs `listEditHistory` and `revertEdit` to avoid undefined-function noise in tests
+  that render `EditHistoryList` (now only after user expands the section).
