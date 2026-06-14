@@ -14,6 +14,8 @@ import {
   SYSTEM_PROMPT_POST,
   REFINE_SYSTEM_PROMPT_PRE,
   REFINE_SYSTEM_PROMPT_POST,
+  CONVERSE_SYSTEM_PROMPT_PRE,
+  CONVERSE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
 } from './prompts/archetype-generator-prompts.js';
@@ -211,6 +213,52 @@ async function buildRefineSystemPrompt(
     );
   }
 }
+
+async function buildConverseSystemPrompt(
+  connectedToolkits: string[] = [],
+  connectableToolkits: string[] = [],
+): Promise<string> {
+  const connectedAppsBlock = buildConnectedAppsBlock(connectedToolkits, connectableToolkits);
+
+  try {
+    const basePath = path.join(process.cwd(), 'src/worker-tools');
+    const tools = await discoverTools(basePath);
+    const catalogSection = formatToolCatalog(tools);
+    if (!catalogSection) {
+      log.warn('discoverTools returned no tools — using base converse prompt without tool catalog');
+      return (
+        CONVERSE_SYSTEM_PROMPT_PRE +
+        '\n\n' +
+        connectedAppsBlock +
+        '\n\n' +
+        CONVERSE_SYSTEM_PROMPT_POST
+      );
+    }
+    return (
+      CONVERSE_SYSTEM_PROMPT_PRE +
+      '\n\n' +
+      connectedAppsBlock +
+      '\n\n' +
+      catalogSection +
+      '\n' +
+      CONVERSE_SYSTEM_PROMPT_POST
+    );
+  } catch (err) {
+    log.warn(
+      { err },
+      'discoverTools failed — falling back to base converse prompt without tool catalog',
+    );
+    return (
+      CONVERSE_SYSTEM_PROMPT_PRE +
+      '\n\n' +
+      connectedAppsBlock +
+      '\n\n' +
+      CONVERSE_SYSTEM_PROMPT_POST
+    );
+  }
+}
+
+const CONVERSE_TOKEN_BUDGET = 60_000;
 
 function stripFences(raw: string): string {
   return raw
@@ -749,5 +797,140 @@ export class ArchetypeGenerator {
     }
 
     return result;
+  }
+
+  async converse(
+    transcript: ConverseMessage[],
+    currentConfig: GenerateArchetypeResponse,
+    catalog?: ModelCatalogRow[],
+    composioContext?: { connectedToolkits?: string[]; connectableToolkits?: string[] },
+  ): Promise<ConverseResult> {
+    const configTokens = JSON.stringify(currentConfig).length / 4;
+    const transcriptTokens = transcript.reduce((sum, m) => sum + m.content.length, 0) / 4;
+    const estimatedTokens = configTokens + transcriptTokens + 2000;
+
+    if (estimatedTokens > CONVERSE_TOKEN_BUDGET) {
+      log.warn({ estimatedTokens }, 'converse: token budget exceeded — returning too_long');
+      return { kind: 'too_long' };
+    }
+
+    const assistantTurns = transcript.filter((m) => m.role === 'assistant').length;
+    const backstopActive = assistantTurns >= 5;
+
+    const systemPrompt = await buildConverseSystemPrompt(
+      composioContext?.connectedToolkits ?? [],
+      composioContext?.connectableToolkits ?? [],
+    );
+
+    const transcriptText = transcript.map((m) => `${m.role}: ${m.content}`).join('\n\n');
+
+    const userContent = backstopActive
+      ? `IMPORTANT: You have asked enough clarifying questions. You MUST now produce a proposal (your best guess). Do NOT ask another question.\n\nCurrent configuration:\n${JSON.stringify(currentConfig, null, 2)}\n\nConversation history:\n${transcriptText}`
+      : `Current configuration:\n${JSON.stringify(currentConfig, null, 2)}\n\nConversation history:\n${transcriptText}`;
+
+    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ];
+
+    const llmOptions = {
+      taskType: 'review' as const,
+      temperature: 0.3,
+      maxTokens: 16000,
+      responseFormat: { type: 'json_object' as const },
+    };
+
+    let rawJson: string;
+    try {
+      rawJson = await this.callLLMWithJsonRetry(messages, llmOptions);
+    } catch (err) {
+      log.error({ err }, 'converse: LLM call failed — returning no_change');
+      return { kind: 'no_change' };
+    }
+
+    let parsed: { kind?: string; question?: string; config?: unknown };
+    try {
+      parsed = JSON.parse(rawJson) as { kind?: string; question?: string; config?: unknown };
+    } catch {
+      log.warn('converse: failed to parse LLM response — returning no_change');
+      return { kind: 'no_change' };
+    }
+
+    const kind = parsed.kind;
+
+    if (backstopActive && kind === 'question') {
+      log.warn('converse: backstop active but model returned question — coercing to no_change');
+      return { kind: 'no_change' };
+    }
+
+    if (kind === 'question') {
+      const question = typeof parsed.question === 'string' ? parsed.question : '';
+      return { kind: 'question', question };
+    }
+
+    if (kind === 'no_change') {
+      return { kind: 'no_change' };
+    }
+
+    if (kind === 'proposal' && parsed.config !== null && typeof parsed.config === 'object') {
+      const processedConfig = postProcess(parsed.config, currentConfig.role_name);
+      await this.applyModelAndEstimate(processedConfig, catalog);
+
+      const proseFields = ['identity', 'execution_steps', 'delivery_steps', 'overview'] as const;
+      const changed_fields: Record<string, { from: unknown; to: unknown }> = {};
+      for (const f of proseFields) {
+        if (JSON.stringify(processedConfig[f]) !== JSON.stringify(currentConfig[f])) {
+          changed_fields[f] = { from: currentConfig[f], to: processedConfig[f] };
+        }
+      }
+      if (
+        processedConfig.risk_model.approval_required !== currentConfig.risk_model.approval_required
+      ) {
+        changed_fields['risk_model.approval_required'] = {
+          from: currentConfig.risk_model.approval_required,
+          to: processedConfig.risk_model.approval_required,
+        };
+      }
+
+      const baseTools = new Set(currentConfig.tool_registry.tools);
+      const newTools = new Set(processedConfig.tool_registry.tools);
+      const toolAdded = [...newTools].filter((t) => !baseTools.has(t));
+      const toolRemoved = [...baseTools].filter((t) => !newTools.has(t));
+      const tool_delta =
+        toolAdded.length > 0 || toolRemoved.length > 0
+          ? { added: toolAdded, removed: toolRemoved }
+          : undefined;
+
+      const trigger_change =
+        JSON.stringify(processedConfig.trigger_sources) !==
+        JSON.stringify(currentConfig.trigger_sources)
+          ? { from: currentConfig.trigger_sources, to: processedConfig.trigger_sources }
+          : undefined;
+
+      const input_change =
+        JSON.stringify(processedConfig.input_schema) !== JSON.stringify(currentConfig.input_schema)
+          ? { from: currentConfig.input_schema, to: processedConfig.input_schema }
+          : undefined;
+
+      const approval_warning =
+        currentConfig.risk_model.approval_required === true &&
+        processedConfig.risk_model.approval_required === false
+          ? true
+          : undefined;
+
+      return {
+        kind: 'proposal',
+        baseline: currentConfig,
+        proposal: processedConfig,
+        changed_fields,
+        ...(tool_delta !== undefined && { tool_delta }),
+        ...(trigger_change !== undefined && { trigger_change }),
+        ...(input_change !== undefined && { input_change }),
+        ...(approval_warning !== undefined && { approval_warning }),
+      };
+    }
+
+    log.warn({ kind }, 'converse: unexpected LLM response kind — returning no_change');
+    return { kind: 'no_change' };
   }
 }
