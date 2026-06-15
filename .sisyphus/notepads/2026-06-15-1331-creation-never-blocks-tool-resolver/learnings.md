@@ -287,3 +287,20 @@ vi.mock('../../../../src/lib/logger.js', async (importOriginal) => {
 
 - Dashboard suite: 18 files, 113 tests, all GREEN.
 - Evidence: `.sisyphus/evidence/task-5-frontend-noleak.txt`, `.sisyphus/evidence/task-5-question-bubble.txt`
+
+## F2 Code Quality Review (2026-06-15)
+- Full suite green: build exit 0, lint exit 0, backend 2067 passed/9 skipped (174 files), dashboard 113 passed (18 files).
+- `resolveToolPaths` SINGLE definition in archetype-edit-helpers.ts:113; imported (not re-implemented) by admin-archetypes.ts:19,383.
+- `logToolResolution` SINGLE definition in logger.ts:110; called in validateProposalFields (archetype-edit-helpers.ts:186) for every dropped tool.
+- Resolver is pure/idempotent: no I/O, deterministic, normalizeToolPath strips `tsx `/expands bare paths/appends `.ts`; Composio gated by connectedToolkits set.
+- Never-block policy verified: only blank-prose-on-EDIT returns reAsk:true; both routes convert reAsk→{kind:'question'} 200 (propose-edit.ts:191, converse-create.ts:178). Remaining 422 is GENERATION_FAILED catch-all, not tool-related.
+- converse() degrade branches differentiated: llm_call_failed→log.error, parse_failed→log.warn, both with degraded:true field (archetype-generator.ts:879,890).
+- Dashboard catch renders PROPOSAL_ERROR_FALLBACK (never raw error) — non-empty catch, good.
+- No anti-patterns (as any / @ts-ignore / console.log / empty catch / TODO / FIXME / HACK) in any of the 7 changed files. The `as unknown as Record<...>` casts in use-chat-conversation.ts are typed double-casts, not `as any`.
+
+## F3 — Real Manual QA + Live E2E (2026-06-15)
+- Live curl against gateway :7700 with the EXACT failing transcript -> HTTP 200, kind:proposal, tools all .ts. The pre-fix 422 is gone.
+- resolveToolPaths() drops unknown tools rather than erroring: converse-create test (line 307) feeds 100%-garbage `/tools/nonexistent/tool.ts` and still gets 200/proposal.
+- no-422 invariant has dedicated tests in BOTH route test files (converse-create: 1, propose-edit: 3 incl. prose-blank->question, invalid trigger_sources coerced).
+- T7 claim verified: task d59b8052-d01d-4e7c-9b81-9d447e4abd03 = Done in DB. task-7-e2e-trace.txt documents full transcript->proposal->draft->activate->trigger->Done chain.
+- VERDICT: APPROVE.

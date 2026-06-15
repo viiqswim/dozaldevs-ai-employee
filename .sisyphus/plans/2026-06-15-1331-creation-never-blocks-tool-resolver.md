@@ -324,7 +324,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: groups with Wave 1
 
-- [ ] 2. De-fang `validateTools` → resolver; `validateProposalFields` never-block policy
+- [x] 2. De-fang `validateTools` → resolver; `validateProposalFields` never-block policy
 
   **What to do** (depends on T1's `resolveToolPaths` + T6's log convention):
   - Replace the reject-based `validateTools` (`archetype-edit-helpers.ts:84-128`) with a call to `resolveToolPaths()`. `validateProposalFields` must STILL return `{ ok: true; validTools: string[] }` on the happy path (both routes depend on `validation.validTools` for `tool_registry` + `toolDelta`) — but `validTools` now = the resolver's `resolved` list, and dropped tools are LOGGED (per T6), never pushed into `errors`.
@@ -372,7 +372,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: groups with Wave 2
 
-- [ ] 3. Both routes: remove 422-over-tools, carry resolved tools, handle re-ask
+- [x] 3. Both routes: remove 422-over-tools, carry resolved tools, handle re-ask
 
   **What to do** (depends on T2):
   - In BOTH `admin-archetype-converse-create.ts` and `admin-archetype-propose-edit.ts`: remove the `if (!validation.ok) { sendError(res, 422, 'PROPOSAL_INVALID', ...) }` block as the tool/trigger/input path. Wire the new result: on happy path, set `stripped.tool_registry = { tools: validation.validTools }` (resolved list) and compute `toolDelta` as before.
@@ -418,7 +418,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: groups with Wave 3
 
-- [ ] 4. Pre-enforcement validation gate on `enforce_tool_registry` flip
+- [x] 4. Pre-enforcement validation gate on `enforce_tool_registry` flip
 
   **What to do** (depends on T2's resolver availability):
   - In the archetype PATCH path (`admin-archetypes.ts` PATCH handler), when a request flips `enforce_tool_registry` from false→true, re-resolve the archetype's `tool_registry.tools` via `resolveToolPaths()`. If the resolved list is EMPTY or any path is unresolvable, REJECT the flip with a plain-English message (e.g. "This employee's tools couldn't be verified, so strict tool mode can't be turned on yet.") — a 400/422 here is acceptable because it is an ADMIN/technical action, not the non-technical creation flow. Per AGENTS.md, enabling this flag must validate every path resolves to a real descriptor — this gate enforces exactly that.
@@ -454,7 +454,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: groups with Wave 3
 
-- [ ] 5. Frontend never-render-raw-error guarantee
+- [x] 5. Frontend never-render-raw-error guarantee
 
   **What to do** (depends on T2/T3 finalizing the response contract):
   - In `dashboard/src/panels/employees/use-chat-conversation.ts`, the `catch` block currently calls `getProposalErrorMessage(err)` which parses a `{ reasons: {...} }` shape the routes never send → always the misleading "too complex" fallback. After T3, tool/trigger/input issues no longer 422, so the catch should be a TRUE last-resort for network/5xx only. Ensure: (a) the happy-path `kind:'question'` (including the new prose-blank re-ask) renders as a normal assistant bubble; (b) any genuine thrown error renders a calm, plain-English, non-technical message (no JSON, no status codes, no "reasons"/"errors" dumps) and never the inaccurate "too complex" wording when the real issue is unknown.
@@ -498,7 +498,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: groups with Wave 3
 
-- [ ] 7. Live deepseek-flash E2E replaying the EXACT failing transcript → Done
+- [x] 7. Live deepseek-flash E2E replaying the EXACT failing transcript → Done
 
   **What to do** (depends on T3,T4,T5):
   - Full live pipeline on `deepseek/deepseek-v4-flash`: (a) replay the literal 3-turn transcript via curl against `/converse-create` and assert `kind:'proposal'` (NOT 422, NOT "too complex"), with all `proposal.tool_registry.tools` ending in `.ts` or valid Composio; (b) build the save-draft POST from the proposal (override model to deepseek-flash; inject delivery_steps/delivery_instructions + worker_env channels per the prior plan's proven pattern), assert HTTP 201 + valid role_name; (c) activate + trigger; poll `task_status_log` to terminal; assert `Done` with a real Slack delivery + non-empty `--draft-file`; (d) assert a dropped-tool `log.warn` fired if any tool was dropped (observability).
@@ -536,7 +536,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: NO (verification only)
 
-- [ ] 9. Documentation update (AGENTS.md)
+- [x] 9. Documentation update (AGENTS.md)
 
   **What to do** (depends on T7):
   - Update AGENTS.md: (a) `tool_registry` is SYSTEM-DERIVED advisory metadata at creation — tool paths are deterministically resolved (normalize `/tools/` prefix + `.ts`; bare-name→path) or silently dropped, and tool issues NEVER block creation/editing; (b) the runtime resolves tools from on-demand skills (agents-md-compiler does not read tool_registry; `isToolAllowed` only consults it when `enforce_tool_registry` is on); (c) the pre-enforcement gate: flipping `enforce_tool_registry → true` re-resolves and refuses on empty/unresolvable registry; (d) the total-function contract: creation/editing returns a proposal or a plain-English question, never a raw technical error.
@@ -566,7 +566,7 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
   **Commit**: `docs: tool_registry advisory + never-block creation convention`
 
-- [ ] 10. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 10. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
@@ -574,19 +574,19 @@ Critical Path: T1 → T2 → T3 → T7 → F1-F4 → user okay
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read plan end-to-end. Each "Must Have": verify implementation exists (read file, curl, run test). Each "Must NOT Have": grep for forbidden patterns (modified `isToolAllowed`/`enforce_tool_registry` semantics, changed `postProcess` bare→`.ts`/cron→scheduled, fuzzy tool mapping, `.ts` appended to `/tools/composio/`, blank-prose silent save, regressed intent-level prose) — reject with file:line if found. Confirm evidence files exist. Confirm BOTH routes fixed (not CREATE-only).
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Both-routes [Y/N] | VERDICT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit` + dashboard tsc/tests. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log, AI slop. Confirm resolver is pure/idempotent and reused (not duplicated across routes). Confirm log warnings present (observability not lost).
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA + Live E2E** — `unspecified-high` (+ `playwright`, `e2e-testing`, `employee-creation-debugging`)
+- [x] F3. **Real Manual QA + Live E2E** — `unspecified-high` (+ `playwright`, `e2e-testing`, `employee-creation-debugging`)
       From clean state: (a) replay the EXACT failing transcript via curl → assert `kind:'proposal'`, valid `.ts` tools; (b) feed 100%-garbage tool paths → assert 200 not 422; (c) full live E2E on deepseek-flash create→save→activate→trigger→`Done`, capture task_id + `task_status_log` + delivery proof; (d) assert a dropped-tool `log.warn` was emitted. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N] | Live E2E [task_id reached Done Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity + Boundary Audit** — `deep`
+- [x] F4. **Scope Fidelity + Boundary Audit** — `deep`
       For each task: read "What to do" + actual diff. Verify 1:1 — nothing missing, nothing beyond spec. **Boundary audit**: `postProcess` untouched (golden test green); `isToolAllowed`/`enforce_tool_registry` exact-match intact; resolver exact-match-or-drop (no fuzzy); Composio paths never `.ts`-mangled; intent-level prose un-regressed; BOTH routes de-fanged; prose-blank re-asks (not 422); observability preserved. Detect cross-task contamination.
       Output: `Tasks [N/N] | Boundary [CLEAN/N drift] | VERDICT`
 
@@ -618,11 +618,11 @@ curl -s -X POST "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Both routes (CREATE + EDIT) never 422 over tools
-- [ ] Live E2E reached `Done`
-- [ ] Docs updated
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Both routes (CREATE + EDIT) never 422 over tools
+- [x] Live E2E reached `Done`
+- [x] Docs updated
 
 ## Future Work (Backlog)
 
