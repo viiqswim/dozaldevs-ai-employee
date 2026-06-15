@@ -1,21 +1,66 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useChatConversation } from '../use-chat-conversation';
+import type { ConverseResponse } from '@/lib/types';
 
-vi.mock('@/lib/gateway', () => ({
-  converseEdit: vi.fn(),
-}));
+function makeConverseFn(response: ConverseResponse) {
+  return vi.fn().mockResolvedValue(response);
+}
 
-describe('useChatConversation', () => {
+describe('useChatConversation — injected converseFn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('submit with kind:question appends question bubble and adds both turns to transcript', async () => {
-    const { converseEdit } = await import('@/lib/gateway');
-    vi.mocked(converseEdit).mockResolvedValue({ kind: 'question', question: 'What do you mean?' });
+  it('invokes the injected converseFn with the accumulated transcript', async () => {
+    const converseFn = makeConverseFn({ kind: 'no_change' });
 
-    const { result } = renderHook(() => useChatConversation('tenant-1', 'arch-1'));
+    const { result } = renderHook(() => useChatConversation(converseFn));
+
+    await act(async () => {
+      await result.current.submit('hello');
+    });
+
+    expect(converseFn).toHaveBeenCalledOnce();
+    expect(converseFn).toHaveBeenCalledWith([{ role: 'user', content: 'hello' }]);
+  });
+
+  it('archetypeId not required — hook works with a create-path converseFn', async () => {
+    const createFn = makeConverseFn({ kind: 'no_change' });
+
+    const { result } = renderHook(() => useChatConversation(createFn));
+
+    await act(async () => {
+      await result.current.submit('create me an employee');
+    });
+
+    expect(createFn).toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('same hook module serves both edit and create consumers', async () => {
+    const editFn = makeConverseFn({ kind: 'no_change' });
+    const createFn = makeConverseFn({ kind: 'no_change' });
+
+    const { result: editResult } = renderHook(() => useChatConversation(editFn));
+    const { result: createResult } = renderHook(() => useChatConversation(createFn));
+
+    await act(async () => {
+      await editResult.current.submit('edit request');
+    });
+
+    await act(async () => {
+      await createResult.current.submit('create request');
+    });
+
+    expect(editFn).toHaveBeenCalledWith([{ role: 'user', content: 'edit request' }]);
+    expect(createFn).toHaveBeenCalledWith([{ role: 'user', content: 'create request' }]);
+  });
+
+  it('submit with kind:question appends question bubble and adds both turns to transcript', async () => {
+    const converseFn = makeConverseFn({ kind: 'question', question: 'What do you mean?' });
+
+    const { result } = renderHook(() => useChatConversation(converseFn));
 
     await act(async () => {
       await result.current.submit('make replies shorter');
@@ -45,15 +90,14 @@ describe('useChatConversation', () => {
   });
 
   it('submit with kind:proposal appends proposal message and sets hasPendingProposal true', async () => {
-    const { converseEdit } = await import('@/lib/gateway');
-    vi.mocked(converseEdit).mockResolvedValue({
+    const converseFn = makeConverseFn({
       kind: 'proposal',
       baseline: { identity: 'old' } as never,
       proposal: { identity: 'new' } as never,
       changed_fields: { identity: { from: 'old', to: 'new' } },
     });
 
-    const { result } = renderHook(() => useChatConversation('tenant-1', 'arch-1'));
+    const { result } = renderHook(() => useChatConversation(converseFn));
 
     await act(async () => {
       await result.current.submit('make it friendlier');
@@ -69,10 +113,9 @@ describe('useChatConversation', () => {
   });
 
   it('submit with kind:no_change appends notice bubble', async () => {
-    const { converseEdit } = await import('@/lib/gateway');
-    vi.mocked(converseEdit).mockResolvedValue({ kind: 'no_change' });
+    const converseFn = makeConverseFn({ kind: 'no_change' });
 
-    const { result } = renderHook(() => useChatConversation('tenant-1', 'arch-1'));
+    const { result } = renderHook(() => useChatConversation(converseFn));
 
     await act(async () => {
       await result.current.submit('nothing to change');
@@ -88,10 +131,9 @@ describe('useChatConversation', () => {
   });
 
   it('submit with kind:too_long appends notice and sets mustStartFresh true; startFresh clears all', async () => {
-    const { converseEdit } = await import('@/lib/gateway');
-    vi.mocked(converseEdit).mockResolvedValue({ kind: 'too_long' });
+    const converseFn = makeConverseFn({ kind: 'too_long' });
 
-    const { result } = renderHook(() => useChatConversation('tenant-1', 'arch-1'));
+    const { result } = renderHook(() => useChatConversation(converseFn));
 
     await act(async () => {
       await result.current.submit('a very long conversation');
@@ -116,15 +158,14 @@ describe('useChatConversation', () => {
   });
 
   it('markProposalActed sets hasPendingProposal to false', async () => {
-    const { converseEdit } = await import('@/lib/gateway');
-    vi.mocked(converseEdit).mockResolvedValue({
+    const converseFn = makeConverseFn({
       kind: 'proposal',
       baseline: { identity: 'old' } as never,
       proposal: { identity: 'new' } as never,
       changed_fields: { identity: { from: 'old', to: 'new' } },
     });
 
-    const { result } = renderHook(() => useChatConversation('tenant-1', 'arch-1'));
+    const { result } = renderHook(() => useChatConversation(converseFn));
 
     await act(async () => {
       await result.current.submit('make it friendlier');

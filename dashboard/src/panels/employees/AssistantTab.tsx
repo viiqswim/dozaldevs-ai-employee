@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getArchetype, patchArchetype, recordEditHistory } from '@/lib/gateway';
+import { getArchetype, patchArchetype, recordEditHistory, converseEdit } from '@/lib/gateway';
 import type { Archetype } from '@/lib/types';
 import { ProposalDiffCard } from './sections/ProposalDiffCard';
 import { EditHistoryList } from './sections/EditHistoryList';
@@ -31,7 +31,7 @@ export function AssistantTab({ archetype, tenantId, onSaved }: AssistantTabProps
     markProposalActed,
     setIsLoading,
     appendAssistantMessage,
-  } = useChatConversation(tenantId, archetype.id);
+  } = useChatConversation((transcript) => converseEdit(tenantId, archetype.id, transcript));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

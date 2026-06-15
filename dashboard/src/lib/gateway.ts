@@ -682,6 +682,16 @@ export async function converseEdit(
   );
 }
 
+export async function converseCreate(
+  tenantId: string,
+  transcript: ConverseMessage[],
+): Promise<ConverseResponse> {
+  return gatewayFetch<ConverseResponse>(`/admin/tenants/${tenantId}/archetypes/converse-create`, {
+    method: 'POST',
+    body: JSON.stringify({ transcript }),
+  });
+}
+
 export async function recordEditHistory(
   tenantId: string,
   archetypeId: string,

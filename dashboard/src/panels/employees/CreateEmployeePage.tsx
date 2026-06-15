@@ -1,23 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { MarkdownPreview } from '@/components/MarkdownPreview';
-import { generateArchetype, createArchetype, compilePreview } from '@/lib/gateway';
+import { Loader2 } from 'lucide-react';
+import { createArchetype, compilePreview, converseCreate } from '@/lib/gateway';
 import { useSlackChannels } from '@/hooks/use-slack-channels';
 import { useWizardData } from '@/hooks/use-wizard-data';
 import type { GenerateArchetypeResponse, InputSchemaItem } from '@/lib/types';
 import { useTenant } from '@/hooks/use-tenant';
 import { WizardEditStep } from '@/panels/employees/components/WizardEditStep';
 import type { EditedFields } from '@/panels/employees/components/WizardEditStep';
+import { useChatConversation } from './use-chat-conversation';
 
-type WizardStep =
-  | 'describe'
-  | 'generating'
-  | 'edit'
-  | 'previewing'
-  | 'preview'
-  | 'saving'
-  | 'error';
+type WizardStep = 'describe' | 'edit' | 'previewing' | 'preview' | 'saving' | 'error';
 
 const GENERIC_GENERATION_ERROR =
   "We couldn't generate your employee right now. Please try again in a moment, or add more detail to your description.";
@@ -58,31 +53,57 @@ export function CreateEmployeePage() {
   const { repoUrl, setRepoUrl, repos, reposLoading, reposError, githubConnected } =
     useWizardData(tenantId);
 
-  const handleGenerate = async () => {
-    setStep('generating');
-    try {
-      const result = await generateArchetype(tenantId, description);
-      setConfig(result);
-      setEditedFields({
-        identity: result.identity ?? '',
-        execution_steps: result.execution_steps ?? '',
-        delivery_steps: result.delivery_steps ?? '',
-        role_name: result.role_name,
-        approval_required: result.risk_model.approval_required,
-        trigger_type:
-          result.trigger_sources?.type === 'scheduled'
-            ? 'scheduled'
-            : result.trigger_sources?.type === 'webhook'
-              ? 'webhook'
-              : 'manual',
-        temperature: result.temperature ?? 1.0,
-      });
-      setInputSchemaItems(result.input_schema ?? []);
-      setStep('edit');
-    } catch (err) {
-      setError(friendlyGenerationMessage(err));
-      setStep('error');
-    }
+  const chatHook = useChatConversation((transcript) => converseCreate(tenantId, transcript));
+
+  useEffect(() => {
+    if (step !== 'describe') return;
+
+    const proposalMsg = chatHook.messages.find(
+      (m) => m.kind === 'proposal' && m.role === 'assistant',
+    );
+    if (!proposalMsg?.proposal) return;
+
+    const baselineData = proposalMsg.proposal.baseline as Record<string, unknown>;
+    const proposalData = proposalMsg.proposal.proposal as Record<string, unknown>;
+    const merged = { ...baselineData, ...proposalData };
+    const triggerSrc = merged.trigger_sources as { type?: string } | null | undefined;
+
+    setConfig(merged as unknown as GenerateArchetypeResponse);
+    setEditedFields({
+      identity: String(merged.identity ?? ''),
+      execution_steps: String(merged.execution_steps ?? ''),
+      delivery_steps: String(merged.delivery_steps ?? ''),
+      role_name: String(merged.role_name ?? ''),
+      approval_required: Boolean(
+        (merged.risk_model as { approval_required?: boolean } | null | undefined)
+          ?.approval_required ?? false,
+      ),
+      trigger_type:
+        triggerSrc?.type === 'scheduled'
+          ? 'scheduled'
+          : triggerSrc?.type === 'webhook'
+            ? 'webhook'
+            : 'manual',
+      temperature: Number(merged.temperature ?? 1.0),
+    });
+    setInputSchemaItems((merged.input_schema as InputSchemaItem[] | null | undefined) ?? []);
+    setStep('edit');
+  }, [chatHook.messages, step]);
+
+  const inChatMode = chatHook.messages.length > 0 || chatHook.isLoading;
+
+  const handleDescribeGenerate = async () => {
+    if (description.length < 10 || description.length > 2000 || chatHook.isLoading) return;
+    const text = description;
+    setDescription('');
+    await chatHook.submit(text);
+  };
+
+  const handleChatSend = async () => {
+    if (!description.trim() || chatHook.isLoading) return;
+    const text = description;
+    setDescription('');
+    await chatHook.submit(text);
   };
 
   const handlePreview = async () => {
@@ -141,8 +162,6 @@ export function CreateEmployeePage() {
 
   const pageTitle = (): string => {
     switch (step) {
-      case 'generating':
-        return 'Generating Configuration…';
       case 'edit':
         return 'Review & Edit';
       case 'previewing':
@@ -172,35 +191,92 @@ export function CreateEmployeePage() {
 
       {step === 'describe' && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Describe what you want your AI employee to do. Be specific about its tasks, schedule,
-            and any tools it should use.
-          </p>
-          <textarea
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[160px] resize-none"
-            placeholder="e.g., An employee that reads our #support Slack channel every morning and sends a summary of unresolved customer issues to #support-summary..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={2000}
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{description.length}/2000</span>
-            <Button
-              onClick={() => void handleGenerate()}
-              disabled={description.length < 10 || description.length > 2000}
-            >
-              Generate
-            </Button>
-          </div>
-        </div>
-      )}
+          {!inChatMode ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Describe what you want your AI employee to do. Be specific about its tasks,
+                schedule, and any tools it should use.
+              </p>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[160px] resize-none"
+                placeholder="e.g., An employee that reads our #support Slack channel every morning and sends a summary of unresolved customer issues to #support-summary..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={2000}
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{description.length}/2000</span>
+                <Button
+                  onClick={() => void handleDescribeGenerate()}
+                  disabled={description.length < 10 || description.length > 2000}
+                >
+                  Generate
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {chatHook.messages.map((msg) => {
+                  if (msg.kind === 'proposal') return null;
+                  return msg.role === 'user' ? (
+                    <div key={msg.id} className="flex justify-end">
+                      <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2 max-w-[80%] text-sm">
+                        {msg.text}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={msg.id} className="flex justify-start">
+                      <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">
+                        {msg.text}
+                      </div>
+                    </div>
+                  );
+                })}
+                {chatHook.isLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Thinking…</span>
+                  </div>
+                )}
+              </div>
 
-      {step === 'generating' && (
-        <div className="flex flex-col items-center gap-4 py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground text-center">
-            Analyzing your description and generating a complete employee configuration…
-          </p>
+              <div className="flex gap-2 items-end border-t pt-3">
+                <textarea
+                  className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  rows={2}
+                  placeholder="Reply…"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={chatHook.isLoading}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleChatSend();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={() => void handleChatSend()}
+                  disabled={!description.trim() || chatHook.isLoading}
+                >
+                  {chatHook.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
+                </Button>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => {
+                  chatHook.startFresh();
+                  setDescription('');
+                }}
+              >
+                ← Start over
+              </Button>
+            </>
+          )}
         </div>
       )}
 

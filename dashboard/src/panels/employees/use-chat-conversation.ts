@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { converseEdit } from '@/lib/gateway';
 import type { ConverseMessage, ConverseResponse } from '@/lib/types';
 
 const PROPOSAL_ERROR_FALLBACK =
@@ -63,8 +62,7 @@ export interface UseChatConversationReturn {
 }
 
 export function useChatConversation(
-  tenantId: string,
-  archetypeId: string,
+  converseFn: (transcript: ConverseMessage[]) => Promise<ConverseResponse>,
 ): UseChatConversationReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [transcript, setTranscript] = useState<ConverseMessage[]>([]);
@@ -98,7 +96,7 @@ export function useChatConversation(
     setIsLoading(true);
 
     try {
-      const result: ConverseResponse = await converseEdit(tenantId, archetypeId, updatedTranscript);
+      const result: ConverseResponse = await converseFn(updatedTranscript);
       const assistantMsgId = crypto.randomUUID();
 
       if (result.kind === 'question') {

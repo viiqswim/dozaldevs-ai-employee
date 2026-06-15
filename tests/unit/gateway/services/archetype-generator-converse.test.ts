@@ -61,6 +61,33 @@ function makeConverseRoutingMock(converseResponse: string) {
   return fn;
 }
 
+function makeCapturingConverseMock(converseResponse: string) {
+  const converseUserContents: string[] = [];
+  const fn = vi.fn(async (opts: { messages?: Array<{ role: string; content: string }> }) => {
+    const systemContent = opts.messages?.[0]?.content ?? '';
+    if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
+      return makeResult('5');
+    }
+    converseUserContents.push(opts.messages?.[1]?.content ?? '');
+    return makeResult(converseResponse);
+  });
+  return { fn, converseUserContents };
+}
+
+function makeTranscript(assistantTurns: number): ConverseMessage[] {
+  const t: ConverseMessage[] = [{ role: 'user', content: 'Initial request' }];
+  for (let i = 0; i < assistantTurns; i++) {
+    t.push({ role: 'assistant', content: `Clarifying question ${i + 1}?` });
+    t.push({ role: 'user', content: `Answer ${i + 1}` });
+  }
+  return t;
+}
+
+const PROPOSAL_RESPONSE = JSON.stringify({
+  kind: 'proposal',
+  config: { ...makeConfig(), identity: 'You are a fully specified assistant.' },
+});
+
 describe('converse() — question path', () => {
   it('returns {kind:question} when LLM responds with a question, without calling applyModelAndEstimate', async () => {
     const questionResponse = JSON.stringify({ kind: 'question', question: 'Which field?' });
@@ -144,6 +171,50 @@ describe('converse() — 5-question backstop', () => {
 
     expect(result.kind).not.toBe('question');
     expect(result.kind).toBe('no_change');
+  });
+
+  it('forces a proposal (never a question) once 5 assistant turns exist and the LLM cooperates', async () => {
+    const { fn } = makeCapturingConverseMock(PROPOSAL_RESPONSE);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.converse(makeTranscript(5), makeConfig());
+
+    expect(result.kind).toBe('proposal');
+    expect(result.kind).not.toBe('question');
+  });
+
+  it('injects the "you MUST now produce a proposal" directive into the prompt when backstop is active', async () => {
+    const { fn, converseUserContents } = makeCapturingConverseMock(PROPOSAL_RESPONSE);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    await gen.converse(makeTranscript(5), makeConfig());
+
+    expect(converseUserContents).toHaveLength(1);
+    expect(converseUserContents[0]).toMatch(/you must now produce a proposal/i);
+    expect(converseUserContents[0]).toMatch(/do not ask another question/i);
+  });
+
+  it('does NOT inject the backstop directive below the threshold (4 assistant turns)', async () => {
+    const questionResponse = JSON.stringify({ kind: 'question', question: 'One more thing?' });
+    const { fn, converseUserContents } = makeCapturingConverseMock(questionResponse);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.converse(makeTranscript(4), makeConfig());
+
+    expect(result.kind).toBe('question');
+    expect(converseUserContents[0]).not.toMatch(/you must now produce a proposal/i);
+  });
+
+  it('never returns a question once backstop is active, regardless of which kind the LLM emits', async () => {
+    const questionResponse = JSON.stringify({ kind: 'question', question: 'Yet another?' });
+    const fn = makeConverseRoutingMock(questionResponse);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const sixTurns = await gen.converse(makeTranscript(6), makeConfig());
+    expect(sixTurns.kind).not.toBe('question');
+
+    const tenTurns = await gen.converse(makeTranscript(10), makeConfig());
+    expect(tenTurns.kind).not.toBe('question');
   });
 });
 
