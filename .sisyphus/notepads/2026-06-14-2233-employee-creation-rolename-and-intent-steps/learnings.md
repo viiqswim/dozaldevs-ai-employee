@@ -282,3 +282,38 @@ My first draft asserted `.toContain('Code-Writing Employees content boundary che
 - Per-file `npx vitest run <file> --reporter=verbose` confirms all 12 "BOUNDARY —" tests print ✓ (not skipped). Full-suite `--run` does NOT print describe names unless a test fails — use the per-file verbose run to prove new tests executed.
 - Pre-existing unrelated LSP error in vitest.config.ts (coverage key) — untouched (same as T6/T7).
 - Evidence: `.sisyphus/evidence/task-8-boundary.txt`
+
+## Task 9 — Full live E2E: real-generator intent-level Slack-summary employee — ✅ PASS (2026-06-15)
+
+### Result
+A NEW archetype generated via the REAL `converse-create` endpoint (not hand-authored, not mocked) with intent-level `execution_steps` (zero `tsx /tools/`) reached terminal **Done** with real Slack delivery and a non-empty `--draft-file` deliverable. Proves the T1/T2/T5 generator rewrite end-to-end.
+
+### Identifiers
+- Task ID: `d59b8052-d01d-4e7c-9b81-9d447e4abd03`
+- Archetype: `c57a04a7-6be0-47ea-ac46-e7c130c404e4` (role_name `daily-slack-summarizer`, DozalDevs). Reset to `draft` after test.
+- Model: deepseek/deepseek-v4-flash (override at save; LLM had recommended minimax/minimax-m2.7).
+- Evidence: `.sisyphus/evidence/task-9-e2e-trace.txt`, `task-9-e2e-delivery.txt`.
+
+### KEY GOTCHA — converse-create tool-path `.ts` extension variance (NEW)
+- FIRST converse-create call returned **PROPOSAL_INVALID** (HTTP 422): the model emitted tool paths WITHOUT the `.ts` extension (`/tools/slack/read-channels` instead of `/tools/slack/read-channels.ts`). `validateProposalFields` rejected all 3 tools as "not in the platform's tool library".
+- ROOT CAUSE: `postProcess()` normalizes BARE `service/tool` → `/tools/service/tool.ts`, but a `/tools/`-PREFIXED path missing `.ts` is an unrecognized shape it does NOT repair.
+- FIX (for E2E): retry the identical call — it's non-deterministic LLM output variance, not a code defect. Second call produced clean `.ts`-suffixed paths.
+- IMPLICATION for future work: if the generator should be MORE robust, postProcess could be hardened to append `.ts` to `/tools/`-prefixed paths lacking an extension. NOT in scope for this plan — logged as observation.
+
+### KEY ASSERTION mechanism (intent-level proof)
+`jq -r '.proposal.execution_steps' | grep -c "tsx /tools/"` → **0**. The generated steps were pure plain-English (4 numbered intent steps), ending with the exact T4 closer: "Finally, submit your completed summary for review so it can be delivered to the team." Worker resolved all 3 tools (read-channels.ts, submit-output.ts, post-message.ts) at runtime from the runtime skills — prompt named ZERO tool paths.
+
+### Save-draft payload construction (reusable)
+Build the POST /archetypes body from the proposal via jq, OVERRIDING: model=deepseek-v4-flash, worker_env={SOURCE_CHANNELS,NOTIFICATION_CHANNEL,PUBLISH_CHANNEL}, notification_channel, risk_model.approval_required=false, AND injecting delivery_steps + delivery_instructions (proposal.delivery_steps was null — the delivery container needs non-empty delivery_instructions to spawn the Slack post). Copied the proven T4 `intent-spike-test` delivery prose. → HTTP 201.
+
+### Clean status trace this run (no SIGTERM race)
+Received→Triaging→AwaitingInput→Ready→Executing→Validating→Submitting→Delivering→Done. Delivering→Done by actor `machine` (not the Failed→retry→Done race T4 saw). ~2.5 min total.
+
+### Deliverable storage (corrected schema knowledge)
+- NOT `tasks.deliverable` (column doesn't exist). Deliverable lives in the **`deliverables`** table, keyed by `external_ref = task_id`. Columns: id, execution_id, delivery_type, external_ref, risk_score, status, content, metadata.
+- `content` = the StandardOutput JSON written by submit-output --draft-file: `{version:1, summary, classification:NEEDS_APPROVAL, draft}`. content_len=1126, draft field=890 chars (NON-EMPTY).
+- Slack post ts proof: delivery log "Delivery complete: Approved summary posted to notification channel C0AUBMXKVNU at ts 1781544017.729189", 0 channel errors. Distinct from the lifecycle notify_slack_ts (1781543885.507869).
+
+### Env gotchas this session
+- `python3` is NOT configured via asdf in this repo (.tool-versions has no python pin under the shim) → `python3 -c` fails with "No version is set". Use **jq** for all JSON parsing in bash, not python3.
+- Container/delivery logs persist at /tmp/employee-{id8}.log and /tmp/employee-delivery-{id8}.log AFTER the container exits — grep these for tool calls (docker logs is gone once container is removed).
