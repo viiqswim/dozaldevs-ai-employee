@@ -672,7 +672,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: NO (verification only)
 
-- [ ] 12. Documentation updates
+- [x] 12. Documentation updates
 
   **What to do**:
   - Update AGENTS.md: note the generate path now uses JSON mode + bounded empty-content retry (call-llm/archetype-generator), the accurate trace behavior, and the new clarify-then-act creation flow (alongside the existing AI Assistant edit flow).
@@ -705,7 +705,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: `docs: archetype generation reliability + clarify-then-act wizard`
 
-- [ ] 13. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 13. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
@@ -713,19 +713,19 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read plan end-to-end. Each "Must Have": verify implementation exists (read file, curl, run test). Each "Must NOT Have": grep codebase for forbidden patterns (model fallback, converse semantic changes, technical error leakage) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` (tsc) + `pnpm lint` + `pnpm test:unit`. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log, AI slop. Confirm `call-llm.ts` stays employee-agnostic.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright`)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright`)
       From clean state, execute EVERY task QA scenario. Live generate E2E (real model). Browser: New Employee URL carries tenant + survives refresh; clarify flow asks question for ambiguous prompt then creates. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do" + actual diff (git diff). Verify 1:1 — nothing missing, nothing beyond spec. Confirm "Must NOT do" compliance. Detect cross-task contamination. **Reuse audit**: confirm there is exactly ONE client chat hook (no copied/parallel hook) consumed by both the assistant tab and the create wizard, and that both `propose-edit` and `converse-create` funnel through the single `ArchetypeGenerator.converse()` method (no duplicated converse logic).
       Output: `Tasks [N/N] | Contamination [CLEAN/N] | Reuse [1 hook/1 method | DRIFT] | VERDICT`
 

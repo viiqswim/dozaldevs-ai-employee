@@ -635,3 +635,11 @@ The clarify-then-act creation wizard now WORKS end-to-end (drafts persist). One 
 - `.sisyphus/evidence/task-11-clarify-flow.png` — Scenario A detail page (t11-slack-summarizer-final saved)
 - `.sisyphus/evidence/task-11-direct-no-chat.png` — Scenario B detail page (t11-support-digest-final saved)
 - `.sisyphus/evidence/task-11-draft.txt` — psql showing BOTH new draft rows + the t11-* query
+
+## F3 Final QA (2026-06-15)
+
+- All 6 scenarios PASS. Live LLM calls (Scenarios 1,4,5) used deepseek-v4-flash gateway / minimax execution.
+- The Playwright MCP browser (not CDP-to-real-Chrome) works fine for localhost dashboard QA — dashboard was already authenticated as Platform Admin/VLRE.
+- Clarify vs direct distinction is observable in the UI end-state: ambiguous prompt halts at an ENABLED "Reply…" box with a question bubble; clear prompt passes through a transient "Thinking…" loader straight to "Review & Edit" (no reply ever required).
+- Stale task hint: the friendly-error function `friendlyGenerationMessage` does NOT exist in CreateEmployeePage.tsx. Logic was generalized into `use-chat-conversation.ts` (`getProposalErrorMessage` + `PROPOSAL_ERROR_FALLBACK`) during T11. CreateEmployeePage:46 consumes the hook via `converseCreate`. Feature present + unit-tested; only the name is outdated.
+- Trace table confirms generate rows status='success', retry_count=0 — JSON-mode + retry fix is healthy.
