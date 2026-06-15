@@ -84,7 +84,10 @@ function applyCreateAllowlist(
     delivery_steps: raw.delivery_steps,
     overview: raw.overview,
     risk_model: raw.risk_model
-      ? { approval_required: raw.risk_model.approval_required }
+      ? {
+          approval_required: raw.risk_model.approval_required,
+          timeout_hours: raw.risk_model.timeout_hours ?? 2,
+        }
       : undefined,
     tool_registry: raw.tool_registry ? { tools: raw.tool_registry.tools } : undefined,
     trigger_sources: raw.trigger_sources,

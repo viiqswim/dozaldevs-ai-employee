@@ -22,7 +22,7 @@ export interface StrippedProposal {
   execution_steps?: string;
   delivery_steps?: string | null;
   overview?: GenerateArchetypeResponse['overview'];
-  risk_model?: { approval_required: boolean };
+  risk_model?: { approval_required: boolean; timeout_hours?: number };
   tool_registry?: { tools: string[] };
   trigger_sources?: GenerateArchetypeResponse['trigger_sources'];
   input_schema?: InputSchemaItem[];
