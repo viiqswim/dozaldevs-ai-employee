@@ -82,11 +82,11 @@ User tried to create an AI employee in the wizard. Two problems:
 
 ### Definition of Done
 
-- [ ] CREATE proposal returns `role_name` matching `/^[a-z0-9]+(-[a-z0-9]+)*$/` (length 2-60), even when the model omits it
-- [ ] Draft-save POST returns 201 (the original failing flow now succeeds)
-- [ ] EDIT guardrail intact: converse on an existing archetype never renames role_name
-- [ ] (If spike passes) Generated execution_steps contain NO `tsx /tools/` but DO retain `$ENV` placeholders + a submit-output intent closer; `tool_registry.tools` retains real paths
-- [ ] Live deepseek-flash E2E: generate → save → trigger → `Done` with Slack delivery + non-empty `--draft-file`
+- [x] CREATE proposal returns `role_name` matching `/^[a-z0-9]+(-[a-z0-9]+)*$/` (length 2-60), even when the model omits it
+- [x] Draft-save POST returns 201 (the original failing flow now succeeds)
+- [x] EDIT guardrail intact: converse on an existing archetype never renames role_name
+- [x] (If spike passes) Generated execution_steps contain NO `tsx /tools/` but DO retain `$ENV` placeholders + a submit-output intent closer; `tool_registry.tools` retains real paths
+- [x] Live deepseek-flash E2E: generate → save → trigger → `Done` with Slack delivery + non-empty `--draft-file`
 
 ### Must Have
 
@@ -542,7 +542,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: groups with Wave 2-3
 
-- [ ] 9. Live generate→save→trigger→Done E2E on deepseek-flash
+- [x] 9. Live generate→save→trigger→Done E2E on deepseek-flash
 
   **What to do** (ONLY IF Task 4 spike PASSED):
   - Full live pipeline through the REAL generator (not hand-authored): generate an intent-level Slack-summary employee via the wizard/API on `deepseek/deepseek-v4-flash`, save the draft (assert 201 + valid role_name), activate, trigger a real task, and verify it reaches `Done` with a real Slack delivery and non-empty `--draft-file` content — using ONLY the runtime skills (no CLI in the prompt).
@@ -663,11 +663,11 @@ curl -s -X POST "http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] role_name fix ships (Wave 1) regardless of spike outcome
-- [ ] Spike result captured (PASS → abstraction shipped + live E2E; FAIL → documented, Wave 2 cancelled)
-- [ ] Docs updated
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] role_name fix ships (Wave 1) regardless of spike outcome
+- [x] Spike result captured (PASS → abstraction shipped + live E2E; FAIL → documented, Wave 2 cancelled)
+- [x] Docs updated
 
 ## Future Work (Backlog)
 
