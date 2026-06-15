@@ -205,7 +205,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Arguments**:
 
-- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 \* 3")
 
 ## platform/report-issue
 
@@ -435,6 +435,21 @@ Messages sent via `send-message.ts` are delivered immediately to the guest throu
 ### 5. Sifely HTTP 200 ≠ success — always check `body.code`
 
 The Sifely API returns HTTP 200 even on authentication failure. You must check the response body `code` field. The Sifely tools handle this internally — but know why it matters if debugging raw API calls.
+
+### 6. Graceful failure when bot lacks channel access
+
+If `read-channels.ts` fails with a `not_in_channel` or `channel_not_found` error (the bot is not a member of the requested channel), do NOT crash or leave the task in a broken state. Instead:
+
+1. Post a plain-English message to `$NOTIFICATION_CHANNEL` (use `post-message.ts`):
+   ```
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "I wasn't able to finish — I don't have access to one of the channels you asked me to read. Please add me to that channel and try again." --thread-ts "$NOTIFY_MSG_TS"
+   ```
+2. Submit `NO_ACTION_NEEDED` so the task exits cleanly:
+   ```
+   tsx /tools/platform/submit-output.ts --summary "Could not access channel — bot not a member" --classification NO_ACTION_NEEDED
+   ```
+
+This prevents the task from silently failing or getting stuck. The user sees a clear explanation in Slack and can fix the channel membership before re-triggering.
 
 ---
 

@@ -71,3 +71,7 @@ export function ruleContradictionMessage(description: string, conflicts: string)
 export function questionNoAnswerFallback(): string {
   return `I couldn't find an answer to that one — could you give me a bit more to go on?`;
 }
+
+export function approvalCardMissingFailureMessage(): string {
+  return `❌ I finished working but couldn't post the result for your review. Please try again.`;
+}

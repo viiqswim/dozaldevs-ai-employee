@@ -564,3 +564,126 @@ describe('runReviewingPath — update-notify-reviewing step', () => {
     ).toBe(true);
   });
 });
+
+describe('runReviewingPath — zombie→Failed when approval card metadata missing', () => {
+  function buildZombieFetch(
+    missingField: 'approval_message_ts' | 'target_channel',
+  ): ReturnType<typeof vi.fn> {
+    const metadata: Record<string, unknown> = {};
+    if (missingField !== 'approval_message_ts') {
+      metadata['approval_message_ts'] = 'ts-approval-001';
+    }
+    if (missingField !== 'target_channel') {
+      metadata['target_channel'] = 'C-APPROVAL';
+    }
+    return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
+      if (method === 'PATCH' || method === 'POST') return makeOkFetchResponse([]);
+      if ((url as string).includes('/deliverables?'))
+        return makeOkFetchResponse([{ metadata, content: '{}', external_ref: TASK_ID }]);
+      if ((url as string).includes('select=status'))
+        return makeOkFetchResponse([{ status: 'Reviewing' }]);
+      if ((url as string).includes('select=raw_event'))
+        return makeOkFetchResponse([{ raw_event: {} }]);
+      return makeOkFetchResponse([]);
+    });
+  }
+
+  it('routes to Failed when approval_message_ts is missing and approval_required=true', async () => {
+    vi.stubGlobal('fetch', buildZombieFetch('approval_message_ts'));
+    const step = makeStep();
+
+    await runReviewingPath(makeCtx(), step as never);
+
+    expect(mockPatchTask).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      expect.objectContaining({ status: 'Failed', failure_reason: expect.any(String) }),
+    );
+    expect(mockLogStatusTransition).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      'Failed',
+      'Reviewing',
+    );
+    expect(mockTrackPendingApproval).not.toHaveBeenCalled();
+  });
+
+  it('routes to Failed when target_channel is missing and approval_required=true', async () => {
+    vi.stubGlobal('fetch', buildZombieFetch('target_channel'));
+    const step = makeStep();
+
+    await runReviewingPath(makeCtx(), step as never);
+
+    expect(mockPatchTask).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      expect.objectContaining({ status: 'Failed' }),
+    );
+    expect(mockLogStatusTransition).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      'Failed',
+      'Reviewing',
+    );
+    expect(mockTrackPendingApproval).not.toHaveBeenCalled();
+  });
+
+  it('does NOT enter wait-for-approval when routing to Failed', async () => {
+    vi.stubGlobal('fetch', buildZombieFetch('approval_message_ts'));
+    const mockWaitForEvent = vi.fn().mockResolvedValue(null);
+    const step = makeStep({ waitForEvent: mockWaitForEvent });
+
+    await runReviewingPath(makeCtx(), step as never);
+
+    expect(mockWaitForEvent).not.toHaveBeenCalled();
+  });
+
+  it('updates notify message to ❌ when routing to Failed', async () => {
+    vi.stubGlobal('fetch', buildZombieFetch('approval_message_ts'));
+
+    const mockUpdateMessage = vi.fn().mockResolvedValue({});
+    mockLoadTenantSlack.mockResolvedValue({
+      botToken: 'xoxb-test',
+      channel: 'C-NOTIFY',
+      tenantEnv: { SLACK_BOT_TOKEN: 'xoxb-test', NOTIFICATION_CHANNEL: 'C-NOTIFY' },
+      slackClient: {
+        updateMessage: mockUpdateMessage,
+        postMessage: vi.fn().mockResolvedValue({ ok: true, ts: 'ts-nudge-001' }),
+      },
+    });
+
+    const step = makeStep();
+    await runReviewingPath(makeCtx(), step as never);
+
+    const failCall = mockUpdateMessage.mock.calls.find(
+      (call: unknown[]) => typeof call[2] === 'string' && (call[2] as string).includes('❌'),
+    );
+    expect(failCall).toBeDefined();
+  });
+
+  it('legitimate approval path still works when metadata is present', async () => {
+    vi.stubGlobal('fetch', buildDefaultFetch({ taskStatus: 'Done' }));
+    const approvalEvent = {
+      name: 'employee/approval.received',
+      data: { taskId: TASK_ID, action: 'approve', userId: 'U-APPROVER' },
+    };
+    const mockWaitForEvent = vi.fn().mockResolvedValue(approvalEvent);
+    const step = makeStep({ waitForEvent: mockWaitForEvent });
+
+    await runReviewingPath(makeCtx(), step as never);
+
+    expect(mockWaitForEvent).toHaveBeenCalledOnce();
+    expect(mockTrackPendingApproval).toHaveBeenCalledOnce();
+    expect(mockPatchTask).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ status: 'Failed' }),
+    );
+  });
+});
