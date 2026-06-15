@@ -149,6 +149,7 @@ A live deepseek/deepseek-v4-flash worker driven by PLAIN-ENGLISH INTENT steps (z
 `tsx /tools/...` in the prompt) reached terminal status **Done** with a real Slack delivery.
 
 ### Evidence
+
 - Task ID: `efcda54f-19bf-4c9d-a18a-38e614b03935`
 - Test archetype: `a8d7c7e2-09a3-402a-8db5-31a9c705e599` (role_name `intent-spike-test`, DozalDevs). Copy of daily-summarizer. Reset to `draft` after spike.
 - Trigger: admin API `POST /admin/tenants/.../employees/intent-spike-test/trigger`. approval_required=false → autonomous Submitting→Delivering→Done.
@@ -159,25 +160,62 @@ A live deepseek/deepseek-v4-flash worker driven by PLAIN-ENGLISH INTENT steps (z
 - Evidence files: `.sisyphus/evidence/task-4-spike-trace.txt`, `task-4-spike-delivery.txt`, `task-4-inject.sql`.
 
 ### INTENT CLOSER (the exact phrase that triggers submit-output from intent prose)
+
 > "Finally, submit your completed summary for review so it can be delivered to the team."
 
 This is the recommended closer for Wave 2's generator prompt: it ends an intent block and
 reliably drives the `submit-output --draft-file` handoff without naming any tool.
 
 ### Mechanism findings (why intent-only works — for Wave 2 prompt design)
+
 - `EXECUTION_PROMPT` ("Follow the instructions in <execution-instructions>") is decoupled from step CONTENT — steps can be prose.
 - `CRITICAL_DIRECTIVE` (agents-md-compiler.mts) forces EXECUTE-don't-describe.
 - `tool-usage-reference` + `slack` + `platform` skills are always compiled into the brain (verified via brain-preview) → model resolves exact CLI at runtime.
 - **`submitOutputCmd` (3rd param of `runOpencodeSession`) is NEVER consumed in the harness body** — the recovery nudge text is hardcoded and injects NO draft. So the MODEL must call submit-output --draft-file itself. The spike proves deepseek-flash does this from intent alone. This is the HARD CONSTRAINT Wave 2 must preserve: the generated intent steps MUST end by submitting the draft via submit-output --draft-file.
 
 ### Env injection for Slack-summary archetypes (reusable for Wave 2 tests)
+
 - `$NOTIFICATION_CHANNEL` ← archetype.notification_channel column (machine-provisioner → loadTenantSlack → loadTenantEnv).
-- `$SOURCE_CHANNELS` / `$PUBLISH_CHANNEL` ← either tenant.config (source_channels / summary.*) OR archetype.worker_env jsonb (spread into container env). DozalDevs tenant.config={} so I set them via archetype.worker_env = {"SOURCE_CHANNELS":"C092BJ04HUG","NOTIFICATION_CHANNEL":"C0AUBMXKVNU","PUBLISH_CHANNEL":"C0AUBMXKVNU"}.
+- `$SOURCE_CHANNELS` / `$PUBLISH_CHANNEL` ← either tenant.config (source_channels / summary.\*) OR archetype.worker_env jsonb (spread into container env). DozalDevs tenant.config={} so I set them via archetype.worker_env = {"SOURCE_CHANNELS":"C092BJ04HUG","NOTIFICATION_CHANNEL":"C0AUBMXKVNU","PUBLISH_CHANNEL":"C0AUBMXKVNU"}.
 - brain-preview shows SOURCE_CHANNELS is_set=false because it only inspects tenant_config, NOT worker_env — but worker_env IS injected at runtime (machine-provisioner line ~173/178). Confirmed: read-channels.ts received C092BJ04HUG.
 
 ### --draft-file doc status
+
 - The `--draft-file` FLAG was already documented per-tool. The execution→delivery HANDOFF CONCEPT was ABSENT.
 - Added new hand-written section to `src/workers/skills/tool-usage-reference/SKILL.md`: "## Execution→Delivery Handoff (CRITICAL — the load-bearing final step)" (above CRITICAL WARNINGS, below the generate sentinel). Skills are baked into the Docker image (Dockerfile COPY src/workers/skills/) → rebuild required for it to reach worker containers.
 
 ### Caveat observed (not a blocker)
+
 - Delivering→Failed→Done is a SIGTERM race in local Docker: delivery container read summary.txt + persisted metrics, then got SIGTERM ~3s before signalling done → Failed; Inngest delivery-retry recovered → Done. Slack post had already succeeded on attempt 1. Final state Done. Stale tasks.failure_reason="Worker terminated" is from the failed attempt, not authoritative.
+
+## Task 6 — Regression guard tests (2026-06-15)
+
+### What was added (test-only; no source edits)
+
+Extended `tests/unit/gateway/services/archetype-generator-prompts.test.ts` (T5 left it at 20 tests / 117 lines) with 6 new tests → 26 tests total. Covered the two guards T5 did NOT already cover: guard 7 (REFINE stays CLI-level) and guard 11 (null delivery_steps stays null).
+
+### Guard coverage discovery (important for future tasks)
+
+T5 had ALREADY written guards 1-6, 8, 9, 10 in this same file. Do NOT re-add them — read the file first. Only 7 and 11 were missing. The 11-item checklist in the task spec overlaps heavily with existing T5 coverage.
+
+### Guard 7 — REFINE intentionally NOT abstracted
+
+`REFINE_SYSTEM_PROMPT_PRE` (source line ~295) was DELIBERATELY left CLI-level by T5 while `SYSTEM_PROMPT_PRE` + converse were abstracted. Source still has 6 `tsx /tools/` occurrences (`grep -c "tsx /tools/" archetype-generator-prompts.ts` => 6). The guard asserts REFINE STILL `.toMatch(/tsx \/tools\//)`, STILL contains `tsx /tools/platform/submit-output.ts`, and STILL contains the literal mandate `includes explicit \`tsx /tools/...\` invocations`. This catches an over-applied intent rewrite.
+
+### Guard 11 — postProcess never synthesizes delivery_steps (KEY MECHANISM)
+
+- `postProcess` is PRIVATE — cannot import it. Exercise it through the public `generate()` API.
+- Mock pattern (copied from `archetype-generator-json-mode.test.ts`): a routing `vi.fn` that returns `'15'` when `messages[0].content` startsWith `'You estimate manual task duration'` (the TimeEstimator system prompt prefix) and returns the main JSON otherwise. Construct via `new ArchetypeGenerator(fn as unknown as typeof callLLM, repo as never)`. Repo stub: `{ record: vi.fn, linkArchetype: vi.fn }`.
+- postProcess source (lines 362-364) ONLY null-coerces a non-string delivery_steps; it never injects. `applyModelAndEstimate` (609-660) touches only model/estimate fields. So `delivery_steps: null` in → `null` out is the invariant.
+- GOTCHA: `expect(null).not.toContain(str)` THROWS in chai ("the given combination of arguments (null and string) is invalid"). This is actually useful as a RED signal proving the value is truly null — but for a GREEN assertion use `.toBeNull()`. The final test asserts the closer IS in `execution_steps` and `delivery_steps` `.toBeNull()` — proves no cross-field synthesis without tripping the chai null guard.
+
+### Mock JSON must satisfy PostProcessedArchetypeSchema (loose, warn-only)
+
+The schema at line 338 requires role_name/runtime/identity/execution_steps/instructions/tool_registry/overview — but it's `safeParse` + warn-only (returns anyway). Including those fields keeps the log clean. `instructions` is set by postProcess from `execution_steps` regardless.
+
+### Results
+
+- Target file: 26 tests pass. Full suite: 2003 passed | 9 skipped | 0 failed (was 1997 → +6).
+- Pino ERROR/WARN noise in stdout is from OTHER tests feeding deliberate bad JSON — all those files show ✓. Use `>/tmp/x.log 2>&1` then grep for the summary; piping `2>/dev/null` does NOT suppress pino (it writes to stdout).
+- LSP unavailable (typescript-language-server not pinned in .tool-versions). vitest tsx transform is the authoritative type check. Pre-existing unrelated LSP error in vitest.config.ts (coverage key) — untouched.
+- Evidence: `.sisyphus/evidence/task-6-guard.txt`

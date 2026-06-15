@@ -427,7 +427,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: groups with Wave 2-3
 
-- [ ] 6. Preserve-and-assert harness (env placeholders, tool_registry, closer)
+- [x] 6. Preserve-and-assert harness (env placeholders, tool_registry, closer)
 
   **What to do** (ONLY IF Task 4 spike PASSED):
   - Add a focused regression guard so future prompt edits cannot silently re-introduce CLI or drop the preserved elements. A test (or `postProcess` assertion) that, for generate-path output, fails if: execution_steps contains `tsx /tools/`, OR a Slack-delivery step lacks the relevant `$ENV` placeholder, OR the submit-output intent closer is absent, OR `tool_registry.tools` lost `/tools/platform/submit-output.ts`.
