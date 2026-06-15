@@ -205,7 +205,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Arguments**:
 
-- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 \* 3")
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
 
 ## platform/report-issue
 
@@ -226,7 +226,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Invocation**: `tsx /tools/platform/submit-output.ts [flags]`
 
-**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID
+**Environment variables**: None
 
 **Arguments**:
 
