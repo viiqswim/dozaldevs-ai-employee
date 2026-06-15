@@ -219,3 +219,35 @@ The schema at line 338 requires role_name/runtime/identity/execution_steps/instr
 - Pino ERROR/WARN noise in stdout is from OTHER tests feeding deliberate bad JSON — all those files show ✓. Use `>/tmp/x.log 2>&1` then grep for the summary; piping `2>/dev/null` does NOT suppress pino (it writes to stdout).
 - LSP unavailable (typescript-language-server not pinned in .tool-versions). vitest tsx transform is the authoritative type check. Pre-existing unrelated LSP error in vitest.config.ts (coverage key) — untouched.
 - Evidence: `.sisyphus/evidence/task-6-guard.txt`
+
+## Task 7 — Cross-domain parametrized regression tests (2026-06-15)
+
+### What was added (test-only; no source edits)
+
+Extended `tests/unit/gateway/services/archetype-generator-prompts.test.ts` (T6 left it at 26 tests / 238 lines) with 22 new tests in 3 describe blocks → 48 tests in this file. Suite: 2003 → **2025 passed | 9 skipped | 0 failed**.
+
+### Reused everything — zero new imports/helpers
+
+T5+T6 already declared at the top of the file: `INTENT_CLOSER`, `CLI_PATTERN` (`/tsx \/tools\//`), `ESTIMATOR_SYSTEM_PREFIX`, the `ArchetypeGenerator` + `callLLM` + `buildConnectedAppsBlock` imports, and the function-hoisted mock helpers (`makeLLMResult`, `makeGenerateLLMWithStubbedEstimator`, `makeGenerationRepo`). New tests just call them. Read the whole file first before adding — half the scaffolding was already present.
+
+### it.each parametrization pattern (vitest)
+
+`it.each(cases)('$domain: ...', async ({ description, executionSteps, tools, expectPresent }) => {...})` — the `$domain` token in the title interpolates the object key. For the toolkit array variant use `it.each(['notion','gmail',...])('%s connected: ...', (toolkit) => {...})` — `%s` is printf-style for primitive arrays. Both keep cross-domain coverage DRY (1 body, N domains).
+
+### instructions alias proof (the load-bearing assertion)
+
+`postProcess` (archetype-generator.ts:356) hard-sets `result.instructions = result.execution_steps` AFTER reading the model's JSON. To prove the OVERWRITE (not just coincidental equality), the mock JSON sets `instructions` to a deliberately divergent `'STALE PLACEHOLDER ...'`. After `generate()`: `result.instructions === result.execution_steps`, `.not.toContain('STALE')`. This is the only way to distinguish "alias overwrites" from "model happened to return equal values".
+
+### Composio cross-domain nuance (matches MUST-NOT-DO)
+
+The Notion case asserts the PROSE (`execution_steps`) has no `tsx /tools/composio/execute.ts`, while the `tool_registry.tools` array IS allowed to name `/tools/composio/execute.ts`. The abstraction target is the intent prose, not the tool registry — tool_registry stays CLI-path-shaped (postProcess normalizes bare `service/tool` → `/tools/service/tool.ts`). Did NOT assert action-slug correctness.
+
+### Hook friction (comments)
+
+The pre-existing file convention is single-line `// Invariant under guard: ...` rationale comments above guard describe blocks (original lines 128, 176). My first draft added verbose 3-line blocks → comment hook fired. Condensed to the file's existing one-line invariant style + removed one redundant value-restating comment. Match the file's comment density, don't exceed it.
+
+### Verification
+
+- `pnpm test:unit -- --run` (positional path arg does NOT filter — it runs the whole suite; that's the required full-suite check anyway). 171 files, 2025 passed, 0 fail.
+- LSP unavailable (typescript-language-server not in .tool-versions) — vitest tsx transform is authoritative type check; clean collection across all 171 files = type-clean.
+- Evidence: `.sisyphus/evidence/task-7-cross-domain.txt`

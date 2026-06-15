@@ -469,7 +469,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: groups with Wave 2-3
 
-- [ ] 7. Unit/regression tests for abstracted generation
+- [x] 7. Unit/regression tests for abstracted generation
 
   **What to do** (ONLY IF Task 4 spike PASSED):
   - Broaden coverage beyond the single fixture: parametrized tests across several intent descriptions (Slack summary, Notion/Composio job, knowledge-base lookup) asserting intent-level output + preserved env/closer/tool_registry. Include a Composio case asserting the abstracted prose still results in `tool_registry` listing the composio tool and the per-app skill being the resolution path (no `--toolkit/--action` CLI in prose).
