@@ -359,3 +359,65 @@ describe('refine() — no-change retry path', () => {
     expect(generationCalls.length).toBe(2);
   });
 });
+
+describe('postProcess() — trigger_sources normalization (via generate())', () => {
+  it('normalizes {type:"cron", expression} to {type:"scheduled", cron}', async () => {
+    const json = makeGenerateJson({
+      trigger_sources: { type: 'cron', expression: '0 9 * * 1-5' },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.trigger_sources).toEqual({ type: 'scheduled', cron: '0 9 * * 1-5' });
+  });
+
+  it('normalizes {type:"cron_and_webhook", cron_expression} to {type:"scheduled", cron}', async () => {
+    const json = makeGenerateJson({
+      trigger_sources: { type: 'cron_and_webhook', cron_expression: '0 8 * * *' },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.trigger_sources).toEqual({ type: 'scheduled', cron: '0 8 * * *' });
+  });
+
+  it('falls back to {type:"manual"} when {type:"scheduled"} is missing cron field', async () => {
+    const json = makeGenerateJson({
+      trigger_sources: { type: 'scheduled' },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.trigger_sources).toEqual({ type: 'manual' });
+  });
+
+  it('passes {type:"manual"} through unchanged', async () => {
+    const json = makeGenerateJson({
+      trigger_sources: { type: 'manual' },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.trigger_sources).toEqual({ type: 'manual' });
+  });
+
+  it('falls back to {type:"manual"} for unknown trigger type', async () => {
+    const json = makeGenerateJson({
+      trigger_sources: { type: 'unknown_type' },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.trigger_sources).toEqual({ type: 'manual' });
+  });
+});

@@ -399,6 +399,32 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
       });
   }
 
+  const rawTrigger = result.trigger_sources as Record<string, unknown> | null | undefined;
+  if (rawTrigger && typeof rawTrigger === 'object') {
+    const type = rawTrigger.type;
+    if (type === 'cron' || type === 'cron_and_webhook') {
+      const cronExpr = (rawTrigger.expression ?? rawTrigger.cron_expression ?? rawTrigger.cron) as
+        | string
+        | undefined;
+      result.trigger_sources = cronExpr
+        ? { type: 'scheduled', cron: cronExpr }
+        : { type: 'manual' };
+    } else if (type === 'scheduled') {
+      const cronExpr = (rawTrigger.cron ?? rawTrigger.expression ?? rawTrigger.cron_expression) as
+        | string
+        | undefined;
+      result.trigger_sources = cronExpr
+        ? {
+            type: 'scheduled',
+            cron: cronExpr,
+            ...(rawTrigger.timezone ? { timezone: rawTrigger.timezone as string } : {}),
+          }
+        : { type: 'manual' };
+    } else if (type !== 'manual' && type !== 'webhook') {
+      result.trigger_sources = { type: 'manual' };
+    }
+  }
+
   if (!result.role_name || typeof result.role_name !== 'string') {
     result.role_name = toKebabCase(description.split(' ').slice(0, 4).join(' '));
   } else {
