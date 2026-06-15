@@ -251,6 +251,91 @@ const UNCHANGED_REFINE_JSON = JSON.stringify({
   overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
 });
 
+function makeGenerateJson(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    role_name: 'test-employee',
+    model: 'deepseek/deepseek-v4-flash',
+    identity: 'You are a helpful assistant.',
+    execution_steps: 'Do the task.',
+    delivery_steps: null,
+    delivery_instructions: null,
+    deliverable_type: null,
+    risk_model: { approval_required: false, timeout_hours: 2 },
+    trigger_sources: { type: 'manual' },
+    tool_registry: { tools: ['/tools/platform/submit-output.ts'] },
+    concurrency_limit: 3,
+    vm_size: null,
+    worker_env: null,
+    platform_rules_override: null,
+    overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
+    ...overrides,
+  });
+}
+
+describe('postProcess() — tool_registry normalization (via generate())', () => {
+  it('converts bare "service/tool" paths to canonical /tools/service/tool.ts', async () => {
+    const json = makeGenerateJson({
+      tool_registry: { tools: ['slack/post-message', 'hostfully/get-messages'] },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.tool_registry.tools).toEqual([
+      '/tools/slack/post-message.ts',
+      '/tools/hostfully/get-messages.ts',
+    ]);
+  });
+
+  it('filters out non-string entries (objects)', async () => {
+    const rawTools = [
+      { name: 'slack/post-message' },
+      'slack/post-message',
+      '/tools/platform/submit-output.ts',
+    ];
+    const json = makeGenerateJson({ tool_registry: { tools: rawTools } });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.tool_registry.tools).toEqual([
+      '/tools/slack/post-message.ts',
+      '/tools/platform/submit-output.ts',
+    ]);
+  });
+
+  it('leaves already-canonical /tools/... paths unchanged', async () => {
+    const json = makeGenerateJson({
+      tool_registry: {
+        tools: ['/tools/platform/submit-output.ts', '/tools/slack/post-message.ts'],
+      },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.tool_registry.tools).toEqual([
+      '/tools/platform/submit-output.ts',
+      '/tools/slack/post-message.ts',
+    ]);
+  });
+
+  it('passes through unknown-format strings unchanged (validateTools will reject them)', async () => {
+    const json = makeGenerateJson({
+      tool_registry: { tools: ['some-unknown-tool-format'] },
+    });
+    const { fn } = makeRoutingMock([json]);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const result = await gen.generate('build a test employee');
+
+    expect(result.tool_registry.tools).toEqual(['some-unknown-tool-format']);
+  });
+});
+
 describe('refine() — no-change retry path', () => {
   it('retries with a nudge when the first result leaves all prose fields identical to input', async () => {
     const { fn, generationCalls } = makeRoutingMock([UNCHANGED_REFINE_JSON, VALID_REFINE_JSON]);

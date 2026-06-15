@@ -384,6 +384,21 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     }
   }
 
+  const toolRegistry = result.tool_registry as { tools: unknown[] } | null | undefined;
+  if (toolRegistry && Array.isArray(toolRegistry.tools)) {
+    toolRegistry.tools = toolRegistry.tools
+      .filter((t): t is string => typeof t === 'string')
+      .map((t) => {
+        if (t.startsWith('/tools/')) return t;
+        const parts = t.split('/');
+        if (parts.length === 2) {
+          const [service, tool] = parts;
+          return `/tools/${service}/${tool}.ts`;
+        }
+        return t;
+      });
+  }
+
   if (!result.role_name || typeof result.role_name !== 'string') {
     result.role_name = toKebabCase(description.split(' ').slice(0, 4).join(' '));
   } else {
