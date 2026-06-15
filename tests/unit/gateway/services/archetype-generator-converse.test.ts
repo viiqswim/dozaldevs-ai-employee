@@ -5,6 +5,7 @@ import {
   type GenerateArchetypeResponse,
   type ConverseMessage,
 } from '../../../../src/gateway/services/archetype-generator.js';
+import { buildConverseSystemPromptPre } from '../../../../src/gateway/services/prompts/archetype-generator-prompts.js';
 
 const ESTIMATOR_SYSTEM_PREFIX = 'You estimate manual task duration';
 
@@ -230,5 +231,139 @@ describe('converse() — token budget guard', () => {
 
     expect(result.kind).toBe('too_long');
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+function makeEmptyConfig(): GenerateArchetypeResponse {
+  return makeConfig({ role_name: '' });
+}
+
+function makeCapturingSystemPromptMock(converseResponse: string) {
+  const systemPrompts: string[] = [];
+  const fn = vi.fn(async (opts: { messages?: Array<{ role: string; content: string }> }) => {
+    const systemContent = opts.messages?.[0]?.content ?? '';
+    if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
+      return makeResult('5');
+    }
+    systemPrompts.push(systemContent);
+    return makeResult(converseResponse);
+  });
+  return { fn, systemPrompts };
+}
+
+describe('buildConverseSystemPromptPre() — isCreate=true (CREATE mode)', () => {
+  it('does NOT contain the role_name forbid clause', () => {
+    const prompt = buildConverseSystemPromptPre(true);
+    expect(prompt).not.toMatch(/decline.*role_name/i);
+    expect(prompt).not.toContain('role_name, vm_size');
+  });
+
+  it('DOES contain a slug-generation instruction for role_name', () => {
+    const prompt = buildConverseSystemPromptPre(true);
+    expect(prompt).toMatch(/kebab-case.*slug.*role_name/i);
+  });
+});
+
+describe('buildConverseSystemPromptPre() — isCreate=false (EDIT mode)', () => {
+  it('DOES contain the role_name forbid clause', () => {
+    const prompt = buildConverseSystemPromptPre(false);
+    expect(prompt).toContain('role_name, vm_size');
+  });
+
+  it('does NOT contain a slug-generation instruction', () => {
+    const prompt = buildConverseSystemPromptPre(false);
+    expect(prompt).not.toMatch(/Derive a kebab-case slug for role_name/i);
+  });
+});
+
+describe('converse() — CREATE vs EDIT role_name system prompt', () => {
+  it('CREATE mode (empty role_name): system prompt omits role_name forbid and includes slug instruction', async () => {
+    const { fn, systemPrompts } = makeCapturingSystemPromptMock(
+      JSON.stringify({ kind: 'no_change' }),
+    );
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    await gen.converse([{ role: 'user', content: 'Create a bot' }], makeEmptyConfig());
+
+    expect(systemPrompts.length).toBeGreaterThan(0);
+    expect(systemPrompts[0]).not.toContain('role_name, vm_size');
+    expect(systemPrompts[0]).toMatch(/kebab-case.*slug.*role_name/i);
+  });
+
+  it('EDIT mode (non-empty role_name): system prompt retains role_name in forbid clause', async () => {
+    const { fn, systemPrompts } = makeCapturingSystemPromptMock(
+      JSON.stringify({ kind: 'no_change' }),
+    );
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    await gen.converse([{ role: 'user', content: 'Change something' }], makeConfig());
+
+    expect(systemPrompts.length).toBeGreaterThan(0);
+    expect(systemPrompts[0]).toContain('role_name, vm_size');
+  });
+});
+
+describe('converse() — role_name derivation and fallback (CREATE path)', () => {
+  const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+  it('(a) derives non-empty kebab slug from transcript when model omits role_name', async () => {
+    const proposalResponse = JSON.stringify({
+      kind: 'proposal',
+      config: { ...makeConfig({ role_name: '' }), identity: 'You post standup summaries.' },
+    });
+    const fn = makeConverseRoutingMock(proposalResponse);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const transcript: ConverseMessage[] = [
+      { role: 'user', content: 'post a daily standup summary to slack' },
+    ];
+    const result = await gen.converse(transcript, makeEmptyConfig());
+
+    expect(result.kind).toBe('proposal');
+    if (result.kind === 'proposal') {
+      expect(result.proposal.role_name).toBeTruthy();
+      expect(result.proposal.role_name).toMatch(SLUG_REGEX);
+      expect(result.proposal.role_name.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('(b) falls back to deterministic slug when transcript contains only emoji/whitespace', async () => {
+    const proposalResponse = JSON.stringify({
+      kind: 'proposal',
+      config: { ...makeConfig({ role_name: '' }), identity: 'You do things.' },
+    });
+    const fn = makeConverseRoutingMock(proposalResponse);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const transcript: ConverseMessage[] = [{ role: 'user', content: '🎉 🎊' }];
+    const result = await gen.converse(transcript, makeEmptyConfig());
+
+    expect(result.kind).toBe('proposal');
+    if (result.kind === 'proposal') {
+      expect(result.proposal.role_name).toMatch(SLUG_REGEX);
+      expect(result.proposal.role_name.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('(c) uses kebab-normalized model role_name when the model emits one', async () => {
+    const proposalResponse = JSON.stringify({
+      kind: 'proposal',
+      config: {
+        ...makeConfig({ role_name: 'Daily Standup Bot' }),
+        identity: 'You post standup summaries.',
+      },
+    });
+    const fn = makeConverseRoutingMock(proposalResponse);
+    const gen = new ArchetypeGenerator(fn as unknown as typeof callLLM);
+
+    const transcript: ConverseMessage[] = [
+      { role: 'user', content: 'post a daily standup summary to slack' },
+    ];
+    const result = await gen.converse(transcript, makeEmptyConfig());
+
+    expect(result.kind).toBe('proposal');
+    if (result.kind === 'proposal') {
+      expect(result.proposal.role_name).toBe('daily-standup-bot');
+    }
   });
 });

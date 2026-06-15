@@ -14,7 +14,7 @@ import {
   SYSTEM_PROMPT_POST,
   REFINE_SYSTEM_PROMPT_PRE,
   REFINE_SYSTEM_PROMPT_POST,
-  CONVERSE_SYSTEM_PROMPT_PRE,
+  buildConverseSystemPromptPre,
   CONVERSE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
@@ -217,8 +217,10 @@ async function buildRefineSystemPrompt(
 async function buildConverseSystemPrompt(
   connectedToolkits: string[] = [],
   connectableToolkits: string[] = [],
+  isCreate: boolean = false,
 ): Promise<string> {
   const connectedAppsBlock = buildConnectedAppsBlock(connectedToolkits, connectableToolkits);
+  const promptPre = buildConverseSystemPromptPre(isCreate);
 
   try {
     const basePath = path.join(process.cwd(), 'src/worker-tools');
@@ -226,16 +228,10 @@ async function buildConverseSystemPrompt(
     const catalogSection = formatToolCatalog(tools);
     if (!catalogSection) {
       log.warn('discoverTools returned no tools — using base converse prompt without tool catalog');
-      return (
-        CONVERSE_SYSTEM_PROMPT_PRE +
-        '\n\n' +
-        connectedAppsBlock +
-        '\n\n' +
-        CONVERSE_SYSTEM_PROMPT_POST
-      );
+      return promptPre + '\n\n' + connectedAppsBlock + '\n\n' + CONVERSE_SYSTEM_PROMPT_POST;
     }
     return (
-      CONVERSE_SYSTEM_PROMPT_PRE +
+      promptPre +
       '\n\n' +
       connectedAppsBlock +
       '\n\n' +
@@ -248,13 +244,7 @@ async function buildConverseSystemPrompt(
       { err },
       'discoverTools failed — falling back to base converse prompt without tool catalog',
     );
-    return (
-      CONVERSE_SYSTEM_PROMPT_PRE +
-      '\n\n' +
-      connectedAppsBlock +
-      '\n\n' +
-      CONVERSE_SYSTEM_PROMPT_POST
-    );
+    return promptPre + '\n\n' + connectedAppsBlock + '\n\n' + CONVERSE_SYSTEM_PROMPT_POST;
   }
 }
 
@@ -427,9 +417,11 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
   }
 
   if (!result.role_name || typeof result.role_name !== 'string') {
-    result.role_name = toKebabCase(description.split(' ').slice(0, 4).join(' '));
+    const derived = toKebabCase(description.split(' ').slice(0, 4).join(' '));
+    result.role_name = derived || 'employee-' + Date.now().toString(36).slice(-4);
   } else {
-    result.role_name = toKebabCase(result.role_name as string);
+    const normalized = toKebabCase(result.role_name as string);
+    result.role_name = normalized || 'employee-' + Date.now().toString(36).slice(-4);
   }
 
   if (!result.overview || typeof result.overview !== 'object') {
@@ -854,9 +846,11 @@ export class ArchetypeGenerator {
     const assistantTurns = transcript.filter((m) => m.role === 'assistant').length;
     const backstopActive = assistantTurns >= 5;
 
+    const isCreate = !currentConfig.role_name;
     const systemPrompt = await buildConverseSystemPrompt(
       composioContext?.connectedToolkits ?? [],
       composioContext?.connectableToolkits ?? [],
+      isCreate,
     );
 
     const transcriptText = transcript.map((m) => `${m.role}: ${m.content}`).join('\n\n');
@@ -910,7 +904,13 @@ export class ArchetypeGenerator {
     }
 
     if (kind === 'proposal' && parsed.config !== null && typeof parsed.config === 'object') {
-      const processedConfig = postProcess(parsed.config, currentConfig.role_name);
+      const roleNameSource = currentConfig.role_name
+        ? currentConfig.role_name
+        : transcript
+            .filter((m) => m.role === 'user')
+            .map((m) => m.content)
+            .join(' ');
+      const processedConfig = postProcess(parsed.config, roleNameSource);
       await this.applyModelAndEstimate(processedConfig, catalog);
 
       const proseFields = ['identity', 'execution_steps', 'delivery_steps', 'overview'] as const;
