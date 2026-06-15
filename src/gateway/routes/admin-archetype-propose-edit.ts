@@ -187,8 +187,10 @@ export function adminArchetypeProposeEditRoutes(
         );
 
         if (!validation.ok) {
-          sendError(res, 422, 'PROPOSAL_INVALID', 'Some proposed changes could not be applied', {
-            errors: validation.errors,
+          const blankList = validation.fields.join(', ');
+          sendSuccess(res, 200, {
+            kind: 'question',
+            question: `The following fields would be cleared but currently have content: ${blankList}. Please refine your request so those fields remain populated.`,
           });
           return;
         }

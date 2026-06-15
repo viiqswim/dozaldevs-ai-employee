@@ -152,7 +152,7 @@ describe('validateProposalFields', () => {
     }
   });
 
-  it('rejects a tool that is not in the platform tool library', () => {
+  it('drops unknown tool silently and keeps ok:true (never-block)', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: 'Updated identity.',
@@ -163,15 +163,13 @@ describe('validateProposalFields', () => {
 
     const result = validateProposalFields(proposal, baseline, [], []);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].field).toContain('tool_registry');
-      expect(result.errors[0].reason).toContain('not available');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.validTools).not.toContain('/tools/nonexistent/fake-tool.ts');
     }
   });
 
-  it('rejects blanking a non-empty identity field', () => {
+  it('returns reAsk when blanking a non-empty identity field', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: '',
@@ -183,13 +181,12 @@ describe('validateProposalFields', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const identityError = result.errors.find((e) => e.field === 'identity');
-      expect(identityError).toBeDefined();
-      expect(identityError?.reason).toContain('blank');
+      expect(result.reAsk).toBe(true);
+      expect(result.fields).toContain('identity');
     }
   });
 
-  it('rejects blanking a non-empty execution_steps field', () => {
+  it('returns reAsk when blanking a non-empty execution_steps field', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: 'Valid identity.',
@@ -201,8 +198,8 @@ describe('validateProposalFields', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const stepsError = result.errors.find((e) => e.field === 'execution_steps');
-      expect(stepsError).toBeDefined();
+      expect(result.reAsk).toBe(true);
+      expect(result.fields).toContain('execution_steps');
     }
   });
 
@@ -220,7 +217,7 @@ describe('validateProposalFields', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejects a malformed trigger_sources (scheduled without cron)', () => {
+  it('coerces malformed trigger_sources to manual and keeps ok:true (never-block)', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: 'Valid identity.',
@@ -230,15 +227,10 @@ describe('validateProposalFields', () => {
 
     const result = validateProposalFields(proposal, baseline, [], []);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const triggerError = result.errors.find((e) => e.field === 'trigger_sources');
-      expect(triggerError).toBeDefined();
-      expect(triggerError?.reason).toContain('invalid');
-    }
+    expect(result.ok).toBe(true);
   });
 
-  it('rejects a malformed input_schema (invalid key format)', () => {
+  it('drops invalid input_schema items and keeps ok:true (never-block)', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: 'Valid identity.',
@@ -257,14 +249,10 @@ describe('validateProposalFields', () => {
 
     const result = validateProposalFields(proposal, baseline, [], []);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const inputError = result.errors.find((e) => e.field === 'input_schema');
-      expect(inputError).toBeDefined();
-    }
+    expect(result.ok).toBe(true);
   });
 
-  it('accumulates multiple errors', () => {
+  it('returns reAsk when multiple prose fields would go blank', () => {
     const baseline = makeBaseline();
     const proposal: StrippedProposal = {
       identity: '',
@@ -277,8 +265,9 @@ describe('validateProposalFields', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errors.length).toBeGreaterThanOrEqual(3);
-      expect(result.reason).toContain('identity');
+      expect(result.reAsk).toBe(true);
+      expect(result.fields).toContain('identity');
+      expect(result.fields).toContain('execution_steps');
     }
   });
 
@@ -334,6 +323,71 @@ describe('validateProposalFields', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.validTools).toEqual([]);
+    }
+  });
+
+  it('tool drop keeps ok:true and drops bogus tool from validTools', () => {
+    const baseline = makeBaseline();
+    const proposal: StrippedProposal = {
+      identity: 'Updated identity.',
+      execution_steps: 'Updated steps.',
+      tool_registry: { tools: [VALID_TOOL, '/tools/bogus/does-not-exist.ts'] },
+      trigger_sources: { type: 'manual' },
+    };
+
+    const result = validateProposalFields(proposal, baseline, [], []);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.validTools).toEqual([VALID_TOOL]);
+      expect(result.validTools).not.toContain('/tools/bogus/does-not-exist.ts');
+    }
+  });
+
+  it('bad trigger coerced to manual — ok:true', () => {
+    const baseline = makeBaseline();
+    const proposal: StrippedProposal = {
+      identity: 'Valid identity.',
+      execution_steps: 'Valid steps.',
+      trigger_sources: { type: 'scheduled' } as never,
+    };
+
+    const result = validateProposalFields(proposal, baseline, [], []);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('partial input_schema salvaged — valid item kept, invalid item dropped, ok:true', () => {
+    const baseline = makeBaseline();
+    const proposal: StrippedProposal = {
+      identity: 'Valid identity.',
+      execution_steps: 'Valid steps.',
+      trigger_sources: { type: 'manual' },
+      input_schema: [
+        { key: 'good_key', label: 'Good', type: 'text', frequency: 'once', required: true },
+        { key: 'INVALID KEY', label: 'Bad', type: 'text', frequency: 'once', required: true },
+      ],
+    };
+
+    const result = validateProposalFields(proposal, baseline, [], []);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('prose-blank on EDIT returns reAsk variant not a 422 error', () => {
+    const baseline = makeBaseline();
+    const proposal: StrippedProposal = {
+      identity: '',
+      execution_steps: 'Updated steps.',
+      trigger_sources: { type: 'manual' },
+    };
+
+    const result = validateProposalFields(proposal, baseline, [], []);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reAsk).toBe(true);
+      expect(result.fields).toContain('identity');
     }
   });
 });

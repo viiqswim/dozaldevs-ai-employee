@@ -2,27 +2,9 @@ import { useState } from 'react';
 import type { ConverseMessage, ConverseResponse } from '@/lib/types';
 
 const PROPOSAL_ERROR_FALLBACK =
-  "I couldn't turn that into a change just now — the request may have been too complex to process. Try rephrasing it a bit, or breaking it into smaller changes.";
+  'Something went wrong on our end. Please try again in a moment, or start a new session if the problem continues.';
 
-function getProposalErrorMessage(err: unknown): string {
-  if (!(err instanceof Error)) return PROPOSAL_ERROR_FALLBACK;
-
-  // gatewayFetch error format: "Gateway error <status> on <path>: <body>"
-  const bodyMatch = /Gateway error \d+ on [^:]+: (.*)$/s.exec(err.message);
-  if (bodyMatch) {
-    try {
-      const parsed = JSON.parse(bodyMatch[1]) as Record<string, unknown>;
-      if (parsed.reasons && typeof parsed.reasons === 'object' && !Array.isArray(parsed.reasons)) {
-        const reasons = Object.entries(parsed.reasons as Record<string, string>)
-          .map(([field, reason]) => `• ${field}: ${reason}`)
-          .join('\n');
-        if (reasons) return `I wasn't able to make that change:\n${reasons}`;
-      }
-    } catch {
-      // JSON parse error from gateway body — fall through to friendly fallback
-    }
-  }
-
+function getProposalErrorMessage(_err: unknown): string {
   return PROPOSAL_ERROR_FALLBACK;
 }
 

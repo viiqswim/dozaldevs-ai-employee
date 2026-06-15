@@ -16,6 +16,7 @@ import { recommendModels } from '../../lib/model-selection/matcher.js';
 import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
 import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
+import { resolveToolPaths } from '../lib/archetype-edit-helpers.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -66,6 +67,7 @@ const PatchArchetypeBodySchema = z
     delivery_steps: z.string().nullable().optional(),
     temperature: z.number().min(0).max(2).optional(),
     platform_rules_override: z.string().nullable().optional(),
+    enforce_tool_registry: z.boolean().optional(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {
@@ -365,8 +367,30 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           input_schema,
           worker_env,
           instructions,
+          enforce_tool_registry,
           ...rest
         } = bodyResult.data;
+
+        // Pre-enforcement gate: flipping enforce_tool_registry false→true requires
+        // all tool paths to resolve against the real tool library.
+        if (enforce_tool_registry === true && !existing.enforce_tool_registry) {
+          const existingTools = ((existing.tool_registry as Record<string, unknown> | null)
+            ?.tools ?? []) as string[];
+          const toolsToCheck =
+            tool_registry !== undefined && tool_registry !== null
+              ? tool_registry.tools
+              : existingTools;
+          const { resolved, dropped } = resolveToolPaths(toolsToCheck);
+          if (resolved.length === 0 || dropped.length > 0) {
+            sendError(
+              res,
+              400,
+              'ENFORCE_REGISTRY_INVALID',
+              "This employee's tools couldn't be verified, so strict tool mode can't be turned on yet. Please update the tool list to use only supported tools.",
+            );
+            return;
+          }
+        }
 
         if (status === 'active') {
           const conflict = await prisma.archetype.findFirst({
@@ -415,6 +439,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
               worker_env:
                 worker_env === null ? Prisma.JsonNull : (worker_env as Prisma.InputJsonValue),
             }),
+            ...(enforce_tool_registry !== undefined && { enforce_tool_registry }),
           },
         });
 

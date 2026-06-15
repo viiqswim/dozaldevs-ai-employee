@@ -304,7 +304,7 @@ describe('POST /admin/tenants/:tenantId/archetypes/converse-create', () => {
     expect(res.body.error).toBe('INVALID_REQUEST');
   });
 
-  it('422 — proposal with unavailable tool rejected', async () => {
+  it('unknown tool dropped silently — proposal returns 200 (not 422)', async () => {
     const prisma = makePrisma();
     mockConverse.mockResolvedValue({
       kind: 'proposal',
@@ -317,10 +317,8 @@ describe('POST /admin/tenants/:tenantId/archetypes/converse-create', () => {
       .post(`/admin/tenants/${TENANT}/archetypes/converse-create`)
       .send({ transcript: TRANSCRIPT });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error).toBe('PROPOSAL_INVALID');
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.reason.includes('/tools/nonexistent/tool.ts'))).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
   });
 
   it('400 — invalid tenantId returns 400', async () => {

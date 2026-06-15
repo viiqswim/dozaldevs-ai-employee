@@ -219,7 +219,7 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     expect(proposal).toHaveProperty('tool_registry');
   });
 
-  it('422 — proposal kind: blanking non-empty execution_steps rejected as PROPOSAL_INVALID', async () => {
+  it('prose-blank returns question kind (not 422) when execution_steps would go blank', async () => {
     const prisma = makePrisma();
     mockConverse.mockResolvedValue({
       kind: 'proposal',
@@ -233,13 +233,12 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
       .send({ transcript: TRANSCRIPT });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error).toBe('PROPOSAL_INVALID');
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.field === 'execution_steps')).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('question');
+    expect(res.body.question).toContain('execution_steps');
   });
 
-  it('422 — proposal kind: unavailable tool rejected with PROPOSAL_INVALID', async () => {
+  it('unknown tool dropped silently — proposal returns 200 (not 422)', async () => {
     const prisma = makePrisma();
     mockConverse.mockResolvedValue({
       kind: 'proposal',
@@ -253,10 +252,8 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
       .send({ transcript: TRANSCRIPT });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error).toBe('PROPOSAL_INVALID');
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.reason.includes('/tools/nonexistent/tool.ts'))).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
   });
 
   it('200 — proposal kind: approval_required true→false sets approval_warning', async () => {
@@ -377,7 +374,7 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
     });
   });
 
-  it('422 — invalid trigger_sources rejected with PROPOSAL_INVALID', async () => {
+  it('invalid trigger_sources coerced silently — proposal returns 200 (not 422)', async () => {
     const prisma = makePrisma(makeArchetype({ trigger_sources: { type: 'manual' } }));
     mockConverse.mockResolvedValue({
       kind: 'proposal',
@@ -391,9 +388,8 @@ describe('POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit', (
       .post(`/admin/tenants/${TENANT}/archetypes/${ARCHETYPE_ID}/propose-edit`)
       .send({ transcript: TRANSCRIPT });
 
-    expect(res.status).toBe(422);
-    const errors = res.body.errors as Array<{ field: string; reason: string }>;
-    expect(errors.some((e) => e.field === 'trigger_sources')).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body.kind).toBe('proposal');
   });
 
   it('200 — proposal kind: risk_model in response contains only approval_required', async () => {

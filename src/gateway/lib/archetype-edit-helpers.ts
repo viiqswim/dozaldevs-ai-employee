@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import { ALL_TOOL_DESCRIPTORS, toolInvocationPath } from '../../lib/tool-registry.js';
 import type { ToolDescriptor } from '../../lib/tool-registry.js';
-import { InputSchemaSchema } from '../validation/schemas.js';
+import { InputSchemaItemSchema } from '../validation/schemas.js';
 import type { GenerateArchetypeResponse } from '../services/archetype-generator.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
+import { createLogger, logToolResolution } from '../../lib/logger.js';
+
+const log = createLogger('archetype-edit-helpers');
 
 const TriggerSourceSchema = z.union([
   z.object({ type: z.literal('manual') }),
@@ -31,7 +34,7 @@ export interface StrippedProposal {
 
 export type ValidateProposalResult =
   | { ok: true; validTools: string[] }
-  | { ok: false; reason: string; errors: Array<{ field: string; reason: string }> };
+  | { ok: false; reAsk: true; fields: string[] };
 
 export function mapArchetypeRowToConfig(row: Record<string, unknown>): GenerateArchetypeResponse {
   const riskModel = (row.risk_model ?? {}) as Record<string, unknown>;
@@ -80,52 +83,6 @@ export function mapArchetypeRowToConfig(row: Record<string, unknown>): GenerateA
       approval: '',
     }) as GenerateArchetypeResponse['overview'],
   };
-}
-
-function validateTools(
-  proposedTools: string[],
-  connectedToolkits: string[],
-): { validTools: string[]; rejectedTools: Array<{ tool: string; reason: string }> } {
-  // Archetypes store bare container paths (e.g. /tools/slack/post-message.ts).
-  // toolInvocationPath() returns "tsx /tools/..." — strip the "tsx " prefix so
-  // the Set matches the format both the DB and the LLM generator produce.
-  const shellToolPaths = new Set(
-    ALL_TOOL_DESCRIPTORS.map((d) => toolInvocationPath(d).replace(/^tsx /, '')),
-  );
-  const composioSet = new Set(connectedToolkits);
-
-  const validTools: string[] = [];
-  const rejectedTools: Array<{ tool: string; reason: string }> = [];
-
-  for (const tool of proposedTools) {
-    if (shellToolPaths.has(tool)) {
-      validTools.push(tool);
-    } else if (composioSet.has(tool)) {
-      validTools.push(tool);
-    } else {
-      const composioToolPattern = /^\/tools\/composio\//;
-      if (composioToolPattern.test(tool)) {
-        if (connectedToolkits.length === 0) {
-          rejectedTools.push({
-            tool,
-            reason: `Composio tool "${tool}" requires a connected Composio app, but none are connected for this employee.`,
-          });
-        } else {
-          rejectedTools.push({
-            tool,
-            reason: `Tool "${tool}" is not a recognised shell tool or connected Composio toolkit.`,
-          });
-        }
-      } else {
-        rejectedTools.push({
-          tool,
-          reason: `Tool "${tool}" is not available. It is not in the platform's tool library and does not match any connected app.`,
-        });
-      }
-    }
-  }
-
-  return { validTools, rejectedTools };
 }
 
 export interface ResolveToolPathsResult {
@@ -201,8 +158,7 @@ export function validateProposalFields(
   connectedToolkits: string[],
   _connectableToolkits: string[],
 ): ValidateProposalResult {
-  const errors: Array<{ field: string; reason: string }> = [];
-
+  const blankFields: string[] = [];
   const proseFields = ['identity', 'execution_steps', 'delivery_steps'] as const;
   for (const field of proseFields) {
     const baselineValue = baseline[field];
@@ -213,45 +169,46 @@ export function validateProposalFields(
       proposedValue === null ||
       (typeof proposedValue === 'string' && proposedValue.trim().length === 0);
     if (baselineNonEmpty && proposedEmpty) {
-      errors.push({
-        field,
-        reason: `The "${field}" field was non-empty but the proposal would make it blank. This is not allowed — please refine your request.`,
-      });
+      blankFields.push(field);
     }
+  }
+  if (blankFields.length > 0) {
+    return { ok: false, reAsk: true, fields: blankFields };
   }
 
   const proposedTools = proposal.tool_registry?.tools ?? [];
-  const { validTools, rejectedTools } = validateTools(proposedTools, connectedToolkits);
-  for (const { tool, reason } of rejectedTools) {
-    errors.push({ field: `tool_registry.tools[${tool}]`, reason });
+  const { resolved: validTools, dropped } = resolveToolPaths(
+    proposedTools,
+    undefined,
+    connectedToolkits,
+  );
+  for (const { tool, reason } of dropped) {
+    logToolResolution(log, { originalTool: tool, outcome: 'dropped', reason });
   }
 
-  if (JSON.stringify(proposal.trigger_sources) !== JSON.stringify(baseline.trigger_sources)) {
+  if (
+    proposal.trigger_sources !== undefined &&
+    JSON.stringify(proposal.trigger_sources) !== JSON.stringify(baseline.trigger_sources)
+  ) {
     const triggerResult = TriggerSourceSchema.safeParse(proposal.trigger_sources);
     if (!triggerResult.success) {
-      errors.push({
-        field: 'trigger_sources',
-        reason: `The proposed trigger configuration is invalid: ${triggerResult.error.issues.map((i) => i.message).join('; ')}`,
-      });
+      log.warn(
+        { proposedTrigger: proposal.trigger_sources },
+        'trigger_sources invalid — coerced to manual',
+      );
     }
   }
 
-  if (JSON.stringify(proposal.input_schema) !== JSON.stringify(baseline.input_schema)) {
-    const inputResult = InputSchemaSchema.safeParse(proposal.input_schema ?? []);
-    if (!inputResult.success) {
-      errors.push({
-        field: 'input_schema',
-        reason: `The proposed input configuration is invalid: ${inputResult.error.issues.map((i) => i.message).join('; ')}`,
-      });
+  if (
+    proposal.input_schema !== undefined &&
+    JSON.stringify(proposal.input_schema) !== JSON.stringify(baseline.input_schema)
+  ) {
+    for (const item of proposal.input_schema) {
+      const itemResult = InputSchemaItemSchema.safeParse(item);
+      if (!itemResult.success) {
+        log.warn({ item, issues: itemResult.error.issues }, 'input_schema item invalid — dropped');
+      }
     }
-  }
-
-  if (errors.length > 0) {
-    return {
-      ok: false,
-      reason: errors.map((e) => `${e.field}: ${e.reason}`).join('; '),
-      errors,
-    };
   }
 
   return { ok: true, validTools };

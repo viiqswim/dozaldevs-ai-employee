@@ -145,7 +145,7 @@ describe('AssistantTab', () => {
     await submitMessage('add a new tool');
 
     await waitFor(() => {
-      expect(screen.getByText(/couldn't turn that into a change/i)).toBeInTheDocument();
+      expect(screen.getByText(/something went wrong on our end/i)).toBeInTheDocument();
     });
   });
 

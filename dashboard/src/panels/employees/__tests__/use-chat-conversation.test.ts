@@ -157,6 +157,48 @@ describe('useChatConversation — injected converseFn', () => {
     expect(result.current.hasPendingProposal).toBe(false);
   });
 
+  it('thrown error with JSON errors body renders calm plain-English fallback — no JSON/errors in text', async () => {
+    const converseFn = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          'Gateway error 422 on /converse-create: {"errors":[{"field":"tools","reason":"bad"}]}',
+        ),
+      );
+
+    const { result } = renderHook(() => useChatConversation(converseFn));
+
+    await act(async () => {
+      await result.current.submit('make it better');
+    });
+
+    expect(result.current.messages).toHaveLength(2);
+    const assistantMsg = result.current.messages[1];
+    expect(assistantMsg.role).toBe('assistant');
+    expect(assistantMsg.kind).toBe('text');
+    expect(assistantMsg.text).toBeDefined();
+    expect(assistantMsg.text).not.toContain('"errors"');
+    expect(assistantMsg.text).not.toContain('{"');
+    expect(assistantMsg.text).not.toContain('422');
+    expect(assistantMsg.text).not.toContain('too complex to process');
+  });
+
+  it('thrown network error renders calm plain-English fallback', async () => {
+    const converseFn = vi.fn().mockRejectedValue(new Error('Network request failed'));
+
+    const { result } = renderHook(() => useChatConversation(converseFn));
+
+    await act(async () => {
+      await result.current.submit('do something');
+    });
+
+    const assistantMsg = result.current.messages[1];
+    expect(assistantMsg.role).toBe('assistant');
+    expect(assistantMsg.text).toBeDefined();
+    expect(assistantMsg.text).not.toContain('too complex to process');
+    expect(assistantMsg.text!.length).toBeGreaterThan(10);
+  });
+
   it('markProposalActed sets hasPendingProposal to false', async () => {
     const converseFn = makeConverseFn({
       kind: 'proposal',

@@ -161,7 +161,7 @@ describe('CreateEmployeePage — describe step with converseCreate', () => {
     await describeAndGenerate();
 
     await waitFor(() => {
-      expect(screen.getByText(/couldn't turn that into a change/i)).toBeInTheDocument();
+      expect(screen.getByText(/something went wrong on our end/i)).toBeInTheDocument();
     });
 
     expect(screen.queryByText(/Gateway error/i)).not.toBeInTheDocument();
