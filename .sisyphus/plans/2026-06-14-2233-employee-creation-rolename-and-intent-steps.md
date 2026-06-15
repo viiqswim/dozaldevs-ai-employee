@@ -619,19 +619,19 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read plan end-to-end. Each "Must Have": verify implementation exists (read file, curl, run test). Each "Must NOT Have": grep codebase for forbidden patterns (deleted EDIT forbid-line, modified EXECUTION_PROMPT, removed postProcess normalization, dropped `$ENV` placeholders, abstracted refine/edit path) — reject with file:line if found. Confirm evidence files exist in `.sisyphus/evidence/`. If the spike (T4) failed and Wave 2 was cancelled, verify Wave 1 still fully shipped and the negative result is documented.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Spike [PASS/FAIL/cancelled-correctly] | VERDICT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` (tsc) + `pnpm lint` + `pnpm test:unit` + dashboard tsc. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log, AI slop. Confirm the conditional forbid is baseline-aware (not a blanket delete) and shared helpers are reused.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA + Live E2E** — `unspecified-high` (+ `playwright`, `e2e-testing`, `employee-creation-debugging`)
+- [x] F3. **Real Manual QA + Live E2E** — `unspecified-high` (+ `playwright`, `e2e-testing`, `employee-creation-debugging`)
       From clean state: (a) curl converse-create on a clear description → assert role_name slug; (b) browser save-draft → 201; (c) IF spike passed: full live E2E on deepseek-flash generate→save→trigger→`Done`, capture task_id + task_status_log + proof of Slack delivery + non-empty `--draft-file`. Save to `.sisyphus/evidence/final-qa/`.
       Output: `Scenarios [N/N] | Live E2E [task_id reached Done Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity + Boundary Audit** — `deep`
+- [x] F4. **Scope Fidelity + Boundary Audit** — `deep`
       For each task: read "What to do" + actual diff (git diff). Verify 1:1 — nothing missing, nothing beyond spec. **Boundary audit**: confirm GENERATE + create-converse are abstracted but `refine()` and edit-converse on EXISTING archetypes are NOT; confirm code-employee block excluded; confirm `tool_registry` paths + `$ENV` placeholders preserved; confirm EDIT role_name forbid intact. Confirm role_name fix uses BOTH Fix A and Fix B. Detect cross-task contamination.
       Output: `Tasks [N/N] | Boundary [CLEAN/N drift] | role_name [A+B+fallback Y/N] | VERDICT`
 
