@@ -419,7 +419,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 2
 
-- [ ] 7. Live generate E2E + trace verification (Wave 1 gate)
+- [x] 7. Live generate E2E + trace verification (Wave 1 gate)
 
   **What to do**:
   - With services running, POST to the real generate endpoint against the default `gateway_llm_model` (deepseek-v4-flash). Assert HTTP 200 and a body with non-empty `identity` and `execution_steps`.
@@ -463,7 +463,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: NO (verification only)
 
-- [ ] 8. Creation converse endpoint (clarify-then-act, server)
+- [x] 8. Creation converse endpoint (clarify-then-act, server)
 
   **What to do**:
   - Add a server path that runs the converse-style clarify flow for CREATION (no existing archetype). It MUST call the **same `ArchetypeGenerator.converse()` method** that `propose-edit` calls — do NOT write a second converse implementation. The discriminated result contract stays identical: `{ kind:'question' }` | `{ kind:'proposal' }` | `{ kind:'no_change' }` | `{ kind:'too_long' }`.
@@ -516,7 +516,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 3-4
 
-- [ ] 9. Generalize the chat hook + wizard single-textbox entry with conditional chat escalation
+- [x] 9. Generalize the chat hook + wizard single-textbox entry with conditional chat escalation
 
   **What to do**:
   - **Generalize the existing chat hook FIRST.** The assistant tab's `useChatConversation` currently hardcodes the edit converse caller (`converseEdit`) and requires an `archetypeId`. Refactor it so the converse caller is INJECTED (a function the consumer passes in) and `archetypeId` is optional. The hook keeps owning the full ask→answer→propose state machine, transcript, the four `kind` branches, and friendly error parsing — written ONCE.
@@ -585,7 +585,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 3-4
 
-- [ ] 10. Backstop + ambiguity tests
+- [x] 10. Backstop + ambiguity tests
 
   **What to do**:
   - Verify the 5-question backstop forces a proposal (no infinite questioning) for the creation path, and the `too_long` token guard returns gracefully.
@@ -616,7 +616,7 @@ Critical Path: T1 → T2 → T3 → T8 → T9 → T11 → F1–F4 → user okay
 
   **Commit**: groups with Wave 3-4
 
-- [ ] 11. Clarify-flow live E2E (ambiguous → question → create)
+- [x] 11. Clarify-flow live E2E (ambiguous → question → create)
 
   **What to do**:
   - Live browser E2E: from `/dashboard/employees`, click New Employee (asserting tenant in URL from Task 6), type the ambiguous prompt `"summarize all my Slack channels"`, confirm the wizard asks at least one clarifying question, answer it, and confirm a valid employee proposal is produced and saved as draft.
