@@ -176,12 +176,12 @@ Fix #4 from the debugging session — `submit-output` env-var documentation drif
 
 ## Final Checklist (do not check until user okay)
 
-- [ ] #3 zombie path routes to Failed with visible reason + ❌ notify + Slack explanation; legitimate approval path intact
-- [ ] (A) worker posts graceful "no channel access" message and exits cleanly
-- [ ] #2 plain channel names work end-to-end; no channel IDs / env vars exposed to users
-- [ ] SOURCE_CHANNELS fully removed (env-loader, brain-preview, schema, prompts, seed, AGENTS.md)
-- [ ] NOTIFICATION_CHANNEL + PUBLISH_CHANNEL untouched
-- [ ] All tests green; lint clean; build clean; golden fixtures regenerated
-- [ ] Live E2E for #2 (happy + no-access) and #3 reached expected terminal states
-- [ ] AGENTS.md + skills updated; no unrelated Composio churn committed
-- [ ] F1–F4 review wave all APPROVE
+- [x] #3 zombie path routes to Failed with visible reason + ❌ notify + Slack explanation; legitimate approval path intact
+- [x] (A) worker posts graceful "no channel access" message and exits cleanly
+- [x] #2 plain channel names work end-to-end; no channel IDs / env vars exposed to users
+- [x] SOURCE_CHANNELS fully removed (env-loader, brain-preview, schema, prompts, seed, AGENTS.md)
+- [x] NOTIFICATION_CHANNEL + PUBLISH_CHANNEL untouched
+- [x] All tests green; lint clean; build clean; golden fixtures regenerated
+- [x] Live E2E for #2 (happy + no-access) and #3 reached expected terminal states
+- [x] AGENTS.md + skills updated; no unrelated Composio churn committed
+- [x] F1–F4 review wave all APPROVE
