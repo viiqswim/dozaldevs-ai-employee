@@ -577,7 +577,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: NO (verification only)
 
-- [ ] 10. Documentation updates
+- [x] 10. Documentation updates
 
   **What to do**:
   - Update AGENTS.md: (a) the role_name CREATE-path behavior (converse-create derives a kebab slug; editable field); (b) IF spike passed, the intent-level-steps convention (generated steps are intent-level prose; runtime skills supply CLI; `$ENV` placeholders + submit-output closer preserved; existing/refine paths NOT abstracted).
@@ -611,7 +611,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: `docs: role_name create-path behavior + intent-level steps convention`
 
-- [ ] 11. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 11. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
