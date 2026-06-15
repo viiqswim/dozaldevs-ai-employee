@@ -251,3 +251,34 @@ The pre-existing file convention is single-line `// Invariant under guard: ...` 
 - `pnpm test:unit -- --run` (positional path arg does NOT filter — it runs the whole suite; that's the required full-suite check anyway). 171 files, 2025 passed, 0 fail.
 - LSP unavailable (typescript-language-server not in .tool-versions) — vitest tsx transform is authoritative type check; clean collection across all 171 files = type-clean.
 - Evidence: `.sisyphus/evidence/task-7-cross-domain.txt`
+
+## Task 8 — Abstraction-boundary lock tests (2026-06-15)
+
+### What was added (test-only; no source edits)
+
+Extended `tests/unit/gateway/services/archetype-generator-prompts.test.ts` (T7 left it at 48 tests / 442 lines) with 3 describe blocks / 12 tests -> 60 tests in this file. Suite: 2025 -> **2037 passed | 9 skipped | 0 failed**. Import extended with `type GenerateArchetypeResponse`.
+
+### The 3 boundaries (all PASS with no source change — T5 scoped abstraction correctly)
+
+1. **refine() preserves CLI** (4 tests): refine() -> `postProcess(parsed, role_name)` -> `applyModelAndEstimate`. postProcess (l.353-356) only STRING-COERCES execution_steps; it NEVER strips `tsx /tools/`. So a CLI config round-trips CLI-shaped. This is the BEHAVIOR test (T6 only did the prompt-CONTENT test on REFINE_SYSTEM_PROMPT_PRE).
+2. **Code-employee block NOT abstracted** (5 tests): `SYSTEM_PROMPT_PRE.split('## Code-Writing Employees')[1].split('## Environment Variables')[0]` isolates source lines 148-169. Still has `tsx /tools/github/get-token.ts`, `tsx /tools/platform/submit-output.ts`, `git clone`, and matches CLI_PATTERN.
+3. **buildConverseSystemPromptPre(false) EDIT** (3 tests): keeps "Politely decline ... role_name" forbid (source l.320); excludes "Derive a kebab-case slug" (CREATE-only, l.319). Added the inverse CREATE assertion too.
+
+### CRITICAL GOTCHA — refine() proseUnchanged nudge-retry (NEW finding)
+
+`refine()` (archetype-generator.ts:805-826) has a guard: if ALL of {identity, execution_steps, delivery_steps} `JSON.stringify`-equal the input previousConfig, it logs a warn and fires a SECOND LLM call with a nudge. If your mock returns ONE response and the prose happens to equal the input, the second call returns the SAME response (vi.fn) and the test still passes — BUT to make a clean single-call behavior test, the mock REFINED_CLI_JSON must DIFFER from `makeRefineConfig()`'s execution_steps + identity. I changed identity ("original" -> "refined assistant") and execution_steps (added $SOURCE_CHANNELS + draft + submit). delivery_steps null==null is fine since the OTHER two differ (guard uses `.every`, so any one differing => false => no retry).
+
+### refine() mock pattern (reuses T6/T7 helpers — zero new helpers)
+
+`makeGenerateLLMWithStubbedEstimator(json)` + `makeGenerationRepo()` already in-file. `new ArchetypeGenerator(fn as unknown as typeof callLLM, makeGenerationRepo() as never)` then `await gen.refine(makeRefineConfig(), 'make the summary shorter')`. Added ONE new local helper `makeRefineConfig(overrides)` — a full `GenerateArchetypeResponse` with CLI-style execution_steps (deepseek model so no catalog recommendation path; catalog arg omitted => applyModelAndEstimate skips recommend, only runs estimator which is stubbed to '15').
+
+### Source-string verification before asserting (avoid self-inflicted RED)
+
+My first draft asserted `.toContain('Code-Writing Employees content boundary check')` — a string that does NOT exist in source. Always grep the SOURCE for the literal before writing `.toContain`. Fixed to `'GitHub PRs'` (real, source l.150 "creating GitHub PRs"). The `.toMatch(CLI_PATTERN)` + specific-CLI `.toContain` are the load-bearing asserts; the block-existence check is just a guard that the split() anchors still resolve.
+
+### Verification
+
+- `pnpm test:unit -- --run`: 171 files, 2037 passed | 9 skipped | 0 fail, exit 0.
+- Per-file `npx vitest run <file> --reporter=verbose` confirms all 12 "BOUNDARY —" tests print ✓ (not skipped). Full-suite `--run` does NOT print describe names unless a test fails — use the per-file verbose run to prove new tests executed.
+- Pre-existing unrelated LSP error in vitest.config.ts (coverage key) — untouched (same as T6/T7).
+- Evidence: `.sisyphus/evidence/task-8-boundary.txt`

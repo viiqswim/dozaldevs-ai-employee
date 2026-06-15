@@ -502,7 +502,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: groups with Wave 2-3
 
-- [ ] 8. Boundary tests (edit/refine NOT abstracted; code-employee excluded)
+- [x] 8. Boundary tests (edit/refine NOT abstracted; code-employee excluded)
 
   **What to do** (ONLY IF Task 4 spike PASSED):
   - Lock the boundary: tests asserting that (a) `refine()` on an existing CLI-style config does NOT rewrite its steps to intent-level (existing untouched); (b) the EDIT branch of converse (non-empty baseline) does NOT abstract steps; (c) a code-writing employee description still yields procedural git/gh steps (excluded from abstraction) OR is explicitly carved out.

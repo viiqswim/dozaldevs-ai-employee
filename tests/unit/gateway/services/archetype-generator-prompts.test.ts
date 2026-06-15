@@ -6,7 +6,10 @@ import {
   buildConverseSystemPromptPre,
 } from '../../../../src/gateway/services/prompts/archetype-generator-prompts.js';
 import type { callLLM } from '../../../../src/lib/call-llm.js';
-import { ArchetypeGenerator } from '../../../../src/gateway/services/archetype-generator.js';
+import {
+  ArchetypeGenerator,
+  type GenerateArchetypeResponse,
+} from '../../../../src/gateway/services/archetype-generator.js';
 
 const INTENT_CLOSER =
   'Finally, submit your completed summary for review so it can be delivered to the team.';
@@ -438,5 +441,148 @@ describe('generate() — instructions alias mirrors execution_steps (backward-co
     expect(result.instructions).toBe(result.execution_steps);
     expect(result.instructions).not.toContain('STALE');
     expect(result.instructions).toContain(INTENT_CLOSER);
+  });
+});
+
+function makeRefineConfig(
+  overrides: Partial<GenerateArchetypeResponse> = {},
+): GenerateArchetypeResponse {
+  return {
+    role_name: 'cli-refine-employee',
+    model: 'deepseek/deepseek-v4-flash',
+    runtime: 'opencode',
+    identity: 'You are the original assistant.',
+    execution_steps:
+      '1. Read the channel messages using `tsx /tools/slack/read-channels.ts`.\n2. Post a long summary.',
+    delivery_steps: null,
+    delivery_instructions: null,
+    instructions:
+      '1. Read the channel messages using `tsx /tools/slack/read-channels.ts`.\n2. Post a long summary.',
+    deliverable_type: 'slack_message',
+    risk_model: { approval_required: true, timeout_hours: 24 },
+    trigger_sources: { type: 'manual' },
+    tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/platform/submit-output.ts'] },
+    concurrency_limit: 3,
+    vm_size: null,
+    worker_env: null,
+    platform_rules_override: null,
+    estimated_manual_minutes: null,
+    overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
+    ...overrides,
+  } as GenerateArchetypeResponse;
+}
+
+describe('BOUNDARY — refine() preserves CLI-style execution_steps (intent rewrite is NOT applied here)', () => {
+  // Invariant under guard: refine() runs the CLI-level prompt; postProcess never strips tsx /tools/, so CLI survives the round-trip (refined steps differ from input to skip the proseUnchanged nudge-retry).
+  const REFINED_CLI_JSON = JSON.stringify({
+    role_name: 'cli-refine-employee',
+    identity: 'You are the refined assistant.',
+    execution_steps:
+      '1. Read the recent channel messages: `tsx /tools/slack/read-channels.ts --channels "$SOURCE_CHANNELS"`.\n' +
+      '2. Write the SHORTER summary to /tmp/draft.txt.\n' +
+      '3. Submit: `tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL" --draft-file /tmp/draft.txt`.',
+    delivery_steps: null,
+    delivery_instructions: null,
+    instructions: 'STALE — postProcess overwrites this from execution_steps',
+    deliverable_type: 'slack_message',
+    tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/platform/submit-output.ts'] },
+    temperature: 1.0,
+    overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
+  });
+
+  it('does NOT rewrite tsx /tools/ execution_steps to intent-level — CLI survives the refine round-trip', async () => {
+    const fn = makeGenerateLLMWithStubbedEstimator(REFINED_CLI_JSON);
+    const gen = new ArchetypeGenerator(
+      fn as unknown as typeof callLLM,
+      makeGenerationRepo() as never,
+    );
+
+    const result = await gen.refine(makeRefineConfig(), 'make the summary shorter');
+
+    expect(result.execution_steps).toMatch(CLI_PATTERN);
+  });
+
+  it('preserves the explicit tsx /tools/slack/read-channels.ts CLI command verbatim', async () => {
+    const fn = makeGenerateLLMWithStubbedEstimator(REFINED_CLI_JSON);
+    const gen = new ArchetypeGenerator(
+      fn as unknown as typeof callLLM,
+      makeGenerationRepo() as never,
+    );
+
+    const result = await gen.refine(makeRefineConfig(), 'make the summary shorter');
+
+    expect(result.execution_steps).toContain('tsx /tools/slack/read-channels.ts');
+  });
+
+  it('preserves the explicit tsx /tools/platform/submit-output.ts FINAL STEP CLI in the refined steps', async () => {
+    const fn = makeGenerateLLMWithStubbedEstimator(REFINED_CLI_JSON);
+    const gen = new ArchetypeGenerator(
+      fn as unknown as typeof callLLM,
+      makeGenerationRepo() as never,
+    );
+
+    const result = await gen.refine(makeRefineConfig(), 'make the summary shorter');
+
+    expect(result.execution_steps).toContain('tsx /tools/platform/submit-output.ts');
+  });
+
+  it('does NOT inject the intent closer phrase into a CLI-style refined config', async () => {
+    const fn = makeGenerateLLMWithStubbedEstimator(REFINED_CLI_JSON);
+    const gen = new ArchetypeGenerator(
+      fn as unknown as typeof callLLM,
+      makeGenerationRepo() as never,
+    );
+
+    const result = await gen.refine(makeRefineConfig(), 'make the summary shorter');
+
+    expect(result.execution_steps).not.toContain(INTENT_CLOSER);
+  });
+});
+
+describe('BOUNDARY — SYSTEM_PROMPT_PRE Code-Writing Employees block is NOT abstracted (CLI preserved)', () => {
+  // Invariant under guard: T5 abstracted the general Runtime Patterns + delivery sections but deliberately left the code-employee block CLI-level — git/gh procedural steps must stay literal.
+  const codeEmployeeBlock = (SYSTEM_PROMPT_PRE.split('## Code-Writing Employees')[1] ?? '').split(
+    '## Environment Variables',
+  )[0];
+
+  it('isolates a non-empty code-employee block between its heading and ## Environment Variables', () => {
+    expect(codeEmployeeBlock.length).toBeGreaterThan(0);
+    expect(codeEmployeeBlock).toContain('GitHub PRs');
+  });
+
+  it('STILL contains tsx /tools/github/get-token.ts', () => {
+    expect(codeEmployeeBlock).toContain('tsx /tools/github/get-token.ts');
+  });
+
+  it('STILL contains tsx /tools/platform/submit-output.ts', () => {
+    expect(codeEmployeeBlock).toContain('tsx /tools/platform/submit-output.ts');
+  });
+
+  it('STILL contains the procedural git clone step', () => {
+    expect(codeEmployeeBlock).toContain('git clone');
+  });
+
+  it('the code-employee block STILL matches the CLI pattern (was not intent-abstracted)', () => {
+    expect(codeEmployeeBlock).toMatch(CLI_PATTERN);
+  });
+});
+
+describe('BOUNDARY — buildConverseSystemPromptPre(false) EDIT mode (forbid kept, slug excluded)', () => {
+  // Invariant under guard: EDIT keeps the role_name forbid clause and never emits the CREATE-only slug instruction — locks the create/edit asymmetry from T1.
+  const editPrompt = buildConverseSystemPromptPre(false);
+
+  it('STILL contains the role_name forbid clause', () => {
+    expect(editPrompt).toContain('Politely decline');
+    expect(editPrompt).toContain('role_name');
+  });
+
+  it('does NOT contain the CREATE-only kebab-slug generation instruction', () => {
+    expect(editPrompt).not.toContain('Derive a kebab-case slug');
+  });
+
+  it('CREATE mode (true) is the inverse — it DOES emit the slug instruction and DROPS the forbid', () => {
+    const createPrompt = buildConverseSystemPromptPre(true);
+    expect(createPrompt).toContain('Derive a kebab-case slug');
+    expect(createPrompt).not.toContain('Politely decline');
   });
 });
