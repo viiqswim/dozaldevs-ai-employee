@@ -140,3 +140,44 @@ When `currentConfig.role_name` is non-empty (EDIT path), the forbid clause must 
 - A draft archetype (293fb5f2...) was created in the local DB as a side effect of the live test. It's a `draft`, harmless. Left in place as proof.
 - Evidence: `.sisyphus/evidence/task-3-save-201.txt`
 - Pre-existing unrelated LSP error in `vitest.config.ts` (coverage key) — not touched by this task.
+
+## Task 4 — Intent-level feasibility spike (GATE) — ✅ PASS (2026-06-15)
+
+### GATE DECISION: PASS → Wave 2 (T5-T9) is CLEARED to proceed.
+
+A live deepseek/deepseek-v4-flash worker driven by PLAIN-ENGLISH INTENT steps (zero
+`tsx /tools/...` in the prompt) reached terminal status **Done** with a real Slack delivery.
+
+### Evidence
+- Task ID: `efcda54f-19bf-4c9d-a18a-38e614b03935`
+- Test archetype: `a8d7c7e2-09a3-402a-8db5-31a9c705e599` (role_name `intent-spike-test`, DozalDevs). Copy of daily-summarizer. Reset to `draft` after spike.
+- Trigger: admin API `POST /admin/tenants/.../employees/intent-spike-test/trigger`. approval_required=false → autonomous Submitting→Delivering→Done.
+- Slack tool resolved from intent: `read-channels.ts --channels C092BJ04HUG` (+ retries with --lookback-hours). Prompt only said "Read the recent messages from ... $SOURCE_CHANNELS".
+- Load-bearing handoff fired: `submit-output.ts --draft-file /tmp/summary.txt`. Deliverable draft field = 646 chars (non-empty), full content 1098 chars, `"version":1`, classification NEEDS_APPROVAL.
+- Slack delivery confirmed: `post-message.ts --channel C0AUBMXKVNU`; notify_slack_ts `1781539362.638879`. No Slack errors.
+- 39 bash tool calls → model EXECUTED, did not describe.
+- Evidence files: `.sisyphus/evidence/task-4-spike-trace.txt`, `task-4-spike-delivery.txt`, `task-4-inject.sql`.
+
+### INTENT CLOSER (the exact phrase that triggers submit-output from intent prose)
+> "Finally, submit your completed summary for review so it can be delivered to the team."
+
+This is the recommended closer for Wave 2's generator prompt: it ends an intent block and
+reliably drives the `submit-output --draft-file` handoff without naming any tool.
+
+### Mechanism findings (why intent-only works — for Wave 2 prompt design)
+- `EXECUTION_PROMPT` ("Follow the instructions in <execution-instructions>") is decoupled from step CONTENT — steps can be prose.
+- `CRITICAL_DIRECTIVE` (agents-md-compiler.mts) forces EXECUTE-don't-describe.
+- `tool-usage-reference` + `slack` + `platform` skills are always compiled into the brain (verified via brain-preview) → model resolves exact CLI at runtime.
+- **`submitOutputCmd` (3rd param of `runOpencodeSession`) is NEVER consumed in the harness body** — the recovery nudge text is hardcoded and injects NO draft. So the MODEL must call submit-output --draft-file itself. The spike proves deepseek-flash does this from intent alone. This is the HARD CONSTRAINT Wave 2 must preserve: the generated intent steps MUST end by submitting the draft via submit-output --draft-file.
+
+### Env injection for Slack-summary archetypes (reusable for Wave 2 tests)
+- `$NOTIFICATION_CHANNEL` ← archetype.notification_channel column (machine-provisioner → loadTenantSlack → loadTenantEnv).
+- `$SOURCE_CHANNELS` / `$PUBLISH_CHANNEL` ← either tenant.config (source_channels / summary.*) OR archetype.worker_env jsonb (spread into container env). DozalDevs tenant.config={} so I set them via archetype.worker_env = {"SOURCE_CHANNELS":"C092BJ04HUG","NOTIFICATION_CHANNEL":"C0AUBMXKVNU","PUBLISH_CHANNEL":"C0AUBMXKVNU"}.
+- brain-preview shows SOURCE_CHANNELS is_set=false because it only inspects tenant_config, NOT worker_env — but worker_env IS injected at runtime (machine-provisioner line ~173/178). Confirmed: read-channels.ts received C092BJ04HUG.
+
+### --draft-file doc status
+- The `--draft-file` FLAG was already documented per-tool. The execution→delivery HANDOFF CONCEPT was ABSENT.
+- Added new hand-written section to `src/workers/skills/tool-usage-reference/SKILL.md`: "## Execution→Delivery Handoff (CRITICAL — the load-bearing final step)" (above CRITICAL WARNINGS, below the generate sentinel). Skills are baked into the Docker image (Dockerfile COPY src/workers/skills/) → rebuild required for it to reach worker containers.
+
+### Caveat observed (not a blocker)
+- Delivering→Failed→Done is a SIGTERM race in local Docker: delivery container read summary.txt + persisted metrics, then got SIGTERM ~3s before signalling done → Failed; Inngest delivery-retry recovered → Done. Slack post had already succeeded on attempt 1. Final state Done. Stale tasks.failure_reason="Worker terminated" is from the failed attempt, not authoritative.

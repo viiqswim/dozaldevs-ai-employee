@@ -205,7 +205,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Arguments**:
 
-- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 \* 3")
 
 ## platform/report-issue
 
@@ -393,6 +393,19 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 - `--limit` (optional): Max messages per channel (default: 10)
 
 <!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->
+
+## Execution→Delivery Handoff (CRITICAL — the load-bearing final step)
+
+A task runs in two separate containers: an **execution** container (does the work, produces a draft) and a **delivery** container (sends the approved draft to its destination). They share state only through the output contract written by `submit-output.ts`.
+
+**The final step of execution MUST call `submit-output.ts` with `--draft-file` pointing to a file holding the full deliverable content.** This is the only way the draft reaches the delivery container — the platform does NOT auto-capture your work. Concretely:
+
+1. Write the full deliverable (the summary, reply, report, etc.) to a `/tmp/` file (e.g. `/tmp/summary.txt` or `/tmp/draft.txt`).
+2. Call `submit-output.ts --summary "<one-line>" --classification "NEEDS_APPROVAL" --draft-file /tmp/<your-file>`.
+
+When `--classification` is `NEEDS_APPROVAL`, `--draft-file` is **mandatory**. Omitting it delivers an empty draft: the delivery container has nothing to post, and the human approver sees only a one-line summary with no content. A task whose execution session ends without calling `submit-output.ts` at all is a hard failure — the harness sends one recovery nudge, then fails the task if `/tmp/summary.txt` still does not exist.
+
+This handoff is the single contract that makes intent-level execution steps work: the steps may describe the goal in plain language, but they MUST end by submitting the produced draft through `submit-output.ts --draft-file`.
 
 ## ⚠️ CRITICAL WARNINGS — Read Before Every Tool Call
 
