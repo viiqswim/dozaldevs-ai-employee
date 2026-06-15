@@ -205,7 +205,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Arguments**:
 
-- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 \* 3")
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
 
 ## platform/report-issue
 

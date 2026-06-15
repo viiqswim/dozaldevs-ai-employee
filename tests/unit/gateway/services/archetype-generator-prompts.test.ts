@@ -28,8 +28,8 @@ describe('SYSTEM_PROMPT_PRE — intent-level (no CLI commands)', () => {
     expect(SYSTEM_PROMPT_PRE).toContain('$NOTIFICATION_CHANNEL');
   });
 
-  it('still references $SOURCE_CHANNELS env var', () => {
-    expect(SYSTEM_PROMPT_PRE).toContain('$SOURCE_CHANNELS');
+  it('does NOT reference $SOURCE_CHANNELS env var (removed)', () => {
+    expect(SYSTEM_PROMPT_PRE).not.toContain('$SOURCE_CHANNELS');
   });
 
   it('contains the intent closer phrase', () => {
@@ -115,9 +115,9 @@ describe('buildConverseSystemPromptPre — intent-level (no tsx /tools/ mandate)
     expect(prompt).toContain('boundary enforcement line');
   });
 
-  it('still mentions $SOURCE_CHANNELS/$NOTIFICATION_CHANNEL env var requirement', () => {
+  it('does NOT mention $SOURCE_CHANNELS (removed) but still mentions $NOTIFICATION_CHANNEL', () => {
     const prompt = buildConverseSystemPromptPre(true);
-    expect(prompt).toContain('$SOURCE_CHANNELS');
+    expect(prompt).not.toContain('$SOURCE_CHANNELS');
     expect(prompt).toContain('$NOTIFICATION_CHANNEL');
   });
 

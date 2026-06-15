@@ -36,7 +36,6 @@ async function main() {
       status: 'active',
       config: {
         notification_channel: 'C0AUBMXKVNU',
-        source_channels: ['C092BJ04HUG'],
         summary: {
           channel_ids: ['C092BJ04HUG'],
           target_channel: 'C0AUBMXKVNU',
@@ -50,7 +49,6 @@ async function main() {
       status: 'active',
       config: {
         notification_channel: 'C0AUBMXKVNU',
-        source_channels: ['C092BJ04HUG'],
         summary: {
           channel_ids: ['C092BJ04HUG'],
           target_channel: 'C0AUBMXKVNU',
@@ -71,7 +69,6 @@ async function main() {
       status: 'active',
       config: {
         notification_channel: 'C0960S2Q8RL',
-        source_channels: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
         summary: {
           channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
           target_channel: 'C0960S2Q8RL',
@@ -95,7 +92,6 @@ async function main() {
       status: 'active',
       config: {
         notification_channel: 'C0960S2Q8RL',
-        source_channels: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
         summary: {
           channel_ids: ['C0AMGJQN05S', 'C0ANH9J91NC', 'C0960S2Q8RL'],
           target_channel: 'C0960S2Q8RL',
@@ -234,10 +230,7 @@ async function main() {
 
   console.log(`✅ Department upserted: ${vlreDept.id} (name: ${vlreDept.name})`);
 
-  const DOZALDEVS_SUMMARIZER_INSTRUCTIONS = `Read messages from the configured source Slack channels for the past 24 hours using tsx /tools/slack/read-channels.ts. Identify key discussions, decisions, and action items. Draft a concise technical digest showing what the team shipped, discussed, and decided.
-
-Post the summary to Slack using:
-tsx /tools/slack/post-message.ts --thread-ts "$NOTIFY_MSG_TS" --channel "<channel>" --text "<summary>"
+  const DOZALDEVS_SUMMARIZER_INSTRUCTIONS = `Read messages from channel C092BJ04HUG for the past 24 hours using tsx /tools/slack/read-channels.ts --channels "C092BJ04HUG" --lookback-hours 24. Identify key discussions, decisions, and action items. Draft a concise technical digest showing what the team shipped, discussed, and decided. Write the draft to /tmp/draft.txt.
 
 CLASSIFICATION RULES:
 - Use NEEDS_APPROVAL if you have a summary ready for human review before posting (default).
@@ -248,13 +241,10 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "<one-sentence description of the digest>" \\
   --classification "NEEDS_APPROVAL" \\
-  --draft "<full summary text>" \\
+  --draft-file /tmp/draft.txt \\
   --confidence 0.9`;
 
-  const VLRE_SUMMARIZER_INSTRUCTIONS = `Read messages from the configured source Slack channels for the past 24 hours using tsx /tools/slack/read-channels.ts. Identify key discussions, decisions, and action items. Draft a dramatic Spanish news-anchor style summary — theatrical, entertaining, but accurate.
-
-Post the summary to Slack using:
-tsx /tools/slack/post-message.ts --thread-ts "$NOTIFY_MSG_TS" --channel "<channel>" --text "<summary>"
+  const VLRE_SUMMARIZER_INSTRUCTIONS = `Read messages from channels C0AMGJQN05S, C0ANH9J91NC, and C0960S2Q8RL for the past 24 hours using tsx /tools/slack/read-channels.ts --channels "C0AMGJQN05S,C0ANH9J91NC,C0960S2Q8RL" --lookback-hours 24. Identify key discussions, decisions, and action items. Draft a dramatic Spanish news-anchor style summary — theatrical, entertaining, but accurate. Write the draft to /tmp/draft.txt.
 
 CLASSIFICATION RULES:
 - Use NEEDS_APPROVAL if you have a summary ready for human review before posting (default).
@@ -265,7 +255,7 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "<one-sentence description of the digest>" \\
   --classification "NEEDS_APPROVAL" \\
-  --draft "<full summary text>" \\
+  --draft-file /tmp/draft.txt \\
   --confidence 0.9`;
 
   const VLRE_GUEST_MESSAGING_INSTRUCTIONS = `A guest sent a new message. Follow this workflow:
@@ -3135,7 +3125,7 @@ No specific house rules provided.
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
@@ -3153,7 +3143,7 @@ No specific house rules provided.
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
@@ -3180,7 +3170,7 @@ No specific house rules provided.
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
@@ -3198,7 +3188,7 @@ No specific house rules provided.
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.js', '/tools/slack/post-message.js'] },
+      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,

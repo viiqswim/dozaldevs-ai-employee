@@ -115,18 +115,16 @@ Every generated execution_steps MUST follow these patterns:
 \`**IMPORTANT: Follow ONLY these steps. Do NOT read or follow \`<delivery-instructions>\` — that section is for a separate container. STOP after step N.**\`
 (Replace N with the actual final step number.)
 
-**2. Reference Slack channels via environment variables — NEVER hardcode channel names or IDs:**
-Even if the description mentions a specific channel by name (e.g. '#victor-tests', '#general'), do NOT use that name in execution_steps or delivery_steps. ALWAYS use environment variables instead:
-- \`$SOURCE_CHANNELS\` — the channel(s) to read from
-- \`$NOTIFICATION_CHANNEL\` — the employee's designated delivery channel
-- \`$PUBLISH_CHANNEL\` — the channel to post deliverables to (if different)
-The platform's Slack Channel setting controls which actual channel is used — the employee must reference the variable, not the name.
-Example step: "1. Read all messages from \`$SOURCE_CHANNELS\` from the last 24 hours."
+**2. Write channel names directly in steps — never use a placeholder env var for source channels:**
+Write the channel names directly in execution_steps (e.g. "read the general and ops channels" or use names like "general", "#ops"). Channel names belong in the instructions, not in an injected env var. For delivery channels, still use env vars:
+- \`$NOTIFICATION_CHANNEL\` — the employee's designated delivery channel (still use this env var)
+- \`$PUBLISH_CHANNEL\` — the channel to post deliverables to, if different (still use this env var)
+Example step: "1. Read all messages from the general and ops channels from the last 24 hours."
 Example delivery step: "2. Post the summary to the \`$NOTIFICATION_CHANNEL\` channel."
 
 **3. Describe WHAT to do using intent-level language — not CLI commands:**
 Write each step as a plain English description of the action. The runtime tool-usage-reference skill provides the exact CLI syntax at execution time — the employee does not need it hardcoded in the steps.
-Good: "Read all messages posted in $SOURCE_CHANNELS in the last 24 hours."
+Good: "Read all messages from the general channel in the last 24 hours."
 Good: "Post the drafted summary to $NOTIFICATION_CHANNEL for review."
 Bad: "Run a specific CLI command with flags."
 
@@ -292,7 +290,7 @@ ${INJECTION_BOUNDARY}
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - Preserve all fields that are not affected by the refinement instruction
-- Ensure execution_steps opens with a boundary enforcement line, uses \`$SOURCE_CHANNELS\`/\`$NOTIFICATION_CHANNEL\` env var references (never hardcoded channel IDs), includes explicit \`tsx /tools/...\` invocations, writes content to /tmp/draft.txt, ends with a submit-output FINAL STEP (\`tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"\`), and ends with a STOP directive. Preserve these patterns if already present; add them if missing.
+- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses \`$NOTIFICATION_CHANNEL\`/\`$PUBLISH_CHANNEL\` env var references for delivery channels, includes explicit \`tsx /tools/...\` invocations, writes content to /tmp/draft.txt, ends with a submit-output FINAL STEP (\`tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"\`), and ends with a STOP directive. Preserve these patterns if already present; add them if missing.
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated identity, execution_steps, trigger_sources, and risk_model
@@ -335,7 +333,7 @@ ${INJECTION_BOUNDARY}
 ${roleNameRule}
 - When proposing changes, preserve all fields not mentioned in the user's request.
 - Only modify what the user's request asks to change.
-- Ensure execution_steps opens with a boundary enforcement line, uses $SOURCE_CHANNELS/$NOTIFICATION_CHANNEL env var references (never hardcoded channel IDs), uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands), and ends with a submit-output FINAL STEP using the exact phrase: "Finally, submit your completed summary for review so it can be delivered to the team."
+- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses $NOTIFICATION_CHANNEL/$PUBLISH_CHANNEL env var references for delivery channels, uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands), and ends with a submit-output FINAL STEP using the exact phrase: "Finally, submit your completed summary for review so it can be delivered to the team."
 - Always regenerate the overview field to accurately reflect any changes to identity, execution_steps, trigger_sources, or risk_model.
 - The overview field is written FOR HUMANS reviewing the configuration — use plain English, no technical syntax.
 

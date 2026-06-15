@@ -12,7 +12,8 @@ export const descriptor: ToolDescriptor = {
     {
       name: '--channels',
       required: true,
-      description: 'Comma-separated Slack channel IDs',
+      description:
+        'Comma-separated Slack channel IDs or names (e.g. "C123,general,#ops"). Names are resolved to IDs via conversations.list.',
       type: 'string',
     },
     {
@@ -23,6 +24,48 @@ export const descriptor: ToolDescriptor = {
     },
   ],
 };
+
+const CHANNEL_ID_PATTERN = /^[CGD][A-Z0-9]+$/;
+
+export function isChannelId(entry: string): boolean {
+  return CHANNEL_ID_PATTERN.test(entry);
+}
+
+export async function resolveChannelNames(client: WebClient, entries: string[]): Promise<string[]> {
+  const hasNames = entries.some((e) => !isChannelId(e));
+
+  const nameToId = new Map<string, string>();
+
+  if (hasNames) {
+    const listResponse = await client.conversations.list({
+      types: 'public_channel,private_channel',
+      limit: 1000,
+    });
+    const channelList = listResponse.channels ?? [];
+    for (const ch of channelList) {
+      if (ch.name && ch.id) {
+        nameToId.set(ch.name.toLowerCase(), ch.id);
+      }
+    }
+  }
+
+  const resolved: string[] = [];
+  for (const entry of entries) {
+    if (isChannelId(entry)) {
+      resolved.push(entry);
+    } else {
+      const normalized = entry.startsWith('#') ? entry.slice(1) : entry;
+      const channelId = nameToId.get(normalized.toLowerCase());
+      if (channelId) {
+        resolved.push(channelId);
+      } else {
+        process.stderr.write(`Warning: channel name "${entry}" not found in workspace, skipping\n`);
+      }
+    }
+  }
+
+  return resolved;
+}
 
 interface SlackMessage {
   ts: string;
@@ -38,7 +81,7 @@ interface ChannelResult {
   threadReplies: Record<string, SlackMessage[]>;
 }
 
-function parseArgs(argv: string[]): { channels: string[]; lookbackHours: number } {
+function parseArgs(argv: string[]): { channelEntries: string[]; lookbackHours: number } {
   const args = argv.slice(2);
   let channelsRaw = '';
   let lookbackHours = 24;
@@ -50,18 +93,18 @@ function parseArgs(argv: string[]): { channels: string[]; lookbackHours: number 
       lookbackHours = parseInt(args[++i], 10);
     } else if (args[i] === '--help') {
       process.stdout.write(
-        'Usage: read-channels.js --channels "C123,C456" [--lookback-hours 24]\n',
+        'Usage: read-channels.js --channels "C123,general,#ops" [--lookback-hours 24]\n',
       );
       process.exit(0);
     }
   }
 
-  const channels = channelsRaw
+  const channelEntries = channelsRaw
     .split(',')
     .map((c) => c.trim())
     .filter((c) => c.length > 0);
 
-  return { channels, lookbackHours };
+  return { channelEntries, lookbackHours };
 }
 
 function truncateText(text: string | undefined): string | undefined {
@@ -148,20 +191,21 @@ async function fetchChannel(
 }
 
 async function main(): Promise<void> {
-  const { channels, lookbackHours } = parseArgs(process.argv);
+  const { channelEntries, lookbackHours } = parseArgs(process.argv);
 
   const token = requireEnv('SLACK_BOT_TOKEN');
 
-  if (channels.length === 0) {
+  if (channelEntries.length === 0) {
     process.stderr.write('Error: --channels argument is required\n');
     process.exit(1);
   }
 
   const client = new WebClient(token);
+  const resolvedChannelIds = await resolveChannelNames(client, channelEntries);
   const oldest = String(Math.floor(Date.now() / 1000) - lookbackHours * 3600);
   const results: ChannelResult[] = [];
 
-  for (const channelId of channels) {
+  for (const channelId of resolvedChannelIds) {
     try {
       const result = await fetchChannel(client, channelId, oldest);
       results.push(result);
