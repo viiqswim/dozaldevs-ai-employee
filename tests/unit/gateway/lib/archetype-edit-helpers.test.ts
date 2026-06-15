@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mapArchetypeRowToConfig,
   validateProposalFields,
+  resolveToolPaths,
 } from '../../../../src/gateway/lib/archetype-edit-helpers.js';
 import type { StrippedProposal } from '../../../../src/gateway/lib/archetype-edit-helpers.js';
 
@@ -334,5 +335,53 @@ describe('validateProposalFields', () => {
     if (result.ok) {
       expect(result.validTools).toEqual([]);
     }
+  });
+});
+
+describe('resolveToolPaths', () => {
+  it('resolves /tools/slack/read-channels (no .ts) to /tools/slack/read-channels.ts', () => {
+    const result = resolveToolPaths(['/tools/slack/read-channels']);
+    expect(result.resolved).toEqual(['/tools/slack/read-channels.ts']);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it('resolves bare slack/read-channels to /tools/slack/read-channels.ts', () => {
+    const result = resolveToolPaths(['slack/read-channels']);
+    expect(result.resolved).toEqual(['/tools/slack/read-channels.ts']);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it('resolves tsx /tools/slack/read-channels.ts by stripping tsx prefix', () => {
+    const result = resolveToolPaths(['tsx /tools/slack/read-channels.ts']);
+    expect(result.resolved).toEqual(['/tools/slack/read-channels.ts']);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it('leaves an already-valid /tools/platform/submit-output.ts unchanged (idempotent)', () => {
+    const result = resolveToolPaths(['/tools/platform/submit-output.ts']);
+    expect(result.resolved).toEqual(['/tools/platform/submit-output.ts']);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it('drops /tools/nonexistent/foo with a human-readable reason', () => {
+    const result = resolveToolPaths(['/tools/nonexistent/foo']);
+    expect(result.resolved).toEqual([]);
+    expect(result.dropped).toHaveLength(1);
+    expect(result.dropped[0].tool).toBe('/tools/nonexistent/foo');
+    expect(result.dropped[0].reason).toBeTruthy();
+  });
+
+  it('drops /tools/composio/notion when connectedToolkits=[] without mangling to .ts', () => {
+    const result = resolveToolPaths(['/tools/composio/notion'], undefined, []);
+    expect(result.resolved).toEqual([]);
+    expect(result.dropped).toHaveLength(1);
+    expect(result.dropped[0].tool).toBe('/tools/composio/notion');
+    expect(result.dropped[0].reason).not.toContain('/tools/composio/notion.ts');
+  });
+
+  it('keeps /tools/composio/notion as-is when connectedToolkits includes notion', () => {
+    const result = resolveToolPaths(['/tools/composio/notion'], undefined, ['notion']);
+    expect(result.resolved).toEqual(['/tools/composio/notion']);
+    expect(result.dropped).toEqual([]);
   });
 });

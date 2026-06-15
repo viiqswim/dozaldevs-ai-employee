@@ -875,7 +875,10 @@ export class ArchetypeGenerator {
     try {
       rawJson = await this.callLLMWithJsonRetry(messages, llmOptions);
     } catch (err) {
-      log.error({ err }, 'converse: LLM call failed — returning no_change');
+      log.error(
+        { err, degraded: true, reason: 'llm_call_failed' },
+        'converse: degraded to no_change after LLM call failed',
+      );
       return { kind: 'no_change' };
     }
 
@@ -883,7 +886,10 @@ export class ArchetypeGenerator {
     try {
       parsed = JSON.parse(rawJson) as { kind?: string; question?: string; config?: unknown };
     } catch {
-      log.warn('converse: failed to parse LLM response — returning no_change');
+      log.warn(
+        { degraded: true, reason: 'parse_failed' },
+        'converse: degraded to no_change after failing to parse LLM response',
+      );
       return { kind: 'no_change' };
     }
 

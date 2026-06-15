@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ALL_TOOL_DESCRIPTORS, toolInvocationPath } from '../../lib/tool-registry.js';
+import type { ToolDescriptor } from '../../lib/tool-registry.js';
 import { InputSchemaSchema } from '../validation/schemas.js';
 import type { GenerateArchetypeResponse } from '../services/archetype-generator.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
@@ -125,6 +126,73 @@ function validateTools(
   }
 
   return { validTools, rejectedTools };
+}
+
+export interface ResolveToolPathsResult {
+  resolved: string[];
+  dropped: Array<{ tool: string; reason: string }>;
+}
+
+const COMPOSIO_PATTERN = /^\/tools\/composio\//;
+
+function normalizeToolPath(tool: string): string {
+  let path = tool.replace(/^tsx\s+/, '');
+
+  if (!path.startsWith('/')) {
+    const parts = path.split('/');
+    if (parts.length === 2) {
+      return `/tools/${parts[0]}/${parts[1]}.ts`;
+    }
+    return path;
+  }
+
+  if (path.startsWith('/tools/') && !COMPOSIO_PATTERN.test(path) && !/\.\w+$/.test(path)) {
+    path = `${path}.ts`;
+  }
+
+  return path;
+}
+
+export function resolveToolPaths(
+  tools: string[],
+  descriptors: ToolDescriptor[] = ALL_TOOL_DESCRIPTORS,
+  connectedToolkits: string[] = [],
+): ResolveToolPathsResult {
+  const shellToolPaths = new Set(
+    descriptors.map((d) => toolInvocationPath(d).replace(/^tsx /, '')),
+  );
+  const connectedSet = new Set(connectedToolkits);
+
+  const resolved: string[] = [];
+  const dropped: Array<{ tool: string; reason: string }> = [];
+
+  for (const tool of tools) {
+    const normalized = normalizeToolPath(tool);
+
+    if (COMPOSIO_PATTERN.test(normalized)) {
+      const toolkit = normalized.split('/')[3];
+      if (toolkit && connectedSet.has(toolkit)) {
+        resolved.push(normalized);
+      } else {
+        dropped.push({
+          tool,
+          reason:
+            connectedToolkits.length === 0
+              ? `Composio tool "${tool}" requires a connected Composio app, but none are connected for this employee.`
+              : `Composio toolkit "${toolkit}" is not connected for this employee.`,
+        });
+      }
+    } else if (shellToolPaths.has(normalized)) {
+      resolved.push(normalized);
+    } else {
+      dropped.push({
+        tool,
+        reason: `Tool "${tool}" is not available. It is not in the platform's tool library and does not match any connected app.`,
+      });
+    }
+  }
+
+  return { resolved, dropped };
 }
 
 export function validateProposalFields(

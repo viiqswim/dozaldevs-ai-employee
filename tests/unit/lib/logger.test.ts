@@ -9,6 +9,7 @@ import {
   logTool,
   logCost,
   logTiming,
+  logToolResolution,
 } from '../../../src/lib/logger.js';
 
 describe('logger', () => {
@@ -252,6 +253,52 @@ describe('logger', () => {
       expect(parsed.msg).toBe('TIMING: Phase 1 planning completed in 120000ms (total: 300000ms)');
       expect(parsed.elapsedMs).toBe(120000);
       expect(parsed.totalMs).toBe(300000);
+    });
+  });
+
+  describe('logToolResolution', () => {
+    function captureWarn(event: Parameters<typeof logToolResolution>[1]) {
+      let output = '';
+      const dest = new Writable({
+        write(chunk, _enc, cb) {
+          output += chunk.toString();
+          cb();
+        },
+      });
+      const l = pino({ timestamp: pino.stdTimeFunctions.isoTime }, dest);
+      logToolResolution(l, event);
+      return JSON.parse(output);
+    }
+
+    it('emits a warn-level record for a dropped tool with structured fields', () => {
+      const parsed = captureWarn({
+        tenantId: 'tenant-1',
+        archetypeId: null,
+        originalTool: '/tools/bogus/x',
+        outcome: 'dropped',
+        reason: 'not in tool library',
+      });
+      expect(parsed.level).toBe(40);
+      expect(parsed.msg).toBe('tool path dropped');
+      expect(parsed.tenantId).toBe('tenant-1');
+      expect(parsed.archetypeId).toBeNull();
+      expect(parsed.originalTool).toBe('/tools/bogus/x');
+      expect(parsed.outcome).toBe('dropped');
+      expect(parsed.reason).toBe('not in tool library');
+    });
+
+    it('emits a warn-level record for a normalized tool including resolvedTo', () => {
+      const parsed = captureWarn({
+        tenantId: 'tenant-2',
+        archetypeId: 'arch-9',
+        originalTool: '/tools/slack/read-channels',
+        outcome: 'normalized',
+        resolvedTo: '/tools/slack/read-channels.ts',
+      });
+      expect(parsed.level).toBe(40);
+      expect(parsed.msg).toBe('tool path normalized');
+      expect(parsed.outcome).toBe('normalized');
+      expect(parsed.resolvedTo).toBe('/tools/slack/read-channels.ts');
     });
   });
 });
