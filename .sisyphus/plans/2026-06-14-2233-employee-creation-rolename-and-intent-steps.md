@@ -337,7 +337,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: `fix(wizard): derive non-empty role_name slug on create-converse path` (Wave 1 ships standalone)
 
-- [ ] 4. Intent-level feasibility spike on deepseek-flash + define the intent closer (GATE)
+- [x] 4. Intent-level feasibility spike on deepseek-flash + define the intent closer (GATE)
 
   **What to do**:
   - **This task gates Wave 2.** Do NOT rewrite any generator prompt yet. Instead, HAND-AUTHOR intent-level `execution_steps` + `delivery_steps` for the recommended smoke-test employee (`real-estate-motivation-bot-2`, per feature-verification skill) OR a minimal Slack-summary archetype: plain English ("Read recent messages from the channels in `$SOURCE_CHANNELS`. Write an executive summary. Submit your completed summary for review."), preserving `$ENV` placeholders, NO `tsx /tools/...`.
@@ -387,7 +387,7 @@ GATE: If Task 4 spike FAILS, Tasks 5-9 are CANCELLED; ship only Wave 1 + documen
 
   **Commit**: NO (spike — verification + notepad only)
 
-- [ ] 5. Generator-prompt rewrite to intent-level (generate + create-converse ONLY)
+- [x] 5. Generator-prompt rewrite to intent-level (generate + create-converse ONLY)
 
   **What to do** (ONLY IF Task 4 spike PASSED):
   - Rewrite the CLI-mandating sections of the generator prompts so `execution_steps`/`delivery_steps`/`instructions` are intent-level plain English with NO `tsx /tools/...` invocations: `archetype-generator-prompts.ts` "execution_steps Runtime Patterns (MANDATORY)" (~115-157), Composio invocation in `buildConnectedAppsBlock` (~29-35), delivery templates (~207-238).

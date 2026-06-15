@@ -15,7 +15,7 @@ export function buildConnectedAppsBlock(
   const lines: string[] = [
     '## Composio Connected Apps',
     '',
-    "The tenant's Composio-connected apps control which third-party integrations the employee can access at runtime via `tsx /tools/composio/execute.ts`.",
+    "The tenant's Composio-connected apps control which third-party integrations the employee can access at runtime. Describe actions using these apps in plain English — the runtime Composio skill resolves the exact invocation.",
     '',
   ];
 
@@ -26,29 +26,24 @@ export function buildConnectedAppsBlock(
     }
     lines.push('');
     lines.push(
-      'When the job requires one of these apps, include this exact invocation in execution_steps:',
-    );
-    lines.push('  `tsx /tools/composio/execute.ts --toolkit <app> --action <ACTION_SLUG>`');
-    lines.push('');
-    lines.push(
-      'Example: `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_CREATE_PAGE`',
+      'When the job requires one of these apps, describe the action in plain English in execution_steps — the runtime skill will resolve the exact command. For example: "Create a new Notion page with the summary content" or "Add a row to the Google Sheet with the report data."',
     );
   } else {
     lines.push('**Connected apps: NONE**');
     lines.push('');
     lines.push(
-      '⚠️  CRITICAL: The tenant has NO Composio apps connected. Do NOT generate any `tsx /tools/composio/execute.ts` calls in execution_steps — they will fail at runtime with HTTP 400.',
+      '⚠️  CRITICAL: The tenant has NO Composio apps connected. Do NOT describe any Composio app actions in execution_steps — they will fail at runtime.',
     );
   }
 
   lines.push('');
   lines.push('**CRITICAL RULES for Composio:**');
-  lines.push('- ONLY generate composio execute calls for apps listed in "Connected apps" above.');
+  lines.push('- ONLY describe Composio app actions for apps listed in "Connected apps" above.');
   lines.push(
-    '- NEVER generate a composio execute call for any app that is NOT in the connected list — it will fail at runtime.',
+    '- NEVER describe a Composio app action for any app that is NOT in the connected list — it will fail at runtime.',
   );
   lines.push(
-    '- If no apps are connected, do NOT include any composio execute calls anywhere in execution_steps or delivery_steps.',
+    '- If no apps are connected, do NOT include any Composio app actions anywhere in execution_steps or delivery_steps.',
   );
 
   if (suggestedToolkits.length > 0) {
@@ -114,7 +109,7 @@ The \`execution_steps\` field MUST be a numbered list of concrete steps. At mini
 
 ## execution_steps Runtime Patterns (MANDATORY)
 
-Follow the exact patterns from this working example. Every generated execution_steps MUST:
+Every generated execution_steps MUST follow these patterns:
 
 **1. Open with a boundary enforcement line:**
 \`**IMPORTANT: Follow ONLY these steps. Do NOT read or follow \`<delivery-instructions>\` — that section is for a separate container. STOP after step N.**\`
@@ -126,32 +121,24 @@ Even if the description mentions a specific channel by name (e.g. '#victor-tests
 - \`$NOTIFICATION_CHANNEL\` — the employee's designated delivery channel
 - \`$PUBLISH_CHANNEL\` — the channel to post deliverables to (if different)
 The platform's Slack Channel setting controls which actual channel is used — the employee must reference the variable, not the name.
-Example step: "1. Read all messages from \`$SOURCE_CHANNELS\` from the last 24 hours using \`tsx /tools/slack/read-channels.ts --channels "$SOURCE_CHANNELS" --lookback-hours 24\`."
-Example delivery step: "2. Post to Slack using \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text-file /tmp/draft.txt\`."
+Example step: "1. Read all messages from \`$SOURCE_CHANNELS\` from the last 24 hours."
+Example delivery step: "2. Post the summary to the \`$NOTIFICATION_CHANNEL\` channel."
 
-**3. Use explicit tool invocation syntax for every tool call:**
-Format: \`tsx /tools/{service}/{tool-name}.ts [flags]\`
-Examples:
-- \`tsx /tools/slack/read-channels.ts --channels "$SOURCE_CHANNELS" --lookback-hours 24\`
-- \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "your message"\`
-- \`tsx /tools/platform/submit-output.ts --summary "what was done" --classification "NEEDS_APPROVAL"\`
+**3. Describe WHAT to do using intent-level language — not CLI commands:**
+Write each step as a plain English description of the action. The runtime tool-usage-reference skill provides the exact CLI syntax at execution time — the employee does not need it hardcoded in the steps.
+Good: "Read all messages posted in $SOURCE_CHANNELS in the last 24 hours."
+Good: "Post the drafted summary to $NOTIFICATION_CHANNEL for review."
+Bad: "Run a specific CLI command with flags."
 
 **4. Write draft content to /tmp/ before submitting:**
-When the employee creates content (a message, summary, report), write it to a temp file first:
-\`\`\`bash
-cat > /tmp/draft.txt << 'MSGEOF'
-[content here]
-MSGEOF
-\`\`\`
+When the employee creates content (a message, summary, report), write it to a temp file first before calling submit-output. For example: "Write the completed summary to /tmp/draft.txt."
 
-**5. End with a FINAL STEP that submits output using the submit-output tool:**
-\`\`\`bash
-tsx /tools/platform/submit-output.ts --summary "brief description of what was done" --classification "NEEDS_APPROVAL" --draft-file /tmp/draft.txt
-\`\`\`
-CRITICAL: When classification is \`NEEDS_APPROVAL\`, you MUST include \`--draft-file /tmp/draft.txt\` (or whatever /tmp/ file holds the draft content). This is how the draft reaches the delivery container — without it, the delivery container has nothing to post.
-Classification values (use inline in a step, not as a section header):
-- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery (MUST include --draft-file)
-- \`NO_ACTION_NEEDED\` — nothing to report or no action required (no --draft-file needed)
+**5. End with a FINAL STEP that submits output for review:**
+The final step must use this exact phrasing:
+"Finally, submit your completed summary for review so it can be delivered to the team."
+CRITICAL: The submission step MUST pass the /tmp/ draft file path so the content reaches the delivery container. When classification is \`NEEDS_APPROVAL\`, the draft content must be included. Classification values:
+- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery (include the draft file path)
+- \`NO_ACTION_NEEDED\` — nothing to report or no action required
 
 **6. End with a STOP directive:**
 \`**STOP. Do nothing else. Your job is done.**\`
@@ -225,18 +212,17 @@ Use this when the delivery step needs identifiers that are only known during exe
 Choose the template that matches the deliverable_type and employee purpose:
 
 ### Template A: Slack delivery (when deliverable_type contains "slack" or is a Slack-delivered message)
-1. Parse the <approved-content> JSON from the prompt → extract the "draft" field → write to /tmp/delivery-draft.txt
-2. tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text-file /tmp/delivery-draft.txt
-3. tsx /tools/platform/submit-output.ts --summary "Delivered to Slack" --classification "DELIVERED"
+1. The approved content is in the prompt within the \`<approved-content>\` XML block as JSON. Parse the JSON to extract the \`draft\` field and write it to /tmp/delivery-draft.txt.
+2. Post the approved content to the \`$NOTIFICATION_CHANNEL\` Slack channel.
+3. Submit output confirming the delivery was completed.
 
 ### Template B: External service delivery (when deliverable_type is hostfully_message, sms, email, or any non-Slack delivery)
-1. Parse the <approved-content> JSON → extract "draft" and any identifiers from "metadata"
-2. Deliver using the appropriate service tool with the identifiers from metadata
-   Example: tsx /tools/hostfully/send-message.ts --lead-id <lead_uid> --message "<draft>"
-3. tsx /tools/platform/submit-output.ts --summary "Delivered to <service>" --classification "DELIVERED"
+1. The approved content is in the prompt within the \`<approved-content>\` XML block as JSON. Parse the JSON to extract the \`draft\` field and any identifiers from the \`metadata\` field.
+2. Deliver the draft content to the appropriate external service using the identifiers from metadata.
+3. Submit output confirming the delivery was completed.
 
 If the deliverable_type does not clearly match either template, use Template B as the default pattern.
-Note: delivery_steps MUST write to ${SUMMARY_PATH} at the end (via submit-output.ts) — the harness reads this file.`;
+Note: delivery_steps MUST write to ${SUMMARY_PATH} at the end (via submit-output) — the harness reads this file.`;
 
 export const SYSTEM_PROMPT_POST = `
 ## JSON Shape
@@ -349,7 +335,7 @@ ${INJECTION_BOUNDARY}
 ${roleNameRule}
 - When proposing changes, preserve all fields not mentioned in the user's request.
 - Only modify what the user's request asks to change.
-- Ensure execution_steps opens with a boundary enforcement line, uses $SOURCE_CHANNELS/$NOTIFICATION_CHANNEL env var references (never hardcoded channel IDs), includes explicit tsx /tools/... invocations, and ends with a submit-output FINAL STEP.
+- Ensure execution_steps opens with a boundary enforcement line, uses $SOURCE_CHANNELS/$NOTIFICATION_CHANNEL env var references (never hardcoded channel IDs), uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands), and ends with a submit-output FINAL STEP using the exact phrase: "Finally, submit your completed summary for review so it can be delivered to the team."
 - Always regenerate the overview field to accurately reflect any changes to identity, execution_steps, trigger_sources, or risk_model.
 - The overview field is written FOR HUMANS reviewing the configuration — use plain English, no technical syntax.
 

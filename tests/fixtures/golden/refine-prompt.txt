@@ -24,16 +24,16 @@ The overview field is written FOR HUMANS reviewing the configuration — use pla
 
 ## Composio Connected Apps
 
-The tenant's Composio-connected apps control which third-party integrations the employee can access at runtime via `tsx /tools/composio/execute.ts`.
+The tenant's Composio-connected apps control which third-party integrations the employee can access at runtime. Describe actions using these apps in plain English — the runtime Composio skill resolves the exact invocation.
 
 **Connected apps: NONE**
 
-⚠️  CRITICAL: The tenant has NO Composio apps connected. Do NOT generate any `tsx /tools/composio/execute.ts` calls in execution_steps — they will fail at runtime with HTTP 400.
+⚠️  CRITICAL: The tenant has NO Composio apps connected. Do NOT describe any Composio app actions in execution_steps — they will fail at runtime.
 
 **CRITICAL RULES for Composio:**
-- ONLY generate composio execute calls for apps listed in "Connected apps" above.
-- NEVER generate a composio execute call for any app that is NOT in the connected list — it will fail at runtime.
-- If no apps are connected, do NOT include any composio execute calls anywhere in execution_steps or delivery_steps.
+- ONLY describe Composio app actions for apps listed in "Connected apps" above.
+- NEVER describe a Composio app action for any app that is NOT in the connected list — it will fail at runtime.
+- If no apps are connected, do NOT include any Composio app actions anywhere in execution_steps or delivery_steps.
 
 
 Return ONLY valid JSON with the same shape as the input configuration (no markdown fences, no prose).
