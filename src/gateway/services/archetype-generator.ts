@@ -389,13 +389,14 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     toolRegistry.tools = toolRegistry.tools
       .filter((t): t is string => typeof t === 'string')
       .map((t) => {
-        if (t.startsWith('/tools/')) return t;
-        const parts = t.split('/');
+        const normalized = t.replace(/^tsx\s+/, '');
+        if (normalized.startsWith('/tools/')) return normalized;
+        const parts = normalized.split('/');
         if (parts.length === 2) {
           const [service, tool] = parts;
           return `/tools/${service}/${tool}.ts`;
         }
-        return t;
+        return normalized;
       });
   }
 
