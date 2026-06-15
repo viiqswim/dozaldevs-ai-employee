@@ -14,16 +14,6 @@ import { useChatConversation } from './use-chat-conversation';
 
 type WizardStep = 'describe' | 'edit' | 'previewing' | 'preview' | 'saving' | 'error';
 
-const GENERIC_GENERATION_ERROR =
-  "We couldn't generate your employee right now. Please try again in a moment, or add more detail to your description.";
-
-function friendlyGenerationMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  const looksTechnical =
-    /gateway error|\b\d{3}\b|[{}]|GENERATION_FAILED|invalid JSON|\bLLM\b|<[^>]+>/i.test(raw);
-  return !raw.trim() || looksTechnical ? GENERIC_GENERATION_ERROR : raw;
-}
-
 export function CreateEmployeePage() {
   const navigate = useNavigate();
   const { tenantId } = useTenant();
