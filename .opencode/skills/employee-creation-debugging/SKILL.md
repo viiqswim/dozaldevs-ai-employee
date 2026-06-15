@@ -11,7 +11,7 @@ This skill covers the creation path only. For runtime/execution debugging (stuck
 
 ## Section 1: Wizard vs Seed — Which Path to Use
 
-**Wizard (primary path)**: Use the dashboard or the generate API when you want the LLM to draft the archetype fields from a plain-English description. The wizard calls the recommendation engine, generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry`, and lets you review before saving.
+**Wizard (primary path)**: Use the dashboard or the generate API when you want the LLM to draft the archetype fields from a plain-English description. The wizard calls the recommendation engine, generates `identity`, `execution_steps`, `delivery_steps`, and `tool_registry`, and lets you review before saving. If the description is ambiguous, the wizard escalates to a clarify-then-act chat flow via `POST /admin/tenants/:tenantId/archetypes/converse-create` — the server returns a clarifying question, the user answers in the same input box, and the conversation continues until the intent is clear. Clear descriptions bypass the chat and generate directly.
 
 **Manual seed (advanced path)**: Use `prisma/seed.ts` when you need a stable UUID, want to version-control the archetype definition, or are setting up a new employee type that requires custom shell tools. Load `creating-archetypes` for the full seed path, schema field reference, and upsert pattern.
 
@@ -86,6 +86,36 @@ curl -s -X PATCH \
 ```
 
 After activation, the archetype is live and can be triggered. The PATCH also writes a `kind:'edit'` row to `archetype_edit_history` automatically.
+
+---
+
+## Section 2b: Clarify-Then-Act Creation Flow (converse-create)
+
+When the wizard description is ambiguous, the dashboard uses `POST /admin/tenants/:tenantId/archetypes/converse-create` instead of the direct generate path.
+
+**How it works:**
+
+- The endpoint accepts `{ transcript: ConverseMessage[] }` — the same request-stateless transcript design as `propose-edit` for editing.
+- The discriminated result contract is identical: `{ kind: 'question', question }` | `{ kind: 'proposal', baseline, proposal, changed_fields }` | `{ kind: 'no_change' }` | `{ kind: 'too_long' }`.
+- The route calls `ArchetypeGenerator.converse()` with an empty baseline (`buildEmptyBaseline()`) — no existing archetype. The proposal IS the new employee.
+- The create allowlist (`applyCreateAllowlist()`) is wider than the edit allowlist: it includes `role_name`, `model`, and `runtime`, which the UI needs when calling `POST /archetypes` to persist the draft.
+- A server-side backstop activates after 5 assistant turns: `converse()` never returns `kind:'question'` again. It returns `proposal` (if the LLM cooperates) or `no_change` (if the LLM disobeys the backstop directive).
+
+**Dashboard behavior:**
+
+- Single text box entry is preserved. Chat UI appears only when the server returns `kind:'question'`.
+- On a `proposal` result, the wizard advances to the "Review & Edit" step automatically.
+- `kind:'too_long'` renders a friendly "conversation too long" chat bubble — it does NOT reach the error step.
+
+**Debugging a failed converse-create proposal:**
+
+The most common failure mode is `PROPOSAL_INVALID` (HTTP 422) from `validateProposalFields`. Check:
+
+1. **Tool paths** — `postProcess()` normalizes bare `service/tool` → `/tools/service/tool.ts` and strips `tsx ` prefix. If a tool path still fails, the LLM emitted an unrecognized shape.
+2. **trigger_sources** — `postProcess()` normalizes `type:'cron'` → `type:'scheduled'` and fills missing `cron` fields. If trigger_sources still fails, the LLM emitted an unknown type.
+3. **risk_model.timeout_hours** — `applyCreateAllowlist()` passes `timeout_hours` through. If missing, the `POST /archetypes` save will 400.
+
+The `archetype_generation_calls` trace row for a converse-create call has `call_type='propose_edit'` and `archetype_id=null` (no archetype exists yet). Note: the trace records `status='success'` when the LLM call succeeds, even if `validateProposalFields` later rejects the proposal — the trace does not reflect validation failures.
 
 ---
 
