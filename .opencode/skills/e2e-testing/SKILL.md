@@ -374,6 +374,33 @@ Per AGENTS.md plan requirement, each scenario run must record:
 
 ---
 
+## Model Selection for E2E Testing
+
+Choosing the wrong model causes silent bash-tool failures that look like task logic bugs. Pick the right model before triggering any test.
+
+**Recommended model**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling in all E2E scenarios.
+
+**Models that may NOT reliably call bash tools** (causes immediate task failure):
+
+- `xiaomi/mimo-v2.5` — unreliable bash tool calling; avoid for E2E
+- `minimax/minimax-m2.7` — fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03)
+
+**Models verified to reliably call bash tools**:
+
+- `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) — verified reliable in engineer employee context (E2E verified 2026-06-03)
+- `deepseek/deepseek-v4-flash` — recommended default for all E2E testing
+
+**When testing wizard-generated employees**: override the model to `deepseek/deepseek-v4-flash` via DB before triggering:
+
+```bash
+psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
+  "UPDATE archetypes SET model = 'deepseek/deepseek-v4-flash' WHERE id = '<archetype_id>';"
+```
+
+Restore the original model after testing if needed.
+
+---
+
 ## Reference Documents
 
 | Guide                                                                 | Scenarios covered                                     |
@@ -381,5 +408,3 @@ Per AGENTS.md plan requirement, each scenario run must record:
 | `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`             | A–F (Slack UX — approval paths, terminal states)      |
 | `docs/testing/2026-05-12-0202-feedback-pipeline-v2-e2e-test-guide.md` | A–F (Feedback Pipeline — rules, injection, synthesis) |
 | `docs/testing/2026-05-04-2023-local-e2e-testing.md`                   | Local E2E without real external APIs                  |
-| `AGENTS.md` § "E2E Testing with Playwright Browser"                   | Browser automation setup and confirmed E2E flow       |
-| `AGENTS.md` § "Plan E2E Validation (MANDATORY)"                       | Coverage requirements and plan template               |

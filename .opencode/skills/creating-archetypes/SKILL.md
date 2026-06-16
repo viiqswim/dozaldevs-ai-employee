@@ -21,11 +21,32 @@ The `model` field must reference a model from the `model_catalog` table. Use the
 POST /admin/tenants/:tenantId/archetypes/recommend-model
 ```
 
-**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used. The full 14-model seeded catalog is listed in `AGENTS.md` § Approved LLM Models.
+The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global, not tenant-scoped).
 
-**Forbidden models**: Never hardcode the models listed in `AGENTS.md` § "Forbidden in hardcoded references". Any model NOT in the `model_catalog` table is forbidden.
+**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used.
 
-**Gateway-only models**: One Anthropic model is permitted ONLY as a `gateway_llm_model` platform setting — see `AGENTS.md` § "Permitted Anthropic model". **NEVER** use it as the `model` field in archetypes — it is not an execution model.
+**Seeded catalog models (global):**
+
+- `minimax/minimax-m2.7`
+- `minimax/minimax-m2.5`
+- `minimax/minimax-m3`
+- `zhipu/glm-5.1`
+- `zhipu/glm-5`
+- `moonshot/kimi-k2.5`
+- `moonshot/kimi-k2.6`
+- `xiaomi/mimo-v2.5-pro`
+- `xiaomi/mimo-v2.5`
+- `alibaba/qwen3.7-max`
+- `alibaba/qwen3.7-plus`
+- `alibaba/qwen3.6-plus`
+- `deepseek/deepseek-v4-pro`
+- `deepseek/deepseek-v4-flash`
+
+**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models include `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and others — see `src/lib/go-models.ts` for the full list.
+
+**Forbidden models**: Never hardcode `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, or `openai/gpt-4o-mini` as the `model` field. Any model NOT in the `model_catalog` table is forbidden.
+
+**Gateway-only models**: The `gateway_llm_model` platform setting (default: `deepseek/deepseek-v4-flash`) controls the verification/judge LLM. **NEVER** use it as the `model` field in archetypes — it is not an execution model.
 
 ---
 
@@ -332,6 +353,43 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 | `pre_check_adapter`     | `null`                             | `'hostfully'`                      | `null`                             |
 | `delivery_instructions` | Publish to channel (approval path) | Send reply via Hostfully tool      | `null` (no delivery phase)         |
 | `trigger_sources.type`  | `'cron'`                           | `'cron_and_webhook'`               | `'manual'`                         |
+
+---
+
+## OpenCodeGo Routing
+
+When `OPENCODE_GO_API_KEY` is set, the worker harness automatically routes compatible models through OpenCodeGo instead of OpenRouter. This affects which models work reliably for a given archetype.
+
+### How it works
+
+`writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo subscription); others fall back to OpenRouter. Provider selection is logged at task start.
+
+### Two Go endpoint formats
+
+| Format               | Endpoint                      | Used by                                  |
+| -------------------- | ----------------------------- | ---------------------------------------- |
+| OpenAI-compatible    | `/zen/go/v1/chat/completions` | `call-llm.ts` gateway routing            |
+| Anthropic-compatible | `/zen/go/v1/messages`         | Worker harness (via OpenCode internally) |
+
+`call-llm.ts` gateway routing only works with OpenAI-compatible models on Go. The worker harness handles both formats via OpenCode internally.
+
+### Go model list
+
+The full list of models that route through OpenCodeGo is in `src/lib/go-models.ts`. Check this file when picking a model to know whether it will use Go or OpenRouter.
+
+### Usage limits
+
+OpenCodeGo metered limits on top of the $10/mo subscription:
+
+- $12 per 5-hour window
+- $30 per week
+- $60 per month
+
+Track usage at https://opencode.ai/auth.
+
+### Reverting to OpenRouter
+
+Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
 
 ---
 
