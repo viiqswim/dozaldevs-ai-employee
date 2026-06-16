@@ -1035,19 +1035,19 @@ Max Concurrent: 5 (Waves 1 & 2)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > Do NOT auto-proceed. Never mark F1-F4 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read file, run command, query DB). For each "Must NOT Have": grep the codebase for forbidden patterns — reject with file:line if found (esp. surviving `?? delivery_instructions` fallback, any row `DELETE`, employee-specific strings in shared files, unscoped UPDATE). Check evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `tsc --noEmit` + `pnpm lint` + `pnpm test -- --run` + `pnpm test:integration`. Review changed files for `as any`/`@ts-ignore`, empty catches, console.log, commented-out code, unused imports, AI slop (over-abstraction, generic names). Confirm the resolver is genuinely shared (single definition) and employee-agnostic.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA + Live E2E re-run** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Real Manual QA + Live E2E re-run** — `unspecified-high` (+ `e2e-testing` skill)
       From a clean state, re-execute the full live E2E: wizard-create the failure-mirroring employee, trigger, poll `tasks.status` to `Done`, confirm Slack delivery; run the approval-required employee Approve→Done. Run the migration verification psql query. Save to `.sisyphus/evidence/final-qa/`.
       Output: `E2E [N/N pass] | Migration query [PASS/FAIL] | task IDs [...] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task: read "What to do", read the actual diff. Verify 1:1 — nothing missing, nothing beyond spec (esp. no `deliverable_type`/`risk_model` redesign, no card-copy changes, no broad repair sweep). Confirm `COALESCE` migration (not blind copy) and google-assistant unchanged.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
