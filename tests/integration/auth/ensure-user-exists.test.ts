@@ -24,6 +24,9 @@ afterEach(async () => {
   await prisma.user.deleteMany({
     where: { email: { startsWith: 'ensure-user-test-concurrent-' } },
   });
+  await prisma.user.deleteMany({
+    where: { email: { startsWith: 'concurrent-first-login-' } },
+  });
 });
 
 afterAll(async () => {
@@ -85,6 +88,37 @@ describe('ensureUserExists', () => {
     });
 
     expect(user.memberships).toHaveLength(0);
+  });
+
+  it('does not create duplicate rows under high-concurrency first-login (N=5)', async () => {
+    // RED TEST — expected to FAIL until ensureUserExists handles P2002 (unique-constraint on email).
+    // The real-world race: AuthContext calls /me and /me/tenants in parallel on first login,
+    // both hit ensureUserExists simultaneously for a brand-new identity, and the plain
+    // prisma.user.upsert has no P2002 retry — the second concurrent insert throws.
+    const supabaseId = '11111111-1111-1111-1111-111111111103';
+    const email = `concurrent-first-login-${Date.now()}@vlrealestate.co`;
+    const claims = makeTestClaims({ sub: supabaseId, email });
+
+    const results = await Promise.all([
+      ensureUserExists(claims),
+      ensureUserExists(claims),
+      ensureUserExists(claims),
+      ensureUserExists(claims),
+      ensureUserExists(claims),
+    ]);
+
+    // All 5 calls must resolve (none throws)
+    expect(results).toHaveLength(5);
+
+    // All resolved results must reference the same row
+    const ids = results.map((r) => r.id);
+    expect(new Set(ids).size).toBe(1);
+
+    // Exactly 1 users row must exist
+    const rows = await getPrisma().user.findMany({ where: { supabase_id: supabaseId } });
+    expect(rows).toHaveLength(1);
+
+    await getPrisma().user.deleteMany({ where: { supabase_id: supabaseId } });
   });
 
   it('updates email on subsequent calls', async () => {
