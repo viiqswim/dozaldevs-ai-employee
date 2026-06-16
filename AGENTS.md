@@ -22,8 +22,7 @@
 - [Key Conventions](#key-conventions)
 - [Environment Variables](#environment-variables)
 - [Prometheus Planning — Telegram Notifications](#prometheus-planning--telegram-notifications-mandatory)
-- [Post-Implementation E2E Testing](#post-implementation-e2e-testing-mandatory--applies-to-every-implementation-not-just-plans)
-- [Plan E2E Validation](#plan-e2e-validation-mandatory)
+- [E2E Testing](#e2e-testing-mandatory--applies-to-every-implementation)
 - [Reference Documents](#reference-documents)
 
 > **Before editing ANY file, check the dispatch table in [Skills System](#skills-system) and load the matching skill FIRST — this is mandatory, not advisory.**
