@@ -178,74 +178,9 @@ All `/admin/*` and `/me` endpoints require an `Authorization: Bearer <token>` he
 
 `ADMIN_API_KEY` / `X-Admin-Key` are **removed** (not deprecated — gone since T24). All callers must use `Authorization: Bearer`.
 
-### Auth middleware resolution order
-
-`authMiddleware` in `src/gateway/middleware/auth.ts` resolves identity in this order:
-
-1. **SERVICE_TOKEN** — timing-safe compare of the Bearer token against `SERVICE_TOKEN()`. Sets `req.isServiceToken = true`. Bypasses all membership checks.
-2. **Supabase JWT** — `verifySupabaseJwt(token)` (see below) + `ensureUserExists(claims)` upsert. Sets `req.auth` to the `AuthenticatedUser`. Returns 403 `ACCOUNT_DISABLED` if `user.status !== 'active'`.
-3. **No match** — 401 `AUTHENTICATION_REQUIRED`.
-
-### JWT verification — dual-env profiles
-
-The gateway detects its profile at startup via `detectEnvProfile()` in `src/lib/config.ts`:
-
-| Profile   | Detection                                                                               | JWT algorithm | Verification                              |
-| --------- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- |
-| **LOCAL** | `SUPABASE_URL` starts with `http://localhost` and `SUPABASE_ANON_KEY` starts with `eyJ` | HS256         | Symmetric secret from `GOTRUE_JWT_SECRET` |
-| **CLOUD** | `SUPABASE_URL` is `https://*.supabase.co` and `SUPABASE_ANON_KEY` starts with `sb_`     | ES256         | Asymmetric JWKS from `SUPABASE_JWKS_URL`  |
-
-Mixing LOCAL and CLOUD values causes a fatal error at startup. `SUPABASE_JWKS_URL` is derived automatically: `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
-
-### Supabase key model
-
-The platform uses the new Supabase opaque key model:
-
-- **Publishable key** (`sb_publishable_...`) — safe for browser use. Stored as `SUPABASE_ANON_KEY`. Used as the `apikey` header for PostgREST and Auth calls.
-- **Secret key** (`sb_secret_...`) — server-side only. Stored as `SUPABASE_SECRET_KEY`. Used as both `apikey` and `Authorization: Bearer` for admin Auth API calls (user creation, invitations). **Never expose to browser.**
-
-Legacy `eyJ` HS256 JWT keys (local dev) are still valid for the LOCAL profile. The `sb_` opaque keys are CLOUD-only.
-
-### Authorization middleware
-
-`src/gateway/middleware/authz.ts` exports three guards:
-
-- `requireAuth` — plain middleware; passes if `req.isServiceToken` or `req.auth` is set. Returns 401 otherwise.
-- `requireTenantRole(...roles)` — factory; checks the user's `TenantMembership` for the `:tenantId` route param. SERVICE_TOKEN and PLATFORM_OWNER bypass the membership check. Returns 403 if the user's role rank is below the minimum required.
-- `requirePermission(permission)` — factory; checks `ROLE_PERMISSIONS` or `TENANT_ROLE_PERMISSIONS` for the named permission. SERVICE_TOKEN and PLATFORM_OWNER always pass.
-
 Role rank order (highest to lowest): `OWNER(4) > ADMIN(3) > MEMBER(2) > VIEWER(1)`.
 
-### RBAC — roles and permissions
-
-**Global roles** (`Role` enum, `src/lib/auth/permissions.ts`):
-
-| Role             | Scope                   | Key permissions                                                                  |
-| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| `PLATFORM_OWNER` | Cross-tenant superadmin | All permissions                                                                  |
-| `ADMIN`          | Platform-level          | Manage archetypes, rules, KB, locks, projects, trigger employees, invite members |
-| `EDITOR`         | Platform-level          | Manage archetypes, rules, KB (no trigger)                                        |
-| `USER`           | Platform-level          | Trigger employees, read tasks                                                    |
-| `VIEWER`         | Platform-level          | Read tenant and tasks only                                                       |
-
-**Tenant roles** (`TenantRole` enum):
-
-| Role     | Key permissions                                                                          |
-| -------- | ---------------------------------------------------------------------------------------- |
-| `OWNER`  | All tenant permissions including delete tenant, manage secrets/integrations/members      |
-| `ADMIN`  | Manage archetypes, rules, KB, locks, projects, trigger, invite (no secrets/integrations) |
-| `MEMBER` | Trigger employees, read tasks                                                            |
-| `VIEWER` | Read tenant and tasks only                                                               |
-
-### Bootstrap — first PLATFORM_OWNER
-
-Run `scripts/seed-platform-owner.ts` to create the first PLATFORM_OWNER user in both Supabase Auth and the app DB:
-
-```bash
-BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword tsx scripts/seed-platform-owner.ts
-```
-
-The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants. This is a **manual, on-demand step** — it is NOT part of `prisma/seed.ts` and NOT run by `pnpm setup`. After a fresh `pnpm setup` the database has tenants but no users, so you must run this once before you can log into the dashboard. Choose your own email/password — do not commit real credentials.
+Auth/RBAC/secrets work → load `security` FIRST; full flow in `docs/guides/2026-06-09-1448-user-auth-rbac.md`.
 
 ## Commands
 
