@@ -410,7 +410,7 @@ Max Concurrent: 3 (Waves 1 & 2)
   - Files: `src/gateway/services/ensure-user-exists.ts`, `tests/integration/auth/ensure-user-exists.test.ts`
   - Pre-commit: `pnpm test:integration`
 
-- [ ] 2. RED — failing tests for the authenticated, membership-only accept route
+- [x] 2. RED — failing tests for the authenticated, membership-only accept route
 
   **What to do**:
   - Add failing tests (integration preferred) encoding the NEW accept contract:
