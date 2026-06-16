@@ -172,6 +172,37 @@ No security-relevant record (tenant, secret, task) is ever hard-deleted — dele
 
 ---
 
+## 10. RBAC — Roles and Permissions
+
+### Global roles (`Role` enum, `src/lib/auth/permissions.ts`)
+
+| Role             | Scope                   | Key permissions                                                                  |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `PLATFORM_OWNER` | Cross-tenant superadmin | All permissions                                                                  |
+| `ADMIN`          | Platform-level          | Manage archetypes, rules, KB, locks, projects, trigger employees, invite members |
+| `EDITOR`         | Platform-level          | Manage archetypes, rules, KB (no trigger)                                        |
+| `USER`           | Platform-level          | Trigger employees, read tasks                                                    |
+| `VIEWER`         | Platform-level          | Read tenant and tasks only                                                       |
+
+### Tenant roles (`TenantRole` enum)
+
+| Role     | Key permissions                                                                          |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `OWNER`  | All tenant permissions including delete tenant, manage secrets/integrations/members      |
+| `ADMIN`  | Manage archetypes, rules, KB, locks, projects, trigger, invite (no secrets/integrations) |
+| `MEMBER` | Trigger employees, read tasks                                                            |
+| `VIEWER` | Read tenant and tasks only                                                               |
+
+Role rank order (highest to lowest): `OWNER(4) > ADMIN(3) > MEMBER(2) > VIEWER(1)`.
+
+Authorization middleware (`src/gateway/middleware/authz.ts`) exports three guards:
+
+- `requireAuth` — passes if `req.isServiceToken` or `req.auth` is set; returns 401 otherwise
+- `requireTenantRole(...roles)` — checks the user's `TenantMembership` for the `:tenantId` route param; SERVICE_TOKEN and PLATFORM_OWNER bypass the membership check; returns 403 if the user's role rank is below the minimum required
+- `requirePermission(permission)` — checks `ROLE_PERMISSIONS` or `TENANT_ROLE_PERMISSIONS` for the named permission; SERVICE_TOKEN and PLATFORM_OWNER always pass
+
+---
+
 ## Cross-References
 
 - `src/lib/encryption.ts` — AES-256-GCM encrypt/decrypt + `validateEncryptionKey()`
