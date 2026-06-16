@@ -576,7 +576,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): collapse skills to one dispatch table; add load-skill-first meta-instruction`. Files: `AGENTS.md`.
 
-- [ ] 11. AGENTS.md — trim Approved LLM Models (keep constraint loud; delete migrated catalog/quirks/Go-routing)
+- [x] 11. AGENTS.md — trim Approved LLM Models (keep constraint loud; delete migrated catalog/quirks/Go-routing)
 
   **What to do**:
   - KEEP LOUD inline: the two-category rule (execution = catalog model; verification = `gateway_llm_model`, default `deepseek/deepseek-v4-flash`), the FORBIDDEN-hardcoded-model rule, and the VM-size CRITICAL (performance-1x requirement).
@@ -613,7 +613,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): trim model catalog/quirks/Go-routing to pointers; keep constraint loud`. Files: `AGENTS.md`.
 
-- [ ] 12. AGENTS.md — trim OpenCode Worker (keep map/lifecycle/inngest/contract/pin; delete migrated mechanics)
+- [x] 12. AGENTS.md — trim OpenCode Worker (keep map/lifecycle/inngest/contract/pin; delete migrated mechanics)
 
   **What to do**:
   - KEEP: harness file pointers, the shell-tools directory table (useful index), the lifecycle state list, the active inngest-function list, the output-contract invariant, the OpenCode `1.14.31` version pin.
@@ -648,7 +648,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): trim worker routing/unescape/multi-provider to pointers`. Files: `AGENTS.md`.
 
-- [ ] 13. AGENTS.md — trim Adding-Employee / Tenants / Dashboard URLs to skeletons + tripwires
+- [x] 13. AGENTS.md — trim Adding-Employee / Tenants / Dashboard URLs to skeletons + tripwires
 
   **What to do**:
   - **Adding a New Employee**: keep the wizard one-liner + the manual-seed numbered checklist + the approval-gate note. DELETE the role_name-derivation paragraph and the intent-level-steps paragraph (→ tripwire pointer: "Creating/editing an employee → load `creating-archetypes` FIRST").
@@ -684,7 +684,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): trim employee/tenant/dashboard prose to skeletons + pointers`. Files: `AGENTS.md`.
 
-- [ ] 14. AGENTS.md — collapse Auth section to ~5-line core + pointer
+- [x] 14. AGENTS.md — collapse Auth section to ~5-line core + pointer
 
   **What to do**:
   - KEEP inline: the two token types (SERVICE_TOKEN + Supabase JWT), the never-violate "all `/admin/*` and `/me` need `Authorization: Bearer`" rule, and the role rank order (`OWNER>ADMIN>MEMBER>VIEWER`).
@@ -719,7 +719,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): collapse auth to core + security-skill pointer`. Files: `AGENTS.md`.
 
-- [ ] 15. AGENTS.md — trim Database to connection + invariants + settings-keys; point columns to schema.prisma
+- [x] 15. AGENTS.md — trim Database to connection + invariants + settings-keys; point columns to schema.prisma
 
   **What to do**:
   - KEEP inline: DB name/connection string, PostgREST URL, the test-DB safety guard, the soft-delete reminder, and the `platform_settings` KEYS list (behavioral — affects runtime).
@@ -755,7 +755,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): trim DB column dumps to schema.prisma pointer; keep invariants`. Files: `AGENTS.md`.
 
-- [ ] 16. AGENTS.md — split Key Conventions (universal inline; domain rules → tripwire pointers)
+- [x] 16. AGENTS.md — split Key Conventions (universal inline; domain rules → tripwire pointers)
 
   **What to do**:
   - KEEP inline (UNIVERSAL — never migrate): exactly-two-things injection, discover-before-build, multi-tenancy-mandatory, shared-files-employee-agnostic, soft-deletes-only, /tmp-tools-only, World-A/World-B output-contract, knowledge_base snake_case exception, Zod UUID_REGEX, platform-settings-over-env-vars, AI-employee-outputs-concise, end-user-language-non-technical.
@@ -799,7 +799,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): keep universal conventions; convert domain rules to tripwire pointers`. Files: `AGENTS.md`.
 
-- [ ] 17. AGENTS.md — trim Project Structure tree to one-line-per-dir + load-bearing files
+- [x] 17. AGENTS.md — trim Project Structure tree to one-line-per-dir + load-bearing files
 
   **What to do**:
   - Keep the tree with a SHORT purpose per directory. Name ONLY load-bearing files agents must know exist (e.g. `events.ts` "import event types here", `postgrest-headers.ts` "makePostgrestHeaders factory", `http-response.ts` "sendError/sendSuccess").
@@ -832,7 +832,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): trim project-structure tree to dirs + load-bearing files`. Files: `AGENTS.md`.
 
-- [ ] 18. AGENTS.md — collapse both E2E sections to the loud mandate + skill pointers
+- [x] 18. AGENTS.md — collapse both E2E sections to the loud mandate + skill pointers
 
   **What to do**:
   - Collapse the two E2E sections (Post-Implementation E2E + Plan E2E Validation) into ONE tight "E2E Testing (MANDATORY)" block that KEEPS LOUD: must run live E2E yourself, "code looks correct" is insufficient, Slack-trigger changes require the single-gateway pre-flight + live @mention → Confirm → Done, "verified-from-code is explicitly insufficient."
@@ -867,7 +867,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): collapse E2E sections to mandate + skill pointers`. Files: `AGENTS.md`.
 
-- [ ] 19. AGENTS.md — drop Future Work backlog; prune + trim Reference Documents table; verify Telegram untouched
+- [x] 19. AGENTS.md — drop Future Work backlog; prune + trim Reference Documents table; verify Telegram untouched
 
   **What to do**:
   - DELETE the "Future Work (Backlog — Not in Current Plan)" section entirely (project-tracking, not agent-guidance).
@@ -903,7 +903,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): drop future-work backlog; prune+trim reference table`. Files: `AGENTS.md`.
 
-- [ ] 20. AGENTS.md — tripwire-coverage audit pass
+- [x] 20. AGENTS.md — tripwire-coverage audit pass
 
   **What to do**:
   - Cross-check the Task-1 critical-rule inventory: for EVERY rule classified DOMAIN that was migrated AND is flagged always-violated-by-default (dashboard rules, sendError/sendSuccess, requireEnv, ToolDescriptor, archetype-edit), confirm a one-line tripwire pointer exists inline in AGENTS.md (in Key Conventions or the dispatch table) that NAMES the rule + commands loading the skill.
@@ -940,7 +940,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): ensure tripwire coverage + refresh TOC`. Files: `AGENTS.md`.
 
-- [ ] 21. Reconciliation completion + all gates + before/after delta
+- [x] 21. Reconciliation completion + all gates + before/after delta
 
   **What to do**:
   - Complete the reconciliation artifact: for EVERY block removed from AGENTS.md across Tasks 10-20, fill `verified-present? = YES` (with the grep that proves it) and a verdict `{kept-inline | moved-to:<dest> | dropped-as-dead:<reason>}`. ZERO unaccounted removals.
@@ -994,21 +994,21 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
 > 3 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed. Never mark F1-F3 checked before user okay.
 
-- [ ] F1. **Information-Preservation Audit** — `oracle`
+- [x] F1. **Information-Preservation Audit** — `oracle`
       Read the committed baseline `AGENTS.md` (`git show <baseline>:AGENTS.md`), the current `AGENTS.md`, the reconciliation artifact, and the captured inventories. For EVERY rule containing MANDATORY/CRITICAL/NEVER/MUST/FORBIDDEN/⚠️ in the baseline, confirm it is either still inline OR mapped in the reconciliation to a destination that GREP-CONFIRMS the content is present. Specifically audit R1: list every always-violated-by-default rule that was migrated and confirm a one-line tripwire pointer remains inline. Confirm all semantic constants + the 10 verbatim strings survive, and the Telegram section is byte-identical.
       Output: `Critical rules [N/N accounted] | Semantic constants [N/N present] | Verbatim strings [10/10] | Tripwires [N/N migrated-always-violated] | Telegram [byte-identical] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Doc Accuracy + Markdown Quality** — `unspecified-high`
+- [x] F2. **Doc Accuracy + Markdown Quality** — `unspecified-high`
       For each of the 12 migration mappings, grep the destination skill/doc and confirm the migrated symbol/command/table is present. Confirm zero dangling `see AGENTS.md §`/`listed in AGENTS.md` pointers to deleted sections remain in `.opencode/skills/`. Confirm markdown tables render (no broken rows). Confirm the single skill-dispatch table still routes every domain that had a migrated rule. Confirm no new volatile counts were introduced. Run `pnpm lint` if it covers markdown.
       Output: `Mappings verified [12/12] | Dangling pointers [0] | Dispatch coverage [N/N domains] | Markdown [PASS/FAIL] | New counts [NONE] | VERDICT`
 
-- [ ] F3. **Scope Fidelity Check** — `deep`
+- [x] F3. **Scope Fidelity Check** — `deep`
       `git diff --name-only` the full change set. Confirm ONLY `AGENTS.md` + the in-scope `.opencode/skills/*/SKILL.md` files (+ optionally the user-auth-rbac doc + `.sisyphus/*`) were touched. Assert ZERO `src/workers/` paths and ZERO `.ts`/`.json`/`.prisma` edits. Confirm no new skill folder was created. Confirm universal rules were NOT deleted. Report before/after `wc -l` delta.
       Output: `Files touched [in-scope only] | Worker paths [0] | Source edits [0] | New skills [0] | Universal rules [intact] | Delta [N lines] | VERDICT`
 
 -> Present F1-F3 results -> Get explicit user okay before completing.
 
-- [ ] 22. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 22. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
   - Run: `pnpm exec tsx scripts/telegram-notify.ts "✅ AGENTS.md leanness round 2 complete — migrated domain detail into skills, router-style file, zero rule loss verified. Come back to review."`
   - Run ONLY after F1-F3 APPROVE and the user has given explicit okay.
 
