@@ -539,7 +539,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `feat(db): consolidate delivery fields to delivery_steps` — Files: `prisma/schema.prisma`, `prisma/migrations/*`, backup note — Pre-commit: `pnpm test -- --run`
 
-- [ ] 8. Generator prompt fix + postProcess default + allowlist (GREEN)
+- [x] 8. Generator prompt fix + postProcess default + allowlist (GREEN)
 
   **What to do**:
   - In `archetype-generator-prompts.ts`: change the JSON example so `delivery_steps` shows a REAL example value (not `null`); rewrite the mirror rule (~L282) so the model is told `delivery_steps` MUST be non-null when the employee produces a deliverable; add an explicit rule tying classification to `approval_required`. Update `CONVERSE_SYSTEM_PROMPT` accordingly.
@@ -589,7 +589,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `feat(archetypes): generator always emits delivery phase` — Files: prompts + generator + converse-create — Pre-commit: `pnpm test -- --run`
 
-- [ ] 9. POST + PATCH hard-gate validation (GREEN)
+- [x] 9. POST + PATCH hard-gate validation (GREEN)
 
   **What to do**:
   - In `admin-archetypes.ts`: replace the soft `delivery_instructions` backfill with a HARD gate using the shared resolver logic: if `deliverable_type` is set but resolved delivery is empty → `sendError(... 400 ...)` with an `ERROR_CODES` code. If `deliverable_type` is null (escape hatch) → allow.
@@ -641,7 +641,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `feat(archetypes): hard-gate empty delivery at create and edit` — Files: `admin-archetypes.ts`, `archetype-edit-helpers.ts`, tests — Pre-commit: `pnpm test:integration`
 
-- [ ] 10. seed.ts single-field update (GREEN)
+- [x] 10. seed.ts single-field update (GREEN)
 
   **What to do**:
   - Update `prisma/seed.ts` so every archetype sets `delivery_steps` (per Task 11 spec) and no archetype references the removed `delivery_instructions`. Summarizer/guest-messaging/code-rotation move their long delivery content into `delivery_steps`; google-assistant keeps its short step; cleaning-schedule stays null (escape hatch).
