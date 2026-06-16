@@ -688,7 +688,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `feat(db): update seed to consolidated delivery field` — Files: `prisma/seed.ts` — Pre-commit: `pnpm test -- --run`
 
-- [ ] 7. Redirect no-approval-path gate to resolver + classification tolerance (GREEN)
+- [x] 7. Redirect no-approval-path gate to resolver + classification tolerance (GREEN)
 
   **What to do**:
   - In `no-approval-path.ts`, replace the `deliverable_type`-based existence gate (L158-204) and the skip logic (L72) with calls to `resolveDelivery()`. Map: `has-delivery` → spawn delivery; `no-delivery-escape-hatch` → `Done`; `misconfigured` → Failed `MISSING_DELIVERY_CONFIG`.
@@ -738,7 +738,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `fix(lifecycle): route no-approval delivery through resolver` — Files: `no-approval-path.ts`, tests — Pre-commit: `pnpm test -- --run`
 
-- [ ] 12. Redirect delivery-retry.ts gate to resolver (GREEN)
+- [x] 12. Redirect delivery-retry.ts gate to resolver (GREEN)
 
   **What to do**:
   - Replace the `delivery_instructions`-null check (`delivery-retry.ts:60-70`) with `resolveDelivery()`: `misconfigured` → Failed; otherwise proceed with resolved content. Stop reading `delivery_instructions` directly.
@@ -777,7 +777,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `refactor(lifecycle): delivery-retry uses resolver` — Files: `delivery-retry.ts` — Pre-commit: `pnpm test -- --run`
 
-- [ ] 13. Redirect approval-handler.ts gate to resolver (GREEN)
+- [x] 13. Redirect approval-handler.ts gate to resolver (GREEN)
 
   **What to do**:
   - Replace the `delivery_instructions`-null check in `approval-handler.ts` (L304-315) with `resolveDelivery()`. Keep the `deliverable_type` card-copy usage at L454/L490 intact.
@@ -815,7 +815,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `refactor(lifecycle): approval-handler uses resolver` — Files: `approval-handler.ts` — Pre-commit: `pnpm test -- --run`
 
-- [ ] 14. Compiler reads canonical field; remove `?? delivery_instructions` fallback (GREEN)
+- [x] 14. Compiler reads canonical field; remove `?? delivery_instructions` fallback (GREEN)
 
   **What to do**:
   - Update `agents-md-compiler.mts`, `execution-phase.mts:256`, `delivery-phase.mts:123` to read `delivery_steps` (via resolver where appropriate) and REMOVE the `?? delivery_instructions` fallback now that the column is gone.
@@ -856,7 +856,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `refactor(workers): compiler reads canonical delivery field` — Files: compiler + phases + postgrest-types + brain-preview — Pre-commit: `pnpm test -- --run`
 
-- [ ] 15. Manual tenant-scoped patch of ab1b5ecb (GREEN)
+- [x] 15. Manual tenant-scoped patch of ab1b5ecb (GREEN)
 
   **What to do**:
   - After the migration (Task 6), patch the broken employee `ab1b5ecb-382f-4821-9054-4ede7457d223` (tenant `18aaaab7-44c1-42ee-a9e2-928679db78e0`) so it has valid `delivery_steps` and a consistent approval/classification config (e.g. set `delivery_steps` to "Post the executive summary to the configured Slack channel." and ensure `deliverable_type` is set). Prefer the admin `PATCH` API (exercises the new gate) over raw SQL; if SQL, scope by both id AND tenant_id.
@@ -893,7 +893,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `fix(archetypes): repair broken summarizer delivery config` — Files: (data patch; note in commit body) — Pre-commit: `pnpm test -- --run`
 
-- [ ] 16. Docker worker image rebuild + live wizard E2E (both delivery paths)
+- [x] 16. Docker worker image rebuild + live wizard E2E (both delivery paths)
 
   **What to do**:
   - Rebuild the worker image: `docker build -t ai-employee-worker:latest .` (the compiler/phase changes require it). Use the tmux launch+poll pattern (`long-running-commands`).
@@ -948,7 +948,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: NO (verification only; no source change)
 
-- [ ] 17. Doc fixes — AGENTS.md mislabel + drift-audit
+- [x] 17. Doc fixes — AGENTS.md mislabel + drift-audit
 
   **What to do**:
   - Correct AGENTS.md where `delivery_instructions` is described as "the platform constant prompt" — it was per-employee content + the lifecycle gate, and it is now REMOVED in favor of `delivery_steps`. Update the "Adding a New Employee" and OpenCode Worker sections to reference the single `delivery_steps` field + the resolver + the create/edit hard gate + the escape hatch.
@@ -988,7 +988,7 @@ Max Concurrent: 5 (Waves 1 & 2)
 
   **Commit**: YES — `docs: correct delivery field semantics and drift audit` — Files: `AGENTS.md`, drift-audit doc — Pre-commit: `pnpm test -- --run`
 
-- [ ] 18. Notify completion (Telegram)
+- [x] 18. Notify completion (Telegram)
 
   **What to do**:
   - Send Telegram: plan complete, all tasks done, come back to review.

@@ -583,3 +583,40 @@ These existed before Task 7 started and are NOT caused by T7 changes.
 - `pnpm build`: BUILD_EXIT=0, 0 TS errors. (The previously-noted admin-brain-preview.ts:276,342
   errors are GONE — concurrent T14 resolved them; build is now fully clean.)
 - `pnpm test -- --run` still drops to watch mode here — used `CI=true pnpm exec vitest run`.
+
+## [2026-06-16] T16 — Docker rebuild + live E2E (both delivery paths) PASS
+
+### Result
+- Docker image rebuilt: EXIT_CODE:0 (sha256:f6d906a10ad7...).
+- E2E A (no-approval, t16-slack-summarizer-e2e, task c80df50d): Submitting->Delivering->Done.
+  NEVER hit MISSING_DELIVERY_CONFIG. The T7 fix is verified live.
+- E2E B (approval-required, t16-approval-test-e2e, task 99c6a29a):
+  Submitting->Reviewing->Approved->Delivering->Done, failure_code null. T13 fix verified.
+- Evidence: .sisyphus/evidence/enforce-execution-delivery-phases/task-16-e2e.txt
+
+### Gotchas for future E2E via admin API (NOT the wizard UI)
+- POST /admin/tenants/:id/archetypes REQUIRES `instructions` (string, min 1) AND
+  `risk_model.{approval_required, timeout_hours}`. The task prompt's example body
+  omitted both -> 400 invalid_type. Schema: admin-archetypes.ts:81 CreateArchetypeBodySchema.
+- The create schema does NOT accept `vm_size` (Zod strips it). Created archetype had
+  vm_size='' -> had to `UPDATE archetypes SET vm_size='performance-1x'` via psql after.
+  (Less critical in local Docker mode, but required per AGENTS.md for opencode runtime.)
+- asdf python3 is unconfigured in this repo (no .tool-versions python) -> `python3 -m json.tool`
+  fails. Use `jq` or psql for parsing, never python3.
+- curl `-w "...%{http_code}"` suffix appended to body BREAKS jq parsing and masks a
+  successful 201 (looked like null fields). The employee WAS created; the 2nd attempt
+  returned 409 ROLE_NAME_TAKEN which confirmed it. Verify creation via psql, not the
+  curl-with-w output.
+
+### Approval mechanism (no REST endpoint)
+- There is NO POST /tasks/:id/approve route. Approval = Slack button -> Inngest event
+  `employee/approval.received` (approve-action.ts:68). Manual fallback for E2E:
+  curl -X POST localhost:8288/e/local -d '{"name":"employee/approval.received",
+  "data":{"taskId":"...","action":"approve","userId":"...","userName":"..."}}'
+  This drives the REAL lifecycle wait (reviewing-path.ts:453). Worked first try (200).
+
+### Transient delivery SIGTERM is recoverable (not a real failure)
+- E2E A showed Delivering->Failed(machine)->Done(machine): a delivery-container SIGTERM
+  left failure_code='worker_terminated' stale on the row, but the delivery retry loop
+  (employee-delivery-<id>-retry1) recovered and the task reached Done. Terminal status,
+  not failure_code, is the success signal. Always read the FULL task_status_log trace.
