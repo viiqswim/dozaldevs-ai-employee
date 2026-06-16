@@ -49,7 +49,6 @@ export interface ArchetypeRow {
   model?: string | null;
   deliverable_type?: string | null;
   runtime?: string | null;
-  delivery_instructions?: string | null;
   enrichment_adapter?: string | null;
   risk_model?: { approval_required?: boolean; timeout_hours?: number } | null;
   tool_registry?: { tools?: string[] } | null;
@@ -253,7 +252,7 @@ export async function runExecutionPhase(
     const compiledAgentsMd = compileAgentsMd({
       identity: archetype.identity ?? '',
       executionSteps: archetype.execution_steps ?? '',
-      deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
+      deliverySteps: archetype.delivery_steps ?? '',
       employeeRules,
       employeeKnowledge,
       platformRulesOverride: archetype.platform_rules_override ?? undefined,

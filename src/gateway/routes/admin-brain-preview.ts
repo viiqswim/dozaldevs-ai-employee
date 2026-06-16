@@ -273,7 +273,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
         const compiledAgentsMd = compileAgentsMd({
           identity: archetype.identity ?? '',
           executionSteps: archetype.execution_steps ?? '',
-          deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
+          deliverySteps: archetype.delivery_steps ?? '',
           employeeRules: employeeRulesStr,
           employeeKnowledge: employeeKnowledgeStr,
         });
@@ -339,7 +339,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           humanFields: {
             taskTrigger: archetype.execution_instructions ?? '',
             employeeManual: archetype.execution_steps ?? '',
-            afterApprovalAction: archetype.delivery_instructions ?? '',
+            afterApprovalAction: archetype.delivery_steps ?? '',
           },
         });
       } catch (err) {
