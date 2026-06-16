@@ -465,7 +465,35 @@ Production runs PostgreSQL 17.6. The default Homebrew `psql` may be 15.x and wil
 
 ---
 
-## Section 7: Cross-Links
+## Section 7: Slack @mention Routing Algorithm
+
+When a Slack @mention arrives, the `slack-trigger-handler` Inngest function resolves which employee to dispatch using this algorithm:
+
+1. `findManyByExternalId('slack', team_id)` — returns all tenants connected to that Slack workspace (many tenants can share one workspace)
+2. `resolveEmployeesAcrossTenants(channel, tenantIds)` — finds candidate employees across all those tenants whose channel matches the @mention channel
+3. **Single candidate** → direct dispatch (no user interaction needed)
+4. **Multiple candidates** → LLM routing via `routeToEmployee()`; confident result → dispatch; null result → disambiguation card with employee buttons (`TRIGGER_DISAMBIGUATE`)
+5. **Zero candidates** → "no employees available" message posted in thread
+
+**Action IDs** (defined in `src/lib/slack-action-ids.ts`):
+
+| Constant                               | When used                                                 |
+| -------------------------------------- | --------------------------------------------------------- |
+| `SLACK_ACTION_ID.TRIGGER_CONFIRM`      | User clicks Confirm on the confirmation card              |
+| `SLACK_ACTION_ID.TRIGGER_CANCEL`       | User clicks Cancel on the confirmation card               |
+| `SLACK_ACTION_ID.TRIGGER_DISAMBIGUATE` | User clicks an employee button on the disambiguation card |
+
+**`pendingInputCollections` Map**: In-memory Map in the gateway process, keyed by `channelId:threadTs`. Tracks threads that are awaiting required input from the user (when the employee's archetype has `input_schema` fields). Handled by `src/inngest/slack-input-collector.ts`.
+
+**Debugging routing failures**: If a task never appears after an @mention, check Step 3 in the forward trace above. Common causes:
+
+- Channel not mapped to any employee → zero candidates → "no employees available" message
+- Multiple candidates and `routeToEmployee()` returned null → disambiguation card shown (user must click)
+- `pendingInputCollections` entry exists but user replied in wrong thread → input never collected
+
+---
+
+## Section 8: Cross-Links
 
 Load these skills for the referenced topics — don't duplicate their content here.
 
