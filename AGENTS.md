@@ -41,15 +41,13 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **Execution model selection — how it works:** The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. New archetypes pick a model from the catalog via `POST /admin/tenants/:tenantId/archetypes/recommend-model`. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global — not tenant-scoped).
 
-**Seeded catalog models (global):** `minimax/minimax-m2.7` · `minimax/minimax-m2.5` · `minimax/minimax-m3` · `zhipu/glm-5.1` · `zhipu/glm-5` · `moonshot/kimi-k2.5` · `moonshot/kimi-k2.6` · `xiaomi/mimo-v2.5-pro` · `xiaomi/mimo-v2.5` · `alibaba/qwen3.7-max` · `alibaba/qwen3.7-plus` · `alibaba/qwen3.6-plus` · `deepseek/deepseek-v4-pro` · `deepseek/deepseek-v4-flash`
-
-**Recommended for E2E testing**: `deepseek/deepseek-v4-flash` — confirmed reliable for tool calling. Some catalog models (e.g., `xiaomi/mimo-v2.5`, `minimax/minimax-m2.7`) may not call bash tools, causing immediate task failure. When testing wizard-generated employees, override the model to `deepseek/deepseek-v4-flash` via DB before triggering. **Note**: `xiaomi/mimo-v2.5-pro` (distinct from `xiaomi/mimo-v2.5`) has been verified to reliably call bash tools in the engineer employee context (E2E verified 2026-06-03). `minimax/minimax-m2.7` fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03) — use `deepseek/deepseek-v4-flash` for Go routing tests.
+**Seeded catalog models:** See `creating-archetypes` skill for the full list and per-model reliability notes.
 
 **OpenCode VM size requirement**: Any archetype using `runtime: 'opencode'` MUST have `vm_size: 'performance-1x'` set (or larger). The Go-based OpenCode binary reserves ~74GB virtual memory at startup — `shared-cpu-1x` Fly machines (256MB RAM) will OOM-kill it every time. Without `vm_size` set, the archetype defaults to `shared-cpu-1x` and every task fails within 45 seconds with 0 tokens. Set it in both the DB and the seed file: `UPDATE archetypes SET vm_size = 'performance-1x' WHERE id = '<archetype_id>';`
 
 **Forbidden in hardcoded references:** `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, `openai/gpt-4o-mini`. These may not appear as hardcoded model IDs anywhere in production code, default fallbacks, or environment variable examples. Adding a model to the catalog is the correct path to make it usable.
 
-**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and others (see `src/lib/go-models.ts` for the full list). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
+**OpenCodeGo routing:** When `OPENCODE_GO_API_KEY` is set, compatible models route through OpenCodeGo. Full mechanics and model list → `creating-archetypes` skill + `src/lib/go-models.ts`.
 
 The engineering employee and its orchestrator-based worker are retired; all active employees use the OpenCode harness.
 
