@@ -217,7 +217,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
 > Add-to-skill (Wave 2) ALWAYS precedes the paired AGENTS.md deletion (Wave 3). EVERY task has Recommended Agent Profile + Parallelization + QA Scenarios. A task without QA Scenarios is INCOMPLETE.
 
-- [ ] 1. Baseline snapshot + preservation inventories + seed reconciliation artifact
+- [x] 1. Baseline snapshot + preservation inventories + seed reconciliation artifact
 
   **What to do**:
   - Ensure `AGENTS.md` is committed at its current pre-edit state so `git show HEAD:AGENTS.md` is a clean diff baseline. Record the baseline SHA in evidence.
@@ -257,7 +257,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(agents): snapshot before leanness round 2` (only if uncommitted changes exist). Files: `AGENTS.md`.
 
-- [ ] 2. ABSENT #1 — inline seeded-catalog list + per-model reliability quirks into skills; FIX dangling back-pointer (R2)
+- [x] 2. ABSENT #1 — inline seeded-catalog list + per-model reliability quirks into skills; FIX dangling back-pointer (R2)
 
   **What to do**:
   - Move the **seeded catalog model list** and the **per-model E2E bash-reliability quirks** (which models reliably call bash tools, the deepseek-v4-flash recommendation, the mimo-v2.5-pro vs mimo-v2.5 distinction) FROM AGENTS.md § Approved LLM Models INTO `.opencode/skills/creating-archetypes/SKILL.md` (catalog + model selection) and `.opencode/skills/e2e-testing/SKILL.md` (reliability-for-testing notes).
@@ -295,7 +295,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): inline model catalog + reliability notes; fix back-pointer`. Files: `creating-archetypes/SKILL.md`, `e2e-testing/SKILL.md`.
 
-- [ ] 3. ABSENT #2 — migrate OpenCodeGo routing mechanics → creating-archetypes
+- [x] 3. ABSENT #2 — migrate OpenCodeGo routing mechanics → creating-archetypes
 
   **What to do**:
   - Move the **OpenCodeGo multi-provider routing mechanics** (when `OPENCODE_GO_API_KEY` is set, Go vs OpenRouter selection, `writeOpencodeAuth()` dual-entry, the two Go endpoint formats, usage limits, the `src/lib/go-models.ts` pointer) FROM AGENTS.md INTO `.opencode/skills/creating-archetypes/SKILL.md`.
@@ -330,7 +330,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive OpenCodeGo routing mechanics`. Files: `creating-archetypes/SKILL.md`.
 
-- [ ] 4. ABSENT #3 — migrate archetype-edit-helpers / enforce_tool_registry / tool-path-never-block → creating-archetypes
+- [x] 4. ABSENT #3 — migrate archetype-edit-helpers / enforce_tool_registry / tool-path-never-block → creating-archetypes
 
   **What to do**:
   - Move the three Key-Conventions blocks that exist ONLY in AGENTS.md INTO `.opencode/skills/creating-archetypes/SKILL.md`:
@@ -367,7 +367,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive archetype-edit helpers, enforce_tool_registry, never-block policy`. Files: `creating-archetypes/SKILL.md`.
 
-- [ ] 5. PARTIAL — Slack routing symbols → execution-trace-debugging; unescape-args → adding-shell-tools
+- [x] 5. PARTIAL — Slack routing symbols → execution-trace-debugging; unescape-args → adding-shell-tools
 
   **What to do**:
   - The destinations have prose but are MISSING specifics. Add to `.opencode/skills/execution-trace-debugging/SKILL.md` the Slack @mention routing algorithm specifics: `findManyByExternalId('slack', team_id)`, `resolveEmployeesAcrossTenants()`, `routeToEmployee()`, the `TRIGGER_CONFIRM/TRIGGER_CANCEL/TRIGGER_DISAMBIGUATE` action IDs, and the `pendingInputCollections` Map.
@@ -402,7 +402,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive Slack routing symbols + unescape-args convention`. Files: `execution-trace-debugging/SKILL.md`, `adding-shell-tools/SKILL.md`.
 
-- [ ] 6. PARTIAL — role_name derivation / intent-level steps / converse-create internals → creating-archetypes + employee-creation-debugging
+- [x] 6. PARTIAL — role_name derivation / intent-level steps / converse-create internals → creating-archetypes + employee-creation-debugging
 
   **What to do**:
   - Add to `.opencode/skills/creating-archetypes/SKILL.md`: the **intent-level steps convention** (generated steps are plain-English prose; worker resolves tool commands at runtime; `$NOTIFICATION_CHANNEL`/`$PUBLISH_CHANNEL` placeholders; the submit-output `--draft-file` closer) and the **`role_name` CREATE-path derivation** (kebab-case slug auto-derive, `employee-<short-id>` fallback, EDIT path forbids changing role_name).
@@ -437,7 +437,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive role_name/intent-steps/converse-create internals`. Files: `creating-archetypes/SKILL.md`, `employee-creation-debugging/SKILL.md`.
 
-- [ ] 7. PARTIAL — ToolDescriptor / ALL_TOOL_DESCRIPTORS specifics → adding-shell-tools + data-access-conventions
+- [x] 7. PARTIAL — ToolDescriptor / ALL_TOOL_DESCRIPTORS specifics → adding-shell-tools + data-access-conventions
 
   **What to do**:
   - Add to `.opencode/skills/adding-shell-tools/SKILL.md` (or `data-access-conventions` if it fits better — pick the one whose existing prose already covers tool discovery): the **typed `ToolDescriptor` + startup-cached discovery** specifics (every tool exports `descriptor: ToolDescriptor` from `src/worker-tools/lib/types.ts`; `ALL_TOOL_DESCRIPTORS` static array in `src/lib/tool-registry.ts`; `discoverTools()` cache; the "add to ALL_TOOL_DESCRIPTORS" step) and the **`requireEnv()`/`optionalEnv()` in worker tools** rule.
@@ -470,7 +470,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive ToolDescriptor discovery + requireEnv worker-tool rule`. Files: `adding-shell-tools/SKILL.md` (and/or `data-access-conventions/SKILL.md`).
 
-- [ ] 8. PARTIAL — E2E pre-flight scripts + scenario tables → e2e-testing + feature-verification
+- [x] 8. PARTIAL — E2E pre-flight scripts + scenario tables → e2e-testing + feature-verification
 
   **What to do**:
   - Move the **bash script blocks** from AGENTS.md's two E2E sections (single-gateway pre-flight, live-log-tail, gateway-stability check, the Slack self-test sequence) and the **scenario-guide tables** (the A–F / AC1–AC8 minimum-scenario mappings) INTO `.opencode/skills/e2e-testing/SKILL.md`, with the verification-checklist parts into `.opencode/skills/feature-verification/SKILL.md` where they fit.
@@ -505,7 +505,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive E2E pre-flight scripts + scenario tables`. Files: `e2e-testing/SKILL.md`, `feature-verification/SKILL.md`.
 
-- [ ] 9. Auth deep content → security skill / user-auth-rbac doc
+- [x] 9. Auth deep content → security skill / user-auth-rbac doc
 
   **What to do**:
   - Confirm-or-add into `.opencode/skills/security/SKILL.md` (round 1 already added RBAC tables — VERIFY first, add only what's missing): middleware resolution order, JWT dual-env profiles (LOCAL HS256 vs CLOUD ES256), Supabase opaque key model, the 3 authz guards (`requireAuth`/`requireTenantRole`/`requirePermission`), and the bootstrap-first-PLATFORM_OWNER procedure. Where `docs/guides/2026-06-09-1448-user-auth-rbac.md` already covers these, a pointer suffices — do not duplicate.
@@ -540,7 +540,7 @@ Critical Path: Task 1 → Tasks 2-9 (skills landed+verified) → Tasks 10-20 (se
 
   **Commit**: YES — `docs(skills): receive auth middleware/JWT/key-model/guards/bootstrap`. Files: `security/SKILL.md`.
 
-- [ ] 10. AGENTS.md — restructure Skills System into ONE dispatch table + add meta-instruction
+- [x] 10. AGENTS.md — restructure Skills System into ONE dispatch table + add meta-instruction
 
   **What to do**:
   - Collapse the Skills System section to a SINGLE skill-dispatch table ("If you are about to… → Load this skill"). DELETE the two description tables (Employee skills + Dev skills) — their descriptions already live in each `SKILL.md` frontmatter. DELETE the separate "Detailed Topics → Skills" table (merge any unique rows into the one dispatch table).
