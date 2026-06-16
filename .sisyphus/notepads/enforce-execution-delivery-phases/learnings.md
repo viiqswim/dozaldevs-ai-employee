@@ -241,3 +241,22 @@ Worker Fly image rebuild+deploy FIRST → then gateway migration with column dro
 ### Shadow DB Gotcha
 - `prisma migrate dev --create-only` fails with P3006 (shadow DB issue: `_prisma_migrations` table not found in shadow)
 - Workaround: manually write migration SQL + apply via psql + INSERT into `_prisma_migrations` with gen_random_uuid()
+
+## Task 10 — seed.ts delivery_instructions → delivery_steps (2026-06-16)
+
+### What was changed
+- Renamed `delivery_instructions` → `delivery_steps` in all archetype upserts in `prisma/seed.ts`
+- 14 occurrences across 7 employees (create + update blocks each)
+- For `cleaning-schedule`: removed `delivery_instructions: null` lines (kept `delivery_steps: null`)
+- For `google-workspace-assistant`: removed `delivery_instructions: VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS` lines (kept `delivery_steps` which was already set to the correct short value)
+
+### Gotcha: duplicate update block
+- When using Edit tool to replace a block that spans create+update, be careful not to accidentally create a duplicate `update:` block
+- The VLRE summarizer edit created a duplicate — had to remove the extra block
+
+### Unit test failures (pre-existing, not caused by seed.ts)
+- `no-approval-path-delivery.test.ts` — 3 failures (tests for delivery logic in no-approval-path.ts)
+- `golden-prompts.test.ts` — 1 failure (golden fixture mismatch from archetype-generator-prompts.ts changes)
+- `admin-archetypes.test.ts` — 2 failures (draft flow tests)
+- `time-estimation-integration.test.ts` — 4 failures
+- All pre-existing from other tasks in this plan; seed.ts changes don't affect unit tests

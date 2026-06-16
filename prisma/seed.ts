@@ -3125,12 +3125,18 @@ No specific house rules provided.
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
+      tool_registry: {
+        tools: [
+          '/tools/slack/read-channels.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      delivery_instructions:
+      delivery_steps:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       tenant_id: '00000000-0000-0000-0000-000000000002',
       department_id: '00000000-0000-0000-0000-000000000020',
@@ -3143,12 +3149,18 @@ No specific house rules provided.
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
+      tool_registry: {
+        tools: [
+          '/tools/slack/read-channels.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      delivery_instructions:
+      delivery_steps:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       department_id: '00000000-0000-0000-0000-000000000020',
     },
@@ -3170,12 +3182,18 @@ No specific house rules provided.
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
+      tool_registry: {
+        tools: [
+          '/tools/slack/read-channels.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      delivery_instructions:
+      delivery_steps:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       tenant_id: '00000000-0000-0000-0000-000000000003',
       department_id: '00000000-0000-0000-0000-000000000021',
@@ -3188,12 +3206,18 @@ No specific house rules provided.
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
       model: 'minimax/minimax-m2.7',
       deliverable_type: 'slack_message',
-      tool_registry: { tools: ['/tools/slack/read-channels.ts', '/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'] },
+      tool_registry: {
+        tools: [
+          '/tools/slack/read-channels.ts',
+          '/tools/slack/post-message.ts',
+          '/tools/platform/submit-output.ts',
+        ],
+      },
       trigger_sources: { type: 'cron', expression: '0 8 * * 1-5', timezone: 'America/Chicago' },
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: null,
       concurrency_limit: 1,
-      delivery_instructions:
+      delivery_steps:
         'Post the approved summary to the configured Slack publish channel. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       department_id: '00000000-0000-0000-0000-000000000021',
     },
@@ -3233,7 +3257,7 @@ No specific house rules provided.
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5, // webhook-triggered: multiple concurrent guests
-      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
+      delivery_steps: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
 1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
@@ -3278,7 +3302,7 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       risk_model: { approval_required: true, timeout_hours: 24 },
       notification_channel: 'C0AMGJQN05S',
       concurrency_limit: 5,
-      delivery_instructions: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
+      delivery_steps: `You are delivering an approved guest reply via Hostfully. The \`<approved-content>\` block in the prompt is a JSON object from the previous phase.
 
 STEPS:
 1. Get the lead_uid and thread_uid. They are available in TWO places — use whichever is non-empty:
@@ -3343,7 +3367,7 @@ tsx /tools/platform/submit-output.ts \\
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1, // one rotation run at a time — Sifely rate limits
-      delivery_instructions:
+      delivery_steps:
         'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
@@ -3386,7 +3410,7 @@ tsx /tools/platform/submit-output.ts \\
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 1,
-      delivery_instructions:
+      delivery_steps:
         'Post the rotation summary to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021',
@@ -3423,7 +3447,7 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
-      delivery_instructions:
+      delivery_steps:
         'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
@@ -3450,7 +3474,7 @@ tsx /tools/platform/submit-output.ts --summary "Posted motivational message for 
       risk_model: { approval_required: false, timeout_hours: 2 },
       notification_channel: 'C0960S2Q8RL',
       concurrency_limit: 3,
-      delivery_instructions:
+      delivery_steps:
         'Post the motivational message to the configured Slack notification channel as a thread reply under the task notification message. Use the NOTIFY_MSG_TS environment variable as thread_ts. Write confirmation to /tmp/summary.txt with { "delivered": true }.',
       enrichment_adapter: '',
       department_id: '00000000-0000-0000-0000-000000000021',
@@ -3726,7 +3750,6 @@ BOTH must be executed as bash tool calls. A text response without running these 
         },
       ],
       delivery_steps: null,
-      delivery_instructions: null,
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
@@ -3992,7 +4015,6 @@ BOTH must be executed as bash tool calls. A text response without running these 
         },
       ],
       delivery_steps: null,
-      delivery_instructions: null,
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
     },
@@ -5234,19 +5256,6 @@ STEP 3 — Submit output (MANDATORY final step):
    Use NEEDS_APPROVAL for all tasks that make changes (send emails, modify Drive files, create events).
    Use NO_ACTION_NEEDED only for read-only tasks (list, search, retrieve) where no changes were made.`;
 
-  const VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS = `Post the approved Google Workspace task results to Slack.
-
-Read the approved content from the <approved-content> block in your prompt.
-
-1. Extract the summary from the approved content.
-2. Post a brief results message to the notification channel:
-   tsx /tools/slack/post-message.ts \\
-     --channel "$NOTIFY_SLACK_CHANNEL" \\
-     --thread-ts "$NOTIFY_MSG_TS" \\
-     --text "<summary of what was accomplished>"
-3. Write to /tmp/summary.txt:
-   {"delivered": true}`;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vlreGoogleAssistant = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0001-000000000001' },
@@ -5274,7 +5283,6 @@ Read the approved content from the <approved-content> block in your prompt.
       temperature: 1.0,
       vm_size: 'performance-1x',
       delivery_steps: 'Post the task results to the configured Slack channel.',
-      delivery_instructions: VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS,
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
@@ -5302,7 +5310,6 @@ Read the approved content from the <approved-content> block in your prompt.
       temperature: 1.0,
       vm_size: 'performance-1x',
       delivery_steps: 'Post the task results to the configured Slack channel.',
-      delivery_instructions: VLRE_GOOGLE_ASSISTANT_DELIVERY_INSTRUCTIONS,
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021',
     },

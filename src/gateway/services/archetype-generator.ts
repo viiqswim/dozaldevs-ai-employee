@@ -23,6 +23,7 @@ import type {
   ArchetypeGenerationCallRepository,
   RecordInput,
 } from '../../repositories/ArchetypeGenerationCallRepository.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../lib/output-contract-constants.js';
 export { CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE };
 
 // ---------------------------------------------------------------------------
@@ -359,8 +360,11 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     result.identity = '';
   }
 
-  if (result.delivery_steps !== null && typeof result.delivery_steps !== 'string') {
+  const rawDeliverySteps = result.delivery_steps;
+  if (rawDeliverySteps !== null && typeof rawDeliverySteps !== 'string') {
     result.delivery_steps = null;
+  } else if (rawDeliverySteps === null && result.deliverable_type) {
+    result.delivery_steps = DEFAULT_DELIVERY_INSTRUCTIONS;
   }
 
   if (Array.isArray(result['input_schema'])) {
