@@ -14,6 +14,8 @@ import {
 import { DELIVERY_PHASE_VALUE } from '../../../lib/output-contract-constants.js';
 import { getTunnelUrl } from '../../../lib/tunnel-client.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
+import { resolveDelivery } from '../../../lib/delivery-resolver.js';
+import { missingDeliveryConfigFailureMessage } from '../../../lib/slack-copy.js';
 import type { KnownBlock } from '@slack/web-api';
 
 const log = createLogger('lifecycle-delivery-retry');
@@ -56,20 +58,21 @@ export async function runDeliveryWithRetry(
     targetChannel,
   } = ctx;
 
-  const archetypeForDeliveryRes = await fetch(
-    `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
-    { headers },
+  const deliveryResolution = resolveDelivery(
+    {
+      delivery_steps: (archetype.delivery_steps as string | null) ?? null,
+      deliverable_type: (archetype.deliverable_type as string | null) ?? null,
+    },
+    undefined,
   );
-  const archetypeRows = (await archetypeForDeliveryRes.json()) as Array<{
-    archetypes?: { delivery_instructions?: string | null };
-  }>;
-  const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
-  if (!deliveryInstructions) {
+
+  if (deliveryResolution.kind === 'misconfigured') {
     await patchTask(supabaseUrl, headers, taskId, {
       status: 'Failed',
-      failure_reason: 'Archetype missing delivery_instructions',
+      failure_reason: 'Employee produced output but has no delivery configuration.',
+      failure_code: 'MISSING_DELIVERY_CONFIG',
     });
-    const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
+    const configFailText = missingDeliveryConfigFailureMessage();
     if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
       try {
         const botTokenForConfigFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
@@ -93,6 +96,16 @@ export async function runDeliveryWithRetry(
       }
     }
     return { status: 'config-fail' };
+  }
+
+  if (deliveryResolution.kind === 'no-delivery-escape-hatch') {
+    await patchTask(supabaseUrl, headers, taskId, {
+      status: 'Done',
+      failure_reason: null,
+      failure_code: null,
+    });
+    log.info({ taskId }, 'No delivery configured — completing without a delivery container');
+    return { status: 'done' };
   }
 
   const defaultDeliveryVmSize = await getPlatformSetting('default_worker_vm_size');

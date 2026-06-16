@@ -16,7 +16,7 @@ export type DeliveryResolution =
 
 export interface DeliveryArchetypeFields {
   delivery_steps: string | null;
-  delivery_instructions: string | null;
+  delivery_instructions?: string | null;
   deliverable_type: string | null;
 }
 

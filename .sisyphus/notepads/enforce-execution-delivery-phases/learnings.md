@@ -167,7 +167,7 @@ Worker Fly image rebuild+deploy FIRST → then gateway migration with column dro
 ### Current-code bug confirmed (archetype-generator.ts L362-364)
 
 - `if (result.delivery_steps !== null && typeof result.delivery_steps !== 'string')
- result.delivery_steps = null;`
+result.delivery_steps = null;`
   i.e. a model-emitted `delivery_steps: null` is passed straight through. No
   deliverable_type-aware default exists. So both deliverable cases land null.
 
@@ -379,3 +379,156 @@ Worker Fly image rebuild+deploy FIRST → then gateway migration with column dro
 
 - Use `CI=true pnpm exec vitest run` for a clean one-shot exit + full failure list.
 - Integration config only globs `tests/integration/` — unit files passed to it are silently ignored.
+
+## [T15] Broken employee repair (2026-06-16)
+
+- Employee `ab1b5ecb-382f-4821-9054-4ede7457d223` (slack-channel-summarizer, tenant `18aaaab7`) existed in local DB with empty `delivery_steps` and `deliverable_type`
+- Patched via admin PATCH API (gateway was running on :7700) — no raw SQL needed
+- PATCH body: `{"delivery_steps": "Post the executive summary to the configured Slack channel.", "deliverable_type": "slack_message"}`
+- Gate passed: T9 hard gate validates delivery config on PATCH — the API returned 200 with updated archetype
+- The `approval_required` column no longer exists (it's in `risk_model` JSON) — don't use it in SELECT
+- Evidence saved to `.sisyphus/evidence/enforce-execution-delivery-phases/task-15-repair.txt` (gitignored)
+
+---
+
+## [2026-06-16] Task 7 — no-approval-path resolver routing (GREEN)
+
+### What Changed
+
+`no-approval-path.ts` had an inline `deliverable_type` gate (L158-204 original) that:
+
+- Required `deliverable_type` to be set to trigger delivery
+- Failed with MISSING_DELIVERY_CONFIG if NEEDS_APPROVAL but `deliverable_type` was null
+- This blocked `delivery_steps`-only employees from ever delivering on the no-approval path
+
+### Fix Applied
+
+1. Removed `skipDelivery` computation from the step (it checked `delivery_instructions` which is dropped)
+2. After fetching classification, call `resolveDelivery(archetype, classification)` from `src/lib/delivery-resolver.ts`
+3. Branch on `resolution.kind`:
+   - `has-delivery` → proceed to delivery container (fixes the bug)
+   - `no-delivery-escape-hatch` → Done
+   - `misconfigured` → Failed MISSING_DELIVERY_CONFIG
+
+### Old Test File Updates (no-approval-path.test.ts)
+
+Old tests used `makeCtx()` default with `deliverable_type: 'slack'` but NO `delivery_steps`. With the resolver, that's now `misconfigured`. Fixed by:
+
+1. Adding `delivery_steps: 'Post the output to Slack.'` to makeCtx() default
+2. Updating "no deliverable_type → fails visibly" test: new behavior is `no-delivery-escape-hatch` → Done
+3. Fixed pre-existing `([id]: [string])` tuple destructuring TS error → `([id]: string[])`
+
+### Pre-existing Failures (NOT Task 7 responsibility)
+
+- `delivery-retry.test.ts` — 14 failing (T12 changes to delivery-retry.ts are in working tree)
+- `admin-brain-preview.ts` build error — `delivery_instructions` property missing (T6 migration, pre-existing)
+
+These existed before Task 7 started and are NOT caused by T7 changes.
+
+### Test Results
+
+- `tests/unit/no-approval-path-delivery.test.ts`: 4/4 passing (was 3 failing)
+- `tests/unit/inngest/lifecycle-steps/no-approval-path.test.ts`: 13/13 passing (was 6 failing)
+
+---
+
+## [2026-06-16] Task 14 — Compiler reads canonical delivery field (GREEN)
+
+### Scope reality vs plan expectation
+
+- Task 14 names 5 files. Two had NOTHING to remove:
+  - `agents-md-compiler.mts` ALREADY reads canonical `input.deliverySteps`. The
+    `?? delivery_instructions` fallback lived in its 3 CALLERS, not the compiler.
+  - `postgrest-types.ts` has NO `ArchetypeRow` and NO `delivery_instructions`.
+    The real `ArchetypeRow` (with the field) is in `execution-phase.mts:40-58`.
+    Removed it there instead — satisfies the plan's intent.
+- Actual edits (3 files, 4 lines):
+  - `execution-phase.mts`: dropped `delivery_instructions?` from ArchetypeRow +
+    `delivery_steps ?? delivery_instructions ?? ''` → `delivery_steps ?? ''`
+  - `delivery-phase.mts`: same fallback fix (uses ArchetypeRow from execution-phase)
+  - `admin-brain-preview.ts`: L276 fallback fix + L342 `humanFields.afterApprovalAction`
+    `archetype.delivery_instructions` → `archetype.delivery_steps` (these two were
+    the PRE-EXISTING BUILD ERRORS the plan flagged; now fixed → build green).
+
+### "Zero survivors" is GLOBAL-terminal, not per-task
+
+- My 5 named files: 0 matches. ✓
+- Global `grep -rn delivery_instructions src/ | grep -v test` is still NON-zero,
+  but every survivor is owned by a DIFFERENT task and FORBIDDEN to me:
+  delivery-retry.ts (T12), approval-handler.ts (T13), no-approval-path.ts (T7),
+  delivery-resolver.ts (T2 keeps it as transition-tolerance INTERFACE arg),
+  archetype-generator\*/admin-archetypes/converse-create/edit-helpers (T8/T9 committed),
+  failure-codes.ts (failure-reason STRING match, not a column read).
+  The global 0 is reached only after T7+T12+T13 land + resolver interface cleanup.
+
+### CRITICAL — parallel Wave-3 contamination of the shared tree
+
+- T7/T12/T13 sibling agents were editing approval-handler.ts / delivery-retry.ts /
+  no-approval-path.ts + their tests IN THE SAME WORKING TREE concurrently.
+- Full `vitest run` showed 13 reds — ALL in 3 test files that import NONE of my
+  files. Proven via `git stash push -- <my 3 files>`: the reds persist (7) WITHOUT
+  my changes and shrink (5) WITH them → they track the sibling churn, not me.
+- Tests that DO import my files (agents-md-compiler ×2, golden-prompts,
+  tool-registry-enforce) = 48 passed / 0 failed.
+- LESSON: in a parallel-wave plan, a full-suite red does NOT mean your task broke
+  it. Isolate with `git stash push -- <your files>` + grep-for-imports before
+  assuming guilt. Commit ONLY your own files (`git add <explicit paths>`), never
+  `git add -A` — the tree has uncommitted sibling work + sibling-appended notepad
+  content.
+
+### Build/lint
+
+- `pnpm build` (tsc -p tsconfig.build.json) excludes tests → green even though
+  test files have pre-existing `.filter()` predicate TS nits (sibling test mocks).
+- Pre-commit = `pnpm lint-staged` → eslint --max-warnings 0 on staged .ts only.
+
+## [2026-06-16] Task 12 — delivery-retry.ts gate → resolver (GREEN)
+
+### What changed in delivery-retry.ts
+
+- DELETED the old fetch `select=archetypes(delivery_instructions)` + `if (!deliveryInstructions)`
+  gate (the DB query targeted a DROPPED column → would return undefined/error at runtime).
+- The archetype is ALREADY in `ctx.archetype` (loaded once in triage-and-ready via
+  `select=*,archetypes(*)` and threaded through). So no DB round-trip is needed — read
+  `archetype.delivery_steps` + `archetype.deliverable_type` directly and call `resolveDelivery()`.
+- Three-way branch mirrors no-approval-path.ts (T7):
+  - `misconfigured` → Failed + `failure_code: 'MISSING_DELIVERY_CONFIG'` + `missingDeliveryConfigFailureMessage()` Slack copy → `return { status: 'config-fail' }`
+  - `no-delivery-escape-hatch` → Done (no delivery container) → `return { status: 'done' }`
+  - `has-delivery` → fall through to the unchanged retry loop (NO reorder)
+
+### Resolver interface widened: delivery_instructions now OPTIONAL
+
+- To hit the task's hard "0 matches of delivery_instructions" criterion, made
+  `DeliveryArchetypeFields.delivery_instructions?: string | null` (was required).
+  Backward-compatible: all 5 other callers still pass it explicitly (admin-archetypes POST/PATCH,
+  no-approval-path, approval-handler) — still valid. delivery-retry now OMITS it entirely.
+- Resolver body already used optional chaining (`archetype.delivery_instructions?.trim()`),
+  so no body change needed.
+
+### Existing delivery-retry.test.ts had to be updated (it mocked the DROPPED query)
+
+- `makeCtx().archetype` was bare `{ role_name, vm_size }` → now resolves to escape-hatch (Done)
+  before the loop. Added `delivery_steps:'Deliver this.'` + `deliverable_type:'slack_message'`
+  to the default ctx so happy-path/retry tests reach the loop.
+- config-fail tests previously stubbed `delivery_instructions:null` via fetch → rewrote them to
+  drive misconfig through `ctx.archetype` (`deliverable_type` set + `delivery_steps:''`), and
+  assert `failure_code:'MISSING_DELIVERY_CONFIG'` (the failure_reason wording is no longer the
+  old "Archetype missing delivery_instructions").
+- vm_size test override `{role_name,vm_size:null}` ALSO needed delivery fields added — otherwise
+  it short-circuits at escape-hatch and never calls getPlatformSetting.
+- Stripped the now-dead `select=archetypes(delivery_instructions)` branch from the fetch helpers.
+
+### Flaky full-suite contamination (NOT my change — verified)
+
+- First full `vitest run` showed 5 failures (employee-lifecycle-delivery.test.ts ×4 +
+  approval-handler-idempotency.test.ts ×1). Re-run clean = 0 failures (2110 passed/9 skipped).
+- Proof it's ordering contamination, not my edit: those 3 files run together pass 31/31
+  deterministically 3×; employee-lifecycle-delivery.test.ts passes 9/9 in isolation at clean HEAD.
+- WORKING-TREE CAVEAT: at commit time the tree also carries T13's uncommitted approval-handler.ts +
+  its test. I staged ONLY my T12 files for the commit (delivery-retry.ts, delivery-resolver.ts,
+  delivery-retry.test.ts) — left T13's files unstaged for that task to own.
+
+### Build
+
+- `pnpm build` clean (exit 0). The pre-existing admin-brain-preview.ts:276,342 errors noted by
+  T9 did NOT appear in my build run — confirmed clean tsc.

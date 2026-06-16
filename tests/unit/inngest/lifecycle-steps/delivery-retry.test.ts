@@ -80,7 +80,12 @@ function makeCtx(overrides: Partial<DeliveryRetryContext> = {}): DeliveryRetryCo
     supabaseUrl: SUPABASE_URL,
     supabaseKey: SUPABASE_KEY,
     headers: HEADERS,
-    archetype: { role_name: 'Test Employee', vm_size: null },
+    archetype: {
+      role_name: 'Test Employee',
+      vm_size: null,
+      delivery_steps: 'Deliver this.',
+      deliverable_type: 'slack_message',
+    },
     approvalRequired: true,
     notifyMsgRef: { ts: 'ts-notify-001', channel: 'C-NOTIFY' },
     tenantEnv: { SLACK_BOT_TOKEN: 'xoxb-test', NOTIFICATION_CHANNEL: 'C-NOTIFY' },
@@ -96,11 +101,6 @@ function makeCtx(overrides: Partial<DeliveryRetryContext> = {}): DeliveryRetryCo
 
 function makeFetchWithDeliveryStatus(statusAfterPoll: string) {
   return vi.fn().mockImplementation(async (url: string) => {
-    if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-      return {
-        json: async () => [{ archetypes: { delivery_instructions: 'Deliver this.' } }],
-      };
-    }
     if ((url as string).includes('select=status')) {
       return {
         json: async () => [{ status: statusAfterPoll }],
@@ -126,14 +126,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const MISCONFIGURED_ARCHETYPE = {
+  role_name: 'Test Employee',
+  vm_size: null,
+  delivery_steps: '',
+  deliverable_type: 'slack_message',
+};
+
 describe('runDeliveryWithRetry — config-fail path', () => {
-  it('returns config-fail and patches task to Failed when delivery_instructions is missing', async () => {
+  it('returns config-fail and patches task to Failed when delivery is misconfigured', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-        if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-          return { json: async () => [{ archetypes: { delivery_instructions: null } }] };
-        }
+      vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
         if ((init as RequestInit | undefined)?.method === 'PATCH') {
           return { ok: true };
         }
@@ -141,7 +145,7 @@ describe('runDeliveryWithRetry — config-fail path', () => {
       }),
     );
 
-    const result = await runDeliveryWithRetry(makeCtx());
+    const result = await runDeliveryWithRetry(makeCtx({ archetype: MISCONFIGURED_ARCHETYPE }));
 
     expect(result.status).toBe('config-fail');
     expect(mockPatchTask).toHaveBeenCalledWith(
@@ -150,38 +154,39 @@ describe('runDeliveryWithRetry — config-fail path', () => {
       TASK_ID,
       expect.objectContaining({
         status: 'Failed',
-        failure_reason: 'Archetype missing delivery_instructions',
+        failure_code: 'MISSING_DELIVERY_CONFIG',
       }),
     );
   });
 
-  it('returns config-fail when archetypes row is empty', async () => {
+  it('completes (done) without a delivery container when no delivery is configured', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(async (url: string) => {
-        if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-          return { json: async () => [] };
+      vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if ((init as RequestInit | undefined)?.method === 'PATCH') {
+          return { ok: true };
         }
         return { json: async () => [] };
       }),
     );
 
-    const result = await runDeliveryWithRetry(makeCtx());
-    expect(result.status).toBe('config-fail');
+    const result = await runDeliveryWithRetry(
+      makeCtx({
+        archetype: { role_name: 'Test', vm_size: null, delivery_steps: '', deliverable_type: null },
+      }),
+    );
+
+    expect(result.status).toBe('done');
+    expect(mockRunLocalDockerContainer).not.toHaveBeenCalled();
   });
 
   it('sends Slack update when config-fail and notifyMsgRef is set', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(async (url: string) => {
-        if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-          return { json: async () => [{ archetypes: { delivery_instructions: null } }] };
-        }
-        return { ok: true, json: async () => [] };
-      }),
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => [] })),
     );
 
-    await runDeliveryWithRetry(makeCtx());
+    await runDeliveryWithRetry(makeCtx({ archetype: MISCONFIGURED_ARCHETYPE }));
 
     expect(mockCreateSlackClient).toHaveBeenCalledWith(
       expect.objectContaining({ botToken: 'xoxb-test' }),
@@ -197,15 +202,12 @@ describe('runDeliveryWithRetry — config-fail path', () => {
   it('does NOT send Slack update when notifyMsgRef has no ts', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(async (url: string) => {
-        if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-          return { json: async () => [{ archetypes: { delivery_instructions: null } }] };
-        }
-        return { ok: true, json: async () => [] };
-      }),
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => [] })),
     );
 
-    await runDeliveryWithRetry(makeCtx({ notifyMsgRef: { ts: null, channel: null } }));
+    await runDeliveryWithRetry(
+      makeCtx({ archetype: MISCONFIGURED_ARCHETYPE, notifyMsgRef: { ts: null, channel: null } }),
+    );
 
     expect(mockUpdateMessage).not.toHaveBeenCalled();
   });
@@ -261,7 +263,16 @@ describe('runDeliveryWithRetry — happy path (docker mode)', () => {
     vi.stubGlobal('fetch', makeFetchWithDeliveryStatus('Done'));
 
     await runWithFakeTimers(() =>
-      runDeliveryWithRetry(makeCtx({ archetype: { role_name: 'Test', vm_size: null } })),
+      runDeliveryWithRetry(
+        makeCtx({
+          archetype: {
+            role_name: 'Test',
+            vm_size: null,
+            delivery_steps: 'Deliver this.',
+            deliverable_type: 'slack_message',
+          },
+        }),
+      ),
     );
 
     expect(mockGetPlatformSetting).toHaveBeenCalledWith('default_worker_vm_size');
@@ -342,8 +353,8 @@ describe('runDeliveryWithRetry — retry loop', () => {
     const ctx = makeCtx({ approvalMsgTs: undefined, targetChannel: undefined });
     await runWithFakeTimers(() => runDeliveryWithRetry(ctx));
 
-    const approvalCalls = mockUpdateMessage.mock.calls.filter(
-      ([chan]: [string]) => chan === 'C-APPROVAL',
+    const approvalCalls = (mockUpdateMessage.mock.calls as unknown[][]).filter(
+      (call) => call[0] === 'C-APPROVAL',
     );
     expect(approvalCalls).toHaveLength(0);
   });
@@ -353,9 +364,6 @@ describe('runDeliveryWithRetry — retry loop', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (url: string) => {
-        if ((url as string).includes('select=archetypes(delivery_instructions)')) {
-          return { json: async () => [{ archetypes: { delivery_instructions: 'Deliver.' } }] };
-        }
         if ((url as string).includes('select=status')) {
           pollCount++;
           const status = pollCount <= 1 ? 'Failed' : 'Done';
