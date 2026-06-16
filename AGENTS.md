@@ -2,6 +2,31 @@
 
 > Keep this file concise and current. Only include information that helps agents make correct decisions. For architectural details, read the vision doc on demand — don't duplicate it here. This file is loaded into every LLM call — every token here costs tokens on every turn.
 
+## Table of Contents
+
+- [Approved LLM Models](#approved-llm-models)
+- [Platform Vision](#platform-vision)
+- [Adding a New Employee](#adding-a-new-employee)
+- [OpenCode Worker (All Employees)](#opencode-worker-all-employees)
+- [Skills System](#skills-system)
+- [Detailed Topics → Skills](#detailed-topics--skills)
+- [Feedback Pipeline](#feedback-pipeline)
+- [Tenants](#tenants)
+- [Authentication & Authorization](#authentication--authorization)
+- [Commands](#commands)
+- [Dashboard URLs](#dashboard-urls)
+- [Pre-existing Test Failures](#pre-existing-test-failures)
+- [Database](#database)
+- [Infrastructure](#infrastructure)
+- [CI/CD — Auto-Deploy + Auto-Migrate on Merge to `main`](#cicd--auto-deploy--auto-migrate-on-merge-to-main)
+- [Project Structure](#project-structure)
+- [Key Conventions](#key-conventions)
+- [Environment Variables](#environment-variables)
+- [Prometheus Planning — Telegram Notifications](#prometheus-planning--telegram-notifications-mandatory)
+- [Post-Implementation E2E Testing](#post-implementation-e2e-testing-mandatory--applies-to-every-implementation-not-just-plans)
+- [Plan E2E Validation](#plan-e2e-validation-mandatory)
+- [Reference Documents](#reference-documents)
+
 ## Approved LLM Models
 
 **CRITICAL CONSTRAINT — NEVER VIOLATE:**
@@ -30,8 +55,6 @@ The engineering employee and its orchestrator-based worker are retired; all acti
 ## Platform Vision
 
 A single-responsibility AI Employee Platform — deploys autonomous AI agents ("digital employees"), each with one job. Every employee follows the same lifecycle, uses the same infrastructure (Inngest orchestration, Supabase state, Fly.io runtime), and is defined by a declarative archetype config. What changes per employee: **triggers** (what starts it), **tools** (what it can do), **knowledge base** (domain expertise), **model** (which LLM to use), and **approval gates** (risk thresholds). Full architecture: `docs/architecture/2026-04-14-0104-full-system-vision.md`
-
-## Current Implementation
 
 Employee-specific details are in each archetype's `identity` and `execution_steps` fields and in `docs/employees/`. Do not list employees here — this file is injected into every worker container and must not contain employee-specific identity content.
 
@@ -351,50 +374,7 @@ Do NOT attempt to fix these — they are unrelated to any recent changes:
 
 ### Database Backup (MANDATORY before any reseed or wipe)
 
-**Before running `pnpm prisma db seed`, `pnpm setup`, `docker compose down -v`, or any operation that resets or overwrites the database — YOU MUST back it up first.**
-
-The database contains production data: learned rules accumulated over time, feedback history, tenant secrets, and task history. A reseed silently overwrites archetype rows. A volume wipe destroys everything. Always back up first.
-
-**How to back up:**
-
-```bash
-# 1. Get a timestamp
-TS=$(date "+%Y-%m-%d-%H%M")
-BACKUP_DIR="database-backups/$TS"
-mkdir -p "$BACKUP_DIR"
-
-# 2. Full dump (plain SQL — human-readable and restorable)
-docker exec shared-postgres pg_dump -U postgres -d ai_employee --format=plain > "$BACKUP_DIR/full-dump.sql"
-
-# 3. Critical tables individually (for selective restore)
-docker exec shared-postgres pg_dump -U postgres -d ai_employee -t employee_rules --data-only --inserts > "$BACKUP_DIR/employee_rules.sql"
-docker exec shared-postgres pg_dump -U postgres -d ai_employee -t archetypes --data-only --inserts > "$BACKUP_DIR/archetypes.sql"
-docker exec shared-postgres pg_dump -U postgres -d ai_employee -t tenant_secrets --data-only --inserts > "$BACKUP_DIR/tenant_secrets.sql"
-docker exec shared-postgres pg_dump -U postgres -d ai_employee -t knowledge_base_entries --data-only --inserts > "$BACKUP_DIR/knowledge_base_entries.sql"
-
-# 4. Confirm row counts
-psql postgresql://postgres:postgres@localhost:54322/ai_employee -c "SELECT 'employee_rules' as t, count(*) FROM employee_rules UNION ALL SELECT 'archetypes', count(*) FROM archetypes UNION ALL SELECT 'tasks', count(*) FROM tasks;"
-
-echo "Backup complete: $BACKUP_DIR"
-```
-
-**How to restore:**
-
-```bash
-# Full restore (replaces everything — use after a volume wipe)
-docker exec -i shared-postgres psql -U postgres -d ai_employee < database-backups/YYYY-MM-DD-HHMM/full-dump.sql
-
-# Selective restore — just learned rules (use after an accidental reseed)
-psql postgresql://postgres:postgres@localhost:54322/ai_employee -c "TRUNCATE employee_rules CASCADE;"
-psql postgresql://postgres:postgres@localhost:54322/ai_employee < database-backups/YYYY-MM-DD-HHMM/employee_rules.sql
-```
-
-**Notes:**
-
-- Backups are gitignored (`database-backups/` in `.gitignore`) — they stay local only
-- The Docker container name is `shared-postgres` — verify with `docker ps --filter name=postgres`
-- `pg_dump` inside the container is always version-matched — do not use the host `pg_dump` (version mismatch causes errors)
-- Existing backups live in `database-backups/` — check before overwriting
+**Before running `pnpm prisma db seed`, `pnpm setup`, `docker compose down -v`, or any operation that resets or overwrites the database — YOU MUST back it up first.** See the `production-ops` skill for the full backup and restore procedure.
 
 ## Infrastructure
 
@@ -659,11 +639,10 @@ Every plan for an AI employee feature must include a **real browser E2E validati
 2. **Live @mention → Confirm → Done E2E**: Send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
 3. **"Verified from code" or "unit tests pass" is explicitly insufficient** for this workflow — the live Slack path must be exercised.
 
-| Guide                                                              | Scenarios | Domain                                                                                      |
-| ------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
-| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`          | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
-| `docs/testing/2026-05-11-1854-feedback-pipeline-e2e-test-guide.md` | A–F       | Rule extraction, rule injection, feedback consolidation, rule synthesis                     |
-| `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md`       | AC1–AC8   | Wizard generation, field quality, full lifecycle with approval, Slack delivery verification |
+| Guide                                                        | Scenarios | Domain                                                                                      |
+| ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
+| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`    | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
+| `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md` | AC1–AC8   | Wizard generation, field quality, full lifecycle with approval, Slack delivery verification |
 
 **Minimum for any guest-messaging change**: Slack UX Scenario A (approve happy path).
 **Minimum for any archetype generator, wizard, or delivery pipeline change**: AI Employee E2E guide (AC1–AC8).
