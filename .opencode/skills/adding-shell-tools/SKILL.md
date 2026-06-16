@@ -263,3 +263,51 @@ import { unescapeShellArg } from '../lib/unescape-args.js';
 const body = unescapeShellArg(getArg(args, '--body') ?? '');
 const message = unescapeShellArg(getArg(args, '--message') ?? '');
 ```
+
+---
+
+## ToolDescriptor Registration (MANDATORY)
+
+Every shell tool must export a `descriptor` object and register it in the global tool registry. This is how the gateway discovers tools, generates the `tool-usage-reference` skill, and validates archetype `tool_registry` fields.
+
+### Step 1 — Export a descriptor from your tool file
+
+```typescript
+import type { ToolDescriptor } from '../lib/types.js';
+
+export const descriptor: ToolDescriptor = {
+  service: 'my-service', // matches the directory name
+  toolName: 'verb-noun', // matches the filename (without .ts)
+  description: 'One-line description of what this tool does',
+  requiredArgs: ['--required-arg'],
+  optionalArgs: ['--optional-arg'],
+  requiredEnv: ['MY_SERVICE_API_KEY'],
+  optionalEnv: ['MY_SERVICE_API_URL'],
+  mockEnvVar: 'MY_SERVICE_MOCK',
+};
+```
+
+The `ToolDescriptor` type is defined in `src/worker-tools/lib/types.ts`.
+
+### Step 2 — Add to `ALL_TOOL_DESCRIPTORS` in `src/lib/tool-registry.ts`
+
+```typescript
+import { descriptor as myServiceVerbNoun } from '../worker-tools/my-service/verb-noun.js';
+
+export const ALL_TOOL_DESCRIPTORS: ToolDescriptor[] = [
+  // ... existing descriptors ...
+  myServiceVerbNoun,
+];
+```
+
+`ALL_TOOL_DESCRIPTORS` is a static typed array — no disk reads, no regex. `discoverTools()` in `src/gateway/services/tool-parser.ts` maps it to `ToolMetadata` and caches the result at startup. This eliminates the production bug where `src/worker-tools/` was not present in the gateway image.
+
+### Step 3 — Regenerate the tool-usage-reference skill
+
+After adding your descriptor, regenerate the always-on skill so agents know about your new tool:
+
+```bash
+pnpm generate-tool-usage-skill
+```
+
+Commit the updated `src/workers/skills/tool-usage-reference/SKILL.md` alongside your tool. CI has a freshness gate that fails if the committed skill is stale.
