@@ -187,11 +187,14 @@ Output classifications:
 | SSE log viewer (execution only)       | `GET /admin/tenants/:tenantId/tasks/:id/logs`                                                            | Not available in prod                      |
 | Dashboard log viewer (execution only) | `http://localhost:7700/dashboard/tasks/:taskId/logs?tenant=:tenantId`                                    | Not available in prod                      |
 
-**Render runtime logs (production gateway):**
+**Render runtime logs (production gateway):** the per-service path `/v1/services/{id}/logs` 404s — use the top-level `/v1/logs` endpoint with `ownerId` + a time window.
 
 ```bash
-curl -sN -H "Authorization: Bearer $RENDER_API_KEY" \
-  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/logs?tail=100" | head -c 20000
+RENDER_OWNER_ID=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID" | jq -r '.ownerId')
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/logs?ownerId=$RENDER_OWNER_ID&resource=$RENDER_SERVICE_ID&limit=100&startTime=2026-06-16T19:00:00Z&endTime=2026-06-16T19:10:00Z" \
+  | jq -r '.logs[] | "\(.timestamp) \(.message)"'
 ```
 
 > **CRITICAL — production has no `/tmp` files**: When `WORKER_RUNTIME=fly`, there are NO `/tmp/employee-*.log` files and NO SSE viewer. Worker and delivery logs exist ONLY in Fly Machines REST API. See Section 5 for the exact commands.
@@ -315,14 +318,17 @@ psql "$CLOUD_DB" -c "SELECT from_status, to_status, actor, created_at FROM task_
 
 Use port 5432 (session pooler). Port 6543 (transaction pooler) causes `relation "tenants" does not exist` errors. The direct host `db.gjqrysxpvktmibpkwrvy.supabase.co:5432` is IPv6-only and unreachable from most local machines — always use the session pooler URL above.
 
-**2. Read gateway logs via Render API**
+**2. Read gateway logs via Render API** (per-service `/logs` path 404s — use top-level `/v1/logs` with `ownerId` + time window)
 
 ```bash
-curl -sN -H "Authorization: Bearer $RENDER_API_KEY" \
-  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/logs?tail=100" | head -c 20000
+RENDER_OWNER_ID=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID" | jq -r '.ownerId')
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/logs?ownerId=$RENDER_OWNER_ID&resource=$RENDER_SERVICE_ID&limit=100&startTime=<ISO_START>&endTime=<ISO_END>" \
+  | jq -r '.logs[] | "\(.timestamp) \(.message)"'
 ```
 
-Look for: dispatch events, lifecycle step logs, Slack Bolt errors, `SLACK_BOT_TOKEN` warnings.
+Filter the JSON `.message` lines by `taskId` and `component` (e.g. `lifecycle-delivery-retry`) to trace one task. Look for: dispatch events, lifecycle step logs, Slack Bolt errors, `SLACK_BOT_TOKEN` warnings.
 
 **3. Inspect Fly worker/delivery machine state**
 

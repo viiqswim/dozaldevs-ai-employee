@@ -532,7 +532,7 @@ Critical Path: 1 → 2 → 5 → 7 → 8 → 9 → F1-F4 → user okay → 10
 
   **Commit**: YES (this task performs the commits).
 
-- [ ] 8. Confirm deploy `live`, then prod E2E re-trigger (REAL E2E — mandatory)
+- [x] 8. Confirm deploy `live`, then prod E2E re-trigger (REAL E2E — mandatory)
 
   **What to do**:
   - **Gate first**: poll Render until the gateway deploy that includes this fix is `live`:
@@ -592,7 +592,7 @@ Critical Path: 1 → 2 → 5 → 7 → 8 → 9 → F1-F4 → user okay → 10
 
   **Commit**: NO (verification only).
 
-- [ ] 9. Remediate the live stuck task `635a62f9`
+- [x] 9. Remediate the live stuck task `635a62f9`
 
   **What to do**:
   - Only AFTER Task 8 proves the fix live. The stuck task's execution output is gone (container destroyed), so it cannot resume `Delivering`.
@@ -646,19 +646,19 @@ Critical Path: 1 → 2 → 5 → 7 → 8 → 9 → F1-F4 → user okay → 10
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Do NOT auto-proceed. Never mark F1-F4 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read this plan end-to-end. For each "Must Have": verify implementation (read the helper, read both call sites, query prod task state). For each "Must NOT Have": search the codebase — reject with file:line if `EMPLOYEE_RULES`/`EMPLOYEE_KNOWLEDGE`/`REPLY_BROADCAST` were added to delivery env, if a watchdog was added, or if a full `buildWorkerEnv()` refactor was done. Confirm evidence files exist in `.sisyphus/evidence/`.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit`. Review changed files for `as any`/`@ts-ignore`, dropped `await` on the async helper, sync-vs-async mistakes, generic names. Confirm the helper is the ONLY place the fly/tunnel ternary exists.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Prod QA Replay** — `unspecified-high`
+- [x] F3. **Real Prod QA Replay** — `unspecified-high`
       Independently re-run the prod E2E: confirm deploy `live`, trigger a fresh summarizer task, assert `Done` + Slack post to `C05UL7X6B54` + spawned `employee-delivery-*` machine + full status-log trace. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Deploy [live] | Task [Done] | Slack [posted] | Machine [spawned] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       Diff the actual changes (git). Verify ONLY: the shared helper, both call-site rewires, the delivery env P0/P1 additions, the unit test, and the two doc updates were changed. Flag any execution-path behavioral change, any P2 (#7) work, any intentional-asymmetry field added to delivery, or any unrelated file touched.
       Output: `Tasks [N/N compliant] | Contamination [CLEAN/N] | Unaccounted [CLEAN/N files] | VERDICT`
 
