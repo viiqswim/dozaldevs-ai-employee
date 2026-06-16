@@ -25,20 +25,7 @@ Two categories of model use exist in this codebase. Each has its own rule.
 
 **OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models: `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and 11 others (see `src/lib/go-models.ts`). The gateway verification model also routes through OpenCodeGo when `OPENCODE_GO_API_KEY` is set and the configured model is OpenAI-compatible on Go; otherwise falls back to OpenRouter.
 
-## Deprecated Components
-
-The following components are deprecated. Do NOT modify, do NOT add features, do NOT fix bugs in these files unless the user explicitly instructs you to work on them:
-
-| Component                       | File                                                                                                                                                                                        | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engineering task lifecycle      | `src/inngest/lifecycle.ts`                                                                                                                                                                  | Engineering employee is on hold. All active development targets the unified employee lifecycle in `src/inngest/employee-lifecycle.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Engineering task redispatch     | `src/inngest/redispatch.ts`                                                                                                                                                                 | Paired with the deprecated engineering lifecycle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Generic worker harness          | `src/workers/generic-harness.mts`                                                                                                                                                           | Replaced by the OpenCode-based harness (`src/workers/opencode-harness.mts`). Source file has been deleted; stale compiled artifacts may remain in `dist/`.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Tool registry                   | `src/workers/tools/registry.ts`                                                                                                                                                             | Part of the generic harness. Replaced by shell scripts at `src/worker-tools/`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Engineering watchdog cron       | `src/inngest/watchdog.ts`                                                                                                                                                                   | Cron (`*/10 * * * *`) that detects stuck engineering tasks. On hold with the engineering employee; still registered, do not modify.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Engineering worker orchestrator | `src/workers/orchestrate.mts`                                                                                                                                                               | Engineering-only worker — a large orchestrator for planning, wave execution, fix loops, and PR creation. On hold; do not modify. **Note**: This is the old orchestrator-based engineering employee. The new archetype-based engineer employee (created via wizard) is active and uses the OpenCode harness.                                                                                                                                                                                                                                                                                       |
-| Engineering worker launcher     | `src/workers/entrypoint.sh`                                                                                                                                                                 | Default Dockerfile CMD; shells out to `orchestrate.mts`. Engineering only — on hold, do not modify.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Engineering worker libraries    | `src/workers/lib/` (except `postgrest-client.ts`, `session-manager.ts`, `execution-phase.mts`, `delivery-phase.mts`, `harness-helpers.mts`, `agents-md-compiler.mts`, `postgrest-types.ts`) | 30 utilities exclusively supporting `orchestrate.mts` (wave executor, PR manager, session manager, etc.). On hold — do not modify. `postgrest-client.ts` is shared with `opencode-harness.mts` and is active. `session-manager.ts` is also active — imported by `opencode-harness.mts` to manage OpenCode sessions. `execution-phase.mts` and `delivery-phase.mts` are active — extracted from `opencode-harness.mts`. **`postgrest-client.ts` uses raw `process.env` with null-checks intentionally** — worker startup guarantees differ from gateway startup; do not "fix" with `requireEnv()`. |
+The engineering employee and its orchestrator-based worker are retired; all active employees use the OpenCode harness.
 
 ## Platform Vision
 
@@ -170,6 +157,20 @@ New skill: create `src/workers/skills/{name}/SKILL.md` (employee — rebuild Doc
 
 **Custom per-service skill system**: Per-service skills (`hostfully/`, `sifely/`, `github/`, `slack/`, `knowledge-base/`, `platform/`) are committed artifacts generated from `ALL_TOOL_DESCRIPTORS` via `pnpm generate-skills` (`scripts/generate-skills.ts`). Each folder contains a `SKILL.md` overview table and `actions/<tool-id>.md` per tool. Run the script and commit when adding or changing a tool descriptor — CI has a freshness gate that fails if the committed folders are stale. At container boot, `filterCustomSkills(connectedServices)` in `harness-helpers.mts` removes skill folders for services the tenant has NOT connected, using an explicit allowlist `['hostfully','sifely','github','slack']`; `knowledge-base` and `platform` are always kept. Tenant service detection runs via `loadCustomIntegrations(tenantId)` in `agents-md-compiler.mts` — signals: `hostfully_*` secrets → hostfully; `sifely_*` secrets → sifely; `slack_bot_token` secret → slack; github integration row or `github_installation_id` secret → github. When services are detected, the compiled AGENTS.md includes a `## Custom Integrations` section listing connected services with their skill names. `tool-usage-reference` is the always-on reference for all tools and coexists with these per-service skills — it is NOT replaced by them.
 
+## Detailed Topics → Skills
+
+For in-depth how-to on these topics, load the corresponding skill:
+
+| Topic | Skill to Load |
+|---|---|
+| Slack interactive buttons, message standards, voice & tone, hygiene | `slack-conventions` |
+| Admin API endpoint catalog | `api-design` |
+| Render API, production debugging | `production-ops` |
+| Long-running commands, tmux session management | `long-running-commands` |
+| Task debugging, stuck-state diagnostics | `debugging-lifecycle` |
+| Feature verification checklist | `feature-verification` |
+| Known issues (production, Slack, Inngest) | `production-ops`, `slack-conventions`, `inngest` |
+
 ## Feedback Pipeline
 
 Thread replies and @mentions are captured through a unified pipeline:
@@ -197,22 +198,6 @@ Two tenants are seeded in `prisma/seed.ts`. Each requires its own Slack OAuth co
 **Two VLRE Slack tokens exist in `.env`**: `SLACK_BOT_TOKEN` (used by the gateway Bolt app for Socket Mode) and `VLRE_SLACK_BOT_TOKEN` (seed-only — used by `prisma/seed.ts` to populate `tenant_secrets` on DB reset). For API calls from scripts or testing, use `VLRE_SLACK_BOT_TOKEN`. Both hold the same VLRE workspace bot token value but serve different consumption points. Never store either as the DozalDevs tenant secret.
 
 For Slack OAuth setup and per-tenant token architecture, see `docs/guides/2026-05-14-0040-slack-tenant-integration.md`.
-
-## Slack Interactive Buttons — Socket Mode (CRITICAL)
-
-**[Moved to skill]** — Load `slack-conventions` skill for Socket Mode, message standards, voice & tone, message hygiene, known Slack issues, and the manual approval fallback.
-
-## Slack Message Standards
-
-**[Moved to skill]** — See `slack-conventions` skill.
-
-## Slack Voice & Tone (MANDATORY — Every Message, No Exceptions)
-
-**[Moved to skill]** — See `slack-conventions` skill.
-
-## Slack Message Hygiene (MANDATORY — No Message Accumulation)
-
-**[Moved to skill]** — See `slack-conventions` skill.
 
 ## Authentication & Authorization
 
@@ -293,10 +278,6 @@ BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword ts
 ```
 
 The script upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants. This is a **manual, on-demand step** — it is NOT part of `prisma/seed.ts` and NOT run by `pnpm setup`. After a fresh `pnpm setup` the database has tenants but no users, so you must run this once before you can log into the dashboard. Choose your own email/password — do not commit real credentials.
-
-## Admin API
-
-**[Moved to skill]** — Load `api-design` skill for the full admin API endpoint table and curl examples.
 
 ## Commands
 
@@ -415,10 +396,6 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee < database-backu
 - The Docker container name is `shared-postgres` — verify with `docker ps --filter name=postgres`
 - `pg_dump` inside the container is always version-matched — do not use the host `pg_dump` (version mismatch causes errors)
 - Existing backups live in `database-backups/` — check before overwriting
-
-## Render API (Production Gateway)
-
-**[Moved to skill]** — Load `production-ops` skill for Render API commands, deploy checks, and known quirks.
 
 ## Infrastructure
 
@@ -592,22 +569,6 @@ Copy `.env.example` → `.env`. Minimum for local E2E: `OPENROUTER_API_KEY`, `GI
 
 - `COMPOSIO_API_KEY` — API key for Composio, enabling 1000+ app integrations (Notion, Linear, Gmail, etc.) via the gateway OAuth connect flow and the `/tools/composio/execute.ts` worker shell tool. Get from: https://app.composio.dev → Settings → API Keys. Added to `PLATFORM_ENV_WHITELIST` so it auto-injects into worker containers.
 
-## Long-Running Commands
-
-**[Moved to skill]** — Load `long-running-commands` skill for tmux patterns, cleanup rules, and session naming.
-
-### Tmux Session Cleanup (MANDATORY)
-
-**[Moved to skill]** — See `long-running-commands` skill.
-
-## Known Issues
-
-**[Moved to skills]** — For known issues: production/tunnel issues → `production-ops`; Slack/Socket Mode issues → `slack-conventions`; Inngest Dev Server issues → `inngest`.
-
-## Task Debugging Quick Reference
-
-**[Moved to skill]** — Load `debugging-lifecycle` skill for task debugging commands and stuck-state diagnostics.
-
 ---
 
 ## Prometheus Planning — Telegram Notifications (MANDATORY)
@@ -630,10 +591,6 @@ When Atlas finishes executing a plan (all tasks marked `[x]`), send a Telegram n
 PLAN=$(node -e "console.log(require('.sisyphus/boulder.json').plan_name)" 2>/dev/null || echo "plan")
 tsx scripts/telegram-notify.ts "✅ ${PLAN} complete — All tasks done. Come back to review results."
 ```
-
-## Feature Verification Checklist (MANDATORY — applies to every plan)
-
-**[Moved to skill]** — Load `feature-verification` skill for the full checklist, PostgREST verification, and smoke-test employee.
 
 ---
 
