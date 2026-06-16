@@ -33,6 +33,7 @@ type MembershipRecord = {
   tenant_id: string;
   user_id: string;
   role: TenantRole;
+  deleted_at: Date | null;
 };
 
 type TxLike = {
@@ -47,6 +48,7 @@ type TxLike = {
   tenantMembership: {
     findFirst: (args: unknown) => Promise<MembershipRecord | null>;
     create: (args: unknown) => Promise<unknown>;
+    update: (args: unknown) => Promise<unknown>;
   };
 };
 
@@ -281,8 +283,7 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
     },
   );
 
-  // POST /invitations/accept — no auth required (user may not be logged in yet)
-  router.post('/invitations/accept', async (req, res) => {
+  router.post('/invitations/accept', authMiddleware, requireAuth, async (req, res) => {
     const { token } = req.body as { token?: string };
     if (!token) {
       sendError(res, 400, 'MISSING_TOKEN', 'Token is required');
@@ -322,49 +323,38 @@ export function adminInvitationsRoutes(opts: AdminInvitationsRoutesOptions = {})
               });
             }
 
-            let user = await tx.user.findFirst({
-              where: { email: invitation.email, deleted_at: null },
-            });
-
-            if (req.auth && req.auth.email === invitation.email) {
-              const authUser = await tx.user.findFirst({
-                where: { id: req.auth.id, deleted_at: null },
-              });
-              if (authUser) {
-                user = authUser;
-              }
+            if (req.auth!.email !== invitation.email) {
+              throw Object.assign(
+                new Error('Authenticated user email does not match invitation email'),
+                { code: 'EMAIL_MISMATCH', status: 403 },
+              );
             }
 
-            if (!user) {
-              const supabaseId = await getSupabaseUserIdByEmail(invitation.email);
-              user = await tx.user.create({
+            const userId = req.auth!.id;
+
+            const anyMembership = await tx.tenantMembership.findFirst({
+              where: { tenant_id: invitation.tenant_id, user_id: userId },
+            });
+
+            if (anyMembership) {
+              if (anyMembership.deleted_at === null) {
+                return;
+              }
+              await tx.tenantMembership.update({
+                where: {
+                  tenant_id_user_id: { tenant_id: invitation.tenant_id, user_id: userId },
+                },
+                data: { deleted_at: null, role: invitation.role },
+              });
+            } else {
+              await tx.tenantMembership.create({
                 data: {
-                  supabase_id: supabaseId ?? null,
-                  email: invitation.email,
-                  name: null,
-                  role: 'USER',
-                  status: 'active',
+                  tenant_id: invitation.tenant_id,
+                  user_id: userId,
+                  role: invitation.role,
                 },
               });
             }
-
-            const existingMembership = await tx.tenantMembership.findFirst({
-              where: { tenant_id: invitation.tenant_id, user_id: user.id, deleted_at: null },
-            });
-            if (existingMembership) {
-              throw Object.assign(new Error('User is already a member of this tenant'), {
-                code: 'ALREADY_MEMBER',
-                status: 409,
-              });
-            }
-
-            await tx.tenantMembership.create({
-              data: {
-                tenant_id: invitation.tenant_id,
-                user_id: user.id,
-                role: invitation.role,
-              },
-            });
 
             await tx.tenantInvitation.update({
               where: { id: invitation.id },
