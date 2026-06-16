@@ -17,7 +17,7 @@ import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
 import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 import { resolveToolPaths } from '../lib/archetype-edit-helpers.js';
-import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../lib/output-contract-constants.js';
+import { resolveDelivery } from '../../lib/delivery-resolver.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -51,7 +51,6 @@ const PatchArchetypeBodySchema = z
     notification_channel: z.string().nullable().optional(),
     vm_size: z.string().optional(),
     deliverable_type: z.string().optional(),
-    delivery_instructions: z.string().max(10000).nullable().optional(),
     trigger_sources: TriggerSourceSchema.nullable().optional(),
     tool_registry: z
       .object({ tools: z.array(z.string()) })
@@ -88,7 +87,6 @@ const CreateArchetypeBodySchema = z.object({
   model: z.string().min(1),
   runtime: z.literal('opencode'),
   instructions: z.string().min(1).max(5000),
-  delivery_instructions: z.string().max(10000).nullable().default(null),
   deliverable_type: z.string().max(100).nullable().default(null),
   risk_model: z
     .object({
@@ -196,11 +194,23 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         ...rest
       } = bodyResult.data;
 
-      // A deliverable-producing employee needs delivery_instructions or the lifecycle
-      // skips delivery entirely. Wizard generation often leaves it null, so backfill
-      // a platform default whenever deliverable_type is set but instructions are blank.
-      if (rest.deliverable_type && !rest.delivery_instructions) {
-        rest.delivery_instructions = DEFAULT_DELIVERY_INSTRUCTIONS;
+      // Escape hatch: deliverable_type === null resolves to no-delivery-escape-hatch (allowed).
+      const createDelivery = resolveDelivery(
+        {
+          delivery_steps: rest.delivery_steps ?? null,
+          delivery_instructions: null,
+          deliverable_type: rest.deliverable_type ?? null,
+        },
+        undefined,
+      );
+      if (createDelivery.kind === 'misconfigured') {
+        sendError(
+          res,
+          400,
+          'MISSING_DELIVERY_CONFIG',
+          'Delivery configuration is required for employees that produce deliverables',
+        );
+        return;
       }
 
       try {
@@ -378,6 +388,28 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           enforce_tool_registry,
           ...rest
         } = bodyResult.data;
+
+        // Only gate when the patch touches a delivery field; grandfathered rows
+        // stay patchable for unrelated fields (status, instructions, override).
+        if (rest.deliverable_type !== undefined || rest.delivery_steps !== undefined) {
+          const patchDelivery = resolveDelivery(
+            {
+              delivery_steps: rest.delivery_steps ?? existing.delivery_steps,
+              delivery_instructions: null,
+              deliverable_type: rest.deliverable_type ?? existing.deliverable_type,
+            },
+            undefined,
+          );
+          if (patchDelivery.kind === 'misconfigured') {
+            sendError(
+              res,
+              400,
+              'MISSING_DELIVERY_CONFIG',
+              'Delivery configuration is required for employees that produce deliverables',
+            );
+            return;
+          }
+        }
 
         // Pre-enforcement gate: flipping enforce_tool_registry false→true requires
         // all tool paths to resolve against the real tool library.
