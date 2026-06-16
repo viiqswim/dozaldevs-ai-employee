@@ -432,3 +432,39 @@ If the description yields no valid slug (e.g. emoji-only input), a deterministic
 6. **Employee-specific language in shared files** — `employee-lifecycle.ts`, `opencode-harness.mts`, `src/gateway/`, `src/lib/` serve ALL employees. Keep them generic.
 7. **Forgetting `agents_md`** — always set `agents_md: PLATFORM_AGENTS_MD` (read from `src/workers/config/agents.md`).
 8. **CLI invocations in wizard-generated steps** — generated `execution_steps` must use intent prose, not `tsx /tools/...` commands. The worker resolves tool commands at runtime.
+
+---
+
+## Archetype Editing Helpers & Enforcement
+
+### enforce_tool_registry Capability Flag
+
+`archetypes.enforce_tool_registry Boolean @default(false)`
+
+When `false` (default), all tools are available — byte-identical to pre-enforcement behavior. When `true`, `isToolAllowed(toolPath, archetype)` in `src/workers/lib/execution-phase.mts` restricts the worker to only the paths listed in `archetype.tool_registry.tools`. Denied attempts are logged with `archetypeId` and `toolPath`.
+
+**Pre-enforcement gate**: `PATCH /admin/tenants/:tenantId/archetypes/:id` with `enforce_tool_registry: true` (flipping from `false`) re-resolves the archetype's current `tool_registry.tools` via `resolveToolPaths()` and returns `400 ENFORCE_REGISTRY_INVALID` if any tool drops or the resolved list is empty. This prevents silently locking an employee out of all tools.
+
+**Rule**: Do NOT enable `enforce_tool_registry` on any employee without first validating that every path in its `tool_registry` resolves to a real file with a descriptor.
+
+### Archetype Editing Shared Helpers
+
+`mapArchetypeRowToConfig`, `validateProposalFields`, and `resolveToolPaths` live in `src/gateway/lib/archetype-edit-helpers.ts`. All are used by `propose-edit`, `converse-create`, and the PATCH route. Import from there — do not inline or duplicate these functions in route handlers.
+
+`resolveToolPaths(tools, descriptors?, connectedToolkits?)` normalizes raw tool paths:
+
+- Strips `tsx ` prefix
+- Expands bare `service/tool` → `/tools/service/tool.ts`
+- Appends `.ts` to extension-less `/tools/` paths
+- Returns `{ resolved: string[]; dropped: Array<{tool, reason}> }`
+- Never throws — unknown paths are dropped and logged, not rejected
+
+### Tool-Path Never-Block Policy
+
+`validateProposalFields()` in `archetype-edit-helpers.ts` enforces a never-block policy for tool paths, trigger sources, and input schema:
+
+- Unknown tools are resolved and dropped (logged as warn)
+- Invalid trigger sources are coerced to `{ type: 'manual' }` (logged)
+- Invalid input schema items are dropped (logged)
+
+The ONLY guard that returns `{ ok: false, reAsk: true }` is prose-went-blank on EDIT (a field that had content is now empty). Both `converse-create` and `propose-edit` routes convert `reAsk:true` into `{ kind: 'question' }` (200) — never a 422.
