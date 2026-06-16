@@ -198,11 +198,11 @@ describe('loadTenantEnv', () => {
     expect(env['NOTIFICATION_CHANNEL']).toBeUndefined();
   });
 
-  it('injects SOURCE_CHANNELS from config.source_channels', async () => {
+  it('does NOT inject SOURCE_CHANNELS even when config.source_channels is set (removed)', async () => {
     const config = { source_channels: ['C001', 'C002'] };
     const deps = makeDeps({ findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)) });
     const env = await loadTenantEnv(TENANT_A_ID, deps);
-    expect(env['SOURCE_CHANNELS']).toBe('C001,C002');
+    expect(env['SOURCE_CHANNELS']).toBeUndefined();
   });
 
   // TODO: Pre-existing failure — DAILY_SUMMARY_CHANNELS alias not implemented (skipped 2026-05-15)
@@ -230,7 +230,7 @@ describe('loadTenantEnv', () => {
   });
 
   it('PLATFORM_ENV_MANIFEST contains business var names but not infrastructure var names', async () => {
-    const config = { notification_channel: 'C_NOTIFY', source_channels: ['C001', 'C002'] };
+    const config = { notification_channel: 'C_NOTIFY' };
     const deps = makeDeps({
       findById: vi.fn().mockResolvedValue(makeTenant(TENANT_A_ID, config)),
       listKeys: vi
@@ -246,7 +246,7 @@ describe('loadTenantEnv', () => {
     const manifest = env['PLATFORM_ENV_MANIFEST']!.split(',');
     expect(manifest).toContain('HOSTFULLY_API_KEY');
     expect(manifest).toContain('NOTIFICATION_CHANNEL');
-    expect(manifest).toContain('SOURCE_CHANNELS');
+    expect(manifest).not.toContain('SOURCE_CHANNELS');
     expect(manifest).not.toContain('DATABASE_URL');
     expect(manifest).not.toContain('SUPABASE_URL');
     expect(manifest).not.toContain('OPENROUTER_API_KEY');

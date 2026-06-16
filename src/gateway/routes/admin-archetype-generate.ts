@@ -10,12 +10,16 @@ import { sendError, sendSuccess } from '../lib/http-response.js';
 import { ERROR_CODES } from '../lib/prisma-helpers.js';
 import { ArchetypeGenerator } from '../services/archetype-generator.js';
 import { ComposioConnectionRepository } from '../../repositories/composio-connection-repository.js';
+import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 import { getConnectableToolkits } from '../../lib/composio/connectable-apps.js';
 
 export interface AdminArchetypeGenerateRouteOptions {
   callLLM: typeof callLLM;
   prisma?: PrismaClient;
 }
+
+export const GENERATION_FAILED_FRIENDLY_MESSAGE =
+  "We couldn't generate your employee from that description. Please try again, or add more detail about what you want it to do.";
 
 const GenerateBodySchema = z.object({
   description: z.string().min(10).max(2000),
@@ -36,7 +40,8 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
   const router = Router();
   const logger = createLogger('admin-archetype-generate');
   const prisma = opts.prisma ?? new PrismaClient();
-  const generator = new ArchetypeGenerator(opts.callLLM);
+  const generationCallRepo = new ArchetypeGenerationCallRepository(prisma);
+  const generator = new ArchetypeGenerator(opts.callLLM, generationCallRepo);
   const composioRepo = new ComposioConnectionRepository(prisma);
 
   router.post(
@@ -63,6 +68,10 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
 
       const { tenantId } = paramResult.data;
       const { description, previous_config, refinement_instruction } = bodyResult.data;
+      const generationContext = {
+        tenantId,
+        createdBy: req.auth?.id ?? null,
+      };
 
       try {
         const catalog = await prisma.modelCatalog.findMany({
@@ -101,12 +110,15 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
             refinement_instruction,
             catalog,
             { connectedToolkits, connectableToolkits },
+            generationContext,
           );
         } else {
-          result = await generator.generate(description, catalog, {
-            connectedToolkits,
-            connectableToolkits,
-          });
+          result = await generator.generate(
+            description,
+            catalog,
+            { connectedToolkits, connectableToolkits },
+            generationContext,
+          );
         }
 
         sendSuccess(res, 200, { ...result, connectedToolkits, suggestedToolkits });
@@ -114,7 +126,9 @@ export function adminArchetypeGenerateRoutes(opts: AdminArchetypeGenerateRouteOp
         const message = err instanceof Error ? err.message : String(err);
 
         if (message.includes('GENERATION_FAILED')) {
-          sendError(res, 422, 'GENERATION_FAILED', undefined, { details: message });
+          sendError(res, 422, 'GENERATION_FAILED', GENERATION_FAILED_FRIENDLY_MESSAGE, {
+            details: message,
+          });
           return;
         }
 

@@ -203,6 +203,7 @@ model Archetype {
   temperature                       Float?    @default(1.0)
   platform_rules_override           String?   @db.Text // When set, replaces the default platform rules section in compiled AGENTS.md
   enforce_tool_registry             Boolean   @default(false) // When true, restricts available tools to exactly those listed in tool_registry
+  created_by                        String?   @db.Uuid // nullable — SERVICE_TOKEN actor has no user (EDGE-3)
 
   // Relations
   tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
@@ -212,9 +213,10 @@ model Archetype {
   knowledgeBases KnowledgeBase[]
   riskModels     RiskModel[]
   agentVersions  AgentVersion[]  @relation("ArchetypeVersions")
-  feedbackEvents FeedbackEvent[]
-  employeeRules  EmployeeRule[]
-  taskMetrics    TaskMetric[]
+  feedbackEvents      FeedbackEvent[]
+  employeeRules       EmployeeRule[]
+  taskMetrics         TaskMetric[]
+  archetypeEditHistory ArchetypeEditHistory[]
 
   @@map("archetypes")
 }
@@ -638,4 +640,52 @@ model TaskComposioCall {
   @@index([task_id])
   @@index([tenant_id])
   @@map("task_composio_calls")
+}
+
+model ArchetypeEditHistory {
+  id             String    @id @default(uuid()) @db.Uuid
+  archetype_id   String    @db.Uuid
+  tenant_id      String    @db.Uuid
+  request_text   String    @db.Text
+  before_json    Json
+  after_json     Json
+  changed_fields Json
+  kind           String // Values: 'edit' | 'revert'
+  actor_user_id  String?   @db.Uuid
+  created_at     DateTime  @default(now())
+  deleted_at     DateTime?
+
+  // Relations
+  archetype Archetype @relation(fields: [archetype_id], references: [id], onDelete: Restrict)
+
+  @@index([archetype_id, created_at])
+  @@index([tenant_id])
+  @@map("archetype_edit_history")
+}
+
+model ArchetypeGenerationCall {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenant_id           String    @db.Uuid
+  archetype_id        String?   @db.Uuid // nullable — EDGE-1: failures before archetype exists
+  call_type           String // 'generate' | 'refine' | 'recommend_model' | 'time_estimate' | 'propose_edit'
+  model_requested     String?
+  model_actual        String?
+  prompt              String?   @db.Text
+  response            String?   @db.Text
+  prompt_truncated    Boolean   @default(false)
+  response_truncated  Boolean   @default(false)
+  prompt_tokens       Int?
+  completion_tokens   Int?
+  estimated_cost_usd  Decimal?  @db.Decimal(10, 6)
+  latency_ms          Int?
+  retry_count         Int       @default(0)
+  status              String // 'success' | 'failed'
+  error_message       String?   @db.Text
+  created_by          String?   @db.Uuid // nullable — EDGE-3: SERVICE_TOKEN has no user
+  created_at          DateTime  @default(now())
+  deleted_at          DateTime?
+
+  @@index([tenant_id, created_at])
+  @@index([archetype_id])
+  @@map("archetype_generation_calls")
 }

@@ -68,11 +68,13 @@ export async function markFailed(
     }
   }
 
-  // Update the Slack "Received" notification to show failure state (non-fatal)
+  // Update the Slack "Received" notification to show failure state (non-fatal).
+  // Prefer NOTIFY_MSG_CHANNEL (the resolved channel ID from the original post) over
+  // NOTIFICATION_CHANNEL (which may be a plain name) — chat.update rejects names.
   await updateSlackNotificationToFailed(taskId, reason, {
     roleName: process.env['EMPLOYEE_ROLE_NAME'] ?? 'Employee',
     slackToken: process.env['SLACK_BOT_TOKEN'],
-    slackChannel: process.env['NOTIFICATION_CHANNEL'],
+    slackChannel: process.env['NOTIFY_MSG_CHANNEL'] || process.env['NOTIFICATION_CHANNEL'],
     slackMsgTs: process.env['NOTIFY_MSG_TS'],
   });
 }

@@ -42,10 +42,7 @@ function makeArchetype(overrides = {}) {
     id: 'arch-test-001',
     model: 'deepseek/deepseek-v4-flash',
     tool_registry: {
-      tools: [
-        '/tools/platform/submit-output.ts',
-        '/tools/slack/post-message.ts',
-      ],
+      tools: ['/tools/platform/submit-output.ts', '/tools/slack/post-message.ts'],
     },
     enforce_tool_registry: false,
   };
@@ -146,6 +143,35 @@ describe('isToolAllowed — tool registry capability enforcement', () => {
         tool_registry: null,
       });
       isToolAllowed('/tools/platform/submit-output.ts', archetype);
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
+  });
+
+  // Tripwire: enforcement is a raw Set.has() exact-match — it must NEVER normalize.
+  // If a future change leaks resolveToolPaths() (bare→/tools/*.ts, tsx-strip) into
+  // this path, these near-miss variants of a LISTED tool would wrongly pass.
+  describe('Test 4: exact-match semantics — near-miss variants of a listed tool are denied', () => {
+    it('denies the bare service/tool form of a registry-listed path', () => {
+      const archetype = makeArchetype({ enforce_tool_registry: true });
+      expect(isToolAllowed('slack/post-message', archetype)).toBe(false);
+      expect(mockWarn).toHaveBeenCalledOnce();
+    });
+
+    it('denies a tsx-prefixed form of a registry-listed path', () => {
+      const archetype = makeArchetype({ enforce_tool_registry: true });
+      expect(isToolAllowed('tsx /tools/slack/post-message.ts', archetype)).toBe(false);
+      expect(mockWarn).toHaveBeenCalledOnce();
+    });
+
+    it('denies a registry-listed path missing its .ts extension', () => {
+      const archetype = makeArchetype({ enforce_tool_registry: true });
+      expect(isToolAllowed('/tools/slack/post-message', archetype)).toBe(false);
+      expect(mockWarn).toHaveBeenCalledOnce();
+    });
+
+    it('allows only the byte-identical listed path', () => {
+      const archetype = makeArchetype({ enforce_tool_registry: true });
+      expect(isToolAllowed('/tools/slack/post-message.ts', archetype)).toBe(true);
       expect(mockWarn).not.toHaveBeenCalled();
     });
   });

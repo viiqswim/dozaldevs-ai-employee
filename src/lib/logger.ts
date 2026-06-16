@@ -93,3 +93,20 @@ export function logTiming(
     `TIMING: ${label} completed in ${elapsedMs}ms (total: ${totalMs}ms)`,
   );
 }
+
+export interface ToolResolutionEvent {
+  tenantId?: string | null;
+  archetypeId?: string | null;
+  originalTool: string;
+  outcome: 'dropped' | 'normalized';
+  reason?: string;
+  resolvedTo?: string;
+}
+
+/**
+ * Canonical structured warn for tool-path drop/normalize events.
+ * Format: tool path {outcome} — one queryable record per dropped/coerced tool.
+ */
+export function logToolResolution(logger: pino.Logger, event: ToolResolutionEvent): void {
+  logger.warn(event, `tool path ${event.outcome}`);
+}

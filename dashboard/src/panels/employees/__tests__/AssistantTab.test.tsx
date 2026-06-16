@@ -1,0 +1,339 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { AssistantTab } from '../AssistantTab';
+import type { Archetype } from '@/lib/types';
+
+vi.mock('@/lib/gateway', () => ({
+  converseEdit: vi.fn(),
+  getArchetype: vi.fn().mockResolvedValue({}),
+  patchArchetype: vi.fn().mockResolvedValue({}),
+  recordEditHistory: vi.fn().mockResolvedValue({}),
+  listEditHistory: vi.fn().mockResolvedValue([]),
+  revertEdit: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useBlocker: vi.fn(() => ({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() })),
+}));
+
+vi.mock('react-markdown', () => ({
+  default: ({ children }: { children: string }) => <span>{children}</span>,
+}));
+
+vi.mock('remark-gfm', () => ({ default: vi.fn() }));
+
+vi.mock('react-diff-viewer-continued', () => ({
+  default: ({ oldValue, newValue }: { oldValue: string; newValue: string }) => (
+    <div data-testid="diff-viewer">
+      <div data-testid="diff-old">{oldValue}</div>
+      <div data-testid="diff-new">{newValue}</div>
+    </div>
+  ),
+  DiffMethod: { WORDS: 'diffWords' },
+}));
+
+const mockArchetype: Archetype = {
+  id: 'arch-1',
+  tenant_id: 'tenant-1',
+  role_name: 'test-bot',
+  identity: 'I am a test bot.',
+  execution_steps: 'Do the thing.',
+  delivery_steps: 'Deliver the thing.',
+  overview: 'A test bot.',
+  status: 'active',
+  model: 'minimax/minimax-m2.7',
+  temperature: 1.0,
+  runtime: 'opencode',
+  risk_model: { approval_required: true },
+  tool_registry: { tools: [] },
+  trigger_sources: [{ type: 'manual' }],
+  input_schema: [],
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+} as unknown as Archetype;
+
+async function submitMessage(requestText: string) {
+  const { converseEdit } = await import('@/lib/gateway');
+
+  const textarea = screen.getByPlaceholderText(/ask me to change/i);
+  fireEvent.change(textarea, { target: { value: requestText } });
+  fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+  return { converseEdit };
+}
+
+describe('AssistantTab', () => {
+  const onSaved = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it('renders empty state initially', () => {
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    expect(screen.getByPlaceholderText(/ask me to change/i)).toBeInTheDocument();
+    expect(screen.getByText(/ask me to change how this employee works/i)).toBeInTheDocument();
+  });
+
+  it('appends user message on submit', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({ kind: 'question', question: 'What do you mean?' });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    const textarea = screen.getByPlaceholderText(/ask me to change/i);
+    fireEvent.change(textarea, { target: { value: 'make replies shorter' } });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    expect(screen.getByText('make replies shorter')).toBeInTheDocument();
+  });
+
+  it('shows proposal card when converseEdit returns proposal', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('make it friendlier');
+
+    await waitFor(() => {
+      expect(screen.getByText('Proposed changes')).toBeInTheDocument();
+    });
+  });
+
+  it('shows no-change message when converseEdit returns no_change', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({ kind: 'no_change' });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('test');
+
+    await waitFor(() => {
+      expect(screen.getByText(/no change is needed/i)).toBeInTheDocument();
+    });
+  });
+
+  it('deny adds discarded message and disarms guard', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old' } as never,
+      proposal: { identity: 'new' } as never,
+      changed_fields: { identity: { from: 'old', to: 'new' } },
+    });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('test');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+    fireEvent.click(screen.getByRole('button', { name: /deny/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/discarded/i)).toBeInTheDocument();
+    });
+  });
+
+  it('surfaces error as assistant message when converseEdit rejects', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockRejectedValue(new Error('Tool not available'));
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('add a new tool');
+
+    await waitFor(() => {
+      expect(screen.getByText(/something went wrong on our end/i)).toBeInTheDocument();
+    });
+  });
+
+  it('approve calls getArchetype then patchArchetype then recordEditHistory and onSaved', async () => {
+    const { converseEdit, getArchetype, patchArchetype, recordEditHistory } =
+      await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
+    vi.mocked(getArchetype).mockResolvedValue({
+      ...mockArchetype,
+      identity: 'CURRENT identity from DB',
+    } as never);
+    vi.mocked(patchArchetype).mockResolvedValue({} as never);
+    vi.mocked(recordEditHistory).mockResolvedValue({} as never);
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('make it friendlier');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /approve/i })).not.toBeDisabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+
+    await waitFor(() => {
+      expect(getArchetype).toHaveBeenCalledWith('tenant-1', 'arch-1');
+      expect(patchArchetype).toHaveBeenCalledWith(
+        'tenant-1',
+        'arch-1',
+        expect.objectContaining({ identity: 'new identity' }),
+      );
+      expect(recordEditHistory).toHaveBeenCalledWith(
+        'tenant-1',
+        'arch-1',
+        expect.objectContaining({
+          before_json: expect.objectContaining({ identity: 'CURRENT identity from DB' }),
+          after_json: expect.objectContaining({ identity: 'new identity' }),
+          changed_fields: ['identity'],
+          kind: 'edit',
+          request_text: 'make it friendlier',
+        }),
+      );
+      expect(onSaved).toHaveBeenCalled();
+
+      const getOrder = vi.mocked(getArchetype).mock.invocationCallOrder[0];
+      const patchOrder = vi.mocked(patchArchetype).mock.invocationCallOrder[0];
+      const histOrder = vi.mocked(recordEditHistory).mock.invocationCallOrder[0];
+      expect(getOrder).toBeLessThan(patchOrder);
+      expect(patchOrder).toBeLessThan(histOrder);
+    });
+  });
+
+  it('deny does not call patchArchetype or recordEditHistory', async () => {
+    const { converseEdit, patchArchetype, recordEditHistory } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old' } as never,
+      proposal: { identity: 'new' } as never,
+      changed_fields: { identity: { from: 'old', to: 'new' } },
+    });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('make it shorter');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+    fireEvent.click(screen.getByRole('button', { name: /deny/i }));
+
+    await waitFor(() => {
+      expect(patchArchetype).not.toHaveBeenCalled();
+      expect(recordEditHistory).not.toHaveBeenCalled();
+    });
+  });
+
+  it('proposal card has no refine textarea and no "Ask for more changes" button', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old identity' } as never,
+      proposal: { identity: 'new identity' } as never,
+      changed_fields: { identity: { from: 'old identity', to: 'new identity' } },
+    });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('make it friendlier');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+
+    expect(screen.queryByLabelText(/refinement request/i)).toBeNull();
+    expect(screen.queryByText(/ask for more changes/i)).toBeNull();
+  });
+
+  it('proposal card approval-off confirm gates Approve button', async () => {
+    const { converseEdit } = await import('@/lib/gateway');
+    vi.mocked(converseEdit).mockResolvedValue({
+      kind: 'proposal',
+      baseline: { identity: 'old', risk_model: { approval_required: true } } as never,
+      proposal: { identity: 'new', risk_model: { approval_required: false } } as never,
+      changed_fields: {
+        identity: { from: 'old', to: 'new' },
+        approval_required: { from: true, to: false },
+      },
+      approval_warning: true,
+    });
+
+    render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+    await submitMessage('disable approval');
+
+    await waitFor(() => screen.getByText('Proposed changes'));
+
+    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    expect(approveBtn).toBeDisabled();
+
+    const confirmBox = screen.getByRole('checkbox', {
+      name: /I understand this employee will act without my approval/i,
+    });
+    fireEvent.click(confirmBox);
+
+    expect(approveBtn).not.toBeDisabled();
+  });
+  describe('Change history collapsible', () => {
+    it('is collapsed by default — EditHistoryList not fetched', async () => {
+      const { listEditHistory } = await import('@/lib/gateway');
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // The header button must be present
+      expect(screen.getByText('Change history')).toBeInTheDocument();
+
+      // With defaultOpen={false}, CollapsibleSection hides children — listEditHistory never called
+      expect(vi.mocked(listEditHistory)).not.toHaveBeenCalled();
+    });
+
+    it('expands when header is clicked and fetches history', async () => {
+      const { listEditHistory } = await import('@/lib/gateway');
+      vi.mocked(listEditHistory).mockResolvedValue([]);
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // Click the title button to expand
+      fireEvent.click(screen.getByText('Change history'));
+
+      await waitFor(() => {
+        expect(vi.mocked(listEditHistory)).toHaveBeenCalledWith('tenant-1', 'arch-1');
+      });
+    });
+
+    it('revert calls revertEdit after confirm', async () => {
+      const { listEditHistory, revertEdit } = await import('@/lib/gateway');
+      vi.mocked(listEditHistory).mockResolvedValue([
+        {
+          id: 'hist-1',
+          archetype_id: 'arch-1',
+          tenant_id: 'tenant-1',
+          kind: 'edit' as const,
+          request_text: 'Made it friendlier',
+          changed_fields: ['identity'],
+          before_json: {},
+          after_json: {},
+          actor_user_id: null,
+          created_at: '2026-01-01T00:00:00Z',
+          deleted_at: null,
+        },
+      ]);
+
+      render(<AssistantTab archetype={mockArchetype} tenantId="tenant-1" onSaved={onSaved} />);
+
+      // Expand the section
+      fireEvent.click(screen.getByText('Change history'));
+
+      // Wait for history item to appear
+      await waitFor(() => {
+        expect(screen.getByText('Made it friendlier')).toBeInTheDocument();
+      });
+
+      // Click Revert → confirm step appears
+      fireEvent.click(screen.getByRole('button', { name: /revert/i }));
+      await waitFor(() => screen.getByText('Revert?'));
+
+      // Confirm revert
+      fireEvent.click(screen.getByRole('button', { name: /yes/i }));
+
+      await waitFor(() => {
+        expect(vi.mocked(revertEdit)).toHaveBeenCalledWith('tenant-1', 'arch-1', 'hist-1');
+      });
+    });
+  });
+});

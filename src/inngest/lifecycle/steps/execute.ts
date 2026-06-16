@@ -89,6 +89,7 @@ export async function runExecutePhase(
       await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
       const rows = await query<Pick<TaskRow, 'status'>>('tasks', `id=eq.${taskId}&select=status`);
       const status = rows?.[0]?.status;
+      log.debug({ taskId, poll: i, status }, 'Polling for completion');
       if (status === 'Submitting' || status === 'Failed' || status === 'Cancelled') return status;
     }
     return 'Failed';

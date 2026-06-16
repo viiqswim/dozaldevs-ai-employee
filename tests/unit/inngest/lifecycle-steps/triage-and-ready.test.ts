@@ -295,6 +295,34 @@ describe('runTriageAndReady — notify-received', () => {
     );
   });
 
+  it('stores the resolved channel ID from postMessage, not the input channel name', async () => {
+    vi.stubGlobal('fetch', buildFetch(buildTaskRow()));
+    const notifyBlocks = vi.fn().mockReturnValue([]);
+    mockLoadTenantSlack.mockResolvedValueOnce({
+      botToken: 'xoxb-test',
+      channel: 'victor-tests',
+      tenantEnv: { SLACK_BOT_TOKEN: 'xoxb-test', NOTIFICATION_CHANNEL: 'victor-tests' },
+      slackClient: {
+        postMessage: mockSlackPostMessage,
+        updateMessage: mockSlackUpdateMessage,
+      },
+    });
+    mockSlackPostMessage.mockResolvedValueOnce({ ts: 'ts-posted-002', channel: 'C0AUBMXKVNU' });
+
+    const result = await runTriageAndReady(makeCtx(), makeStep() as never, notifyBlocks);
+
+    expect(result.notifyMsgRef?.channel).toBe('C0AUBMXKVNU');
+    expect(mockMergeTaskMetadata).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      expect.objectContaining({
+        notify_slack_ts: 'ts-posted-002',
+        notify_slack_channel: 'C0AUBMXKVNU',
+      }),
+    );
+  });
+
   it('updates the superseded message in place and skips a fresh postMessage', async () => {
     vi.stubGlobal(
       'fetch',

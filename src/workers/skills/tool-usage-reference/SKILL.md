@@ -226,7 +226,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Invocation**: `tsx /tools/platform/submit-output.ts [flags]`
 
-**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID
+**Environment variables**: None
 
 **Arguments**:
 
@@ -394,6 +394,19 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 <!-- HAND-WRITTEN: DO NOT GENERATE BELOW -->
 
+## Execution→Delivery Handoff (CRITICAL — the load-bearing final step)
+
+A task runs in two separate containers: an **execution** container (does the work, produces a draft) and a **delivery** container (sends the approved draft to its destination). They share state only through the output contract written by `submit-output.ts`.
+
+**The final step of execution MUST call `submit-output.ts` with `--draft-file` pointing to a file holding the full deliverable content.** This is the only way the draft reaches the delivery container — the platform does NOT auto-capture your work. Concretely:
+
+1. Write the full deliverable (the summary, reply, report, etc.) to a `/tmp/` file (e.g. `/tmp/summary.txt` or `/tmp/draft.txt`).
+2. Call `submit-output.ts --summary "<one-line>" --classification "NEEDS_APPROVAL" --draft-file /tmp/<your-file>`.
+
+When `--classification` is `NEEDS_APPROVAL`, `--draft-file` is **mandatory**. Omitting it delivers an empty draft: the delivery container has nothing to post, and the human approver sees only a one-line summary with no content. A task whose execution session ends without calling `submit-output.ts` at all is a hard failure — the harness sends one recovery nudge, then fails the task if `/tmp/summary.txt` still does not exist.
+
+This handoff is the single contract that makes intent-level execution steps work: the steps may describe the goal in plain language, but they MUST end by submitting the produced draft through `submit-output.ts --draft-file`.
+
 ## ⚠️ CRITICAL WARNINGS — Read Before Every Tool Call
 
 > Canonical invocation paths for every tool are listed in the auto-generated section above (the `**Invocation**` line under each `service/id` heading). Never hand-type a `/tools/...` path — copy it from the generated section so it can never go stale on a rename.
@@ -422,6 +435,21 @@ Messages sent via `send-message.ts` are delivered immediately to the guest throu
 ### 5. Sifely HTTP 200 ≠ success — always check `body.code`
 
 The Sifely API returns HTTP 200 even on authentication failure. You must check the response body `code` field. The Sifely tools handle this internally — but know why it matters if debugging raw API calls.
+
+### 6. Graceful failure when bot lacks channel access
+
+If `read-channels.ts` fails with a `not_in_channel` or `channel_not_found` error (the bot is not a member of the requested channel), do NOT crash or leave the task in a broken state. Instead:
+
+1. Post a plain-English message to `$NOTIFICATION_CHANNEL` (use `post-message.ts`):
+   ```
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "I wasn't able to finish — I don't have access to one of the channels you asked me to read. Please add me to that channel and try again." --thread-ts "$NOTIFY_MSG_TS"
+   ```
+2. Submit `NO_ACTION_NEEDED` so the task exits cleanly:
+   ```
+   tsx /tools/platform/submit-output.ts --summary "Could not access channel — bot not a member" --classification NO_ACTION_NEEDED
+   ```
+
+This prevents the task from silently failing or getting stuck. The user sees a clear explanation in Slack and can fix the channel membership before re-triggering.
 
 ---
 

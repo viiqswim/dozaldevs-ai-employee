@@ -4,7 +4,7 @@
 
 **Invocation**: `tsx /tools/platform/submit-output.ts [flags]`
 
-**Environment variables**: SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID
+**Environment variables**: None
 
 ## Arguments
 

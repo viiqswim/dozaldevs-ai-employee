@@ -11,7 +11,7 @@ const TENANT_SECRET_VARS = new Set([
   'SIFELY_PASSWORD',
 ]);
 
-const TASK_SCOPED_VARS = new Set(['TASK_ID', 'TENANT_ID']);
+const TASK_SCOPED_VARS = new Set(['TENANT_ID']);
 
 const GATEWAY_ONLY_VARS = new Set(['GITHUB_APP_ID', 'GITHUB_PRIVATE_KEY']);
 

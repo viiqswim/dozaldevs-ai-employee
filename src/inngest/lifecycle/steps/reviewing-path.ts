@@ -15,6 +15,7 @@ import {
 import { WORKER_RUNTIME } from '../../../lib/config.js';
 import { makePostgrestHeaders } from '../../lib/postgrest-headers.js';
 import {
+  approvalCardMissingFailureMessage,
   supersededMessage,
   needsReviewMessage,
   reviewingDraftedMessage,
@@ -193,7 +194,9 @@ async function checkSupersede(ctx: ReviewingPathContext): Promise<void> {
   });
 }
 
-async function trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void> {
+async function trackPendingApprovalStep(
+  ctx: ReviewingPathContext,
+): Promise<{ routedToFailed: boolean }> {
   const {
     taskId,
     tenantId,
@@ -224,11 +227,43 @@ async function trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void
   const threadUidForTracking = authoritativeThreadUid ?? conversationRef;
 
   if (!approvalMsgTs || !targetChannel) {
-    log.warn(
+    log.error(
       { taskId, approvalMsgTs, targetChannel },
-      'track-pending-approval: Missing approval_message_ts or target_channel — approval card was not posted. Task will proceed to wait-for-approval but may timeout.',
+      'track-pending-approval: Missing approval card metadata — routing to Failed',
     );
-    return;
+    const failureReason = "I finished working but couldn't post the result for your review.";
+    await patchTask(supabaseUrl, headers, taskId, {
+      status: 'Failed',
+      failure_reason: failureReason,
+    });
+    await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Reviewing');
+    if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+      try {
+        const slackCtx = await loadTenantSlack(
+          tenantId,
+          (archetype.notification_channel as string | null) ?? null,
+        );
+        if (slackCtx) {
+          const failText = approvalCardMissingFailureMessage();
+          const failBlocks = notifyBlocks({
+            state: 'Failed',
+            archetypeName: (archetype.role_name as string) ?? 'unknown',
+            enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
+            emoji: '❌',
+            extraText: failureReason,
+          });
+          await slackCtx.slackClient.updateMessage(
+            notifyMsgRef.channel,
+            notifyMsgRef.ts,
+            failText,
+            failBlocks,
+          );
+        }
+      } catch (err) {
+        log.warn({ taskId, err }, 'Failed to update notify on zombie→Failed (non-fatal)');
+      }
+    }
+    return { routedToFailed: true };
   }
 
   const threadUid = threadUidForTracking ?? taskId;
@@ -265,7 +300,7 @@ async function trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void
             { taskId, preNudgeStatus },
             'Task no longer Reviewing before nudge — skipping nudge broadcast',
           );
-          return;
+          return { routedToFailed: false };
         }
 
         const nudgeRecipientName = delivMeta.recipient_name as string | undefined;
@@ -337,6 +372,7 @@ async function trackPendingApprovalStep(ctx: ReviewingPathContext): Promise<void
       log.warn({ taskId, err }, 'Failed to post nudge broadcast (non-fatal)');
     }
   }
+  return { routedToFailed: false };
 }
 
 export async function runReviewingPath(
@@ -404,8 +440,16 @@ export async function runReviewingPath(
     }
   });
 
-  await step.run('track-pending-approval', () => trackPendingApprovalStep(ctx));
+  const trackResult = await step.run('track-pending-approval', () => trackPendingApprovalStep(ctx));
+  if (trackResult?.routedToFailed) {
+    log.info(
+      { taskId },
+      'Task routed to Failed in track-pending-approval — skipping wait-for-approval',
+    );
+    return;
+  }
 
+  log.info({ taskId, tenantId, timeoutHours }, 'Awaiting approval event');
   const approvalEvent = await step.waitForEvent('wait-for-approval', {
     event: 'employee/approval.received',
     match: 'data.taskId',

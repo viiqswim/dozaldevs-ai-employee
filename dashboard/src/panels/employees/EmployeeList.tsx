@@ -91,7 +91,9 @@ export function EmployeeList() {
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Employees</h2>
-        <Button onClick={() => navigate('/dashboard/employees/new')}>+ New Employee</Button>
+        <Button onClick={() => navigate(`/dashboard/employees/new?tenant=${tenantId}`)}>
+          + New Employee
+        </Button>
       </div>
       <div className="flex items-center gap-3 mb-4">
         <Input

@@ -428,3 +428,45 @@ export interface ComposioToolkitsPage {
   items: ComposioToolkit[];
   nextCursor: string | null;
 }
+
+export interface ConverseMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export type ConverseResponse =
+  | { kind: 'question'; question: string }
+  | {
+      kind: 'proposal';
+      baseline: Archetype;
+      proposal: Archetype;
+      changed_fields: Record<string, { from: unknown; to: unknown }>;
+      tool_delta?: { added: string[]; removed: string[] };
+      trigger_change?: { before: string; after: string };
+      input_change?: { added: string[]; removed: string[] };
+      approval_warning?: boolean;
+    }
+  | { kind: 'no_change' }
+  | { kind: 'too_long' };
+
+export interface RecordEditHistoryPayload {
+  request_text: string;
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  changed_fields: string[];
+  kind: 'edit' | 'revert' | 'create';
+}
+
+export interface EditHistoryRow {
+  id: string;
+  archetype_id: string;
+  tenant_id: string;
+  request_text: string;
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  changed_fields: string[];
+  kind: 'edit' | 'revert' | 'create';
+  actor_user_id: string | null;
+  created_at: string;
+  deleted_at: string | null;
+}

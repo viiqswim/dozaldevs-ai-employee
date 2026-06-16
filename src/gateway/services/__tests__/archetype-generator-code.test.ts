@@ -270,7 +270,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
   });
 
   it('retry-success path for refine(): succeeds on second attempt when first response is invalid JSON', async () => {
-    const validJson = JSON.stringify(BASE_RESPONSE);
+    const validJson = JSON.stringify({ ...BASE_RESPONSE, identity: 'You are a concise employee.' });
     const mockCallLLM = vi
       .fn()
       .mockResolvedValueOnce({

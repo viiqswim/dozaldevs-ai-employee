@@ -15,6 +15,9 @@ import {
 import { recommendModels } from '../../lib/model-selection/matcher.js';
 import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
+import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
+import { resolveToolPaths } from '../lib/archetype-edit-helpers.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../lib/output-contract-constants.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -60,10 +63,12 @@ const PatchArchetypeBodySchema = z
     input_schema: InputSchemaSchema.optional(),
     worker_env: z.record(z.string(), z.string()).nullish(),
     estimated_manual_minutes_override: z.number().int().min(1).max(1440).nullable().optional(),
+    identity: z.string().max(10000).nullable().optional(),
     execution_steps: z.string().nullable().optional(),
     delivery_steps: z.string().nullable().optional(),
     temperature: z.number().min(0).max(2).optional(),
     platform_rules_override: z.string().nullable().optional(),
+    enforce_tool_registry: z.boolean().optional(),
   })
   .superRefine((obj, ctx) => {
     if (Object.keys(obj).length === 0) {
@@ -159,7 +164,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
   const logger = createLogger('admin-archetypes');
   const prisma = opts.prisma ?? new PrismaClient();
   const repo = new ArchetypeRepository(prisma);
-  const estimator = new TimeEstimator(callLLM);
+  const callGenerationRepo = new ArchetypeGenerationCallRepository(prisma);
 
   router.post(
     '/admin/tenants/:tenantId/archetypes',
@@ -191,11 +196,19 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         ...rest
       } = bodyResult.data;
 
+      // A deliverable-producing employee needs delivery_instructions or the lifecycle
+      // skips delivery entirely. Wizard generation often leaves it null, so backfill
+      // a platform default whenever deliverable_type is set but instructions are blank.
+      if (rest.deliverable_type && !rest.delivery_instructions) {
+        rest.delivery_instructions = DEFAULT_DELIVERY_INSTRUCTIONS;
+      }
+
       try {
         const newArchetype = await prisma.archetype.create({
           data: {
             ...rest,
             tenant_id: tenantId,
+            created_by: req.auth?.id ?? null,
             execution_instructions: instructions,
             risk_model: risk_model as Prisma.InputJsonValue,
             ...(trigger_sources !== null && {
@@ -216,6 +229,7 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
         let resultArchetype = newArchetype;
         try {
+          const estimator = new TimeEstimator(callLLM, callGenerationRepo, tenantId);
           const estimated = await estimator.estimate(newArchetype);
           if (estimated !== null) {
             const reEstimated = await prisma.archetype.update({
@@ -229,6 +243,31 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
             { err: estimateErr },
             'Time estimation failed after create — returning archetype without estimate',
           );
+        }
+
+        logger.info(
+          { id: resultArchetype.id, role_name: resultArchetype.role_name },
+          'Archetype created',
+        );
+
+        // Best-effort history write — never block the create response
+        try {
+          await prisma.archetypeEditHistory.create({
+            data: {
+              archetype_id: resultArchetype.id,
+              tenant_id: tenantId,
+              request_text: bodyResult.data.identity
+                ? `Wizard creation: ${bodyResult.data.role_name}`
+                : 'Wizard creation',
+              before_json: {} as Prisma.InputJsonValue,
+              after_json: resultArchetype as unknown as Prisma.InputJsonValue,
+              changed_fields: Object.keys(resultArchetype) as Prisma.InputJsonValue,
+              kind: 'create',
+              actor_user_id: req.auth?.id ?? null,
+            },
+          });
+        } catch (histErr) {
+          logger.warn({ err: histErr }, 'Failed to write create history row');
         }
 
         sendSuccess(res, 201, resultArchetype);
@@ -336,8 +375,30 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           input_schema,
           worker_env,
           instructions,
+          enforce_tool_registry,
           ...rest
         } = bodyResult.data;
+
+        // Pre-enforcement gate: flipping enforce_tool_registry false→true requires
+        // all tool paths to resolve against the real tool library.
+        if (enforce_tool_registry === true && !existing.enforce_tool_registry) {
+          const existingTools = ((existing.tool_registry as Record<string, unknown> | null)
+            ?.tools ?? []) as string[];
+          const toolsToCheck =
+            tool_registry !== undefined && tool_registry !== null
+              ? tool_registry.tools
+              : existingTools;
+          const { resolved, dropped } = resolveToolPaths(toolsToCheck);
+          if (resolved.length === 0 || dropped.length > 0) {
+            sendError(
+              res,
+              400,
+              'ENFORCE_REGISTRY_INVALID',
+              "This employee's tools couldn't be verified, so strict tool mode can't be turned on yet. Please update the tool list to use only supported tools.",
+            );
+            return;
+          }
+        }
 
         if (status === 'active') {
           const conflict = await prisma.archetype.findFirst({
@@ -386,12 +447,14 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
               worker_env:
                 worker_env === null ? Prisma.JsonNull : (worker_env as Prisma.InputJsonValue),
             }),
+            ...(enforce_tool_registry !== undefined && { enforce_tool_registry }),
           },
         });
 
         let resultArchetype = updated;
         if (shouldReEstimate(Object.keys(bodyResult.data))) {
           try {
+            const estimator = new TimeEstimator(callLLM, callGenerationRepo, tenantId);
             const estimated = await estimator.estimate(updated);
             if (estimated !== null) {
               const reEstimated = await prisma.archetype.update({
@@ -406,6 +469,27 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
               'Time re-estimation failed after update — returning archetype without re-estimate',
             );
           }
+        }
+
+        const patchedKeys = Object.keys(bodyResult.data);
+        logger.info({ id: archetypeId, changed_fields: patchedKeys }, 'Archetype updated');
+
+        // Best-effort history write — never block the patch response
+        try {
+          await prisma.archetypeEditHistory.create({
+            data: {
+              archetype_id: archetypeId,
+              tenant_id: tenantId,
+              request_text: 'Direct PATCH',
+              before_json: existing as unknown as Prisma.InputJsonValue,
+              after_json: resultArchetype as unknown as Prisma.InputJsonValue,
+              changed_fields: patchedKeys as Prisma.InputJsonValue,
+              kind: 'edit',
+              actor_user_id: req.auth?.id ?? null,
+            },
+          });
+        } catch (histErr) {
+          logger.warn({ err: histErr }, 'Failed to write PATCH history row');
         }
 
         sendSuccess(res, 200, resultArchetype);

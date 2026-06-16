@@ -1,5 +1,6 @@
 import type { callLLM } from '../../lib/call-llm.js';
 import { createLogger } from '../../lib/logger.js';
+import type { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 
 const log = createLogger('time-estimator');
 
@@ -14,7 +15,11 @@ const SYSTEM_MESSAGE =
   'You estimate manual task duration. Respond with ONLY a single integer representing the number of minutes a human would need to manually complete this task once. No text, no explanation, just a number.';
 
 export class TimeEstimator {
-  constructor(private readonly callLLMFn: typeof callLLM) {}
+  constructor(
+    private readonly callLLMFn: typeof callLLM,
+    private readonly repo?: ArchetypeGenerationCallRepository,
+    private readonly tenantId?: string,
+  ) {}
 
   async estimate(archetype: {
     role_name: string | null;
@@ -42,6 +47,23 @@ export class TimeEstimator {
         ],
       });
 
+      if (this.repo && this.tenantId) {
+        try {
+          await this.repo.record({
+            tenant_id: this.tenantId,
+            call_type: 'time_estimate',
+            model_actual: result.model,
+            prompt_tokens: result.promptTokens,
+            completion_tokens: result.completionTokens,
+            estimated_cost_usd: result.estimatedCostUsd,
+            latency_ms: result.latencyMs,
+            status: 'success',
+          });
+        } catch (persistErr) {
+          log.warn({ err: persistErr }, 'TimeEstimator: failed to persist call row — continuing');
+        }
+      }
+
       const raw = result.content.trim();
 
       const directParse = parseInt(raw, 10);
@@ -57,6 +79,21 @@ export class TimeEstimator {
       log.warn({ raw }, 'TimeEstimator: no integer found in LLM response');
       return null;
     } catch (err) {
+      if (this.repo && this.tenantId) {
+        try {
+          await this.repo.record({
+            tenant_id: this.tenantId,
+            call_type: 'time_estimate',
+            status: 'failed',
+            error_message: String(err),
+          });
+        } catch (persistErr) {
+          log.warn(
+            { err: persistErr },
+            'TimeEstimator: failed to persist failure row — continuing',
+          );
+        }
+      }
       log.warn({ err }, 'TimeEstimator: estimate failed — returning null');
       return null;
     }

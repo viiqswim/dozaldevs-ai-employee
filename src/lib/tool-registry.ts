@@ -82,7 +82,7 @@ export const ALL_TOOL_DESCRIPTORS: ToolDescriptor[] = [
     id: 'submit-output',
     service: 'platform',
     description: 'Submit task output (summary and optional draft file) to the platform',
-    envVars: ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'TASK_ID'],
+    envVars: [],
     args: [
       {
         name: '--summary',

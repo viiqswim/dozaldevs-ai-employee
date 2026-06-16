@@ -14,6 +14,7 @@ import { DebugTab } from './DebugTab';
 import { EmployeeNameEditor } from './components/EmployeeNameEditor';
 import { EmployeeActionBar } from './components/EmployeeActionBar';
 import { AdvancedTab } from './sections/AdvancedTab';
+import { AssistantTab } from './AssistantTab';
 import { TriggerDialog } from './components/TriggerDialog';
 import { DeleteDialog } from './components/DeleteDialog';
 
@@ -243,6 +244,7 @@ export function EmployeeDetail() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
+          <TabsTrigger value="assistant">AI Assistant</TabsTrigger>
           <TabsTrigger value="advanced">Advanced</TabsTrigger>
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
@@ -260,6 +262,10 @@ export function EmployeeDetail() {
           <div className="rounded-lg border bg-card px-5 py-4">
             <TrainingTab archetypeId={archetype.id} tenantId={tenantId} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="assistant">
+          <AssistantTab archetype={archetype} tenantId={tenantId} onSaved={refresh} />
         </TabsContent>
 
         <TabsContent value="advanced">

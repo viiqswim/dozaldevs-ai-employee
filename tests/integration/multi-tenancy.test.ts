@@ -290,7 +290,7 @@ describe('Multi-tenancy integration', () => {
       const secretRepo = { listKeys } as never;
 
       const env = await loadTenantEnv(TENANT_A_ID, { tenantRepo, secretRepo });
-      expect(env['SOURCE_CHANNELS']).toBe('C001,C002');
+      expect(env['SOURCE_CHANNELS']).toBeUndefined();
       expect(env['PUBLISH_CHANNEL']).toBe('C_TARGET');
     });
   });

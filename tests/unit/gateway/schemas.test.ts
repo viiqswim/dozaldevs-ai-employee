@@ -248,15 +248,17 @@ describe('TenantConfigBodySchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts valid body with source_channels array of strings', () => {
+  it('accepts body with source_channels (field removed — extra keys are ignored)', () => {
+    // source_channels has been removed from TenantConfigBodySchema; unknown fields pass through
     const result = TenantConfigBodySchema.safeParse({
       source_channels: ['C001', 'C002', 'C003'],
     });
     expect(result.success).toBe(true);
   });
 
-  it('rejects non-array source_channels', () => {
+  it('accepts body even with non-array source_channels (field removed — extra keys are ignored)', () => {
+    // source_channels no longer exists in the schema; unknown fields pass through as strip
     const result = TenantConfigBodySchema.safeParse({ source_channels: 'C001' });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 });

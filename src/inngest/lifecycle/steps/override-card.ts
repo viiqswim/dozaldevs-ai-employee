@@ -121,6 +121,10 @@ export async function runOverrideCardPath(
         thread_ts: notifyMsgRef?.ts ?? undefined,
       });
 
+      // Persist the resolved channel ID from the postMessage response, not the input
+      // channel (which may be a plain name). chat.update rejects names, so storing the
+      // name would break the later override-card update.
+      const resolvedChannel = result.channel ?? slackCtx.channel;
       await fetch(
         `${supabaseUrl}/rest/v1/deliverables?external_ref=eq.${taskId}&order=created_at.desc&limit=1`,
         {
@@ -129,13 +133,13 @@ export async function runOverrideCardPath(
           body: JSON.stringify({
             metadata: {
               override_card_ts: result.ts,
-              override_card_channel: slackCtx.channel,
+              override_card_channel: resolvedChannel,
             },
           }),
         },
       );
 
-      return { ts: result.ts, channel: slackCtx.channel };
+      return { ts: result.ts, channel: resolvedChannel };
     } catch (err) {
       log.warn({ taskId, err }, 'Failed to post override card (non-fatal)');
       return { ts: null, channel: null };

@@ -175,6 +175,10 @@ export async function runDeliveryWithRetry(
       });
       const rows = (await res.json()) as Array<{ status: string }>;
       finalStatus = rows[0]?.status ?? '';
+      log.debug(
+        { taskId, attempt, poll: i, status: finalStatus },
+        'Polling delivery for completion',
+      );
       if (finalStatus === 'Done' || finalStatus === 'Failed') break;
     }
     deliveryFinalStatus = finalStatus;

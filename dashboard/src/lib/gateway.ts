@@ -17,6 +17,10 @@ import type {
   AdminTenant,
   ComposioConnection,
   ComposioToolkitsPage,
+  ConverseMessage,
+  ConverseResponse,
+  RecordEditHistoryPayload,
+  EditHistoryRow,
 } from './types';
 
 export type MeResponse = {
@@ -141,6 +145,10 @@ export async function deleteSecret(tenantId: string, key: string): Promise<void>
   });
 }
 
+export async function getArchetype(tenantId: string, archetypeId: string): Promise<Archetype> {
+  return gatewayFetch<Archetype>(`/admin/tenants/${tenantId}/archetypes/${archetypeId}`);
+}
+
 export async function patchArchetype(
   tenantId: string,
   archetypeId: string,
@@ -165,6 +173,8 @@ export async function patchArchetype(
       | 'execution_steps'
       | 'delivery_steps'
       | 'temperature'
+      | 'tool_registry'
+      | 'trigger_sources'
     > & { risk_model?: Record<string, unknown> }
   >,
 ): Promise<Archetype> {
@@ -237,14 +247,42 @@ export async function compilePreview(
   );
 }
 
+const GENERIC_GENERATION_ERROR =
+  "We couldn't generate your employee right now. Please try again in a moment, or add more detail to your description.";
+
+async function friendlyGenerationError(response: Response): Promise<Error> {
+  const friendly = await response
+    .json()
+    .then((body: unknown) =>
+      body &&
+      typeof body === 'object' &&
+      typeof (body as { message?: unknown }).message === 'string'
+        ? (body as { message: string }).message
+        : null,
+    )
+    .catch(() => null);
+  return new Error(friendly ?? GENERIC_GENERATION_ERROR);
+}
+
 export async function generateArchetype(
   tenantId: string,
   description: string,
 ): Promise<GenerateArchetypeResponse> {
-  return gatewayFetch<GenerateArchetypeResponse>(`/admin/tenants/${tenantId}/archetypes/generate`, {
+  const token = getAccessToken();
+  const response = await fetch(`${GATEWAY_URL}/admin/tenants/${tenantId}/archetypes/generate`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ description }),
   });
+
+  if (!response.ok) {
+    throw await friendlyGenerationError(response);
+  }
+
+  return response.json() as Promise<GenerateArchetypeResponse>;
 }
 
 export async function refineArchetype(
@@ -628,4 +666,62 @@ export async function listComposioToolkits(
   const qs = params.toString();
   const url = `/admin/tenants/${tenantId}/composio/toolkits${qs ? `?${qs}` : ''}`;
   return gatewayFetch<ComposioToolkitsPage>(url);
+}
+
+export async function converseEdit(
+  tenantId: string,
+  archetypeId: string,
+  transcript: ConverseMessage[],
+): Promise<ConverseResponse> {
+  return gatewayFetch<ConverseResponse>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/propose-edit`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ transcript }),
+    },
+  );
+}
+
+export async function converseCreate(
+  tenantId: string,
+  transcript: ConverseMessage[],
+): Promise<ConverseResponse> {
+  return gatewayFetch<ConverseResponse>(`/admin/tenants/${tenantId}/archetypes/converse-create`, {
+    method: 'POST',
+    body: JSON.stringify({ transcript }),
+  });
+}
+
+export async function recordEditHistory(
+  tenantId: string,
+  archetypeId: string,
+  payload: RecordEditHistoryPayload,
+): Promise<EditHistoryRow> {
+  return gatewayFetch<EditHistoryRow>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function listEditHistory(
+  tenantId: string,
+  archetypeId: string,
+): Promise<EditHistoryRow[]> {
+  return gatewayFetch<EditHistoryRow[]>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history`,
+  );
+}
+
+export async function revertEdit(
+  tenantId: string,
+  archetypeId: string,
+  historyId: string,
+): Promise<{ archetype: Archetype; history: EditHistoryRow }> {
+  return gatewayFetch<{ archetype: Archetype; history: EditHistoryRow }>(
+    `/admin/tenants/${tenantId}/archetypes/${archetypeId}/edit-history/${historyId}/revert`,
+    { method: 'POST' },
+  );
 }

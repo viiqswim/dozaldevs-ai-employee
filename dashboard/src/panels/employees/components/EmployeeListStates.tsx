@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTenant } from '@/hooks/use-tenant';
 import {
   Table,
   TableBody,
@@ -23,11 +24,14 @@ function SkeletonRow() {
 
 export function EmployeeListLoading() {
   const navigate = useNavigate();
+  const { tenantId } = useTenant();
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Employees</h2>
-        <Button onClick={() => navigate('/dashboard/employees/new')}>+ New Employee</Button>
+        <Button onClick={() => navigate(`/dashboard/employees/new?tenant=${tenantId}`)}>
+          + New Employee
+        </Button>
       </div>
       <Table>
         <TableHeader>
@@ -71,18 +75,23 @@ export function EmployeeListError({ error, refresh }: { error: Error; refresh: (
 
 export function EmployeeListEmpty() {
   const navigate = useNavigate();
+  const { tenantId } = useTenant();
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Employees</h2>
-        <Button onClick={() => navigate('/dashboard/employees/new')}>+ New Employee</Button>
+        <Button onClick={() => navigate(`/dashboard/employees/new?tenant=${tenantId}`)}>
+          + New Employee
+        </Button>
       </div>
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <p className="text-lg font-medium mb-1">No employees yet</p>
         <p className="text-sm text-muted-foreground mb-4">
           Create your first AI employee to get started.
         </p>
-        <Button onClick={() => navigate('/dashboard/employees/new')}>Create Employee</Button>
+        <Button onClick={() => navigate(`/dashboard/employees/new?tenant=${tenantId}`)}>
+          Create Employee
+        </Button>
       </div>
     </div>
   );

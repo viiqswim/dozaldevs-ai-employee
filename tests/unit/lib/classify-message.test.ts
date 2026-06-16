@@ -47,6 +47,40 @@ describe('parseClassifyResponse', () => {
     expect(result.confidence).toBe(0.95);
   });
 
+  it('falls back to summary for NO_ACTION_NEEDED StandardOutput without a reasoning field', () => {
+    const input = JSON.stringify({
+      version: 1,
+      classification: 'NO_ACTION_NEEDED',
+      summary:
+        'Slack bot is not a member of #general or #project-lighthouse (error: not_in_channel). Add the bot to both channels and try again.',
+    });
+    const result = parseClassifyResponse(input);
+    expect(result.classification).toBe('NO_ACTION_NEEDED');
+    expect(result.reasoning).toBe(
+      'Slack bot is not a member of #general or #project-lighthouse (error: not_in_channel). Add the bot to both channels and try again.',
+    );
+    expect(result.summary).toBe(
+      'Slack bot is not a member of #general or #project-lighthouse (error: not_in_channel). Add the bot to both channels and try again.',
+    );
+  });
+
+  it('prefers explicit reasoning over summary when both are present', () => {
+    const input = JSON.stringify({
+      classification: 'NO_ACTION_NEEDED',
+      reasoning: 'Explicit reasoning',
+      summary: 'Different summary',
+    });
+    const result = parseClassifyResponse(input);
+    expect(result.reasoning).toBe('Explicit reasoning');
+    expect(result.summary).toBe('Different summary');
+  });
+
+  it('falls back to default reasoning for NO_ACTION_NEEDED with neither reasoning nor summary', () => {
+    const input = JSON.stringify({ classification: 'NO_ACTION_NEEDED' });
+    const result = parseClassifyResponse(input);
+    expect(result.reasoning).toBe('No reasoning provided');
+  });
+
   // ─── 3. Non-JSON early-exit string (EC4) ─────────────────────────────────
 
   it('handles non-JSON early-exit string starting with NO_ACTION_NEEDED:', () => {

@@ -206,17 +206,6 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
               !!archetype.notification_channel,
           },
           {
-            name: 'SOURCE_CHANNELS',
-            source: 'tenant_config',
-            category: 'always',
-            is_set: !!(
-              (tenantConfig?.source_channels as unknown) ||
-              ((tenantConfig?.summary as Record<string, unknown> | undefined)?.channel_ids as
-                | unknown
-                | undefined)
-            ),
-          },
-          {
             name: 'PUBLISH_CHANNEL',
             source: 'tenant_config',
             category: 'always',
