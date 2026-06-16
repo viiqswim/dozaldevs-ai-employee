@@ -532,3 +532,54 @@ These existed before Task 7 started and are NOT caused by T7 changes.
 
 - `pnpm build` clean (exit 0). The pre-existing admin-brain-preview.ts:276,342 errors noted by
   T9 did NOT appear in my build run — confirmed clean tsc.
+
+## [2026-06-16] Task 13 — approval-handler gate → resolver (GREEN)
+
+### What changed in src/inngest/lifecycle/steps/approval-handler.ts
+- Removed the redundant `archetypes(delivery_instructions)` fetch (L303-310) + the
+  `if (!deliveryInstructions)` null-gate. `ctx.archetype` ALREADY contains
+  delivery_steps + deliverable_type — triage-and-ready.ts:57 loads
+  `select=*,archetypes(*)`. The separate fetch was dead weight.
+- Replaced with `resolveDelivery({ delivery_steps, deliverable_type }, 'NEEDS_APPROVAL')`.
+  Approval path is always post-classification NEEDS_APPROVAL, so pass that literal.
+  - `misconfigured` → Failed + failure_code:'MISSING_DELIVERY_CONFIG' + logStatusTransition('Failed','Delivering')
+  - `no-delivery-escape-hatch` → Done (approved, nothing to release) — NEW branch, the
+    old code had no escape hatch here (it always failed on missing delivery_instructions).
+  - `has-delivery` → falls through to existing approve/deliver flow (unchanged).
+
+### Zero-match grep requirement forced resolver interface widening
+- Hard requirement: `grep -n delivery_instructions approval-handler.ts` → 0 matches.
+- resolver's DeliveryArchetypeFields had `delivery_instructions` REQUIRED → naming it at
+  the call site = a grep match. Fix: widen to `delivery_instructions?` (OPTIONAL) in
+  src/lib/delivery-resolver.ts. Backward-compatible (required→optional widening); all
+  OTHER callers (no-approval-path, delivery-retry, admin-archetypes×2) still pass it
+  explicitly and remain valid. My call site is the ONLY one that omits it.
+- A concurrent sibling had already typed the same optional change in the working tree
+  (file-modified-since-read race). HEAD still has it REQUIRED, so I MUST include
+  delivery-resolver.ts in my commit or the committed snapshot won't typecheck.
+
+### deliverable_type card-copy KEPT intact (L492/L528/L535/L538)
+- `cardDeliversToChannel`/`deliversToChannel = Boolean(archetype.deliverable_type)` untouched.
+  Only the delivery-existence gate moved to the resolver; the Slack card UX still reads
+  deliverable_type directly. grep confirms both: delivery_instructions=0, deliverable_type=present.
+
+### Two test files encoded the OLD removed fetch contract → updated to new contract
+- `approval-handler-idempotency.test.ts`: ctx.archetype used `delivery_instructions:'...'`
+  + makeFetchStub stubbed the `archetypes(delivery_instructions)` GET. Changed default to
+  `delivery_steps:'...'`, removed the dead fetch branch. Rewrote test 4 ("missing
+  delivery_instructions"→Failed) as the new misconfigured contract (deliverable_type set +
+  no delivery_steps → Failed + MISSING_DELIVERY_CONFIG). Added an escape-hatch test
+  (no delivery config → Done). 5 pass.
+- `employee-lifecycle-delivery.test.ts` (full-lifecycle InngestTestEngine): makeMockTaskData
+  archetype had no delivery_steps; the 4 happy-path/retry tests relied on the old fetch.
+  Threaded archetypeOverrides through makeMockTaskData+makeEngine, added default
+  delivery_steps, removed `archetypes(delivery_instructions)` fetch branches + the unused
+  `deliveryInstructions` opt from both fetch-mock builders. Rewrote the null-delivery test
+  to the misconfigured contract (override delivery_steps:null + deliverable_type set → assert
+  failure_code MISSING_DELIVERY_CONFIG). 9 pass.
+
+### Verification
+- Full unit suite: 179 files / 2110 passed / 9 skipped / 0 failures (CI=true pnpm exec vitest run).
+- `pnpm build`: BUILD_EXIT=0, 0 TS errors. (The previously-noted admin-brain-preview.ts:276,342
+  errors are GONE — concurrent T14 resolved them; build is now fully clean.)
+- `pnpm test -- --run` still drops to watch mode here — used `CI=true pnpm exec vitest run`.

@@ -93,7 +93,7 @@ const TARGET_CHANNEL = 'C-TARGET-12345';
 
 const inngest = new Inngest({ id: 'ai-employee-test-delivery' });
 
-function makeMockTaskData() {
+function makeMockTaskData(archetypeOverrides: Record<string, unknown> = {}) {
   return {
     id: TEST_TASK_ID,
     tenant_id: TEST_TENANT_ID,
@@ -103,6 +103,8 @@ function makeMockTaskData() {
       risk_model: { approval_required: true, timeout_hours: 24 },
       runtime: 'opencode',
       model: 'minimax/minimax-m2.7',
+      delivery_steps: 'Post the approved content to the publish channel.',
+      ...archetypeOverrides,
     },
   };
 }
@@ -125,7 +127,6 @@ function makeOkFetchResponse(data: unknown) {
 
 function buildFetchMock(
   opts: {
-    deliveryInstructions?: string | null;
     taskStatuses?: string[];
     skipDeliverable?: boolean;
   } = {},
@@ -147,14 +148,6 @@ function buildFetchMock(
       ]);
     }
 
-    if ((url as string).includes('archetypes(delivery_instructions)')) {
-      const di =
-        'deliveryInstructions' in opts
-          ? opts.deliveryInstructions
-          : 'Post the approved content to the publish channel.';
-      return makeOkFetchResponse([{ archetypes: { delivery_instructions: di } }]);
-    }
-
     if ((url as string).includes('select=status')) {
       const idx = Math.min(pollIdx, statuses.length - 1);
       pollIdx++;
@@ -171,7 +164,6 @@ function buildFetchMock(
 
 function buildFetchMockNoTargetChannel(
   opts: {
-    deliveryInstructions?: string | null;
     taskStatuses?: string[];
   } = {},
 ): ReturnType<typeof vi.fn> {
@@ -191,14 +183,6 @@ function buildFetchMockNoTargetChannel(
       ]);
     }
 
-    if ((url as string).includes('archetypes(delivery_instructions)')) {
-      const di =
-        'deliveryInstructions' in opts
-          ? opts.deliveryInstructions
-          : 'Post the approved content to the publish channel.';
-      return makeOkFetchResponse([{ archetypes: { delivery_instructions: di } }]);
-    }
-
     if ((url as string).includes('select=status')) {
       const idx = Math.min(pollIdx, statuses.length - 1);
       pollIdx++;
@@ -213,7 +197,7 @@ function buildFetchMockNoTargetChannel(
   });
 }
 
-function makeEngine(approvalEvent: unknown) {
+function makeEngine(approvalEvent: unknown, archetypeOverrides: Record<string, unknown> = {}) {
   return new InngestTestEngine({
     function: createEmployeeLifecycleFunction(inngest),
     transformCtx: (ctx) =>
@@ -222,7 +206,7 @@ function makeEngine(approvalEvent: unknown) {
         run: vi.fn().mockImplementation(async (id: string, fn: () => Promise<unknown>) => {
           switch (id) {
             case 'load-task':
-              return makeMockTaskData();
+              return makeMockTaskData(archetypeOverrides);
             case 'executing':
               return 'mock-initial-machine-id';
             case 'poll-completion':
@@ -356,11 +340,14 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
     expect(mockPostMessage).not.toHaveBeenCalled();
   });
 
-  it('null delivery_instructions → task Failed immediately, no machine spawned', async () => {
-    const mockFetch = buildFetchMock({ deliveryInstructions: null });
+  it('misconfigured delivery (deliverable_type set, no delivery_steps) → task Failed immediately, no machine spawned', async () => {
+    const mockFetch = buildFetchMock();
     vi.stubGlobal('fetch', mockFetch);
 
-    const { error } = await makeEngine(makeApprovalEvent('approve')).execute(triggerEvent());
+    const { error } = await makeEngine(makeApprovalEvent('approve'), {
+      delivery_steps: null,
+      deliverable_type: 'slack_message',
+    }).execute(triggerEvent());
 
     expect(error).toBeUndefined();
     expect(mockCreateMachine).not.toHaveBeenCalled();
@@ -374,9 +361,9 @@ describe('employee-lifecycle — delivery flow (handle-approval-result step)', (
       .find(([, init]) => {
         try {
           const body = JSON.parse(((init as RequestInit | undefined)?.body as string) ?? '{}') as {
-            failure_reason?: string;
+            failure_code?: string;
           };
-          return body.failure_reason === 'Archetype missing delivery_instructions';
+          return body.failure_code === 'MISSING_DELIVERY_CONFIG';
         } catch {
           return false;
         }

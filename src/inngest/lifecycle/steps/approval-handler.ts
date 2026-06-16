@@ -15,6 +15,7 @@ import { writeFeedbackEvent, mergeTaskMetadata } from './lifecycle-helpers.js';
 import { loadTenantEnv } from '../../../repositories/tenant-env-loader.js';
 import { TenantRepository } from '../../../repositories/tenant-repository.js';
 import { TenantSecretRepository } from '../../../repositories/tenant-secret-repository.js';
+import { resolveDelivery } from '../../../lib/delivery-resolver.js';
 import type { KnownBlock } from '@slack/web-api';
 import type { NotificationEnrichment } from '../../../lib/types/notification-enrichment.js';
 import type { runDeliveryWithRetry } from './delivery-retry.js';
@@ -300,20 +301,22 @@ export async function handleApprove(
     });
   }
 
-  const archetypeRes = await fetch(
-    `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
-    { headers },
+  const deliveryResolution = resolveDelivery(
+    {
+      delivery_steps: (archetype.delivery_steps as string | null) ?? null,
+      deliverable_type: (archetype.deliverable_type as string | null) ?? null,
+    },
+    'NEEDS_APPROVAL',
   );
-  const archetypeRows = (await archetypeRes.json()) as Array<{
-    archetypes?: { delivery_instructions?: string | null };
-  }>;
-  const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
-  if (!deliveryInstructions) {
+
+  if (deliveryResolution.kind === 'misconfigured') {
     await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
     await patchTask(supabaseUrl, headers, taskId, {
       status: 'Failed',
-      failure_reason: 'Archetype missing delivery_instructions',
+      failure_reason: 'Employee produced output but has no delivery configuration.',
+      failure_code: 'MISSING_DELIVERY_CONFIG',
     });
+    await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Delivering');
     const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
     if (approvalMsgTs && targetChannel) {
       try {
@@ -338,6 +341,41 @@ export async function handleApprove(
         );
       } catch (err) {
         log.warn({ taskId, err }, 'Failed to update notify-received on config error (non-fatal)');
+      }
+    }
+    return;
+  }
+
+  if (deliveryResolution.kind === 'no-delivery-escape-hatch') {
+    await clearPendingApprovalByTaskId(supabaseUrl, supabaseKey, taskId);
+    await patchTask(supabaseUrl, headers, taskId, {
+      status: 'Done',
+      failure_reason: null,
+      failure_code: null,
+    });
+    await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Delivering');
+    log.info({ taskId }, 'State: Done (no delivery configured — nothing to release)');
+    const completeText = `✅ Approved by <@${actorUserId}> — all done.`;
+    if (approvalMsgTs && targetChannel) {
+      try {
+        await slackClient.updateMessage(targetChannel, approvalMsgTs, completeText, [
+          { type: 'section', text: { type: 'mrkdwn', text: completeText } },
+          { type: 'context', elements: [{ type: 'mrkdwn', text: `Task \`${taskId}\`` }] },
+        ] as KnownBlock[]);
+      } catch (err) {
+        log.warn({ taskId, err }, 'Failed to update approval card on completion (non-fatal)');
+      }
+    }
+    if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+      try {
+        await slackClient.updateMessage(
+          notifyMsgRef.channel,
+          notifyMsgRef.ts,
+          completeText,
+          notifyStateBlocks({ emoji: '✅', text: 'All done' }),
+        );
+      } catch (err) {
+        log.warn({ taskId, err }, 'Failed to update notify-received on completion (non-fatal)');
       }
     }
     return;
