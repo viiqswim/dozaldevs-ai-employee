@@ -69,6 +69,7 @@ vi.mock('../../../../src/lib/slack-blocks.js', () => ({
 
 vi.mock('../../../../src/lib/slack-copy.js', () => ({
   completedNoApprovalMessage: vi.fn().mockReturnValue('✅ Done'),
+  missingDeliveryConfigFailureMessage: vi.fn().mockReturnValue('❌ Not configured to deliver'),
 }));
 
 import { runNoApprovalPath } from '../../../../src/inngest/lifecycle/steps/no-approval-path.js';
@@ -286,9 +287,37 @@ describe('runNoApprovalPath — delivery result status=done → complete-after-d
   });
 });
 
-describe('runNoApprovalPath — no deliverable_type → completes without delivery', () => {
-  it('patches task to Done and skips delivery when deliverable_type is empty', async () => {
+describe('runNoApprovalPath — produced content but no deliverable_type → fails visibly', () => {
+  it('patches task to Failed (not Done) when content needs delivery but deliverable_type is empty', async () => {
     vi.stubGlobal('fetch', buildDeliverableFetch(NEEDS_APPROVAL_CONTENT));
+    const step = makeStep();
+    const ctx = makeCtx({ archetype: { role_name: 'Bot' } });
+
+    await runNoApprovalPath(ctx, step as never);
+
+    expect(mockPatchTask).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      expect.objectContaining({ status: 'Failed', failure_code: 'MISSING_DELIVERY_CONFIG' }),
+    );
+    expect(mockRunDeliveryWithRetry).not.toHaveBeenCalled();
+  });
+
+  it('still cleans up the execution machine on the failure path', async () => {
+    vi.stubGlobal('fetch', buildDeliverableFetch(NEEDS_APPROVAL_CONTENT));
+    const step = makeStep();
+    const ctx = makeCtx({ archetype: { role_name: 'Bot' } });
+
+    await runNoApprovalPath(ctx, step as never);
+
+    expect(mockCleanupExecutionMachine).toHaveBeenCalledWith(MACHINE_ID, TASK_ID);
+  });
+});
+
+describe('runNoApprovalPath — NO_ACTION_NEEDED + no deliverable_type → benign Done', () => {
+  it('completes to Done (not Failed) when there is genuinely nothing to deliver', async () => {
+    vi.stubGlobal('fetch', buildDeliverableFetch(NO_ACTION_CONTENT));
     const step = makeStep();
     const ctx = makeCtx({ archetype: { role_name: 'Bot' } });
 
@@ -301,17 +330,6 @@ describe('runNoApprovalPath — no deliverable_type → completes without delive
       expect.objectContaining({ status: 'Done' }),
     );
     expect(mockRunDeliveryWithRetry).not.toHaveBeenCalled();
-  });
-
-  it('still cleans up execution machine and records work metric', async () => {
-    vi.stubGlobal('fetch', buildDeliverableFetch(NEEDS_APPROVAL_CONTENT));
-    const step = makeStep();
-    const ctx = makeCtx({ archetype: { role_name: 'Bot' } });
-
-    await runNoApprovalPath(ctx, step as never);
-
-    expect(mockCleanupExecutionMachine).toHaveBeenCalledWith(MACHINE_ID, TASK_ID);
-    expect(mockSafeRecordWorkMetric).toHaveBeenCalled();
   });
 });
 

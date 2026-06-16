@@ -82,6 +82,8 @@ function applyCreateAllowlist(
     identity: raw.identity,
     execution_steps: raw.execution_steps,
     delivery_steps: raw.delivery_steps,
+    delivery_instructions: raw.delivery_instructions,
+    deliverable_type: raw.deliverable_type,
     overview: raw.overview,
     risk_model: raw.risk_model
       ? {

@@ -17,6 +17,7 @@ import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
 import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 import { resolveToolPaths } from '../lib/archetype-edit-helpers.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../lib/output-contract-constants.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -194,6 +195,13 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         instructions,
         ...rest
       } = bodyResult.data;
+
+      // A deliverable-producing employee needs delivery_instructions or the lifecycle
+      // skips delivery entirely. Wizard generation often leaves it null, so backfill
+      // a platform default whenever deliverable_type is set but instructions are blank.
+      if (rest.deliverable_type && !rest.delivery_instructions) {
+        rest.delivery_instructions = DEFAULT_DELIVERY_INSTRUCTIONS;
+      }
 
       try {
         const newArchetype = await prisma.archetype.create({

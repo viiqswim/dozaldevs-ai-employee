@@ -50,14 +50,18 @@ export function parseClassifyResponse(responseText: string): ClassifyResult {
         typeof parsedEarly['confidence'] === 'number'
           ? Math.min(1.0, Math.max(0.0, parsedEarly['confidence']))
           : 0.5;
-      const reasoning =
-        typeof parsedEarly['reasoning'] === 'string'
-          ? parsedEarly['reasoning']
-          : 'No reasoning provided';
       const summary =
         typeof parsedEarly['summary'] === 'string'
           ? parsedEarly['summary']
           : 'Guest message requires review';
+      // StandardOutput employees populate `summary`, not the guest-era `reasoning`
+      // field; fall back to `summary` so renderers don't drop the explanation.
+      const reasoning =
+        typeof parsedEarly['reasoning'] === 'string'
+          ? parsedEarly['reasoning']
+          : typeof parsedEarly['summary'] === 'string'
+            ? parsedEarly['summary']
+            : 'No reasoning provided';
       const draft = typeof parsedEarly['draft'] === 'string' ? parsedEarly['draft'] : undefined;
       const urgency = parsedEarly['urgency'] === true;
 

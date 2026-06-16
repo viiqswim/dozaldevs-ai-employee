@@ -417,10 +417,14 @@ export async function handleApprove(
   }
 
   const prismaForDelivery = new PrismaClient();
-  const tenantEnvForDelivery = await loadTenantEnv(tenantId, {
-    tenantRepo: new TenantRepository(prismaForDelivery),
-    secretRepo: new TenantSecretRepository(prismaForDelivery),
-  });
+  const tenantEnvForDelivery = await loadTenantEnv(
+    tenantId,
+    {
+      tenantRepo: new TenantRepository(prismaForDelivery),
+      secretRepo: new TenantSecretRepository(prismaForDelivery),
+    },
+    (archetype.notification_channel as string | null) ?? null,
+  );
   await prismaForDelivery.$disconnect();
 
   const deliveryResult = await runDelivery({
@@ -447,6 +451,7 @@ export async function handleApprove(
     try {
       const doneThreadUid = metadata['thread_uid'] as string | undefined;
       const doneLeadUid = metadata['lead_uid'] as string | undefined;
+      const cardDeliversToChannel = Boolean(archetype.deliverable_type);
       const doneBlocks = buildTerminalBlocksWithContext({
         status: 'done',
         actorUserId,
@@ -454,10 +459,9 @@ export async function handleApprove(
         propertyName: metadata['property_name'] as string | undefined,
         contextUrl:
           doneThreadUid && doneLeadUid ? buildHostfullyLink(doneThreadUid, doneLeadUid) : undefined,
-        sentSnippet: (editedContent ?? (metadata['draft_response'] as string | undefined))?.slice(
-          0,
-          150,
-        ),
+        sentSnippet: cardDeliversToChannel
+          ? undefined
+          : (editedContent ?? (metadata['draft_response'] as string | undefined))?.slice(0, 150),
         taskId,
       });
       await slackClient.updateMessage(
@@ -480,17 +484,20 @@ export async function handleApprove(
         const sentNotifyText = terminalRecipientName
           ? `Reply sent to ${terminalRecipientName}`
           : 'Reply sent';
+        // Employees that post their full deliverable to a channel (deliverable_type set)
+        // don't need a raw-content snippet in the status message — it duplicates the
+        // delivered post and renders markdown-heavy output as a messy truncated fragment.
+        const deliversToChannel = Boolean(archetype.deliverable_type);
         const notifyDoneBlocks = notifyBlocks({
           state: 'Done',
           archetypeName: (archetype.role_name as string) ?? 'unknown',
           enrichment: notifyMsgRef.enrichment ?? null,
           emoji: '✅',
           extraText: `Approved by <@${actorUserId}>`,
-          sentSnippet: (editedContent ?? (metadata['draft_response'] as string | undefined))?.slice(
-            0,
-            150,
-          ),
-          threadHint: true,
+          sentSnippet: deliversToChannel
+            ? undefined
+            : (editedContent ?? (metadata['draft_response'] as string | undefined))?.slice(0, 150),
+          threadHint: !deliversToChannel,
         });
         await slackClient.updateMessage(
           notifyMsgRef.channel,

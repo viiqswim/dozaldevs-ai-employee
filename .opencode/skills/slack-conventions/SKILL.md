@@ -47,6 +47,28 @@ Every task gets ONE primary top-level Slack message per channel. All status prog
 
 **Reference**: `src/inngest/employee-lifecycle.ts` — `notify-received` (captures ts), `handle-approval-result` (updates both), `mark-failed` (updates to ❌ Failed).
 
+## Slack Web API Gotchas (cause silent failures)
+
+These two traps each caused a silent production-style failure. Both are easy to reintroduce.
+
+### 1. `chat.update` requires a channel ID — `chat.postMessage` accepts a name
+
+`chat.postMessage` accepts a plain channel NAME (e.g. `victor-tests`) and resolves it internally; its response returns the canonical channel ID in `response.channel`. `chat.update` does NOT accept names — it rejects them with `channel_not_found`.
+
+**Rule**: when you post a message you will later update, persist `result.channel` (the resolved ID from the postMessage response), NEVER the input channel value. Storing the name means the post succeeds but every later `chat.update` silently fails (`channel_not_found`) — e.g. a "Processing" status that never flips to "Complete".
+
+This applies wherever a channel may be a plain name — which is everywhere now that employees use plain channel names. Worker-side updates that run from `process.env` must receive the resolved ID too: the lifecycle injects `NOTIFY_MSG_CHANNEL` (the resolved ID) for this; prefer it over `NOTIFICATION_CHANNEL` (which may be a name).
+
+**Reference**: `src/inngest/lifecycle/steps/triage-and-ready.ts` and `override-card.ts` (store `result.channel`); `src/inngest/lifecycle/lib/machine-provisioner.ts` (injects `NOTIFY_MSG_CHANNEL`); `src/workers/lib/harness-helpers.mts` (prefers it for failure updates).
+
+### 2. `header` blocks hard-cap at 150 characters — the emoji prefix counts
+
+A Block Kit `header` block's `plain_text` must be < 151 chars. The prefix counts toward the limit. Slicing the summary to 150 and THEN prepending a prefix (`📝 ` + 150 chars = 152+) overflows and Slack rejects the ENTIRE message with `invalid_blocks` — so an approval card never posts, the task strands in `Reviewing`, and (with the zombie guard) routes to `Failed`.
+
+**Rule**: build the full header string (prefix + text) and slice the WHOLE thing to a safe cap (use 148 — emoji can count as >1 char in Slack's tally): `` `${prefix}${summary}`.slice(0, 148) ``. Never slice the text first and prepend after.
+
+**Reference**: `src/workers/lib/approval-card-poster.mts` (`buildApprovalBlocks`).
+
 ## Action ID Constants
 
 From `src/lib/slack-action-ids.ts`:

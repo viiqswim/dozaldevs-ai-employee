@@ -147,15 +147,15 @@ Choose the template that matches the deliverable_type and employee purpose:
 ### Template A: Slack delivery (when deliverable_type contains "slack" or is a Slack-delivered message)
 1. The approved content is in the prompt within the `<approved-content>` XML block as JSON. Parse the JSON to extract the `draft` field and write it to /tmp/delivery-draft.txt.
 2. Post the approved content to the `$NOTIFICATION_CHANNEL` Slack channel.
-3. Submit output confirming the delivery was completed.
+3. Confirm delivery by submitting your output for review. (REQUIRED — the task fails if this step is missing.)
 
 ### Template B: External service delivery (when deliverable_type is hostfully_message, sms, email, or any non-Slack delivery)
 1. The approved content is in the prompt within the `<approved-content>` XML block as JSON. Parse the JSON to extract the `draft` field and any identifiers from the `metadata` field.
 2. Deliver the draft content to the appropriate external service using the identifiers from metadata.
-3. Submit output confirming the delivery was completed.
+3. Confirm delivery by submitting your output for review. (REQUIRED — the task fails if this step is missing.)
 
 If the deliverable_type does not clearly match either template, use Template B as the default pattern.
-Note: delivery_steps MUST write to /tmp/summary.txt at the end (via submit-output) — the harness reads this file.
+CRITICAL: Whenever deliverable_type is set, delivery_steps MUST be non-empty AND its final step MUST be the submit-output confirmation step. A delivery_steps value that posts content but never submits output will cause every delivery to fail — never omit the confirmation step. The harness reads /tmp/summary.txt, which submit-output writes.
 
 ## Composio Connected Apps
 

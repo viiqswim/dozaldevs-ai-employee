@@ -25,6 +25,8 @@ export interface StrippedProposal {
   identity?: string;
   execution_steps?: string;
   delivery_steps?: string | null;
+  delivery_instructions?: string | null;
+  deliverable_type?: string | null;
   overview?: GenerateArchetypeResponse['overview'];
   risk_model?: { approval_required: boolean; timeout_hours?: number };
   tool_registry?: { tools: string[] };

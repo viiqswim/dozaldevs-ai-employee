@@ -75,3 +75,7 @@ export function questionNoAnswerFallback(): string {
 export function approvalCardMissingFailureMessage(): string {
   return `❌ I finished working but couldn't post the result for your review. Please try again.`;
 }
+
+export function missingDeliveryConfigFailureMessage(): string {
+  return `❌ I finished my work but I'm not set up to deliver it anywhere. Please check this employee's delivery settings and try again.`;
+}

@@ -164,11 +164,16 @@ export async function runTriageAndReady(
         unfurl_links: false,
       });
 
+      // Store the resolved channel ID from the postMessage response, not the input
+      // `channel` (which may be a plain name). chat.update requires a channel ID and
+      // rejects names with channel_not_found, so persisting the name breaks every
+      // later status update.
+      const resolvedChannel = result.channel ?? channel;
       if (result.ts) {
         try {
           await mergeTaskMetadata(supabaseUrl, headers, taskId, {
             notify_slack_ts: result.ts,
-            notify_slack_channel: channel,
+            notify_slack_channel: resolvedChannel,
             inngest_run_id: runId,
           });
           log.info({ taskId }, 'notify_slack_ts stored in task metadata');
@@ -176,7 +181,7 @@ export async function runTriageAndReady(
           log.warn({ taskId, err }, 'Error storing notify_slack_ts in task metadata (non-fatal)');
         }
       }
-      return { ts: result.ts, channel, enrichment };
+      return { ts: result.ts, channel: resolvedChannel, enrichment };
     } catch (err) {
       log.warn({ taskId, err }, 'Failed to send received notification (non-fatal)');
       return { ts: null, channel: null };

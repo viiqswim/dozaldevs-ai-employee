@@ -121,9 +121,20 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<BuildAppR
 
     const appToken = process.env.SLACK_APP_TOKEN;
     if (appToken) {
-      boltApp = new App({
+      // Custom SocketModeReceiver with tuned ping timeouts. Slack's WS servers can
+      // take longer than the 5s default to answer a ping, causing spurious
+      // disconnects; raising the timeouts and enabling auto-reconnect keeps the
+      // connection stable and lets the SDK recover from transient drops on its own.
+      const socketModeReceiver = new SocketModeReceiver({
         appToken,
-        socketMode: true,
+        clientPingTimeout: 15_000,
+        serverPingTimeout: 60_000,
+        autoReconnectEnabled: true,
+        logger: createFilteredBoltLogger(logger),
+      });
+
+      boltApp = new App({
+        receiver: socketModeReceiver,
         signingSecret,
         authorize: async ({ teamId }) => {
           const installation = await installationStore.fetchInstallation({

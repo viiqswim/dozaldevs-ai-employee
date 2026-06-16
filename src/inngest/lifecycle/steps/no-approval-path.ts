@@ -4,7 +4,10 @@ import { patchTask, logStatusTransition } from '../../lib/lifecycle-helpers.js';
 import { parseClassifyResponse } from '../../../lib/classify-message.js';
 import { buildNoActionThreadBlocks } from '../../../lib/slack-blocks.js';
 import { clearPendingApprovalByTaskId } from '../../lib/pending-approvals.js';
-import { completedNoApprovalMessage } from '../../../lib/slack-copy.js';
+import {
+  completedNoApprovalMessage,
+  missingDeliveryConfigFailureMessage,
+} from '../../../lib/slack-copy.js';
 import { runDeliveryWithRetry } from './delivery-retry.js';
 import { query } from '../../../workers/lib/postgrest-client.js';
 import type { PendingApprovalRow } from '../../../workers/lib/postgrest-types.js';
@@ -67,6 +70,7 @@ export async function runNoApprovalPath(
           return {
             skipDelivery:
               result.classification === 'NO_ACTION_NEEDED' && !archetype['delivery_instructions'],
+            classification: result.classification,
             reasoning: result.reasoning,
             displayContext: result.displayContext,
           };
@@ -75,7 +79,12 @@ export async function runNoApprovalPath(
           await new Promise((resolve) => setTimeout(resolve, DELIVERABLE_RETRY_DELAY_MS));
         }
       }
-      return { skipDelivery: false, reasoning: '', displayContext: undefined };
+      return {
+        skipDelivery: false,
+        classification: undefined as 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED' | undefined,
+        reasoning: '',
+        displayContext: undefined,
+      };
     },
   );
 
@@ -148,6 +157,52 @@ export async function runNoApprovalPath(
 
   const deliverableType = (archetype.deliverable_type as string | null) ?? '';
   if (!deliverableType) {
+    // The worker produced deliverable content but the employee has no delivery
+    // configuration — without this guard the lifecycle would silently complete and
+    // the content would never reach the user. Fail visibly so the misconfig surfaces.
+    const producedDeliverableContent =
+      classificationCheckNoApproval.classification !== undefined &&
+      classificationCheckNoApproval.classification !== 'NO_ACTION_NEEDED';
+    if (producedDeliverableContent) {
+      log.error(
+        { taskId, archetypeId },
+        'Archetype produced deliverable content but has no deliverable_type — failing instead of silently dropping',
+      );
+      await step.run('fail-missing-delivery-config', async () => {
+        await patchTask(supabaseUrl, headers, taskId, {
+          status: 'Failed',
+          failure_reason: 'Employee produced output but has no delivery configuration.',
+          failure_code: 'MISSING_DELIVERY_CONFIG',
+        });
+        await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Submitting');
+        if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
+          try {
+            const slackCtx = await loadTenantSlack(
+              tenantId,
+              (archetype.notification_channel as string | null) ?? null,
+            );
+            if (slackCtx) {
+              await slackCtx.slackClient.updateMessage(
+                notifyMsgRef.channel,
+                notifyMsgRef.ts,
+                missingDeliveryConfigFailureMessage(),
+                notifyStateBlocks({ emoji: '❌', text: 'Delivery not configured' }),
+              );
+            }
+          } catch (err) {
+            log.warn(
+              { taskId, err },
+              'Failed to update notify-received on missing-delivery-config failure (non-fatal)',
+            );
+          }
+        }
+      });
+      await step.run('cleanup-missing-delivery-config', async () => {
+        await cleanupExecutionMachine(machineId, taskId);
+      });
+      return;
+    }
+
     log.warn({ taskId }, 'Archetype has no deliverable_type — skipping delivery container');
     await step.run('complete-no-deliverable-type', async () => {
       await patchTask(supabaseUrl, headers, taskId, {
