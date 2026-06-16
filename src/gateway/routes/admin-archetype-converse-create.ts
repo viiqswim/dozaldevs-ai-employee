@@ -17,6 +17,7 @@ import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeG
 import { getConnectableToolkits } from '../../lib/composio/connectable-apps.js';
 import type { InputSchemaItem } from '../validation/schemas.js';
 import { validateProposalFields, type StrippedProposal } from '../lib/archetype-edit-helpers.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../lib/output-contract-constants.js';
 
 const logger = createLogger('admin-archetype-converse-create');
 
@@ -49,7 +50,6 @@ function buildEmptyBaseline(): GenerateArchetypeResponse {
     identity: '',
     execution_steps: '',
     delivery_steps: null,
-    delivery_instructions: null,
     instructions: '',
     deliverable_type: null,
     input_schema: undefined,
@@ -75,14 +75,17 @@ function buildEmptyBaseline(): GenerateArchetypeResponse {
 function applyCreateAllowlist(
   raw: GenerateArchetypeResponse,
 ): StrippedProposal & { role_name?: string; model?: string; runtime?: 'opencode' } {
+  const deliverySteps =
+    raw.delivery_steps === null && raw.deliverable_type
+      ? DEFAULT_DELIVERY_INSTRUCTIONS
+      : raw.delivery_steps;
   return {
     role_name: raw.role_name || undefined,
     model: raw.model || undefined,
     runtime: raw.runtime,
     identity: raw.identity,
     execution_steps: raw.execution_steps,
-    delivery_steps: raw.delivery_steps,
-    delivery_instructions: raw.delivery_instructions,
+    delivery_steps: deliverySteps,
     deliverable_type: raw.deliverable_type,
     overview: raw.overview,
     risk_model: raw.risk_model

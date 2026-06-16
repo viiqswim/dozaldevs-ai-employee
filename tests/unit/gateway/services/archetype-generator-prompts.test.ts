@@ -175,8 +175,7 @@ function makeGenerationRepo() {
   };
 }
 
-describe('postProcess — null delivery_steps stays null (no intent closer injected)', () => {
-  // Invariant under guard: postProcess only null-coerces delivery_steps, never synthesizes it.
+describe('postProcess — delivery_steps default derivation', () => {
   const NULL_DELIVERY_JSON = JSON.stringify({
     role_name: 'no-delivery-employee',
     identity: 'You are a test employee.',
@@ -190,7 +189,7 @@ describe('postProcess — null delivery_steps stays null (no intent closer injec
     overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },
   });
 
-  it('keeps delivery_steps === null when the LLM emits null', async () => {
+  it('derives a non-null default when the LLM emits null but deliverable_type is set', async () => {
     const fn = makeGenerateLLMWithStubbedEstimator(NULL_DELIVERY_JSON);
     const gen = new ArchetypeGenerator(
       fn as unknown as typeof callLLM,
@@ -199,7 +198,8 @@ describe('postProcess — null delivery_steps stays null (no intent closer injec
 
     const result = await gen.generate('An employee with no delivery action');
 
-    expect(result.delivery_steps).toBeNull();
+    expect(typeof result.delivery_steps).toBe('string');
+    expect(result.delivery_steps).toBeTruthy();
   });
 
   it('does NOT propagate the intent closer from execution_steps into delivery_steps', async () => {
@@ -212,7 +212,7 @@ describe('postProcess — null delivery_steps stays null (no intent closer injec
     const result = await gen.generate('An employee with no delivery action');
 
     expect(result.execution_steps).toContain(INTENT_CLOSER);
-    expect(result.delivery_steps).toBeNull();
+    expect(typeof result.delivery_steps).toBe('string');
   });
 
   it('null-coerces a non-string delivery_steps rather than synthesizing content', async () => {

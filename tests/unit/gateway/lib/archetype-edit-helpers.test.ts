@@ -16,7 +16,6 @@ function makeBaseline() {
     execution_steps: 'Do the task.',
     delivery_steps: null,
     execution_instructions: 'Run it',
-    delivery_instructions: null,
     deliverable_type: null,
     risk_model: { approval_required: false, timeout_hours: 2 },
     trigger_sources: { type: 'manual' },
@@ -47,7 +46,6 @@ describe('mapArchetypeRowToConfig', () => {
       execution_steps: 'Step 1. Step 2.',
       delivery_steps: 'Deliver it.',
       execution_instructions: 'Execute now',
-      delivery_instructions: 'Deliver now',
       deliverable_type: 'slack_message',
       risk_model: { approval_required: true, timeout_hours: 48 },
       trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'UTC' },
@@ -78,7 +76,6 @@ describe('mapArchetypeRowToConfig', () => {
     expect(result.identity).toBe('I am an employee.');
     expect(result.execution_steps).toBe('Step 1. Step 2.');
     expect(result.delivery_steps).toBe('Deliver it.');
-    expect(result.delivery_instructions).toBe('Deliver now');
     expect(result.instructions).toBe('Execute now');
     expect(result.deliverable_type).toBe('slack_message');
     expect(result.risk_model.approval_required).toBe(true);
@@ -109,7 +106,6 @@ describe('mapArchetypeRowToConfig', () => {
     expect(result.identity).toBe('');
     expect(result.execution_steps).toBe('');
     expect(result.delivery_steps).toBeNull();
-    expect(result.delivery_instructions).toBeNull();
     expect(result.deliverable_type).toBeNull();
     expect(result.risk_model.approval_required).toBe(false);
     expect(result.risk_model.timeout_hours).toBe(24);

@@ -121,7 +121,7 @@ function makeCtx(
     supabaseUrl: SUPABASE_URL,
     supabaseKey: SUPABASE_KEY,
     headers: HEADERS,
-    archetype: { role_name: 'Test Employee', delivery_instructions: 'Deliver the content.' },
+    archetype: { role_name: 'Test Employee', delivery_steps: 'Deliver the content.' },
     notifyMsgRef: { ts: 'ts-notify-001', channel: 'C-NOTIFY' },
     notifyBlocks: vi.fn().mockReturnValue([]),
     notifyStateBlocks: vi.fn().mockReturnValue([]),
@@ -143,18 +143,9 @@ function makeDeliverable(metadataOverrides: Record<string, unknown> = {}): Recor
   };
 }
 
-function makeFetchStub(
-  deliveryInstructions = 'Send the approved reply via Hostfully.',
-): typeof fetch {
-  return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+function makeFetchStub(): typeof fetch {
+  return vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
     const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
-
-    if ((url as string).includes('archetypes(delivery_instructions)')) {
-      return {
-        ok: true,
-        json: async () => [{ archetypes: { delivery_instructions: deliveryInstructions } }],
-      };
-    }
 
     if (method === 'PATCH' || method === 'POST') {
       return { ok: true, json: async () => [] };
@@ -238,22 +229,14 @@ describe('handleApprove — approval idempotency (lifecycle-step layer)', () => 
     expect(mockRunDelivery).toHaveBeenCalledTimes(2);
   });
 
-  it('does not call runDelivery when delivery_instructions are missing', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-        const method = ((init as RequestInit | undefined)?.method ?? 'GET').toUpperCase();
-        if ((url as string).includes('archetypes(delivery_instructions)')) {
-          return { ok: true, json: async () => [{ archetypes: { delivery_instructions: null } }] };
-        }
-        if (method === 'PATCH' || method === 'POST') return { ok: true, json: async () => [] };
-        return { ok: true, json: async () => [] };
-      }) as unknown as typeof fetch,
-    );
+  it('does not call runDelivery when delivery is misconfigured (deliverable_type set, no delivery_steps)', async () => {
+    vi.stubGlobal('fetch', makeFetchStub());
     const mockRunDelivery = vi.fn().mockResolvedValue({ status: 'done' });
 
     await handleApprove(
-      makeCtx(mockRunDelivery),
+      makeCtx(mockRunDelivery, {
+        archetype: { role_name: 'Test Employee', deliverable_type: 'slack_message' },
+      }),
       makeDeliverable(),
       mockSlackClient,
       'U-APPROVER',
@@ -266,7 +249,31 @@ describe('handleApprove — approval idempotency (lifecycle-step layer)', () => 
       SUPABASE_URL,
       HEADERS,
       TASK_ID,
-      expect.objectContaining({ status: 'Failed' }),
+      expect.objectContaining({ status: 'Failed', failure_code: 'MISSING_DELIVERY_CONFIG' }),
+    );
+  });
+
+  it('completes without delivery when no delivery is configured (escape hatch)', async () => {
+    vi.stubGlobal('fetch', makeFetchStub());
+    const mockRunDelivery = vi.fn().mockResolvedValue({ status: 'done' });
+
+    await handleApprove(
+      makeCtx(mockRunDelivery, {
+        archetype: { role_name: 'Test Employee' },
+      }),
+      makeDeliverable(),
+      mockSlackClient,
+      'U-APPROVER',
+      undefined,
+      {},
+    );
+
+    expect(mockRunDelivery).not.toHaveBeenCalled();
+    expect(mockPatchTask).toHaveBeenCalledWith(
+      SUPABASE_URL,
+      HEADERS,
+      TASK_ID,
+      expect.objectContaining({ status: 'Done' }),
     );
   });
 });

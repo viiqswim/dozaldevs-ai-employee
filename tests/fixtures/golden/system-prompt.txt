@@ -179,8 +179,7 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "runtime": "opencode",
   "identity": "2-4 sentences describing who this employee is, their persona, role, and org context.",
   "execution_steps": "1. First step.\n2. Second step.\n3. Third step.",
-  "delivery_steps": null,
-  "delivery_instructions": null,
+  "delivery_steps": "1. Read the approved content from <approved-content>.\n2. Deliver it to the configured destination using the appropriate tool.\n3. Submit output confirming delivery via tsx /tools/platform/submit-output.ts --summary \"Delivered successfully\" --classification NO_ACTION_NEEDED.",
   "deliverable_type": "slack_message",
   "input_schema": [
     {
@@ -227,4 +226,4 @@ For trigger_sources.type:
 
 For deliverable_type: use "slack_message", "hostfully_message", "lock_code_rotation", or another descriptive label.
 For tool_registry.tools: List tools ONLY from the 'Available Tools' section provided above in this prompt. Do NOT invent tool paths that are not listed there. ALWAYS include /tools/platform/submit-output.ts — every employee needs it to submit their work.
-For delivery_instructions: set to the SAME VALUE as delivery_steps for backwards compatibility. If delivery_steps is null, delivery_instructions must also be null.
+For delivery_steps: MUST be a non-empty numbered list whenever deliverable_type is set. Set to null ONLY when deliverable_type is also null (pure utility employees that take no delivery action).

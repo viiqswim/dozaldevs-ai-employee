@@ -120,7 +120,7 @@ export async function runDeliveryPhase(
     const compiledAgentsMd = compileAgentsMd({
       identity: archetype.identity ?? '',
       executionSteps: archetype.execution_steps ?? '',
-      deliverySteps: archetype.delivery_steps ?? archetype.delivery_instructions ?? '',
+      deliverySteps: archetype.delivery_steps ?? '',
       employeeRules: '',
       employeeKnowledge: '',
       platformRulesOverride: archetype.platform_rules_override ?? undefined,

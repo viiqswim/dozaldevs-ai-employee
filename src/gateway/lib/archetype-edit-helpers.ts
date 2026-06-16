@@ -25,7 +25,6 @@ export interface StrippedProposal {
   identity?: string;
   execution_steps?: string;
   delivery_steps?: string | null;
-  delivery_instructions?: string | null;
   deliverable_type?: string | null;
   overview?: GenerateArchetypeResponse['overview'];
   risk_model?: { approval_required: boolean; timeout_hours?: number };
@@ -47,8 +46,6 @@ export function mapArchetypeRowToConfig(row: Record<string, unknown>): GenerateA
     identity: String(row.identity ?? ''),
     execution_steps: String(row.execution_steps ?? ''),
     delivery_steps: typeof row.delivery_steps === 'string' ? row.delivery_steps : null,
-    delivery_instructions:
-      typeof row.delivery_instructions === 'string' ? row.delivery_instructions : null,
     instructions: String(row.execution_instructions ?? ''),
     deliverable_type: typeof row.deliverable_type === 'string' ? row.deliverable_type : null,
     input_schema: Array.isArray(row.input_schema)

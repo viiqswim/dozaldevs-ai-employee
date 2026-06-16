@@ -54,7 +54,6 @@ function makeProposalConfig(overrides: Record<string, unknown> = {}) {
     identity: 'You are StandupBot, a Daily Standup Reminder at AcmeCorp.',
     execution_steps: 'Post a standup reminder to the team channel.',
     delivery_steps: null,
-    delivery_instructions: null,
     instructions: 'Run the standup task.',
     deliverable_type: null,
     input_schema: undefined,
@@ -210,13 +209,12 @@ describe('POST /admin/tenants/:tenantId/archetypes/converse-create', () => {
     expect(res.body.baseline.execution_steps).toBe('');
   });
 
-  it('200 — proposal kind: deliverable_type and delivery_instructions survive the create allowlist', async () => {
+  it('200 — proposal kind: deliverable_type survives the create allowlist', async () => {
     const prisma = makePrisma();
     mockConverse.mockResolvedValue({
       kind: 'proposal',
       proposal: makeProposalConfig({
         deliverable_type: 'slack_message',
-        delivery_instructions: 'Post the summary to the channel.',
       }),
       changed_fields: {},
     });
@@ -229,7 +227,6 @@ describe('POST /admin/tenants/:tenantId/archetypes/converse-create', () => {
     expect(res.status).toBe(200);
     const proposal = res.body.proposal as Record<string, unknown>;
     expect(proposal.deliverable_type).toBe('slack_message');
-    expect(proposal.delivery_instructions).toBe('Post the summary to the channel.');
   });
 
   it('200 — proposal kind: changed_fields tracks identity change from empty baseline', async () => {

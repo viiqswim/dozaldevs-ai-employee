@@ -172,6 +172,78 @@ No security-relevant record (tenant, secret, task) is ever hard-deleted — dele
 
 ---
 
+## 10. RBAC — Roles and Permissions
+
+### Global roles (`Role` enum, `src/lib/auth/permissions.ts`)
+
+| Role             | Scope                   | Key permissions                                                                  |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `PLATFORM_OWNER` | Cross-tenant superadmin | All permissions                                                                  |
+| `ADMIN`          | Platform-level          | Manage archetypes, rules, KB, locks, projects, trigger employees, invite members |
+| `EDITOR`         | Platform-level          | Manage archetypes, rules, KB (no trigger)                                        |
+| `USER`           | Platform-level          | Trigger employees, read tasks                                                    |
+| `VIEWER`         | Platform-level          | Read tenant and tasks only                                                       |
+
+### Tenant roles (`TenantRole` enum)
+
+| Role     | Key permissions                                                                          |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `OWNER`  | All tenant permissions including delete tenant, manage secrets/integrations/members      |
+| `ADMIN`  | Manage archetypes, rules, KB, locks, projects, trigger, invite (no secrets/integrations) |
+| `MEMBER` | Trigger employees, read tasks                                                            |
+| `VIEWER` | Read tenant and tasks only                                                               |
+
+Role rank order (highest to lowest): `OWNER(4) > ADMIN(3) > MEMBER(2) > VIEWER(1)`.
+
+Authorization middleware (`src/gateway/middleware/authz.ts`) exports three guards:
+
+- `requireAuth` — passes if `req.isServiceToken` or `req.auth` is set; returns 401 otherwise
+- `requireTenantRole(...roles)` — checks the user's `TenantMembership` for the `:tenantId` route param; SERVICE_TOKEN and PLATFORM_OWNER bypass the membership check; returns 403 if the user's role rank is below the minimum required
+- `requirePermission(permission)` — checks `ROLE_PERMISSIONS` or `TENANT_ROLE_PERMISSIONS` for the named permission; SERVICE_TOKEN and PLATFORM_OWNER always pass
+
+---
+
+## 11. JWT Dual-Env Profiles (LOCAL vs CLOUD)
+
+The gateway detects its profile at startup via `detectEnvProfile()` in `src/lib/config.ts`:
+
+| Profile   | Detection                                                                               | JWT algorithm | Verification                              |
+| --------- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- |
+| **LOCAL** | `SUPABASE_URL` starts with `http://localhost` and `SUPABASE_ANON_KEY` starts with `eyJ` | HS256         | Symmetric secret from `GOTRUE_JWT_SECRET` |
+| **CLOUD** | `SUPABASE_URL` is `https://*.supabase.co` and `SUPABASE_ANON_KEY` starts with `sb_`     | ES256         | Asymmetric JWKS from `SUPABASE_JWKS_URL`  |
+
+- Mixing LOCAL and CLOUD values causes a **fatal error at startup** — by design.
+- `SUPABASE_JWKS_URL` is derived automatically: `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` — do not hardcode it.
+- Legacy `eyJ` HS256 JWT keys (local dev) are still valid for the LOCAL profile.
+
+**Supabase opaque key model (CLOUD):**
+
+| Key type                   | Prefix            | Stored as             | Used for                                                                                    |
+| -------------------------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| Publishable (browser-safe) | `sb_publishable_` | `SUPABASE_ANON_KEY`   | `apikey` header for PostgREST and Auth calls                                                |
+| Secret (server-side only)  | `sb_secret_`      | `SUPABASE_SECRET_KEY` | Both `apikey` and `Authorization: Bearer` for admin Auth API calls (user creation, invites) |
+
+**NEVER** expose `SUPABASE_SECRET_KEY` to the browser. The gateway-proxied `POST /invitations/set-password` is the only place it's used to set a user's password — the browser never holds it.
+
+Full details: `docs/guides/2026-06-09-1448-user-auth-rbac.md`
+
+---
+
+## 12. PLATFORM_OWNER Bootstrap
+
+After a fresh `pnpm setup`, the database has tenants but no users. You must bootstrap the first PLATFORM_OWNER before anyone can log into the dashboard:
+
+```bash
+BOOTSTRAP_OWNER_EMAIL=owner@example.com BOOTSTRAP_OWNER_PASSWORD=YourPassword tsx scripts/seed-platform-owner.ts
+```
+
+- Upserts the user in `users` with `role: PLATFORM_OWNER` and creates `OWNER` memberships in all seeded tenants.
+- This is a **manual, on-demand step** — NOT part of `prisma/seed.ts` and NOT run by `pnpm setup`.
+- Choose your own email/password — do not commit real credentials.
+- `PLATFORM_OWNER` bypasses all tenant membership checks in `requireTenantRole` and `requirePermission`.
+
+---
+
 ## Cross-References
 
 - `src/lib/encryption.ts` — AES-256-GCM encrypt/decrypt + `validateEncryptionKey()`

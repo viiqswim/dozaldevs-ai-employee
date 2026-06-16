@@ -21,11 +21,32 @@ The `model` field must reference a model from the `model_catalog` table. Use the
 POST /admin/tenants/:tenantId/archetypes/recommend-model
 ```
 
-**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used. The full 14-model seeded catalog is listed in `AGENTS.md` § Approved LLM Models.
+The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global, not tenant-scoped).
 
-**Forbidden models**: Never hardcode the models listed in `AGENTS.md` § "Forbidden in hardcoded references". Any model NOT in the `model_catalog` table is forbidden.
+**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used.
 
-**Gateway-only models**: One Anthropic model is permitted ONLY as a `gateway_llm_model` platform setting — see `AGENTS.md` § "Permitted Anthropic model". **NEVER** use it as the `model` field in archetypes — it is not an execution model.
+**Seeded catalog models (global):**
+
+- `minimax/minimax-m2.7`
+- `minimax/minimax-m2.5`
+- `minimax/minimax-m3`
+- `zhipu/glm-5.1`
+- `zhipu/glm-5`
+- `moonshot/kimi-k2.5`
+- `moonshot/kimi-k2.6`
+- `xiaomi/mimo-v2.5-pro`
+- `xiaomi/mimo-v2.5`
+- `alibaba/qwen3.7-max`
+- `alibaba/qwen3.7-plus`
+- `alibaba/qwen3.6-plus`
+- `deepseek/deepseek-v4-pro`
+- `deepseek/deepseek-v4-flash`
+
+**OpenCodeGo routing**: When `OPENCODE_GO_API_KEY` is set, the harness auto-routes compatible execution models through OpenCodeGo instead of OpenRouter. Supported models include `minimax/minimax-m2.7`, `deepseek/deepseek-v4-flash`, `xiaomi/mimo-v2.5-pro`, and others — see `src/lib/go-models.ts` for the full list.
+
+**Forbidden models**: Never hardcode `anthropic/claude-sonnet-*`, `anthropic/claude-opus-*`, `openai/gpt-4o`, or `openai/gpt-4o-mini` as the `model` field. Any model NOT in the `model_catalog` table is forbidden.
+
+**Gateway-only models**: The `gateway_llm_model` platform setting (default: `deepseek/deepseek-v4-flash`) controls the verification/judge LLM. **NEVER** use it as the `model` field in archetypes — it is not an execution model.
 
 ---
 
@@ -335,6 +356,72 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 
 ---
 
+## OpenCodeGo Routing
+
+When `OPENCODE_GO_API_KEY` is set, the worker harness automatically routes compatible models through OpenCodeGo instead of OpenRouter. This affects which models work reliably for a given archetype.
+
+### How it works
+
+`writeOpencodeAuth()` writes both `opencode-go` and `openrouter` entries to `auth.json`. Compatible models route through Go (flat $10/mo subscription); others fall back to OpenRouter. Provider selection is logged at task start.
+
+### Two Go endpoint formats
+
+| Format               | Endpoint                      | Used by                                  |
+| -------------------- | ----------------------------- | ---------------------------------------- |
+| OpenAI-compatible    | `/zen/go/v1/chat/completions` | `call-llm.ts` gateway routing            |
+| Anthropic-compatible | `/zen/go/v1/messages`         | Worker harness (via OpenCode internally) |
+
+`call-llm.ts` gateway routing only works with OpenAI-compatible models on Go. The worker harness handles both formats via OpenCode internally.
+
+### Go model list
+
+The full list of models that route through OpenCodeGo is in `src/lib/go-models.ts`. Check this file when picking a model to know whether it will use Go or OpenRouter.
+
+### Usage limits
+
+OpenCodeGo metered limits on top of the $10/mo subscription:
+
+- $12 per 5-hour window
+- $30 per week
+- $60 per month
+
+Track usage at https://opencode.ai/auth.
+
+### Reverting to OpenRouter
+
+Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
+
+---
+
+## Intent-Level Steps Convention & role_name Derivation
+
+### Intent-Level Steps (Wizard-Generated Employees)
+
+The archetype generator produces `execution_steps`, `delivery_steps`, and `instructions` as plain-English intent prose. No `tsx /tools/...` CLI invocations appear in generated steps. The worker resolves exact tool commands at runtime via the always-on `tool-usage-reference` skill.
+
+**Key rules for wizard-generated steps:**
+
+- Channel names are written directly in the employee's instructions (e.g. `general` or `#general` — both accepted). `read-channels.ts` resolves plain names to IDs at runtime via `conversations.list`.
+- `$NOTIFICATION_CHANNEL` and `$PUBLISH_CHANNEL` env-var placeholders are still preserved in generated steps.
+- `tool_registry.tools` still contains real file paths (e.g. `/tools/slack/read-channels.ts`) — only the prose is abstracted.
+- The final execution step always ends with an intent-level submit-output closer (e.g. "Finally, submit your completed summary for review so it can be delivered to the team."). This is the load-bearing handoff that drives `submit-output --draft-file`.
+
+**Scope**: This abstraction applies only to the GENERATE path and the CREATE branch of `converse-create` (empty baseline). `refine()` and edit-converse on existing archetypes are not abstracted — existing employees' steps are untouched.
+
+**Implementation**: `src/gateway/services/archetype-generator.ts` — `generate()` and the CREATE branch of `converse()`.
+
+### role_name Derivation on the CREATE Path
+
+When using `converse-create` (the wizard's creation path), `role_name` is auto-derived as a kebab-case slug from the employee description when the model omits it. The derived slug is pre-filled in the editable `role_name` field in the wizard's Review & Edit step — the user can change it before saving.
+
+If the description yields no valid slug (e.g. emoji-only input), a deterministic `employee-<short-id>` fallback is used so draft-save never fails with a validation error.
+
+**The EDIT path is different**: `propose-edit` on an existing archetype still forbids the model from changing `role_name`. That guardrail is unchanged.
+
+**Implementation**: `buildConverseSystemPromptPre(isCreate: boolean)` in `src/gateway/services/prompts/archetype-generator-prompts.ts` switches the instruction based on whether the baseline `role_name` is empty. `postProcess()` in `src/gateway/services/archetype-generator.ts` derives the slug from the transcript when the model omits it.
+
+---
+
 ## Common Mistakes to Avoid
 
 1. **Wrong model** — use only models from the `model_catalog`. Default seed: `minimax/minimax-m2.7`. Use the `recommend-model` endpoint rather than hardcoding.
@@ -344,3 +431,40 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 5. **Missing `/tmp/summary.txt`** — worker MUST write this file or harness marks task `Failed`.
 6. **Employee-specific language in shared files** — `employee-lifecycle.ts`, `opencode-harness.mts`, `src/gateway/`, `src/lib/` serve ALL employees. Keep them generic.
 7. **Forgetting `agents_md`** — always set `agents_md: PLATFORM_AGENTS_MD` (read from `src/workers/config/agents.md`).
+8. **CLI invocations in wizard-generated steps** — generated `execution_steps` must use intent prose, not `tsx /tools/...` commands. The worker resolves tool commands at runtime.
+
+---
+
+## Archetype Editing Helpers & Enforcement
+
+### enforce_tool_registry Capability Flag
+
+`archetypes.enforce_tool_registry Boolean @default(false)`
+
+When `false` (default), all tools are available — byte-identical to pre-enforcement behavior. When `true`, `isToolAllowed(toolPath, archetype)` in `src/workers/lib/execution-phase.mts` restricts the worker to only the paths listed in `archetype.tool_registry.tools`. Denied attempts are logged with `archetypeId` and `toolPath`.
+
+**Pre-enforcement gate**: `PATCH /admin/tenants/:tenantId/archetypes/:id` with `enforce_tool_registry: true` (flipping from `false`) re-resolves the archetype's current `tool_registry.tools` via `resolveToolPaths()` and returns `400 ENFORCE_REGISTRY_INVALID` if any tool drops or the resolved list is empty. This prevents silently locking an employee out of all tools.
+
+**Rule**: Do NOT enable `enforce_tool_registry` on any employee without first validating that every path in its `tool_registry` resolves to a real file with a descriptor.
+
+### Archetype Editing Shared Helpers
+
+`mapArchetypeRowToConfig`, `validateProposalFields`, and `resolveToolPaths` live in `src/gateway/lib/archetype-edit-helpers.ts`. All are used by `propose-edit`, `converse-create`, and the PATCH route. Import from there — do not inline or duplicate these functions in route handlers.
+
+`resolveToolPaths(tools, descriptors?, connectedToolkits?)` normalizes raw tool paths:
+
+- Strips `tsx ` prefix
+- Expands bare `service/tool` → `/tools/service/tool.ts`
+- Appends `.ts` to extension-less `/tools/` paths
+- Returns `{ resolved: string[]; dropped: Array<{tool, reason}> }`
+- Never throws — unknown paths are dropped and logged, not rejected
+
+### Tool-Path Never-Block Policy
+
+`validateProposalFields()` in `archetype-edit-helpers.ts` enforces a never-block policy for tool paths, trigger sources, and input schema:
+
+- Unknown tools are resolved and dropped (logged as warn)
+- Invalid trigger sources are coerced to `{ type: 'manual' }` (logged)
+- Invalid input schema items are dropped (logged)
+
+The ONLY guard that returns `{ ok: false, reAsk: true }` is prose-went-blank on EDIT (a field that had content is now empty). Both `converse-create` and `propose-edit` routes convert `reAsk:true` into `{ kind: 'question' }` (200) — never a 422.

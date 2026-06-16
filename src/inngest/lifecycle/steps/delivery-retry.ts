@@ -12,8 +12,10 @@ import {
   FLY_WORKER_IMAGE,
 } from '../../../lib/config.js';
 import { DELIVERY_PHASE_VALUE } from '../../../lib/output-contract-constants.js';
-import { getTunnelUrl } from '../../../lib/tunnel-client.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
+import { resolveWorkerSupabaseUrl } from '../lib/worker-url-resolver.js';
+import { resolveDelivery } from '../../../lib/delivery-resolver.js';
+import { missingDeliveryConfigFailureMessage } from '../../../lib/slack-copy.js';
 import type { KnownBlock } from '@slack/web-api';
 
 const log = createLogger('lifecycle-delivery-retry');
@@ -43,6 +45,7 @@ export async function runDeliveryWithRetry(
 ): Promise<DeliveryRetryResult> {
   const {
     taskId,
+    tenantId,
     supabaseUrl,
     supabaseKey,
     headers,
@@ -56,20 +59,21 @@ export async function runDeliveryWithRetry(
     targetChannel,
   } = ctx;
 
-  const archetypeForDeliveryRes = await fetch(
-    `${supabaseUrl}/rest/v1/tasks?id=eq.${taskId}&select=archetypes(delivery_instructions)`,
-    { headers },
+  const deliveryResolution = resolveDelivery(
+    {
+      delivery_steps: (archetype.delivery_steps as string | null) ?? null,
+      deliverable_type: (archetype.deliverable_type as string | null) ?? null,
+    },
+    undefined,
   );
-  const archetypeRows = (await archetypeForDeliveryRes.json()) as Array<{
-    archetypes?: { delivery_instructions?: string | null };
-  }>;
-  const deliveryInstructions = archetypeRows[0]?.archetypes?.delivery_instructions;
-  if (!deliveryInstructions) {
+
+  if (deliveryResolution.kind === 'misconfigured') {
     await patchTask(supabaseUrl, headers, taskId, {
       status: 'Failed',
-      failure_reason: 'Archetype missing delivery_instructions',
+      failure_reason: 'Employee produced output but has no delivery configuration.',
+      failure_code: 'MISSING_DELIVERY_CONFIG',
     });
-    const configFailText = `❌ Something went wrong — this employee isn't set up for delivery yet`;
+    const configFailText = missingDeliveryConfigFailureMessage();
     if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
       try {
         const botTokenForConfigFail = tenantEnvForDelivery['SLACK_BOT_TOKEN'] ?? '';
@@ -95,12 +99,23 @@ export async function runDeliveryWithRetry(
     return { status: 'config-fail' };
   }
 
+  if (deliveryResolution.kind === 'no-delivery-escape-hatch') {
+    await patchTask(supabaseUrl, headers, taskId, {
+      status: 'Done',
+      failure_reason: null,
+      failure_code: null,
+    });
+    log.info({ taskId }, 'No delivery configured — completing without a delivery container');
+    return { status: 'done' };
+  }
+
   const defaultDeliveryVmSize = await getPlatformSetting('default_worker_vm_size');
+  const issuesSlackChannel = await getPlatformSetting('issues_slack_channel');
+  const workerEnvVars = (archetype.worker_env as Record<string, string> | null) ?? {};
   const deliveryVmSize = (archetype.vm_size as string | null) ?? defaultDeliveryVmSize;
   const deliveryImage = FLY_WORKER_IMAGE;
   const deliveryFlyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
-  const effectiveSupabaseUrlForDelivery =
-    WORKER_RUNTIME === 'fly' ? await getTunnelUrl() : supabaseUrl;
+  const effectiveSupabaseUrlForDelivery = await resolveWorkerSupabaseUrl(supabaseUrl);
 
   let deliveryFinalStatus = '';
   const deliveryBaseName = `employee-delivery-${taskId.slice(0, 8)}`;
@@ -113,51 +128,109 @@ export async function runDeliveryWithRetry(
     }
     let deliveryMachine: { id: string };
     if (WORKER_RUNTIME !== 'fly') {
+      const localDeliveryEnv: Record<string, string> = {
+        ...tenantEnvForDelivery,
+        ...workerEnvVars,
+        TASK_ID: taskId,
+        TENANT_ID: tenantId,
+        TASK_TENANT_ID: tenantId,
+        EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
+        EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
+        APPROVAL_REQUIRED: String(approvalRequired),
+        NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+        NOTIFY_MSG_CHANNEL: notifyMsgRef?.channel ?? '',
+        ...(issuesSlackChannel ? { ISSUES_SLACK_CHANNEL: issuesSlackChannel } : {}),
+        SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
+        SUPABASE_SECRET_KEY: supabaseKey,
+        INNGEST_BASE_URL: 'http://host.docker.internal:8288',
+        GATEWAY_URL: 'http://host.docker.internal:7700',
+        INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
+        INNGEST_DEV: '1',
+        ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
+        ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
+        ...(taskRawEvent['property_uid'] ? { PROPERTY_UID: taskRawEvent['property_uid'] } : {}),
+      };
+      const localDeliveryCriticalVars = [
+        'TASK_ID',
+        'TENANT_ID',
+        'EMPLOYEE_ROLE_NAME',
+        'APPROVAL_REQUIRED',
+        'NOTIFY_MSG_TS',
+        'NOTIFY_MSG_CHANNEL',
+        'EMPLOYEE_PHASE',
+        'LEAD_UID',
+        'THREAD_UID',
+        'PROPERTY_UID',
+      ].filter((k) => localDeliveryEnv[k]);
+      if (localDeliveryEnv['PLATFORM_ENV_MANIFEST']) {
+        const existing = new Set(localDeliveryEnv['PLATFORM_ENV_MANIFEST'].split(','));
+        const newKeys = localDeliveryCriticalVars.filter((k) => !existing.has(k));
+        if (newKeys.length > 0) {
+          localDeliveryEnv['PLATFORM_ENV_MANIFEST'] =
+            `${localDeliveryEnv['PLATFORM_ENV_MANIFEST']},${newKeys.join(',')}`;
+        }
+      } else if (localDeliveryCriticalVars.length > 0) {
+        localDeliveryEnv['PLATFORM_ENV_MANIFEST'] = localDeliveryCriticalVars.join(',');
+      }
       deliveryMachine = runLocalDockerContainer({
         taskId,
         name: deliveryContainerName,
-        env: {
-          ...tenantEnvForDelivery,
-          TASK_ID: taskId,
-          EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
-          EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-          APPROVAL_REQUIRED: String(approvalRequired),
-          NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-          SUPABASE_URL: supabaseUrl.replace(/localhost|127\.0\.0\.1/, 'host.docker.internal'),
-          SUPABASE_SECRET_KEY: supabaseKey,
-          INNGEST_BASE_URL: 'http://host.docker.internal:8288',
-          GATEWAY_URL: 'http://host.docker.internal:7700',
-          INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
-          INNGEST_DEV: '1',
-          ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
-          ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
-          ...(taskRawEvent['property_uid'] ? { PROPERTY_UID: taskRawEvent['property_uid'] } : {}),
-        },
+        env: localDeliveryEnv,
         cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
       });
     } else {
+      const flyDeliveryEnv: Record<string, string> = {
+        ...tenantEnvForDelivery,
+        ...workerEnvVars,
+        TASK_ID: taskId,
+        TENANT_ID: tenantId,
+        TASK_TENANT_ID: tenantId,
+        EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
+        EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
+        APPROVAL_REQUIRED: String(approvalRequired),
+        NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
+        NOTIFY_MSG_CHANNEL: notifyMsgRef?.channel ?? '',
+        ...(issuesSlackChannel ? { ISSUES_SLACK_CHANNEL: issuesSlackChannel } : {}),
+        SUPABASE_URL: effectiveSupabaseUrlForDelivery,
+        SUPABASE_SECRET_KEY: supabaseKey,
+        INNGEST_BASE_URL: INNGEST_BASE_URL,
+        GATEWAY_URL: GATEWAY_URL,
+        INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
+        ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
+        ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
+        ...(taskRawEvent['property_uid'] ? { PROPERTY_UID: taskRawEvent['property_uid'] } : {}),
+      };
+      const flyDeliveryCriticalVars = [
+        'TASK_ID',
+        'TENANT_ID',
+        'EMPLOYEE_ROLE_NAME',
+        'APPROVAL_REQUIRED',
+        'NOTIFY_MSG_TS',
+        'NOTIFY_MSG_CHANNEL',
+        'EMPLOYEE_PHASE',
+        'INNGEST_BASE_URL',
+        'INNGEST_EVENT_KEY',
+        'LEAD_UID',
+        'THREAD_UID',
+        'PROPERTY_UID',
+      ].filter((k) => flyDeliveryEnv[k]);
+      if (flyDeliveryEnv['PLATFORM_ENV_MANIFEST']) {
+        const existing = new Set(flyDeliveryEnv['PLATFORM_ENV_MANIFEST'].split(','));
+        const newKeys = flyDeliveryCriticalVars.filter((k) => !existing.has(k));
+        if (newKeys.length > 0) {
+          flyDeliveryEnv['PLATFORM_ENV_MANIFEST'] =
+            `${flyDeliveryEnv['PLATFORM_ENV_MANIFEST']},${newKeys.join(',')}`;
+        }
+      } else if (flyDeliveryCriticalVars.length > 0) {
+        flyDeliveryEnv['PLATFORM_ENV_MANIFEST'] = flyDeliveryCriticalVars.join(',');
+      }
       deliveryMachine = await createMachine(deliveryFlyApp, {
         image: deliveryImage,
         vm_size: deliveryVmSize,
         auto_destroy: true,
         kill_timeout: 1800,
         cmd: ['node', '/app/dist/workers/opencode-harness.mjs'],
-        env: {
-          ...tenantEnvForDelivery,
-          TASK_ID: taskId,
-          EMPLOYEE_PHASE: DELIVERY_PHASE_VALUE,
-          EMPLOYEE_ROLE_NAME: (archetype.role_name as string) ?? 'unknown',
-          APPROVAL_REQUIRED: String(approvalRequired),
-          NOTIFY_MSG_TS: notifyMsgRef?.ts ?? '',
-          SUPABASE_URL: effectiveSupabaseUrlForDelivery,
-          SUPABASE_SECRET_KEY: supabaseKey,
-          INNGEST_BASE_URL: INNGEST_BASE_URL,
-          GATEWAY_URL: GATEWAY_URL,
-          INNGEST_EVENT_KEY: INNGEST_EVENT_KEY,
-          ...(taskRawEvent['lead_uid'] ? { LEAD_UID: taskRawEvent['lead_uid'] } : {}),
-          ...(taskRawEvent['thread_uid'] ? { THREAD_UID: taskRawEvent['thread_uid'] } : {}),
-          ...(taskRawEvent['property_uid'] ? { PROPERTY_UID: taskRawEvent['property_uid'] } : {}),
-        },
+        env: flyDeliveryEnv,
       });
     }
     log.info(

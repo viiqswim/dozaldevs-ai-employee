@@ -376,6 +376,16 @@ const effectiveSupabaseUrl =
 
 **Rule**: `TUNNEL_URL` is only needed in **hybrid mode** (local Supabase + Fly workers). In full cloud mode (Supabase Cloud + Fly workers), `TUNNEL_URL` should NOT be set and `supabaseUrl` is passed directly to the worker.
 
+#### Recurrence — delivery path (2026-06-16, commit `751c9b19`)
+
+The Jun-7 refactor "extract step modules; split approval handler" (commit `751c9b19`) re-introduced the same unguarded `getTunnelUrl()` call in the **delivery path** (`delivery-retry.ts:115-116`). The execution path had been fixed in `0b342742`, but the newly extracted `delivery-retry.ts` was written with the old pattern.
+
+**Symptom**: task stuck at `Delivering` — `failure_reason` NULL, 0 Fly machines created, Fly app shows `suspended` (cosmetic — app auto-suspends when idle, not a cause). The delivery container never launched.
+
+**Permanent fix**: single shared helper `resolveWorkerSupabaseUrl()` in `src/inngest/lifecycle/lib/worker-url-resolver.ts`, imported by both `machine-provisioner.ts` (execution) and `delivery-retry.ts` (delivery). Neither file calls `getTunnelUrl()` directly anymore.
+
+**See also**: execution-vs-delivery worker-env divergences tracked in `docs/guides/2026-06-12-2030-drift-audit.md` § Area 4.
+
 ---
 
 ### Bug 2: Transaction pooler search_path issue (KNOWN)
