@@ -59,7 +59,6 @@ export interface GenerateArchetypeResponse {
   identity: string;
   execution_steps: string;
   delivery_steps: string | null;
-  delivery_instructions: string | null;
   instructions: string;
   deliverable_type: string | null;
   input_schema?: InputSchemaItem[];

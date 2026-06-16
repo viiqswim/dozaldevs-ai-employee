@@ -198,7 +198,6 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
       const createDelivery = resolveDelivery(
         {
           delivery_steps: rest.delivery_steps ?? null,
-          delivery_instructions: null,
           deliverable_type: rest.deliverable_type ?? null,
         },
         undefined,
@@ -395,7 +394,6 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
           const patchDelivery = resolveDelivery(
             {
               delivery_steps: rest.delivery_steps ?? existing.delivery_steps,
-              delivery_instructions: null,
               deliverable_type: rest.deliverable_type ?? existing.deliverable_type,
             },
             undefined,

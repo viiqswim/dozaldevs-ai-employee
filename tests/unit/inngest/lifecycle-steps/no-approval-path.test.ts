@@ -345,15 +345,15 @@ describe('runNoApprovalPath — no deliverable found after retries → falls thr
   });
 });
 
-describe('runNoApprovalPath — NO_ACTION_NEEDED with delivery_instructions → runs delivery', () => {
-  it('proceeds to delivery when NO_ACTION_NEEDED but delivery_instructions is set', async () => {
+describe('runNoApprovalPath — NO_ACTION_NEEDED with delivery_steps → runs delivery', () => {
+  it('proceeds to delivery when NO_ACTION_NEEDED but delivery_steps is set', async () => {
     vi.stubGlobal('fetch', buildDeliverableFetch(NO_ACTION_CONTENT));
     const step = makeStep();
     const ctx = makeCtx({
       archetype: {
         role_name: 'Bot',
         deliverable_type: 'slack',
-        delivery_instructions: 'Always post to Slack.',
+        delivery_steps: 'Always post to Slack.',
       },
     });
 

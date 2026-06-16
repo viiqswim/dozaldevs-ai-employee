@@ -89,7 +89,6 @@ export async function runNoApprovalPath(
   const deliveryResolution = resolveDelivery(
     {
       delivery_steps: (archetype.delivery_steps as string | null) ?? null,
-      delivery_instructions: (archetype.delivery_instructions as string | null) ?? null,
       deliverable_type: (archetype.deliverable_type as string | null) ?? null,
     },
     classificationCheckNoApproval.classification,

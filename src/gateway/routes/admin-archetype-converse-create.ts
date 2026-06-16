@@ -50,7 +50,6 @@ function buildEmptyBaseline(): GenerateArchetypeResponse {
     identity: '',
     execution_steps: '',
     delivery_steps: null,
-    delivery_instructions: null,
     instructions: '',
     deliverable_type: null,
     input_schema: undefined,
@@ -87,7 +86,6 @@ function applyCreateAllowlist(
     identity: raw.identity,
     execution_steps: raw.execution_steps,
     delivery_steps: deliverySteps,
-    delivery_instructions: raw.delivery_instructions,
     deliverable_type: raw.deliverable_type,
     overview: raw.overview,
     risk_model: raw.risk_model

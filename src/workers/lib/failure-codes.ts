@@ -55,7 +55,7 @@ export function classifyFailure(reason: string): string {
     return FAILURE_CODES.delivery_failed;
   }
 
-  // delivery_config_missing — archetype has no delivery_instructions
+  // delivery_config_missing — archetype has no delivery_steps
   if (reason.includes('missing delivery_instructions')) {
     return FAILURE_CODES.delivery_config_missing;
   }
