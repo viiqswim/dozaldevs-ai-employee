@@ -120,6 +120,7 @@ function makeCtx(overrides: Partial<NoApprovalPathContext> = {}): NoApprovalPath
     archetype: {
       role_name: 'Test Employee',
       deliverable_type: 'slack',
+      delivery_steps: 'Post the output to Slack.',
     },
     machineId: MACHINE_ID,
     notifyMsgRef: { ts: 'ts-notify-001', channel: 'C-NOTIFY' },
@@ -267,7 +268,7 @@ describe('runNoApprovalPath — delivery result status=done → complete-after-d
 
     expect(
       (step.run as ReturnType<typeof vi.fn>).mock.calls.some(
-        ([id]: [string]) => id === 'complete-after-delivery-no-approval',
+        ([id]: string[]) => id === 'complete-after-delivery-no-approval',
       ),
     ).toBe(true);
   });
@@ -281,14 +282,14 @@ describe('runNoApprovalPath — delivery result status=done → complete-after-d
 
     expect(
       (step.run as ReturnType<typeof vi.fn>).mock.calls.some(
-        ([id]: [string]) => id === 'complete-after-delivery-no-approval',
+        ([id]: string[]) => id === 'complete-after-delivery-no-approval',
       ),
     ).toBe(false);
   });
 });
 
-describe('runNoApprovalPath — produced content but no deliverable_type → fails visibly', () => {
-  it('patches task to Failed (not Done) when content needs delivery but deliverable_type is empty', async () => {
+describe('runNoApprovalPath — no delivery config at all → no-delivery-escape-hatch → Done', () => {
+  it('patches task to Done (not Failed) when no delivery config is set at all', async () => {
     vi.stubGlobal('fetch', buildDeliverableFetch(NEEDS_APPROVAL_CONTENT));
     const step = makeStep();
     const ctx = makeCtx({ archetype: { role_name: 'Bot' } });
@@ -299,7 +300,7 @@ describe('runNoApprovalPath — produced content but no deliverable_type → fai
       SUPABASE_URL,
       HEADERS,
       TASK_ID,
-      expect.objectContaining({ status: 'Failed', failure_code: 'MISSING_DELIVERY_CONFIG' }),
+      expect.objectContaining({ status: 'Done' }),
     );
     expect(mockRunDeliveryWithRetry).not.toHaveBeenCalled();
   });

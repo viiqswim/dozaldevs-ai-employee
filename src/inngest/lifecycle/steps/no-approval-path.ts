@@ -16,6 +16,7 @@ import type { KnownBlock } from '@slack/web-api';
 import type { NotificationEnrichment } from '../../../lib/types/notification-enrichment.js';
 import { loadTenantSlack } from './notify-and-track.js';
 import { cleanupExecutionMachine, safeRecordWorkMetric } from './lifecycle-helpers.js';
+import { resolveDelivery } from '../../../lib/delivery-resolver.js';
 
 const log = createLogger('lifecycle-validate-and-submit');
 
@@ -68,8 +69,6 @@ export async function runNoApprovalPath(
         if (rows.length > 0) {
           const result = parseClassifyResponse(rows[0].content);
           return {
-            skipDelivery:
-              result.classification === 'NO_ACTION_NEEDED' && !archetype['delivery_instructions'],
             classification: result.classification,
             reasoning: result.reasoning,
             displayContext: result.displayContext,
@@ -80,7 +79,6 @@ export async function runNoApprovalPath(
         }
       }
       return {
-        skipDelivery: false,
         classification: undefined as 'NEEDS_APPROVAL' | 'NO_ACTION_NEEDED' | undefined,
         reasoning: '',
         displayContext: undefined,
@@ -88,7 +86,16 @@ export async function runNoApprovalPath(
     },
   );
 
-  if (classificationCheckNoApproval.skipDelivery) {
+  const deliveryResolution = resolveDelivery(
+    {
+      delivery_steps: (archetype.delivery_steps as string | null) ?? null,
+      delivery_instructions: (archetype.delivery_instructions as string | null) ?? null,
+      deliverable_type: (archetype.deliverable_type as string | null) ?? null,
+    },
+    classificationCheckNoApproval.classification,
+  );
+
+  if (deliveryResolution.kind === 'no-delivery-escape-hatch') {
     await step.run('cleanup-execution-machine-no-approval', async () => {
       await cleanupExecutionMachine(machineId, taskId);
     });
@@ -155,63 +162,18 @@ export async function runNoApprovalPath(
     return;
   }
 
-  const deliverableType = (archetype.deliverable_type as string | null) ?? '';
-  if (!deliverableType) {
-    // The worker produced deliverable content but the employee has no delivery
-    // configuration — without this guard the lifecycle would silently complete and
-    // the content would never reach the user. Fail visibly so the misconfig surfaces.
-    const producedDeliverableContent =
-      classificationCheckNoApproval.classification !== undefined &&
-      classificationCheckNoApproval.classification !== 'NO_ACTION_NEEDED';
-    if (producedDeliverableContent) {
-      log.error(
-        { taskId, archetypeId },
-        'Archetype produced deliverable content but has no deliverable_type — failing instead of silently dropping',
-      );
-      await step.run('fail-missing-delivery-config', async () => {
-        await patchTask(supabaseUrl, headers, taskId, {
-          status: 'Failed',
-          failure_reason: 'Employee produced output but has no delivery configuration.',
-          failure_code: 'MISSING_DELIVERY_CONFIG',
-        });
-        await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Submitting');
-        if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
-          try {
-            const slackCtx = await loadTenantSlack(
-              tenantId,
-              (archetype.notification_channel as string | null) ?? null,
-            );
-            if (slackCtx) {
-              await slackCtx.slackClient.updateMessage(
-                notifyMsgRef.channel,
-                notifyMsgRef.ts,
-                missingDeliveryConfigFailureMessage(),
-                notifyStateBlocks({ emoji: '❌', text: 'Delivery not configured' }),
-              );
-            }
-          } catch (err) {
-            log.warn(
-              { taskId, err },
-              'Failed to update notify-received on missing-delivery-config failure (non-fatal)',
-            );
-          }
-        }
-      });
-      await step.run('cleanup-missing-delivery-config', async () => {
-        await cleanupExecutionMachine(machineId, taskId);
-      });
-      return;
-    }
-
-    log.warn({ taskId }, 'Archetype has no deliverable_type — skipping delivery container');
-    await step.run('complete-no-deliverable-type', async () => {
+  if (deliveryResolution.kind === 'misconfigured') {
+    log.error(
+      { taskId, archetypeId },
+      'Archetype has deliverable_type set but no delivery steps — failing visibly',
+    );
+    await step.run('fail-missing-delivery-config', async () => {
       await patchTask(supabaseUrl, headers, taskId, {
-        status: 'Done',
-        failure_reason: null,
-        failure_code: null,
+        status: 'Failed',
+        failure_reason: 'Employee produced output but has no delivery configuration.',
+        failure_code: 'MISSING_DELIVERY_CONFIG',
       });
-      await logStatusTransition(supabaseUrl, headers, taskId, 'Done', 'Submitting');
-      log.info({ taskId }, 'State: Done (no deliverable_type configured)');
+      await logStatusTransition(supabaseUrl, headers, taskId, 'Failed', 'Submitting');
       if (notifyMsgRef?.ts && notifyMsgRef?.channel) {
         try {
           const slackCtx = await loadTenantSlack(
@@ -222,27 +184,19 @@ export async function runNoApprovalPath(
             await slackCtx.slackClient.updateMessage(
               notifyMsgRef.channel,
               notifyMsgRef.ts,
-              `✅ Task complete`,
-              notifyBlocks({
-                state: 'Task complete',
-                archetypeName: (archetype.role_name as string) ?? 'unknown',
-                enrichment: notifyMsgRef.enrichment as NotificationEnrichment | null,
-                emoji: '✅',
-              }),
+              missingDeliveryConfigFailureMessage(),
+              notifyStateBlocks({ emoji: '❌', text: 'Delivery not configured' }),
             );
           }
         } catch (err) {
           log.warn(
             { taskId, err },
-            'Failed to update notify-received on no-deliverable completion (non-fatal)',
+            'Failed to update notify-received on missing-delivery-config failure (non-fatal)',
           );
         }
       }
     });
-    await step.run('record-work-metric-no-deliverable-type', async () => {
-      await safeRecordWorkMetric(supabaseUrl, headers, taskId, archetypeId, tenantId);
-    });
-    await step.run('cleanup-no-deliverable-type', async () => {
+    await step.run('cleanup-missing-delivery-config', async () => {
       await cleanupExecutionMachine(machineId, taskId);
     });
     return;
