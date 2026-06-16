@@ -636,7 +636,7 @@ Critical Path: 1 → 2 → 5 → 7 → 8 → 9 → F1-F4 → user okay → 10
 
   **Commit**: NO (prod data remediation).
 
-- [ ] 10. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 10. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
       Run: `tsx scripts/telegram-notify.ts "✅ delivery-tunnel-url-rootfix complete — root cause fixed (shared URL resolver), prod E2E passed, stuck task remediated. Come back to review."`
       **Blocked By**: F-wave + user okay. **Category**: `quick`.
 
