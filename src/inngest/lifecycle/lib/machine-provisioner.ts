@@ -1,8 +1,8 @@
 import { createLogger } from '../../../lib/logger.js';
 import { createMachine } from '../../../lib/fly-client.js';
 import { runLocalDockerContainer } from '../../lib/lifecycle-helpers.js';
-import { getTunnelUrl } from '../../../lib/tunnel-client.js';
 import { getPlatformSetting } from '../../../lib/platform-settings.js';
+import { resolveWorkerSupabaseUrl } from './worker-url-resolver.js';
 import {
   INNGEST_EVENT_KEY,
   INNGEST_BASE_URL,
@@ -61,8 +61,7 @@ export async function provisionWorkerMachine(params: ProvisionMachineParams): Pr
   const image = FLY_WORKER_IMAGE;
   const flyApp = process.env['FLY_WORKER_APP'] ?? 'ai-employee-workers';
 
-  const effectiveSupabaseUrl =
-    WORKER_RUNTIME === 'fly' && process.env.TUNNEL_URL ? await getTunnelUrl() : supabaseUrl;
+  const effectiveSupabaseUrl = await resolveWorkerSupabaseUrl(supabaseUrl);
 
   const slackCtxForExec = await loadTenantSlack(
     tenantId,
