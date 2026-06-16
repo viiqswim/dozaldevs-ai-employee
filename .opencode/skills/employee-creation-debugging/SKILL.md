@@ -301,7 +301,50 @@ For all production connection strings, log-fetch mechanics, Render service detai
 
 ---
 
-## Section 7: Cross-References
+## Section 7: converse-create / propose-edit Internals
+
+Both endpoints share the same underlying `ArchetypeGenerator.converse()` method and the same request-stateless transcript design. The client holds the full transcript; the server stores nothing between requests.
+
+### Discriminated Result Contract (both endpoints)
+
+```typescript
+{ kind: 'question', question: string }       // server needs more info
+{ kind: 'proposal', baseline, proposal, changed_fields, ... }  // ready to save
+{ kind: 'no_change' }                        // nothing to change
+{ kind: 'too_long' }                         // conversation exceeded token budget
+```
+
+### converse-create (creation path)
+
+- Endpoint: `POST /admin/tenants/:tenantId/archetypes/converse-create`
+- Uses an empty baseline (`buildEmptyBaseline()`) — no existing archetype.
+- The create allowlist (`applyCreateAllowlist()`) is wider than the edit allowlist: includes `role_name`, `model`, and `runtime` — fields the UI needs when calling `POST /archetypes` to persist the draft.
+- On a `proposal` result, the wizard advances to the "Review & Edit" step automatically.
+- `kind:'too_long'` renders a friendly chat bubble — it does NOT reach the error step.
+
+### propose-edit (edit path)
+
+- Endpoint: `POST /admin/tenants/:tenantId/archetypes/:archetypeId/propose-edit`
+- Accepts `{ transcript: ConverseMessage[] }` — the full conversation history.
+- The edit allowlist is narrower: `role_name` is forbidden (the model cannot change it on an existing archetype).
+- A server-side backstop forces a best-guess proposal if the model asks more than 5 clarifying questions — `converse()` never returns `kind:'question'` after 5 assistant turns.
+- A token-budget guard returns `kind:'too_long'` for very long conversations.
+
+### Shared safeguards
+
+- **Tool-path never-block policy**: `validateProposalFields()` in `src/gateway/lib/archetype-edit-helpers.ts` never throws on unknown tool paths or invalid trigger sources. Unknown tools are dropped (logged as warn); invalid trigger sources are coerced to `{ type: 'manual' }` (logged). The only guard that returns `{ ok: false, reAsk: true }` is prose-went-blank on EDIT (a field that had content is now empty).
+- **`reAsk: true` → `kind:'question'`**: Both routes convert `reAsk:true` from `validateProposalFields` into `{ kind: 'question' }` (HTTP 200) — never a 422.
+- **Shared helpers**: `mapArchetypeRowToConfig`, `validateProposalFields`, and `resolveToolPaths` live in `src/gateway/lib/archetype-edit-helpers.ts`. Import from there; do not inline or duplicate in route handlers.
+
+### Debugging a failed proposal
+
+1. Check `archetype_generation_calls` for the call — `call_type='propose_edit'`, `archetype_id=null` for converse-create.
+2. `status='success'` in the trace means the LLM call succeeded, even if `validateProposalFields` later rejected the proposal. The trace does not reflect validation failures.
+3. HTTP 422 `PROPOSAL_INVALID` from the route means `validateProposalFields` returned `ok:false` without `reAsk:true` — this should not happen under the never-block policy. If it does, check `archetype-edit-helpers.ts` for a regression.
+
+---
+
+## Section 8: Cross-References
 
 | Skill                     | When to load it                                                                             |
 | ------------------------- | ------------------------------------------------------------------------------------------- |

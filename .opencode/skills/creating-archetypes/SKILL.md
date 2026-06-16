@@ -393,6 +393,35 @@ Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
 
 ---
 
+## Intent-Level Steps Convention & role_name Derivation
+
+### Intent-Level Steps (Wizard-Generated Employees)
+
+The archetype generator produces `execution_steps`, `delivery_steps`, and `instructions` as plain-English intent prose. No `tsx /tools/...` CLI invocations appear in generated steps. The worker resolves exact tool commands at runtime via the always-on `tool-usage-reference` skill.
+
+**Key rules for wizard-generated steps:**
+
+- Channel names are written directly in the employee's instructions (e.g. `general` or `#general` — both accepted). `read-channels.ts` resolves plain names to IDs at runtime via `conversations.list`.
+- `$NOTIFICATION_CHANNEL` and `$PUBLISH_CHANNEL` env-var placeholders are still preserved in generated steps.
+- `tool_registry.tools` still contains real file paths (e.g. `/tools/slack/read-channels.ts`) — only the prose is abstracted.
+- The final execution step always ends with an intent-level submit-output closer (e.g. "Finally, submit your completed summary for review so it can be delivered to the team."). This is the load-bearing handoff that drives `submit-output --draft-file`.
+
+**Scope**: This abstraction applies only to the GENERATE path and the CREATE branch of `converse-create` (empty baseline). `refine()` and edit-converse on existing archetypes are not abstracted — existing employees' steps are untouched.
+
+**Implementation**: `src/gateway/services/archetype-generator.ts` — `generate()` and the CREATE branch of `converse()`.
+
+### role_name Derivation on the CREATE Path
+
+When using `converse-create` (the wizard's creation path), `role_name` is auto-derived as a kebab-case slug from the employee description when the model omits it. The derived slug is pre-filled in the editable `role_name` field in the wizard's Review & Edit step — the user can change it before saving.
+
+If the description yields no valid slug (e.g. emoji-only input), a deterministic `employee-<short-id>` fallback is used so draft-save never fails with a validation error.
+
+**The EDIT path is different**: `propose-edit` on an existing archetype still forbids the model from changing `role_name`. That guardrail is unchanged.
+
+**Implementation**: `buildConverseSystemPromptPre(isCreate: boolean)` in `src/gateway/services/prompts/archetype-generator-prompts.ts` switches the instruction based on whether the baseline `role_name` is empty. `postProcess()` in `src/gateway/services/archetype-generator.ts` derives the slug from the transcript when the model omits it.
+
+---
+
 ## Common Mistakes to Avoid
 
 1. **Wrong model** — use only models from the `model_catalog`. Default seed: `minimax/minimax-m2.7`. Use the `recommend-model` endpoint rather than hardcoding.
@@ -402,3 +431,4 @@ Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
 5. **Missing `/tmp/summary.txt`** — worker MUST write this file or harness marks task `Failed`.
 6. **Employee-specific language in shared files** — `employee-lifecycle.ts`, `opencode-harness.mts`, `src/gateway/`, `src/lib/` serve ALL employees. Keep them generic.
 7. **Forgetting `agents_md`** — always set `agents_md: PLATFORM_AGENTS_MD` (read from `src/workers/config/agents.md`).
+8. **CLI invocations in wizard-generated steps** — generated `execution_steps` must use intent prose, not `tsx /tools/...` commands. The worker resolves tool commands at runtime.
