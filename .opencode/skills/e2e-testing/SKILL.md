@@ -401,6 +401,47 @@ Restore the original model after testing if needed.
 
 ---
 
+## Gateway Pre-Flight Check
+
+Run this before any Slack trigger workflow test. A stale or duplicate gateway silently drops ~50% of events.
+
+```bash
+# 1. Confirm single stable gateway (must be ≤2: tsx watch + one gateway process)
+pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l
+
+# 2. Confirm exactly ONE listener on port 7700
+lsof -i :7700 -sTCP:LISTEN
+
+# 3. Confirm Socket Mode is connected and recent
+grep "Socket Mode connected" /tmp/ai-dev.log | tail -1
+```
+
+If `pgrep` returns more than 2, kill the zombie processes before testing. If Socket Mode line is stale (older than a few minutes), restart the gateway.
+
+**Confirm gateway stability** (must be stable for at least 30 seconds before triggering):
+
+```bash
+GATEWAY_PID=$(lsof -ti :7700 -sTCP:LISTEN)
+echo "Gateway PID: $GATEWAY_PID — started at:"
+ps -o lstart= -p $GATEWAY_PID
+grep "Socket Mode connected" /tmp/ai-dev.log | tail -1
+```
+
+**Watch logs live during a test:**
+
+```bash
+# Start tail in background
+tail -f /tmp/ai-dev.log | grep -E "(app_mention|interaction|trigger|confirmation|card|error)" &
+
+# After test, verify confirmation card appeared within ~10 seconds
+grep "confirmation card" /tmp/ai-dev.log | tail -3
+
+# Kill the tail when done
+kill %1
+```
+
+---
+
 ## Reference Documents
 
 | Guide                                                                 | Scenarios covered                                     |
