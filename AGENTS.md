@@ -434,7 +434,7 @@ tsx scripts/telegram-notify.ts "✅ ${PLAN} complete — All tasks done. Come ba
 
 ---
 
-## Post-Implementation E2E Testing (MANDATORY — applies to EVERY implementation, not just plans)
+## E2E Testing (MANDATORY — applies to EVERY implementation)
 
 **YOU MUST run a real end-to-end test after implementing any feature or fix. "Code looks correct" is not a substitute for actual execution.**
 
@@ -444,81 +444,17 @@ This is non-negotiable. After any implementation work — whether part of a form
 2. **Observe real output.** Check logs, Slack messages, DB state. Confirm the feature behaves exactly as intended, end-to-end.
 3. **Document what you observed.** When reporting completion, include the task ID, state trace, or log excerpt that proves it worked — not just "I implemented the change."
 
-### Why this is mandatory
-
-Without a live test, you cannot detect:
-
-- Gateway restart timing gaps that swallow events
-- Silent failure modes that `log.warn` instead of throwing
-- State machine transitions that look correct in code but fail at runtime
-- Slack API errors, Inngest retry failures, or DB write failures
-
-### How to self-test (Slack trigger workflow)
-
-```bash
-# 1. Pre-flight — confirm single stable gateway
-pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l  # must be ≤2 (tsx watch + one gateway)
-lsof -i :7700 -sTCP:LISTEN                         # must show exactly ONE PID
-grep "Socket Mode connected" /tmp/ai-dev.log | tail -1  # must be recent
-
-# 2. Watch logs live during the test
-tail -f /tmp/ai-dev.log | grep -E "(app_mention|interaction|trigger|confirmation|card|error)" &
-
-# 3. Use browser automation (CDP) to send the @mention in Slack
-# OR confirm with the user that they will send it immediately after your pre-flight
-
-# 4. Verify the confirmation card appeared within ~10 seconds
-grep "confirmation card" /tmp/ai-dev.log | tail -3
-
-# 5. Kill the tail
-kill %1
-```
-
-### Gateway stability rule (CRITICAL for Slack testing)
-
-tsx watch restarts the gateway every time you save a file. A restart takes 5–15 seconds. If the user tests during a restart window, the @mention is silently dropped. **Always wait for the gateway to fully stabilize before testing:**
-
-```bash
-# Confirm the gateway has been stable for at least 30 seconds
-GATEWAY_PID=$(lsof -ti :7700 -sTCP:LISTEN)
-echo "Gateway PID: $GATEWAY_PID — started at:"
-ps -o lstart= -p $GATEWAY_PID
-grep "Socket Mode connected" /tmp/ai-dev.log | tail -1
-```
-
-If you made code changes immediately before testing, wait 15–30 seconds after the last file save before triggering the test.
-
----
-
-## Plan E2E Validation (MANDATORY)
+Without a live test, you cannot detect: gateway restart timing gaps that swallow events, silent failure modes that `log.warn` instead of throwing, state machine transitions that look correct in code but fail at runtime, Slack API errors, Inngest retry failures, or DB write failures.
 
 Every plan for an AI employee feature must include a **real browser E2E validation wave** as the final non-notification step.
 
 **Slack trigger workflow changes require live @mention E2E.** Any plan that modifies the Slack trigger workflow — `app_mention` handler, `slack-trigger-handler`, `interaction-handler`/classifier, confirmation cards, `slack-copy`, or any code in the path from @mention to task dispatch — MUST include all three of the following before the plan passes:
 
-1. **Single-gateway pre-flight**: `pgrep -f "$(pwd).*src/gateway/server.ts" | wc -l` must return `1`. If it returns more, kill the zombies before proceeding — a stale socket will silently absorb ~50% of test events.
-2. **Live @mention → Confirm → Done E2E**: Send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
+1. **Single-gateway pre-flight**: confirm only one gateway process is running before testing. A stale socket will silently absorb ~50% of test events.
+2. **Live @mention → Confirm → Done E2E**: send a real @mention in Slack, click Confirm on the card, then verify `tasks.status = Done` in the DB. Record the task ID and the full `task_status_log` trace.
 3. **"Verified from code" or "unit tests pass" is explicitly insufficient** for this workflow — the live Slack path must be exercised.
 
-| Guide                                                        | Scenarios | Domain                                                                                      |
-| ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
-| `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md`    | A–F       | Approval paths, terminal state blocks, context thread replies, supersede, expiry, failure   |
-| `docs/testing/2026-05-28-1420-ai-employee-e2e-test-guide.md` | AC1–AC8   | Wizard generation, field quality, full lifecycle with approval, Slack delivery verification |
-
-**Minimum for any guest-messaging change**: Slack UX Scenario A (approve happy path).
-**Minimum for any archetype generator, wizard, or delivery pipeline change**: AI Employee E2E guide (AC1–AC8).
-**Minimum for any Slack trigger workflow change** (app_mention, slack-trigger-handler, interaction-handler, confirmation cards): Single-gateway pre-flight + live @mention → Confirm → Done E2E.
-Use the **Quick-Reference table** in each guide to identify which additional scenarios apply to your change.
-
-### Plan template (Final Verification Wave)
-
-```markdown
-- [ ] **N. E2E prerequisites** — Confirm services are live: gateway (`curl localhost:7700/health`), Inngest (`curl localhost:8288/health`), Socket Mode (`tail /tmp/ai-dev.log | grep "Socket Mode"`).
-- [ ] **N+1. Scenario A — Approve happy path** — Follow `docs/testing/2026-05-10-1609-slack-ux-e2e-test-guide.md` Scenario A. Document: task ID, state machine trace, delivery confirmed.
-- [ ] **N+2. Outcome summary** — Record all scenarios run, task IDs, and any deviations.
-```
-
-**No plan passes its Final Verification Wave without all applicable scenarios completed and outcomes documented.**
+Full pre-flight scripts, scenario tables, and plan template → load `e2e-testing` skill.
 
 ## Reference Documents
 
