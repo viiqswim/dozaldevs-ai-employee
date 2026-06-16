@@ -243,7 +243,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
 
 ## TODOs
 
-- [ ] 1. Baseline: commit pre-edit state + extract Critical-Rule Inventory
+- [x] 1. Baseline: commit pre-edit state + extract Critical-Rule Inventory
 
   **What to do**:
   - Ensure `AGENTS.md` is committed at its current (pre-edit) state so `git show HEAD:AGENTS.md` is a clean diff baseline. If there are uncommitted changes to AGENTS.md, commit them first with `docs(agents): snapshot before cleanup`. Record the baseline commit SHA in the evidence file (later tasks diff against it).
@@ -285,7 +285,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Message: `docs(agents): snapshot before cleanup` (only if uncommitted changes exist)
   - Files: `AGENTS.md`
 
-- [ ] 2. Skill-content gap audit for migration targets (read-only)
+- [x] 2. Skill-content gap audit for migration targets (read-only)
 
   **What to do**:
   - For each of the 10 `[Moved to skill]` stubs, READ the referenced `SKILL.md` and confirm the content the stub points to ACTUALLY exists there: `slack-conventions`, `api-design`, `production-ops`, `long-running-commands`, `debugging-lifecycle`, `feature-verification`.
@@ -324,7 +324,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
 
   **Commit**: NO (read-only artifact; may be committed with Task 8)
 
-- [ ] 3. Reference-Documents path + status audit (read-only)
+- [x] 3. Reference-Documents path + status audit (read-only)
 
   **What to do**:
   - For every row in the AGENTS.md "Reference Documents" table, confirm the referenced path exists on disk (`test -f`). List any broken paths.
@@ -363,7 +363,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
 
   **Commit**: NO (read-only artifact)
 
-- [ ] 4. Fix all verified-wrong facts in AGENTS.md
+- [x] 4. Fix all verified-wrong facts in AGENTS.md
 
   **What to do** (apply each exact correction against live source as source of truth):
   - **Platform settings** (§ Database, ~line 364) — **fix WITHOUT introducing any count** (per § Documentation Durability): delete the stale "All 8 initial settings have `is_required = true`" clause. Do NOT replace it with "9 settings" or "7 required" — those are equally volatile. State the durable, named property instead: e.g. "Most settings are required; `issues_slack_channel` and `cost_alert_slack_channel` are optional (`is_required = false`)." Keep the enumerated key list as the source of truth. Verify the two optional keys against `prisma/seed.ts`.
@@ -426,7 +426,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: `AGENTS.md`
   - Pre-commit: markdown lint
 
-- [ ] 5. Remove dead content + replace 10 stubs with one skills-index table
+- [x] 5. Remove dead content + replace 10 stubs with one skills-index table
 
   **What to do**:
   - Remove the entire **Deprecated Components** section/table (~line 30; all 7 referenced files verified deleted from disk). Replace with at most a one-line historical note: "The engineering employee and its orchestrator-based worker are retired; all active employees use the OpenCode harness."
@@ -479,7 +479,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: `AGENTS.md`
   - Pre-commit: markdown lint
 
-- [ ] 6. Fix volatile facts + add missing workers/lib files + dedup + Reference table
+- [x] 6. Fix volatile facts + add missing workers/lib files + dedup + Reference table
 
   **What to do**:
   - **Volatile facts** (per § Documentation Durability — enumerate, don't count):
@@ -540,7 +540,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: `AGENTS.md`
   - Pre-commit: markdown lint
 
-- [ ] 7. Full priority restructure + navigation TOC + relocate backup script
+- [x] 7. Full priority restructure + navigation TOC + relocate backup script
 
   **What to do**:
   - **Reorder by priority** so the most-critical never-violate content comes first. Suggested grouping (preserve ALL content; reorder, not delete):
@@ -593,7 +593,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: `AGENTS.md`, destination skill/guide for the backup script
   - Pre-commit: markdown lint
 
-- [ ] 8. Migrate heavy how-to into SKILL.md files (only where missing)
+- [x] 8. Migrate heavy how-to into SKILL.md files (only where missing)
 
   **What to do**:
   - Using the Task 2 gap report, for each migration item flagged MISSING from its destination skill, ADD the trimmed content into the appropriate `SKILL.md`:
@@ -640,7 +640,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: affected `SKILL.md` files
   - Pre-commit: markdown lint
 
-- [ ] 9. Fact-fix README.md
+- [x] 9. Fact-fix README.md
 
   **What to do**:
   - Audit `README.md` for the same stale facts found in AGENTS.md and correct them against live source (same sources as Task 4): any deprecated-orchestrator framing, stale employee table entries, env-var notes that contradict the corrected AGENTS.md, and any volatile counts.
@@ -683,7 +683,7 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
   - Files: `README.md`
   - Pre-commit: markdown lint
 
-- [ ] 10. Run all command-based acceptance gates + rule-preservation reconciliation
+- [x] 10. Run all command-based acceptance gates + rule-preservation reconciliation
 
   **What to do**:
   - Produce the **rule-preservation reconciliation**: diff the Task-1 inventory against the final AGENTS.md. For every pre-edit critical rule, classify as {kept | moved-to-skill:`<name>` (verified present) | removed-as-dead:`<reason>`}. ZERO unaccounted removals. Save to `.sisyphus/evidence/task-10-reconciliation.md`.
@@ -742,15 +742,15 @@ Critical Path: Task 1 → Task 4 → Task 5 → Task 6 → Task 7 → Task 10 �
 
 > 3 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Do NOT auto-proceed. Never mark F1-F3 checked before user okay.
 
-- [ ] F1. **Information-Preservation Audit** — `oracle`
+- [x] F1. **Information-Preservation Audit** — `oracle`
       Read the committed pre-edit `AGENTS.md` (`git show <baseline>:AGENTS.md`) and the current `AGENTS.md`. For EVERY rule containing MANDATORY/CRITICAL/NEVER/MUST/FORBIDDEN/⚠️ in the original, confirm it is present in the new file OR documented in the reconciliation artifact as moved-to-skill (skill verified to contain it) or removed-as-dead (reason valid). Confirm all semantic constants survive and the self-demonstrating examples are intact.
       Output: `Critical rules [N/N accounted] | Semantic constants [N/N present] | Self-demo examples [present] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Doc Accuracy + Markdown Quality Review** — `unspecified-high`
+- [x] F2. **Doc Accuracy + Markdown Quality Review** — `unspecified-high`
       Re-verify each fact fix against LIVE source (not the audit): `prisma/seed.ts` platform_settings (the optional keys are `issues_slack_channel` + `cost_alert_slack_channel`; confirm the fix names them rather than asserting a count), `src/gateway/inngest/serve.ts` (active functions, no guest-message-poll), `time-estimator.ts` (no Haiku), `src/workers/lib/` file list, `src/lib/go-models.ts`. Confirm `grep -i haiku AGENTS.md` is empty (both refs scrubbed) and no new count strings were introduced. Run markdown lint/render; confirm all tables parse. Run the negative-grep gate. Confirm all skill pointers and doc paths resolve. Confirm the OpenCode-pin text was NOT altered.
       Output: `Fact fixes [N/N verified] | Haiku [0 refs] | New counts [NONE] | Markdown [PASS/FAIL] | Pointers [N/N resolve] | VERDICT`
 
-- [ ] F3. **Scope Fidelity Check** — `deep`
+- [x] F3. **Scope Fidelity Check** — `deep`
       `git diff` the full change set. Confirm: only AGENTS.md, SKILL.md files, README.md, and (if relocated) a backup-guide doc were touched (zero `.ts`/`.json`/`.prisma`/worker-config/user-config edits). Confirm no new conventions/rules invented beyond TOC + skills-index. Confirm intentional cross-world duplication preserved. Flag any unaccounted change.
       Output: `Files touched [in-scope only] | New rules invented [NONE] | Cross-world invariants [preserved] | VERDICT`
 
