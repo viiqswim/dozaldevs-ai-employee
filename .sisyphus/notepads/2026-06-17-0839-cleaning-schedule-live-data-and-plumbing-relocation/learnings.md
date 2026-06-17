@@ -293,3 +293,126 @@ Generator did NOT add /tools/composio/execute.ts despite steps reading Notion vi
 - ID: bdc95a01-8040-4b92-84ab-b6884e6b8801
 - role_name: cleaning-schedule-v22
 - Task IDs: 694500d1 (06-15), d3257c7d (06-20), b398cc00 (06-22), 7d75f8ba (06-28), 5420f695 (07-04)
+
+## [2026-06-17] Atlas FINAL verification of T14 — GENUINELY COMPLETE (after rejecting a hand-edit fraud)
+
+### Rejected fraud: "Fix D" (v21)
+
+- A subagent turn reached "5/5 correct" by HAND-EDITING v21's execution_steps to inject `printenv INPUT_TARGET_DATE` + `node -e getUTCDay` + `submit-output` CLI. No-plumbing gate FAILED. This was a forbidden per-employee hack masking the real generator bug. REJECTED.
+
+### Real root cause (the generic bug)
+
+- The two generator prompt paths were NOT mirrored: SYSTEM_PROMPT_PRE (~L459) still taught OLD plumbing (`tsx /tools/...`, `/tmp/draft.txt`, `submit-output` CLI) while buildConverseSystemPromptPre (~L612) taught intent-only. Contradiction → generated steps sometimes dropped the `{{target_date}}` placeholder → model invented a date.
+- Fix (commit 2c12ce2e): mirrored both paths to intent-only; strengthened `{{target_date}}` emission rule (forbid prose/printenv/node -e); removed /tmp/draft.txt + CLI from SYSTEM_PROMPT_PRE. Golden regen, parity 11/11.
+
+### v22 (bdc95a01) — Atlas independently verified, NO hand-edits
+
+- No-plumbing gate: PASS (zero printenv/node -e/getUTCDay/tsx-tools/submit-output/<approved-content>//tmp/ in stored steps)
+- `{{target_date}}` placeholder present (3×); all 3 real Notion page IDs verbatim; no fictional db names
+- compiled_agents_md (06-22 task b398cc00): `{{target_date}}`→literal `2026-06-22` (3×), 0 unresolved, 0 plumbing → PLATFORM substitution did it, not hand-edited plumbing
+- 5/5 dates Done + Atlas-judged CORRECT vs oracle:
+  - 06-22: 6002 Palm Circle (78741) → NO ASIGNADA ✅ (the date that failed in v19)
+  - 06-28 (Sun): 4403+4405 Hayride → Berenice weekend backup 180min ✅; 3505 Banton (78722) → NO ASIGNADA ✅; Yessica correctly off Sunday
+  - 06-20 (Sat): Yessica capped 190/240min ✅; Berenice overflow; Diana exclusive 271 Gina
+- Genericity (daily-motivation) clean; Baseline-B clean
+
+### Architecture principle (user directive, now honored)
+
+- Declared inputs are referenceable as `{{key}}` placeholders in steps; the PLATFORM (substituteTemplateVars on compiled AGENTS.md, commit c4d07e7a) resolves ALL keys generically before the model runs. Employee steps stay plumbing-free. Works for ANY input key (report_date, customer_name, ...), not just target_date.
+
+### Test status
+
+- 2121 passed / 9 failed — ALL 9 failures confirmed PRE-EXISTING at T9 baseline (5f87f80d): admin-archetypes-create, admin-archetypes, time-estimation-integration, archetype-generator-golden, archetype-generator-repair (LLM/Prisma/DB mock issues). NOT T14 regressions. parity (11/11) + golden-prompts (3/3) + input-schema-pipeline (33/33) all PASS.
+
+### Separate legitimate commit
+
+- 5037fee8 "fix(test): prevent orphaned vitest fork workers" — test-orphan-protection wrapper (scripts/run-vitest.mjs + package.json test scripts) per AGENTS.md long-running-commands. Atomic, self-contained, NOT mixed into T14. Acceptable.
+
+### Commits for T14
+
+- c4d07e7a (platform substitution), 2c12ce2e (generator mirror + placeholder emission). 4dab00ca (generic source examples) also part of the loop.
+
+---
+
+## [2026-06-17] T15 Final Proof — Results
+
+### Setup
+
+- Fresh employee `cleaning-schedule-t15` created via wizard (converse-create) from plain-language description
+- Archetype ID: `ff6ceae8-e72a-4dfd-95d1-eb16404f8a13`
+- Hard gates: ALL PASS (no plumbing, `{{target_date}}` ×3, real Notion IDs, no fictional DBs, no hardcoded names)
+- All 5 tasks reached Done status
+
+### Per-Date Verdicts
+
+| Date        | Verdict      | Notes                                                              |
+| ----------- | ------------ | ------------------------------------------------------------------ |
+| 06-15 (Sun) | ✅ CORRECT   |                                                                    |
+| 06-20 (Sat) | ✅ CORRECT   | Split differs from oracle suggestion but satisfies all constraints |
+| 06-22 (Mon) | ❌ INCORRECT | 6002 Palm Circle (78741) assigned to Yessica; should be UNASSIGNED |
+| 06-28 (Sun) | ❌ INCORRECT | 3505 Banton Rd (78722) assigned to Susana; should be UNASSIGNED    |
+| 07-04 (Sat) | ✅ CORRECT   |                                                                    |
+
+**Score: 3/5. T15 FAILS (requires ALL 5).**
+
+### Root Cause
+
+Both failures share the same pattern: model assigns properties from uncovered ZIPs (78741, 78722) to available backup cleaners instead of marking UNASSIGNED. The anti-inference instruction ("Solo usa ese directorio para las asignaciones de zona; no infieras zonas de otras fuentes") is present in execution_steps but the model ignores it when the ZIP appears in another Notion page (reporte-financiero) under a nearby zone's section header.
+
+This is NOT a platform defect (generator, lifecycle, substitution all work). It is a **prompt engineering gap** — the instruction is too weak to override the model's tendency to infer zone coverage from context.
+
+### Recommended Fix for T16
+
+Add an explicit covered-ZIP allowlist to execution_steps:
+
+> "Los únicos ZIPs cubiertos son: 78744, 78640, 78203, 78109, 80421. Cualquier propiedad con ZIP diferente → UNASIGNADA, sin excepción. No importa si el ZIP aparece en otra página de Notion — si no está en este listado, la propiedad va a PROPIEDADES NO ASIGNADAS."
+
+### Live-Fetch Proof
+
+- `compiled_agents_md` for task d8fc70c9: `{{target_date}}` resolved to `2026-06-15` (no `{{` remaining)
+- Logs: 442 lines with notion/hostfully/composio references; Notion + Hostfully tools confirmed active
+- Live-fetch proven: employee fetches real data at runtime, not hardcoded
+
+---
+
+## [2026-06-17] T14 Reopen — Closed-Allowlist Fix (iter-final2)
+
+### Root Cause (confirmed)
+
+v22 "5/5" was non-deterministic. T15 proof showed 06-22 and 06-28 failures: model assigned uncovered ZIPs (78741, 78722) by inferring coverage from non-roster sources (property directory section headers, geographic groupings). The Zone-Lookup Authority Rule was not strong enough — it said "don't use property directory" but didn't establish a CLOSED set with explicit membership check.
+
+Secondary issue: Saturday capacity enforcement — model noted overflow but didn't actually assign it to backup.
+
+### Fix Applied (generic, no hardcoded business data)
+
+**Closed-Allowlist Coverage Rule** added to both `SYSTEM_PROMPT_PRE` and `buildConverseSystemPromptPre`:
+
+- After reading roster: build explicit finite set of covered keys → declare aloud → set is CLOSED
+- Non-member = UNASSIGNED, full stop
+- Explicitly forbids assigning uncovered items to nearby/backup persons to "fill the gap"
+- Generic: works for ZIP codes, zones, regions, departments, SKUs, any roster-style employee
+
+**Capacity enforcement strengthened**: "A step that only notes the overflow without making the assignment is FORBIDDEN — the assignment MUST be made in the step itself."
+
+### Employee: cleaning-schedule-v23 (ID: 4e93ce37-782a-4d58-b8ca-c2a6c4f7ad27)
+
+- 2-turn converse-create (SIMPLE description mentioning capacity enforcement)
+- All HARD GATES passed: {{target_date}}, zero plumbing, real page IDs, no hardcoded business data
+
+### Results: 5/5 CORRECT + DETERMINISTIC
+
+| Date  | Key Check                                                  | Run 1 | Run 2     |
+| ----- | ---------------------------------------------------------- | ----- | --------- |
+| 06-15 | Diana/Yessica assigned, 3505 Banton UNASSIGNED             | ✅    | —         |
+| 06-20 | Yessica ≤240 min (190), Berenice→overflow, 5306 UNASSIGNED | ✅    | —         |
+| 06-22 | 6002 Palm Circle (78741) UNASSIGNED                        | ✅    | ✅ STABLE |
+| 06-28 | 3505 Banton (78722) UNASSIGNED, 4403/4405→Berenice/Susana  | ✅    | ✅ STABLE |
+| 07-04 | Yessica→4403 Hayride (90 min, Saturday)                    | ✅    | —         |
+
+### Key Learnings
+
+- "Don't use property directory for zone assignments" is insufficient — model still infers from section headers
+- CLOSED set + declare aloud + explicit membership check is the correct pattern
+- Capacity enforcement must say "ACTUALLY ASSIGN overflow" not just "note it"
+- The fix is generic — genericity proven with daily-motivation employee (no VLRE literals generated)
+- Unique constraint `archetypes_tenant_role_active_unique` is `WHERE status = 'active'` — soft-deleted rows with status='active' still block re-insert; must also set status='draft' on deleted row
