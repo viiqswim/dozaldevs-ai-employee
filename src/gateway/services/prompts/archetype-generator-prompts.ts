@@ -85,13 +85,13 @@ ${INJECTION_BOUNDARY}
 These two phases run in SEPARATE containers and have non-overlapping jobs. Getting the boundary wrong is the single most common generation error.
 
 **Definitions:**
-- \`execution_steps\` = gather inputs, do the work, and PRODUCE/DRAFT the deliverable. The phase ENDS by writing the draft to /tmp/ and handing it off with the submit-output FINAL STEP. Execution PRODUCES — it never sends the final output to its destination.
+- \`execution_steps\` = gather inputs, do the work, and PRODUCE/DRAFT the deliverable. The phase ENDS by handing off the draft with the submit-output FINAL STEP (plain English — no /tmp/ paths or CLI flags). Execution PRODUCES — it never sends the final output to its destination.
 - \`delivery_steps\` = take the APPROVED content (injected into the delivery prompt inside the \`<approved-content>\` XML block) and SEND it to its destination, then confirm. Delivery TRANSMITS — it does the actual posting/sending/emailing.
 
 **Annotated before/after contrast (a Slack digest employee):**
 - WRONG — posting inside execution_steps: "3. Post the summary to the team channel. 4. Submit output." This delivers during execution, so the content is sent BEFORE any approval can happen — the employee can never be safely switched to require approval.
 - RIGHT — drafted + handed off in execution; actually posted in delivery:
-  - execution_steps: "3. Write the completed summary to /tmp/draft.txt. 4. Finally, submit your completed summary for review so it can be delivered to the team."
+  - execution_steps: "3. Compile the completed summary. 4. Finally, submit your completed summary for review so it can be delivered to the team."
     - delivery_steps: "1. Parse the approved content from the delivery prompt and extract the \`draft\` field. 2. Post the approved summary to the \`$NOTIFICATION_CHANNEL\` Slack channel. 3. Submit output confirming delivery."
 
 **Anti-pattern rule:** NEVER post, send, email, or otherwise deliver the final output inside \`execution_steps\`. Execution drafts and hands off; delivery sends. An employee that delivers during execution cannot be safely switched to require approval.
@@ -121,12 +121,13 @@ If no runtime inputs are needed, omit \`input_schema\` entirely (do not include 
 
 **DATE/PERIOD RULE (MANDATORY)**: When the description implies the employee operates on a specific date, reporting period, or time range that may differ from the actual run date (e.g., "that day", "for that date", "for the period", "for yesterday", "checking out today"), you MUST:
 1. Create an \`input_schema\` item: \`{"key": "target_date", "label": "Target Date", "type": "date", "frequency": "every_run", "required": true, "description": "The date to process."}\`
-2. Use \`{{target_date}}\` in execution_steps wherever the date is referenced.
+2. Use \`{{target_date}}\` in execution_steps wherever the date is referenced — NEVER use prose like "the given date", "the provided date", or "today's date". The platform substitutes \`{{target_date}}\` with the literal date value before the employee runs, so the employee sees the actual date string directly.
 
-## Template Syntax in execution_steps
-Use \`{{key}}\` syntax in the \`execution_steps\` field for every detected input (matching the \`key\` in \`input_schema\`).
+## Template Syntax in execution_steps (MANDATORY — no exceptions)
+Use \`{{key}}\` syntax in the \`execution_steps\` field for EVERY declared input (matching the \`key\` in \`input_schema\`).
 Example: "1. Fetch Hostfully bookings for {{check_date}}. 2. Post results to Slack."
 The key must exactly match the snake_case \`key\` in the \`input_schema\` item.
+CRITICAL: NEVER instruct the employee to read an env var, run printenv, or compute the value via a shell command. The \`{{key}}\` placeholder IS the value — the platform injects it as literal text before the employee runs. Steps that say "read INPUT_TARGET_DATE" or "run printenv" are FORBIDDEN — use \`{{target_date}}\` directly.
 
 ## execution_steps Field Rules (CRITICAL)
 The \`execution_steps\` field MUST be a numbered list of concrete steps. At minimum 3 steps.
@@ -152,20 +153,15 @@ Good: "Read all messages from the general channel in the last 24 hours."
 Good: "Post the drafted summary to $NOTIFICATION_CHANNEL for review."
 Bad: "Run a specific CLI command with flags."
 
-**4. Write draft content to /tmp/ before submitting:**
-When the employee creates content (a message, summary, report), write it to a temp file first before calling submit-output. For example: "Write the completed summary to /tmp/draft.txt."
-
-**5. End with a FINAL STEP that submits output for review:**
+**4. End with a FINAL STEP that submits output for review:**
 The final step must use this exact phrasing:
 "Finally, submit your completed summary for review so it can be delivered to the team."
-CRITICAL: The submission step MUST pass the /tmp/ draft file path so the content reaches the delivery container. When classification is \`NEEDS_APPROVAL\`, the draft content must be included. Classification values:
-- \`NEEDS_APPROVAL\` — employee produced content that needs human review before delivery (include the draft file path)
-- \`NO_ACTION_NEEDED\` — nothing to report or no action required
+Do NOT include any /tmp/ paths, CLI flags, or tool invocations in this step — the platform handles the mechanics. Classification is determined at runtime by the employee based on whether content was produced.
 
-**6. End with a STOP directive:**
+**5. End with a STOP directive:**
 \`**STOP. Do nothing else. Your job is done.**\`
 
-**7. Always include \`/tools/platform/submit-output.ts\` in tool_registry.tools.**
+**6. Always include \`/tools/platform/submit-output.ts\` in tool_registry.tools.**
 
 ## Multi-Source Reasoning (MANDATORY)
 
@@ -505,7 +501,7 @@ ONE question per turn. Pick the most critical unknown. Do NOT skip this step eve
 
 **DATE/PERIOD RULE**: When the description or conversation implies the employee operates on a specific date, reporting period, or time range that may differ from the actual run date (e.g., "that day", "for that date", "a specific date we provide", "manually triggered with a date"), you MUST:
 1. Add an input_schema item: {"key": "target_date", "label": "Target Date", "type": "date", "frequency": "every_run", "required": true, "description": "The date to process."}
-2. Use {{target_date}} in execution_steps wherever the date is referenced.
+2. Use {{target_date}} in execution_steps wherever the date is referenced — NEVER use prose like "the given date", "the provided date", or "today's date". The platform substitutes {{target_date}} with the literal date value before the employee runs. NEVER instruct the employee to read an env var, run printenv, or compute the date via a shell command — {{target_date}} IS the value, injected as literal text.
 
 **MULTI-SOURCE RULE**: When the description mentions multiple distinct data sources (e.g., Hostfully for checkouts AND Notion for cleaner assignments), execution_steps MUST include a dedicated numbered step for EACH data source:
 1. Fetch primary data from System A (e.g., checkouts from Hostfully)
@@ -609,7 +605,7 @@ ${INJECTION_BOUNDARY}
 ${roleNameRule}
 - When proposing changes, preserve all fields not mentioned in the user's request.
 - Only modify what the user's request asks to change.
-- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses $NOTIFICATION_CHANNEL/$PUBLISH_CHANNEL env var references for delivery channels, uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands), and ends with a submit-output FINAL STEP using the exact phrase: "Finally, submit your completed summary for review so it can be delivered to the team."
+- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses $NOTIFICATION_CHANNEL/$PUBLISH_CHANNEL env var references for delivery channels, uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands, no printenv, no /tmp/ paths, no node -e shell commands), references declared inputs using {{key}} placeholders (e.g. {{target_date}}) NOT env vars or prose like "the given date", and ends with a submit-output FINAL STEP using the exact phrase: "Finally, submit your completed summary for review so it can be delivered to the team."
 - Always regenerate the overview field to accurately reflect any changes to identity, execution_steps, trigger_sources, or risk_model.
 - The overview field is written FOR HUMANS reviewing the configuration — use plain English, no technical syntax.
 

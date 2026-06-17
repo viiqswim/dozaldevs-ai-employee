@@ -182,3 +182,114 @@
 - Live-fetch confirmed: YES (all 5 dates) — `tsx /tools/hostfully/get-checkouts.ts --date 2026-06-17` + NOTION_QUERY_DATABASE (370d540b...) called on every run; the fetch mechanism works, only the date is wrong
 - {{target_date}} bug affects all dates — T13 must diagnose why the template compiler leaves {{target_date}} unresolved in compiled_agents_md; AGENTS.md pattern says to use `printenv INPUT_TARGET_DATE` but the archetype uses {{target_date}} syntax instead
 - Files written: evidence2/task-12-judgments/2026-06-28.md, 2026-07-04.md, summary.md
+
+## [2026-06-17] Task 14 Fix Loop — Iteration 1
+
+### Platform Fix Applied (commit c4d07e7a)
+
+- Root cause of {{target_date}} bug: `substituteTemplateVars()` existed in `template-vars.ts` but was NEVER called on the compiled AGENTS.md in execution-phase or delivery-phase. The env var `INPUT_TARGET_DATE` was set correctly by the lifecycle (machine-provisioner.ts:82-89), but the substitution step was missing.
+- Fix: Added `substituteTemplateVars(rawCompiledAgentsMd, buildTemplateVars())` in both `execution-phase.mts` and `delivery-phase.mts` after `compileAgentsMd()`. Generic — works for ALL input keys, not just `target_date`.
+- Also reverted bridge sentence from `DATE_PARAMETERIZATION_RULES` in `agents-md-compiler.mts` — wizard-generated archetypes use `{{target_date}}` which is now resolved by `substituteTemplateVars`, so the legacy injection is not needed.
+- 3 new unit tests added to `input-schema-pipeline.test.ts` proving multi-key generic substitution.
+
+### Verification Results
+
+- Docker rebuild: ✅ EXIT_CODE:0
+- Archetype `cleaning-schedule-v17` (id: 8ed564e5) created via converse-create 2-turn, vm_size=performance-1x, approval_required=false
+- Plumbing check: CLEAN (no printenv, node -e, getUTCDay, tsx /tools/, <approved-content>, /tmp/)
+- All 5 tasks reached Done status
+- `{{target_date}}` resolved in compiled_agents_md for ALL 5 tasks (DB verified)
+- Live-fetch proven: 384 log lines mentioning composio/NOTION/get-checkouts in task 509ba0ec log
+- daily-motivation (generic proof): task 3271be82 → Done, no regression
+- Baseline-B: guest-messaging (1055 chars, 4 tools), code-rotation (605 chars, 4 tools), daily-motivation (231 chars, 1 tool) — all PASS
+
+### Oracle Judgments (Iter 1)
+
+- 2026-06-15: ⚠️ PARTIAL — Yessica assigned to 3505 Banton Rd (78722, oracle: UNKNOWN). Trash incomplete.
+- 2026-06-20: ⚠️ PARTIAL — Total 725min correct! Yessica over-assigned (460min vs 190min Saturday limit). 5306 King Charles → Yessica (oracle: UNKNOWN).
+- 2026-06-22: ⚠️ PARTIAL — 6002 Palm Circle → Yessica (oracle: UNKNOWN/78741). Duration 165min vs 180min. Trash incomplete.
+- 2026-06-28: ⚠️ PARTIAL — All → Yessica (oracle: Berenice/Susana for 78744 Sunday, UNKNOWN for 78722). Trash incomplete.
+- 2026-07-04: ⚠️ PARTIAL — Yessica/90min correct! Trash duties missing (Monday reminder for 7213 Nutria Run + 271 Gina Dr).
+
+### Root Cause of Remaining Inaccuracies
+
+The platform fix works. The remaining errors are model reasoning quality:
+
+1. The archetype's execution_steps reference "Cleaning Rules database", "Cleaner Assignments database", "Trash Schedule database" — these don't exist as named databases in Notion. The actual pages are prose documents.
+2. The model can't reliably extract structured data from prose Notion pages using database-style queries.
+3. The model doesn't apply capacity limits (Yessica's Saturday 4h window).
+4. Trash duty logic is incomplete — model doesn't enumerate all properties in each cleaner's zone.
+
+### Next Iteration Needed
+
+To get CORRECT on all 5 dates, the archetype's execution_steps need to:
+
+1. Reference the actual Notion page IDs (370d540b...) directly
+2. Describe the prose structure of each page (not assume database format)
+3. Include explicit instructions for capacity limits and trash duty enumeration
+4. Provide the actual page IDs for each Notion document
+
+## [2026-06-17] Atlas verification of iter-2/3 (v19) — generator page-id fix WORKS
+
+### Generator fix confirmed effective
+
+- v20 execution_steps now reference all 3 REAL Notion page IDs (370d540b4380809a8ea0c11074f92abb, ...ca8676..., ...969a72...) and contain ZERO fictional "Cleaning Rules database"/"Cleaner Assignments database"/"Trash Schedule database" names. The Source Identifier Fidelity Rule (both prompt paths) fixed the hallucinated-source bug.
+
+### v19 (c6419e60) 5-date judgment by Atlas (tasks reached Done at 21:40):
+
+- 06-15 (6dece9ec): CORRECT — 271 Gina→Diana exclusive; 3505 Banton (78722)→NO ASIGNADO; real street names (3401 Breckenridge, 3412 Sand Dunes — NOT hallucinated Hovenweep); durations match.
+- 06-20 (ddcd55b2): CORRECT/near — Yessica capped 190min within Sat 4h limit; Berenice backup for excess (4403 A/B/S). Big improvement over iter-1 over-assignment.
+- 06-22 (a328865e): ⚠️ INCORRECT — 6002 Palm Circle → assigned Yessica/180min, but ORACLE says UNKNOWN (ZIP 78741 has NO cleaner in manual-personal). Duration right, assignment wrong. Employee inferred coverage for 78741 because directorio-operativo groups it in "78724/78741/78722" cluster. THIS IS THE REMAINING GENERIC DEFECT: employee must NOT infer cleaner coverage from ZIP-grouping in the property/trash directory; coverage comes ONLY from manual-personal roster; unlisted ZIP → UNASSIGNED.
+- 06-28 (b35cd55a): CORRECT — Berenice weekend backup for 4403+4405 Hayride (78744, Sunday, 180min); 3505 Banton (78722)→NO ASIGNADO; durations match. (This was the hardest date / biggest Baseline-A failure.)
+- 07-04 (776ae612): CORRECT — Yessica/4403 Hayride/90min; trash reminders for 7213 Nutria + 271 Gina present; post-collection confirm task for 3505 Banton.
+
+Net: v19 = 4/5 CORRECT. Only 06-22 fails (78741 inferred-coverage). Trash completeness and weekend backup now solid.
+
+### NEW config defect (subagent missed): approval_required
+
+- v19 AND v20 were INSERTed with risk_model {"approval_required": true, "timeout_hours":24} — the generator's DEFAULT — instead of {"approval_required": false}. Result: v20's 5 dates are STUCK in Reviewing (waiting for Slack approval that never comes; reviewing-watchdog will Fail them after 30 min). v19's tasks reached Done (different timing). For clean 5-date judging, the INSERT MUST force risk_model={"approval_required": false}. NOT a platform bug — an INSERT-config mistake.
+
+### Remaining work to close T14
+
+1. ONE generic generator refinement: instruct employee that coverage/assignment comes ONLY from the roster source (manual-personal); never infer a cleaner from ZIP groupings in other directories; unlisted ZIP → UNASSIGNED. Must be generic (no cleaning/ZIP specifics) + mirror both paths.
+2. Re-create fresh employee with approval_required=false; trigger 5 dates; confirm ALL 5 CORRECT (esp. 06-22 now UNASSIGNED for 78741).
+3. Genericity proof (daily-motivation) + Baseline-B regen + commit.
+
+## [2026-06-17] T14 CLOSED — Final Iteration (cleaning-schedule-v22)
+
+### Root cause confirmed
+
+Two prompt paths in `archetype-generator-prompts.ts` contradicted each other:
+
+- `SYSTEM_PROMPT_PRE` taught OLD plumbing: "Write draft content to /tmp/ before submitting"
+- `buildConverseSystemPromptPre` correctly taught intent-only: "no tsx /tools/... CLI commands"
+- Neither path emitted `{{target_date}}` — steps said "the given target date" (prose) so the model invented a date
+
+### Fix applied (this commit)
+
+- Removed `/tmp/draft.txt` from SYSTEM_PROMPT_PRE "RIGHT" example (line 94)
+- Removed "write draft to /tmp/" from execution_steps definition (line 88)
+- Replaced old rule 4 (write to /tmp/) with new rule 4 (plain-English final step, no /tmp/ or CLI)
+- Strengthened `{{target_date}}` rule in SYSTEM_PROMPT_PRE: "NEVER use prose like 'the given date'", "NEVER instruct to read env var, run printenv, or compute via shell command"
+- Mirrored same anti-plumbing + {{key}} rules into buildConverseSystemPromptPre (DATE/PERIOD RULE + Rules bullet)
+- REFINE_SYSTEM_PROMPT_PRE left out of scope (intentionally CLI-level)
+
+### Verification
+
+- Parity test: 60/60 PASS
+- Golden test: 3/3 PASS
+- Lint: CLEAN
+- HARD GATE: {{target_date}} present (3x), zero plumbing, all 3 real Notion page IDs verbatim
+- compiled_agents_md for 06-22: {{target_date}} resolved to 2026-06-22, zero plumbing in steps
+- 5/5 dates CORRECT (genuine — no hand-edits to execution_steps/delivery_steps)
+- Genericity proof: daily-motivation (DozalDevs tenant) — no VLRE literals, no plumbing, intent-only final step
+
+### Key learning: tool_registry gap
+
+Generator did NOT add /tools/composio/execute.ts despite steps reading Notion via Composio. COMPOSIO TOOL REGISTRY RULE not firing for this description pattern. Added manually to tool_registry (not execution_steps) to allow runtime. This is a separate generator bug to fix in a future iteration.
+
+### Archetype
+
+- ID: bdc95a01-8040-4b92-84ab-b6884e6b8801
+- role_name: cleaning-schedule-v22
+- Task IDs: 694500d1 (06-15), d3257c7d (06-20), b398cc00 (06-22), 7d75f8ba (06-28), 5420f695 (07-04)
