@@ -95,14 +95,14 @@ Make every employee structurally guaranteed to be born with BOTH a non-empty exe
 
 ### Definition of Done
 
-- [ ] Generator never emits `delivery_steps: null` — a generated deliverable employee always has non-empty delivery prose (RED proves old behavior, GREEN proves fix)
-- [ ] Generator prompt contains the execution-vs-delivery boundary definition + one annotated contrast + the "never deliver in execution" anti-pattern
-- [ ] Create + edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed) — integration test proves rejection
-- [ ] Verification query returns **0 rows**: `SELECT ... WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps='')`
-- [ ] Both retrofitted employees trigger → reach `tasks.status = Done` via the delivery container
-- [ ] Approval-flip regression on one employee reaches Done through the full approval path
-- [ ] `pnpm test -- --run` and `pnpm test:integration` pass
-- [ ] Seed reseed reproduces the retrofitted config (no escape-hatch rows)
+- [x] Generator never emits `delivery_steps: null` — a generated deliverable employee always has non-empty delivery prose (RED proves old behavior, GREEN proves fix)
+- [x] Generator prompt contains the execution-vs-delivery boundary definition + one annotated contrast + the "never deliver in execution" anti-pattern
+- [x] Create + edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed) — integration test proves rejection
+- [x] Verification query returns **0 rows**: `SELECT ... WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps='')`
+- [x] Both retrofitted employees trigger → reach `tasks.status = Done` via the delivery container
+- [x] Approval-flip regression on one employee reaches Done through the full approval path
+- [x] `pnpm test -- --run` and `pnpm test:integration` pass
+- [x] Seed reseed reproduces the retrofitted config (no escape-hatch rows)
 
 ### Must Have
 
@@ -347,7 +347,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 5. Approval-flip regression — flipping approval ON no longer fails
+- [x] 5. Approval-flip regression — flipping approval ON no longer fails
 
   **What to do**:
   - On ONE retrofitted employee (recommend `daily-motivation` in local, or a throwaway clone), set `risk_model.approval_required: true` via PATCH (tenant-scoped).
@@ -613,12 +613,12 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Generator can no longer emit `delivery_steps: null`
-- [ ] Generator prompt teaches the execution-vs-delivery boundary
-- [ ] Create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed)
-- [ ] Both employees deliver via the delivery container to Done
-- [ ] Approval-flip no longer fails
-- [ ] Verification query returns 0 rows
-- [ ] `deliverable_type` retained; model-selection + time-estimator untouched; removal logged as backlog
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Generator can no longer emit `delivery_steps: null`
+- [x] Generator prompt teaches the execution-vs-delivery boundary
+- [x] Create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed)
+- [x] Both employees deliver via the delivery container to Done
+- [x] Approval-flip no longer fails
+- [x] Verification query returns 0 rows
+- [x] `deliverable_type` retained; model-selection + time-estimator untouched; removal logged as backlog
