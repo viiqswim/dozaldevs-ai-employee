@@ -285,3 +285,47 @@ null || raw.delivery_steps.trim().length === 0 ? DEFAULT : raw.delivery_steps`. 
   patch-identity). pnpm build EXIT_CODE:0.
 - Golden fixture (system-prompt.txt) regenerated — prompt text changed so this is mandatory,
   else golden-prompts.test.ts byte-compare fails on next run.
+
+## [2026-06-16] Task 9 — GREEN: close null/null GATE loophole (admin-archetypes.ts) (COMPLETE)
+
+### Division of labor with T8 (ran concurrently)
+
+- T8 fixed the GENERATOR + converse-create CREATE allowlist (commit 02703d88). T9 fixes
+  the POST/PATCH save-time GATE in admin-archetypes.ts. So when I went to edit
+  converse-create's applyCreateAllowlist, it was ALREADY done by T8 — git diff showed it
+  unchanged-from-HEAD but on-disk it already had the `|| trim().length === 0` default.
+  Confirmed via `git log -S 'trim().length === 0' -- <file>` → 02703d88. No edit needed.
+- Lesson: in a multi-task plan where tasks run in parallel, ALWAYS `git log -S` a line
+  before editing — a sibling task may have already shipped it.
+
+### POST gate: removed resolveDelivery() call AND its import
+
+- OLD null/null → resolveDelivery rule 4 `no-delivery-escape-hatch` (NOT misconfigured) → 201. NEW: direct `if (!rest.delivery_steps || rest.delivery_steps.trim() === '')` → 400,
+  regardless of deliverable_type. resolveDelivery became unused in this file → had to
+  delete `import { resolveDelivery }` or tsc/lint fails on unused import. (A lingering
+  comment still NAMES resolveDelivery to document the runtime escape hatch lives elsewhere
+  — that's fine, comments don't count as usage.)
+
+### PATCH gate: kept conditional, swapped resolver → effective-value empty check
+
+- Condition UNCHANGED (`rest.deliverable_type !== undefined || rest.delivery_steps !==
+undefined`) — the critical conditionality. Verified the 2 PATCH unit suites
+  (patch-identity 4 + enforce-gate 4) only patch NON-delivery fields, so the gate never
+  fires for them → all stay green. Unconditional gate would break them (prior-plan lesson
+  re-confirmed).
+
+### Test (b) flip — distinct input from (e), not a duplicate
+
+- (e) sends delivery_steps:'' . (b) now OMITS delivery_steps (schema `.default(null)` →
+  null). Both null/null → 400 MISSING_DELIVERY_CONFIG. Covers omitted-vs-empty-string.
+  (T8 separately handled the UNIT-test (b)/(d) dup in archetype-generator-delivery.test.ts
+  by deletion; my (b) is the INTEGRATION test in archetypes-delivery-gate.test.ts — flipped
+  to 400 per T9 brief.)
+
+### Verification (all green)
+
+- Integration archetypes-delivery-gate.test.ts: 5/5 (a,b,c,d,e). EXIT:0.
+- Unit converse-create(14)+patch-identity(4)+enforce-gate(4)=22/22. EXIT:0.
+- pnpm build (tsc) EXIT:0. eslint changed files EXIT:0. LSP unavailable (no
+  typescript-language-server pinned) — tsc is authoritative.
+- Pre-existing try/catch repo-write TypeError logs in unit output are NOT failures.

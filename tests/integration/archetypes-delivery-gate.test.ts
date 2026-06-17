@@ -74,7 +74,7 @@ describe('POST /admin/tenants/:tenantId/archetypes — delivery hard-gate', () =
     expect(JSON.parse(res.body).error).toBe('MISSING_DELIVERY_CONFIG');
   });
 
-  it('(b) ESCAPE HATCH — deliverable_type null + empty delivery_steps → 201', async () => {
+  it('(b) REJECT — deliverable_type null + delivery_steps omitted → 400 MISSING_DELIVERY_CONFIG', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tenants/${SEEDED_DOZALDEVS_TENANT_ID}/archetypes`,
@@ -83,19 +83,16 @@ describe('POST /admin/tenants/:tenantId/archetypes — delivery hard-gate', () =
         authorization: `Bearer ${ADMIN_TEST_KEY}`,
       },
       payload: {
-        role_name: `${TEST_ROLE_PREFIX}escape-hatch`,
+        role_name: `${TEST_ROLE_PREFIX}no-delivery`,
         model: 'deepseek/deepseek-v4-flash',
         runtime: 'opencode',
-        instructions: 'Do the work and act in-place; no separate delivery needed.',
+        instructions: 'Do the work; no delivery step described.',
         deliverable_type: null,
-        delivery_steps: '',
       },
     });
 
-    expect(res.statusCode).toBe(201);
-    const body = JSON.parse(res.body);
-    expect(body.id).toBeTruthy();
-    expect(body.deliverable_type).toBeNull();
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('MISSING_DELIVERY_CONFIG');
   });
 
   it('(d) VALID — deliverable_type set + non-empty delivery_steps → 201', async () => {
