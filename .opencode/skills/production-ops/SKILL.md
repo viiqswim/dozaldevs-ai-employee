@@ -40,9 +40,13 @@ curl -s -X PATCH -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: ap
 curl -s -X PUT -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
   "https://api.render.com/v1/services/$RENDER_SERVICE_ID/env-vars" -d '[{"key":"FOO","value":"bar"}]'
 
-# Get runtime logs (SSE stream — pipe through head to limit output)
-curl -sN -H "Authorization: Bearer $RENDER_API_KEY" \
-  "https://api.render.com/v1/services/$RENDER_SERVICE_ID/logs?tail=100" | head -c 20000
+# Get runtime logs (the per-service logs path 404s now — use the top-level /v1/logs endpoint).
+# Needs ownerId (the team id). Time window is required for useful output.
+RENDER_OWNER_ID=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$RENDER_SERVICE_ID" | jq -r '.ownerId')
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/logs?ownerId=$RENDER_OWNER_ID&resource=$RENDER_SERVICE_ID&limit=100&startTime=2026-06-16T19:00:00Z&endTime=2026-06-16T19:10:00Z" \
+  | jq -r '.logs[] | "\(.timestamp) \(.message)"'
 
 # List env vars (always use ?limit=100 — default paginates at ~20)
 curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
@@ -53,7 +57,7 @@ curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
 
 - `PUT /env-vars` replaces ALL env vars — always include the full list or you will wipe existing secrets
 - `PATCH /services/{id}` with `serviceDetails.dockerfilePath` does NOT work — must nest under `serviceDetails.envSpecificDetails.dockerfilePath`
-- Runtime logs endpoint: `GET /v1/services/{id}/logs` — returns SSE stream; use `curl -sN` and pipe to `head`
+- Runtime logs endpoint: the per-service path `GET /v1/services/{id}/logs` **returns `404 page not found`** (verified 2026-06-16). Use the top-level `GET /v1/logs?ownerId={ownerId}&resource={serviceId}&limit=N&startTime=...&endTime=...` instead. Get `ownerId` from `GET /v1/services/{id}` (`.ownerId`, the team id — currently `tea-d1uscc3uibrs738pu040`). Returns JSON (`.logs[].message` are JSON log lines), not an SSE stream.
 - Deploy logs (build output) are only visible in the Render dashboard, not via API
 - `GET /env-vars` paginates at ~20 by default — always append `?limit=100` when listing or verifying env vars, or keys will appear missing even when set
 - Prod `DATABASE_URL` MUST include `?pgbouncer=true` (it uses the 6543 transaction pooler) — without it Prisma intermittently crashes at boot with `42P05 prepared statement "s0" already exists`. `DATABASE_URL_DIRECT` (port 5432, used for migrations) must NOT have the param.

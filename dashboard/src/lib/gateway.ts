@@ -570,10 +570,11 @@ export async function setInvitationPassword(token: string, password: string): Pr
   });
 }
 
-export async function acceptInvitation(token: string): Promise<void> {
+export async function acceptInvitation(token: string, accessToken?: string): Promise<void> {
   await gatewayFetch<void>('/invitations/accept', {
     method: 'POST',
     body: JSON.stringify({ token }),
+    ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
   });
 }
 

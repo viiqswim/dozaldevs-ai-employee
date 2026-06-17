@@ -104,6 +104,7 @@ type PrismaOverrides = {
   userFindFirst?: ReturnType<typeof vi.fn>;
   membershipFindFirst?: ReturnType<typeof vi.fn>;
   membershipCreate?: ReturnType<typeof vi.fn>;
+  membershipUpdate?: ReturnType<typeof vi.fn>;
   transaction?: ReturnType<typeof vi.fn>;
 };
 
@@ -129,6 +130,7 @@ function makeApp(overrides: PrismaOverrides = {}) {
   const userFind = overrides.userFindFirst ?? defaultUserFindFirst;
   const memFind = overrides.membershipFindFirst ?? defaultMembershipFindFirst;
   const memCreate = overrides.membershipCreate ?? defaultMembershipCreate;
+  const memUpdate = overrides.membershipUpdate ?? vi.fn().mockResolvedValue({});
 
   const defaultTransaction = vi
     .fn()
@@ -136,7 +138,7 @@ function makeApp(overrides: PrismaOverrides = {}) {
       const tx = {
         tenantInvitation: { findFirst: invFindFirst, update: invUpdate },
         user: { findFirst: userFind },
-        tenantMembership: { findFirst: memFind, create: memCreate },
+        tenantMembership: { findFirst: memFind, create: memCreate, update: memUpdate },
       };
       return fn(tx);
     });
@@ -316,34 +318,57 @@ describe('POST /admin/tenants/:tenantId/invitations', () => {
 
 describe('POST /invitations/accept', () => {
   const TOKEN = 'a'.repeat(64);
+  const INVITEE_EMAIL = 'new@vlrealestate.co';
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('accepts a valid pending invitation and creates membership', async () => {
-    const pendingInvitation = {
+  function makePendingInvitation(overrides: Record<string, unknown> = {}) {
+    return {
       id: INVITATION_ID,
       tenant_id: TENANT_ID,
-      email: 'new@example.com',
+      email: INVITEE_EMAIL,
       role: TenantRole.MEMBER,
       status: 'pending',
       expires_at: new Date(Date.now() + 86400000),
+      ...overrides,
     };
-    const userRecord = { id: USER_ID, email: 'new@example.com' };
-    const invitationFindFirst = vi.fn().mockResolvedValue(pendingInvitation);
-    const userFindFirst = vi.fn().mockResolvedValue(userRecord);
+  }
+
+  beforeEach(() => {
+    currentAuth = { auth: makeUser({ email: INVITEE_EMAIL }) };
+    vi.clearAllMocks();
+  });
+
+  it('rejects unauthenticated request with 401', async () => {
+    currentAuth = {};
+    const app = makeApp();
+    const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 400 when token is missing', async () => {
+    const app = makeApp();
+    const res = await request(app).post('/invitations/accept').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('MISSING_TOKEN');
+  });
+
+  it('accepts a valid pending invitation and creates membership (no user creation)', async () => {
+    const invitationFindFirst = vi.fn().mockResolvedValue(makePendingInvitation());
     const membershipFindFirst = vi.fn().mockResolvedValue(null);
     const membershipCreate = vi.fn().mockResolvedValue({});
     const invitationUpdate = vi.fn().mockResolvedValue({});
+    const membershipUpdate = vi.fn().mockResolvedValue({});
 
     const transaction = vi
       .fn()
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           tenantInvitation: { findFirst: invitationFindFirst, update: invitationUpdate },
-          user: { findFirst: userFindFirst },
-          tenantMembership: { findFirst: membershipFindFirst, create: membershipCreate },
+          user: { findFirst: vi.fn() },
+          tenantMembership: {
+            findFirst: membershipFindFirst,
+            create: membershipCreate,
+            update: membershipUpdate,
+          },
         };
         return fn(tx);
       });
@@ -368,11 +393,57 @@ describe('POST /invitations/accept', () => {
     );
   });
 
-  it('returns 400 when token is missing', async () => {
-    const app = makeApp();
-    const res = await request(app).post('/invitations/accept').send({});
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('MISSING_TOKEN');
+  it('returns 200 idempotently when membership is already active', async () => {
+    const invitationFindFirst = vi.fn().mockResolvedValue(makePendingInvitation());
+    const membershipFindFirst = vi.fn().mockResolvedValue({
+      tenant_id: TENANT_ID,
+      user_id: USER_ID,
+      role: TenantRole.MEMBER,
+      deleted_at: null,
+    });
+    const membershipCreate = vi.fn();
+    const invitationUpdate = vi.fn().mockResolvedValue({});
+
+    const transaction = vi
+      .fn()
+      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          tenantInvitation: { findFirst: invitationFindFirst, update: invitationUpdate },
+          user: { findFirst: vi.fn() },
+          tenantMembership: {
+            findFirst: membershipFindFirst,
+            create: membershipCreate,
+            update: vi.fn(),
+          },
+        };
+        return fn(tx);
+      });
+
+    const app = makeApp({ transaction });
+    const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
+    expect(res.status).toBe(200);
+    expect(membershipCreate).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when authenticated email does not match invitation email', async () => {
+    currentAuth = { auth: makeUser({ email: 'other@vlrealestate.co' }) };
+    const invitationFindFirst = vi.fn().mockResolvedValue(makePendingInvitation());
+
+    const transaction = vi
+      .fn()
+      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          tenantInvitation: { findFirst: invitationFindFirst, update: vi.fn() },
+          user: { findFirst: vi.fn() },
+          tenantMembership: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+        };
+        return fn(tx);
+      });
+
+    const app = makeApp({ transaction });
+    const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('EMAIL_MISMATCH');
   });
 
   it('returns 404 when invitation not found', async () => {
@@ -382,7 +453,7 @@ describe('POST /invitations/accept', () => {
         const tx = {
           tenantInvitation: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
           user: { findFirst: vi.fn() },
-          tenantMembership: { findFirst: vi.fn(), create: vi.fn() },
+          tenantMembership: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         };
         return fn(tx);
       });
@@ -398,15 +469,11 @@ describe('POST /invitations/accept', () => {
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           tenantInvitation: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: INVITATION_ID,
-              status: 'accepted',
-              expires_at: new Date(Date.now() + 86400000),
-            }),
+            findFirst: vi.fn().mockResolvedValue(makePendingInvitation({ status: 'accepted' })),
             update: vi.fn(),
           },
           user: { findFirst: vi.fn() },
-          tenantMembership: { findFirst: vi.fn(), create: vi.fn() },
+          tenantMembership: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         };
         return fn(tx);
       });
@@ -422,15 +489,11 @@ describe('POST /invitations/accept', () => {
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           tenantInvitation: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: INVITATION_ID,
-              status: 'revoked',
-              expires_at: new Date(Date.now() + 86400000),
-            }),
+            findFirst: vi.fn().mockResolvedValue(makePendingInvitation({ status: 'revoked' })),
             update: vi.fn(),
           },
           user: { findFirst: vi.fn() },
-          tenantMembership: { findFirst: vi.fn(), create: vi.fn() },
+          tenantMembership: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         };
         return fn(tx);
       });
@@ -446,15 +509,15 @@ describe('POST /invitations/accept', () => {
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           tenantInvitation: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: INVITATION_ID,
-              status: 'pending',
-              expires_at: new Date(Date.now() - 86400000),
-            }),
+            findFirst: vi
+              .fn()
+              .mockResolvedValue(
+                makePendingInvitation({ expires_at: new Date(Date.now() - 86400000) }),
+              ),
             update: vi.fn(),
           },
           user: { findFirst: vi.fn() },
-          tenantMembership: { findFirst: vi.fn(), create: vi.fn() },
+          tenantMembership: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         };
         return fn(tx);
       });
@@ -462,81 +525,6 @@ describe('POST /invitations/accept', () => {
     const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
     expect(res.status).toBe(410);
     expect(res.body.error).toBe('EXPIRED');
-  });
-
-  it('creates user inline and accepts when user record not found', async () => {
-    const newUserId = 'cccccccc-cccc-4ccc-cccc-cccccccccccc';
-    const membershipCreate = vi.fn().mockResolvedValue({});
-    const invitationUpdate = vi.fn().mockResolvedValue({});
-    const userCreate = vi.fn().mockResolvedValue({ id: newUserId, email: 'new@example.com' });
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: vi.fn().mockResolvedValue({ users: [] }),
-    });
-    const transaction = vi
-      .fn()
-      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          tenantInvitation: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: INVITATION_ID,
-              tenant_id: TENANT_ID,
-              email: 'new@example.com',
-              role: TenantRole.MEMBER,
-              status: 'pending',
-              expires_at: new Date(Date.now() + 86400000),
-            }),
-            update: invitationUpdate,
-          },
-          user: { findFirst: vi.fn().mockResolvedValue(null), create: userCreate },
-          tenantMembership: {
-            findFirst: vi.fn().mockResolvedValue(null),
-            create: membershipCreate,
-          },
-        };
-        return fn(tx);
-      });
-    const app = makeApp({ transaction });
-    const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Invitation accepted');
-    expect(userCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ email: 'new@example.com', role: 'USER', status: 'active' }),
-      }),
-    );
-    expect(membershipCreate).toHaveBeenCalled();
-  });
-
-  it('returns 409 when user is already a member', async () => {
-    const transaction = vi
-      .fn()
-      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          tenantInvitation: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: INVITATION_ID,
-              tenant_id: TENANT_ID,
-              email: 'new@example.com',
-              role: TenantRole.MEMBER,
-              status: 'pending',
-              expires_at: new Date(Date.now() + 86400000),
-            }),
-            update: vi.fn(),
-          },
-          user: { findFirst: vi.fn().mockResolvedValue({ id: USER_ID }) },
-          tenantMembership: {
-            findFirst: vi.fn().mockResolvedValue({ tenant_id: TENANT_ID, user_id: USER_ID }),
-            create: vi.fn(),
-          },
-        };
-        return fn(tx);
-      });
-    const app = makeApp({ transaction });
-    const res = await request(app).post('/invitations/accept').send({ token: TOKEN });
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('ALREADY_MEMBER');
   });
 });
 

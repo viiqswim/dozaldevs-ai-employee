@@ -42,7 +42,8 @@ export default function AcceptInvitePage() {
     setSubmitting(true);
     setError(null);
     try {
-      await acceptInvitation(token);
+      const { data: sessionData } = await supabase.auth.getSession();
+      await acceptInvitation(token, sessionData.session?.access_token);
       navigate('/dashboard/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -66,14 +67,14 @@ export default function AcceptInvitePage() {
     let signedIn = false;
     try {
       await setInvitationPassword(token, password);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: invitation!.email,
         password,
       });
       if (signInError) throw signInError;
       signedIn = true;
       setAlreadyAuthed(true);
-      await acceptInvitation(token);
+      await acceptInvitation(token, signInData.session?.access_token);
       navigate('/dashboard/');
     } catch (err) {
       if (signedIn) {
