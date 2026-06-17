@@ -72,7 +72,7 @@ export const SYSTEM_PROMPT_PRE = `You are an expert AI employee architect. Given
 ${INJECTION_BOUNDARY}
 
 ## Rules (CRITICAL — never violate)
-- \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
+- \`model\` should be \`deepseek/deepseek-v4-flash\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
 - \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity. If the description implies non-English output (e.g., mentions a non-English team, non-English documents, or the tenant's connected systems have non-English content), the identity MUST specify the output language explicitly. Example: "You produce all schedules and communications in Spanish."
@@ -359,7 +359,7 @@ export const SYSTEM_PROMPT_POST = `
 Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no explanation):
 {
   "role_name": "kebab-case-slug",
-  "model": "minimax/minimax-m2.7",
+  "model": "deepseek/deepseek-v4-flash",
   "runtime": "opencode",
   "identity": "2-4 sentences describing who this employee is, their persona, role, and org context.",
   "execution_steps": "1. First step.\\n2. Second step.\\n3. Third step.",
@@ -419,7 +419,7 @@ export const REFINE_SYSTEM_PROMPT_PRE = `You are an expert AI employee architect
 ${INJECTION_BOUNDARY}
 
 ## Rules (CRITICAL — never violate)
-- \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
+- \`model\` should be \`deepseek/deepseek-v4-flash\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - Preserve all fields that are not affected by the refinement instruction
 - Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses \`$NOTIFICATION_CHANNEL\`/\`$PUBLISH_CHANNEL\` env var references for delivery channels, includes explicit \`tsx /tools/...\` invocations, writes content to /tmp/draft.txt, ends with a submit-output FINAL STEP (\`tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"\`), and ends with a STOP directive. Preserve these patterns if already present; add them if missing.

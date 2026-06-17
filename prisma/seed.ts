@@ -3123,7 +3123,7 @@ No specific house rules provided.
       identity:
         'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3147,7 +3147,7 @@ No specific house rules provided.
       identity:
         'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3213,7 +3213,7 @@ CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do no
       identity: DAILY_MOTIVATION_IDENTITY,
       execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
       delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
@@ -3232,7 +3232,7 @@ CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do no
       identity: DAILY_MOTIVATION_IDENTITY,
       execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
       delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
@@ -3260,7 +3260,7 @@ CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do no
       identity:
         'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3284,7 +3284,7 @@ CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do no
       identity:
         'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3317,7 +3317,7 @@ CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do no
       identity:
         "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
       execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
@@ -3362,7 +3362,7 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       identity:
         "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
       execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
@@ -3438,7 +3438,7 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "Rotated codes for X properties (Y succeeded, Z failed)" \\
   --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
         tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
@@ -3481,7 +3481,7 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "Rotated codes for X properties (Y succeeded, Z failed)" \\
   --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
         tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
@@ -3520,7 +3520,7 @@ Personalize the quote with context about the team's work and the specific ticket
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
@@ -3547,7 +3547,7 @@ Personalize the quote with context about the team's work and the specific ticket
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
@@ -4841,7 +4841,8 @@ CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do n
       supports_tools: true,
       supports_structured_output: true,
       is_active: true,
-      notes: 'Current default model for all AI employees. Approved for production use.',
+      notes:
+        'Approved for production use. NOT recommended for tool-calling workflows — fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03). Use deepseek/deepseek-v4-flash for tool-calling tasks.',
       strengths:
         'Balanced cost/performance. Currently the default model for new archetypes. Proven reliable in production for non-tool-calling workflows.',
       weaknesses:
@@ -5224,9 +5225,9 @@ CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do n
       is_free: false,
       throughput_tokens_per_sec: null,
       latency_seconds: null,
-      tool_call_error_rate: null,
+      tool_call_error_rate: 0.005,
       structured_output_error_rate: null,
-      quality_index: null,
+      quality_index: 50.0,
       agentic_score: null,
       tool_use_score: null,
       instruction_following_score: null,
@@ -5235,7 +5236,7 @@ CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do n
       supports_structured_output: true,
       is_active: true,
       notes:
-        'OpenCodeGo-routed. E2E verified for reliable tool calling. Recommended for high-volume tool-calling tasks.',
+        'OpenCodeGo-routed. E2E verified for reliable tool calling. Default model for new archetypes.',
       strengths:
         'Extremely cheap ($0.098/$0.197 per million tokens). Reliable tool calling — E2E verified in production. 1M context window. Fast inference. Best value option for high-volume, tool-calling tasks.',
       weaknesses:
@@ -5372,7 +5373,7 @@ STEP 3 — Submit output (MANDATORY final step):
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
       execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -5399,7 +5400,7 @@ STEP 3 — Submit output (MANDATORY final step):
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
       execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [

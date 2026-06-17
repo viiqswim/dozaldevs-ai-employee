@@ -23,7 +23,7 @@ POST /admin/tenants/:tenantId/archetypes/recommend-model
 
 The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global, not tenant-scoped).
 
-**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used.
+**Default seed model**: `deepseek/deepseek-v4-flash` — safe fallback when the recommendation engine is not used.
 
 **Seeded catalog models (global):**
 
@@ -143,7 +143,7 @@ const archetype = await (prisma.archetype as any).upsert({
     runtime: 'opencode', // always opencode
     system_prompt: MY_SYSTEM_PROMPT, // WHO the employee is
     instructions: MY_INSTRUCTIONS, // WHAT to do when triggered
-    model: 'minimax/minimax-m2.7', // MUST be an approved model
+    model: 'deepseek/deepseek-v4-flash', // MUST be an approved model
     deliverable_type: 'slack_message', // semantic label
     tool_registry: { tools: ['/tools/slack/post-message.ts'] },
     trigger_sources: { type: 'manual' },
@@ -302,7 +302,7 @@ In `prisma/seed.ts`, add a `prisma.archetype.upsert` call with:
 - [ ] `role_name` — URL-safe slug (no spaces)
 - [ ] `system_prompt` — employee identity (WHO, not WHAT)
 - [ ] `instructions` — step-by-step procedure (WHAT, with $ENV_VARS and tool calls)
-  - [ ] `model` — use `recommend-model` endpoint output, or `minimax/minimax-m2.7` as default seed
+  - [ ] `model` — use `recommend-model` endpoint output, or `deepseek/deepseek-v4-flash` as default seed
 - [ ] `runtime: 'opencode'`
 - [ ] `risk_model` — approval gate config
 - [ ] `agents_md: PLATFORM_AGENTS_MD` — always set this
@@ -345,7 +345,7 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 
 | Field                   | daily-summarizer                   | guest-messaging                    | code-rotation                      |
 | ----------------------- | ---------------------------------- | ---------------------------------- | ---------------------------------- |
-| `model`                 | `minimax/minimax-m2.7`             | `minimax/minimax-m2.7`             | `minimax/minimax-m2.7`             |
+| `model`                 | `deepseek/deepseek-v4-flash`       | `deepseek/deepseek-v4-flash`       | `deepseek/deepseek-v4-pro`         |
 | `approval_required`     | `true`                             | `true`                             | `false`                            |
 | `notification_channel`  | `null` (uses tenant default)       | `'C0AMGJQN05S'` (specific channel) | `'C0960S2Q8RL'` (specific channel) |
 | `concurrency_limit`     | `1` (one daily run)                | `5` (multiple concurrent guests)   | `1` (Sifely rate limits)           |
@@ -424,7 +424,7 @@ If the description yields no valid slug (e.g. emoji-only input), a deterministic
 
 ## Common Mistakes to Avoid
 
-1. **Wrong model** — use only models from the `model_catalog`. Default seed: `minimax/minimax-m2.7`. Use the `recommend-model` endpoint rather than hardcoding.
+1. **Wrong model** — use only models from the `model_catalog`. Default seed: `deepseek/deepseek-v4-flash`. Use the `recommend-model` endpoint rather than hardcoding.
 2. **tenant_id in update** — immutable. Only in `create` block of upsert.
 3. **Credentials in `.env`** — go in `tenant_secrets`. Only legitimate `.env` exception: `WEBHOOK_PUBLIC_URL`.
 4. **Channel IDs in shared code** — channel IDs belong in `notification_channel` field or archetype `instructions`, not in `employee-lifecycle.ts`.
