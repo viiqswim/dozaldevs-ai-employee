@@ -1,0 +1,44 @@
+TASK 4 — BASELINE-A EVIDENCE
+Date: 2026-06-20 (Saturday)
+Archetype: 77e77c86-3bce-49a0-84e3-ccf7dac37b33 (cleaning-schedule-v16, hardcoded)
+Trigger: {"inputs":{"target_date":"2026-06-20"}}
+
+TRIGGER RESPONSE:
+{"task_id":"9233e75e-481c-44d9-afa1-f3ad7154fcd2","status_url":"/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/9233e75e-481c-44d9-afa1-f3ad7154fcd2"}
+
+TASK ID: 9233e75e-481c-44d9-afa1-f3ad7154fcd2
+
+STATUS TRACE (task_status_log):
+  Received      -> Triaging       2026-06-17 17:00:34.768
+  Triaging      -> AwaitingInput  2026-06-17 17:00:35.123
+  AwaitingInput -> Ready          2026-06-17 17:00:35.131
+  Ready         -> Executing      2026-06-17 17:00:35.139
+  Submitting    -> Validating     2026-06-17 17:02:20.493
+  Validating    -> Submitting     2026-06-17 17:02:20.503
+  Submitting    -> Delivering     2026-06-17 17:02:20.575
+  Delivering    -> Done           2026-06-17 17:02:52.388
+
+FINAL STATUS: Done
+DURATION: ~2m18s (Received 17:00:34 -> Done 17:02:52)
+CLASSIFICATION: NEEDS_APPROVAL
+DELIVERABLE: deliverables.external_ref=9233e75e... delivery_type=slack_message
+
+COMPARISON VERDICT vs Task-3 oracle:
+  CLEANING ASSIGNMENTS: EXACT MATCH (grand total 725 min)
+    - Diana 271-Gina-R4 25min          [oracle: 25] OK
+    - Yessica 190min (Nutria 90 + Hovenweep 100)   [oracle total: 190] OK
+    - Berenice 270min (4403 A/B/S)     [oracle total: 270] OK
+    - Zenaida 150min (219-Paul 90 + 407-Gevers 60) [oracle: 150] OK
+    - SIN ASIGNAR 5306-King-Charles 90min (78724 gap) [oracle: UNKNOWN 90] OK
+    - Grand total 725 min              [oracle: 725] OK
+    NOTE: Yessica/Berenice internal 78744 allocation differs from oracle's
+    suggested split, BUT per-cleaner totals are identical and oracle explicitly
+    flags this split as flexible ("either assignment is valid"). Not a real divergence.
+  TRASH DUTIES: DIVERGENT
+    - Baseline emitted 6 "recolección lunes" reminders; oracle says NO new trash
+      triggers on Saturday (Monday reminder maintained from Friday).
+    - Hallucinated street names: "3401 Hovenweep Ave" / "3412 Hovenweep Ave"
+      should be 3401 Breckenridge Dr / 3412 Sand Dunes Ave.
+    - Wrong pickup day: tagged 4403 Hayride as Monday pickup (actually Thursday).
+
+OVERALL: Cleaning = exact match (best-case day). Trash = unreliable (hallucinations).

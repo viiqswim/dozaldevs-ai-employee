@@ -1,0 +1,182 @@
+{
+  "turn1": {
+    "request": {
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Necesito un empleado que cada día revise qué propiedades tienen checkout en Hostfully y prepare el horario de limpieza para el equipo. Debe consultar tres páginas de Notion para saber los tiempos de limpieza de cada propiedad, las zonas asignadas a cada limpiadora, y el calendario de basura. El horario debe enviarse en español al canal de Slack del equipo."
+        }
+      ]
+    },
+    "response": {
+      "kind": "question",
+      "question": "¿A qué hora del día debería ejecutarse este empleado? Por ejemplo, a las 8:00 AM para que el horario esté listo al inicio de la jornada."
+    }
+  },
+  "turn2": {
+    "request": {
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Necesito un empleado..."
+        },
+        {
+          "role": "assistant",
+          "content": "¿A qué hora del día..."
+        },
+        {
+          "role": "user",
+          "content": "Se activa manualmente cada día con la fecha del día como parámetro. Las tres páginas de Notion son: tiempos de limpieza por propiedad (ID: 370d540b438080ca8676e61856488960), zonas asignadas a cada limpiadora (ID: 370d540b438080969a72c16c20defc70), y el calendario de basura (ID: 370d540b4380809a8ea0c11074f92abb). El horario sale en español al canal de Slack C0B71QSMZKQ. No necesita aprobación, que se publique directo."
+        }
+      ]
+    },
+    "response": {
+      "kind": "proposal",
+      "baseline": {
+        "model": "deepseek/deepseek-v4-flash",
+        "runtime": "opencode",
+        "identity": "",
+        "execution_steps": "",
+        "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+        "deliverable_type": null,
+        "overview": {
+          "role": "",
+          "trigger": "",
+          "workflow": [],
+          "tools_used": "",
+          "output": "",
+          "approval": ""
+        },
+        "risk_model": {
+          "approval_required": false,
+          "timeout_hours": 24
+        },
+        "tool_registry": {
+          "tools": []
+        },
+        "trigger_sources": {
+          "type": "manual"
+        }
+      },
+      "proposal": {
+        "role_name": "programacion-limpieza-diario",
+        "model": "minimax/minimax-m2.7",
+        "runtime": "opencode",
+        "identity": "Soy el asistente de programación de limpieza. Mi función es revisar las propiedades con checkout del día, consultar las bases de datos de Notion para obtener los tiempos de limpieza, las zonas asignadas a cada limpiadora y el calendario de basura, y generar un horario detallado en español para el equipo de limpieza.",
+        "execution_steps": "1. Begin execution by stating: \"I am generating the daily cleaning schedule for {{target_date}}. I will only use the specified data sources and the target date parameter.\"\n2. Use the Hostfully get-checkouts tool to retrieve all checkouts for {{target_date}}. Save the list of checking-out properties.\n3. Use Notion via Composio to read the cleaning times database (ID: 370d540b438080ca8676e61856488960). Extract a lookup table: Property Name -> Cleaning Duration (minutes). Declare the table.\n4. Use Notion via Composio to read the zone assignments database (ID: 370d540b438080969a72c16c20defc70). Extract a lookup table: Zone -> Cleaner Name. Also note any exclusive assignments. Declare the table and exclusives.\n5. Use Notion via Composio to read the trash calendar database (ID: 370d540b4380809a8ea0c11074f92abb). Extract a lookup table: Property Name -> Collection Days. Declare the table.\n6. Determine the day of week of {{target_date}}.\n7. For each checkout property:\n   a. Look up cleaning duration from step 3.\n   b. Determine its zone and look up cleaner from step 4.\n   c. If property has an exclusive assignment, override.\n   d. If zone not found, mark UNASSIGNED.\n   e. Create cleaning task.\n8. For each cleaner from step 4, generate trash reminders for ALL properties in their zones that have collection on the day of week from step 6.\n9. Compile the schedule in Spanish.\n10. Finally, submit your completed summary for review so it can be delivered to the team.",
+        "delivery_steps": "1. Parse the approved content from the delivery prompt and extract the schedule text.\n2. Post the schedule text to the Slack channel C0B71QSMZKQ using the slack post-message tool.\n3. Confirm delivery by submitting output with summary 'Cleaning schedule posted to Slack'.",
+        "deliverable_type": null,
+        "overview": {
+          "role": "Programación de limpieza diaria",
+          "trigger": "Triggered manually on demand with a target date parameter.",
+          "workflow": [
+            "Fetch checkouts from Hostfully for target date",
+            "Read cleaning times from Notion",
+            "Read zone assignments from Notion",
+            "Read trash calendar from Notion",
+            "Assign cleaning tasks to cleaners based on zones",
+            "Generate trash reminders for all properties in each zone",
+            "Compile schedule in Spanish",
+            "Post schedule to Slack"
+          ],
+          "tools_used": "Hostfully, Notion (via Composio), Slack",
+          "output": "Cleaning schedule in Spanish posted to Slack channel C0B71QSMZKQ",
+          "approval": "No approval required (post directly)"
+        },
+        "risk_model": {
+          "approval_required": false,
+          "timeout_hours": 24
+        },
+        "tool_registry": {
+          "tools": [
+            "/tools/hostfully/get-checkouts.ts",
+            "/tools/slack/post-message.ts",
+            "/tools/platform/submit-output.ts"
+          ]
+        },
+        "trigger_sources": {
+          "type": "manual"
+        },
+        "input_schema": [
+          {
+            "key": "target_date",
+            "label": "Target Date",
+            "type": "date",
+            "frequency": "every_run",
+            "required": true,
+            "description": "The date for which to generate the cleaning schedule."
+          }
+        ]
+      },
+      "changed_fields": {
+        "identity": {
+          "before": "",
+          "after": "Soy el asistente de programación de limpieza. Mi función es revisar las propiedades con checkout del día, consultar las bases de datos de Notion para obtener los tiempos de limpieza, las zonas asignadas a cada limpiadora y el calendario de basura, y generar un horario detallado en español para el equipo de limpieza."
+        },
+        "execution_steps": {
+          "before": "",
+          "after": "1. Begin execution by stating: \"I am generating the daily cleaning schedule for {{target_date}}. I will only use the specified data sources and the target date parameter.\"\n2. Use the Hostfully get-checkouts tool to retrieve all checkouts for {{target_date}}. Save the list of checking-out properties.\n3. Use Notion via Composio to read the cleaning times database (ID: 370d540b438080ca8676e61856488960). Extract a lookup table: Property Name -> Cleaning Duration (minutes). Declare the table.\n4. Use Notion via Composio to read the zone assignments database (ID: 370d540b438080969a72c16c20defc70). Extract a lookup table: Zone -> Cleaner Name. Also note any exclusive assignments. Declare the table and exclusives.\n5. Use Notion via Composio to read the trash calendar database (ID: 370d540b4380809a8ea0c11074f92abb). Extract a lookup table: Property Name -> Collection Days. Declare the table.\n6. Determine the day of week of {{target_date}}.\n7. For each checkout property:\n   a. Look up cleaning duration from step 3.\n   b. Determine its zone and look up cleaner from step 4.\n   c. If property has an exclusive assignment, override.\n   d. If zone not found, mark UNASSIGNED.\n   e. Create cleaning task.\n8. For each cleaner from step 4, generate trash reminders for ALL properties in their zones that have collection on the day of week from step 6.\n9. Compile the schedule in Spanish.\n10. Finally, submit your completed summary for review so it can be delivered to the team."
+        },
+        "delivery_steps": {
+          "before": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+          "after": "1. Parse the approved content from the delivery prompt and extract the schedule text.\n2. Post the schedule text to the Slack channel C0B71QSMZKQ using the slack post-message tool.\n3. Confirm delivery by submitting output with summary 'Cleaning schedule posted to Slack'."
+        },
+        "overview": {
+          "before": {
+            "role": "",
+            "trigger": "",
+            "workflow": [],
+            "tools_used": "",
+            "output": "",
+            "approval": ""
+          },
+          "after": {
+            "role": "Programación de limpieza diaria",
+            "trigger": "Triggered manually on demand with a target date parameter.",
+            "workflow": [
+              "Fetch checkouts from Hostfully for target date",
+              "Read cleaning times from Notion",
+              "Read zone assignments from Notion",
+              "Read trash calendar from Notion",
+              "Assign cleaning tasks to cleaners based on zones",
+              "Generate trash reminders for all properties in each zone",
+              "Compile schedule in Spanish",
+              "Post schedule to Slack"
+            ],
+            "tools_used": "Hostfully, Notion (via Composio), Slack",
+            "output": "Cleaning schedule in Spanish posted to Slack channel C0B71QSMZKQ",
+            "approval": "No approval required (post directly)"
+          }
+        },
+        "tool_registry": {
+          "added": [
+            "/tools/hostfully/get-checkouts.ts",
+            "/tools/slack/post-message.ts",
+            "/tools/platform/submit-output.ts"
+          ],
+          "removed": []
+        },
+        "input_schema": {
+          "added": [
+            "target_date"
+          ],
+          "removed": []
+        }
+      },
+      "tool_delta": {
+        "added": [
+          "/tools/hostfully/get-checkouts.ts",
+          "/tools/slack/post-message.ts",
+          "/tools/platform/submit-output.ts"
+        ],
+        "removed": []
+      },
+      "input_change": {
+        "added": [
+          "target_date"
+        ],
+        "removed": []
+      }
+    }
+  }
+}

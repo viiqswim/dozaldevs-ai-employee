@@ -249,7 +249,7 @@ export async function runExecutionPhase(
   // Compile AGENTS.md using template compiler
   try {
     const { writeFile } = await import('node:fs/promises');
-    const compiledAgentsMd = compileAgentsMd({
+    const rawCompiledAgentsMd = compileAgentsMd({
       identity: archetype.identity ?? '',
       executionSteps: archetype.execution_steps ?? '',
       deliverySteps: archetype.delivery_steps ?? '',
@@ -259,6 +259,11 @@ export async function runExecutionPhase(
       connectedToolkits,
       connectedServices,
     });
+    // Resolve all declared-input placeholders ({{key}}) generically.
+    // buildTemplateVars() maps every INPUT_<KEY> env var → key, so any
+    // {{key}} in execution_steps/delivery_steps is replaced with the actual
+    // runtime value. Unknown {{...}} patterns are left untouched.
+    const compiledAgentsMd = substituteTemplateVars(rawCompiledAgentsMd, templateVars);
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written (template compiler)');
 

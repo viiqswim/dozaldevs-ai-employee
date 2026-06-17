@@ -1,0 +1,48 @@
+TASK 1 — PRE-FLIGHT CHECK
+Timestamp: 2026-06-17
+
+=== GATEWAY COUNT ===
+lsof -nP -i:7700 | grep LISTEN | wc -l
+       1
+
+=== GATEWAY PIDS ===
+lsof -nP -i:7700 | grep LISTEN
+node      77981 victordozal   34u  IPv4  0x1245b244a76e30f      0t0  TCP *:7700 (LISTEN)
+
+=== HEALTH ===
+curl -s http://localhost:7700/health
+{"status":"ok"}
+
+=== INNGEST ===
+curl -s http://localhost:8288 | head -c 200
+<!DOCTYPE html><html lang="en" class="h-full"><head><title>Inngest Server</title>...
+(HTML UI returned — reachable)
+
+=== DOCKER PS ===
+docker ps --format "table {{.Names}}\t{{.Status}}"
+NAMES                           STATUS
+ai-employee-auth                Up 8 days (healthy)
+ai-employee-rest                Up 2 weeks
+supabase-local-meta-1           Up 2 weeks (healthy)
+ai-employee-kong                Up 2 weeks (healthy)
+shared-redis                    Up 2 weeks (healthy)
+shared-postgres                 Up 2 weeks (healthy)
+shared-mailpit                  Up 2 weeks (healthy)
+supabase-ai-employee-studio-1   Up 2 weeks (healthy)
+
+=== WORKER IMAGE ===
+docker images ai-employee-worker:latest
+IMAGE                       ID             DISK USAGE   CONTENT SIZE
+ai-employee-worker:latest   f6d906a10ad7       1.97GB             0B
+
+=== COST LIMIT ===
+psql ... -c "SELECT key, value FROM platform_settings WHERE key = 'cost_limit_usd_per_day';"
+          key           | value 
+------------------------+-------
+ cost_limit_usd_per_day | 50
+
+=== TODAY'S SPEND (VLRE tenant) ===
+psql ... -c "SELECT COALESCE(SUM(cost_usd_cents), 0) / 100.0 as today_spend_usd FROM tasks WHERE created_at >= CURRENT_DATE AND tenant_id = '00000000-0000-0000-0000-000000000003';"
+    today_spend_usd     
+------------------------
+ 0.00000000000000000000

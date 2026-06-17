@@ -237,14 +237,19 @@ const STOP_DIRECTIVE = '**STOP. Do nothing else. Your job is done.**';
 /**
  * Returns true when the archetype's execution or delivery steps reference
  * INPUT_TARGET_DATE, indicating this is a date-parameterized employee.
- * The check is generic — any mention of the env var triggers injection of
+ * The check is generic — any mention triggers injection of
  * DATE_PARAMETERIZATION_RULES regardless of which employee type it is.
+ *
+ * Note: wizard-generated archetypes use {{target_date}} template syntax which
+ * is resolved to the actual date value by substituteTemplateVars() in the
+ * execution/delivery phase BEFORE the model sees the compiled AGENTS.md.
+ * Those archetypes therefore do NOT need DATE_PARAMETERIZATION_RULES injected —
+ * the date is already inline in the text. Only legacy/manual archetypes that
+ * reference INPUT_TARGET_DATE directly need this section.
  */
 function isDateParameterized(input: CompileAgentsMdInput): boolean {
-  return (
-    input.executionSteps.includes('INPUT_TARGET_DATE') ||
-    input.deliverySteps.includes('INPUT_TARGET_DATE')
-  );
+  const combined = input.executionSteps + ' ' + input.deliverySteps;
+  return combined.includes('INPUT_TARGET_DATE');
 }
 
 /**

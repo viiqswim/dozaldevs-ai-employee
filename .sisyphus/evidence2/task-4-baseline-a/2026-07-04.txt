@@ -1,0 +1,41 @@
+TASK 4 — BASELINE-A EVIDENCE
+Date: 2026-07-04 (Saturday — US Independence Day)
+Archetype: 77e77c86-3bce-49a0-84e3-ccf7dac37b33 (cleaning-schedule-v16, hardcoded)
+Trigger: {"inputs":{"target_date":"2026-07-04"}}
+
+TRIGGER RESPONSE:
+{"task_id":"68daec83-149a-431d-95aa-0ca2a9935596","status_url":"/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/68daec83-149a-431d-95aa-0ca2a9935596"}
+
+TASK ID: 68daec83-149a-431d-95aa-0ca2a9935596
+
+STATUS TRACE (task_status_log):
+  Received      -> Triaging       2026-06-17 17:08:14.104
+  Triaging      -> AwaitingInput  2026-06-17 17:08:14.489
+  AwaitingInput -> Ready          2026-06-17 17:08:14.497
+  Ready         -> Executing      2026-06-17 17:08:14.503
+  Submitting    -> Validating     2026-06-17 17:09:44.826
+  Validating    -> Submitting     2026-06-17 17:09:44.836
+  Submitting    -> Delivering     2026-06-17 17:09:44.903
+  Delivering    -> Done           2026-06-17 17:10:16.59
+
+FINAL STATUS: Done
+DURATION: ~2m02s (Received 17:08:14 -> Done 17:10:16)
+CLASSIFICATION: NEEDS_APPROVAL
+DELIVERABLE: deliverables.external_ref=68daec83... delivery_type=slack_message
+
+COMPARISON VERDICT vs Task-3 oracle:
+  CLEANING ASSIGNMENTS: EXACT MATCH
+    - Yessica 4403-Hayride-A 90min (Saturday primary) [oracle: 90] OK
+    - Grand total 90 min               [oracle: 90] OK
+    - SIN ASIGNAR: ninguna             [oracle: none] OK
+    - Holiday handled normally         [oracle: no special rule] OK
+    NOTE: Yessica correctly assigned on SATURDAY (works Saturdays), confirming
+    the baseline DOES know Saturday availability but NOT the Sunday Berenice/
+    Susana backup rule (cf. 06-28 gap).
+  TRASH DUTIES: DIVERGENT
+    - Same hallucinated "3401 Hovenweep Ave" / "3412 Hovenweep Ave"
+      (should be 3401 Breckenridge Dr / 3412 Sand Dunes Ave).
+    - Over-emits "recolección lunes" reminders; oracle says only maintain
+      existing Monday reminder for 7213 Nutria + 271 Gina.
+
+OVERALL: Cleaning = exact match. Trash = divergent (consistent hallucinations).

@@ -1,0 +1,7 @@
+=== NO-HARDCODED-DATA CHECK ===
+Result: PASS
+
+[PASS] inline cleaning times (min/hr numbers): clean
+[PASS] cleaner -> zone assignments (name -> zipcode): clean
+[PASS] trash pickup days (inline calendar): clean
+[PASS] property names hardcoded: clean

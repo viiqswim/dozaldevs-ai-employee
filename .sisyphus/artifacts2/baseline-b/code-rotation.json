@@ -1,0 +1,39 @@
+{
+  "slug": "code-rotation",
+  "generated_role_name": "door-lock-rotator",
+  "identity": "You are a utility bot that rotates door lock codes for all VLRE properties using the Sifely smart lock system. You work autonomously, generate new random passcodes, update each lock, and post a summary of the new codes to the team Slack channel.",
+  "execution_steps": "1. List all Sifely locks by executing /tools/sifely/list-locks.ts. Save the list as a JSON array of locks with their IDs and names.\n2. For each lock in the list:\n   a. List its existing passcodes by executing /tools/sifely/list-passcodes.ts with --lock-id set to the lock's ID. Note the current passcodes.\n   b. Generate a new passcode by executing /tools/sifely/generate-code.ts with --exclude-codes set to the list of current codes. Save the generated code.\n   c. Update the first permanent passcode on the lock by executing /tools/sifely/update-passcode.ts with --lock-id, --passcode-id (the ID of the passcode to update), and --code set to the generated code. If there are multiple passcodes, update the one labeled as the primary or permanent code.\n   d. Record the lock name and new code in a summary array.\n3. After all locks are updated, compile the summary array into a readable Slack message listing each lock and its new code.\n4. Post the summary message to the team Slack channel by executing /tools/slack/post-message.ts with --channel set to $NOTIFICATION_CHANNEL and --text set to the compiled summary.\n5. Finally, submit your completed summary for review so it can be delivered to the team.",
+  "delivery_steps": "1. Write the summary of new passcodes to /tmp/delivery-draft.txt.\n2. Post the approved content to the $NOTIFICATION_CHANNEL Slack channel.\n3. Confirm delivery by submitting output.",
+  "tool_registry": {
+    "tools": [
+      "/tools/sifely/list-locks.ts",
+      "/tools/sifely/list-passcodes.ts",
+      "/tools/sifely/generate-code.ts",
+      "/tools/sifely/update-passcode.ts",
+      "/tools/slack/post-message.ts",
+      "/tools/platform/submit-output.ts"
+    ]
+  },
+  "model": "minimax/minimax-m2.7",
+  "input_schema": null,
+  "deliverable_type": null,
+  "trigger_sources": {
+    "type": "manual"
+  },
+  "risk_model": {
+    "approval_required": false,
+    "timeout_hours": 24
+  },
+  "overview": {
+    "role": "Door Lock Code Rotator",
+    "trigger": "Triggered manually on demand",
+    "workflow": [
+      "List all Sifely locks",
+      "Rotate passcode for each lock (generate new code, update lock)",
+      "Post summary of new codes to Slack"
+    ],
+    "tools_used": "Sifely lock tools (list, generate, update), Slack messenger",
+    "output": "Summary of new lock codes in Slack",
+    "approval": "No human approval required"
+  }
+}

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { InputSchemaItemSchema, InputSchemaSchema } from '../gateway/validation/schemas.js';
 import { substituteTemplateVars, buildTemplateVars } from '../workers/lib/template-vars.js';
+import { compileAgentsMd } from '../workers/lib/agents-md-compiler.mjs';
 
 describe('InputSchemaItemSchema — Zod validation', () => {
   it('accepts a valid text item', () => {
@@ -268,5 +269,76 @@ describe('trigger body validation — TriggerEmployeeBodySchema', () => {
   it('rejects inputs where a value is a number, not a string', () => {
     const result = TriggerEmployeeBodySchema.safeParse({ inputs: { count: 42 } });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('compiled AGENTS.md — generic multi-key placeholder substitution', () => {
+  it('resolves multiple declared-input placeholders in execution_steps generically', () => {
+    // Simulate an archetype whose execution_steps reference two declared inputs
+    const compiledMd = compileAgentsMd({
+      identity: 'You are a test employee.',
+      executionSteps:
+        'Fetch the report for {{report_date}} and send it to {{customer_name}}. Check {{missing_key}} too.',
+      deliverySteps: 'Deliver the report for {{report_date}}.',
+      employeeRules: '',
+      employeeKnowledge: '',
+    });
+
+    // Simulate the env vars that machine-provisioner injects for declared inputs
+    const env: Record<string, string | undefined> = {
+      INPUT_REPORT_DATE: '2026-06-15',
+      INPUT_CUSTOMER_NAME: 'Acme Corp',
+    };
+    const templateVars = buildTemplateVars(env);
+    const resolved = substituteTemplateVars(compiledMd, templateVars);
+
+    // Both declared inputs must be resolved
+    expect(resolved).toContain('2026-06-15');
+    expect(resolved).toContain('Acme Corp');
+    // Unknown placeholder must be left untouched
+    expect(resolved).toContain('{{missing_key}}');
+    // No literal {{report_date}} or {{customer_name}} should remain
+    expect(resolved).not.toContain('{{report_date}}');
+    expect(resolved).not.toContain('{{customer_name}}');
+    // delivery_steps placeholder also resolved
+    expect(resolved.match(/\{\{report_date\}\}/g)).toBeNull();
+  });
+
+  it('leaves compiled AGENTS.md unchanged when no INPUT_* env vars are set', () => {
+    const compiledMd = compileAgentsMd({
+      identity: 'You are a test employee.',
+      executionSteps: 'Process {{target_date}} data.',
+      deliverySteps: '',
+      employeeRules: '',
+      employeeKnowledge: '',
+    });
+
+    const templateVars = buildTemplateVars({});
+    const resolved = substituteTemplateVars(compiledMd, templateVars);
+
+    // Without INPUT_TARGET_DATE, the placeholder stays as-is
+    expect(resolved).toContain('{{target_date}}');
+  });
+
+  it('resolves {{target_date}} when INPUT_TARGET_DATE is set (generic path, not special-cased)', () => {
+    const compiledMd = compileAgentsMd({
+      identity: 'You are a cleaning schedule employee.',
+      executionSteps: 'Generate the cleaning schedule for {{target_date}}.',
+      deliverySteps: 'Post the schedule for {{target_date}} to Slack.',
+      employeeRules: '',
+      employeeKnowledge: '',
+    });
+
+    const env: Record<string, string | undefined> = {
+      INPUT_TARGET_DATE: '2026-06-20',
+    };
+    const templateVars = buildTemplateVars(env);
+    const resolved = substituteTemplateVars(compiledMd, templateVars);
+
+    // {{target_date}} resolved to the actual date — no literal placeholder remains
+    expect(resolved).toContain('2026-06-20');
+    expect(resolved).not.toContain('{{target_date}}');
+    // DATE_PARAMETERIZATION_RULES should NOT be injected (no INPUT_TARGET_DATE in steps)
+    expect(resolved).not.toContain('## Date Parameterization');
   });
 });

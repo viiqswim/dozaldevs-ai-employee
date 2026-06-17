@@ -1,0 +1,9 @@
+Command: HOSTFULLY_API_KEY=Y6EQ7KgSwoOGCokD HOSTFULLY_AGENCY_UID=942d08d9-82bb-4fd3-9091-ca0c6b50b578 ./node_modules/.bin/tsx src/worker-tools/hostfully/get-checkouts.ts --date 2026-07-04
+Exit code: 0
+Date: 2026-07-04 (Saturday)
+
+Raw output:
+[{"propertyUid":"b3a9cd91-9e5e-4724-99a8-2fe1806febc2","listingName":"4403A-HAY-HOME ","normalizedAddress":"4403 Hayride Lane","roomId":"Unidad A","zipCode":"78744","city":"Austin, TX","checkIn":"2026-07-03T16:00:00","checkOut":"2026-07-04T11:00:00","checkOutTime":"11:00","guestName":"Bianca Lopez","status":"BOOKED","channel":"AIRBNB"}]
+
+Checkout count: 1
+Properties: 4403 Hayride Lane (Unit A)

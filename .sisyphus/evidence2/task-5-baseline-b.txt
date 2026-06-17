@@ -1,0 +1,500 @@
+TASK 5 — BASELINE-B EVIDENCE
+Captured: 2026-06-17 12:19:07 CDT
+Endpoint: POST /admin/tenants/:tenantId/archetypes/converse-create
+Request shape: { transcript: [{role, content}] }  (tenantId in URL path)
+
+==================================================================
+DB QUERY 1 — All active archetypes (at-risk identification)
+==================================================================
+                  id                  |    role_name     | status |              tenant_id               
+--------------------------------------+------------------+--------+--------------------------------------
+ 00000000-0000-0000-0000-000000000016 | code-rotation    | active | 00000000-0000-0000-0000-000000000003
+ a360b2e6-7dcc-410d-a17b-8d51e21c74ed | daily-motivation | active | 00000000-0000-0000-0000-000000000002
+ 94b1e64c-2c2a-4391-a6e3-f3ef61044cb5 | guest-messaging  | active | 00000000-0000-0000-0000-000000000003
+(3 rows)
+
+
+==================================================================
+DB QUERY 2 — daily-motivation genericity probe by ID
+==================================================================
+                  id                  |    role_name     | status 
+--------------------------------------+------------------+--------
+ a360b2e6-7dcc-410d-a17b-8d51e21c74ed | daily-motivation | active
+(1 row)
+
+
+==================================================================
+DB QUERY 3 — jira-motivation-bot existence check (expect 0)
+==================================================================
+ jira_matches 
+--------------
+            0
+(1 row)
+
+
+==================================================================
+DB QUERY 4 — archetype_generation_calls trace (last 15 min)
+==================================================================
+  call_type   | status  |     model_actual     | archetype_id |       created_at        
+--------------+---------+----------------------+--------------+-------------------------
+ propose_edit | success | minimax/minimax-m2.7 |              | 2026-06-17 17:17:31.841
+ propose_edit | success | minimax/minimax-m2.7 |              | 2026-06-17 17:16:55.506
+ propose_edit | success | minimax/minimax-m2.7 |              | 2026-06-17 17:15:40.14
+(3 rows)
+
+
+==================================================================
+API TRANSCRIPT — guest-messaging (VLRE 0...0003)
+==================================================================
+--- TURN 1 (user description) -> response ---
+REQUEST user.content: An AI employee that reads incoming guest messages from Hostfully and drafts polite, helpful replies in English. It should post the draft to Slack for approval before sending.
+RESPONSE:
+{
+  "kind": "question",
+  "question": "When should this employee run? For example, should it be triggered automatically when a new message arrives via Hostfully webhook, or should it be triggered manually on demand?"
+}
+
+--- TURN 2 (transcript + answer) -> response ---
+REQUEST transcript:
+[
+  {
+    "role": "user",
+    "content": "An AI employee that reads incoming guest messages from Hostfully and drafts polite, helpful replies in English. It should post the draft to Slack for approval before sending."
+  },
+  {
+    "role": "assistant",
+    "content": "When should this employee run? For example, should it be triggered automatically when a new message arrives via Hostfully webhook, or should it be triggered manually on demand?"
+  },
+  {
+    "role": "user",
+    "content": "It should be triggered automatically when a new guest message arrives via the Hostfully NEW_INBOX_MESSAGE webhook. The data source is the Hostfully conversation thread. The output is a drafted reply text that goes to Slack as an approval card; once approved it is sent back to the guest through Hostfully."
+  }
+]
+RESPONSE (full proposal):
+{
+  "kind": "proposal",
+  "baseline": {
+    "model": "deepseek/deepseek-v4-flash",
+    "runtime": "opencode",
+    "identity": "",
+    "execution_steps": "",
+    "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "",
+      "trigger": "",
+      "workflow": [],
+      "tools_used": "",
+      "output": "",
+      "approval": ""
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": []
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "proposal": {
+    "role_name": "guest-message-reply-drafter",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "You are an AI employee that processes incoming guest messages from Hostfully. Your role is to read the latest message in a Hostfully conversation thread, draft a polite and helpful reply in English, and present the draft for approval via Slack before sending.",
+    "execution_steps": "1. Read the incoming webhook payload from the INPUT_PAYLOAD environment variable and parse it to extract the lead_uid (the thread identifier).\n2. Use the Hostfully get-messages tool with the lead_uid to retrieve the conversation history.\n3. Analyze the latest guest message and generate a polite, helpful reply in English.\n4. Write the draft reply to /tmp/delivery-draft.txt.\n5. Post the draft to Slack as a guest-reply approval card using the post-guest-approval tool, including the lead_uid and the draft reply.\n6. Submit your completed summary (including the draft text) for review by the team. Finally, confirm that the draft has been submitted for approval.",
+    "delivery_steps": "1. Parse the approved reply from the <approved-content> XML block (look for the draft text in the file /tmp/delivery-draft.txt or in the summary).\n2. Use the Hostfully send-message tool with the lead_uid (retrieved from the execution context) and the approved reply body to send the reply to the guest.\n3. Confirm delivery by submitting output with a summary of the action taken.",
+    "deliverable_type": "reply_text",
+    "overview": {
+      "role": "Guest Message Reply Drafter",
+      "trigger": "Triggered automatically by a Hostfully NEW_INBOX_MESSAGE webhook.",
+      "workflow": [
+        "Receive webhook payload and extract lead_uid.",
+        "Retrieve conversation thread via Hostfully API.",
+        "Draft a polite reply in English.",
+        "Post draft to Slack for approval.",
+        "Upon approval, send the reply via Hostfully API."
+      ],
+      "tools_used": "Hostfully (get-messages, send-message), Slack (post-guest-approval), Platform (submit-output)",
+      "output": "Draft reply text, posted to Slack for approval, then sent to guest upon approval.",
+      "approval": "Manual approval required via Slack before the reply is sent."
+    },
+    "risk_model": {
+      "approval_required": true,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/hostfully/get-messages.ts",
+        "/tools/hostfully/send-message.ts",
+        "/tools/slack/post-guest-approval.ts",
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "trigger_sources": {
+      "type": "webhook",
+      "webhook_event": "NEW_INBOX_MESSAGE"
+    }
+  },
+  "changed_fields": {
+    "identity": {
+      "before": "",
+      "after": "You are an AI employee that processes incoming guest messages from Hostfully. Your role is to read the latest message in a Hostfully conversation thread, draft a polite and helpful reply in English, and present the draft for approval via Slack before sending."
+    },
+    "execution_steps": {
+      "before": "",
+      "after": "1. Read the incoming webhook payload from the INPUT_PAYLOAD environment variable and parse it to extract the lead_uid (the thread identifier).\n2. Use the Hostfully get-messages tool with the lead_uid to retrieve the conversation history.\n3. Analyze the latest guest message and generate a polite, helpful reply in English.\n4. Write the draft reply to /tmp/delivery-draft.txt.\n5. Post the draft to Slack as a guest-reply approval card using the post-guest-approval tool, including the lead_uid and the draft reply.\n6. Submit your completed summary (including the draft text) for review by the team. Finally, confirm that the draft has been submitted for approval."
+    },
+    "delivery_steps": {
+      "before": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+      "after": "1. Parse the approved reply from the <approved-content> XML block (look for the draft text in the file /tmp/delivery-draft.txt or in the summary).\n2. Use the Hostfully send-message tool with the lead_uid (retrieved from the execution context) and the approved reply body to send the reply to the guest.\n3. Confirm delivery by submitting output with a summary of the action taken."
+    },
+    "overview": {
+      "before": {
+        "role": "",
+        "trigger": "",
+        "workflow": [],
+        "tools_used": "",
+        "output": "",
+        "approval": ""
+      },
+      "after": {
+        "role": "Guest Message Reply Drafter",
+        "trigger": "Triggered automatically by a Hostfully NEW_INBOX_MESSAGE webhook.",
+        "workflow": [
+          "Receive webhook payload and extract lead_uid.",
+          "Retrieve conversation thread via Hostfully API.",
+          "Draft a polite reply in English.",
+          "Post draft to Slack for approval.",
+          "Upon approval, send the reply via Hostfully API."
+        ],
+        "tools_used": "Hostfully (get-messages, send-message), Slack (post-guest-approval), Platform (submit-output)",
+        "output": "Draft reply text, posted to Slack for approval, then sent to guest upon approval.",
+        "approval": "Manual approval required via Slack before the reply is sent."
+      }
+    },
+    "approval_required": {
+      "from": false,
+      "to": true
+    },
+    "tool_registry": {
+      "added": [
+        "/tools/hostfully/get-messages.ts",
+        "/tools/hostfully/send-message.ts",
+        "/tools/slack/post-guest-approval.ts",
+        "/tools/platform/submit-output.ts"
+      ],
+      "removed": []
+    },
+    "trigger_sources": {
+      "before": "Manual trigger",
+      "after": "Webhook"
+    }
+  },
+  "tool_delta": {
+    "added": [
+      "/tools/hostfully/get-messages.ts",
+      "/tools/hostfully/send-message.ts",
+      "/tools/slack/post-guest-approval.ts",
+      "/tools/platform/submit-output.ts"
+    ],
+    "removed": []
+  },
+  "trigger_change": {
+    "before": "Manual trigger",
+    "after": "Webhook"
+  }
+}
+
+==================================================================
+API TRANSCRIPT — code-rotation (VLRE 0...0003)
+==================================================================
+--- TURN 1 -> response ---
+REQUEST user.content: An AI employee that rotates door lock codes for all VLRE properties using the Sifely lock system. It should post a summary to Slack when done.
+RESPONSE:
+{
+  "kind": "question",
+  "question": "Should this employee be triggered manually on demand, on a schedule (e.g., daily/weekly), or via some other trigger? Understanding how it will be triggered is critical to setting up the right configuration."
+}
+
+--- TURN 2 (transcript + answer) -> response ---
+REQUEST transcript:
+[
+  {
+    "role": "user",
+    "content": "An AI employee that rotates door lock codes for all VLRE properties using the Sifely lock system. It should post a summary to Slack when done."
+  },
+  {
+    "role": "assistant",
+    "content": "Should this employee be triggered manually on demand, on a schedule (e.g., daily/weekly), or via some other trigger? Understanding how it will be triggered is critical to setting up the right configuration."
+  },
+  {
+    "role": "user",
+    "content": "It is triggered manually on demand via the admin API. The data source is the Sifely lock system, which lists all VLRE property locks. For each lock it generates a new passcode and updates the lock. When all locks are rotated it posts a summary of the new codes to the team Slack channel. No human approval is needed - it runs fully automatically."
+  }
+]
+RESPONSE (full proposal):
+{
+  "kind": "proposal",
+  "baseline": {
+    "model": "deepseek/deepseek-v4-flash",
+    "runtime": "opencode",
+    "identity": "",
+    "execution_steps": "",
+    "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "",
+      "trigger": "",
+      "workflow": [],
+      "tools_used": "",
+      "output": "",
+      "approval": ""
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": []
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "proposal": {
+    "role_name": "door-lock-rotator",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "You are a utility bot that rotates door lock codes for all VLRE properties using the Sifely smart lock system. You work autonomously, generate new random passcodes, update each lock, and post a summary of the new codes to the team Slack channel.",
+    "execution_steps": "1. List all Sifely locks by executing /tools/sifely/list-locks.ts. Save the list as a JSON array of locks with their IDs and names.\n2. For each lock in the list:\n   a. List its existing passcodes by executing /tools/sifely/list-passcodes.ts with --lock-id set to the lock's ID. Note the current passcodes.\n   b. Generate a new passcode by executing /tools/sifely/generate-code.ts with --exclude-codes set to the list of current codes. Save the generated code.\n   c. Update the first permanent passcode on the lock by executing /tools/sifely/update-passcode.ts with --lock-id, --passcode-id (the ID of the passcode to update), and --code set to the generated code. If there are multiple passcodes, update the one labeled as the primary or permanent code.\n   d. Record the lock name and new code in a summary array.\n3. After all locks are updated, compile the summary array into a readable Slack message listing each lock and its new code.\n4. Post the summary message to the team Slack channel by executing /tools/slack/post-message.ts with --channel set to $NOTIFICATION_CHANNEL and --text set to the compiled summary.\n5. Finally, submit your completed summary for review so it can be delivered to the team.",
+    "delivery_steps": "1. Write the summary of new passcodes to /tmp/delivery-draft.txt.\n2. Post the approved content to the $NOTIFICATION_CHANNEL Slack channel.\n3. Confirm delivery by submitting output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "Door Lock Code Rotator",
+      "trigger": "Triggered manually on demand",
+      "workflow": [
+        "List all Sifely locks",
+        "Rotate passcode for each lock (generate new code, update lock)",
+        "Post summary of new codes to Slack"
+      ],
+      "tools_used": "Sifely lock tools (list, generate, update), Slack messenger",
+      "output": "Summary of new lock codes in Slack",
+      "approval": "No human approval required"
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/sifely/list-locks.ts",
+        "/tools/sifely/list-passcodes.ts",
+        "/tools/sifely/generate-code.ts",
+        "/tools/sifely/update-passcode.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "changed_fields": {
+    "identity": {
+      "before": "",
+      "after": "You are a utility bot that rotates door lock codes for all VLRE properties using the Sifely smart lock system. You work autonomously, generate new random passcodes, update each lock, and post a summary of the new codes to the team Slack channel."
+    },
+    "execution_steps": {
+      "before": "",
+      "after": "1. List all Sifely locks by executing /tools/sifely/list-locks.ts. Save the list as a JSON array of locks with their IDs and names.\n2. For each lock in the list:\n   a. List its existing passcodes by executing /tools/sifely/list-passcodes.ts with --lock-id set to the lock's ID. Note the current passcodes.\n   b. Generate a new passcode by executing /tools/sifely/generate-code.ts with --exclude-codes set to the list of current codes. Save the generated code.\n   c. Update the first permanent passcode on the lock by executing /tools/sifely/update-passcode.ts with --lock-id, --passcode-id (the ID of the passcode to update), and --code set to the generated code. If there are multiple passcodes, update the one labeled as the primary or permanent code.\n   d. Record the lock name and new code in a summary array.\n3. After all locks are updated, compile the summary array into a readable Slack message listing each lock and its new code.\n4. Post the summary message to the team Slack channel by executing /tools/slack/post-message.ts with --channel set to $NOTIFICATION_CHANNEL and --text set to the compiled summary.\n5. Finally, submit your completed summary for review so it can be delivered to the team."
+    },
+    "delivery_steps": {
+      "before": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+      "after": "1. Write the summary of new passcodes to /tmp/delivery-draft.txt.\n2. Post the approved content to the $NOTIFICATION_CHANNEL Slack channel.\n3. Confirm delivery by submitting output."
+    },
+    "overview": {
+      "before": {
+        "role": "",
+        "trigger": "",
+        "workflow": [],
+        "tools_used": "",
+        "output": "",
+        "approval": ""
+      },
+      "after": {
+        "role": "Door Lock Code Rotator",
+        "trigger": "Triggered manually on demand",
+        "workflow": [
+          "List all Sifely locks",
+          "Rotate passcode for each lock (generate new code, update lock)",
+          "Post summary of new codes to Slack"
+        ],
+        "tools_used": "Sifely lock tools (list, generate, update), Slack messenger",
+        "output": "Summary of new lock codes in Slack",
+        "approval": "No human approval required"
+      }
+    },
+    "tool_registry": {
+      "added": [
+        "/tools/sifely/list-locks.ts",
+        "/tools/sifely/list-passcodes.ts",
+        "/tools/sifely/generate-code.ts",
+        "/tools/sifely/update-passcode.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ],
+      "removed": []
+    }
+  },
+  "tool_delta": {
+    "added": [
+      "/tools/sifely/list-locks.ts",
+      "/tools/sifely/list-passcodes.ts",
+      "/tools/sifely/generate-code.ts",
+      "/tools/sifely/update-passcode.ts",
+      "/tools/slack/post-message.ts",
+      "/tools/platform/submit-output.ts"
+    ],
+    "removed": []
+  }
+}
+
+==================================================================
+API TRANSCRIPT — daily-motivation (DozalDevs 0...0002)
+==================================================================
+--- TURN 1 -> response ---
+REQUEST user.content: An AI employee that posts a daily motivational message to the team's Slack channel every morning.
+RESPONSE:
+{
+  "kind": "question",
+  "question": "What should be the source of the daily motivational message? Should it be AI-generated based on a theme, or do you have a specific list or database of messages to pull from?"
+}
+
+--- TURN 2 (transcript + answer) -> response ---
+REQUEST transcript:
+[
+  {
+    "role": "user",
+    "content": "An AI employee that posts a daily motivational message to the team's Slack channel every morning."
+  },
+  {
+    "role": "assistant",
+    "content": "What should be the source of the daily motivational message? Should it be AI-generated based on a theme, or do you have a specific list or database of messages to pull from?"
+  },
+  {
+    "role": "user",
+    "content": "The message should be AI-generated fresh each day based on an uplifting, encouraging theme for a software team. It runs on a daily schedule every morning at 8am. The output is a single short motivational Slack message posted directly to the team channel. No human approval is needed - post it automatically."
+  }
+]
+RESPONSE (full proposal):
+{
+  "kind": "proposal",
+  "baseline": {
+    "model": "deepseek/deepseek-v4-flash",
+    "runtime": "opencode",
+    "identity": "",
+    "execution_steps": "",
+    "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "",
+      "trigger": "",
+      "workflow": [],
+      "tools_used": "",
+      "output": "",
+      "approval": ""
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": []
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "proposal": {
+    "role_name": "daily-motivation-poster",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "You are a cheerful and inspirational team morale booster who creates short, uplifting Slack messages for a software development team each morning.",
+    "execution_steps": "1. Generate a fresh motivational message by prompting the AI to create an uplifting, short message for a software development team. Focus on themes like teamwork, innovation, and positivity.\n2. Write the generated message to /tmp/delivery-draft.txt so it is ready for delivery.\n3. Finally, submit your completed summary for review so it can be delivered to the team.",
+    "delivery_steps": "1. Parse the approved content from the <approved-content> XML block and read the draft message from /tmp/delivery-draft.txt.\n2. Post the message to the $NOTIFICATION_CHANNEL Slack channel using the Slack composio tool.\n3. Confirm delivery by submitting the output summary to the platform.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "Daily Motivation Poster",
+      "trigger": "Scheduled daily at 8:00 AM",
+      "workflow": [
+        "Generate motivational message using AI",
+        "Post message to team Slack channel"
+      ],
+      "tools_used": "AI model, Slack composio tool",
+      "output": "Short motivational Slack message",
+      "approval": "None - posted automatically"
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 1
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "changed_fields": {
+    "identity": {
+      "before": "",
+      "after": "You are a cheerful and inspirational team morale booster who creates short, uplifting Slack messages for a software development team each morning."
+    },
+    "execution_steps": {
+      "before": "",
+      "after": "1. Generate a fresh motivational message by prompting the AI to create an uplifting, short message for a software development team. Focus on themes like teamwork, innovation, and positivity.\n2. Write the generated message to /tmp/delivery-draft.txt so it is ready for delivery.\n3. Finally, submit your completed summary for review so it can be delivered to the team."
+    },
+    "delivery_steps": {
+      "before": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+      "after": "1. Parse the approved content from the <approved-content> XML block and read the draft message from /tmp/delivery-draft.txt.\n2. Post the message to the $NOTIFICATION_CHANNEL Slack channel using the Slack composio tool.\n3. Confirm delivery by submitting the output summary to the platform."
+    },
+    "overview": {
+      "before": {
+        "role": "",
+        "trigger": "",
+        "workflow": [],
+        "tools_used": "",
+        "output": "",
+        "approval": ""
+      },
+      "after": {
+        "role": "Daily Motivation Poster",
+        "trigger": "Scheduled daily at 8:00 AM",
+        "workflow": [
+          "Generate motivational message using AI",
+          "Post message to team Slack channel"
+        ],
+        "tools_used": "AI model, Slack composio tool",
+        "output": "Short motivational Slack message",
+        "approval": "None - posted automatically"
+      }
+    },
+    "tool_registry": {
+      "added": [
+        "/tools/platform/submit-output.ts"
+      ],
+      "removed": []
+    }
+  },
+  "tool_delta": {
+    "added": [
+      "/tools/platform/submit-output.ts"
+    ],
+    "removed": []
+  }
+}

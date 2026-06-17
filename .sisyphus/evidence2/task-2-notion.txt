@@ -1,0 +1,96 @@
+==================================================================
+TASK 2 EVIDENCE — Notion Connection STOP Gate + Page Prose Capture
+Generated: 2026-06-17 11:43:40 CDT
+Tenant: VLRE (00000000-0000-0000-0000-000000000003)
+==================================================================
+
+------------------------------------------------------------------
+STEP 1: COMPOSIO CONNECTIONS CHECK (STOP GATE)
+------------------------------------------------------------------
+Command:
+  curl -s -H "Authorization: Bearer $SERVICE_TOKEN" \
+    http://localhost:7700/admin/tenants/00000000-0000-0000-0000-000000000003/composio/connections
+
+Response:
+[
+  {
+    "toolkit": "gmail",
+    "status": "active",
+    "connected_at": "2026-06-12T16:32:27.453Z"
+  },
+  {
+    "toolkit": "notion",
+    "status": "active",
+    "connected_at": "2026-06-12T15:49:45.844Z"
+  },
+  {
+    "toolkit": "slack",
+    "status": "active",
+    "connected_at": "2026-06-12T12:22:37.397Z"
+  },
+  {
+    "toolkit": "github",
+    "status": "active",
+    "connected_at": "2026-06-12T12:21:37.075Z"
+  }
+]
+
+GATE RESULT: PASS — toolkit 'notion' present with status 'active' (connected 2026-06-12T15:49:45.844Z).
+
+------------------------------------------------------------------
+STEP 2: FETCH 3 NOTION PAGES (NOTION_GET_PAGE_MARKDOWN)
+------------------------------------------------------------------
+Tool: src/worker-tools/composio/execute.ts
+Env:  TASK_TENANT_ID=00000000-0000-0000-0000-000000000003, COMPOSIO_API_KEY from .env
+(stderr audit-write warning is benign — SUPABASE_URL/TASK_ID not set in CLI context)
+
+  PAGE: directorio-operativo (Trash schedule)
+    page_id=370d540b4380809a8ea0c11074f92abb
+    successful=true  truncated=false  markdown_chars=2400  request_id=5077d7dc-8a4b-40b3-b04c-217e542af1ae
+    stderr: Warning: skipping task_composio_calls audit write — missing SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID, or TASK_TENANT_ID
+
+  PAGE: reporte-financiero (Cleaning prices/times)
+    page_id=370d540b438080ca8676e61856488960
+    successful=true  truncated=false  markdown_chars=1344  request_id=54f5f284-5b85-42e1-81f8-868ae1bdf4c9
+    stderr: Warning: skipping task_composio_calls audit write — missing SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID, or TASK_TENANT_ID
+
+  PAGE: manual-personal (Cleaner zones/rules)
+    page_id=370d540b438080969a72c16c20defc70
+    successful=true  truncated=false  markdown_chars=2477  request_id=7778b736-1f5f-4688-8733-0f71664cd443
+    stderr: Warning: skipping task_composio_calls audit write — missing SUPABASE_URL, SUPABASE_SECRET_KEY, TASK_ID, or TASK_TENANT_ID
+
+------------------------------------------------------------------
+STEP 3: CONTENT HASHES + LENGTHS (saved artifact files)
+------------------------------------------------------------------
+  directorio-operativo.md
+    bytes=2533  md5=1c9999e53a44d599883aaca107f9668e
+    sha256=0439f829b4d1153b74ed74a53fa5aef66ea8aa1f7f4129f02fe11af114c86336
+  reporte-financiero.md
+    bytes=1356  md5=8c99070a99ec6acec445ac36da26cbfd
+    sha256=756aa399c33acf8e36a46bd4c67b30d5955ff310f7ebfd5254e1a230ee920307
+  manual-personal.md
+    bytes=2527  md5=94fe6f4cda57b831d28fe339080176a1
+    sha256=33cd79496e48eca87e543e819207035cabcfcfa8ca9739e1b785c971032af42b
+
+------------------------------------------------------------------
+STEP 4: STRUCTURE TYPE (per page)
+------------------------------------------------------------------
+  directorio-operativo.md : nested bullet list under ZIP '##' headings (broken H1 nesting bug on 1 group)
+  reporte-financiero.md   : flat one-bullet-per-property list; inline '($price - NNN min)' segments split by '\|'
+  manual-personal.md      : MIXED — semi-structured cleaner roster + pure-prose numbered scheduling rules
+
+OVERALL: LLM-readable, NOT deterministically parseable. Cross-page address reconciliation required.
+Full analysis -> .sisyphus/artifacts2/notion-prose/index.md
+
+==================================================================
+ARTIFACT FILES WRITTEN:
+==================================================================
+total 48
+drwxr-xr-x  6 victordozal  staff   192 Jun 17 11:42 .
+drwxr-xr-x  4 victordozal  staff   128 Jun 17 11:39 ..
+-rw-r--r--  1 victordozal  staff  2533 Jun 17 11:40 directorio-operativo.md
+-rw-r--r--  1 victordozal  staff  8886 Jun 17 11:42 index.md
+-rw-r--r--  1 victordozal  staff  2527 Jun 17 11:40 manual-personal.md
+-rw-r--r--  1 victordozal  staff  1356 Jun 17 11:40 reporte-financiero.md
+
+RESULT: TASK 2 COMPLETE — Notion ACTIVE, all 3 pages non-empty captured + hashed.

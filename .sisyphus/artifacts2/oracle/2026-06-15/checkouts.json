@@ -1,0 +1,72 @@
+[
+  {
+    "propertyUid": "1348a7a1-f10f-4139-a9b3-a4c3e4ffa888",
+    "listingName": "271-GIN-2",
+    "normalizedAddress": "271 Gina Dr",
+    "roomId": "Habitación 2",
+    "zipCode": "78640",
+    "city": "Kyle, TX",
+    "checkIn": "2026-06-12T15:00:00",
+    "checkOut": "2026-06-15T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "Evan Chapman",
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  },
+  {
+    "propertyUid": "8daa2e85-8818-4055-9047-bd712c987026",
+    "listingName": "3505-BAN-1",
+    "normalizedAddress": "3505 Banton Rd, Unit B",
+    "roomId": "Habitación 1",
+    "zipCode": "78722",
+    "city": "Austin, TX",
+    "checkIn": "2026-06-14T16:00:00",
+    "checkOut": "2026-06-15T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "Anthony Frattarelli",
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  },
+  {
+    "propertyUid": "15347f7f-0022-4368-adb0-045bb80b9277",
+    "listingName": "3505-BAN-2",
+    "normalizedAddress": "3505 Banton Rd, Unit B",
+    "roomId": "Habitación 2",
+    "zipCode": "78722",
+    "city": "Austin, TX",
+    "checkIn": "2026-06-12T16:00:00",
+    "checkOut": "2026-06-15T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "Priscilla Kelly",
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  },
+  {
+    "propertyUid": "bc30706d-3ea0-4d78-a6bd-68cdba655a76",
+    "listingName": "3505-BAN-3",
+    "normalizedAddress": "3505 Banton Rd, Unit B",
+    "roomId": "Habitación 3",
+    "zipCode": "78722",
+    "city": "Austin, TX",
+    "checkIn": "2026-06-12T16:00:00",
+    "checkOut": "2026-06-15T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "Kimberly Rose Hantschke",
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  },
+  {
+    "propertyUid": "51ec272e-8819-4c8e-b8a3-9a2286b3ed65",
+    "listingName": "7213-NUT-1",
+    "normalizedAddress": "7213 Nutria Run",
+    "roomId": "Habitación 1",
+    "zipCode": "78744",
+    "city": "Austin, TX",
+    "checkIn": "2026-06-12T15:00:00",
+    "checkOut": "2026-06-15T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "P Rubio",
+    "status": "BOOKED",
+    "channel": "AIRBNB"
+  }
+]
