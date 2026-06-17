@@ -473,7 +473,7 @@ Max Concurrent: 3 (Waves 1 & 2)
 
   **Commit**: NO (groups with Task 3)
 
-- [ ] 3. Implement the vanilla accept route — authenticated, membership-only → GREEN Task 2
+- [x] 3. Implement the vanilla accept route — authenticated, membership-only → GREEN Task 2
 
   **What to do**:
   - In `src/gateway/routes/admin-invitations.ts`, change `/invitations/accept` to:
@@ -543,7 +543,7 @@ Max Concurrent: 3 (Waves 1 & 2)
   - Files: `src/gateway/routes/admin-invitations.ts`, `tests/**`
   - Pre-commit: `pnpm test:integration`
 
-- [ ] 4. Frontend — pass the session token explicitly to the accept call
+- [x] 4. Frontend — pass the session token explicitly to the accept call
 
   **What to do**:
   - In the dashboard accept flow (`dashboard/src/pages/AcceptInvitePage.tsx`) and the gateway client (`dashboard/src/lib/gateway.ts`):
@@ -596,7 +596,7 @@ Max Concurrent: 3 (Waves 1 & 2)
   - Files: `dashboard/src/pages/AcceptInvitePage.tsx`, `dashboard/src/lib/gateway.ts`
   - Pre-commit: `pnpm dashboard:build`
 
-- [ ] 7. Correct `email-setup.md` documentation + record the atomic-endpoint decision
+- [x] 7. Correct `email-setup.md` documentation + record the atomic-endpoint decision
 
   **What to do**:
   - Rewrite Known Gotcha #3 in `docs/guides/2026-06-10-1118-email-setup.md` to reflect reality:
@@ -652,7 +652,7 @@ Max Concurrent: 3 (Waves 1 & 2)
   - Files: `docs/guides/2026-06-10-1118-email-setup.md`
   - Pre-commit: none
 
-- [ ] 5. Local Docker E2E — fresh invitee reaches a data-populated dashboard
+- [x] 5. Local Docker E2E — fresh invitee reaches a data-populated dashboard
 
   **What to do**:
   - With `pnpm dev` running locally (gateway :7700, local Docker Supabase), execute the real flow against a clean state:
@@ -717,7 +717,7 @@ Max Concurrent: 3 (Waves 1 & 2)
 
   **Commit**: NO (verification only)
 
-- [ ] 6. Production confirmation for Olivia (already verified healthy — confirm-only, likely no write)
+- [x] 6. Production confirmation for Olivia (already verified healthy — confirm-only, likely no write)
 
   > **Per Task 1 (already done), Olivia's records are already fully consistent** — single `users` row with correct `supabase_id`, live VLRE `ADMIN` membership, invitation `accepted`, simulated `/me/tenants` non-empty. **No recovery write is expected.** This task degrades to a re-confirmation (the state could in principle change between diagnosis and plan execution). If — and only if — a re-read shows she has regressed, fall back to the mode-matched recovery below, backup-first.
 
@@ -800,19 +800,19 @@ Max Concurrent: 3 (Waves 1 & 2)
 > **Do NOT auto-proceed after verification. Wait for the user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting the user's okay.** Rejection or feedback -> fix -> re-run -> present again -> wait.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       Read the plan end-to-end. For each "Must Have": verify it exists (read file, run the test, curl the endpoint). For each "Must NOT Have": search the codebase and reject with file:line if violated — specifically: any second user-creation path **in the request path** (the `scripts/seed-platform-owner.ts` bootstrap creator is an ACCEPTED exception — do not flag it), any **email-fallback reconciliation that adopts/merges a _different_ identity** added to `ensureUserExists` (NOTE: a narrow P2002-catch-and-refetch of the SAME identity is REQUIRED by Task 1c and must NOT be flagged), any change to `ProtectedRoute.tsx`/`use-tenant.ts`, any new `prisma/migrations/` entry, any raw `DELETE`, any new generalized scan/heal script or admin recovery endpoint, any change to the set-password/invite-create lookup sites, any framing of the atomic "complete-invite" endpoint as a planned next step (DR-2 rejected it). Confirm the DR-1 concurrency fix and DR-2 decision record are present. Confirm evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Concurrency-safe single-creator [PASS/FAIL] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
       Run `pnpm build` + `pnpm lint` + `pnpm test:unit` + `pnpm test:integration`. Review changed files for `as any`/`@ts-ignore`, empty catches, broadened error swallowing, console.log, dead code (the removed inline-create must be gone, not commented out), unused imports, AI slop. Confirm the accept route no longer imports/uses `getSupabaseUserIdByEmail` and no longer creates users.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Unit [N/N] | Integration [N/N] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
       From a clean local DB, execute EVERY QA scenario from EVERY task; capture evidence to `.sisyphus/evidence/final-qa/`. Specifically: **concurrent first-login (N parallel `ensureUserExists` for a brand-new user) yields one row and zero 401s** (the load-bearing DR-1 fix); unauthenticated accept is rejected; authenticated accept creates a membership and no user row; idempotent re-accept returns 200; soft-deleted membership is restored; full local E2E returns data via `/me/tenants`.
       Output: `Concurrent-first-login [PASS/FAIL] | Scenarios [N/N pass] | E2E data [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
       For each task, read "What to do" and the actual diff (`git diff`). Verify 1:1 — everything in spec built, nothing beyond. Confirm zero forbidden-file changes, zero schema migrations, zero hard-deletes, zero new heal/scan machinery. Detect cross-task contamination and unaccounted changes.
       Output: `Tasks [N/N compliant] | Forbidden changes [CLEAN/N] | Migrations [CLEAN/N] | Unaccounted [CLEAN/N] | VERDICT`
 

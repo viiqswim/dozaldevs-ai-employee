@@ -38,3 +38,26 @@
 - MUST NOT add heal-on-login, takeover guard, or email-fallback reconciliation to `ensureUserExists`
 - The narrow P2002-catch-and-refetch of the SAME identity IS required (Task 1c)
 - `scripts/seed-platform-owner.ts` bootstrap is an accepted out-of-band exception to single-creator invariant
+
+## F2 Code Quality Review (2026-06-16)
+
+**Result: APPROVE** — Build EXIT 0, Lint EXIT 0, Unit 2116 pass / 9 skip, Integration 436 pass / 18 skip.
+
+### Verified critical claims
+- `getSupabaseUserIdByEmail` survives ONLY in create-handler (L215) + set-password (L450). **Absent from accept handler** (L286-393).
+- Zero `user.create` / `user.upsert` / `tx.user` calls anywhere in admin-invitations.ts (grep clean).
+- Accept handler is membership-only: `tenantMembership.create`/`update` + `tenantInvitation.update`. Uses `req.auth!.id` (authMiddleware-populated), email-mismatch guard (403), Serializable tx with P2034 retry (3x, 50/100ms backoff) → JSON 409 fallback.
+- All responses via `sendError`/`sendSuccess`; `isPrismaError` for P2034 detection. No inline res.status().json().
+- `acceptInvitation(token, accessToken?: string)` typed correctly; spreads Authorization header when token present.
+- ensure-user-exists.ts: narrow P2002 catch, re-fetch by supabase_id then email, re-throws all else. No `as any`/`@ts-ignore`/console/empty-catch in any changed file (grep clean).
+
+### Tests are real
+- ensure-user-exists.test.ts: 6 tests incl. genuine N=5 Promise.all concurrency assertion (Set(ids).size===1, rows===1). Cleanup handles `concurrent-first-login-` prefix (L27-29).
+- invitation-accept.test.ts: exactly 7 real scenarios (401 unauth, no-user-row-created, idempotent re-accept 200, soft-delete restore 200, email-mismatch 403, expired 410, already-used 410). Mocks verifySupabaseJwt.
+- email-setup.md gotcha #3 rewritten — no line numbers, no volatile counts, no AI slop.
+
+### Minor nit (non-blocking)
+- `TxLike.user` type field (L44-47) is now unused dead type-surface since accept tx no longer touches tx.user. Does not fail lint/build. Trivial — not a rejection criterion.
+
+### Evidence
+- .sisyphus/evidence/final-qa/{f2-build,f2-lint,f2-tests,f2-integration,f2-summary}.txt
