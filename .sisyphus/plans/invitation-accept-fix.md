@@ -782,7 +782,7 @@ Max Concurrent: 3 (Waves 1 & 2)
 
   **Commit**: NO (production data operation; evidence only)
 
-- [ ] 8. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 8. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
   **What to do**: After all implementation tasks and the Final Verification Wave pass and the user gives explicit okay, send: `pnpm exec tsx scripts/telegram-notify.ts "✅ invitation-accept-fix complete — All tasks done. Come back to review results."`
 
