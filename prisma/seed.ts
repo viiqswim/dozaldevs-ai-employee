@@ -3519,8 +3519,8 @@ STEP 2 — Get all confirmed checkouts for targetDate:
      - status: lead status (already confirmed — BOOKED, STAY, etc.)
 
    If the array is empty:
-     Run: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "No hay checkouts para <targetDate>. No se requiere limpieza."
-     Run: tsx /tools/platform/submit-output.ts --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
+     Save the message "No hay checkouts para <targetDate>. No se requiere limpieza." to /tmp/cleaning-schedule-draft.txt using your file-writing tool. Do NOT post it to Slack — the delivery phase posts it.
+     Run: tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
      Stop.
 
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
@@ -3707,19 +3707,20 @@ RULES:
 - Properties ordered by geographic proximity per cleaner
 - Spanish day names: LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday
 
-STEP 6 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+STEP 6 — Save the schedule to a draft file and submit for delivery:
 
-⚠️ ATOMIC AND IRREVERSIBLE:
-A. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-B. IMMEDIATELY: tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
+Do NOT post anything to Slack in this phase. The delivery phase publishes the schedule.
 
-Do NOT call post-message.ts a second time under ANY circumstances.
-A second post-message.ts call = task failure.
+A. Write the COMPLETE schedule text (everything you built in STEP 5 — the 🧹 Limpieza
+   section, the 🗑️ Basura section, and the 📊 Resumen) to the draft file at
+   /tmp/cleaning-schedule-draft.txt using your file-writing tool.
+B. Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
 
-⚡ MANDATORY FINAL BASH COMMANDS — EXECUTE BOTH, IN ORDER:
-1. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<your-schedule-text>"
-2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
-BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the schedule.
 `,
       model: 'deepseek/deepseek-v4-flash',
       vm_size: 'performance-1x',
@@ -3749,7 +3750,19 @@ BOTH must be executed as bash tool calls. A text response without running these 
           description: 'Target checkout date (e.g. 2026-05-30)',
         },
       ],
-      delivery_steps: null,
+      delivery_steps: `You are delivering the approved daily cleaning schedule by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete cleaning schedule text prepared during execution (the 🧹 Limpieza section, the 🗑️ Basura section, and the 📊 Resumen).
+
+STEPS:
+1. Read the schedule text from the \`<approved-content>\` block in the prompt.
+2. Post it to the cleaning team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<schedule text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado en Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`,
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
@@ -3784,8 +3797,8 @@ STEP 2 — Get all confirmed checkouts for targetDate:
      - status: lead status (already confirmed — BOOKED, STAY, etc.)
 
    If the array is empty:
-     Run: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "No hay checkouts para <targetDate>. No se requiere limpieza."
-     Run: tsx /tools/platform/submit-output.ts --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
+     Save the message "No hay checkouts para <targetDate>. No se requiere limpieza." to /tmp/cleaning-schedule-draft.txt using your file-writing tool. Do NOT post it to Slack — the delivery phase posts it.
+     Run: tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
      Stop.
 
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
@@ -3972,19 +3985,20 @@ RULES:
 - Properties ordered by geographic proximity per cleaner
 - Spanish day names: LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday
 
-STEP 6 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+STEP 6 — Save the schedule to a draft file and submit for delivery:
 
-⚠️ ATOMIC AND IRREVERSIBLE:
-A. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-B. IMMEDIATELY: tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
+Do NOT post anything to Slack in this phase. The delivery phase publishes the schedule.
 
-Do NOT call post-message.ts a second time under ANY circumstances.
-A second post-message.ts call = task failure.
+A. Write the COMPLETE schedule text (everything you built in STEP 5 — the 🧹 Limpieza
+   section, the 🗑️ Basura section, and the 📊 Resumen) to the draft file at
+   /tmp/cleaning-schedule-draft.txt using your file-writing tool.
+B. Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
 
-⚡ MANDATORY FINAL BASH COMMANDS — EXECUTE BOTH, IN ORDER:
-1. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<your-schedule-text>"
-2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
-BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the schedule.
 `,
       model: 'deepseek/deepseek-v4-flash',
       vm_size: 'performance-1x',
@@ -4014,7 +4028,19 @@ BOTH must be executed as bash tool calls. A text response without running these 
           description: 'Target checkout date (e.g. 2026-05-30)',
         },
       ],
-      delivery_steps: null,
+      delivery_steps: `You are delivering the approved daily cleaning schedule by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete cleaning schedule text prepared during execution (the 🧹 Limpieza section, the 🗑️ Basura section, and the 📊 Resumen).
+
+STEPS:
+1. Read the schedule text from the \`<approved-content>\` block in the prompt.
+2. Post it to the cleaning team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<schedule text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado en Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`,
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
     },
