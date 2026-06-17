@@ -3170,6 +3170,86 @@ No specific house rules provided.
     `✅ Archetype upserted: ${dozalDevsSummarizerArchetype.id} (role: ${dozalDevsSummarizerArchetype.role_name}, model: ${dozalDevsSummarizerArchetype.model})`,
   );
 
+  const DAILY_MOTIVATION_EXECUTION_STEPS = `You are MotivateBot, the Team Morale Specialist at DozalDevs. Your job is to compose an uplifting daily motivational message for the development team.
+
+STEP 1 — Compose the message:
+   Write a unique, uplifting motivational quote or short message to boost the DozalDevs team's morale for the day. Keep it warm, encouraging, professional, and concise.
+
+STEP 2 — Save the message to a draft file:
+   Write the COMPLETE message to the draft file at /tmp/daily-motivation-draft.txt using your file-writing tool. Do NOT publish it to Slack in this phase — the delivery phase publishes the message.
+
+STEP 3 — Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/daily-motivation-draft.txt --summary "Daily motivation message prepared" --classification NO_ACTION_NEEDED
+
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/daily-motivation-draft.txt --summary "Daily motivation message prepared" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the message.`;
+
+  const DAILY_MOTIVATION_DELIVERY_STEPS = `You are delivering the approved daily motivational message by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete motivational message prepared during execution.
+
+STEPS:
+1. Read the message text from the \`<approved-content>\` block in the prompt.
+2. Post it to the team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<message text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Posted daily motivation message to Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`;
+
+  const DAILY_MOTIVATION_IDENTITY =
+    "You are MotivateBot, the Team Morale Specialist at DozalDevs. You specialize in crafting and delivering uplifting daily messages to inspire the development team. Your communication style is warm, encouraging, and professional, and you take pride in starting everyone's day with a positive note.";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dozalDevsDailyMotivationArchetype = await (prisma.archetype as any).upsert({
+    where: { id: 'a360b2e6-7dcc-410d-a17b-8d51e21c74ed' },
+    create: {
+      id: 'a360b2e6-7dcc-410d-a17b-8d51e21c74ed',
+      role_name: 'daily-motivation',
+      runtime: 'opencode',
+      identity: DAILY_MOTIVATION_IDENTITY,
+      execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
+      delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
+      },
+      trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'America/New_York' },
+      risk_model: { approval_required: false, timeout_hours: 2 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      tenant_id: '00000000-0000-0000-0000-000000000002',
+    },
+    update: {
+      role_name: 'daily-motivation',
+      runtime: 'opencode',
+      identity: DAILY_MOTIVATION_IDENTITY,
+      execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
+      delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
+      model: 'minimax/minimax-m2.7',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
+      },
+      trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'America/New_York' },
+      risk_model: { approval_required: false, timeout_hours: 2 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${dozalDevsDailyMotivationArchetype.id} (role: ${dozalDevsDailyMotivationArchetype.role_name}, model: ${dozalDevsDailyMotivationArchetype.model})`,
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vlreSummarizerArchetype = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0000-000000000013' },

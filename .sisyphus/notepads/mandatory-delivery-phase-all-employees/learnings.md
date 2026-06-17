@@ -175,3 +175,64 @@ delivery_uses_notif_channel=t. delivery_steps len=953.
 - Genuine exit captured via redirect: `CI=true pnpm exec vitest run <file> > /tmp/f 2>&1;
 echo "EXIT:$?" >> /tmp/f`. `| tee` would mask it (PIPESTATUS gotcha from learnings).
 - Evidence: .sisyphus/evidence/.../task-6-red.txt (EXIT:1).
+
+## [2026-06-16] Task 2 — daily-motivation retrofit (COMPLETE)
+
+### BIG SURPRISE: daily-motivation is WIZARD-CREATED, NOT in seed.ts
+
+- UUID is `a360b2e6-7dcc-410d-a17b-8d51e21c74ed` (random wizard UUID, NOT seed-style
+  `00000000-...`). `grep "daily-motivation" prisma/seed.ts` returns ZERO matches.
+- Task premise ("update create + update blocks") assumed it was seeded. It was NOT.
+- RESOLUTION: ADDED a brand-new upsert block to seed.ts (after the DozalDevs summarizer,
+  ~L3172) using the real wizard UUID so a future `db seed` upserts the SAME row. create
+  has tenant_id, update omits it (immutable rule). Outcome "seed.ts create+update blocks
+  have non-empty delivery_steps" is satisfied by the new block.
+
+### Schema is the NEWER variant (identity/execution_steps/delivery_steps)
+
+- archetypes table has NO `system_prompt`, NO `instructions`, NO `delivery_instructions`
+  columns. Fields: identity, execution_steps, delivery_steps, execution_instructions,
+  deliverable_type, enforce_tool_registry. (Confirmed via `\d archetypes`.)
+- `execution_steps` and `execution_instructions` were IDENTICAL in the bad DB row (both
+  held post-message + ignore-guard). BUT only `execution_steps` matters:
+  - execution_steps → compiled into /app/AGENTS.md `<execution-instructions>` block
+    (execution-phase.mts:254 → compileAgentsMd). ALL 7 verification checks target this.
+  - execution_instructions → NOT consumed by harness. The harness injects the platform
+    constant `EXECUTION_PROMPT` as the initial message (execution-phase.mts:133-135),
+    NOT execution_instructions. So the prescribed 2-field PATCH (execution_steps +
+    delivery_steps) is correct & sufficient. PATCH route maps body.instructions →
+    execution_instructions (admin-archetypes.ts:457) but we don't send `instructions`,
+    so execution_instructions keeps stale content harmlessly (not checked, not consumed).
+
+### Compiler ALREADY owns the exec/delivery guard — embedded guard is redundant AND wrong
+
+- agents-md-compiler.mts:199-203 injects its OWN platform `EXEC_IMPORTANT`
+  ("Do NOT read or follow <delivery-instructions> ... STOP after the final step") and
+  `stripEmbeddedStopDirectives()` (L218) removes archetype-embedded `**STOP`/`**IMPORTANT:..STOP`
+  lines. So the archetype's "STOP after step 3" guard was both wrong (3 steps no longer
+  the boundary) AND redundant. Removing it from execution_steps is strictly correct.
+
+### $NOTIFICATION_CHANNEL resolves even with archetype.notification_channel = NULL
+
+- notification-channel.ts:5 early-returns '' when archetype.notification_channel === null.
+- BUT tenant-env-loader.ts:66 passes `archetypeNotificationChannel ?? undefined` — converts
+  null→undefined BEFORE the resolver, bypassing the early-return. So it falls through to
+  tenant.config.notification_channel = `C0AUBMXKVNU` (DozalDevs). Delivery WILL post.
+  Did NOT need to set archetype.notification_channel. (Subtle null-vs-undefined behavior.)
+
+### Repeatable mechanics that worked
+
+- SERVICE_TOKEN via `grep -E "^SERVICE_TOKEN=" .env` (learnings: `source .env` breaks in
+  zsh on the GITHUB_PRIVATE_KEY \n line).
+- PATCH via Node script (.sisyphus/tmp-\*.mjs): JSON.stringify handles all escaping; put
+  fail-fast assertions (no post-message, has --draft-file, etc.) BEFORE the fetch. Deleted
+  the temp script after use.
+- seed.ts syntax check WITHOUT executing it: `ts.transpileModule(src,{module:'esnext'})`
+  filtering code 1343 (import.meta artifact). LSP TS server was unavailable
+  (no typescript-language-server version set) so transpileModule was the fallback.
+
+### Verification result (all 7 checks pass)
+
+deliverable_type=slack_message | delivery_nonempty=t | exec_has_submit_output=t |
+exec_has_draft_file=t | exec_has_post_message=f | exec_has_ignore_guard=f |
+delivery_has_post_message=t | delivery_uses_notif_channel=t. delivery_steps len=877.
