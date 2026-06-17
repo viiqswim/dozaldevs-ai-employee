@@ -474,7 +474,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (Group 1).
 
-- [ ] 8. Run A — one naive sentence → clarify chat → create employee (Playwright)
+- [x] 8. Run A — one naive sentence → clarify chat → create employee (Playwright)
 
   **What to do**:
   - Using the authenticated session (Task 7) and the validated naive sentence (Task 6), drive the REAL wizard: type the sentence, then answer each clarifying question as a NON-TECHNICAL PM would — plausible, plain-language answers. Crucially, the answers should convey the real intent (a daily cleaning schedule from checkouts + the team's source docs, posted to the crew's Slack) **without** dictating step-by-step procedure or pasting any spec. Continue until a proposal is produced (or the 5-turn backstop fires).
@@ -513,7 +513,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (Group 1 artifacts).
 
-- [ ] 9. Run B — short plain description → create employee (Playwright)
+- [x] 9. Run B — short plain description → create employee (Playwright)
 
   **What to do**:
   - Drive the wizard with a SHORT plain-language description (a few sentences a non-technical user could write — naming the job, the data sources in plain terms, the destination channel, and that it's a daily schedule). Still simple — NOT the long complex spec, NO procedural steps, NO date-specific data.
@@ -625,7 +625,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (Group 1 artifacts).
 
-- [ ] 12. UNBOUNDED fix loop: fix → regenerate → re-trigger all dates → re-judge → prove generality + no regression → repeat until reliably correct
+- [x] 12. UNBOUNDED fix loop: fix → regenerate → re-trigger all dates → re-judge → prove generality + no regression → repeat until reliably correct
 
   **What to do** (iterate with NO cap until the termination condition is met):
   1. Apply the next generic fix — **prefer an additive edit to the generator's prompt** (`archetype-generator-prompts.ts`, hot-reloads, easy revert); edit generator logic (`archetype-generator.ts`) or converse-create only when a prompt change is insufficient. Any added example must be in an unrelated (non-cleaning) domain.
@@ -744,7 +744,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: YES (Group 3) — `docs(employee-creation): update conventions for generator hardening`.
 
-- [ ] 15. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 15. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
 
   **What to do**: After the Final Verification Wave passes AND the user gives explicit okay, run `tsx scripts/telegram-notify.ts "✅ Employee-creation platform hardening complete — cleaning-schedule employee created from a simple description now produces correct schedules across all test dates. Come back to review."`
 
@@ -759,19 +759,19 @@ Max Concurrent: 7 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay.
 
-- [ ] F1. **Plan Compliance + Genuine-Platform-Fix Audit** — `oracle`
+- [x] F1. **Plan Compliance + Genuine-Platform-Fix Audit** — `oracle`
       Verify every "Must Have" exists (oracle artifacts, multi-date reliability evidence, safety baseline). Verify every "Must NOT Have" is absent: confirm judging was OUTPUT-based not spec-based; confirm the oracle was derived independently (not from the existing employee); confirm no cleaning-specific hacks in the platform files (review the diffs semantically; a domain-term scan is one supporting signal); confirm each fix was shown generic on a 2nd unrelated employee; confirm NO deferred backlog exists (everything diagnosed was fixed); confirm no other employees' archetypes were edited. Confirm evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Fixes generic [N/N] | Backlog absent [Y/N] | VERDICT`
 
-- [ ] F2. **Code Quality + Safety-Baseline Regression** — `unspecified-high`
+- [x] F2. **Code Quality + Safety-Baseline Regression** — `unspecified-high`
       Run `tsc --noEmit` + `pnpm lint` + `pnpm test`. Review changed platform files for `as any`/`@ts-ignore`, dead code, over-abstraction. Re-run the generation safety baseline for the existing employees and confirm no structural degradation. Query `archetype_generation_calls` for new error states.
       Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Regression [CLEAN/N degraded] | VERDICT`
 
-- [ ] F3. **Real Live QA — Multi-Date Replay** — `unspecified-high` (+ `playwright` skill)
+- [x] F3. **Real Live QA — Multi-Date Replay** — `unspecified-high` (+ `playwright` skill)
       From clean state + single-gateway pre-flight: re-create the employee from a simple description, trigger it across all pinned dates, confirm each task reaches `Done` (fresh task ids + `task_status_log` traces), and independently re-judge each posted schedule against the per-date oracle. Save evidence to `.sisyphus/evidence/final-qa/`.
       Output: `Dates [N/N correct] | All Done [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity + Output-Judged Check** — `deep`
+- [x] F4. **Scope Fidelity + Output-Judged Check** — `deep`
       For each task: read "What to do", read the actual diff. Confirm correctness was judged on OUTPUT vs the independent oracle (not spec adherence, not the existing employee). Confirm platform changes touched only generator/prompt/converse-create; no scope creep into model-selection, harness, or wizard UX; no other employees' archetypes edited. Confirm the loop terminated on the reliability bar (correct on every date), not on a count. Flag any unaccounted changes.
       Output: `Tasks [N/N compliant] | Output-judged [Y/N] | Scope creep [NONE/N] | VERDICT`
 
