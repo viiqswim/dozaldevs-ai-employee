@@ -329,3 +329,164 @@ undefined`) — the critical conditionality. Verified the 2 PATCH unit suites
 - pnpm build (tsc) EXIT:0. eslint changed files EXIT:0. LSP unavailable (no
   typescript-language-server pinned) — tsc is authoritative.
 - Pre-existing try/catch repo-write TypeError logs in unit output are NOT failures.
+
+## [2026-06-16] Task 3 — DB verification + seed check (COMPLETE)
+
+### Results
+
+- DB query: `SELECT id, role_name FROM archetypes WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps = '');` → 0 rows. ✅
+- seed.ts cleaning-schedule: delivery_steps is non-empty (lines 3833-3845, both create and update blocks). ✅
+- seed.ts daily-motivation: delivery_steps is non-empty via `DAILY_MOTIVATION_DELIVERY_STEPS` constant (line 3189, referenced at lines 3215 and 3234). ✅
+
+### Confirmation
+
+All 3 expected outcomes pass. The plan's Wave 1 retrofits (T1, T2) are fully reflected in both the DB and seed.ts. No deliverable employee has empty delivery_steps.
+
+## [2026-06-16] Task 10 — Generation-guardrail LIVE check (COMPLETE)
+
+### Both guardrails verified end-to-end against the running gateway
+
+- TEST (a) POST gate: deliverable_type:null + delivery_steps:"" -> HTTP 400
+  `MISSING_DELIVERY_CONFIG`. Confirms T9's gate (admin-archetypes.ts:199) is live.
+- TEST (b) converse-create: a "pure utility"-sounding employee (monitors RSS feed,
+  posts digest) generated a proposal with deliverable_type:null BUT non-empty
+  delivery_steps (158 chars). Confirms T8's always-default generator is live.
+
+### Live-API gotchas hit (not obvious from the brief)
+
+- POST /archetypes body schema REQUIRES `model` AND `runtime:"opencode"`. Without
+  them you get a 400 on schema validation (path:["model"], path:["runtime"]) and
+  NEVER reach the delivery gate. The brief's example payload omits both -> it 400s
+  for the WRONG reason. Must add model + runtime to actually test the gate.
+  (Add `"model":"minimax/minimax-m2.7","runtime":"opencode"`.)
+- converse-create body field is `transcript` (array of {role:'user'|'assistant',
+  content}), NOT `messages` as the brief's example shows. `messages` -> 400
+  "expected array, received undefined" at path:["transcript"]. Schema is
+  ConverseCreateBodySchema in admin-archetype-converse-create.ts:33, min(1) max(50).
+- converse-create asked TWO clarifying questions before yielding kind:proposal
+  (data-source URL, then which fetch tool). Had to feed the FULL transcript back
+  each turn (request-stateless design) — append prior assistant question + new user
+  answer. 3 user turns total reached the proposal. The 5-turn backstop wasn't needed.
+- Proposal shape: top-level keys = baseline, changed_fields, kind, proposal,
+  tool_delta, trigger_change. The archetype fields live under `.proposal.*`
+  (delivery_steps, deliverable_type, etc.), NOT top-level.
+
+### Cleanup reality
+
+- Neither test persisted anything: test (a) rejected at gate before
+  prisma.archetype.create(); converse-create only proposes, never writes. The
+  safety soft-delete UPDATE matched 0 rows. active gate-test-% count = 0 confirmed.
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-10-guardrail.txt
+
+## [2026-06-16] Task 4 — LIVE E2E both employees reach Done via Delivering (COMPLETE)
+
+### Result: PASS — both go Submitting → Delivering → Done (NOT Submitting → Done)
+
+- cleaning-schedule (VLRE) task `6cc597b7-7c2c-4e69-8630-2e3ed863e2f4` → Done, Delivering present, failure_code empty.
+- daily-motivation (DozalDevs) task `54983396-bdc0-4f17-8395-e4c775db3630` → Done, Delivering present, failure_code empty.
+- The `Delivering → Done` transition is logged with `actor='machine'` (the spawned
+  delivery container) — proves the Slack post happened in the delivery container,
+  not execution. Exactly the retrofit's intended behavior.
+- End-to-end timing: each task ~75s execution + ~30s delivery. Both terminal in <2.5 min.
+
+### CRITICAL trigger gotchas (cost 2 failed attempts on cleaning-schedule)
+
+- cleaning-schedule has `input_schema` requiring `date` (every_run). daily-motivation has none.
+- Trigger inputs MUST be nested under an `inputs` key, NOT top-level body:
+  - WRONG `-d '{"date":"2026-06-16"}'` → `{"error":"MISSING_REQUIRED_INPUTS","missing":["date"]}`
+  - RIGHT `-d '{"inputs":{"date":"2026-06-16"}}'` → task created
+  - Source: admin-employee-trigger.ts:22 `inputs: z.record(...)`, L71 `bodyResult.data?.inputs`.
+- daily-motivation took plain `-d '{}'` (no required inputs).
+
+### Schema gotchas (column names differ from task-brief examples)
+
+- `task_status_log` column is `to_status` / `from_status`, NOT `state` (brief's example
+  said `state` — wrong). Query: `SELECT from_status,to_status,actor,created_at ... ORDER BY created_at`.
+- archetypes has NO `approval_required` column — it's `risk_model->>'approval_required'` (JSONB).
+- archetypes input field is `input_schema` (NOT `required_inputs`).
+- tasks failure column is `failure_code` (confirmed, matches brief).
+
+### Live-poll observation note
+
+- daily-motivation hit Delivering FAST (visible at t+15s first poll); cleaning-schedule
+  lagged ~40s behind (different tenant, started a few seconds later + longer exec). Both
+  Delivering states captured live AND confirmed post-hoc in task_status_log. Always read
+  the FULL trace, not just a single poll snapshot (a fast Delivering→Done can be missed
+  between 15s polls — the log is authoritative).
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-4-e2e.txt
+
+## [2026-06-16] Task 5 — approval-flip regression (COMPLETE)
+
+### Result: PASS — MISSING_DELIVERY_CONFIG abolished on the approval path
+
+- daily-motivation (DozalDevs, archetype a360b2e6-7dcc-410d-a17b-8d51e21c74ed),
+  flipped approval_required:true, approved via Inngest event → full path:
+  `Received→Triaging→AwaitingInput→Ready→Executing→Validating→Submitting→Reviewing→Approved→Delivering→Done`.
+  failure_code EMPTY. `Delivering→Done` actor='machine' (delivery container).
+  Test task: `baa35626-7c0d-4dc1-86f7-9bfaabced932`.
+
+### THE BIG GOTCHA: a naive approval flip on daily-motivation CANNOT reach Reviewing
+
+- daily-motivation's execution_steps HARDCODE `--classification NO_ACTION_NEEDED`
+  (its T2 approval-free retrofit). With approval_required:true, validate-and-submit.ts
+  calls `runOverrideCardPath()` FIRST (override-card.ts). That path fires on
+  NO_ACTION_NEEDED → posts an OVERRIDE card (not an approval card) and
+  `step.waitForEvent('employee/override.requested')`. It NEVER calls
+  `runReviewingPath()`. So the task PARKS IN `Submitting` indefinitely (looks stuck;
+  deliverable.metadata has `override_card_ts`, NOT a pending_approvals row).
+- Crucially it ALSO never reaches `resolveDelivery('NEEDS_APPROVAL')` at
+  approval-handler.ts:304-317 — the exact site of the MISSING_DELIVERY_CONFIG bug.
+  So a naive flip does NOT actually test the regression; it tests the override path.
+- FIX to genuinely exercise the regression + hit the brief's exact trace: a
+  TEMPORARY DB-ONLY execution_steps patch flipping `NO_ACTION_NEEDED→NEEDS_APPROVAL`
+  (NO source files touched), then restore byte-exact afterward. Mirrors the
+  documented e2e-testing model-override convention (override in DB, restore after).
+- First (naive) task `9c4de029-...` parked in Submitting on override-card wait; cleaned
+  up by sending `employee/override.requested {direction:null}` → went Done (dismissed).
+
+### resolveDelivery confirms the regression IS fixed by delivery_steps presence
+
+- delivery-resolver.ts rule 1: non-empty `delivery_steps` → `has-delivery` regardless
+  of classification. daily-motivation's delivery_steps is non-empty (T2 retrofit, ~877
+  chars) → approval-handler.ts:304 `resolveDelivery(...,'NEEDS_APPROVAL')` returns
+  `has-delivery`, NOT `misconfigured` → NO MISSING_DELIVERY_CONFIG. That's the whole fix.
+
+### Mechanics that worked / gotchas
+
+- approval_required & timeout_hours live in `risk_model` JSONB. ORIGINAL daily-motivation
+  value was `{"timeout_hours": 2, ...}` (NOT 1 — the brief's example used 1). Restored to
+  the TRUE original (timeout_hours:2). ALWAYS back up the real value first, don't trust
+  the brief's example numbers.
+- PATCH risk_model via admin API works cleanly and returns the new risk_model in the body.
+- execution_steps DB patch: build SQL with Postgres dollar-quoting `$exec$...$exec$`
+  (a Node script via execFileSync('psql',[...,'-f',sqlfile]) — handles ALL embedded
+  quotes/newlines, no shell escaping). Put fail-fast assertions (has NEEDS_APPROVAL,
+  no NO_ACTION_NEEDED, has --draft-file, no post-message) BEFORE writing.
+- BYTE-EXACT restore gotcha: `psql -At -c 'SELECT col'` APPENDS one record-separator
+  `\n` to its stdout. If you back up to a file that way and restore the file verbatim,
+  you inject an extra trailing newline (DB octet_length 1221 vs true 1220). Strip exactly
+  one trailing `\n` before restoring, and verify via `octet_length(col)` (which has NO
+  psql-newline artifact) — NOT via `wc -c` on a psql dump file.
+- approve via `curl -X POST localhost:8288/e/local` with `employee/approval.received`
+  {action:approve, userId, userName}. Returns {"ids":[...],"status":200}.
+- Pre-existing noise in /tmp/ai-dev.log: 47 reviewing-watchdog "zombies" (old test tasks
+  with pending_approvals — watchdog SKIPS them, resolves 0), and time-estimator
+  "LLM returned empty content" warns — both UNRELATED to this task.
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-5-approval-flip.txt
+
+## F3 Final QA Re-run (2026-06-16)
+- POST /archetypes Zod schema requires `instructions` (string) — NOT `identity`/`execution_steps`. Sending the wrong fields yields a Zod 400 BEFORE the delivery gate. Use the integration-test payload shape: `{role_name, model, runtime, instructions, deliverable_type, delivery_steps}`.
+- daily-motivation execution_steps contain NO_ACTION_NEEDED **TWICE** (line 10 + the line-13 MANDATORY FINAL command). Use `.replaceAll()` NOT `.replace()` for the approval-flip — single replace leaves the mandatory-final command unflipped and the plan's own `includes('NO_ACTION_NEEDED')` guard would throw.
+- Approval via Inngest dev endpoint works headless: POST http://localhost:8288/e/local with `employee/approval.received` {taskId, action:approve, userId, userName}. Returns {ids, status:200}.
+- All Done transitions for delivery-phase employees show `actor=machine` on Delivering->Done — this is the proof the delivery CONTAINER ran (not in-execution posting). actor=lifecycle_fn would be a red flag.
+- Both E2E tasks ran ~1m45s execution + ~30s delivery. Approval-flip total ~2m20s incl. manual approve.
+- byte-exact restore confirmed via octet_length(execution_steps)=1220 (psql -At adds 1 trailing \n so file is 1221 bytes; strip with .replace(/\n$/,'')).

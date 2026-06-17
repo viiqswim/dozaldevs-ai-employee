@@ -287,7 +287,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES (groups with Task 1)
 
-- [ ] 3. DB verification query + reseed check
+- [x] 3. DB verification query + reseed check
 
   **What to do**:
   - Run the verification query; confirm it returns **0 rows** (no deliverable employee with empty `delivery_steps`).
@@ -315,7 +315,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 4. Live E2E — both retrofitted employees deliver to Done via the delivery container
+- [x] 4. Live E2E — both retrofitted employees deliver to Done via the delivery container
 
   **What to do**:
   - Confirm the worker Docker image exists/current (rebuild only if worker code changed — for this plan it likely did not).
@@ -494,7 +494,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `feat(archetypes): generator always emits a delivery phase with clear boundary guidance`
 
-- [ ] 9. GREEN — create/edit gate rejects empty `delivery_steps` independent of `deliverable_type`
+- [x] 9. GREEN — create/edit gate rejects empty `delivery_steps` independent of `deliverable_type`
 
   **What to do**:
   - Tighten the create gate (`admin-archetypes.ts` POST ~L197-201) and the edit gate (PATCH ~L393-397), plus the converse-create path, so an empty `delivery_steps` is rejected with `MISSING_DELIVERY_CONFIG` EVEN WHEN `deliverable_type` is null. Invariant: a saved employee always has non-empty `delivery_steps`.
@@ -530,7 +530,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `feat(archetypes): require a delivery phase at save time regardless of deliverable_type`
 
-- [ ] 10. Generation-guardrail live check — an empty-delivery employee is impossible
+- [x] 10. Generation-guardrail live check — an empty-delivery employee is impossible
 
   **What to do**:
   - Live-verify the two new guardrails against the running gateway: (a) attempt to create an employee via the admin API with `deliverable_type: null` + empty `delivery_steps` → expect 400; (b) run the wizard generation path (or `converse-create`) on a "pure utility"-sounding description and confirm the persisted/proposed archetype has a non-empty `delivery_steps` AND that execution_steps does not deliver (sanity-check the boundary guidance took effect).
@@ -571,19 +571,19 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
 > 3 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F3 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       For each "Must Have": verify (query DB, read seed, run command, confirm gate + generator + prompt changes exist). For each "Must NOT Have": grep for forbidden patterns — direct Slack post in retrofitted execution_steps, the `<delivery-instructions>`-ignore guard in daily-motivation, any removal of `NO_ACTION_NEEDED`, any removal/rewire of `deliverable_type` (model-selection profiler + time-estimator must still read it), cross-tenant wiring, unscoped UPDATE, row DELETE. Confirm: verification query returns 0 rows; the generator can no longer emit `delivery_steps: null`; the prompt contains the execution-vs-delivery boundary guidance; the create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Loophole closed [Y/N] | Boundary guidance present [Y/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Scope Fidelity Check** — `deep`
+- [x] F2. **Scope Fidelity Check** — `deep`
       Verify ONLY the 2 named employees were retrofitted (DB + seed); the generator/gate/prompt changes touched only the generator, prompts, and the 3 archetype endpoints. Confirm `NO_ACTION_NEEDED` runtime path untouched in resolver + lifecycle (new gate is save-time, not runtime). Confirm `deliverable_type` RETAINED and the model-selection profiler + time-estimator still read it (no rewire — D4 deferred). Confirm only ONE annotated contrast was added to the prompt (no multi-domain bloat). Confirm cleaning-schedule stayed VLRE and daily-motivation stayed DozalDevs. Confirm no schema migration and no resolver-contract change.
       Output: `Retrofitted [2/2] | NO_ACTION_NEEDED intact [Y/N] | deliverable_type retained [Y/N] | Cross-tenant [CLEAN/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA Re-run** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Real Manual QA Re-run** — `unspecified-high` (+ `e2e-testing` skill)
       Re-trigger both retrofitted employees from clean state → confirm Done via the delivery container (not in-execution post). Re-run the approval-flip regression. Re-run the generation-guardrail live check (empty-delivery creation blocked; generated employee always has a delivery phase). Run `pnpm test -- --run` + `pnpm test:integration` + the DB verification query. Save to `.sisyphus/evidence/mandatory-delivery-phase-all-employees/final-qa/`.
       Output: `E2E [N/N] | Approval-flip [PASS/FAIL] | Guardrail [PASS/FAIL] | Tests [N pass/N fail] | DB query [0 rows?] | VERDICT`
 
-- [ ] N. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] N. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
