@@ -123,6 +123,28 @@ describe('POST /admin/tenants/:tenantId/archetypes — delivery hard-gate', () =
       'Release the finished deliverable to the configured destination.',
     );
   });
+
+  it('(e) REJECT — deliverable_type null + empty delivery_steps → 400 MISSING_DELIVERY_CONFIG (null/null loophole)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/admin/tenants/${SEEDED_DOZALDEVS_TENANT_ID}/archetypes`,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${ADMIN_TEST_KEY}`,
+      },
+      payload: {
+        role_name: `${TEST_ROLE_PREFIX}null-null-reject`,
+        model: 'deepseek/deepseek-v4-flash',
+        runtime: 'opencode',
+        instructions: 'Do the work; no delivery configured at all.',
+        deliverable_type: null,
+        delivery_steps: '',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('MISSING_DELIVERY_CONFIG');
+  });
 });
 
 describe('PATCH /admin/tenants/:tenantId/archetypes/:archetypeId — delivery hard-gate', () => {
