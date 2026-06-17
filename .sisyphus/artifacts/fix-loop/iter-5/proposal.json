@@ -1,0 +1,39 @@
+{
+  "kind": "proposal",
+  "turn_count": 2,
+  "note": "2 converse-create turns. Proposal selected: Turn 1 (better execution_steps with INPUT_TARGET_DATE and source authority). Turn 2 was worse (used system date). Neither had recurring task step — Fix 14 did not trigger it because user description does not mention trash duties.",
+  "proposal": {
+    "role_name": "daily-cleaning-scheduler",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "I am a meticulous scheduling assistant who specializes in cleaning coordination. I ensure accuracy in assignments and clearly communicate daily schedules to the team via Slack.",
+    "execution_steps": "1. Read the target date by running printenv INPUT_TARGET_DATE and save it as targetDate. CRITICAL: Use targetDate for every subsequent step. NEVER use the system date or 'today'.\n2. Fetch all properties checking out on targetDate from Hostfully using the /tools/hostfully/get-checkouts.ts tool. Save the list of checkout properties.\n3. Read the Notion database 'Cleaner Assignments' to get the zone-to-cleaner mapping and each cleaner's availability (which days they work). Use the Composio Notion action.\n4. Read the Notion database 'Property Details' to get each property's zone and estimated cleaning duration. Use the Composio Notion action.\n5. Determine the day of week from targetDate (e.g., Monday, Tuesday).\n6. For each property in the checkout list, look up its zone from the Property Details. Then, find a cleaner assigned to that zone from the Cleaner Assignments who is available on the determined day of week. The Cleaner Assignments database is the only authoritative source for coverage — do not infer coverage from any other source. If no cleaner is assigned to that zone or no cleaner is available that day, mark the property as UNASSIGNED. If multiple cleaners are available for the zone, use the default or first listed.\n7. Compile the cleaning schedule. For each assigned property, include the cleaner name, property name, zone, and estimated cleaning duration. Group by cleaner. For UNASSIGNED properties, list them separately with a note.\n8. Format the schedule as a Slack message with a clear layout.\n9. Finally, submit your completed summary for review so it can be delivered to the team.",
+    "delivery_steps": "1. Parse the approved content from the <approved-content> XML block and write the draft field to /tmp/delivery-draft.txt.\n2. Use the /tools/slack/post-message.ts tool to post the cleaning schedule to the $NOTIFICATION_CHANNEL channel. Do NOT include --thread-ts.\n3. Confirm delivery by submitting output with a confirmation summary.",
+    "deliverable_type": "slack_message",
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "trigger_sources": {
+      "type": "manual"
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/hostfully/get-checkouts.ts",
+        "/tools/composio/execute.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "input_schema": [
+      {
+        "key": "target_date",
+        "label": "Target Date",
+        "type": "date",
+        "frequency": "every_run",
+        "required": true,
+        "description": "The date to process checkouts and create cleaning schedule."
+      }
+    ]
+  }
+}

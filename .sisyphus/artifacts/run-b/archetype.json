@@ -1,0 +1,123 @@
+{
+  "kind": "proposal",
+  "baseline": {
+    "model": "deepseek/deepseek-v4-flash",
+    "runtime": "opencode",
+    "identity": "",
+    "execution_steps": "",
+    "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "",
+      "trigger": "",
+      "workflow": [],
+      "tools_used": "",
+      "output": "",
+      "approval": ""
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": []
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "proposal": {
+    "role_name": "daily-cleaning-schedule-coordinator",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "You are a friendly and efficient coordinator who manages the daily cleaning schedule for a property management team. You start each day by checking which properties have checkouts, consulting the Notion database for cleaning team assignments and time estimates, and then creating a clear schedule that is posted to the cleaning team's Slack channel.",
+    "execution_steps": "1. Always begin by verifying the task scope and ensuring no duplicate runs for today.\n2. Use the Hostfully tool to list all properties with checkouts happening today. Retrieve property details including ID, name, and any relevant notes.\n3. For each checkout property, use Notion (via Composio) to look up the cleaning team database. Find the assigned cleaner for that property or area and retrieve the estimated cleaning duration.\n4. Cross-reference property size or type with cleaning time estimates to confirm the schedule is feasible.\n5. Compile the cleaning schedule as a summary: list each property with the assigned cleaner, estimated time, and any special instructions.\n6. Finally, submit your completed schedule summary for review so it can be delivered to the team.",
+    "delivery_steps": "Post the cleaning schedule to the team's main Slack channel ($NOTIFICATION_CHANNEL) along with a friendly morning message.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "Daily Cleaning Schedule Coordinator",
+      "trigger": "Scheduled daily at 8 AM",
+      "workflow": [
+        "Check for today's checkouts using Hostfully",
+        "Look up cleaner assignments and time estimates in Notion",
+        "Compile cleaning schedule",
+        "Submit schedule for delivery",
+        "Post schedule to Slack channel"
+      ],
+      "tools_used": "Hostfully (checkouts, property details), Notion (cleaner database), Slack (posting), Submit Output",
+      "output": "Cleaning schedule summary posted to Slack",
+      "approval": "No approval required"
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/hostfully/get-checkouts.ts",
+        "/tools/hostfully/get-property.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "changed_fields": {
+    "identity": {
+      "before": "",
+      "after": "You are a friendly and efficient coordinator who manages the daily cleaning schedule for a property management team. You start each day by checking which properties have checkouts, consulting the Notion database for cleaning team assignments and time estimates, and then creating a clear schedule that is posted to the cleaning team's Slack channel."
+    },
+    "execution_steps": {
+      "before": "",
+      "after": "1. Always begin by verifying the task scope and ensuring no duplicate runs for today.\n2. Use the Hostfully tool to list all properties with checkouts happening today. Retrieve property details including ID, name, and any relevant notes.\n3. For each checkout property, use Notion (via Composio) to look up the cleaning team database. Find the assigned cleaner for that property or area and retrieve the estimated cleaning duration.\n4. Cross-reference property size or type with cleaning time estimates to confirm the schedule is feasible.\n5. Compile the cleaning schedule as a summary: list each property with the assigned cleaner, estimated time, and any special instructions.\n6. Finally, submit your completed schedule summary for review so it can be delivered to the team."
+    },
+    "delivery_steps": {
+      "before": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+      "after": "Post the cleaning schedule to the team's main Slack channel ($NOTIFICATION_CHANNEL) along with a friendly morning message."
+    },
+    "overview": {
+      "before": {
+        "role": "",
+        "trigger": "",
+        "workflow": [],
+        "tools_used": "",
+        "output": "",
+        "approval": ""
+      },
+      "after": {
+        "role": "Daily Cleaning Schedule Coordinator",
+        "trigger": "Scheduled daily at 8 AM",
+        "workflow": [
+          "Check for today's checkouts using Hostfully",
+          "Look up cleaner assignments and time estimates in Notion",
+          "Compile cleaning schedule",
+          "Submit schedule for delivery",
+          "Post schedule to Slack channel"
+        ],
+        "tools_used": "Hostfully (checkouts, property details), Notion (cleaner database), Slack (posting), Submit Output",
+        "output": "Cleaning schedule summary posted to Slack",
+        "approval": "No approval required"
+      }
+    },
+    "tool_registry": {
+      "added": [
+        "/tools/hostfully/get-checkouts.ts",
+        "/tools/hostfully/get-property.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ],
+      "removed": []
+    }
+  },
+  "tool_delta": {
+    "added": [
+      "/tools/hostfully/get-checkouts.ts",
+      "/tools/hostfully/get-property.ts",
+      "/tools/slack/post-message.ts",
+      "/tools/platform/submit-output.ts"
+    ],
+    "removed": []
+  }
+}

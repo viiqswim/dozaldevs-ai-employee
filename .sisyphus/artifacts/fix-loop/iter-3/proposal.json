@@ -1,0 +1,75 @@
+{
+  "kind": "proposal",
+  "baseline": {
+    "model": "deepseek/deepseek-v4-flash",
+    "runtime": "opencode",
+    "identity": "",
+    "execution_steps": "",
+    "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+    "deliverable_type": null,
+    "overview": {
+      "role": "",
+      "trigger": "",
+      "workflow": [],
+      "tools_used": "",
+      "output": "",
+      "approval": ""
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": []
+    },
+    "trigger_sources": {
+      "type": "manual"
+    }
+  },
+  "proposal": {
+    "role_name": "cleaning-scheduler",
+    "model": "minimax/minimax-m2.7",
+    "runtime": "opencode",
+    "identity": "You are a diligent scheduling assistant that creates daily cleaning schedules based on property checkouts from Hostfully and cleaner assignments from Notion. You ensure every property is assigned to the right cleaner and the schedule is delivered to the team on time.",
+    "execution_steps": "1. Read the target date by running printenv INPUT_TARGET_DATE and save it as targetDate. CRITICAL: Use targetDate for every subsequent step. Never use the system date or 'today'.\n2. Fetch upcoming checkouts from Hostfully using the get-checkouts tool with --days 30. Filter the list to only include properties where the checkout date matches targetDate. Save this list as checkouts.\n3. Search the Notion workspace for a database named 'Cleaner Assignments'. Retrieve all rows, including fields for area, cleaner name, and cleaning duration (in minutes) for each property.\n4. For each checkout in checkouts, determine the property's area from the Hostfully data. Look up that area in the Notion assignments to find the assigned cleaner and the cleaning duration for that property. If the area is not found in the Notion data, mark the assignment as UNASSIGNED.\n5. Compile the schedule: for each property, create a line with the property name, assigned cleaner, cleaning duration, and area. Format the schedule as a Slack message with clear sections.\n6. Write the formatted schedule to /tmp/delivery-draft.txt.",
+    "delivery_steps": "1. Parse the schedule content from /tmp/delivery-draft.txt.\n2. Post the schedule to the $NOTIFICATION_CHANNEL Slack channel using the post-message tool.\n3. Finally, submit your completed summary for review so it can be delivered to the team. Use the submit-output tool with summary 'Cleaning schedule generated and posted to Slack' and draft-file /tmp/delivery-draft.txt.",
+    "deliverable_type": "slack_message",
+    "overview": {
+      "role": "Cleaning Schedule Generator",
+      "trigger": "Triggered manually on demand with a target date.",
+      "workflow": [
+        "Fetch checkouts from Hostfully for specified date",
+        "Retrieve cleaner assignments and property cleaning times from Notion",
+        "Match properties to available cleaners based on area coverage",
+        "Generate a formatted schedule and post to Slack"
+      ],
+      "tools_used": "Hostfully, Notion, Slack",
+      "output": "Daily cleaning schedule posted to Slack channel",
+      "approval": "No approval required"
+    },
+    "risk_model": {
+      "approval_required": false,
+      "timeout_hours": 24
+    },
+    "tool_registry": {
+      "tools": [
+        "/tools/hostfully/get-checkouts.ts",
+        "/tools/slack/post-message.ts",
+        "/tools/platform/submit-output.ts"
+      ]
+    },
+    "trigger_sources": {
+      "type": "manual",
+      "input_schema": [
+        {
+          "key": "target_date",
+          "label": "Target Date",
+          "type": "date",
+          "frequency": "every_run",
+          "required": true,
+          "description": "The date to process checkouts and generate the cleaning schedule."
+        }
+      ]
+    }
+  }
+}

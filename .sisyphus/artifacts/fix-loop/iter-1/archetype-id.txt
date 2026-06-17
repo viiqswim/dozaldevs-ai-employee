@@ -1,0 +1,8 @@
+3858b3d1-8ec3-44aa-a305-ae1fa5c5079b
+role_name: cleaning-schedule-v3
+model: deepseek/deepseek-v4-flash
+vm_size: performance-1x
+status: active
+notification_channel: C0B71QSMZKQ
+deliverable_type: slack_message
+tenant_id: 00000000-0000-0000-0000-000000000003

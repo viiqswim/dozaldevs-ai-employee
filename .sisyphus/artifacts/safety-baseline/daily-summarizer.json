@@ -1,0 +1,55 @@
+{
+  "slug": "daily-summarizer",
+  "generated_at": "2026-06-17T04:57:04Z",
+  "role_name": "daily-digest-bot",
+  "model": "minimax/minimax-m2.7",
+  "runtime": "opencode",
+  "deliverable_type": "slack_message",
+  "identity_first_200": "A diligent team member responsible for aggregating daily updates from team Slack channels and producing a concise daily digest for the team.",
+  "identity_full": "A diligent team member responsible for aggregating daily updates from team Slack channels and producing a concise daily digest for the team.",
+  "execution_steps": [
+    "Read recent messages from the #general, #operations, and #guest-communication Slack channels. Analyze the messages and write a short digest summarizing the key updates and discussions. Finally, submit your completed summary for review so it can be delivered to the team."
+  ],
+  "execution_steps_raw": "Read recent messages from the #general, #operations, and #guest-communication Slack channels. Analyze the messages and write a short digest summarizing the key updates and discussions. Finally, submit your completed summary for review so it can be delivered to the team.",
+  "delivery_steps": "Post the approved digest to the #team-updates Slack channel.",
+  "tool_registry": [
+    "/tools/slack/read-channels.ts",
+    "/tools/platform/submit-output.ts",
+    "/tools/slack/post-message.ts"
+  ],
+  "tool_registry_raw": {
+    "tools": [
+      "/tools/slack/read-channels.ts",
+      "/tools/platform/submit-output.ts",
+      "/tools/slack/post-message.ts"
+    ]
+  },
+  "risk_model": {
+    "approval_required": true,
+    "timeout_hours": 24
+  },
+  "trigger_sources": {
+    "type": "manual"
+  },
+  "overview": {
+    "role": "daily-digest-bot",
+    "trigger": "Scheduled every weekday at 9 AM",
+    "workflow": [
+      "Read recent messages from #general, #operations, and #guest-communication",
+      "Analyze messages and compose a short digest",
+      "Submit digest for manager approval",
+      "After approval, post final digest to #team-updates"
+    ],
+    "tools_used": "Slack read channels, Slack post message, platform submit output",
+    "output": "A short digest posted to #team-updates after approval",
+    "approval": "Manager approval required before publishing"
+  },
+  "changed_fields_summary": [
+    "approval_required",
+    "delivery_steps",
+    "execution_steps",
+    "identity",
+    "overview",
+    "tool_registry"
+  ]
+}

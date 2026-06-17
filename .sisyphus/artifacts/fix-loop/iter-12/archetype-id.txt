@@ -1,0 +1,7 @@
+cleaning-schedule-v14
+ID: 269995a0-7cb0-4ea2-9d54-e49bd1c2ec89
+Model: deepseek/deepseek-v4-flash
+Task IDs:
+  2026-06-20: 30327d10-f6fe-4b0a-b184-ceda1c7f719d
+  2026-06-15: 92c3bad8-fa84-4453-9032-66b20b37dbca
+  2026-06-22: 76d7871f-40f3-4ff3-b1bc-1c674930e206

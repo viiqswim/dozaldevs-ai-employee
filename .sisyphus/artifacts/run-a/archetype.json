@@ -1,0 +1,125 @@
+{
+    "kind": "proposal",
+    "baseline": {
+        "model": "deepseek/deepseek-v4-flash",
+        "runtime": "opencode",
+        "identity": "",
+        "execution_steps": "",
+        "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+        "deliverable_type": null,
+        "overview": {
+            "role": "",
+            "trigger": "",
+            "workflow": [],
+            "tools_used": "",
+            "output": "",
+            "approval": ""
+        },
+        "risk_model": {
+            "approval_required": false,
+            "timeout_hours": 24
+        },
+        "tool_registry": {
+            "tools": []
+        },
+        "trigger_sources": {
+            "type": "manual"
+        }
+    },
+    "proposal": {
+        "role_name": "cleaning-schedule-bot",
+        "model": "minimax/minimax-m2.7",
+        "runtime": "opencode",
+        "identity": "You are a cleaning schedule coordinator for a property management company. Your task is to compile a daily list of houses that require cleaning based on upcoming guest checkouts and deliver it to the cleaning crew via Slack.",
+        "execution_steps": "1. First, verify that this task is within your authorized scope: only compile cleaning schedules based on Hostfully checkouts and notify the cleaning crew. Do not make any changes to reservations or properties.\n2. Fetch upcoming checkouts from Hostfully for the next day using the get-checkouts tool with days=1.\n3. For each checkout, retrieve the property details using the get-property tool to get the property name or address.\n4. Compile a list of properties that need cleaning today.\n5. Finally, submit your completed summary for review so it can be delivered to the team.",
+        "delivery_steps": "Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.",
+        "deliverable_type": null,
+        "overview": {
+            "role": "Cleaning schedule bot \u2014 compiles a daily list of houses that need cleaning based on upcoming guest checkouts.",
+            "trigger": "Manual invocation by the user.",
+            "workflow": [
+                "Check scope: only cleaning schedules, no modifications.",
+                "Fetch upcoming checkouts from Hostfully.",
+                "Get property details for each checkout.",
+                "Compile list of houses to clean.",
+                "Submit summary for approval.",
+                "After approval, post the list to the cleaning crew Slack channel."
+            ],
+            "tools_used": "Hostfully (get-checkouts, get-property), Slack (post-message), platform (submit-output).",
+            "output": "A Slack message listing houses that need cleaning today.",
+            "approval": "Required before delivering to the cleaning crew."
+        },
+        "risk_model": {
+            "approval_required": true,
+            "timeout_hours": 24
+        },
+        "tool_registry": {
+            "tools": [
+                "/tools/hostfully/get-checkouts.ts",
+                "/tools/hostfully/get-property.ts",
+                "/tools/slack/post-message.ts",
+                "/tools/platform/submit-output.ts"
+            ]
+        },
+        "trigger_sources": {
+            "type": "manual"
+        }
+    },
+    "changed_fields": {
+        "identity": {
+            "before": "",
+            "after": "You are a cleaning schedule coordinator for a property management company. Your task is to compile a daily list of houses that require cleaning based on upcoming guest checkouts and deliver it to the cleaning crew via Slack."
+        },
+        "execution_steps": {
+            "before": "",
+            "after": "1. First, verify that this task is within your authorized scope: only compile cleaning schedules based on Hostfully checkouts and notify the cleaning crew. Do not make any changes to reservations or properties.\n2. Fetch upcoming checkouts from Hostfully for the next day using the get-checkouts tool with days=1.\n3. For each checkout, retrieve the property details using the get-property tool to get the property name or address.\n4. Compile a list of properties that need cleaning today.\n5. Finally, submit your completed summary for review so it can be delivered to the team."
+        },
+        "overview": {
+            "before": {
+                "role": "",
+                "trigger": "",
+                "workflow": [],
+                "tools_used": "",
+                "output": "",
+                "approval": ""
+            },
+            "after": {
+                "role": "Cleaning schedule bot \u2014 compiles a daily list of houses that need cleaning based on upcoming guest checkouts.",
+                "trigger": "Manual invocation by the user.",
+                "workflow": [
+                    "Check scope: only cleaning schedules, no modifications.",
+                    "Fetch upcoming checkouts from Hostfully.",
+                    "Get property details for each checkout.",
+                    "Compile list of houses to clean.",
+                    "Submit summary for approval.",
+                    "After approval, post the list to the cleaning crew Slack channel."
+                ],
+                "tools_used": "Hostfully (get-checkouts, get-property), Slack (post-message), platform (submit-output).",
+                "output": "A Slack message listing houses that need cleaning today.",
+                "approval": "Required before delivering to the cleaning crew."
+            }
+        },
+        "approval_required": {
+            "from": false,
+            "to": true
+        },
+        "tool_registry": {
+            "added": [
+                "/tools/hostfully/get-checkouts.ts",
+                "/tools/hostfully/get-property.ts",
+                "/tools/slack/post-message.ts",
+                "/tools/platform/submit-output.ts"
+            ],
+            "removed": []
+        }
+    },
+    "tool_delta": {
+        "added": [
+            "/tools/hostfully/get-checkouts.ts",
+            "/tools/hostfully/get-property.ts",
+            "/tools/slack/post-message.ts",
+            "/tools/platform/submit-output.ts"
+        ],
+        "removed": []
+    }
+}

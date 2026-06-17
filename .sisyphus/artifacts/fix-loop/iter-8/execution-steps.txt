@@ -1,0 +1,155 @@
+SIGUE ESTOS PASOS EXACTAMENTE. NO LOS MODIFIQUES.
+
+PASO 1: Lee la fecha objetivo ejecutando:
+  printenv INPUT_TARGET_DATE
+  Guarda como TARGET_DATE. CRITICO: Usa TARGET_DATE en TODOS los pasos siguientes. NUNCA uses la fecha del sistema o hoy.
+
+PASO 2: Calcula el dia de la semana para TARGET_DATE ejecutando exactamente este comando Node.js:
+  node -e "const d=new Date(process.env.INPUT_TARGET_DATE+'T12:00:00Z'); const days=['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado']; console.log(days[d.getUTCDay()]);"
+  Guarda como DAY_OF_WEEK. Esta es la UNICA fuente autoritativa para el nombre del dia. NO lo adivines ni lo calcules de otra forma.
+  Declara en voz alta: "TARGET_DATE=[valor], DAY_OF_WEEK=[valor]"
+
+PASO 3: Obtiene los checkouts de Hostfully ejecutando:
+  tsx /tools/hostfully/get-checkouts.ts --date TARGET_DATE
+  (usa el valor real de TARGET_DATE, no la palabra literal TARGET_DATE)
+  Esto devuelve JSON con campos: listingName, normalizedAddress, roomId, zipCode, city, checkOutTime.
+  EXCLUYE COMPLETAMENTE cualquier propiedad en Colorado (CO). No la menciones en ningun parte del horario.
+  Si el array esta vacio: escribe "No hay checkouts para TARGET_DATE. No se requiere limpieza." a /tmp/cleaning-schedule-draft.txt y ejecuta:
+    tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "No checkouts" --classification NO_ACTION_NEEDED
+  Luego DETENTE.
+
+  CRITICO — FUENTE UNICA DE CHECKOUTS:
+  El output de get-checkouts.ts es la UNICA fuente de propiedades con checkout para TARGET_DATE.
+  Las propiedades listadas en el Directorio Operativo, Reporte Financiero, o cualquier otra base de datos de Notion son datos de REFERENCIA SOLAMENTE — NO son checkouts.
+  NUNCA agregues una propiedad al horario de limpieza a menos que aparezca en el JSON de get-checkouts.ts para TARGET_DATE.
+  Si una propiedad aparece en Notion pero NO en el output de get-checkouts.ts, NO tiene checkout hoy y NO debe incluirse en el horario de limpieza.
+  Cuenta el numero exacto de entradas en el JSON de get-checkouts.ts y declara: "Encontre [N] checkouts: [lista de normalizedAddress con zipCode]"
+  Usa EXACTAMENTE ese numero N — ni mas ni menos.
+
+PASO 4: Asigna limpiadores usando la TABLA DE COBERTURA HARDCODED a continuacion.
+  Usa SOLAMENTE el campo zipCode del JSON de Hostfully. NO leas ninguna base de datos de Notion para determinar zonas.
+  La UNICA fuente autorizada para asignacion de zonas es esta tabla del Manual de Personal:
+
+  TABLA DE COBERTURA POR ZIP:
+  - ZIP 78744 (Austin): Yessica primaria Lunes-Sabado. Berenice y Susana backup fines de semana.
+  - ZIP 78640 (Kyle): Diana EXCLUSIVA para 271 Gina Dr TODOS los dias TODAS las unidades sin excepcion.
+  - ZIP 78203 (San Antonio): Zenaida todos los dias.
+  - ZIP 78109 (Converse): Zenaida todos los dias.
+  - ZIP 78724: SIN ASIGNAR (ZIP 78724 no cubierto en Manual de Personal)
+  - ZIP 78722: SIN ASIGNAR (ZIP 78722 no cubierto en Manual de Personal)
+  - ZIP 78741: SIN ASIGNAR (ZIP 78741 no cubierto en Manual de Personal)
+  - Cualquier otro ZIP no listado: SIN ASIGNAR (ZIP [codigo] no cubierto en Manual de Personal)
+
+PASO 5: Aplica reglas de disponibilidad segun DAY_OF_WEEK:
+  - CRITICO: Diana es EXCLUSIVA para 271 Gina Dr (ZIP 78640) TODOS los dias incluyendo Sabado y Domingo. Este rol exclusivo NO depende del dia de la semana.
+  - Si Domingo: Yessica NO disponible. Sus propiedades 78744 van a Berenice.
+  - Si Sabado: Yessica disponible con MAXIMO 240 minutos totales de limpieza.
+  - Si Lunes a Viernes: Yessica disponible dia completo 10AM-5PM.
+  - Zenaida disponible TODOS los dias para 78203 y 78109.
+
+PASO 6 - DISTRIBUCION SABADO (aplica SOLO si DAY_OF_WEEK == Sabado):
+  Distribuye propiedades ZIP 78744 entre Yessica y Berenice:
+  a) Lista TODAS las propiedades 78744 checkout con sus unidades y duracion de limpieza por unidad.
+  b) Agrupa unidades por direccion de propiedad (ej: 7213 Nutria Run Hab1+Hab3+Hab5 juntas).
+  c) Calcula el tiempo TOTAL de limpieza por grupo de propiedad.
+  d) Asigna grupos de propiedades COMPLETOS a Yessica (nunca dividas una propiedad entre dos limpiadoras) hasta llegar a su limite de 240 min.
+  e) Asigna grupos restantes a Berenice (sin limite de tiempo).
+  f) Elige los grupos mas pequenos para Yessica para usar su limite eficientemente.
+  EJEMPLO CORRECTO: 7213 Nutria Run total=90min cabe en 240 → asigna TODO Nutria Run a Yessica. 4403 Hayride Ln total=270min excede 240 → asigna TODO Hayride Ln a Berenice.
+
+PASO 7: Lee los tiempos de limpieza del Reporte Financiero ejecutando:
+  tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"370d540b438080ca8676e61856488960"}'
+  Para cada checkout, busca la duracion por tipo de unidad: Habitacion=Room, Casa/Home=Home, Unidad=Unit, Loft=Loft.
+  REGLA DE CHECKOUT: si hay checkout sin nuevo check-in ese dia usar tarifa de unidad INDIVIDUAL no tarifa Home completa.
+  Tiempos de fallback conocidos (usa si Notion no tiene el dato exacto):
+  - Habitaciones/Rooms en mayoría de propiedades: 25 min c/u (excepto 7213 Nutria Run Hab5 = 40 min)
+  - 219 Paul St Casa/Home: 90 min
+  - 407 S Gevers St Loft: 60 min
+  - 4403/4405 Hayride Ln Unidades A/B/C: 90 min c/u
+  - 6002 Palm Circle Casa/Home: 180 min
+  - 5306 King Charles Unidad A: 90 min
+  - 3505 Banton Rd Habitaciones: 25 min c/u
+  - 271 Gina Dr Habitaciones: 25 min c/u
+
+PASO 8: Calcula TAREAS DE BASURA para TARGET_DATE.
+  Usa ESTE CALENDARIO HARDCODED. NO leas Notion para obtener el calendario de basura.
+
+  IMPORTANTE — SEPARACION LIMPIEZA vs BASURA:
+  Las propiedades en el calendario de basura son propiedades de REFERENCIA para tareas de basura.
+  Una propiedad puede tener tarea de basura aunque NO tenga checkout ese dia.
+  Una propiedad con tarea de basura NO se agrega al horario de limpieza — solo aparece en la seccion de basura.
+  NUNCA confundas una propiedad del calendario de basura con un checkout de Hostfully.
+
+  REGLA BASURA 78744/78640:
+  - Recordatorio Sacar basura: 1 dia ANTES de recoleccion. EXCEPCION: si recoleccion es Lunes el recordatorio aplica Viernes Sabado Y Domingo.
+  - Confirmar recoleccion y guardar botes: dia SIGUIENTE a la recoleccion. NO el mismo dia de recoleccion.
+  - Si hoy ES el dia de recoleccion: sin accion de basura para esa propiedad.
+
+  REGLA BASURA 78203/78109:
+  - Recordatorio Sacar basura: 2 dias ANTES Y 1 dia ANTES de la recoleccion.
+  - Confirmar recoleccion y guardar botes: dia SIGUIENTE a la recoleccion.
+
+  CALENDARIO DE RECOLECCION:
+  - 7213 Nutria Run (78744): Recoleccion LUNES. Recordatorio: Viernes/Sabado/Domingo. Confirmar: Martes.
+  - 271 Gina Dr (78640): Recoleccion LUNES. Recordatorio: Viernes/Sabado/Domingo. Confirmar: Martes.
+  - 3401 Breckenridge Dr (78744): Recoleccion MARTES. Recordatorio: Lunes. Confirmar: Miercoles.
+  - 3412 Sand Dunes Ave (78744): Recoleccion MARTES. Recordatorio: Lunes. Confirmar: Miercoles.
+  - 3420 Hovenweep Ave (78744): Recoleccion MARTES. Recordatorio: Lunes. Confirmar: Miercoles.
+  - 4403 Hayride Ln (78744): Recoleccion JUEVES. Recordatorio: Miercoles. Confirmar: Viernes.
+  - 4405 Hayride Ln (78744): Recoleccion JUEVES. Recordatorio: Miercoles. Confirmar: Viernes.
+  - 4410 Hayride Ln (78744): Recoleccion JUEVES. Recordatorio: Miercoles. Confirmar: Viernes.
+  - 4402 McKinney Falls Pkwy (78744): Recoleccion JUEVES. Recordatorio: Miercoles. Confirmar: Viernes.
+  - 407 S Gevers St (78203): Recoleccion MARTES y JUEVES. Para Martes: Recordatorio Domingo+Lunes. Para Jueves: Recordatorio Martes+Miercoles.
+  - 219 Paul St (78203): Recoleccion MARTES y JUEVES bote siempre en calle. Mismos dias de recordatorio que 407 S Gevers.
+  - 6930 Heron Flats (78109): Recoleccion MARTES. Recordatorio: Domingo+Lunes. Confirmar: Miercoles.
+  - 8039 Chestnut Cedar (78109): Recoleccion MARTES. Recordatorio: Domingo+Lunes. Confirmar: Miercoles.
+  - 6002 Palm Circle (78741): Recoleccion MARTES. Recordatorio: Lunes. [ZIP 78741 SIN ASIGNAR para basura tambien]
+  - 3505 Banton Rd (78722): Recoleccion VIERNES. [ZIP 78722 sin regla de basura. Sin accion.]
+  - 5306 King Charles Dr (78724): Recoleccion JUEVES los propietarios se encargan. Sin accion para limpiadores.
+  - 1602 Bluebird Ln Colorado 80421: EXCLUIR COMPLETAMENTE de basura.
+
+  Para cada propiedad donde TARGET_DATE es dia de recordatorio o confirmacion:
+  Asigna la tarea al limpiador de esa zona.
+  Propiedades SIN ASIGNAR: nota la tarea de basura como SIN ASIGNAR tambien.
+  271 Gina Dr: siempre a Diana.
+  Yessica: maneja basura 78744 Lunes a Sabado. Si Domingo entonces Berenice.
+  Zenaida: maneja TODA la basura 78203 y 78109 incluso si no hay limpiezas ese dia.
+
+PASO 9: Aplica overhead de traslado para zona 78744/78640:
+  Para Yessica, Diana o Berenice:
+  Si tiene CERO limpiezas asignadas ese dia PERO tiene al menos UNA tarea de basura asignada: aniade 45 min de overhead de traslado UNA SOLA VEZ (no 45 min por propiedad).
+
+PASO 10: Construye el horario completo EN ESPANOL y guardalo en /tmp/cleaning-schedule-draft.txt.
+  Usa este formato exacto de Slack mrkdwn:
+
+  Inicio del mensaje:
+  🧹 *Limpieza — [DAY_OF_WEEK] [TARGET_DATE]*
+
+  Para cada limpiadora con limpiezas:
+  👤 *[NombreLimpiadora]* — [totalMinLimpieza] min
+    • [normalizedAddress] — [roomId] — [checkOutTime] — Limpieza ([minutos] min)
+      🗑️ [accion de basura si aplica para esta propiedad hoy]
+
+  Para propiedades sin asignar:
+  ⚠️ *Sin Asignacion*
+    • [normalizedAddress] — [roomId] — [checkOutTime] — Limpieza ([minutos] min) — ZIP [codigo] no cubierto en Manual de Personal
+
+  Separador y seccion basura:
+  ---
+  🗑️ *Basura — [DAY_OF_WEEK] [TARGET_DATE]*
+
+  Para limpiadoras con tareas de basura en propiedades sin limpieza ese dia:
+  👤 *[NombreLimpiadora]*[+45 min traslado si aplica]
+    • [normalizedAddress] — [accion de basura]
+
+  Resumen final:
+  ---
+  📊 *Resumen*
+  [N] propiedades con checkout · [N] limpiadora(s) activas
+  [NombreLimpiadora]: [N] propiedad(es) — [totalMin] min
+  Sin asignar: [N] propiedad(es)
+
+PASO 11: Envia el output ejecutando:
+  tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza para TARGET_DATE" --classification NO_ACTION_NEEDED
+
+DETENTE despues del Paso 11. No hagas nada mas.
