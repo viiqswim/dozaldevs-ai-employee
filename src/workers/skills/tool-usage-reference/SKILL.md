@@ -205,7 +205,7 @@ All tools are executed via `tsx`. Output is JSON to stdout; errors go to stderr.
 
 **Arguments**:
 
-- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 * 3")
+- `--expression` (required): Math expression to evaluate (e.g. "2 + 2 \* 3")
 
 ## platform/report-issue
 
@@ -467,6 +467,7 @@ This prevents the task from silently failing or getting stuck. The user sees a c
 - `--task-id <uuid>` — When provided, auto-generates approval blocks with header, text, task context block, Approve & Post / Reject buttons. Omit `--blocks` when using this.
 - `--title <string>` — Custom header title for the approval card (default: `"Task Review — <date>"`)
 - `--blocks <json>` — Raw Block Kit JSON array. Mutually exclusive with `--task-id` auto-blocks.
+- `--text-file <path>` — Read message body from a file instead of `--text`. Use for large content (e.g. `--text-file /tmp/delivery-draft.txt`). Mutually exclusive with `--text`.
 - `--conversation-ref <string>` — Hostfully thread UID for supersede detection. Included in output if provided.
 - `--thread-ts <ts>` — Override thread timestamp. If omitted, auto-reads `NOTIFY_MSG_TS` from env to thread under the task notification.
 - `--no-thread` — Suppress auto-threading. Posts a new top-level message even when `NOTIFY_MSG_TS` is set in the environment.
@@ -494,6 +495,64 @@ Or with `--conversation-ref`:
 ```
 
 **Worked example:** Threading is automatic — `NOTIFY_MSG_TS` and `INNGEST_RUN_ID` are read from env. A typical approval post uses `--channel "$NOTIFICATION_CHANNEL" --text "..." --task-id "$TASK_ID"` and redirects stdout to `/tmp/approval-message.json`. To post a standalone top-level message, add `--no-thread`; to thread under a specific message, add `--thread-ts <ts>`.
+
+**Delivery example with `--text-file`:** In the delivery phase, read the approved content from `<approved-content>` XML, write it to `/tmp/delivery-draft.txt`, then pass it to post-message:
+
+```bash
+# Write approved content to working file
+cat << 'EOF' > /tmp/delivery-draft.txt
+<content from <approved-content> block>
+EOF
+
+# Post using --text-file (avoids shell quoting issues with large content)
+NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
+  --channel "$NOTIFICATION_CHANNEL" \
+  --text-file /tmp/delivery-draft.txt
+```
+
+---
+
+## Delivery Session Pattern
+
+In the delivery phase, the platform injects the approved content via `<approved-content>` XML in the initial delivery prompt. The delivery OpenCode session is responsible for extracting and sending it.
+
+**Standard delivery workflow:**
+
+1. **Read from prompt** — The approved content is in `<approved-content>...</approved-content>` XML in your initial message. Parse it from there — do NOT re-fetch from external APIs or re-generate it.
+2. **Write to working file** — Extract the content and write it to `/tmp/delivery-draft.txt`:
+   ```bash
+   # Use bash heredoc or echo to write the extracted content
+   cat << 'DRAFT_EOF' > /tmp/delivery-draft.txt
+   <your extracted content here>
+   DRAFT_EOF
+   ```
+3. **Deliver using `--text-file`** — Pass the working file to the appropriate delivery tool:
+
+   ```bash
+   # Slack delivery
+   NODE_NO_WARNINGS=1 tsx /tools/slack/post-message.ts \
+     --channel "$NOTIFICATION_CHANNEL" \
+     --text-file /tmp/delivery-draft.txt
+
+   # Hostfully guest reply
+   NODE_NO_WARNINGS=1 tsx /tools/hostfully/send-message.ts \
+     --lead-id "$LEAD_UID" \
+     --message "$(cat /tmp/delivery-draft.txt)"
+   ```
+
+4. **Confirm delivery** — Call `submit-output.ts` with `NO_ACTION_NEEDED` to signal that delivery is complete:
+   ```bash
+   tsx /tools/platform/submit-output.ts \
+     --summary "Delivered successfully" \
+     --classification NO_ACTION_NEEDED
+   ```
+
+**Key invariants:**
+
+- `/tmp/delivery-draft.txt` is a session-local working file — the platform harness never reads it
+- The platform harness reads `/tmp/summary.txt` (written by `submit-output.ts`) to confirm delivery
+- Never use `/tmp/summary.txt` as a draft file path — it is the output contract file
+- The delivery container cannot access `/tmp/draft.txt` from the execution container — they are separate machines
 
 ---
 
