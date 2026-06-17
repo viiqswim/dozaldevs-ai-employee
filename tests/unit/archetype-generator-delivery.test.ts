@@ -91,4 +91,21 @@ describe('postProcess() delivery_steps default derivation (via generate())', () 
     expect(result.delivery_steps).toBeTruthy();
     expect((result.delivery_steps as string).length).toBeGreaterThan(0);
   });
+
+  // RED-phase TDD: case (d) is EXPECTED to fail until Task 8 closes the null/null loophole.
+  // Do not "fix" by deleting it. It supersedes case (b)'s legacy escape-hatch expectation.
+  it('(d) NULL/NULL LOOPHOLE: deliverable_type null + delivery_steps null → still derives a non-empty default', async () => {
+    const raw = makeRawModelOutput({
+      deliverable_type: null,
+      delivery_steps: null,
+      delivery_instructions: null,
+    });
+    const gen = new ArchetypeGenerator(makeRoutingLLM(raw) as unknown as typeof callLLM);
+
+    const result = await gen.generate(DESCRIPTION);
+
+    expect(typeof result.delivery_steps).toBe('string');
+    expect(result.delivery_steps).toBeTruthy();
+    expect((result.delivery_steps as string).length).toBeGreaterThan(0);
+  });
 });
